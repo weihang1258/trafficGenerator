@@ -1,0 +1,1874 @@
+[
+ {
+  "id": "jt808_t1_baseline_assoc",
+  "proto": "jt808",
+  "summary": "T-1 基线关联：3 握手+4 消息+3 挥手=10 帧；msgId 序 0100/8100/0102/8001；双 SN 空间 0/0→1/1",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt808": {
+      "phone": "012345678901",
+      "auth_code": "ABCDEF1234567890",
+      "procedures": [
+       {
+        "type": "register"
+       },
+       {
+        "type": "registration_response"
+       },
+       {
+        "type": "auth"
+       },
+       {
+        "type": "platform_general_response"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "packet_count": 10,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "7611"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.flags",
+     "value": "0x018"
+    },
+    {
+     "packet": 5,
+     "field": "tcp.flags",
+     "value": "0x018"
+    },
+    {
+     "packet": 6,
+     "field": "tcp.flags",
+     "value": "0x018"
+    },
+    {
+     "packet": 7,
+     "field": "tcp.flags",
+     "value": "0x018"
+    },
+    {
+     "packet": 8,
+     "field": "tcp.flags",
+     "value": "0x011"
+    },
+    {
+     "packet": 9,
+     "field": "tcp.flags",
+     "value": "0x011"
+    },
+    {
+     "packet": 10,
+     "field": "tcp.flags",
+     "value": "0x010"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "7e 01 00 08 25 01 23 45 67 89 01 00 00 00 00 00 00 54 45 53 54 00"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "7e 81 00 08 13 01 23 45 67 89 01 00 00 00 00 00 41 42 43 44"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "7e 01 02 08 33 01 23 45 67 89 01 00 01 41 42 43 44"
+    },
+    {
+     "packet": 7,
+     "offset": 54,
+     "hex": "7e 80 01 08 05 01 23 45 67 89 01 00 01 00 01 01 02 00 07"
+    }
+   ],
+   "notes": [
+    "包数实测钉 10；消息帧=每帧一个 TCP PSH-ACK（payload 起点 offset 54=eth14+ip20+tcp20）",
+    "f4 0x0100 注册体 37B（省2+市2+厂商5+型号20+终端ID7+色1，plate 空——LicenseColor 缺省 0）；props 0x0825=版本位 010(2019,2<<10)|体长 0x25",
+    "f5 0x8100 注册应答：respSN 自动绑 0x0100 SN=0，result=0 携带 AuthCode 16B（props 0x0813=19B）",
+    "f6 0x0102 鉴权：SN=1（上行计数器已用 0）；体=AuthCode16+IMEI15(0 填充)+软件版本20(0 填充)=51B",
+    "f7 0x8001 平台通用应答：respSN 绑最近上行 SN=1、respMsgId 绑最近上行 msgId=0x0102（设计 §5A M-05 自动绑定），result=0",
+    "TCP 握手/挥手由生成器自驱（raw 自驱）：f1-f3 握手、f8-f10 挥手；端口=legacy 内部缺省 7611（vnc/pptp 变体，层无端口字段）"
+   ]
+  }
+ },
+ {
+  "id": "jt808_t2_frame_header_bytes",
+  "proto": "jt808",
+  "summary": "T-2 帧头字节钉：0x7e 定界+msgId/props/手机号 BCD/SN+XOR 校验和（initial_sn=42 显式）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt808": {
+      "phone": "012345678901",
+      "initial_sn": 42,
+      "procedures": [
+       {
+        "type": "register"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "packet_count": 7,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "7611"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "7e 01 00 08 25 01 23 45 67 89 01 00 2a 00 00 00 00 54 45 53 54 00 54 47 2d 44 45 4d 4f 20 20 20 20 20 20 20 20 20 20 20 20 20 30 30 30 30 30 30 31 00 b4 7e"
+    }
+   ],
+   "notes": [
+    "整帧 52B：0x7e + 头12B + 体37B + 校验和1B + 0x7e；头=msgId 0100+props 0825+手机号 BCD 012345678901→01 23 45 67 89 01+SN 002a(42)",
+    "体=省 0000+市 0000+厂商 TEST(0x00 补至 5)+型号 TG-DEMO(0x20 补至 20)+终端ID 0000001+色 00；校验和 b4=头+体逐字节 XOR（design §3A.3）",
+    "无转义面：本帧无 0x7e/0x7d 载荷字节（转义路径见 T-5）"
+   ]
+  }
+ },
+ {
+  "id": "jt808_t3_dual_sn_autobind",
+  "proto": "jt808",
+  "summary": "T-3 双 SN 空间（initial_sn=100/platform_initial_sn=200）+ 4 自动绑定逐格钉",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt808": {
+      "phone": "012345678901",
+      "initial_sn": 100,
+      "platform_initial_sn": 200,
+      "procedures": [
+       {
+        "type": "query_location"
+       },
+       {
+        "type": "location_query_response",
+        "location_data": {
+         "alarm_flag": 1,
+         "latitude": 39900000,
+         "longitude": 116390000,
+         "altitude": 50,
+         "speed": 600,
+         "direction": 90,
+         "time": "260921120000"
+        }
+       },
+       {
+        "type": "text_down",
+        "text_flag": 1,
+        "text": "hi"
+       },
+       {
+        "type": "terminal_general_response"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "packet_count": 10,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "7e 82 01 08 00 01 23 45 67 89 01 00 c8 cb"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "7e 02 01 08 1e 01 23 45 67 89 01 00 64 00 c8 00 00 00 01 00 00 00 00 02 60 d3 60"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "7e 83 00 08 03 01 23 45 67 89 01 00 c9 01 68 69 c9"
+    },
+    {
+     "packet": 7,
+     "offset": 54,
+     "hex": "7e 00 01 08 05 01 23 45 67 89 01 00 65 00 c9 83 00 00 ab"
+    }
+   ],
+   "notes": [
+    "f4 0x8201 查询位置（下行空体）：下行 SN=0x00c8=200（PlatformInitialSN 独立空间，design §6A.2）",
+    "f5 0x0201 位置查询应答：querySN 自动绑最近 0x8201=0x00c8；上行 SN=0x0064=100（InitialSN）；体=querySN2+28B 位置面（lat 0260d360=39900000/lon 06eff870=116390000/alt 0032/speed 0258/dir 005a/time BCD 260921120000）",
+    "f6 0x8300 文本下发：下行 SN=0x00c9（递增）；text_flag 01+GBK \"hi\"=6869",
+    "f7 0x0001 终端通用应答：respSN 绑最近下行 SN=0x00c9、respMsgId 绑最近下行 msgId=0x8300；上行 SN=0x0065——双计数器互不干扰（上行 100/101，下行 200/201）"
+   ]
+  }
+ },
+ {
+  "id": "jt808_t4_register_body_fields",
+  "proto": "jt808",
+  "summary": "T-4 注册体字段钉：省域/市域 BE+三段 pad 规则（0x00/0x20/0x00）+车牌色+GBK 车牌",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt808": {
+      "phone": "012345678901",
+      "province_id": 11,
+      "license_color": 1,
+      "license_plate": "京A12345",
+      "terminal_model": "TG-DEMO-X",
+      "procedures": [
+       {
+        "type": "register"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "packet_count": 7,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "7e 01 00 08 2d 01 23 45 67 89 01 00 00 00 0b 00 00 54 45 53 54 00 54 47 2d 44 45 4d 4f 2d 58 20 20 20 20 20 20 20 20 20 20 20 30 30 30 30 30 30 31 01 be a9 41 31 32 33 34 35 8e 7e"
+    }
+   ],
+   "notes": [
+    "体 45B=省 000b(11)+市 0000+厂商 5445535400（TEST+0x00 补至 5）+型号 54472d44454d4f2d58+0x20×11（TG-DEMO-X 补至 20）+终端ID 30×7+色 01+GBK 车牌",
+    "京A12345 GBK=be a9 41 31 32 33 34 35（京=0xBEA9，ASCII 原样）；props 0x082d=版本位|体长 0x2d(45)"
+   ]
+  }
+ },
+ {
+  "id": "jt808_t5_location_bitmerge_escape",
+  "proto": "jt808",
+  "summary": "T-5 位置上报：28B 固定面+ACC 位合并 OR 入 StatusFlag bit0+TLV value 含 0x7e/0x7d 触发转义（7d02/7d01）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt808": {
+      "phone": "012345678901",
+      "procedures": [
+       {
+        "type": "location_report",
+        "location_data": {
+         "alarm_flag": 1,
+         "latitude": 39900000,
+         "longitude": 116390000,
+         "altitude": 50,
+         "speed": 600,
+         "direction": 90,
+         "time": "260921120000",
+         "acc": true,
+         "extra_items": [
+          {
+           "type": 1,
+           "value": [
+            126,
+            125
+           ]
+          }
+         ]
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "packet_count": 7,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "7e 02 00 08 20 01 23 45 67 89 01 00 00 00 00 00 01 00 00 00 01 02 60 d3 60 06 ef f8 70 00 32 02 58 00 5a 26 09 21 12 00 00 01 02 7d 02 7d 01 3c 7e"
+    }
+   ],
+   "notes": [
+    "整帧 49B：0x7e+头12+体32+校验+0x7e；体=alarm 00000001+status 00000001（status_flag 直设缺省 0，acc=true OR 入 bit0，design §5A H-05）+lat/lon/alt/speed/dir/time BCD+TLV",
+    "转义面（design §3A.4）：TLV=type 01+len 02+value [126,125]=7e 7d，0x7e→7d02、0x7d→7d01 后帧长 +2（7d02 7d01 在 payload 偏移 42-45）",
+    "props 0x0820=体长 0x20(32，转义前)；校验和 3c 对转义后全量逐字节 XOR"
+   ]
+  }
+ },
+ {
+  "id": "jt808_t6_version2011_encrypt_bit",
+  "proto": "jt808",
+  "summary": "T-6 版本方言 2011（props 版本位 000）+encrypt_flag=1（bit15）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt808": {
+      "phone": "012345678901",
+      "version": "2011",
+      "encrypt_flag": 1,
+      "procedures": [
+       {
+        "type": "cancel"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 7,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "7e 00 03 80 00 01 23 45 67 89 01 00 00 0b 7e"
+    }
+   ],
+   "notes": [
+    "0x0003 注销（空体）：props 0x8000=bit15 加密标志置位+版本位 000(2011，对比 T-1 2019=010 即 0x0800)——2013=001 同机制不单列（B′ 注记）",
+    "encrypt_flag=1 为占位不做真加密（design §14）：标志位置位、体明文",
+    "has_payload 不适用：最大帧 15/26B 低于 80B 载荷断言门（短帧用例口径）"
+   ]
+  }
+ },
+ {
+  "id": "jt808_t7_down_tlv_trio",
+  "proto": "jt808",
+  "summary": "T-7 down 面：0x8103 设置参数 TLV+0x8104 查询参数（空体）+0x0003 注销（上行空体）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt808": {
+      "phone": "012345678901",
+      "procedures": [
+       {
+        "type": "set_params",
+        "params": [
+         {
+          "id": 1,
+          "value": "abcd"
+         },
+         {
+          "id": 130,
+          "value": [
+           0,
+           255
+          ]
+         }
+        ]
+       },
+       {
+        "type": "query_params"
+       },
+       {
+        "type": "cancel"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "7e 81 03 08 0a 01 23 45 67 89 01 00 00 01 04 61 62 63 64 82 02 00 ff 76"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "7e 81 04 08 00 01 23 45 67 89 01 00 01 04"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "7e 00 03 08 00 01 23 45 67 89 01 00 00 83"
+    }
+   ],
+   "notes": [
+    "f4 0x8103 体=TLV×2：id 01+len 04+\"abcd\"/id 82(130)+len 02+00ff；props 0x080a=体长 10；下行 SN=0",
+    "f5 0x8104 空体（props 0x0800）；f6 0x0003 注销空体但属上行（终端主动）→上行 SN=0——方向与计数器归属分离",
+    "value 双形：param1 用原文字符串 \"abcd\"、param2 用字节数组 [0,255]（getByteSlice 字符串=原文字节非 hex——P5 勘误）",
+    "has_payload 不适用：最大帧 25B 低于 80B 载荷断言门（短帧用例口径）"
+   ]
+  }
+ },
+ {
+  "id": "jt808_t8_text_down_gbk",
+  "proto": "jt808",
+  "summary": "T-8 文本下发：text_flag 位+GBK 中文载荷字节钉（限速30公里）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt808": {
+      "phone": "012345678901",
+      "procedures": [
+       {
+        "type": "text_down",
+        "text_flag": 1,
+        "text": "限速30公里"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 7,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "7e 83 00 08 0b 01 23 45 67 89 01 00 00 01 cf de cb d9 33 30 b9 ab c0 ef 34"
+    }
+   ],
+   "notes": [
+    "0x8300 体=text_flag 01+GBK：限=cfde 速=cbd9 3=33 0=30 公=b9ab 里=c0ef（12B，props 0x080b=13B）；下行 SN=0",
+    "JT/T808 文本默认 GBK（GB 18030 子集），中文载荷字节由 GBK 编码器产出（jtcommon.GBKEncode）",
+    "has_payload 不适用：最大帧 15/26B 低于 80B 载荷断言门（短帧用例口径）"
+   ]
+  }
+ },
+ {
+  "id": "jt808_t9_property_response",
+  "proto": "jt808",
+  "summary": "T-9 终端属性应答 0x0107：17 字段全钉（三段 pad+GBK APN+BE ID 族）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt808": {
+      "phone": "012345678901",
+      "procedures": [
+       {
+        "type": "property_response",
+        "property_data": {
+         "device_type": 1,
+         "manufacturer_id": "TEST",
+         "terminal_model": "TG-PROP",
+         "terminal_id": "0000001",
+         "icc_id": "1234567890",
+         "imei": "012345678901234",
+         "software_version": "V9.9",
+         "gnss_module": 1,
+         "comm_module": 2,
+         "province_id": 11,
+         "city_id": 1,
+         "county_id": 1,
+         "town_id": 1,
+         "operator": 1,
+         "apn": "cmnet",
+         "hardware_version": "H1",
+         "max_speed": 200
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "packet_count": 7,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "7e 01 07 08 62 01 23 45 67 89 01 00 00 01 54 45 53 54 00 54 47 2d 50 52 4f 50 20 20 20 20 20 20 20 20 20 20 20 20 20 30 30 30 30 30 30 31 31 32 33 34 35 36 37 38 39 30 30 31 32 33 34 35 36 37 38 39 30 31 32 33 34 56 39 2e 39 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 02 00 0b 00 01 00 01 00 01 01 63 6d 6e 65 74 48 31 00 c8 45 7e"
+    }
+   ],
+   "notes": [
+    "体 100B（props 0x0862）：类型 01+厂商 5(0x00 pad)+型号 20(0x20 pad)+终端ID 7+ICC 10+IMEI 15+软版本 20(0x00 pad)+GNSS/通信模块 01/02+省市区镇 BE(000b/0001/0001/0001)+运营商 01+APN GBK cmnet(不补)+硬件版本 H1(不补)+最高速度 00c8(200)",
+    "APN/硬件版本 GBK 后不补零（JT/T808 0x0107 变长尾），与厂商/型号/ID 定长补零规则区分"
+   ]
+  }
+ },
+ {
+  "id": "jt808_t10_fragmentation",
+  "proto": "jt808",
+  "summary": "T-10 分包：0x8103 体 1024B>1023 拆 2 帧（props bit14+pkgNum/pkgTotal 递增，SN 同值）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt808": {
+      "phone": "012345678901",
+      "procedures": [
+       {
+        "type": "set_params",
+        "params": [
+         {
+          "id": 1,
+          "value": [
+           0,
+           1,
+           2,
+           3,
+           4,
+           5,
+           6,
+           7,
+           8,
+           9,
+           10,
+           11,
+           12,
+           13,
+           14,
+           15,
+           16,
+           17,
+           18,
+           19,
+           20,
+           21,
+           22,
+           23,
+           24,
+           25,
+           26,
+           27,
+           28,
+           29,
+           30,
+           31,
+           32,
+           33,
+           34,
+           35,
+           36,
+           37,
+           38,
+           39,
+           40,
+           41,
+           42,
+           43,
+           44,
+           45,
+           46,
+           47,
+           48,
+           49,
+           50,
+           51,
+           52,
+           53,
+           54,
+           55,
+           56,
+           57,
+           58,
+           59,
+           60,
+           61,
+           62,
+           63,
+           64,
+           65,
+           66,
+           67,
+           68,
+           69,
+           70,
+           71,
+           72,
+           73,
+           74,
+           75,
+           76,
+           77,
+           78,
+           79,
+           80,
+           81,
+           82,
+           83,
+           84,
+           85,
+           86,
+           87,
+           88,
+           89,
+           90,
+           91,
+           92,
+           93,
+           94,
+           95,
+           96,
+           97,
+           98,
+           99,
+           100,
+           101,
+           102,
+           103,
+           104,
+           105,
+           106,
+           107,
+           108,
+           109,
+           110,
+           111,
+           112,
+           113,
+           114,
+           115,
+           116,
+           117,
+           118,
+           119,
+           120,
+           121,
+           122,
+           123,
+           124,
+           0,
+           1,
+           2,
+           3,
+           4,
+           5,
+           6,
+           7,
+           8,
+           9,
+           10,
+           11,
+           12,
+           13,
+           14,
+           15,
+           16,
+           17,
+           18,
+           19,
+           20,
+           21,
+           22,
+           23,
+           24,
+           25,
+           26,
+           27,
+           28,
+           29,
+           30,
+           31,
+           32,
+           33,
+           34,
+           35,
+           36,
+           37,
+           38,
+           39,
+           40,
+           41,
+           42,
+           43,
+           44,
+           45,
+           46,
+           47,
+           48,
+           49,
+           50,
+           51,
+           52,
+           53,
+           54,
+           55,
+           56,
+           57,
+           58,
+           59,
+           60,
+           61,
+           62,
+           63,
+           64,
+           65,
+           66,
+           67,
+           68,
+           69,
+           70,
+           71,
+           72,
+           73,
+           74,
+           75,
+           76,
+           77,
+           78,
+           79,
+           80,
+           81,
+           82,
+           83,
+           84,
+           85,
+           86,
+           87,
+           88,
+           89,
+           90,
+           91,
+           92,
+           93,
+           94,
+           95,
+           96,
+           97,
+           98,
+           99,
+           100,
+           101,
+           102,
+           103,
+           104,
+           105,
+           106,
+           107,
+           108,
+           109,
+           110,
+           111,
+           112,
+           113,
+           114,
+           115,
+           116,
+           117,
+           118,
+           119,
+           120,
+           121,
+           122,
+           123,
+           124,
+           0,
+           1,
+           2,
+           3,
+           4,
+           5,
+           6,
+           7,
+           8,
+           9,
+           10,
+           11,
+           12,
+           13,
+           14,
+           15,
+           16,
+           17,
+           18,
+           19,
+           20,
+           21,
+           22,
+           23,
+           24,
+           25,
+           26,
+           27,
+           28,
+           29,
+           30,
+           31,
+           32,
+           33,
+           34,
+           35,
+           36,
+           37,
+           38,
+           39,
+           40,
+           41,
+           42,
+           43,
+           44,
+           45,
+           46,
+           47,
+           48,
+           49,
+           50,
+           51,
+           52,
+           53,
+           54,
+           55,
+           56,
+           57,
+           58,
+           59,
+           60,
+           61,
+           62,
+           63,
+           64,
+           65,
+           66,
+           67,
+           68,
+           69,
+           70,
+           71,
+           72,
+           73,
+           74,
+           75,
+           76,
+           77,
+           78,
+           79,
+           80,
+           81,
+           82,
+           83,
+           84,
+           85,
+           86,
+           87,
+           88,
+           89,
+           90,
+           91,
+           92,
+           93,
+           94,
+           95,
+           96,
+           97,
+           98,
+           99,
+           100,
+           101,
+           102,
+           103,
+           104,
+           105,
+           106,
+           107,
+           108,
+           109,
+           110,
+           111,
+           112,
+           113,
+           114,
+           115,
+           116,
+           117,
+           118,
+           119,
+           120,
+           121,
+           122,
+           123,
+           124,
+           0,
+           1,
+           2,
+           3,
+           4,
+           5,
+           6,
+           7,
+           8,
+           9,
+           10,
+           11,
+           12,
+           13,
+           14,
+           15,
+           16,
+           17,
+           18,
+           19,
+           20,
+           21,
+           22,
+           23,
+           24,
+           25,
+           26,
+           27,
+           28,
+           29,
+           30,
+           31,
+           32,
+           33,
+           34,
+           35,
+           36,
+           37,
+           38,
+           39,
+           40,
+           41,
+           42,
+           43,
+           44,
+           45,
+           46,
+           47,
+           48,
+           49,
+           50,
+           51,
+           52,
+           53,
+           54,
+           55,
+           56,
+           57,
+           58,
+           59,
+           60,
+           61,
+           62,
+           63,
+           64,
+           65,
+           66,
+           67,
+           68,
+           69,
+           70,
+           71,
+           72,
+           73,
+           74,
+           75,
+           76,
+           77,
+           78,
+           79,
+           80,
+           81,
+           82,
+           83,
+           84,
+           85,
+           86,
+           87,
+           88,
+           89,
+           90,
+           91,
+           92,
+           93,
+           94,
+           95,
+           96,
+           97,
+           98,
+           99,
+           100,
+           101,
+           102,
+           103,
+           104,
+           105,
+           106,
+           107,
+           108,
+           109,
+           110,
+           111,
+           112,
+           113,
+           114,
+           115,
+           116,
+           117,
+           118,
+           119,
+           120,
+           121,
+           122,
+           123,
+           124,
+           0,
+           1,
+           2,
+           3,
+           4,
+           5,
+           6,
+           7,
+           8,
+           9,
+           10,
+           11,
+           12,
+           13,
+           14,
+           15,
+           16,
+           17,
+           18,
+           19,
+           20,
+           21,
+           22,
+           23,
+           24,
+           25,
+           26,
+           27,
+           28,
+           29,
+           30,
+           31,
+           32,
+           33,
+           34,
+           35,
+           36,
+           37,
+           38,
+           39,
+           40,
+           41,
+           42,
+           43,
+           44,
+           45,
+           46,
+           47,
+           48,
+           49,
+           50,
+           51,
+           52,
+           53,
+           54,
+           55,
+           56,
+           57,
+           58,
+           59,
+           60,
+           61,
+           62,
+           63,
+           64,
+           65,
+           66,
+           67,
+           68,
+           69,
+           70,
+           71,
+           72,
+           73,
+           74,
+           75,
+           76,
+           77,
+           78,
+           79,
+           80,
+           81,
+           82,
+           83,
+           84,
+           85,
+           86,
+           87,
+           88,
+           89,
+           90,
+           91,
+           92,
+           93,
+           94,
+           95,
+           96,
+           97,
+           98,
+           99,
+           100,
+           101,
+           102,
+           103,
+           104,
+           105,
+           106,
+           107,
+           108,
+           109,
+           110,
+           111,
+           112,
+           113,
+           114,
+           115,
+           116,
+           117,
+           118,
+           119,
+           120,
+           121,
+           122,
+           123,
+           124,
+           0,
+           1,
+           2,
+           3,
+           4,
+           5,
+           6,
+           7,
+           8,
+           9,
+           10,
+           11,
+           12,
+           13,
+           14,
+           15,
+           16,
+           17,
+           18,
+           19,
+           20,
+           21,
+           22,
+           23,
+           24,
+           25,
+           26,
+           27,
+           28,
+           29,
+           30,
+           31,
+           32,
+           33,
+           34,
+           35,
+           36,
+           37,
+           38,
+           39,
+           40,
+           41,
+           42,
+           43,
+           44,
+           45,
+           46,
+           47,
+           48,
+           49,
+           50,
+           51,
+           52,
+           53,
+           54,
+           55,
+           56,
+           57,
+           58,
+           59,
+           60,
+           61,
+           62,
+           63,
+           64,
+           65,
+           66,
+           67,
+           68,
+           69,
+           70,
+           71,
+           72,
+           73,
+           74,
+           75,
+           76,
+           77,
+           78,
+           79,
+           80,
+           81,
+           82,
+           83,
+           84,
+           85,
+           86,
+           87,
+           88,
+           89,
+           90,
+           91,
+           92,
+           93,
+           94,
+           95,
+           96,
+           97,
+           98,
+           99,
+           100,
+           101,
+           102,
+           103,
+           104,
+           105,
+           106,
+           107,
+           108,
+           109,
+           110,
+           111,
+           112,
+           113,
+           114,
+           115,
+           116,
+           117,
+           118,
+           119,
+           120,
+           121,
+           122,
+           123,
+           124,
+           0,
+           1,
+           2,
+           3,
+           4,
+           5,
+           6,
+           7,
+           8,
+           9,
+           10,
+           11,
+           12,
+           13,
+           14,
+           15,
+           16,
+           17,
+           18,
+           19,
+           20,
+           21,
+           22,
+           23,
+           24,
+           25,
+           26,
+           27,
+           28,
+           29,
+           30,
+           31,
+           32,
+           33,
+           34,
+           35,
+           36,
+           37,
+           38,
+           39,
+           40,
+           41,
+           42,
+           43,
+           44,
+           45,
+           46,
+           47,
+           48,
+           49,
+           50,
+           51,
+           52,
+           53,
+           54,
+           55,
+           56,
+           57,
+           58,
+           59,
+           60,
+           61,
+           62,
+           63,
+           64,
+           65,
+           66,
+           67,
+           68,
+           69,
+           70,
+           71,
+           72,
+           73,
+           74,
+           75,
+           76,
+           77,
+           78,
+           79,
+           80,
+           81,
+           82,
+           83,
+           84,
+           85,
+           86,
+           87,
+           88,
+           89,
+           90,
+           91,
+           92,
+           93,
+           94,
+           95,
+           96,
+           97,
+           98,
+           99,
+           100,
+           101,
+           102,
+           103,
+           104,
+           105,
+           106,
+           107,
+           108,
+           109,
+           110,
+           111,
+           112,
+           113,
+           114,
+           115,
+           116,
+           117,
+           118,
+           119,
+           120,
+           121,
+           122,
+           123,
+           124,
+           0,
+           1,
+           2,
+           3,
+           4,
+           5,
+           6,
+           7,
+           8,
+           9,
+           10,
+           11,
+           12,
+           13,
+           14,
+           15,
+           16,
+           17,
+           18,
+           19,
+           20,
+           21,
+           22,
+           23,
+           24,
+           25,
+           26,
+           27,
+           28,
+           29,
+           30,
+           31,
+           32,
+           33,
+           34,
+           35,
+           36,
+           37,
+           38,
+           39,
+           40,
+           41,
+           42,
+           43,
+           44,
+           45,
+           46,
+           47,
+           48,
+           49,
+           50,
+           51,
+           52,
+           53,
+           54,
+           55,
+           56,
+           57,
+           58,
+           59,
+           60,
+           61,
+           62,
+           63,
+           64,
+           65,
+           66,
+           67,
+           68,
+           69,
+           70,
+           71,
+           72,
+           73,
+           74,
+           75,
+           76,
+           77,
+           78,
+           79,
+           80,
+           81,
+           82,
+           83,
+           84,
+           85,
+           86,
+           87,
+           88,
+           89,
+           90,
+           91,
+           92,
+           93,
+           94,
+           95,
+           96,
+           97,
+           98,
+           99,
+           100,
+           101,
+           102,
+           103,
+           104,
+           105,
+           106,
+           107,
+           108,
+           109,
+           110,
+           111,
+           112,
+           113,
+           114,
+           115,
+           116,
+           117,
+           118,
+           119,
+           120,
+           121,
+           122,
+           123,
+           124,
+           0,
+           1,
+           2,
+           3,
+           4,
+           5,
+           6,
+           7,
+           8,
+           9,
+           10,
+           11,
+           12,
+           13,
+           14,
+           15,
+           16,
+           17,
+           18,
+           19,
+           20,
+           21
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "7e 81 03 4b ff 01 23 45 67 89 01 00 00 00 01 00 02 01 fe 00 01 02 03 04 05"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "7e 81 03 48 01 01 23 45 67 89 01 00 00 00 02 00 02 15 56"
+    }
+   ],
+   "notes": [
+    "体=TLV(id 01+len 0xfe+1022B value)=1024B>MaxBodyLength 1023（10 位体长域上界）→buildFragmentedFrames 拆 2",
+    "f4 头 16B（+pkgNum 0001/pkgTotal 0002）：props 0x4bff=bit14|版本位|体长 0x3ff(1023)；f5 props 0x4801=bit14|体长 1",
+    "两分片同 SN=0（design §3A.2 M-07 分包共享流水号）、各带独立 XOR 校验；分片 2 载荷 15=value[1021]（1021%125=21）",
+    "param value 取 1022B：TLV len 字节=0xfe 不溢出（uint8 长度域——1024B 值会截断为 00，B′ 注记如实）"
+   ]
+  }
+ },
+ {
+  "id": "jt808_t11_neg_phone_11digits",
+  "proto": "jt808",
+  "summary": "负例：手机号 11 位拒（ValidateConfig ^\\d{12}$）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt808": {
+      "phone": "12345678901",
+      "procedures": [
+       {
+        "type": "register"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "must be 12 digits",
+   "notes": [
+    "planner ValidateConfig 锚（顶层标量；jt808 layer validator 双段校验的第二段）"
+   ]
+  }
+ },
+ {
+  "id": "jt808_t12_neg_auth_missing_code",
+  "proto": "jt808",
+  "summary": "负例：auth 过程无 AuthCode（顶层与过程级双缺）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt808": {
+      "phone": "012345678901",
+      "procedures": [
+       {
+        "type": "auth"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "AuthCode is empty",
+   "notes": [
+    "ValidateConfig 锚（design §7A.2 H-07：ProcAuth 存在时顶层/过程级 AuthCode 至少一处非空）"
+   ]
+  }
+ },
+ {
+  "id": "jt808_t13_neg_color0_plate",
+  "proto": "jt808",
+  "summary": "负例：LicenseColor=0 但 LicensePlate 非空（互斥约束）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt808": {
+      "phone": "012345678901",
+      "license_color": 0,
+      "license_plate": "京A12345",
+      "procedures": [
+       {
+        "type": "register"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "LicenseColor=0 but LicensePlate non-empty",
+   "notes": [
+    "ValidateConfig 锚（design §5A.1：色 0=无车牌，plate 必须空）"
+   ]
+  }
+ },
+ {
+  "id": "jt808_t14_neg_ackflag_99",
+  "proto": "jt808",
+  "summary": "负例：ACKFlag=99（>3；嵌套 procedures 键 V9 不下探，锚落 planner）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt808": {
+      "phone": "012345678901",
+      "procedures": [
+       {
+        "type": "platform_general_response",
+        "ack_flag": 99
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "ACKFlag 99 invalid",
+   "notes": [
+    "planner ValidateConfig 锚（嵌套键：registry V9 区间不下探 list/object——P3 复审核准拦截点）"
+   ]
+  }
+ },
+ {
+  "id": "jt808_t15_identity_composite",
+  "proto": "jt808",
+  "summary": "T-15 身份面复合例：city_id/manufacturer_id/terminal_id/imei/software_version/registration_result 6 键显式（含注册失败路径 result=2 无鉴权码）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt808": {
+      "phone": "012345678901",
+      "province_id": 11,
+      "city_id": 1,
+      "manufacturer_id": "JT808",
+      "terminal_id": "7777777",
+      "imei": "111111111111111",
+      "software_version": "SW-VER-1.0",
+      "registration_result": 2,
+      "auth_code": "ABCDEF1234567890",
+      "terminal_type": 1,
+      "procedures": [
+       {
+        "type": "register"
+       },
+       {
+        "type": "registration_response"
+       },
+       {
+        "type": "auth"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "packet_count": 9,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "7e 01 00 08 25 01 23 45 67 89 01 00 00 00 0b 00 01 4a 54 38 30 38 54 47 2d 44 45 4d 4f 20 20 20 20 20 20 20 20 20 20 20 20 20 37 37 37 37 37 37 37 00 aa"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "7e 81 00 08 03 01 23 45 67 89 01 00 00 00 00 02 00"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "7e 01 02 08 33 01 23 45 67 89 01 00 01 41 42 43 44 45 46 31 32 33 34 35 36 37 38 39 30 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 53 57 2d 56 45 52 2d 31 2e 30 00 00 00 00 00 00 00 00 00 00 ec"
+    }
+   ],
+   "notes": [
+    "vnc 第 2 轮逐键反扫同款：city_id=0001/厂商 4a54383038(JT808 5B 无 pad)/终端ID 37373737373737(7777777)/imei 15×31/software_version SW-VER-1.0+0x00 pad 全字节钉",
+    "registration_result=2（失败）→0x8100 体=respSN 0000+02 仅 3B 无鉴权码（result≠0 省略 AuthCode，JT/T808 §7.8 路径）；props 0x0803",
+    "terminal_type 显式置 1：builder 零消费（0x0107 属性体读 property_data.* 不读顶层 TerminalType）——键登记但无 wire 面，B′ 诚实注记"
+   ]
+  }
+ }
+]

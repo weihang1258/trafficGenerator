@@ -911,6 +911,16 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// LDAP defaults to port 389 (RFC 4511). Only override when the
 		// user did not specify a dst_port.
 		setDefaultDstPort(&spec, cfg, 389)
+	case "jt808":
+		if sub, ok := cfg["jt808"].(map[string]interface{}); ok {
+			spec.JT808 = ParseJT808ConfigFromMap(sub)
+		}
+		// JT/T 808 defaults to TCP port 7611 (JT/T 808-2019 §4; 部标车载终
+		// 端平台惯例端口). legacy PlanWithConfig :166 内部缺省——mapToFlowSpec
+		// 先补（universal 80 已在 :334 占位，协议缺省必须在此覆盖，vnc/pptp
+		// 同款），链路径 spec 亦经此处（D-JT808-1 P5 实测勘误：缺此 case
+		// 时 80 穿透到线上）。
+		setDefaultDstPort(&spec, cfg, 7611)
 	case "vnc":
 		if sub, ok := cfg["vnc"].(map[string]interface{}); ok {
 			// Parse-level errors (e.g. non-numeric encodings entries) are

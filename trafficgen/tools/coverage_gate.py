@@ -1719,6 +1719,55 @@ def check_sctp(cases):
 
     return rows
 
+def check_jt808(cases):
+    """D-JT808-1 P6 反查表（T-JT808-1…14，9.52 对账 22/22）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("jt808"), dict):
+                lays.append((c.get("id", "?"), l["jt808"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    for kw, name in [
+        ("t1_baseline_assoc", "T-1 基线关联 10 帧"),
+        ("t2_frame_header_bytes", "T-2 帧头字节钉"),
+        ("t3_dual_sn_autobind", "T-3 双 SN+自动绑定"),
+        ("t4_register_body_fields", "T-4 注册体字段钉"),
+        ("t5_location_bitmerge_escape", "T-5 位置+位合并+转义"),
+        ("t6_version2011_encrypt_bit", "T-6 版本方言+加密位"),
+        ("t7_down_tlv_trio", "T-7 down 面 TLV"),
+        ("t8_text_down_gbk", "T-8 GBK 文本"),
+        ("t9_property_response", "T-9 属性应答 17 字段"),
+        ("t10_fragmentation", "T-10 分包"),
+        ("t11_neg_phone_11digits", "T-11 phone 11 位拒"),
+        ("t12_neg_auth_missing_code", "T-12 auth 缺鉴权码拒"),
+        ("t13_neg_color0_plate", "T-13 车牌互斥拒"),
+        ("t14_neg_ackflag_99", "T-14 ACKFlag=99 拒"),
+        ("t15_identity_composite", "T-15 身份面复合例"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    for k in ["phone", "version", "encrypt_flag", "license_color", "license_plate",
+              "province_id", "city_id", "manufacturer_id", "terminal_model", "terminal_id",
+              "terminal_type", "initial_sn", "platform_initial_sn", "auth_code", "imei",
+              "software_version", "registration_result", "procedures"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    for needle, name in [
+        ("must be 12 digits", "T-11 phone 锚"),
+        ("AuthCode is empty", "T-12 auth 锚"),
+        ("LicenseColor=0 but LicensePlate non-empty", "T-13 车牌锚"),
+        ("ACKFlag 99 invalid", "T-14 ACKFlag 锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+    return rows
+
+
 def check_xmpp(cases):
     """D-XMPP-1 P6 反查表（T-XMPP-1…10，9.52 对账 18/18）。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -1827,7 +1876,7 @@ def check_vnc(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808}
 
 
 def main(argv):

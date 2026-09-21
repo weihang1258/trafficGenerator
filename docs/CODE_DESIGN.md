@@ -3342,7 +3342,7 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 **性能（6.4-6.6）：** 流式 channel 256；包数=3 握手+N 消息（分包线性）+3 挥手；T-1 基线 10 帧实测钉待 P5；pcap 验收路（网卡路未跑注明 6.3）。
 **回滚：** 单提交粒度，摘除即回。
 
-### T-JT808-1…14 清单（P3，JT/T 808-2019 反推；9.52 对账 **22/22**：帧包络 1+帧头字节 1+双 SN/自动绑定 2+注册体 1+位置体 1+版本方言 1+down 面 1+GBK 文本 1+属性体 1+分包 1+13 型覆盖核对 0（并入前五例不占号）+负例 4 → 建例 14（T-1 基线关联=T-2 字节=T-3 绑定 三例合钉注册-鉴权-应答主链））
+### T-JT808-1…15 清单（P3 定稿 14 例，P5 追加 T-15 身份面复合例；9.52 对账 **24/24**：帧包络 1+帧头字节 1+双 SN/自动绑定 2+注册体 1+位置体 1+版本方言 1+down 面 1+GBK 文本 1+属性体 1+分包 1+身份面 1+负例 4 → 建例 15）
 
 | # | 用例 | 断言面 |
 |---|---|---|
@@ -3362,3 +3362,5 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 | T-14 | 负例 ACKFlag=99 | 锚词 `ACKFlag 99 invalid` |
 
 **P3 复审（2026-09-21 对抗走查）：** 13 型覆盖核对：T-1（register/auth/registration_response/platform_general_response=4 型）+T-3（query_location/location_query_response/terminal_general_response/text_down=4 型）+T-7（set_params/query_params/cancel=3 型）+T-9（property_response=1 型）+T-5（location_report=1 型）=**13/13 全枚举**。数据形态变体：分包=T-10、位合并=T-5（ACC *bool）vs StatusFlag 直设优先注记（不单列——直设路径与 OR 合并同 builder 分支，legacy 单测钉+T-5 钉合并路径）、TLV 自动长度=T-5/T-10、pad 三规则=T-4、GBK=T-4/T-8、版本方言=T-4 2019 缺省/T-6 2011、自动绑定 4 格=T-3 逐格。负例 4 锚全落 ValidateConfig（嵌套 procedures V9 不下探→ACKFlag 锚点=planner，登记点核准确）。9.50 复合例=T-3（双 SN 空间+4 绑定格全序）。对账 22/22 平。**清单净，待批进 P4。**
+
+**P5 执行记录（2026-09-21）：** cases 14 例新建。首跑 5/14（9 红四类）：①**dstport 80 穿透**——D-JT808-1 裁定 3 勘误：vnc/pptp 变体的"内部缺省"真实住 mapToFlowSpec 协议 switch（`setDefaultDstPort(&spec,cfg,5900)` 先于链路径执行——链 spec 恒经 mapToFlowSpec，universal 80 在 :334 已占位），链 validateSpecBase 无 case 只是"不二次缺省"；**补 `case "jt808": setDefaultDstPort(&spec,cfg,7611)`** 后绿。②getByteSlice 字符串形=**原文字节非 hex**（pppoe 教训重现）：T-5/T-7/T-10 二进制值改字节数组/原文字符串形。③has_payload=80B 载荷门：T-6/T-7/T-8 短帧用例摘 has_payload（诚实口径注记）。④T-4/T-9 pin 错位（自组 pin 多一个 00）——以落盘 pcap 重钉（不手算铁律第二次生效）。**过程教训登记：t7 修复脚本 hexstr_to_arr('61626364') 忘按 2 字符分组→整串单 hex 数 1633837924 落库，三轮排查"疑似管道打包"实为自伤**——落库 config 逐字节对照是定位关键。T-15 身份面复合例追加（逐键反扫抓 city_id/manufacturer_id/terminal_id/imei/software_version/registration_result 6 键零覆盖+terminal_type builder 零消费诚实注记——vnc 第 2 轮教训生效），**15/15 ×2 全绿**；反查 check_jt808 37/37 绿。
