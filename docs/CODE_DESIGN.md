@@ -3390,7 +3390,7 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 | §13 schema 先行 | registry jt808 行 18 Fields+schemagen 重生成 110 层（13.18/13.19 同步测试绿）；MCP 描述/flowb_query_layers 同一注册表 |
 | §14 全量门 | suite 16/16 ×2 全绿+pcap 落盘 16 份可人工复查+负例 4 锚真实 400+二进制与 HEAD 同代+反查 38/38 |
 
-## D-JT809-1 jt809 层链收敛（#30，P1+P2 定稿 2026-09-21，待批；裁定=线层重建）
+## D-JT809-1 jt809 层链收敛（#30，2026-09-21 已验收：82661a2 P4 / a00b3a0 P5 / P6 清库+门表，裁定=线层重建）
 
 ### P1 规范矩阵（JT/T 809-2019 反推，三源核验：SmallChi/JT809 权威开源实现源码+README 完整组包金向量例+标准文本；含三张子表要求 4.22）
 
@@ -3477,3 +3477,27 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
    （0=生成时刻 Unix 秒），线形 8B 不变，绝对基值差记 B′ 账本。
 6. T-2 断言面随之修正：MsgLength=**整帧长**（=34+体），非原表述"30+体"。
 
+### 门 1 开工对照表（§1–§14，2026-09-21 jt809 P6 回填，证据=文档节/代码行/用例号）
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 顶层旧键 src_ip/dst_ip/src_port/dst_port/count 不存在（本协议从未有 flat 用例面）；顶层 jt809 子映射 presence 判死=rawWrapChains 第 10 协议（空 map 也死）；目标形状 `{"layers":[{"ip":{"src","dst"}},{"jt809":{"gnss_center_id":291,"procedures":[…],"slave_procedures":[…]}}]}`；端口=主链 8812（mapToFlowSpec case 先补——jt808 80 穿透教训移植；无层端口字段）+从链 8813 生成器合成面 | `strategy_convert.go` rawWrapChains+case "jt809"；cases/jt809.json 13 例；pipe_gate 门 2-1 绿 |
+| §2 策略/任务分工 | 沿框架语义不另设；在库 2 probe 策略+9 任务已清库对账（696→694/240500→240491，备份 trafficgen-jt809-purge-20260921.db） | P6 清库对账记录 |
+| §3 五件套（真子流面，非豁免） | 会话表=主从两条 TCP 连接（主 8812 下级发起/从 8813 上级发起，从链 4 元组下侧端口统一 8813——legacy SYN+ACK/FIN2 spec.SrcPort 错形 P4 修正）；事务序=16 型族按 procedures/slave_procedures 顺序；关联=两流同 GroupID（hashGNSS）；插入位置=从链握手在主链消息后；时间线=主链握手→主链消息→从链握手→从链消息→主挥→从挥 | `jt809.go` PlanWithConfig；T-7（14 帧全时序钉） |
+| §4 规范矩阵 | JT/T 809-2019 反推八项三源（SmallChi 源码实录+单测金向量+标准文本）；P4 线层勘误 6 条（MsgLength 整帧语义/金向量替换/CRC 次序/0x1001 双形/Time 基值 B′/T-2 修正） | D-JT809-1 P1 矩阵+P4 勘误块 |
+| §5 有错必处理 | ValidateConfig 全负路径锚（gnss 区间/version_flag/encrypt_flag/password≤8/down_link_ip≤32/version_bytes 形/16 型枚举/链路归属/Result≤4/ErrorCode·ReasonCode≤2）+ParseFrame 负路径（CRC/MsgLength/定界）+Plan 硬错防 0 包 | `jt809.go` ValidateConfig；`parser.go`；T-11…13；TestParseFrame_Negative |
+| §6 性能 | channel 256 流式；包数公式=主链(6+M)+从链可选(6+K)；验收=pcap 落盘可复查（网卡未跑，如实注记） | D-JT809-1 性能行；/tmp/mcp-pcaps/jt809/ |
+| §7 三份文档 | 设计=D-JT809-1；用例=T-JT809-1…13；cases 文件回指编号 | CODE_DESIGN/TEST_CASES/cases/jt809.json |
+| §8 先设计后代码 | P2 定稿（9f1988f）先于 P4（82661a2） | git 历史 |
+| §9 三源+整格 | 金向量逐字节（外部权威）+T-2 16 钉全格+单测面五锚 | jt809wire_test 四锚；T-2；TestBuildFrame_* |
+| §10 评审闭环 | 自审 2 轮：轮1 抓 slave 4 元组错形（SYN+ACK/FIN2 用 spec.SrcPort）+DownLinkIP>32 静默截断+parser 死块；轮2 全绿后 -race/vet 复核；隔离对抗复审=收官独立轮 | P4 记录；复审轮待跑注记 |
+| §11 白话汇报 | 先一句结论再证据；代号带解释 | 每次汇报 |
+| §12 动态清单 | 四元组=框架白名单（worker 注入）；双链 ISN=randUint32；MsgSN=四计数器（分链分向，InitialSN/PlatformInitialSN 起点）；Time=time_sec 0→生成时刻 Unix 秒；业务键（verify_code/result/error_code 等）=静态单值如实注记（可配非逐包动态） | `jt809.go` 四计数器+rc 缺省化；D-JT809-1 门 1 §12 行 |
+| §13 schema 同步 | registry jt809 14 Fields → schemagen 重生成 111 层 | `generated/layers.generated.json` diff（82661a2） |
+| §14 真实流程 | MCP 建任务→引擎生成→tshark 校对全流程；13/13 ×2 全绿；负例带实际锚词；包号/端口从落盘 pcap 重钉（frames 钉 offset=整以太帧 +54） | T-JT809-1…13；suite ×2（a00b3a0 后复跑绿） |
+
+**门 3 抽查三条（P6）：** ①§3 关联面——T-7 pcap 实证两 4 元组（12345↔8812 / 8812↔8813）同 group_id 落同 pcap，包 5=从链 SYN dst 8813；②§12 动态面——`strategy_convert.go` case "jt809" setDefaultDstPort(8812)（80 穿透预防位）+`jt809.go` 四计数器分行可点；③§14 验收面——suite RESULT 13 pass ×2 连续（-count=1 两次独立跑）+coverage_gate 30/30+pipe_gate 静态四项绿。
+
+**验收两门（§1）：** ①层链跑通=P5 绿；②旧格式移除=顶层子映射判死+无 flat 用例面+rawWrapChains 执法。两门全过。
+
+**P6 收官结论（白话一句）：** jt809 线层重建后信封/头/体/校验/转义全对齐 JT/T 809-2019 权威实现（金向量逐字节），16 型链路管理族双 TCP 真子流可编排可校验，13 例 ×2 全绿、反查 30/30、门 2 四项绿、在库清零对账平。
