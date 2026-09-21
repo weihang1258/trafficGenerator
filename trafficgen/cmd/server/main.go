@@ -80,7 +80,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ike_nat_t"
 	// 空导入：imap 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/imap"
-	"github.com/trafficgen/trafficgen/internal/protocol/jt808"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/jt808"
 	"github.com/trafficgen/trafficgen/internal/protocol/jt809"
 	"github.com/trafficgen/trafficgen/internal/protocol/jtt905"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/kingbase"
@@ -586,7 +586,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("srv6"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("gbt32960"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("tftp"))
-	app.engine.RegisterPlanner(jt808.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("jt808"))
 	app.engine.RegisterPlanner(jt809.NewPlanner())
 	app.engine.RegisterPlanner(jtt905.NewPlanner())
 	app.engine.RegisterPlanner(layers.NewChainPlanner("doip"))

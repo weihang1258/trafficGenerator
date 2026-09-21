@@ -524,6 +524,9 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			FragmentSize:    getInt(sub, "fragment_size"),
 		}
 	}
+	if sub, ok := cfg["jt808"].(map[string]interface{}); ok {
+		spec.JT808 = ParseJT808ConfigFromMap(sub)
+	}
 
 	// Protocol-specific config
 	switch protocol {
@@ -3237,6 +3240,149 @@ func ParsePPTPConfigFromMap(m map[string]interface{}) *PPTPConfig {
 // layer-translate path (ParseXmppConfigFromMap precedent). SCTP 无 switch
 // case——sub-config 在 mapToFlowSpec universal 段读取（:517），此处复用同一
 // 段逻辑等价形（六键逐字一致）。
+// ParseJT808ConfigFromMap parses a jt808 layer/flat config map into the
+// core JT808Config (D-JT808-1：单一真相——translate 与扁平同函数；链路径
+// 空 map 也出非 nil 缺省壳，与 vnc/xmpp/sctp 同款). 数值键全直传（V9 区间
+// 锚=registry；嵌套 procedures 不下探，语义锚=protocol ValidateConfig）。
+func ParseJT808ConfigFromMap(m map[string]interface{}) *JT808Config {
+	if m == nil {
+		return nil
+	}
+	cfg := &JT808Config{
+		Phone:              getString(m, "phone"),
+		Version:            getString(m, "version"),
+		EncryptFlag:        uint8(getInt(m, "encrypt_flag")),
+		LicenseColor:       uint8(getInt(m, "license_color")),
+		LicensePlate:       getString(m, "license_plate"),
+		ProvinceId:         uint16(getInt(m, "province_id")),
+		CityId:             uint16(getInt(m, "city_id")),
+		ManufacturerId:     getString(m, "manufacturer_id"),
+		TerminalModel:      getString(m, "terminal_model"),
+		TerminalId:         getString(m, "terminal_id"),
+		TerminalType:       uint8(getInt(m, "terminal_type")),
+		InitialSN:          uint16(getInt(m, "initial_sn")),
+		PlatformInitialSN:  uint16(getInt(m, "platform_initial_sn")),
+		AuthCode:           getString(m, "auth_code"),
+		IMEI:               getString(m, "imei"),
+		SoftwareVersion:    getString(m, "software_version"),
+		RegistrationResult: uint8(getInt(m, "registration_result")),
+	}
+	if v, ok := m["procedures"].([]interface{}); ok {
+		for _, item := range v {
+			pm, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			pr := JT808Procedure{
+				Type:          getString(pm, "type"),
+				ACKFlag:       uint8(getInt(pm, "ack_flag")),
+				ResponseSN:    uint16(getInt(pm, "response_sn")),
+				ResponseMsgId: uint16(getInt(pm, "response_msg_id")),
+				AuthCode:      getString(pm, "auth_code"),
+				Text:          getString(pm, "text"),
+				TextFlag:      uint8(getInt(pm, "text_flag")),
+			}
+			// 指针三态键：registry nil=不覆盖（registration_result 覆盖/
+			// imei/software_version 覆盖；presence 语义=显式才覆盖）。
+			if v, ok := pm["registration_result"]; ok && v != nil {
+				if n, ok := v.(float64); ok {
+					u := uint8(n)
+					pr.RegistrationResult = &u
+				}
+			}
+			if v, ok := pm["imei"]; ok && v != nil {
+				if str, ok := v.(string); ok {
+					pr.IMEI = &str
+				}
+			}
+			if v, ok := pm["software_version"]; ok && v != nil {
+				if str, ok := v.(string); ok {
+					pr.SoftwareVersion = &str
+				}
+			}
+			if lm, ok := pm["location_data"].(map[string]interface{}); ok {
+				pr.LocationData = parseJT808Location(lm)
+			}
+			if pv, ok := pm["property_data"].(map[string]interface{}); ok {
+				pr.PropertyData = &JT808Property{
+					DeviceType:      uint8(getInt(pv, "device_type")),
+					ManufacturerId:  getString(pv, "manufacturer_id"),
+					TerminalModel:   getString(pv, "terminal_model"),
+					TerminalId:      getString(pv, "terminal_id"),
+					IccId:           getString(pv, "icc_id"),
+					Imei:            getString(pv, "imei"),
+					SoftwareVersion: getString(pv, "software_version"),
+					GnssModule:      uint8(getInt(pv, "gnss_module")),
+					CommModule:      uint8(getInt(pv, "comm_module")),
+					ProvinceId:      uint16(getInt(pv, "province_id")),
+					CityId:          uint16(getInt(pv, "city_id")),
+					CountyId:        uint16(getInt(pv, "county_id")),
+					TownId:          uint16(getInt(pv, "town_id")),
+					Operator:        uint8(getInt(pv, "operator")),
+					APN:             getString(pv, "apn"),
+					HardwareVersion: getString(pv, "hardware_version"),
+					MaxSpeed:        uint16(getInt(pv, "max_speed")),
+				}
+			}
+			if arr, ok := pm["params"].([]interface{}); ok {
+				for _, pi := range arr {
+					pmm, ok := pi.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					pr.Params = append(pr.Params, JT808Param{
+						Id:    uint8(getInt(pmm, "id")),
+						Value: getByteSlice(pmm, "value"),
+					})
+				}
+			}
+			cfg.Procedures = append(cfg.Procedures, pr)
+		}
+	}
+	return cfg
+}
+
+// parseJT808Location parses one 0x0200 location_data object (28B 固定面 +
+// TLV 附加项 + 状态位合并 *bool 三态).
+func parseJT808Location(m map[string]interface{}) *JT808Location {
+	loc := &JT808Location{
+		AlarmFlag:  getUint32(m, "alarm_flag"),
+		StatusFlag: getUint32(m, "status_flag"),
+		Latitude:   getUint32(m, "latitude"),
+		Longitude:  getUint32(m, "longitude"),
+		Altitude:   uint16(getInt(m, "altitude")),
+		Speed:      uint16(getInt(m, "speed")),
+		Direction:  uint16(getInt(m, "direction")),
+		Time:       getString(m, "time"),
+	}
+	for key, dst := range map[string]**bool{
+		"acc":         &loc.ACC,
+		"door_status": &loc.DoorStatus,
+		"oil_circuit": &loc.OilCircuit,
+		"run_status":  &loc.RunStatus,
+	} {
+		if v, ok := m[key]; ok && v != nil {
+			if b, ok2 := v.(bool); ok2 {
+				*dst = &b
+			}
+		}
+	}
+	if arr, ok := m["extra_items"].([]interface{}); ok {
+		for _, item := range arr {
+			em, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			loc.ExtraItems = append(loc.ExtraItems, JT808Extra{
+				Type:   uint8(getInt(em, "type")),
+				Length: uint8(getInt(em, "length")),
+				Value:  getByteSlice(em, "value"),
+			})
+		}
+	}
+	return loc
+}
+
 func ParseSCTPConfigFromMap(m map[string]interface{}) *SCTPConfig {
 	if m == nil {
 		return nil
@@ -5748,19 +5894,19 @@ func ParseSIPSessions(v interface{}) []SIPSession {
 			continue
 		}
 		sess := SIPSession{
-			SrcPort:    getUint16(m, "src_port"),
-			DstPort:    getUint16(m, "dst_port"),
-			CallID:     getString(m, "call_id"),
-			Dialog:     parseSIPDialog(m["dialog"]),
-			Media:      parseSIPMedia(m["media"]),
+			SrcPort: getUint16(m, "src_port"),
+			DstPort: getUint16(m, "dst_port"),
+			CallID:  getString(m, "call_id"),
+			Dialog:  parseSIPDialog(m["dialog"]),
+			Media:   parseSIPMedia(m["media"]),
 			// D-SIP-2 补强批：per-session medias[]/interleave 接线——
 			// 此前漏解析被静默丢弃（SIPSession 有字段无 parse 填充，
 			// planner 层直构 spec 的单测覆盖不到，T-SIP-87 首跑抓出）。
-			Medias:      ParseSIPMedias(m["medias"]),
-			Interleave:  getBool(m, "interleave", false),
-			SrcPortDyn:  parseStrategyConfigDyn(m["src_port"]),
-			DstPortDyn:  parseStrategyConfigDyn(m["dst_port"]),
-			CallIDDyn:   parseStrategyConfigDyn(m["call_id"]),
+			Medias:     ParseSIPMedias(m["medias"]),
+			Interleave: getBool(m, "interleave", false),
+			SrcPortDyn: parseStrategyConfigDyn(m["src_port"]),
+			DstPortDyn: parseStrategyConfigDyn(m["dst_port"]),
+			CallIDDyn:  parseStrategyConfigDyn(m["call_id"]),
 		}
 		out = append(out, sess)
 	}
@@ -8041,6 +8187,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 		"pppoe": "[ip,pppoe]", "ldap": "[ip,ldap]", "rtmp": "[ip,rtmp]",
 		"rtsp": "[ip,rtsp]", "pptp": "[ip,pptp]", "vnc": "[ip,vnc]",
 		"xmpp": "[ip,xmpp]", "sctp": "[ip,sctp]",
+		"jt808": "[ip,jt808]",
 	}
 	if chainHint, ok := rawWrapChains[protocol]; ok {
 		if v, ok := cfg[protocol]; ok && v != nil {

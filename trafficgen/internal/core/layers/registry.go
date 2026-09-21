@@ -1214,20 +1214,20 @@ func buildDefaultRegistry() {
 	})
 	r.Register(LayerSchema{Name: "ngap", Category: CategoryTerminal, DependsOn: []string{"ip"},
 		Fields: map[string]FieldSchema{
-			"global_ran_node_id":  {Type: "object"},
-			"supported_ta_list":   {Type: "list"},
-			"default_paging_drx":  {Type: "uint8", Min: 0, Max: 3},
-			"amf_name":            {Type: "string"},
-			"ran_ue_ngap_id":      {Type: "uint32", Min: 0, Max: 4294967295},
-			"amf_ue_ngap_id":      {Type: "uint32", Min: 0, Max: 4294967295},
-			"initial_ue_message":  {Type: "bool"},
-			"initial_nas":         {Type: "string"},
-			"downlink_nas":        {Type: "string"},
-			"uplink_nas":          {Type: "string"},
-			"pdu_session_setup":   {Type: "object"},
-			"ue_context_release":  {Type: "bool"},
-			"src_port":            {Type: "uint16", Min: 0, Max: 65535},
-			"dst_port":            {Type: "uint16", Min: 0, Max: 65535},
+			"global_ran_node_id": {Type: "object"},
+			"supported_ta_list":  {Type: "list"},
+			"default_paging_drx": {Type: "uint8", Min: 0, Max: 3},
+			"amf_name":           {Type: "string"},
+			"ran_ue_ngap_id":     {Type: "uint32", Min: 0, Max: 4294967295},
+			"amf_ue_ngap_id":     {Type: "uint32", Min: 0, Max: 4294967295},
+			"initial_ue_message": {Type: "bool"},
+			"initial_nas":        {Type: "string"},
+			"downlink_nas":       {Type: "string"},
+			"uplink_nas":         {Type: "string"},
+			"pdu_session_setup":  {Type: "object"},
+			"ue_context_release": {Type: "bool"},
+			"src_port":           {Type: "uint16", Min: 0, Max: 65535},
+			"dst_port":           {Type: "uint16", Min: 0, Max: 65535},
 		},
 	})
 	r.Register(LayerSchema{Name: "telnet", Category: CategoryTerminal, DependsOn: []string{"ip"},
@@ -1251,9 +1251,9 @@ func buildDefaultRegistry() {
 		Fields: map[string]FieldSchema{
 			"dialog":     {Type: "list"},
 			"media":      {Type: "object"},
-			"sessions":   {Type: "list"}, // D-SIP-2 WP-A：多会话结构（与 dialog 互斥，语义层判死）
-			"medias":     {Type: "list"}, // D-SIP-2 WP-B：多流媒体（与 media 互斥，语义层判死）
-			"interleave": {Type: "bool"}, // D-SIP-2 WP-B：媒体流内信令交错调度
+			"sessions":   {Type: "list"},   // D-SIP-2 WP-A：多会话结构（与 dialog 互斥，语义层判死）
+			"medias":     {Type: "list"},   // D-SIP-2 WP-B：多流媒体（与 media 互斥，语义层判死）
+			"interleave": {Type: "bool"},   // D-SIP-2 WP-B：媒体流内信令交错调度
 			"nat":        {Type: "object"}, // D-SIP-2 WP-C：RFC 3581 rport/received 合成开关
 			"src_port":   {Type: "uint16", Min: 0, Max: 65535},
 			"dst_port":   {Type: "uint16", Min: 0, Max: 65535},
@@ -1336,57 +1336,57 @@ func buildDefaultRegistry() {
 	// PAC 现网形/MS 缺省= B′ 注记。
 	r.Register(LayerSchema{Name: "pptp", Category: CategoryTerminal, DependsOn: []string{"ip"},
 		Fields: map[string]FieldSchema{
-			"role":               {Type: "string"},
-			"scenario":           {Type: "string"},
-			"calls":              {Type: "int", Min: 0, Max: 65535},
-			"echo":               {Type: "bool"},
-			"version":            {Type: "uint16", Min: 0, Max: 65535},
-			"framing_caps":       {Type: "uint32", Min: 0, Max: 4294967295},
-			"bearer_caps":        {Type: "uint32", Min: 0, Max: 4294967295},
-			"max_channels":       {Type: "uint16", Min: 0, Max: 65535},
-			"firmware_revision":  {Type: "uint16", Min: 0, Max: 65535},
-			"host_name":          {Type: "string"},
-			"vendor_name":        {Type: "string"},
-			"scrp_result":        {Type: "uint8", Min: 0, Max: 255},
-			"scrp_error":         {Type: "uint8", Min: 0, Max: 255},
-			"scrp_framing_caps":  {Type: "uint32", Min: 0, Max: 4294967295},
-			"scrp_bearer_caps":   {Type: "uint32", Min: 0, Max: 4294967295},
-			"scrp_firmware_rev":  {Type: "uint16", Min: 0, Max: 65535},
-			"call_id":            {Type: "uint16", Min: 0, Max: 65535},
-			"peer_call_id":       {Type: "uint16", Min: 0, Max: 65535},
-			"call_serial":        {Type: "uint16", Min: 0, Max: 65535},
-			"min_bps":            {Type: "uint32", Min: 0, Max: 4294967295},
-			"max_bps":            {Type: "uint32", Min: 0, Max: 4294967295},
-			"bearer_type":        {Type: "uint32", Min: 0, Max: 4294967295},
-			"framing_type":       {Type: "uint32", Min: 0, Max: 4294967295},
-			"window_size":        {Type: "uint16", Min: 0, Max: 65535},
-			"packet_delay":       {Type: "uint16", Min: 0, Max: 65535},
-			"phone_number":       {Type: "string"},
-			"dialed_number":      {Type: "string"},
-			"dialing_number":     {Type: "string"},
-			"sub_address":        {Type: "string"},
-			"ocrp_result":        {Type: "uint8", Min: 0, Max: 255},
-			"ocrp_error":         {Type: "uint8", Min: 0, Max: 255},
-			"cause_code":         {Type: "uint16", Min: 0, Max: 65535},
-			"connect_speed":      {Type: "uint32", Min: 0, Max: 4294967295},
-			"ocrp_window_size":   {Type: "uint16", Min: 0, Max: 65535},
-			"ocrp_delay":         {Type: "uint16", Min: 0, Max: 65535},
+			"role":                {Type: "string"},
+			"scenario":            {Type: "string"},
+			"calls":               {Type: "int", Min: 0, Max: 65535},
+			"echo":                {Type: "bool"},
+			"version":             {Type: "uint16", Min: 0, Max: 65535},
+			"framing_caps":        {Type: "uint32", Min: 0, Max: 4294967295},
+			"bearer_caps":         {Type: "uint32", Min: 0, Max: 4294967295},
+			"max_channels":        {Type: "uint16", Min: 0, Max: 65535},
+			"firmware_revision":   {Type: "uint16", Min: 0, Max: 65535},
+			"host_name":           {Type: "string"},
+			"vendor_name":         {Type: "string"},
+			"scrp_result":         {Type: "uint8", Min: 0, Max: 255},
+			"scrp_error":          {Type: "uint8", Min: 0, Max: 255},
+			"scrp_framing_caps":   {Type: "uint32", Min: 0, Max: 4294967295},
+			"scrp_bearer_caps":    {Type: "uint32", Min: 0, Max: 4294967295},
+			"scrp_firmware_rev":   {Type: "uint16", Min: 0, Max: 65535},
+			"call_id":             {Type: "uint16", Min: 0, Max: 65535},
+			"peer_call_id":        {Type: "uint16", Min: 0, Max: 65535},
+			"call_serial":         {Type: "uint16", Min: 0, Max: 65535},
+			"min_bps":             {Type: "uint32", Min: 0, Max: 4294967295},
+			"max_bps":             {Type: "uint32", Min: 0, Max: 4294967295},
+			"bearer_type":         {Type: "uint32", Min: 0, Max: 4294967295},
+			"framing_type":        {Type: "uint32", Min: 0, Max: 4294967295},
+			"window_size":         {Type: "uint16", Min: 0, Max: 65535},
+			"packet_delay":        {Type: "uint16", Min: 0, Max: 65535},
+			"phone_number":        {Type: "string"},
+			"dialed_number":       {Type: "string"},
+			"dialing_number":      {Type: "string"},
+			"sub_address":         {Type: "string"},
+			"ocrp_result":         {Type: "uint8", Min: 0, Max: 255},
+			"ocrp_error":          {Type: "uint8", Min: 0, Max: 255},
+			"cause_code":          {Type: "uint16", Min: 0, Max: 65535},
+			"connect_speed":       {Type: "uint32", Min: 0, Max: 4294967295},
+			"ocrp_window_size":    {Type: "uint16", Min: 0, Max: 65535},
+			"ocrp_delay":          {Type: "uint16", Min: 0, Max: 65535},
 			"physical_channel_id": {Type: "uint32", Min: 0, Max: 4294967295},
-			"send_accm":          {Type: "uint32", Min: 0, Max: 4294967295},
-			"receive_accm":       {Type: "uint32", Min: 0, Max: 4294967295},
-			"sli_count":          {Type: "int", Min: 0, Max: 65535},
-			"sli_peer_call_id":   {Type: "uint16", Min: 0, Max: 65535},
-			"stop_result":        {Type: "uint8", Min: 0, Max: 255},
-			"stop_reason":        {Type: "uint8", Min: 0, Max: 255},
-			"stop_error":         {Type: "uint8", Min: 0, Max: 255},
-			"ccdn_result":        {Type: "uint8", Min: 0, Max: 255},
-			"ccdn_error":         {Type: "uint8", Min: 0, Max: 255},
-			"ccdn_cause":         {Type: "uint8", Min: 0, Max: 255},
-			"wen":                {Type: "bool"},
-			"incoming_call":      {Type: "bool"},
-			"data_frames":        {Type: "int", Min: 0, Max: 1000000},
-			"down_data_frames":   {Type: "int", Min: 0, Max: 1000000},
-			"inner_ip":           {Type: "object"}, // 内嵌 7 子键：src_ip/dst_ip/proto/src_port/dst_port/ttl/payload（srv6 inner_payload 先例）
+			"send_accm":           {Type: "uint32", Min: 0, Max: 4294967295},
+			"receive_accm":        {Type: "uint32", Min: 0, Max: 4294967295},
+			"sli_count":           {Type: "int", Min: 0, Max: 65535},
+			"sli_peer_call_id":    {Type: "uint16", Min: 0, Max: 65535},
+			"stop_result":         {Type: "uint8", Min: 0, Max: 255},
+			"stop_reason":         {Type: "uint8", Min: 0, Max: 255},
+			"stop_error":          {Type: "uint8", Min: 0, Max: 255},
+			"ccdn_result":         {Type: "uint8", Min: 0, Max: 255},
+			"ccdn_error":          {Type: "uint8", Min: 0, Max: 255},
+			"ccdn_cause":          {Type: "uint8", Min: 0, Max: 255},
+			"wen":                 {Type: "bool"},
+			"incoming_call":       {Type: "bool"},
+			"data_frames":         {Type: "int", Min: 0, Max: 1000000},
+			"down_data_frames":    {Type: "int", Min: 0, Max: 1000000},
+			"inner_ip":            {Type: "object"}, // 内嵌 7 子键：src_ip/dst_ip/proto/src_port/dst_port/ttl/payload（srv6 inner_payload 先例）
 		},
 	})
 	// vnc（tcp 终结层。RFC 6143 RFB——TCP 5900 服务器先发言：版本协商
@@ -1464,12 +1464,47 @@ func buildDefaultRegistry() {
 		Fields: map[string]FieldSchema{
 			"verification_tag": {Type: "uint32", Min: 0, Max: 4294967295},
 			"initiate_tag":     {Type: "uint32", Min: 0, Max: 4294967295},
-			"chunks":           {Type: "list"}, // 记录 7 键：tsn/sid/ssn/ppid/data（双形 string/字节数组）/direction/file_source
+			"chunks":           {Type: "list"},   // 记录 7 键：tsn/sid/ssn/ppid/data（双形 string/字节数组）/direction/file_source
 			"heartbeats":       {Type: "object"}, // 2 子键：count/alt_path（4 键 alt_src_ip/alt_dst_ip/alt_src_mac/alt_dst_mac）
 			"abort":            {Type: "bool"},
 			"fragment_size":    {Type: "int", Min: 16, Max: 1000000},
 			"src_port":         {Type: "uint16", Min: 0, Max: 65535},
 			"dst_port":         {Type: "uint16", Min: 0, Max: 65535},
+		},
+	})
+	// jt808（tcp 终结层。JT/T 808-2019——TCP 长连接 3 握手+0x7e 定界帧
+	// （XOR 校验+0x7d 转义）+13 型消息面+双流水号空间+4 自动绑定+分包
+	// （bit14+pkgNum/pkgTotal，体长 10 位上界 1023），wire 字节由 jt808
+	// 生成器 raw 自驱产出（D-JT808-1 裁定1，九连协议对称：legacy 全消息
+	// 面 wrap PlanWithConfig——legacy Plan 硬错，唯一入口）。端口=legacy
+	// 内部缺省 7611（vnc/pptp 变体：无 switch case、无协议层端口字段）。
+	// Fields 登记 parse 18 键：17 标量+procedures list（V9 不下探，嵌套
+	// 语义锚=ValidateConfig：phone 12 位/auth 鉴权码必备/车牌互斥/
+	// ACKFlag≤3/注册结果≤4）。范围只设 ValidateConfig 真校验键（
+	// encrypt_flag 0-1/license_color 0-9 上界——6/7/8 由 planner 枚举锚拒，
+	// V9 是超集面）+uint16/uint32 位宽面；registration_result 顶层不设
+	// 范围（ValidateConfig 只查 procedures 内指针覆盖值，顶层 0-255 全合
+	// 法——诚实注记）。
+	r.Register(LayerSchema{Name: "jt808", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"phone":               {Type: "string"}, // ^\d{12}$，ValidateConfig 锚
+			"version":             {Type: "string"}, // 枚举 2011/2013/2019，planner 锚
+			"encrypt_flag":        {Type: "int", Min: 0, Max: 1},
+			"license_color":       {Type: "int", Min: 0, Max: 9}, // 枚举 0-5,9，planner 锚
+			"license_plate":       {Type: "string"},
+			"province_id":         {Type: "uint16", Min: 0, Max: 65535},
+			"city_id":             {Type: "uint16", Min: 0, Max: 65535},
+			"manufacturer_id":     {Type: "string"}, // ≤5 ASCII，planner 锚
+			"terminal_model":      {Type: "string"}, // ≤20B，planner 锚
+			"terminal_id":         {Type: "string"}, // ≤7B，planner 锚
+			"terminal_type":       {Type: "int"},    // 语义 0-2 ValidateConfig 不查——诚实不设范围
+			"initial_sn":          {Type: "uint16", Min: 0, Max: 65535},
+			"platform_initial_sn": {Type: "uint16", Min: 0, Max: 65535},
+			"auth_code":           {Type: "string"}, // ≤16B GBK，planner 锚
+			"imei":                {Type: "string"},
+			"software_version":    {Type: "string"},
+			"registration_result": {Type: "int"},  // 顶层不设范围（见上）
+			"procedures":          {Type: "list"}, // 13 键：type/ack_flag/location_data/response_sn/response_msg_id/registration_result/auth_code/imei/software_version/text/text_flag/params/property_data
 		},
 	})
 	// pppoe（eth 终结层。RFC 2516——Discovery（PADI/PADO/PADR/PADS，EtherType

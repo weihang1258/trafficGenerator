@@ -99,11 +99,11 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// CoAP 同款（P4a）：配置经 Meta 直传 coap 终结层生成器（请求 + 可选
 		// ACK 响应两事件，BuildMessage 纯函数复用）。缺这行时 req.Meta.CoAP
 		// 恒 nil → 生成器回退默认 GET/无响应 → 所有 coap 链只发 1 包。
-		CoAP:       spec.CoAP,
+		CoAP: spec.CoAP,
 		// D-SIP-2 WP-D：sip 事件面同款（dialog→MessageEvents 生成器读
 		// Meta.SIP）。此前 sip 走 isRawIPChain 自驱分支（flowMetaFor 有
 		// SIP 字段）——事件面分支在本 drive 内联 meta 清单补齐。
-		SIP: spec.SIP,
+		SIP:        spec.SIP,
 		S7:         spec.S7,
 		IEC104:     spec.IEC104,
 		GOOSE:      spec.GOOSE,
@@ -2121,6 +2121,15 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 					spec.DstPort = up
 				}
 			}
+		}
+	case "jt808":
+		// D-JT808-1：层 config 经 core.ParseJT808ConfigFromMap 复用扁平
+		// 解析单一真相（procedures 嵌套全 parse 承接；extra/param value
+		// 双形 getByteSlice——rtmp payload_b64 同陷阱面）。空层 config 也
+		// 翻译出非 nil。端口=legacy 内部缺省 7611（vnc/pptp 变体），无
+		// 端口回填分支（jt808 层无端口字段）。
+		if spec.JT808 == nil {
+			spec.JT808 = core.ParseJT808ConfigFromMap(completedConfig(s, term.Config))
 		}
 	case "fins":
 		// D-FINS-1：层 config map 直存 Metadata（GetConfig map 分支既有

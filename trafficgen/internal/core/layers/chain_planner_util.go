@@ -51,10 +51,10 @@ func isRawIPChain(name string, chain []Layer) bool {
 		}
 	}
 	switch chain[len(chain)-1].Name {
-	case "igmp", "ospf", "pim", "nvgre", "srv6", "icmpv6", "h323", "mpls", "ngap", "telnet", "sip", "radius", "pppoe", "ldap", "rtmp", "rtsp", "pptp", "vnc", "xmpp", "sctp":
+	case "igmp", "ospf", "pim", "nvgre", "srv6", "icmpv6", "h323", "mpls", "ngap", "telnet", "sip", "radius", "pppoe", "ldap", "rtmp", "rtsp", "pptp", "vnc", "xmpp", "sctp", "jt808":
 		return true
 	}
-	return name == "igmp" || name == "ospf" || name == "pim" || name == "nvgre" || name == "srv6" || name == "icmpv6" || name == "h323" || name == "mpls" || name == "ngap" || name == "telnet" || name == "sip" || name == "radius" || name == "pppoe" || name == "ldap" || name == "rtmp" || name == "rtsp" || name == "pptp" || name == "vnc" || name == "xmpp" || name == "sctp"
+	return name == "igmp" || name == "ospf" || name == "pim" || name == "nvgre" || name == "srv6" || name == "icmpv6" || name == "h323" || name == "mpls" || name == "ngap" || name == "telnet" || name == "sip" || name == "radius" || name == "pppoe" || name == "ldap" || name == "rtmp" || name == "rtsp" || name == "pptp" || name == "vnc" || name == "xmpp" || name == "sctp" || name == "jt808"
 }
 
 // isCarrierMixedChain reports whether the terminal layer self-drives mixed
@@ -184,7 +184,7 @@ func isCWMPChainWithFlows(chain []Layer) bool {
 // nmeaSessionRST reports whether any nmea session or the nmea config block
 // declares termination:"rst"（设计 69-nmea §5 正例 46：RST 异常中断 =
 // 3+N+1 单侧 RST、无 FIN 挥手）。会话级声明必须翻译到 tcp 层 rst=true
-//（cfg.rst 使 TCPGenerator 以单帧 RST|ACK(up) 短路收尾），否则 tcp 层
+// （cfg.rst 使 TCPGenerator 以单帧 RST|ACK(up) 短路收尾），否则 tcp 层
 // 按默认 FIN 挥手出 3+N+4。NMEAConfig.Termination 是全 session 默认
 // 覆盖（NMEAConfig 缺省，per-session 优先）；per-session
 // Termination="" 时回退到 config-level 声明。

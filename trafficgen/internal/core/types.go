@@ -1866,6 +1866,7 @@ type FlowSpec struct {
 	WireGuard   *WireGuardConfig   `json:"wireguard,omitempty"`
 	NGAP        *NGAPConfig        `json:"ngap,omitempty"`
 	Xmpp        *XmppConfig        `json:"xmpp,omitempty"`
+	JT808       *JT808Config       `json:"jt808,omitempty"`
 	DoIP        *DoIPConfig        `json:"doip,omitempty"`
 	TFTP        *TFTPConfig        `json:"tftp,omitempty"`
 	MQTT        *MQTTConfig        `json:"mqtt,omitempty"`
@@ -10601,4 +10602,169 @@ type PPPoESession struct {
 	DataPayload   []byte          `json:"data_payload,omitempty"`
 	InnerProto    uint8           `json:"inner_proto,omitempty"`
 	DataDirection string          `json:"data_direction,omitempty"`
+}
+
+// JT808Config holds JT/T 808 terminal-platform protocol configuration
+// (D-JT808-1 裁定2：配置类型迁 core——vnc/xmpp 先例 core 独占类型；
+// json tags 与 protocol/jt808 原 types.go 逐字一致，protocol 包别名承接).
+type JT808Config struct {
+	// Phone (终端手机号) — 12-digit BCD. Must match ^\d{12}$. Required.
+	Phone string `json:"phone"`
+
+	// Version (版本标志) — "2011" | "2013" | "2019" (default). Affects
+	// MsgBodyProps bits 10-12.
+	Version string `json:"version,omitempty"`
+
+	// EncryptFlag (加密标志) — 0=plain (default), 1=encrypted (placeholder;
+	// trafficgen does NOT implement real encryption per design §14).
+	EncryptFlag uint8 `json:"encrypt_flag,omitempty"`
+
+	// LicenseColor (车牌颜色) 0-5, 9. 0 means no plate; LicensePlate MUST
+	// then be empty.
+	LicenseColor uint8 `json:"license_color,omitempty"`
+
+	// LicensePlate (车牌号) GBK-encoded, only when LicenseColor != 0.
+	LicensePlate string `json:"license_plate,omitempty"`
+
+	// ProvinceId / CityId (省域/市域 ID) for 0x0100 registration.
+	ProvinceId uint16 `json:"province_id,omitempty"`
+	CityId     uint16 `json:"city_id,omitempty"`
+
+	// ManufacturerId (制造商ID) 5 ASCII chars, default "TEST".
+	ManufacturerId string `json:"manufacturer_id,omitempty"`
+
+	// TerminalModel (终端型号) up to 20 bytes, default "TG-DEMO".
+	TerminalModel string `json:"terminal_model,omitempty"`
+
+	// TerminalId (终端ID) 7 bytes, default "0000001".
+	TerminalId string `json:"terminal_id,omitempty"`
+
+	// TerminalType (终端类型) for 0x0107 property response, 0-2.
+	TerminalType uint8 `json:"terminal_type,omitempty"`
+
+	// InitialSN (起始流水号) for the per-flow MsgSN counter. Each subsequent
+	// message increments by 1, wrapping at 65535.
+	InitialSN uint16 `json:"initial_sn,omitempty"`
+
+	// PlatformInitialSN (平台侧起始流水号) for platformMsgSN. Default 0.
+	// Per-Terminal independent counter; NOT tied to InitialSN (design §6A.2).
+	PlatformInitialSN uint16 `json:"platform_initial_sn,omitempty"`
+
+	// AuthCode (鉴权码) for 0x0102. Must be 1-16 bytes GBK after encoding.
+	AuthCode string `json:"auth_code,omitempty"`
+
+	// IMEI (终端IMEI) for 0x0102 auth body. 15 ASCII chars.
+	IMEI string `json:"imei,omitempty"`
+
+	// SoftwareVersion (软件版本号) for 0x0102. 20 bytes ASCII/GBK.
+	SoftwareVersion string `json:"software_version,omitempty"`
+
+	// RegistrationResult (注册应答结果) for 0x8100. 0=success (default),
+	// 1-4=fail. When non-zero, AuthCode is omitted.
+	RegistrationResult uint8 `json:"registration_result,omitempty"`
+
+	// Procedures (业务流程) ordered list of JT808 messages to emit.
+	Procedures []JT808Procedure `json:"procedures"`
+}
+
+// JT808Procedure is one step in a JT808 session (design §5A).
+type JT808Procedure struct {
+	// Type selects the message template (see Proc* constants).
+	Type string `json:"type"`
+
+	// ACKFlag (通用应答标志) for general_response / registration_response.
+	// 0/1/2/3 only.
+	ACKFlag uint8 `json:"ack_flag,omitempty"`
+
+	// LocationData for "location_report" / "location_query_response".
+	LocationData *JT808Location `json:"location_data,omitempty"`
+
+	// ResponseSN for general_response / registration_response /
+	// location_query_response. When 0, auto-bound to the matching upstream
+	// SN (design §5A M-05).
+	ResponseSN uint16 `json:"response_sn,omitempty"`
+
+	// ResponseMsgId for "general_response". When 0, auto-bound.
+	ResponseMsgId uint16 `json:"response_msg_id,omitempty"`
+
+	// RegistrationResult per-procedure override for "registration_response".
+	RegistrationResult *uint8 `json:"registration_result,omitempty"`
+
+	// AuthCode per-procedure override for "registration_response" when
+	// result=0.
+	AuthCode string `json:"auth_code,omitempty"`
+
+	// IMEI per-procedure override for "auth".
+	IMEI *string `json:"imei,omitempty"`
+
+	// SoftwareVersion per-procedure override for "auth".
+	SoftwareVersion *string `json:"software_version,omitempty"`
+
+	// Text (文本内容) for "text_down", GBK.
+	Text string `json:"text,omitempty"`
+
+	// TextFlag (文本标志) for "text_down", 0-3 (bit flags).
+	TextFlag uint8 `json:"text_flag,omitempty"`
+
+	// Params (参数列表) for "set_params": TLV items.
+	Params []JT808Param `json:"params,omitempty"`
+
+	// PropertyData (终端属性) for "property_response".
+	PropertyData *JT808Property `json:"property_data,omitempty"`
+}
+
+// JT808Location models the 0x0200 location body (design §4A.3).
+type JT808Location struct {
+	AlarmFlag  uint32       `json:"alarm_flag"`
+	StatusFlag uint32       `json:"status_flag"`
+	Latitude   uint32       `json:"latitude"`  // 1e-6 deg
+	Longitude  uint32       `json:"longitude"` // 1e-6 deg
+	Altitude   uint16       `json:"altitude"`  // m
+	Speed      uint16       `json:"speed"`     // 0.1 km/h
+	Direction  uint16       `json:"direction"` // 0-359
+	Time       string       `json:"time"`      // "YYMMDDhhmmss" (BCD-encoded by planner)
+	ExtraItems []JT808Extra `json:"extra_items,omitempty"`
+
+	// Bit-level convenience fields (扩展表 2). When non-nil, the planner
+	// OR-merges them into StatusFlag before encoding (design §5A H-05).
+	// StatusFlag (when set directly) takes precedence; these are OR-merged
+	// on top. nil = not applied.
+	ACC        *bool `json:"acc,omitempty"`         // bit0
+	DoorStatus *bool `json:"door_status,omitempty"` // bit1
+	OilCircuit *bool `json:"oil_circuit,omitempty"` // bit2
+	RunStatus  *bool `json:"run_status,omitempty"`  // alias of ACC
+}
+
+// JT808Extra is one TLV extra item (design §4A.3).
+type JT808Extra struct {
+	Type   uint8  `json:"type"`
+	Length uint8  `json:"length,omitempty"` // auto-computed by planner
+	Value  []byte `json:"value"`
+}
+
+// JT808Param is one TLV param item for 0x8103 (design §4A.9).
+type JT808Param struct {
+	Id    uint8  `json:"id"`
+	Value []byte `json:"value"`
+}
+
+// JT808Property models the 0x0107 terminal property response (design §4A.6).
+type JT808Property struct {
+	DeviceType      uint8  `json:"device_type"`
+	ManufacturerId  string `json:"manufacturer_id"`
+	TerminalModel   string `json:"terminal_model"`
+	TerminalId      string `json:"terminal_id"`
+	IccId           string `json:"icc_id"`
+	Imei            string `json:"imei"`
+	SoftwareVersion string `json:"software_version"`
+	GnssModule      uint8  `json:"gnss_module"`
+	CommModule      uint8  `json:"comm_module"`
+	ProvinceId      uint16 `json:"province_id"`
+	CityId          uint16 `json:"city_id"`
+	CountyId        uint16 `json:"county_id"`
+	TownId          uint16 `json:"town_id"`
+	Operator        uint8  `json:"operator"`
+	APN             string `json:"apn"`
+	HardwareVersion string `json:"hardware_version"`
+	MaxSpeed        uint16 `json:"max_speed"`
 }

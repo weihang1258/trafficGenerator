@@ -129,7 +129,7 @@ func TestProtoFlat_TopHTTPSubConfigRejected(t *testing.T) {
 // 同名子映射 presence → 判死。混搭缝实证：{"layers":[ip,<p>],"<p>":{...}}
 // 顶层先填 spec 静默赢层配置——必须 400。
 func TestProtoFlat_TopRawWrapSubConfigRejected(t *testing.T) {
-	for _, proto := range []string{"pppoe", "ldap", "rtmp", "rtsp", "pptp", "vnc", "xmpp", "sctp"} {
+	for _, proto := range []string{"pppoe", "ldap", "rtmp", "rtsp", "pptp", "vnc", "xmpp", "sctp", "jt808"} {
 		t.Run(proto, func(t *testing.T) {
 			_, errs := ValidateStrategy("synth", proto, map[string]any{
 				"layers": []any{map[string]any{"ip": map[string]any{"src": "10.0.0.1", "dst": "20.0.0.1"}}},

@@ -1196,6 +1196,74 @@
       ],
       "fields": {}
     },
+    "jt808": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "auth_code": {
+          "type": "string"
+        },
+        "city_id": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "encrypt_flag": {
+          "type": "int",
+          "max": 1
+        },
+        "imei": {
+          "type": "string"
+        },
+        "initial_sn": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "license_color": {
+          "type": "int",
+          "max": 9
+        },
+        "license_plate": {
+          "type": "string"
+        },
+        "manufacturer_id": {
+          "type": "string"
+        },
+        "phone": {
+          "type": "string"
+        },
+        "platform_initial_sn": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "procedures": {
+          "type": "list"
+        },
+        "province_id": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "registration_result": {
+          "type": "int"
+        },
+        "software_version": {
+          "type": "string"
+        },
+        "terminal_id": {
+          "type": "string"
+        },
+        "terminal_model": {
+          "type": "string"
+        },
+        "terminal_type": {
+          "type": "int"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
     "l2tp": {
       "category": "terminal",
       "depends_on": [

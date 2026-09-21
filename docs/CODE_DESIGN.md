@@ -3301,3 +3301,64 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 **P6 评审与提交（2026-09-21）：** 测试四问全过（链 translate→端口回填→validator→raw wrap 全链/MCP 真流程/字段+帧字节双面/9.52 对账 20/20）。反查表 check_sctp **20/20 绿**（例 10+键 8+锚 2）。门2 四项绿。在库清库：strategies 1+tasks 9 删前报数→备份 trafficgen-sctp-purge-20260921.db→删→复核 0/0（总量 strategies 698/tasks 240509）。门3 抽查三条：①裁定2 8 Fields→registry sctp 行逐键+T-8 DATA 20B 全头钉；②裁定3 负例锚→T-9（planner Validate 嵌套锚）+T-10（V9 区间先拦——P3 复审核准拦截点生效）真实流程 400；③裁定1 raw wrap+端口补位→layer_gen 防双换+translate 回填+链测试断言 validated.DstPort==38412。9.50 复杂例=T-6（多宿主子流+心跳+握手全序）。
 
 **P6 追加对抗复审（2026-09-21，隔离 subagent 执行——sctp 收官轮）：** 隔离复审员独立实跑全套验证+tshark 双帧复核+go test -overlay 探针，判**不净**，抓 2 实 findings+3 注记，全部处置：①**高（1.4/1.7/1.13）顶层 sctp 子映射混用不拦且静默赢层链**——CheckProtoFlat 19 presence 分支独缺 raw 自驱八协议（探针实证 {"layers":[ip,sctp],"sctp":{"abort":true}} 零错过校验、顶层 abort 静默生效）→**CheckProtoFlat 补 8 协议 presence 判死**（rawWrapChains 表）+TestProtoFlat_TopRawWrapSubConfigRejected 8 子测+pipe_gate presence 名单+8（七个姊妹协议 pppoe/ldap/rtmp/rtsp/pptp/vnc/xmpp 同洞同修）；②**中（5.6/9.5）"cookie 回显一致性由 legacy 单测钉"声明失实**（全库无此断言）→sctp_cookie_echo_test.go 补平凡断言（COOKIE-ECHO[4:36]==INIT-ACK[24:56]+参数头 0007/0024 钉），四处文档声明恢复为真；③F3/F4 B′ 补登（file_source/alt MAC/data 字节数组形、SID 多流化）④F5 注记（dyn/staticCopy 名单）。复验：sctp 10/10 ×2 全绿+vnc 21/21 无误伤抽查（presence 判死不误伤纯层链）+touched 包 -race 绿。**复审结论：隔离轮抓 1 高 1 中 3 注记全处置，净。隔离复审模式价值再次实证：主线程四轮未见的混搭缝被零上下文复审员一枪命中。**完整报告送达后补最后一条注记：9.46 上界负例缺（T-10 只测下界）→**T-11 fragment_size=1000001 上界负例**（同 V9 拦截点 out of range [16,1000000]），11/11 全绿+反查 21/21。
+
+## D-JT808-1 jt808 层链收敛（#29，P1+P2 定稿 2026-09-21，待批）
+
+### P1 规范矩阵（JT/T 808-2011/2013/2019 反推，含三张子表要求 4.22）
+
+| 规范点 | 出处 | 代码现状 | 缺口 |
+|---|---|---|---|
+| 传输载体：TCP 长连接，3 次握手+3 次挥手包络，消息 0x7e 定界 | §5.3/设计 §10.5 | PlanWithConfig :171-380（3 握手→消息序→3 挥手；channel 256） | 无 |
+| 帧结构：0x7e + 消息头(12/16B) + 体 + XOR 校验和 + **转义**(0x7e→0x7d02, 0x7d→0x7d01) + 0x7e | §5.4 | buildHeader :17/buildFrame :36（XORChecksum+Escape 后再定界，顺序正确） | 无 |
+| 消息头：msgId(2B)+props(2B)+终端手机号 BCD(6B)+流水号(2B)[+分包 4B]；版本位 props bit10-12（2011=000/2013=001/2019=010）、加密 bit15、分包 bit14、体长 bit0-9 上界 1023 | §5.4/jtcommon :29-38,207 | EncodeMsgBodyProps/ParseVersionFlag/buildFragmentedFrames :287（bit14 强制+pkgNum/pkgTotal 重算 props） | 无 |
+| 13 型消息面：0x0100 注册/0x0102 鉴权/0x0200 位置上报/0x0201 位置查询应答/0x0003 注销/0x0107 终端属性/0x0001 终端通用应答/0x8001 平台通用应答/0x8100 注册应答/0x8103 设置参数/0x8104 查询参数/0x8201 查询位置/0x8300 文本下发 | §7 全族 | emitProcedure jt808.go :400-497 全 13 型 dispatch；builder 13 个 body 构造 | 无（全编排可达） |
+| 双流水号空间：终端上行 msgSN 与平台下行 platformMsgSN 独立计数、各自递增 | 设计 §6A.2 | :218-221 两计数器独立递增 | 无 |
+| 自动绑定：0x8001 绑最近上行/0x0001 绑最近下行/0x0201 应答绑最近 0x8201/0x8100 绑最近 0x0100 | 设计 §5A M-05 | emitProcedure respSN=0 时回绑 :409-471 | 无 |
+| 位置体 28B 固定面+附加信息 TLV+状态位合并（ACC/门/油路/运行 *bool OR 并入 StatusFlag） | §7.4.1/设计 §5A H-05 | buildLocationBody + 位合并 types.go | 无 |
+| GBK 编码面：车牌/文本/鉴权码 GBK 落线 | §7 | builder GBK 编码（jtcommon.XORChecksumGBK 面） | 无 |
+| 校验锚：手机号 ^\d{12}$/版本枚举/encrypt≤1/车牌色枚举+车牌互斥/鉴权码必备（ProcAuth）/方向<360/经纬度上界/ACKFlag≤3/注册结果≤4 | ValidateConfig :61-149 | 全部落 ValidateConfig（protocol 包独立校验器） | 无（validator 背 door 注册即达） |
+| 加密：encrypt_flag=1 为占位，不做真加密 | 设计 §14 | props bit15 置位、体明文 | 如实注记 B′（无真加密=设计裁定） |
+| legacy Plan 入口 | — | **Plan 直接报错**（:155 "Plan not supported, use PlanWithConfig"）——曾致任务 0 包静默完成，已改硬错 | **缺口：layer_gen 唯一入口=PlanWithConfig（非 Plan），九连协议首例** |
+| 方向换向：legacy 包内置 Direction="down"，raw drive 二次换 | — | — | **缺口：layer_gen 防双换（八连协议同款）** |
+| 层链接线 | — | main.go :589 legacy `jt808.NewPlanner()`+具名导入 :83 | **缺口：五件套+翻转+具名转空导入** |
+| 配置类型归属 | — | JT808Config 族全在 protocol/jt808/types.go（302 行，core 零接线：FlowSpec/FlowMeta/parse/registry 全无） | **缺口：类型迁 core/types.go（vnc/xmpp 先例：core 独占类型），protocol 包 alias 保 888 行测试零改动** |
+
+**①命令×响应矩阵：** 注册→注册应答/鉴权(→通用应答可选)/位置上报→(平台 0x8001)/查询位置→位置查询应答/文本下发→(终端 0x0001)/设置参数→(0x0001)/查询参数→(0x0001)/注销→(0x0001)/属性应答/通用应答族——13 型 dispatch 逐格已实现。
+**②数据形态变体：** 版本三方言（props 版本位）、分包体（bit14+pkgNum/pkgTotal+体长重算）、*bool 位合并 vs StatusFlag 直设（直设优先，OR 并入）、ResponseSN=0 自动绑定 vs 显式、RegistrationResult/AuthCode/IMEI/SoftwareVersion 过程级覆盖 vs 顶层、ExtraItems TLV 长度自动补算、Params TLV、注册体三段 pad 规则（厂商 0x00 填充/型号 0x20 填充/终端 ID 0x00 填充）。
+**③商业行为映射：** 无参考 pcap（在库 9 tasks=现网需求面：车载终端注册-鉴权-位置上报主链）；部标interpreted 实现思路（JT/T 808 开源测试工具集）=开源思路参照；三路中"商业软件行为"一路=在库 9 tasks 特征反推，如实注记。
+**三路对照：** ①JT/T 808-2019 原文（含 2011/2013 方言位）；②在库 9 tasks 现网需求面；③开源部标测试工具思路（注册/鉴权/位置主链+分包+转义）。**候选对比：** (a) [ip, jt808] raw 自驱 wrap PlanWithConfig（八连协议对称，legacy 全消息面零分叉）✓ vs (b) 事件面重写（13 型逐消息事件化，工作量爆炸且分叉）→裁定 (a)。
+**门1 三行：** §1 扁平键全删（src_ip/dst_ip/src_port/dst_port/count+顶层 jt808 子映射——CheckProtoFlat rawWrapChains 第 9 协议），目标形 `{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"jt808":{"phone":"012345678901","version":"2019","initial_sn":0,"procedures":[{"type":"register"},{"type":"auth"},{"type":"location_report","location_data":{"latitude":39900000,"longitude":116390000,"speed":600,"direction":90,"time":"260921120000"}}]}}]}`+**端口=legacy 内部缺省 7611（vnc/pptp 变体：PlanWithConfig :166 spec.DstPort==0 内补，无 DstPort switch case、无协议层端口字段——缺省即真相零代码增量，链路径 0 合法（validateBaseDstPortHandled 豁免），用例断言面按 7611 钉）**；§3 单流豁免——JT808=单 TCP 连接会话（终端↔平台），无子流派生、无独立数据流（分包子帧同连接），五件套=会话表(1 TCP 连接)/事务序(procedures 数组顺序=消息线序)/关联(分包子帧同连接同 SN 递增)/插入位置(handshake 后 teardown 前)/时间线(顺序)；§12 动态=worker 四元组+ISN（serverSeq 随机、clientSeq 走 spec.TCP.InitialSeq=0 随机），业务键全静态单值（phone/procedures 全显式，如实注记无 dyn 旁挂——layerDynAllowlist 无 jt808）。
+
+### 裁定（P2 定稿）
+| # | 裁定 | 依据 |
+|---|---|---|
+| 1 | 层形状=[ip, jt808]：CategoryTerminal+DependsOn `["ip"]`；**layer_gen 唯一入口=PlanWithConfig**（legacy Plan 硬错——九连首例，防 0 包静默回归）；防双换 Direction=up | 八连协议对称+Plan 硬错事实 |
+| 2 | 配置类型迁 core：JT808Config/JT808Procedure/JT808Location/JT808Extra/JT808Param/JT808Property 六结构（含 json tags）迁 core/types.go+FlowSpec.JT808 字段；protocol/jt808/types.go 结构定义改 `type X = core.X` **别名**（constants/DefaultJT808Config/DefaultPort 留 protocol 包——core parse 全 string/数值直传不需常量，core 不 import protocol 铁律）；888 行 legacy 测试零改动 | vnc/xmpp 先例（core 独占类型）+最小 diff |
+| 3 | 翻转五件套：isRawIPChain 双名单+=jt808；src 0-keep+=jt808；validateBaseDstPortHandled+=jt808（内部缺省 7611，vnc 变体无 switch case）；**registry 行 18 Fields**（phone/version/encrypt_flag/license_color/license_plate/province_id/city_id/manufacturer_id/terminal_model/terminal_id/terminal_type/initial_sn/platform_initial_sn/auth_code/imei/software_version/registration_result 17 标量+procedures list；范围只设在 ValidateConfig 真校验键：encrypt_flag 0-1/license_color 0-9/registration_result 0-4/uint16 族 0-65535，phone/plate 等 string 不设——V9 不下探 procedures 嵌套，嵌套负例锚=ValidateConfig）+translate case 复用 ParseJT808ConfigFromMap 导出+FlowMeta.JT808+raw 注入；CheckProtoFlat rawWrapChains 第 9 协议+pipe_gate presence 名单+9；main.go :589 具名导入转翻转+空导入 | pppoe 五件套+八连对称 |
+| 4 | 场景强度全额：13 型全枚举编排（T-1/T-3/T-5/T-7/T-9 合盖 13/13）、双 SN 空间独立递增钉、4 自动绑定逐格钉、escape 转义真字节（TLV value 含 0x7e/0x7d→7d02/7d01 帧变长钉）、分包（>1023 体 bit14+pkgNum/pkgTotal）、GBK 车牌/文本字节钉、版本方言 2011 位钉（2019 缺省覆盖于 T-1，2013 同机制 B′ 注记）、注册体三段 pad 规则；负例 4 锚全落 ValidateConfig（phone 11 位/auth 无鉴权码/车牌色 0+车牌非空/ACKFlag=99）——嵌套与顶层统一锚点=planner 校验器 | 9.46–9.53 |
+| 5 | B′ 账本：无参考 pcap（在库 9 tasks=现网需求面反推）、encrypt_flag=1 无真加密（设计 §14 裁定，bit15 置位体明文）、terminal_type 0-2 语义校验缺（ValidateConfig 不查、registry 不设范围——诚实注记）、2013 方言位同机制不单列（单 bit 差，T-4 钉 2011+T-1 钉 2019 缺省双端点）、suite 无 JT/T808 tshark dissector→原始 TCP payload hex 偏移钉（sctp 同款）、layerDynAllowlist/checkLayerChainStaticCopy 无 jt808（前者诚实拒绝、后者 ip 标量兜底——sctp 隔离复审 F5 同款探针注记） | 如实 |
+
+**文件：** core/types.go（六结构迁入+FlowSpec.JT808）+protocol/jt808/types.go（别名化）+protocol/jt808/layer_gen.go（新）+core/layers/{chain_planner_util.go,chain_planner.go（名单）,registry.go（18 Fields 行）,chain_planner_translate.go（case）,generator.go（FlowMeta.JT808）}+strategy_convert.go（ParseJT808ConfigFromMap+rawWrapChains+=jt808）+cmd/server/main.go（翻转）+cases/jt808.json（新建）+jt808_chain_test.go（新）+tools/{pipe_gate.sh,coverage_gate.py}。
+**性能（6.4-6.6）：** 流式 channel 256；包数=3 握手+N 消息（分包线性）+3 挥手；T-1 基线 10 帧实测钉待 P5；pcap 验收路（网卡路未跑注明 6.3）。
+**回滚：** 单提交粒度，摘除即回。
+
+### T-JT808-1…14 清单（P3，JT/T 808-2019 反推；9.52 对账 **22/22**：帧包络 1+帧头字节 1+双 SN/自动绑定 2+注册体 1+位置体 1+版本方言 1+down 面 1+GBK 文本 1+属性体 1+分包 1+13 型覆盖核对 0（并入前五例不占号）+负例 4 → 建例 14（T-1 基线关联=T-2 字节=T-3 绑定 三例合钉注册-鉴权-应答主链））
+
+| # | 用例 | 断言面 |
+|---|---|---|
+| T-1 | 基线关联（register→registration_response→auth→platform_general_response） | 10 帧=3 握手+4 消息+3 挥手；msgId 序 0100/8100/0102/8001；方向序 up/down/up/down |
+| T-2 | 帧头字节钉 | 0x7e 首尾；msgId/props/phone BCD/SN 偏移钉；XOR 校验和复算；0x2019 版本位缺省 |
+| T-3 | 双 SN 空间+4 自动绑定 | initial_sn=100/platform_initial_sn=200 独立递增；0x8201→0x0201 回绑 querySN/0x8300→0x0001 回绑 downSN/0x8100 绑 lastRegisterSN/0x8001 绑 lastSentSN |
+| T-4 | 注册体字段钉 | province/city BE；厂商 5B 0x00 填充/型号 20B 0x20 填充/终端 ID 7B 0x00 填充；车牌色 1+GBK 车牌尾缀 |
+| T-5 | 位置上报+位合并+TLV 转义 | 28B 固定面钉；ACC=true OR 并入 status bit0；extra TLV value 含 0x7e/0x7d→7d02/7d01 转义帧变长钉 |
+| T-6 | 版本方言+加密位 | version="2011"→props 版本位 000；encrypt_flag=1→bit15 |
+| T-7 | down 面 TLV（set_params/query_params/cancel） | 0x8103 参数 TLV 体钉；0x8104/0x0003 空体 |
+| T-8 | 文本下发 GBK | 中文→GBK 字节钉；text_flag 位 |
+| T-9 | 终端属性应答 | 0x0107 全字段体钉（17 字段形） |
+| T-10 | 分包 | set_params 大 value→体>1023：props bit14=1+pkgNum/pkgTotal 递增+体长=分片长 |
+| T-11 | 负例 phone 11 位 | 锚词 `must be 12 digits` |
+| T-12 | 负例 auth 无鉴权码 | 锚词 `AuthCode is empty` |
+| T-13 | 负例 车牌色 0+车牌非空 | 锚词 `LicenseColor=0 but LicensePlate non-empty` |
+| T-14 | 负例 ACKFlag=99 | 锚词 `ACKFlag 99 invalid` |
+
+**P3 复审（2026-09-21 对抗走查）：** 13 型覆盖核对：T-1（register/auth/registration_response/platform_general_response=4 型）+T-3（query_location/location_query_response/terminal_general_response/text_down=4 型）+T-7（set_params/query_params/cancel=3 型）+T-9（property_response=1 型）+T-5（location_report=1 型）=**13/13 全枚举**。数据形态变体：分包=T-10、位合并=T-5（ACC *bool）vs StatusFlag 直设优先注记（不单列——直设路径与 OR 合并同 builder 分支，legacy 单测钉+T-5 钉合并路径）、TLV 自动长度=T-5/T-10、pad 三规则=T-4、GBK=T-4/T-8、版本方言=T-4 2019 缺省/T-6 2011、自动绑定 4 格=T-3 逐格。负例 4 锚全落 ValidateConfig（嵌套 procedures V9 不下探→ACKFlag 锚点=planner，登记点核准确）。9.50 复合例=T-3（双 SN 空间+4 绑定格全序）。对账 22/22 平。**清单净，待批进 P4。**
