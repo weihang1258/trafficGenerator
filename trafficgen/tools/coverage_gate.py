@@ -1806,9 +1806,9 @@ def check_jt809(cases):
         rows.append((k, hit is not None, hit or "无用例"))
 
     for needle, name in [
-        ("GNSSCenterId 1000000000 > 999999999", "T-11 gnss 锚"),
-        ("VersionFlag 3 > 2", "T-12 version 锚"),
-        ("ErrorCode 3 > 2", "T-13 error_code 锚"),
+        ("out of range [0,999999999]", "T-11 gnss 锚（首拦截=registry V9 区间，schema 先于 planner）"),
+        ("out of range [0,2]", "T-12 version 锚（首拦截=registry V9 区间）"),
+        ("ErrorCode 3 > 2", "T-13 error_code 锚（嵌套不下探，planner 拦截）"),
     ]:
         rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
     return rows

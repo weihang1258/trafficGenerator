@@ -1,0 +1,943 @@
+[
+ {
+  "id": "jt809_t1_baseline",
+  "proto": "jt809",
+  "summary": "T-1 基线关联：主链 3 握手+2 消息（0x1001/0x1003）+3 挥手=8 帧；首帧 5B 起 5D 止",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt809": {
+      "gnss_center_id": 291,
+      "initial_sn": 100,
+      "procedures": [
+       {
+        "type": "main_login"
+       },
+       {
+        "type": "main_logout"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 8,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "8812"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.flags",
+     "value": "0x018"
+    },
+    {
+     "packet": 5,
+     "field": "tcp.flags",
+     "value": "0x018"
+    },
+    {
+     "packet": 6,
+     "field": "tcp.flags",
+     "value": "0x011"
+    }
+   ],
+   "notes": [
+    "消息帧从落盘 pcap 重钉 SN/MsgId 字节（P5）"
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 63,
+     "hex": "10 01"
+    },
+    {
+     "packet": 5,
+     "offset": 63,
+     "hex": "10 03"
+    }
+   ]
+  }
+ },
+ {
+  "id": "jt809_t2_envelope_header",
+  "proto": "jt809",
+  "summary": "T-2 信封+头字节钉（2019 30B 头）：5B/5D；MsgLength=整帧 84=1+30+50+2+1；SN/GNSS/Version 010000/Encrypt/Key/Time 定值 1700000000；CRC 复算=尾 2B",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt809": {
+      "gnss_center_id": 291,
+      "initial_sn": 7,
+      "version_flag": 2,
+      "version_bytes": "010000",
+      "time_sec": 1700000000,
+      "procedures": [
+       {
+        "type": "main_login"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 7,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "8812"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "value": "84"
+    }
+   ],
+   "notes": [
+    "字节级 frames 钉（5B/头 30B/CRC 尾 2B）从落盘 pcap tshark 重钉（9.31，P5）"
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "5b"
+    },
+    {
+     "packet": 4,
+     "offset": 55,
+     "hex": "00 00 00 54"
+    },
+    {
+     "packet": 4,
+     "offset": 59,
+     "hex": "00 00 00 07"
+    },
+    {
+     "packet": 4,
+     "offset": 63,
+     "hex": "10 01"
+    },
+    {
+     "packet": 4,
+     "offset": 65,
+     "hex": "00 00 01 23"
+    },
+    {
+     "packet": 4,
+     "offset": 69,
+     "hex": "01 00 00"
+    },
+    {
+     "packet": 4,
+     "offset": 72,
+     "hex": "00"
+    },
+    {
+     "packet": 4,
+     "offset": 73,
+     "hex": "00 00 00 00"
+    },
+    {
+     "packet": 4,
+     "offset": 77,
+     "hex": "00 00 00 00 65 53 f1 00"
+    },
+    {
+     "packet": 4,
+     "offset": 85,
+     "hex": "00 00 01 23"
+    },
+    {
+     "packet": 4,
+     "offset": 89,
+     "hex": "30 30 30 30 30 30 30 30"
+    },
+    {
+     "packet": 4,
+     "offset": 97,
+     "hex": "00 00 01 23"
+    },
+    {
+     "packet": 4,
+     "offset": 101,
+     "hex": "31 30 2e 30 2e 30 2e 31 00"
+    },
+    {
+     "packet": 4,
+     "offset": 131,
+     "hex": "00 00"
+    },
+    {
+     "packet": 4,
+     "offset": 133,
+     "hex": "22 6d"
+    },
+    {
+     "packet": 4,
+     "offset": 137,
+     "hex": "5d"
+    }
+   ]
+  }
+ },
+ {
+  "id": "jt809_t3_login_body",
+  "proto": "jt809",
+  "summary": "T-3 登录体 50B 钉（2019）：UserId/Password pad8/GNSSCenterID/DownLinkIP pad32/Port 全字段；体长断言 tcp.len=84",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt809": {
+      "gnss_center_id": 1001,
+      "user_id": 2002,
+      "password": "pw123456",
+      "down_link_ip": "192.168.1.100",
+      "down_link_port": 8813,
+      "procedures": [
+       {
+        "type": "main_login"
+       }
+      ],
+      "version_flag": 2,
+      "time_sec": 1700000000
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 7,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "8812"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "value": "84"
+    }
+   ],
+   "notes": [
+    "体字节逐字段从落盘 pcap 重钉（P5）"
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 63,
+     "hex": "10 01"
+    },
+    {
+     "packet": 4,
+     "offset": 85,
+     "hex": "00 00 07 d2"
+    },
+    {
+     "packet": 4,
+     "offset": 89,
+     "hex": "70 77 31 32 33 34 35 36"
+    },
+    {
+     "packet": 4,
+     "offset": 97,
+     "hex": "00 00 03 e9"
+    },
+    {
+     "packet": 4,
+     "offset": 101,
+     "hex": "31 39 32 2e 31 36 38 2e 31 2e 31 30 30"
+    },
+    {
+     "packet": 4,
+     "offset": 131,
+     "hex": "00 00"
+    },
+    {
+     "packet": 4,
+     "offset": 135,
+     "hex": "d5 53"
+    }
+   ]
+  }
+ },
+ {
+  "id": "jt809_t4_keepalive_pair",
+  "proto": "jt809",
+  "summary": "T-4 keepalive 对：0x1005(up SN=initial_sn)→0x1006(down SN=platform_initial_sn) 空体对；jt808 F4 预防面",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt809": {
+      "gnss_center_id": 291,
+      "initial_sn": 50,
+      "platform_initial_sn": 60,
+      "procedures": [
+       {
+        "type": "main_keepalive"
+       },
+       {
+        "type": "main_keepalive_resp"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "8812"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.flags",
+     "value": "0x018"
+    },
+    {
+     "packet": 5,
+     "field": "tcp.flags",
+     "value": "0x018"
+    }
+   ],
+   "notes": [
+    "空体断言：0x1005/0x1006 体长 0（SN 分链分向从 pcap 重钉，P5）"
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 55,
+     "hex": "00 00 00 1a"
+    },
+    {
+     "packet": 4,
+     "offset": 63,
+     "hex": "10 05"
+    },
+    {
+     "packet": 5,
+     "offset": 55,
+     "hex": "00 00 00 1a"
+    },
+    {
+     "packet": 5,
+     "offset": 63,
+     "hex": "10 06"
+    }
+   ]
+  }
+ },
+ {
+  "id": "jt809_t5_disconnect",
+  "proto": "jt809",
+  "summary": "T-5 断开通知 0x1007：ErrorCode 1B=01（下级→上级单向）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt809": {
+      "gnss_center_id": 291,
+      "initial_sn": 1,
+      "procedures": [
+       {
+        "type": "main_disconnect",
+        "error_code": 1
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 7,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "8812"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.flags",
+     "value": "0x018"
+    }
+   ],
+   "notes": [
+    "体字节=01 从落盘 pcap 重钉（P5）"
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 63,
+     "hex": "10 07"
+    },
+    {
+     "packet": 4,
+     "offset": 76,
+     "hex": "00"
+    },
+    {
+     "packet": 4,
+     "offset": 77,
+     "hex": "01"
+    }
+   ]
+  }
+ },
+ {
+  "id": "jt809_t6_close_notify",
+  "proto": "jt809",
+  "summary": "T-6 关闭通知 0x1008：ReasonCode 1B=02；encrypt_flag=1+encrypt_key 占位面上线（头 2 字段钉）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt809": {
+      "gnss_center_id": 291,
+      "initial_sn": 1,
+      "encrypt_flag": 1,
+      "encrypt_key": 9999,
+      "procedures": [
+       {
+        "type": "main_close",
+        "reason_code": 2
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 7,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "8812"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.flags",
+     "value": "0x018"
+    }
+   ],
+   "notes": [
+    "体字节=02+头 Encrypt/Key 位从落盘 pcap 重钉（P5）"
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 72,
+     "hex": "01"
+    },
+    {
+     "packet": 4,
+     "offset": 73,
+     "hex": "00 00 27 0f"
+    },
+    {
+     "packet": 4,
+     "offset": 76,
+     "hex": "0f"
+    },
+    {
+     "packet": 4,
+     "offset": 77,
+     "hex": "02"
+    }
+   ]
+  }
+ },
+ {
+  "id": "jt809_t7_slave_dual_flow",
+  "proto": "jt809",
+  "summary": "T-7 从链路双流：两条 TCP 4 元组（主 10.0.0.1:12345↔8812 下级发起 + 从 20.0.0.1:8812↔10.0.0.1:8813 上级发起）同 GroupID 落同 pcap；0x9001 VerifyCode 钉；时序=主链消息(4)→从链握手(5-7)→从链消息(8)→主链挥(9-11)→从链挥(12-14)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt809": {
+      "gnss_center_id": 291,
+      "initial_sn": 5,
+      "procedures": [
+       {
+        "type": "main_login"
+       }
+      ],
+      "slave_procedures": [
+       {
+        "type": "slave_connect",
+        "verify_code": 305419896
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 14,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "8812"
+    },
+    {
+     "packet": 5,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 5,
+     "field": "tcp.dstport",
+     "value": "8813"
+    },
+    {
+     "packet": 6,
+     "field": "tcp.srcport",
+     "value": "8813"
+    },
+    {
+     "packet": 8,
+     "field": "tcp.srcport",
+     "value": "8812"
+    },
+    {
+     "packet": 8,
+     "field": "tcp.dstport",
+     "value": "8813"
+    }
+   ],
+   "notes": [
+    "包 12=从链 SYN（主链 8 帧后）；verify_code 0x12345678 体字节从落盘 pcap 重钉（P5）"
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 55,
+     "hex": "00 00 00 1e"
+    },
+    {
+     "packet": 8,
+     "offset": 63,
+     "hex": "90 01"
+    },
+    {
+     "packet": 8,
+     "offset": 76,
+     "hex": "00 12 34 56"
+    }
+   ]
+  }
+ },
+ {
+  "id": "jt809_t8_slave_resp_negative",
+  "proto": "jt809",
+  "summary": "T-8 从链应答负路径：0x9002 Result=1（1B 体，帧 27B）下级→上级；时序=主链握手(1-3)→从链握手(4-6)→从链消息(7)→主链挥(8-10)→从链挥(11-13)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt809": {
+      "gnss_center_id": 291,
+      "initial_sn": 5,
+      "slave_procedures": [
+       {
+        "type": "slave_connect_resp",
+        "result": 1
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "8813"
+    },
+    {
+     "packet": 7,
+     "field": "tcp.len",
+     "value": "27"
+    },
+    {
+     "packet": 7,
+     "field": "tcp.srcport",
+     "value": "8813"
+    }
+   ],
+   "notes": [
+    "主链 0 消息面=6 帧（3+0+3）；Result 体字节从落盘 pcap 重钉（P5）"
+   ],
+   "frames": [
+    {
+     "packet": 7,
+     "offset": 55,
+     "hex": "00 00 00 1b"
+    },
+    {
+     "packet": 7,
+     "offset": 63,
+     "hex": "90 02"
+    },
+    {
+     "packet": 7,
+     "offset": 76,
+     "hex": "00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "jt809_t9_escape_bytes",
+  "proto": "jt809",
+  "summary": "T-9 转义真字节：down_link_port=0x5B5D→线上 5A 01 5E 01 双 escape 形，帧变长 74（P4 勘误：原设计 0x5A5B 期望形有误）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt809": {
+      "gnss_center_id": 291,
+      "version_flag": 1,
+      "down_link_ip": "10.0.0.1",
+      "down_link_port": 23389,
+      "procedures": [
+       {
+        "type": "main_login"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 7,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "8812"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "value": "74"
+    }
+   ],
+   "notes": [
+    "74=72 未转义整帧+2 转义扩位；转义字节序从落盘 pcap 重钉（P5）"
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "5b"
+    },
+    {
+     "packet": 4,
+     "offset": 121,
+     "hex": "5a 01"
+    },
+    {
+     "packet": 4,
+     "offset": 123,
+     "hex": "5e 01"
+    },
+    {
+     "packet": 4,
+     "offset": 125,
+     "hex": "49 d4"
+    },
+    {
+     "packet": 4,
+     "offset": 127,
+     "hex": "5d"
+    }
+   ]
+  }
+ },
+ {
+  "id": "jt809_t10_logout",
+  "proto": "jt809",
+  "summary": "T-10 注销 0x1003：UserId+Password 12B 体",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt809": {
+      "gnss_center_id": 291,
+      "user_id": 777,
+      "password": "logout88",
+      "initial_sn": 9,
+      "procedures": [
+       {
+        "type": "main_logout"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 7,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "8812"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.flags",
+     "value": "0x018"
+    }
+   ],
+   "notes": [
+    "体字节从落盘 pcap 重钉（P5）"
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 55,
+     "hex": "00 00 00 26"
+    },
+    {
+     "packet": 4,
+     "offset": 63,
+     "hex": "10 03"
+    },
+    {
+     "packet": 4,
+     "offset": 76,
+     "hex": "00 00 00 03"
+    },
+    {
+     "packet": 4,
+     "offset": 80,
+     "hex": "09 6c 6f 67 6f 75 74 38"
+    }
+   ]
+  }
+ },
+ {
+  "id": "jt809_t11_neg_gnss_overflow",
+  "proto": "jt809",
+  "summary": "负例：gnss_center_id 1000000000 超界拒（ValidateConfig）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt809": {
+      "gnss_center_id": 1000000000,
+      "procedures": [
+       {
+        "type": "main_login"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "out of range [0,999999999]",
+   "notes": [
+    "首拦截点=registry V9 区间（schema 先于 planner）；planner 同义锚 GNSSCenterId…>999999999 由 ValidateConfig_Anchors 单测钉"
+   ]
+  }
+ },
+ {
+  "id": "jt809_t12_neg_version_flag",
+  "proto": "jt809",
+  "summary": "负例：version_flag=3 超版本区间拒（V9 区间锚）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt809": {
+      "gnss_center_id": 291,
+      "version_flag": 3,
+      "procedures": [
+       {
+        "type": "main_login"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "out of range [0,2]",
+   "notes": [
+    "首拦截点=registry V9 区间；planner 同义锚 VersionFlag 3 > 2 由单测钉"
+   ]
+  }
+ },
+ {
+  "id": "jt809_t13_neg_error_code",
+  "proto": "jt809",
+  "summary": "负例：error_code=3 超区间拒（planner 嵌套锚，V9 不下探拦截点）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt809": {
+      "gnss_center_id": 291,
+      "procedures": [
+       {
+        "type": "main_disconnect",
+        "error_code": 3
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "ErrorCode 3 > 2",
+   "notes": [
+    "嵌套 procedures 锚=ValidateConfig 遍历"
+   ]
+  }
+ }
+]
