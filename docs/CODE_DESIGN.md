@@ -3389,3 +3389,63 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 | §12 动态清单 | 四元组+ISN 动态（12.2/12.4 隔离复审多流探针：ip.src inc 逐流确定、src_port 保底 12345+i）；业务键全静态单值如实注记（无 dyn 旁挂，12.14）；12.9 静态四元组 flows>1 拒绝实探 |
 | §13 schema 先行 | registry jt808 行 18 Fields+schemagen 重生成 110 层（13.18/13.19 同步测试绿）；MCP 描述/flowb_query_layers 同一注册表 |
 | §14 全量门 | suite 16/16 ×2 全绿+pcap 落盘 16 份可人工复查+负例 4 锚真实 400+二进制与 HEAD 同代+反查 38/38 |
+
+## D-JT809-1 jt809 层链收敛（#30，P1+P2 定稿 2026-09-21，待批；裁定=线层重建）
+
+### P1 规范矩阵（JT/T 809-2019 反推，三源核验：SmallChi/JT809 权威开源实现源码+README 完整组包金向量例+标准文本；含三张子表要求 4.22）
+
+| 规范点 | 出处 | 代码现状 | 缺口 |
+|---|---|---|---|
+| 帧模型：`5B` 头标识 + 转义(消息头+消息体+CRC16(2)) + `5D` 尾标识；转义 5B→5A 01/5A→5A 02/5D→5E 01/5E→5E 02 | §数据包结构（README 金向量逐字节例） | **32B 头无定界无转义无校验**（builder.go :36 buildFrame 直拼） | **缺口 F1 级：整信封重建** |
+| 消息头 30B（2019）：MsgLength(4,=头+体)+MsgSN(4)+BusinessType(2)+**MsgGNSSCenterID(4 下级平台接入码)**+VersionFlag(3)+EncryptFlag(1)+EncryptKey(4)+**Time(8 UTC 秒，2019 增量)**；2011/2013=22B（无 Time） | JT809Header.cs FixedByteLength 22/30 双版 | 32B=MsgLength4+MsgSN4+MsgID2+**车辆颜色1+车牌21（错位：真在容器体前缀）**，无接入码/版本/加密/时间字段 | **缺口：头重建（版本条件 22/30）** |
+| 校验：CRC-16 poly 0x1021 表驱动 init 0xFFFF，范围=5B 后至体尾（MessagePackReader.Decode 循环实录） | 同上 | 无校验 | **缺口：jtcommon 增 CRC809** |
+| 消息族：主链路 0x1001 登录/0x1002 应答/0x1003 注销/0x1004 应答/0x1005 连接保持/0x1006 应答/0x1007 断开通知/0x1008 关闭通知；从链路 0x9001-0x9008 镜像；容器族 0x1200-0x1600/0x9200-0x9600 | README 消息对照表（全 60+ 型） | 13 过程混合：管理族 MsgId 部分对（缺 1004/1005/1006/1008）、虚拟子业务 0x01-0x0A 与真 SubBusinessType 不符 | **缺口：族重排 16 型；容器族 B′ 不编排（在库 9 tasks=probe 需求面 0x9001，已覆盖）** |
+| 0x1001 体：UserId(4)+Password(pad8)+GNSSCenterID(4，2019)+DownLinkIP(pad32)+DownLinkPort(2)=50B | JT809_0x1001.Serialize | UserName(5)+Password(10)+GNSS4+Version1+Encrypt1+Key4=25B（错形） | **缺口：体重排** |
+| 其余管理族体：0x1002=Result1+VerifyCode4/0x1003=UserId4+Password8/0x1004 空体/0x1005·0x1006 空体/0x1007=ErrorCode1/0x1008=ReasonCode1/0x9001=VerifyCode4/0x9002=Result1 | 各 JT809_0x*.Serialize | 全部错形或缺 | **缺口：16 型体重写** |
+| 容器体前缀：车牌号(21 GBK 空格 pad)+车辆颜色(1)+子业务类型(2)+后续数据长度(4)+子业务体（0x1200/0x9400 例实证） | JT809_0x1200.Serialize | 车牌/色错住消息头 | 容器族不编排→随 B′ 关闭 |
+| 双 TCP 链路：主 8812（下级→上级 0x1xxx 管理族）+从 8813（上级→下级 0x9xxx），同 GroupID 关联 | 包注释+规划 | 双链路已实现（slave_link_enabled，独立 SN 计数器，lazy slave 握手） | 无（§3 真子流面达标） |
+| legacy Plan 入口 | — | Plan 硬错（同 jt808 型） | layer_gen 唯一入口=PlanWithConfig |
+| 方向换向 | — | — | layer_gen 防双换 Direction=up（八连同款） |
+| 层链接线 | — | main.go :590 legacy+具名导入 :84；core 零接线 | 五件套+翻转+类型迁 core |
+| 校验锚 | ValidateConfig :56 | GNSSCenterId≤999999999/UserName≤5/Password≤10/VersionFlag≤2/EncryptFlag≤1/LoginResult≤4/DisconnectReason≤2 | 重建后按新体形调（password≤8 等） |
+
+**①命令×响应矩阵：** 登录 0x1001→0x1002/注销 0x1003→0x1004/保持 0x1005→0x1006/断开 0x1007 单向/关闭 0x1008 单向/从链路 0x9001→0x9002/0x9003→0x9004/0x9005→0x9006/0x9007·0x9008 单向——16 型全编排可达；容器族=主链动态/报警/监管/静态交换（B′）。
+**②数据形态变体：** 版本双头形（22/30B）、转义展开面（体值含 5A/5B/5D/5E → 5A01/5A02/5E01/5E02）、CRC 覆盖范围（预转义字节）、双向链路方向（main=下级发起/slave=上级发起——TCP 发起方向相反）、空体族（1004/1005/1006/9004/9005/9006）vs 定宽族。
+**③商业行为映射：** 在库 9 tasks=probe3-jt809/probe3v2-jt809 冒烟探针（0x9001 msg_type，flat 旧形）=需求面仅从链路连接；无参考 pcap 如实注记。
+**三路对照：** ①JT/T 809-2019 原文（经 SmallChi 源码+金向量例交叉落地）；②在库 probe 任务需求面；③开源实现（SmallChi/ewsq C# 库=权威参照）。**候选对比：** (a) 线层重建+编排层保留（双链路/流程/SN 计数复用）✓ vs (b) 信封偏离 B′ 登记（违反 4.12 整帧级，不容）→裁定 (a)。
+**门1 三行：** §1 扁平键全删+顶层 jt809 子映射判死（rawWrapChains 第 10 协议），目标形 `{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"jt809":{"gnss_center_id":291,"procedures":[{"type":"main_login"},{"type":"main_keepalive"}],"slave_link_enabled":true,"slave_procedures":[{"type":"slave_connect"}]}}]}`+**端口=主链 8812 内部缺省+mapToFlowSpec case（jt808 P5 勘误教训直接移植——80 穿透预防）；从链路 8813=生成器合成面**；§3 **真子流面（非豁免！）**：五件套=会话表(主从两条 TCP 连接)/事务序(主链 login→keepalive→logout，从链 connect 族)/关联(**两流同 GroupID**，从链 IP 交换面=0x1001 DownLinkIP/Port 字段)/插入位置(从链握手在主链 login 后)/时间线(主链先从链后，各自顺序)；§12 动态=worker 四元组+双链 ISN+MsgSN/Time 字段（生成时刻 UTC），业务键静态单值如实注记。
+
+### 裁定（P2 定稿）
+| # | 裁定 | 依据 |
+|---|---|---|
+| 1 | **线层重建**：`5B`+转义(30B 头+体+CRC16(2))+`5D`；头=MsgLength/MsgSN/BusinessType/GNSSCenterID(4)/VersionFlag(3 字面 010000 可配)/EncryptFlag/EncryptKey/Time(u64 UTC 秒，仅 version_flag=2)；version_flag 0/1→22B 头（无 Time）——**金向量红例**：README 0x9400 22B 形例逐字节复现为 protocol 包单测（CRC+转义+定界外部权威锚） | 4.12/4.24 整帧级偏离不容；三源交叉 |
+| 2 | jtcommon 增 CRC809（poly 0x1021 init 0xFFFF 逐字节表式循环）+Escape809/Unescape809（5A/5B/5D/5E 族）；808 面 XOR/Escape 不动 | 单一真相共用（jtt905 #31 将复用） |
+| 3 | 消息族重排 16 型：主 0x1001(50B)/0x1002(5B)/0x1003(12B)/0x1004 空/0x1005·0x1006 空/0x1007(1B)/0x1008(1B)+从 0x9001(4B)/0x9002(1B)/0x9003(12B)/0x9004 空/0x9005·0x9006 空/0x9007(1B)/0x9008(1B)；容器族 0x1200-0x1600/0x9200-0x9600 **B′ 登记不编排**（在库需求面=probe 0x9001 已覆盖；车牌/色体前缀随 B′ 关闭）；legacy 虚拟子业务 0x01-0x0A 废弃 | 在库 9 tasks 反推+README 对照表 |
+| 4 | 类型迁 core（vnc 先例）+别名：JT809Config/JT809Procedure；procedures 子键重排（type/link/user_id/password/verify_code/down_link_ip/down_link_port/result/error_code/reason_code/version_bytes）；slave 流程独立键 slave_procedures（原 procedures 内 link 混排废弃——链路归属显式化）；888 行 legacy 测试按新形修钉（线层重建必然面） | jt808 裁定 2 同款+重建必需 |
+| 5 | 翻转五件套：isRawIPChain 双名单/src 0-keep/validateBaseDstPortHandled+=jt809；registry 13 Fields（gnss_center_id/user_name/password/version_flag/version_bytes/encrypt_flag/encrypt_key/login_result/initial_sn/platform_initial_sn/procedures/slave_procedures/vehicle_color...收窄至消费面）；translate case+FlowMeta.JT809+meta 注入；CheckProtoFlat rawWrapChains 第 10 协议+pipe_gate 名单+10；main.go 翻转；**mapToFlowSpec `case "jt809": setDefaultDstPort(&spec,cfg,8812)`（jt808 80 穿透教训直接移植）** | jt808 P4/P5 全套先例 |
+| 6 | 场景强度：信封字节钉（5B/5D/CRC 复算/30B 头逐字段含 Time 定值钉）、金向量单测（外部权威逐字节）、转义真字节（DownLinkPort=0x5A5B 值触发 5A01/5E01 双 escape）、keepalive 对（0x1005/1006——jt808 F4 教训预防性补齐）、双链路真子流（两 4 元组同 GroupID 落同 pcap）、从链应答负路径（result=1）；负例 4 锚（gnss>999999999=V9 区间/version_flag>2=V9 区间/disconnect error_code>2=planner 嵌套/password>8=planner） | 9.46-9.53+F4 预防 |
+| 7 | B′ 账本：容器族（0x1200-0x1600/0x9200-0x9600 车辆动态/报警/监管/静态交换）不编排——真子业务表已三源登记、体前缀形状已明（车牌21+色1+子业务2+长度4），编排缺位立项待需求；无参考 pcap（probe 面）；2011/2013 头 22B 形仅金向量单测覆盖（suite 用例面=2019 30B 主形态）；0x1003 Password pad 宽 8 按 0x1001 对称推定（单源，注记）；Time 语义=打包时刻 UTC 秒（生成器时钟面，钉定值保证确定性） | 如实 |
+
+**文件：** jtcommon（CRC809/Escape809）+protocol/jt809/{types 别名化,builder 重建,parser 重建,jt809.go 流程保留+消息族重排,layer_gen 新}+core/types.go（JT809Config 迁入）+core/layers 五件+strategy_convert（Parse+mapToFlowSpec case+rawWrapChains）+main.go 翻转+cases/jt809.json 新+schemagen+pipe_gate/coverage_gate。
+**性能（6.4-6.6）：** channel 256 流式；包数=主链(3+N+3)+从链可选(3+M+3)；pcap 路（网卡未跑注明）。
+**回滚：** 单提交粒度，摘除即回。
+
+### T-JT809-1…13 清单（P3；9.52 对账：信封 1+金向量 0（单测面不占号）+头字段 1+登录体 1+keepalive 1+断开 1+关闭通知 1+从链连接 1+从链应答负路径 1+转义 1+双链路子流 1+注销 1+负例 4 = **分项和 14，T-2 一例承载 2 项（信封+CRC 复算）→ 建例 13**）
+
+| # | 用例 | 断言面 |
+|---|---|---|
+| T-1 | 基线关联（main_login→logout） | 8 帧=3 握手+2 消息+3 挥手；首帧 5B 起 5D 止 |
+| T-2 | 信封+头字节钉 | 5B/5D；30B 头逐字段（MsgLength=30+体/SN/GNSSCenterID 00000123/Version 010000/Encrypt/Key/Time 定值）；CRC 复算=尾 2B |
+| T-3 | 登录体 50B 钉 | UserId/Password pad8/GNSSCenterID/DownLinkIP pad32/Port 全字段 |
+| T-4 | keepalive 对 | 0x1005→0x1006 空体+SN 递增（F4 预防面） |
+| T-5 | 断开通知 0x1007 | ErrorCode 1B=01 |
+| T-6 | 关闭通知 0x1008 | ReasonCode 1B=01 |
+| T-7 | 从链路双流 | slave_link_enabled→两条 TCP 4 元组（8812/8813）同 GroupID 落同 pcap；0x9001 VerifyCode 钉 |
+| T-8 | 从链应答负路径 | 0x9002 Result=1 |
+| T-9 | 转义真字节 | DownLinkPort=0x5A5B→线上 5A 02 5E 01（两 escape 形）帧变长钉 |
+| T-10 | 注销 0x1003 | UserId+Password 12B 体 |
+| T-11 | 负例 gnss 超界 | 锚词 `GNSSCenterId 1000000000 > 999999999` |
+| T-12 | 负例 version_flag=3 | 锚词 `VersionFlag 3 > 2`（V9 区间） |
+| T-13 | 负例 error_code=3 | 锚词 `ErrorCode 3`（planner 嵌套锚） |
+
+**P3 复审（2026-09-21 对抗走查）：** 编排面=16 型全枚举（T-1/T-3/T-4/T-5/T-6/T-7/T-8/T-10 合盖管理族 16/16）；金向量=单测面（外部权威 0x9400 例逐字节，不占 suite 号）；转义双形=T-9（5A02+5E01 两种 escape 并现）；双链路=§3 真子流唯一协议面=T-7 主断言；负例拦截点=gnss/version_flag 顶层 V9 区间、error_code 嵌套 planner（V9 不下探）——登记点核准。对账分项和 14=T-2 承载 2 项（信封+CRC 复算）+建例 13，可复算。**清单净，待批进 P4。**
