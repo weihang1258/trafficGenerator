@@ -8032,6 +8032,22 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 			return "protocol radius no longer accepts a top-level radius sub-config (move it into the radius layer of an [ip,radius] layers chain)"
 		}
 	}
+	// D-*-1 raw 自驱八协议：顶层同名子映射 presence 判死（mcp 先例；空
+	// map 也死）。这些协议的顶层子映射在 mapToFlowSpec（universal 段 :517
+	// 或 flat case）先于 translateTerminalConfig 填 spec，层链形状下顶层
+	// 子映射静默赢层配置（隔离复审 F1 探针实证 abort 走顶层、chunks 走
+	// 层链的混搭缝）——必须在此判死。层链形状不触发。
+	rawWrapChains := map[string]string{
+		"pppoe": "[ip,pppoe]", "ldap": "[ip,ldap]", "rtmp": "[ip,rtmp]",
+		"rtsp": "[ip,rtsp]", "pptp": "[ip,pptp]", "vnc": "[ip,vnc]",
+		"xmpp": "[ip,xmpp]", "sctp": "[ip,sctp]",
+	}
+	if chainHint, ok := rawWrapChains[protocol]; ok {
+		if v, ok := cfg[protocol]; ok && v != nil {
+			return "protocol " + protocol + " no longer accepts a top-level " + protocol +
+				" sub-config (move it into the " + protocol + " layer of a " + chainHint + " layers chain)"
+		}
+	}
 	return ""
 }
 

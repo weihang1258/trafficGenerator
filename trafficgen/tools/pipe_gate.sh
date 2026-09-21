@@ -66,7 +66,7 @@ PYEOF
     http|http_flv|hls|hds|gbt|getwork|cwmp|doh|onvif)
       _pres_key="http"
       ;;
-    dns|mqtt|smtp|pop3|imap|mcp|srv6|fins|goose|sv|icmpv6|h323|mpls|ngap|telnet|sip|radius)
+    dns|mqtt|smtp|pop3|imap|mcp|srv6|fins|goose|sv|icmpv6|h323|mpls|ngap|telnet|sip|radius|pppoe|ldap|rtmp|rtsp|pptp|vnc|xmpp|sctp)
       _pres_key="$PROTO"
       ;;
   esac

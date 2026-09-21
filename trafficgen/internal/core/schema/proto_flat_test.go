@@ -124,3 +124,23 @@ func TestProtoFlat_TopHTTPSubConfigRejected(t *testing.T) {
 		})
 	}
 }
+
+// D-*-1 隔离复审 F1（failing 先行=复审探针实证）：raw 自驱八协议顶层
+// 同名子映射 presence → 判死。混搭缝实证：{"layers":[ip,<p>],"<p>":{...}}
+// 顶层先填 spec 静默赢层配置——必须 400。
+func TestProtoFlat_TopRawWrapSubConfigRejected(t *testing.T) {
+	for _, proto := range []string{"pppoe", "ldap", "rtmp", "rtsp", "pptp", "vnc", "xmpp", "sctp"} {
+		t.Run(proto, func(t *testing.T) {
+			_, errs := ValidateStrategy("synth", proto, map[string]any{
+				"layers": []any{map[string]any{"ip": map[string]any{"src": "10.0.0.1", "dst": "20.0.0.1"}}},
+				proto:   map[string]any{},
+			}, nil)
+			if len(errs) == 0 {
+				t.Fatalf("want top-level %s rejection (layers+sub-config mix), got clean", proto)
+			}
+			if !strings.Contains(errs.Error(), "no longer accepts a top-level "+proto+" sub-config") {
+				t.Fatalf("want top-"+proto+" anchor, got %v", errs)
+			}
+		})
+	}
+}
