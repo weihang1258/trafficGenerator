@@ -3,13 +3,13 @@ package jt809
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"net"
 	"time"
 
 	"github.com/trafficgen/trafficgen/internal/core"
-	"github.com/trafficgen/trafficgen/internal/protocol/jtcommon"
 )
 
 // DefaultTTL and MSS mirror the jt808 package.
@@ -21,9 +21,9 @@ const (
 
 // Planner implements the JT/T 809-2019 protocol planner. A JT809 session
 // spans up to TWO independent TCP 4-tuples: the main link (lower→upper,
-// port 8812) and an optional slave link (upper→lower, port 8813). Both
-// share a GroupID so the engine routes them to one PacketWorker (design
-// §3B.2, §10.4).
+// port 8812) and an optional slave link (upper→lower, port 8813, opened
+// iff SlaveProcedures is non-empty). Both share a GroupID so the engine
+// routes them to one PacketWorker (design §3B.2, §10.4).
 type Planner struct{}
 
 // NewPlanner creates a new JT809 planner.
@@ -32,9 +32,8 @@ func NewPlanner() *Planner { return &Planner{} }
 // Name returns the protocol name.
 func (p *Planner) Name() string { return "jt809" }
 
-// Validate validates the L3/L4 fields of the spec. JT809 config validation
-// is performed via ValidateConfig (core FlowSpec does not carry JT809
-// pointer until main agent wires integration).
+// Validate validates the L3/L4 fields of the spec. Business-side validation
+// lives in ValidateConfig (chain validator anchor).
 func (p *Planner) Validate(spec core.FlowSpec) error {
 	if spec.SrcIP != "" {
 		if net.ParseIP(spec.SrcIP) == nil {
@@ -52,7 +51,9 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	return nil
 }
 
-// ValidateConfig validates a JT809 config (design §5B.1).
+// ValidateConfig validates a JT809 config（D-JT809-1 裁定6 负例锚：
+// T-11 gnss 超界 / T-12 version_flag 区间 / T-13 error_code 嵌套锚 /
+// password≤8；procedures V9 不下探的拦截点=此处遍历）.
 func ValidateConfig(cfg *JT809Config) error {
 	if cfg == nil {
 		return fmt.Errorf("jt809: nil config")
@@ -60,39 +61,59 @@ func ValidateConfig(cfg *JT809Config) error {
 	if cfg.GNSSCenterId > 999999999 {
 		return fmt.Errorf("jt809: GNSSCenterId %d > 999999999", cfg.GNSSCenterId)
 	}
-	if len(cfg.UserName) > 5 {
-		return fmt.Errorf("jt809: UserName length %d > 5", len(cfg.UserName))
-	}
-	if len(cfg.Password) > 10 {
-		return fmt.Errorf("jt809: Password length %d > 10", len(cfg.Password))
-	}
 	if cfg.VersionFlag > 2 {
 		return fmt.Errorf("jt809: VersionFlag %d > 2", cfg.VersionFlag)
 	}
 	if cfg.EncryptFlag > 1 {
 		return fmt.Errorf("jt809: EncryptFlag %d > 1", cfg.EncryptFlag)
 	}
-	if cfg.LoginResult > 4 {
-		return fmt.Errorf("jt809: LoginResult %d > 4 (allowed 0-4)", cfg.LoginResult)
+	if len(cfg.Password) > PasswordLen {
+		return fmt.Errorf("jt809: Password length %d > %d", len(cfg.Password), PasswordLen)
 	}
-	for _, pr := range cfg.Procedures {
-		if pr.Type == ProcMainDisconnectNotice && pr.DisconnectReason > 2 {
-			return fmt.Errorf("jt809: DisconnectReason %d > 2 (allowed 0-2)", pr.DisconnectReason)
+	if len(cfg.DownLinkIP) > DownLinkIPLen {
+		return fmt.Errorf("jt809: DownLinkIP length %d > %d", len(cfg.DownLinkIP), DownLinkIPLen)
+	}
+	if cfg.VersionBytes != "" {
+		if len(cfg.VersionBytes) != 6 {
+			return fmt.Errorf("jt809: version_bytes %q must be 6 hex chars (3 bytes)", cfg.VersionBytes)
 		}
-		if pr.Type == ProcAlarmWithAttachment {
-			url, err := jtcommon.GBKEncode(pr.FileUrl)
-			if err != nil {
-				return fmt.Errorf("jt809: FileUrl GBK: %w", err)
-			}
-			if len(url) > 256 {
-				return fmt.Errorf("jt809: FileUrl GBK length %d > 256", len(url))
-			}
+		if _, err := hex.DecodeString(cfg.VersionBytes); err != nil {
+			return fmt.Errorf("jt809: version_bytes %q not hex: %w", cfg.VersionBytes, err)
 		}
-		if pr.LoginResult != nil && *pr.LoginResult > 4 {
-			return fmt.Errorf("jt809: per-procedure LoginResult %d > 4", *pr.LoginResult)
+	}
+	for role, list := range map[string][]JT809Procedure{
+		LinkMain:  cfg.Procedures,
+		LinkSlave: cfg.SlaveProcedures,
+	} {
+		for i := range list {
+			pr := &list[i]
+			t, ok := msgTypeByName[pr.Type]
+			if !ok {
+				return fmt.Errorf("jt809: unknown procedure type %q (procedures[%d])", pr.Type, i)
+			}
+			if t.link != role {
+				return fmt.Errorf("jt809: procedure %q belongs on the %s link (use %s list)",
+					pr.Type, t.link, slaveListName(t.link))
+			}
+			if pr.Result > 4 {
+				return fmt.Errorf("jt809: Result %d > 4 (allowed 0-4)", pr.Result)
+			}
+			if pr.ErrorCode > 2 {
+				return fmt.Errorf("jt809: ErrorCode %d > 2 (allowed 0-2)", pr.ErrorCode)
+			}
+			if pr.ReasonCode > 2 {
+				return fmt.Errorf("jt809: ReasonCode %d > 2 (allowed 0-2)", pr.ReasonCode)
+			}
 		}
 	}
 	return nil
+}
+
+func slaveListName(link string) string {
+	if link == LinkSlave {
+		return "slave_procedures"
+	}
+	return "procedures"
 }
 
 // Plan is not supported for JT809: the engine requires a full config which
@@ -102,10 +123,10 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	return nil, fmt.Errorf("jt809: Plan not supported, use PlanWithConfig or a layers config")
 }
 
-// PlanWithConfig generates packet configs for a JT809 flow. It emits
-// the main-link TCP 3-way handshake, the main-link message sequence,
-// optionally the slave-link TCP + slave messages, then TCP teardowns
-// for both links.
+// PlanWithConfig generates packet configs for a JT809 flow. Timeline
+// (门1 §3：主链先从链后，从链握手在主链消息后)：main handshake → main
+// procedures → slave handshake → slave procedures → main teardown →
+// slave teardown.
 func (p *Planner) PlanWithConfig(ctx context.Context, spec core.FlowSpec, cfg *JT809Config) (<-chan core.PacketConfig, error) {
 	if err := ValidateConfig(cfg); err != nil {
 		return nil, err
@@ -114,22 +135,36 @@ func (p *Planner) PlanWithConfig(ctx context.Context, spec core.FlowSpec, cfg *J
 		spec.DstPort = MainLinkPort
 	}
 
+	// Resolved defaults (copy — 不改调用方 cfg)：
+	// UserId 缺省=GNSSCenterId；Password 缺省 "00000000"；DownLinkIP
+	// 缺省=本端 IP（0x1001 通告的从链服务端与从链 SYN 目标一致面）；
+	// DownLinkPort 缺省 8813。
+	rc := *cfg
+	if rc.UserId == 0 {
+		rc.UserId = rc.GNSSCenterId
+	}
+	if rc.Password == "" {
+		rc.Password = "00000000"
+	}
+	if rc.DownLinkIP == "" {
+		rc.DownLinkIP = spec.SrcIP
+	}
+	if rc.DownLinkPort == 0 {
+		rc.DownLinkPort = SlaveLinkPort
+	}
+	ver, err := versionBytes(&rc)
+	if err != nil {
+		return nil, err
+	}
+
 	configChan := make(chan core.PacketConfig, 256)
 
 	go func() {
 		defer close(configChan)
 
-		mainFlowID := fmt.Sprintf("jt809-main-%d-%d", cfg.GNSSCenterId, cfg.InitialSN)
-		slaveFlowID := fmt.Sprintf("jt809-slave-%d-%d", cfg.GNSSCenterId, cfg.InitialSN)
-		groupID := hashGNSS(cfg.GNSSCenterId)
-
-		// Defaults.
-		if cfg.UserName == "" {
-			cfg.UserName = defaultUserName(cfg.GNSSCenterId)
-		}
-		if cfg.Password == "" {
-			cfg.Password = "0000000000"
-		}
+		mainFlowID := fmt.Sprintf("jt809-main-%d-%d", rc.GNSSCenterId, rc.InitialSN)
+		slaveFlowID := fmt.Sprintf("jt809-slave-%d-%d", rc.GNSSCenterId, rc.InitialSN)
+		groupID := hashGNSS(rc.GNSSCenterId)
 
 		effectiveTTL := spec.TTL
 		if effectiveTTL == 0 {
@@ -160,29 +195,21 @@ func (p *Planner) PlanWithConfig(ctx context.Context, spec core.FlowSpec, cfg *J
 		serverSeq := randUint32()
 		winSize := uint16(65535)
 
-		// Slave-link TCP sequence counters. Initialized lazily when the
-		// slave link is opened (see openSlaveTCP below). Declared here so
-		// the emitMsg closure captures them by reference before the slave
-		// handshake runs.
+		// Slave-link TCP sequence counters, initialized lazily when the
+		// slave link opens (see the slave handshake below).
 		var slaveClientSeq, slaveServerSeq uint32
 
-		// Per-link MsgSN counters (design §6B.3). Main and slave each
-		// have an upstream (lower→upper) and a downstream (upper→lower)
-		// counter. All four are independent:
-		//   mainMsgSN: 下级→上级 on main link, starts at InitialSN.
-		//   slaveMsgSN: 上级→下级 on slave link (slave-side upstream),
-		//                starts at InitialSN.
-		//   platformMainMsgSN: 上级→下级 on main link, starts at
-		//                       PlatformInitialSN (default 0).
-		//   platformSlaveMsgSN: 下级→上级 on slave link (slave-side
-		//                        downstream), starts at PlatformInitialSN.
-		mainMsgSN := cfg.InitialSN
-		slaveMsgSN := cfg.InitialSN
-		platformMainMsgSN := cfg.PlatformInitialSN
-		platformSlaveMsgSN := cfg.PlatformInitialSN
+		// Per-link MsgSN counters (design §6B.3): four independent
+		// counters — main up starts at InitialSN, main down at
+		// PlatformInitialSN, slave down (upper→lower) at InitialSN,
+		// slave up (lower→upper) at PlatformInitialSN.
+		mainMsgSN := rc.InitialSN
+		slaveMsgSN := rc.InitialSN
+		platformMainMsgSN := rc.PlatformInitialSN
+		platformSlaveMsgSN := rc.PlatformInitialSN
 
 		// emitTCP sends a TCP packet config to the channel.
-		emitTCP := func(flowID, direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, seq, ack uint32, flags uint8, payload []byte) {
+		emitTCP := func(flowID, direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, seq, ack uint32, flags uint8, payload []byte) error {
 			if payload == nil {
 				payload = []byte{}
 			}
@@ -216,39 +243,33 @@ func (p *Planner) PlanWithConfig(ctx context.Context, spec core.FlowSpec, cfg *J
 			}
 			select {
 			case <-ctx.Done():
-				return
+				return ctx.Err()
 			case configChan <- cfg2:
 			}
 			packetIndex++
+			return nil
 		}
 
-		// emitData segments payload by MSS.
-		emitData := func(flowID, direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, senderSeq, peerSeq uint32, payload []byte) uint32 {
+		// emitData segments payload by MSS; returns the sender's next seq.
+		emitData := func(flowID, direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, senderSeq, peerSeq uint32, payload []byte) (uint32, error) {
 			for _, seg := range segmentByMSS(payload, int(mss)) {
 				select {
 				case <-ctx.Done():
-					return senderSeq
+					return senderSeq, ctx.Err()
 				default:
 				}
-				emitTCP(flowID, direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, senderSeq, peerSeq, 0x18, seg)
+				if err := emitTCP(flowID, direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, senderSeq, peerSeq, 0x18, seg); err != nil {
+					return senderSeq, err
+				}
 				senderSeq += uint32(len(seg))
 			}
-			return senderSeq
+			return senderSeq, nil
 		}
 
-		// emitMsg builds and emits one JT809 message. The SN counter is
-		// selected by (link, direction):
-		//   main + up   → mainMsgSN (下级→上级)
-		//   main + down → platformMainMsgSN (上级→下级)
-		//   slave + up  → platformSlaveMsgSN (下级→上级 on slave link;
-		//                 the slave link's "up" direction is upper→lower
-		//                 physically, but we treat slave-side downstream
-		//                 as the lower→upper counter per design §6B.3)
-		//   slave + down → slaveMsgSN (上级→下级)
-		// To keep the callback signature simple, we pass useMainSN as a
-		// 2-bit selector encoded in a uint8: 0=mainMsgSN, 1=platformMain,
-		// 2=slaveMsgSN, 3=platformSlave.
-		emitMsg := func(flowID, direction string, msgID uint16, vehicleColor uint8, vehiclePlate string, body []byte, link string) {
+		// emitMsg builds one JT809 frame and emits it. SN counter by
+		// (link, direction): main+up→mainMsgSN, main+down→platformMain,
+		// slave+down→slaveMsgSN, slave+up→platformSlave.
+		emitMsg := func(flowID, direction string, msgID uint16, body []byte, link string) error {
 			var sn uint32
 			switch link {
 			case LinkSlave:
@@ -268,9 +289,9 @@ func (p *Planner) PlanWithConfig(ctx context.Context, spec core.FlowSpec, cfg *J
 					platformMainMsgSN++
 				}
 			}
-			frame, err := buildFrame(sn, msgID, vehicleColor, vehiclePlate, body)
+			frame, err := buildFrameVer(&rc, ver, sn, msgID, body)
 			if err != nil {
-				return
+				return err
 			}
 			var srcMAC, dstMAC, srcIP, dstIP string
 			var srcPort, dstPort uint16
@@ -283,263 +304,158 @@ func (p *Planner) PlanWithConfig(ctx context.Context, spec core.FlowSpec, cfg *J
 				srcIP, dstIP = spec.SrcIP, spec.DstIP
 				srcPort, dstPort = spec.SrcPort, spec.DstPort
 			}
-			// Slave link messages ride a different TCP 4-tuple (port 8813
-			// on the lower side). Rewrite the lower-side port accordingly.
-			// Upper side keeps spec.DstPort (its accepted-from-main port
-			// is irrelevant; the upper side picks a fresh ephemeral per
-			// JT/T 809-2019 §5.2, but for trafficgen we reuse spec.DstPort
-			// since the engine only needs the 4-tuple to be consistent).
+			// Slave link rides the second 4-tuple: lower side port 8813.
 			if link == LinkSlave {
 				if direction == "down" {
-					// upper → lower: dstPort (lower side) becomes 8813.
 					dstPort = SlaveLinkPort
 				} else {
-					// lower → upper: srcPort (lower side) becomes 8813.
 					srcPort = SlaveLinkPort
 				}
 			}
 			if direction == "down" {
 				if link == LinkSlave {
-					slaveServerSeq = emitData(flowID, direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, slaveServerSeq, slaveClientSeq, frame)
+					slaveServerSeq, err = emitData(flowID, direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, slaveServerSeq, slaveClientSeq, frame)
 				} else {
-					serverSeq = emitData(flowID, direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, serverSeq, clientSeq, frame)
+					serverSeq, err = emitData(flowID, direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, serverSeq, clientSeq, frame)
 				}
 			} else {
 				if link == LinkSlave {
-					slaveClientSeq = emitData(flowID, direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, slaveClientSeq, slaveServerSeq, frame)
+					slaveClientSeq, err = emitData(flowID, direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, slaveClientSeq, slaveServerSeq, frame)
 				} else {
-					clientSeq = emitData(flowID, direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, clientSeq, serverSeq, frame)
+					clientSeq, err = emitData(flowID, direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, clientSeq, serverSeq, frame)
 				}
 			}
+			return err
 		}
 
 		// --- Main link TCP handshake ---
-		emitTCP(mainFlowID, "up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, 0, 0x02, nil)
+		if err := emitTCP(mainFlowID, "up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, 0, 0x02, nil); err != nil {
+			return
+		}
 		clientSeq++
-		emitTCP(mainFlowID, "down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, 0x12, nil)
+		if err := emitTCP(mainFlowID, "down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, 0x12, nil); err != nil {
+			return
+		}
 		serverSeq++
-		emitTCP(mainFlowID, "up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x10, nil)
-
-		// Determine whether any procedure routes to the slave link, so we
-		// can decide whether to open a second TCP. SlaveLinkEnabled=true
-		// forces a slave TCP even if no slave procedures are listed (handy
-		// for connect-only traces / keep-alive tests).
-		hasSlaveProc := false
-		for _, pr := range cfg.Procedures {
-			link := pr.Link
-			if link == "" {
-				if isSlaveMsgType(pr.Type) {
-					link = LinkSlave
-				} else {
-					link = LinkMain
-				}
-			}
-			if link == LinkSlave {
-				hasSlaveProc = true
-				break
-			}
-		}
-		openSlaveTCP := cfg.SlaveLinkEnabled || hasSlaveProc
-
-		// Slave link carries its own independent TCP 4-tuple. Per JT/T
-		// 809-2019 §5.2, the slave connection is initiated by the UPPER
-		// platform TO the lower platform on port 8813, i.e. the source is
-		// the upper side (DstMAC/DstIP from spec) and the destination is
-		// the lower side (SrcMAC/SrcIP from spec, port 8813). The lower
-		// side's source port for the slave link is an ephemeral port,
-		// modeled here by spec.SrcPort (the lower platform picks its own
-		// ephemeral when accepting, so we use the same one configured for
-		// the main link for simplicity). Upper side's source port for the
-		// slave is its own ephemeral (DstPort from spec).
-		if openSlaveTCP {
-			slaveClientSeq = randUint32()
-			slaveServerSeq = randUint32()
-			// SYN: upper → lower (upper=spec.Dst, lower=spec.Src).
-			emitTCP(slaveFlowID, "down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, SlaveLinkPort, slaveClientSeq, 0, 0x02, nil)
-			slaveClientSeq++
-			// SYN+ACK: lower → upper. Lower's ephemeral source port for
-			// the slave link is spec.SrcPort (the lower platform's
-			// accepted port).
-			emitTCP(slaveFlowID, "up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, slaveServerSeq, slaveClientSeq, 0x12, nil)
-			slaveServerSeq++
-			// ACK: upper → lower.
-			emitTCP(slaveFlowID, "down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, SlaveLinkPort, slaveClientSeq, slaveServerSeq, 0x10, nil)
+		if err := emitTCP(mainFlowID, "up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x10, nil); err != nil {
+			return
 		}
 
-		// --- Main-link message sequence (and slave-link when applicable) ---
-		for _, pr := range cfg.Procedures {
+		// --- Main-link message sequence ---
+		for i := range rc.Procedures {
 			select {
 			case <-ctx.Done():
 				return
 			default:
 			}
-			link := pr.Link
-			if link == "" {
-				if isSlaveMsgType(pr.Type) {
-					link = LinkSlave
-				} else {
-					link = LinkMain
-				}
-			}
-			flowID := mainFlowID
-			if link == LinkSlave {
-				flowID = slaveFlowID
-			}
-			if err := emitJT809Procedure(pr, cfg, flowID, link, emitMsg); err != nil {
+			pr := &rc.Procedures[i]
+			if err := emitJT809Procedure(pr, &rc, mainFlowID, LinkMain, emitMsg); err != nil {
 				return
 			}
 		}
 
-		// --- Main link TCP teardown ---
-		emitTCP(mainFlowID, "up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x11, nil)
-		clientSeq++
-		emitTCP(mainFlowID, "down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, 0x11, nil)
-		serverSeq++
-		emitTCP(mainFlowID, "up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x10, nil)
-
-		// --- Slave link TCP teardown (FIN/ACK + ACK). The half-close is
-		// initiated by the upper side (closing the connect-side), matching
-		// the slave handshake direction. ---
+		// --- Slave link (opened iff slave procedures exist) ---
+		openSlaveTCP := len(rc.SlaveProcedures) > 0
 		if openSlaveTCP {
-			// FIN+ACK: upper → lower.
-			emitTCP(slaveFlowID, "down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, SlaveLinkPort, slaveClientSeq, slaveServerSeq, 0x11, nil)
+			slaveClientSeq = randUint32()
+			slaveServerSeq = randUint32()
+			// SYN: upper → lower (upper=spec.Dst, lower=spec.Src:8813).
+			if err := emitTCP(slaveFlowID, "down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, SlaveLinkPort, slaveClientSeq, 0, 0x02, nil); err != nil {
+				return
+			}
 			slaveClientSeq++
-			// FIN+ACK: lower → upper (full close).
-			emitTCP(slaveFlowID, "up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, slaveServerSeq, slaveClientSeq, 0x11, nil)
+			// SYN+ACK: lower:8813 → upper.
+			if err := emitTCP(slaveFlowID, "up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, SlaveLinkPort, spec.DstPort, slaveServerSeq, slaveClientSeq, 0x12, nil); err != nil {
+				return
+			}
 			slaveServerSeq++
-			// Final ACK: upper → lower.
-			emitTCP(slaveFlowID, "down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, SlaveLinkPort, slaveClientSeq, slaveServerSeq, 0x10, nil)
+			// ACK: upper → lower.
+			if err := emitTCP(slaveFlowID, "down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, SlaveLinkPort, slaveClientSeq, slaveServerSeq, 0x10, nil); err != nil {
+				return
+			}
+
+			for i := range rc.SlaveProcedures {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+				pr := &rc.SlaveProcedures[i]
+				if err := emitJT809Procedure(pr, &rc, slaveFlowID, LinkSlave, emitMsg); err != nil {
+					return
+				}
+			}
+		}
+
+		// --- Main link TCP teardown ---
+		if err := emitTCP(mainFlowID, "up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x11, nil); err != nil {
+			return
+		}
+		clientSeq++
+		if err := emitTCP(mainFlowID, "down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, 0x11, nil); err != nil {
+			return
+		}
+		serverSeq++
+		if err := emitTCP(mainFlowID, "up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x10, nil); err != nil {
+			return
+		}
+
+		// --- Slave link TCP teardown (upper closes first, matching the
+		// slave handshake direction) ---
+		if openSlaveTCP {
+			if err := emitTCP(slaveFlowID, "down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, SlaveLinkPort, slaveClientSeq, slaveServerSeq, 0x11, nil); err != nil {
+				return
+			}
+			slaveClientSeq++
+			if err := emitTCP(slaveFlowID, "up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, SlaveLinkPort, spec.DstPort, slaveServerSeq, slaveClientSeq, 0x11, nil); err != nil {
+				return
+			}
+			slaveServerSeq++
+			if err := emitTCP(slaveFlowID, "down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, SlaveLinkPort, slaveClientSeq, slaveServerSeq, 0x10, nil); err != nil {
+				return
+			}
 		}
 	}()
 
 	return configChan, nil
 }
 
-// emitJT809Procedure dispatches one procedure to the builder+emit callback.
-func emitJT809Procedure(pr JT809Procedure, cfg *JT809Config, flowID, link string, emit func(string, string, uint16, uint8, string, []byte, string)) error {
-	// For vehicle messages, use per-procedure override or fall back to cfg.
-	vc := cfg.VehicleColor
-	if pr.VehicleColor != nil {
-		vc = *pr.VehicleColor
-	}
-	vp := cfg.VehiclePlate
-	if pr.VehiclePlate != "" {
-		vp = pr.VehiclePlate
-	}
-	// Non-vehicle MsgIds use VehicleColor=0 and empty plate (21 spaces).
-	nonVehicle := false
-	switch pr.Type {
-	case ProcMainLogin, ProcMainLoginResponse, ProcMainLogout, ProcMainDisconnectNotice,
-		ProcSlaveConnect, ProcSlaveConnectResponse:
-		nonVehicle = true
-	}
-	if nonVehicle {
-		vc = 0
-		vp = ""
-	}
-
-	switch pr.Type {
-	case ProcMainLogin:
-		body := buildLoginBody(cfg)
-		emit(flowID, "up", MsgMainLogin, vc, vp, body, link)
-	case ProcMainLoginResponse:
-		result := cfg.LoginResult
-		if pr.LoginResult != nil {
-			result = *pr.LoginResult
-		}
-		body := buildLoginRespBody(result, cfg.GNSSCenterId)
-		emit(flowID, "down", MsgMainLoginResponse, vc, vp, body, link)
-	case ProcMainLogout:
-		emit(flowID, "up", MsgMainLogout, vc, vp, nil, link)
-	case ProcMainDisconnectNotice:
-		body := buildDisconnectNoticeBody(pr.DisconnectReason, cfg.GNSSCenterId)
-		emit(flowID, "up", MsgMainDisconnectNotice, vc, vp, body, link)
-	case ProcVehicleRegister:
-		// Build 0x1201 SubBody with terminal fields. The caller can
-		// override SubBody; otherwise the planner uses defaults.
-		mid := jtcommon.PadRightZeroASCII("TEST", 5)
-		tm := jtcommon.PadRightSpace("TG-DEMO", 20)
-		tid := jtcommon.PadRightZeroASCII("0000001", 7)
-		subBody := pr.SubBody
-		if subBody == nil {
-			subBody = buildVehicleRegisterSubBody(jtcommon.MustBCD("013800138000"), mid, tm, tid)
-		}
-		body := buildContainerBody(SubVehicleRegister, subBody)
-		emit(flowID, "up", MsgVehicleDynamic, vc, vp, body, link)
-	case ProcRealtimeLocation:
-		locBody, err := buildRealtimeLocationSubBody(pr.LocationData)
-		if err != nil {
-			return err
-		}
-		body := buildContainerBody(SubRealtimeLocation, locBody)
-		emit(flowID, "up", MsgVehicleDynamic, vc, vp, body, link)
-	case ProcHistoryLocation:
-		// History = TimeRange(12 BCD) + N × 0x0200 body. Simplified:
-		// caller provides SubBody; planner wraps in container.
-		body := buildContainerBody(SubHistoryLocation, pr.SubBody)
-		emit(flowID, "up", MsgVehicleDynamic, vc, vp, body, link)
-	case ProcAlarm:
-		alarmBody, err := buildAlarmSubBody(pr.AlarmFlag, pr.PulseSpeed, pr.LocationData)
-		if err != nil {
-			return err
-		}
-		body := buildContainerBody(SubAlarm, alarmBody)
-		emit(flowID, "up", MsgVehicleDynamic, vc, vp, body, link)
-	case ProcAlarmWithAttachment:
-		body, err := buildAlarmWithAttachmentBody(pr.AlarmFlag, pr.AlarmTime, pr.SubBody, pr.FileType, pr.FileUrl)
-		if err != nil {
-			return err
-		}
-		emit(flowID, "up", MsgAlarmWithAttachment, vc, vp, body, link)
-	case ProcPlatformInteraction:
-		body := buildContainerBody(pr.SubMsgId, pr.SubBody)
-		emit(flowID, "down", MsgPlatformInteraction, vc, vp, body, link)
-	case ProcVehicleStatic:
-		body := buildContainerBody(pr.SubMsgId, pr.SubBody)
-		emit(flowID, "up", MsgVehicleStatic, vc, vp, body, link)
-	case ProcControlResponse:
-		body := buildContainerBody(pr.SubMsgId, pr.SubBody)
-		emit(flowID, "up", MsgVehicleControlResp, vc, vp, body, link)
-	case ProcSlaveConnect:
-		body := buildLoginBody(cfg)
-		emit(flowID, "down", MsgSlaveConnect, vc, vp, body, link)
-	case ProcSlaveConnectResponse:
-		result := cfg.LoginResult
-		if pr.LoginResult != nil {
-			result = *pr.LoginResult
-		}
-		body := buildLoginRespBody(result, cfg.GNSSCenterId)
-		emit(flowID, "up", MsgSlaveConnectResp, vc, vp, body, link)
-	case ProcSlaveManagement:
-		body := buildContainerBody(pr.SubMsgId, pr.SubBody)
-		emit(flowID, "down", MsgSlaveManagement, vc, vp, body, link)
-	case ProcSlaveVehicleControl:
-		body := buildContainerBody(pr.SubMsgId, pr.SubBody)
-		emit(flowID, "down", MsgSlaveVehicleControl, vc, vp, body, link)
-	default:
+// emitJT809Procedure dispatches one procedure to the builder+emit callback
+// (16 型链路管理族，裁定3；方向由 msgTypeByName.upstream 统一推导——
+// 主链客户端=下级侧，从链客户端=上级侧).
+func emitJT809Procedure(pr *JT809Procedure, cfg *JT809Config, flowID, link string, emit func(flowID, direction string, msgID uint16, body []byte, link string) error) error {
+	t, ok := msgTypeByName[pr.Type]
+	if !ok {
 		return fmt.Errorf("jt809: unknown procedure type %q", pr.Type)
 	}
-	return nil
-}
-
-// isSlaveMsgType returns true for procedure types that belong on the
-// slave link by convention (0x9xxx).
-func isSlaveMsgType(t string) bool {
-	switch t {
-	case ProcSlaveConnect, ProcSlaveConnectResponse, ProcSlaveManagement, ProcSlaveVehicleControl:
-		return true
+	direction := "up"
+	if !t.upstream {
+		direction = "down"
 	}
-	return false
-}
-
-// defaultUserName computes the design's default UserName = last 5 digits
-// of GNSSCenterId zero-padded to 9 digits (design §4B.1).
-func defaultUserName(id uint32) string {
-	full := fmt.Sprintf("%09d", id)
-	if len(full) < 5 {
-		return full
+	var body []byte
+	switch pr.Type {
+	case ProcMainLogin:
+		body = buildLoginBody(cfg, pr)
+	case ProcMainLoginResp:
+		body = buildLoginRespBody(pr.Result, pr.VerifyCode)
+	case ProcMainLogout, ProcSlaveLogout:
+		pw := pr.Password
+		if pw == "" {
+			pw = cfg.Password
+		}
+		body = buildLogoutBody(cfg.UserId, pw)
+	case ProcMainDisconnect, ProcSlaveDisconnect:
+		body = buildCodeBody(pr.ErrorCode)
+	case ProcMainClose, ProcSlaveClose:
+		body = buildCodeBody(pr.ReasonCode)
+	case ProcSlaveConnect:
+		body = buildVerifyCodeBody(pr.VerifyCode)
+	case ProcSlaveConnectResp:
+		body = buildCodeBody(pr.Result)
+	default:
+		// 空体族：0x1004/0x1005/0x1006/0x9004/0x9005/0x9006。
 	}
-	return full[len(full)-5:]
+	return emit(flowID, direction, t.id, body, link)
 }
 
 // hashGNSS computes a stable GroupID from GNSSCenterId.

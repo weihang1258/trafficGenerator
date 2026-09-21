@@ -7,125 +7,129 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/jtcommon"
 )
 
-// ParsedFrame holds the decoded fields of one JT809 message.
+// ParsedFrame is a decoded JT809 frame（解析与 builder 严格对称——CLAUDE.md
+// 改码先自审面；负路径供单测/链级校验锚）。
 type ParsedFrame struct {
-	MsgLength    uint32
+	MsgLength    uint32 // 整帧总长（勘误1）
 	MsgSN        uint32
 	MsgID        uint16
-	VehicleColor uint8
-	VehiclePlate string // GBK-decoded, trailing 0x20 stripped
-	Body         []byte
-}
-
-// ParseFrame decodes one JT809 message from raw bytes. JT809 has no
-// delimiters, no escape, and no checksum (design §1, §3B) — the parser
-// simply splits the 32-byte header from the body using MsgLength.
-//
-// Returns an error when the input is shorter than 32 bytes or when
-// MsgLength disagrees with the actual input length.
-func ParseFrame(raw []byte) (*ParsedFrame, error) {
-	if len(raw) < HeaderLen {
-		return nil, fmt.Errorf("jt809: frame too short (%d bytes < %d)", len(raw), HeaderLen)
-	}
-	p := &ParsedFrame{}
-	p.MsgLength = binary.BigEndian.Uint32(raw[0:4])
-	p.MsgSN = binary.BigEndian.Uint32(raw[4:8])
-	p.MsgID = binary.BigEndian.Uint16(raw[8:10])
-	p.VehicleColor = raw[10]
-	plateBytes := make([]byte, VehiclePlateLen)
-	copy(plateBytes, raw[11:32])
-	// Strip trailing 0x20 (space) before GBK decoding for a clean string.
-	trimmed := stripTrailingSpaceBytes(plateBytes)
-	if len(trimmed) > 0 {
-		plate, err := jtcommon.GBKDecode(trimmed)
-		if err != nil {
-			return nil, fmt.Errorf("jt809: VehiclePlate GBK decode: %w", err)
-		}
-		p.VehiclePlate = plate
-	}
-	if int(p.MsgLength) != len(raw) {
-		return nil, fmt.Errorf("jt809: MsgLength %d != actual length %d", p.MsgLength, len(raw))
-	}
-	p.Body = make([]byte, len(raw)-HeaderLen)
-	copy(p.Body, raw[HeaderLen:])
-	return p, nil
-}
-
-// ParseLoginBody decodes a 0x1001 / 0x9001 login body (design §4B.1).
-type LoginBody struct {
-	UserName     string // 5 ASCII, trailing 0x00 stripped
-	Password     string // 10 ASCII, trailing 0x00 stripped
 	GNSSCenterId uint32
-	VersionFlag  uint8
+	Version      []byte // 3B
 	EncryptFlag  uint8
 	EncryptKey   uint32
+	TimeSec      uint64 // 仅 2019
+	Body         []byte // 反转义后的体
 }
 
-func ParseLoginBody(body []byte) (*LoginBody, error) {
-	if len(body) != LoginBodyLen {
-		return nil, fmt.Errorf("jt809: login body length %d != %d", len(body), LoginBodyLen)
+// ParseFrame decodes one wire frame: delimiters → unescape → MsgLength
+// 自洽 → CRC 复算 → 头字段。versionFlag selects the header layout (22B/30B)，
+// 与 builder 同源规则（lib 以 config.Version 选头长，同口径）。
+func ParseFrame(wire []byte, versionFlag uint8) (*ParsedFrame, error) {
+	if len(wire) < FixedFrameLegacy {
+		return nil, fmt.Errorf("jt809: frame too short: %d", len(wire))
 	}
-	l := &LoginBody{}
-	l.UserName = string(stripTrailingZeroBytes(body[0:5]))
-	l.Password = string(stripTrailingZeroBytes(body[5:15]))
-	l.GNSSCenterId = binary.BigEndian.Uint32(body[15:19])
-	l.VersionFlag = body[19]
-	l.EncryptFlag = body[20]
-	l.EncryptKey = binary.BigEndian.Uint32(body[21:25])
-	return l, nil
-}
-
-// ParseLoginRespBody decodes a 0x1002 / 0x9002 login response body.
-type LoginRespBody struct {
-	Result       uint8
-	GNSSCenterId uint32
-}
-
-func ParseLoginRespBody(body []byte) (*LoginRespBody, error) {
-	if len(body) != LoginRespBodyLen {
-		return nil, fmt.Errorf("jt809: login resp body length %d != %d", len(body), LoginRespBodyLen)
+	if wire[0] != FlagBegin || wire[len(wire)-1] != FlagEnd {
+		return nil, fmt.Errorf("jt809: bad delimiters %02x %02x", wire[0], wire[len(wire)-1])
 	}
-	r := &LoginRespBody{}
-	r.Result = body[0]
-	r.GNSSCenterId = binary.BigEndian.Uint32(body[1:5])
-	return r, nil
-}
-
-// ParseContainerBody decodes a 0x1200/0x1300/0x1500/0x1600/0x9100/0x9600
-// container body (design §4B.5): SubMsgId(1) + SubLength(2) + SubBody.
-type ContainerBody struct {
-	SubMsgId uint8
-	SubLen   uint16
-	SubBody  []byte
-}
-
-func ParseContainerBody(body []byte) (*ContainerBody, error) {
-	if len(body) < 3 {
-		return nil, fmt.Errorf("jt809: container body too short (%d bytes)", len(body))
+	content := jtcommon.Unescape809(wire[1 : len(wire)-1])
+	headerLen := HeaderLenLegacy
+	if versionFlag == 2 {
+		headerLen = HeaderLen2019
 	}
-	c := &ContainerBody{}
-	c.SubMsgId = body[0]
-	c.SubLen = binary.BigEndian.Uint16(body[1:3])
-	if int(c.SubLen) != len(body)-3 {
-		return nil, fmt.Errorf("jt809: SubLength %d != actual SubBody length %d", c.SubLen, len(body)-3)
+	if len(content) < headerLen+CRCLen {
+		return nil, fmt.Errorf("jt809: content %d < header %d + CRC", len(content), headerLen)
 	}
-	c.SubBody = make([]byte, c.SubLen)
-	copy(c.SubBody, body[3:])
-	return c, nil
+	f := &ParsedFrame{}
+	f.MsgLength = binary.BigEndian.Uint32(content[0:4])
+	// 整帧语义（勘误1）按未转义口径：5B+content+CRC… content 已含 CRC，
+	// 故 = len(content)+2 个标识位。转义帧的 wire 长更大，不可比。
+	if int(f.MsgLength) != len(content)+2 {
+		return nil, fmt.Errorf("jt809: MsgLength %d != unescaped frame length %d", f.MsgLength, len(content)+2)
+	}
+	wantCRC := binary.BigEndian.Uint16(content[len(content)-2:])
+	gotCRC := jtcommon.CRC809(content[:len(content)-2])
+	if gotCRC != wantCRC {
+		return nil, fmt.Errorf("jt809: CRC mismatch got %04x want %04x", gotCRC, wantCRC)
+	}
+	f.MsgSN = binary.BigEndian.Uint32(content[4:8])
+	f.MsgID = binary.BigEndian.Uint16(content[8:10])
+	f.GNSSCenterId = binary.BigEndian.Uint32(content[10:14])
+	f.Version = append([]byte(nil), content[14:17]...)
+	f.EncryptFlag = content[17]
+	f.EncryptKey = binary.BigEndian.Uint32(content[18:22])
+	body := content[headerLen : len(content)-CRCLen]
+	if versionFlag == 2 {
+		f.TimeSec = binary.BigEndian.Uint64(content[22:30])
+	}
+	f.Body = append([]byte(nil), body...)
+	return f, nil
 }
 
-// stripTrailingSpaceBytes removes trailing 0x20 bytes.
-func stripTrailingSpaceBytes(b []byte) []byte {
-	for len(b) > 0 && b[len(b)-1] == 0x20 {
-		b = b[:len(b)-1]
+// LoginBody decodes 0x1001 (version-conditional per 勘误4: 46B/50B).
+func (f *ParsedFrame) LoginBody() (userId uint32, password string, gnss uint32, ip string, port uint16, err error) {
+	off := 0
+	need := 4 + PasswordLen + DownLinkIPLen + 2
+	userId = binary.BigEndian.Uint32(f.Body[off:])
+	off += 4
+	password = trimPad(f.Body[off : off+PasswordLen])
+	off += PasswordLen
+	if len(f.Body) > need { // 2019 形 50B
+		gnss = binary.BigEndian.Uint32(f.Body[off:])
+		off += 4
 	}
-	return b
+	ip = trimPad(f.Body[off : off+DownLinkIPLen])
+	off += DownLinkIPLen
+	port = binary.BigEndian.Uint16(f.Body[off:])
+	if want := 4 + PasswordLen + DownLinkIPLen + 2; len(f.Body) != want && len(f.Body) != want+4 {
+		err = fmt.Errorf("jt809: 0x1001 body %d bytes, want 46 or 50", len(f.Body))
+	}
+	return
 }
 
-// stripTrailingZeroBytes removes trailing 0x00 bytes.
-func stripTrailingZeroBytes(b []byte) []byte {
+// RespBody decodes 0x1002: Result(1)+VerifyCode(4).
+func (f *ParsedFrame) RespBody() (result uint8, verifyCode uint32, err error) {
+	if len(f.Body) != 5 {
+		return 0, 0, fmt.Errorf("jt809: 0x%04x body %d bytes, want 5", f.MsgID, len(f.Body))
+	}
+	return f.Body[0], binary.BigEndian.Uint32(f.Body[1:5]), nil
+}
+
+// VerifyCodeBody decodes 0x9001: VerifyCode(4).
+func (f *ParsedFrame) VerifyCodeBody() (uint32, error) {
+	if len(f.Body) != 4 {
+		return 0, fmt.Errorf("jt809: 0x9001 body %d bytes, want 4", len(f.Body))
+	}
+	return binary.BigEndian.Uint32(f.Body), nil
+}
+
+// LogoutBody decodes 0x1003/0x9003: UserId(4)+Password(8).
+func (f *ParsedFrame) LogoutBody() (userId uint32, password string, err error) {
+	if len(f.Body) != 12 {
+		return 0, "", fmt.Errorf("jt809: 0x%04x body %d bytes, want 12", f.MsgID, len(f.Body))
+	}
+	return binary.BigEndian.Uint32(f.Body), trimPad(f.Body[4:12]), nil
+}
+
+// trimPad strips trailing 0x00 pad bytes（与 builder padRight 对称）.
+func trimPad(b []byte) string {
 	for len(b) > 0 && b[len(b)-1] == 0x00 {
 		b = b[:len(b)-1]
 	}
-	return b
+	return string(b)
+}
+
+// CodeBody decodes 0x1007/0x1008/0x9007/0x9008: 1 byte.
+func (f *ParsedFrame) CodeBody() (uint8, error) {
+	if len(f.Body) != 1 {
+		return 0, fmt.Errorf("jt809: 0x%04x body %d bytes, want 1", f.MsgID, len(f.Body))
+	}
+	return f.Body[0], nil
+}
+
+// EmptyBody asserts an empty body (0x1004/0x1005/0x1006/0x9004/0x9005/0x9006).
+func (f *ParsedFrame) EmptyBody() error {
+	if len(f.Body) != 0 {
+		return fmt.Errorf("jt809: 0x%04x body %d bytes, want 0", f.MsgID, len(f.Body))
+	}
+	return nil
 }

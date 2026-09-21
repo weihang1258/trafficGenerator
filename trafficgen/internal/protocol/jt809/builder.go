@@ -2,248 +2,150 @@ package jt809
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
+	"time"
 
-	"github.com/trafficgen/trafficgen/internal/protocol/jt808"
 	"github.com/trafficgen/trafficgen/internal/protocol/jtcommon"
 )
 
-// buildHeader constructs the JT809 32-byte fixed header (design §3B.1):
+// buildFrame assembles one complete JT809 wire frame（D-JT809-1 裁定1+P4 勘误）:
 //
-//	MsgLength(4 BE) + MsgSN(4 BE) + MsgId(2 BE) +
-//	VehicleColor(1) + VehiclePlate(21 GBK, 0x20-padded)
+//	5B + Escape809( 消息头 + 消息体 + CRC16(2) ) + 5D
 //
-// MsgLength is the TOTAL length (header + body, including the MsgLength
-// field itself). The caller passes the body so we can compute the length.
-func buildHeader(msgSN uint32, msgID uint16, vehicleColor uint8, vehiclePlate string, body []byte) ([]byte, error) {
-	totalLen := HeaderLen + len(body)
-	h := make([]byte, 0, HeaderLen)
-	h = binary.BigEndian.AppendUint32(h, uint32(totalLen))
-	h = binary.BigEndian.AppendUint32(h, msgSN)
-	h = binary.BigEndian.AppendUint16(h, msgID)
-	h = append(h, vehicleColor)
-	plate, err := jtcommon.PadRightSpaceGBK(vehiclePlate, VehiclePlateLen)
-	if err != nil {
-		return nil, fmt.Errorf("jt809: VehiclePlate: %w", err)
-	}
-	h = append(h, plate...)
-	return h, nil
-}
-
-// buildFrame assembles a complete JT809 message: header (32B) + body.
-// JT809 has NO start/end delimiter and NO escape and NO checksum
-// (design §1, §3B).
-func buildFrame(msgSN uint32, msgID uint16, vehicleColor uint8, vehiclePlate string, body []byte) ([]byte, error) {
-	hdr, err := buildHeader(msgSN, msgID, vehicleColor, vehiclePlate, body)
+// 消息头 22B（2011/2013）/ 30B（2019，尾增 Time 8B UTC 秒）；CRC 先对未转义
+// 头+体 计算（init 0xFFFF poly 0x1021），再对标识间整体单遍转义（CRC 字节
+// 参与转义——库 WriteEncode 实录）；MsgLength=整帧总长 5B+头+体+CRC+5D
+// （勘误1：金向量 0x48=72 实证，非"头+体"字面读法）。
+func buildFrame(cfg *JT809Config, sn uint32, msgID uint16, body []byte) ([]byte, error) {
+	ver, err := versionBytes(cfg)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]byte, 0, len(hdr)+len(body))
-	out = append(out, hdr...)
-	out = append(out, body...)
-	return out, nil
+	return buildFrameVer(cfg, ver, sn, msgID, body)
 }
 
-// buildLoginBody constructs the 0x1001 / 0x9001 login body (design §4B.1,
-// §4B.8): UserName(5) + Password(10) + GNSSCenterId(4) + VersionFlag(1) +
-// EncryptFlag(1) + EncryptKey(4) = 25 bytes. No LinkFlag field (H-01).
-func buildLoginBody(cfg *JT809Config) []byte {
-	body := make([]byte, 0, LoginBodyLen)
-	body = append(body, jtcommon.PadRightZeroASCII(cfg.UserName, 5)...)
-	body = append(body, jtcommon.PadRightZeroASCII(cfg.Password, 10)...)
-	body = binary.BigEndian.AppendUint32(body, cfg.GNSSCenterId)
-	body = append(body, cfg.VersionFlag)
-	body = append(body, cfg.EncryptFlag)
-	body = binary.BigEndian.AppendUint32(body, cfg.EncryptKey)
-	return body
-}
-
-// buildLoginRespBody constructs the 0x1002 / 0x9002 login response body
-// (design §4B.2, §4B.9): Result(1) + GNSSCenterId(4) = 5 bytes.
-// No ResponseSN field (C-04).
-func buildLoginRespBody(result uint8, gnssCenterId uint32) []byte {
-	body := make([]byte, 0, LoginRespBodyLen)
-	body = append(body, result)
-	body = binary.BigEndian.AppendUint32(body, gnssCenterId)
-	return body
-}
-
-// buildDisconnectNoticeBody constructs the 0x1007 body (design §4B.4):
-// ReasonCode(1) + GNSSCenterId(4).
-func buildDisconnectNoticeBody(reason uint8, gnssCenterId uint32) []byte {
-	body := make([]byte, 0, 5)
-	body = append(body, reason)
-	body = binary.BigEndian.AppendUint32(body, gnssCenterId)
-	return body
-}
-
-// buildContainerBody constructs a 0x1200/0x1300/0x1500/0x1600/0x9100/0x9600
-// container body (design §4B.5, §4B.6, §4B.12, §4B.13, §4B.10, §4B.11):
-//
-//	SubMsgId(1) + SubLength(2 BE) + SubBody
-//
-// SubLength is the length of SubBody only (NOT including SubMsgId +
-// SubLength itself).
-func buildContainerBody(subMsgId uint8, subBody []byte) []byte {
-	body := make([]byte, 0, 3+len(subBody))
-	body = append(body, subMsgId)
-	body = binary.BigEndian.AppendUint16(body, uint16(len(subBody)))
-	body = append(body, subBody...)
-	return body
-}
-
-// buildVehicleRegisterSubBody constructs the 0x1201 SubBody (design §4B.5):
-// TerminalPhone(6 BCD) + ManufacturerId(5 ASCII) + TerminalModel(20) +
-// TerminalId(7). 38 bytes total. Does NOT repeat VehicleColor/VehiclePlate
-// (those are in the 0x1200 header — design C-02).
-func buildVehicleRegisterSubBody(phoneBCD, manufacturerId, terminalModel, terminalId []byte) []byte {
-	body := make([]byte, 0, 38)
-	body = append(body, phoneBCD...)
-	body = append(body, manufacturerId...)
-	body = append(body, terminalModel...)
-	body = append(body, terminalId...)
-	return body
-}
-
-// buildRealtimeLocationSubBody reuses the JT808 0x0200 location body
-// layout (design §4B.5 0x1202). Calls jt808's builder via the exported
-// BuildLocationBody helper.
-func buildRealtimeLocationSubBody(loc *jt808.JT808Location) ([]byte, error) {
-	return jt808.BuildLocationBody(loc)
-}
-
-// buildAlarmSubBody constructs the 0x1208 alarm SubBody (design §4B.5):
-// AlarmFlag(4 BE) + PulseSpeed(2 BE) + remaining 0x0200 location fields
-// (StatusFlag onwards — AlarmFlag is NOT repeated since 0x1208 already
-// carries its own AlarmFlag at the head). The result is:
-//
-//	AlarmFlag(4) + PulseSpeed(2) + StatusFlag(4) + Lat(4) + Lon(4) +
-//	Alt(2) + Speed(2) + Direction(2) + Time(6) + ExtraItems(variable)
-func buildAlarmSubBody(alarmFlag uint32, pulseSpeed uint16, loc *jt808.JT808Location) ([]byte, error) {
-	body := make([]byte, 0, 6+24)
-	body = binary.BigEndian.AppendUint32(body, alarmFlag)
-	body = binary.BigEndian.AppendUint16(body, pulseSpeed)
-	if loc != nil {
-		locBody, err := jt808.BuildLocationBody(loc)
-		if err != nil {
-			return nil, err
-		}
-		// Skip the first 4 bytes (locBody starts with AlarmFlag which we
-		// already wrote above); append StatusFlag onwards.
-		const alarmFlagSize = 4
-		if len(locBody) > alarmFlagSize {
-			body = append(body, locBody[alarmFlagSize:]...)
-		}
+// buildFrameVer is buildFrame with pre-resolved version bytes（编排路径
+// 一次解析复用；解析失败在 ValidateConfig/versionBytes 前置拦截）.
+func buildFrameVer(cfg *JT809Config, ver []byte, sn uint32, msgID uint16, body []byte) ([]byte, error) {
+	headerLen := HeaderLenLegacy
+	if cfg.VersionFlag == 2 {
+		headerLen = HeaderLen2019
 	}
-	return body, nil
+	content := make([]byte, 0, headerLen+len(body))
+	content = appendUint32(content, 0) // MsgLength 占位，CRC 前回填
+	content = appendUint32(content, sn)
+	content = appendUint16(content, msgID)
+	content = appendUint32(content, cfg.GNSSCenterId)
+	content = append(content, ver...)
+	content = append(content, cfg.EncryptFlag)
+	content = appendUint32(content, cfg.EncryptKey)
+	if cfg.VersionFlag == 2 {
+		ts := cfg.TimeSec
+		if ts == 0 {
+			ts = uint64(time.Now().Unix())
+		}
+		content = appendUint64(content, ts)
+	}
+	content = append(content, body...)
+
+	msgLength := 1 + len(content) + CRCLen + 1 // 整帧总长（勘误1）
+	binary.BigEndian.PutUint32(content[0:4], uint32(msgLength))
+
+	crc := jtcommon.CRC809(content)
+	content = appendUint16(content, crc)
+
+	frame := make([]byte, 0, msgLength)
+	frame = append(frame, FlagBegin)
+	frame = append(frame, jtcommon.Escape809(content)...)
+	frame = append(frame, FlagEnd)
+	return frame, nil
 }
 
-// buildAlarmWithAttachmentBody constructs the 0x1400 body (design §4B.7):
-// AlarmFlag(4) + AlarmTime(6 BCD) + AlarmInfo(variable) + FileType(1) +
-// FileUrl(variable GBK, max 256B).
-//
-// AlarmInfo is variable-length with no length prefix — the design's
-// example treats it as a GBK string terminated by FileType. We encode
-// AlarmInfo as GBK with no length prefix and rely on the receiver
-// parsing FileType as the last byte. For test purposes, AlarmInfo is
-// passed as raw bytes via the SubBody field on the procedure.
-func buildAlarmWithAttachmentBody(alarmFlag uint32, alarmTime string, alarmInfo []byte, fileType uint8, fileUrl string) ([]byte, error) {
-	timeBCD, err := jtcommon.EncodeTimeBCD(alarmTime)
+// versionBytes resolves the 3-byte version literal: cfg.VersionBytes
+// (6 hex chars) or DefaultVersionHex "010000"（金向量库缺省）。
+func versionBytes(cfg *JT809Config) ([]byte, error) {
+	hx := cfg.VersionBytes
+	if hx == "" {
+		hx = DefaultVersionHex
+	}
+	if len(hx) != 6 {
+		return nil, fmt.Errorf("jt809: version_bytes %q must be 6 hex chars (3 bytes)", hx)
+	}
+	b, err := hex.DecodeString(hx)
 	if err != nil {
-		return nil, fmt.Errorf("jt809: AlarmTime BCD: %w", err)
+		return nil, fmt.Errorf("jt809: version_bytes %q not hex: %w", hx, err)
 	}
-	body := make([]byte, 0, 4+6+len(alarmInfo)+1+256)
-	body = binary.BigEndian.AppendUint32(body, alarmFlag)
-	body = append(body, timeBCD...)
-	body = append(body, alarmInfo...)
-	body = append(body, fileType)
-	if fileType != FileTypeNone {
-		url, err := jtcommon.GBKEncode(fileUrl)
-		if err != nil {
-			return nil, fmt.Errorf("jt809: FileUrl GBK: %w", err)
+	return b, nil
+}
+
+// --- 16 型消息体（裁定3）---
+
+// buildLoginBody 0x1001 主链路登录请求：
+// UserId(4)+Password(pad8)+[2019: GNSSCenterId(4)]+DownLinkIP(pad32)+Port(2)
+// = 46B（2011/2013）/ 50B（2019，勘误4 双形实证）。
+func buildLoginBody(cfg *JT809Config, pr *JT809Procedure) []byte {
+	b := make([]byte, 0, 50)
+	b = appendUint32(b, cfg.UserId)
+	b = append(b, padRight([]byte(cfg.Password), PasswordLen)...)
+	if cfg.VersionFlag == 2 {
+		b = appendUint32(b, cfg.GNSSCenterId)
+	}
+	ip := cfg.DownLinkIP
+	port := cfg.DownLinkPort
+	if pr != nil {
+		if pr.DownLinkIP != "" {
+			ip = pr.DownLinkIP
 		}
-		if len(url) > 256 {
-			return nil, fmt.Errorf("jt809: FileUrl GBK length %d > 256", len(url))
+		if pr.DownLinkPort != 0 {
+			port = pr.DownLinkPort
 		}
-		body = append(body, url...)
 	}
-	return body, nil
+	b = append(b, padRight([]byte(ip), DownLinkIPLen)...)
+	b = appendUint16(b, port)
+	return b
 }
 
-// buildVehicleDirectionSubBody constructs 0x1205 SubBody (design §4B.5):
-// TerminalPhone(6 BCD) + Direction(2 BE).
-func buildVehicleDirectionSubBody(phoneBCD []byte, direction uint16) []byte {
-	body := make([]byte, 0, 8)
-	body = append(body, phoneBCD...)
-	body = binary.BigEndian.AppendUint16(body, direction)
-	return body
+// buildLoginRespBody 0x1002 主链路登录应答：Result(1)+VerifyCode(4)。
+func buildLoginRespBody(result uint8, verifyCode uint32) []byte {
+	b := make([]byte, 0, 5)
+	b = append(b, result)
+	return appendUint32(b, verifyCode)
 }
 
-// buildAreaVehicleSubBody constructs 0x1206 SubBody (design §4B.5):
-// TerminalPhone(6 BCD) + AreaType(1) + AreaData(variable).
-func buildAreaVehicleSubBody(phoneBCD []byte, areaType uint8, areaData []byte) []byte {
-	body := make([]byte, 0, 7+len(areaData))
-	body = append(body, phoneBCD...)
-	body = append(body, areaType)
-	body = append(body, areaData...)
-	return body
+// buildVerifyCodeBody 0x9001 从链路登录请求：VerifyCode(4)。
+func buildVerifyCodeBody(verifyCode uint32) []byte {
+	return appendUint32(make([]byte, 0, 4), verifyCode)
 }
 
-// buildPathRecordSubBody constructs 0x1207 SubBody (design §4B.5):
-// TerminalPhone(6 BCD) + PathCount(2 BE) + PathPoints(variable).
-func buildPathRecordSubBody(phoneBCD []byte, pathCount uint16, pathPoints []byte) []byte {
-	body := make([]byte, 0, 8+len(pathPoints))
-	body = append(body, phoneBCD...)
-	body = binary.BigEndian.AppendUint16(body, pathCount)
-	body = append(body, pathPoints...)
-	return body
+// buildLogoutBody 0x1003/0x9003 注销请求：UserId(4)+Password(pad8)。
+func buildLogoutBody(userId uint32, password string) []byte {
+	b := make([]byte, 0, 12)
+	b = appendUint32(b, userId)
+	return append(b, padRight([]byte(password), PasswordLen)...)
 }
 
-// buildEventReportSubBody constructs 0x1209 SubBody (design §4B.5):
-// TerminalPhone(6 BCD) + EventId(2 BE) + EventTime(6 BCD).
-func buildEventReportSubBody(phoneBCD []byte, eventId uint16, eventTime string) ([]byte, error) {
-	timeBCD, err := jtcommon.EncodeTimeBCD(eventTime)
-	if err != nil {
-		return nil, fmt.Errorf("jt809: EventTime BCD: %w", err)
+// buildCodeBody 0x1007/0x9007 ErrorCode(1) / 0x1008/0x9008 ReasonCode(1)。
+func buildCodeBody(code uint8) []byte {
+	return []byte{code}
+}
+
+// padRight zero-pads right (truncates) to n bytes — lib WriteStringPadRight
+// 0x00 填充实录（金向量 DownLinkIP "127.0.0.1"+23×00 实证）。
+func padRight(b []byte, n int) []byte {
+	if len(b) >= n {
+		return b[:n]
 	}
-	body := make([]byte, 0, 14)
-	body = append(body, phoneBCD...)
-	body = binary.BigEndian.AppendUint16(body, eventId)
-	body = append(body, timeBCD...)
-	return body, nil
+	out := make([]byte, n)
+	copy(out, b)
+	return out
 }
 
-// buildVehicleLogoutSubBody constructs 0x120A SubBody (design §4B.5):
-// TerminalPhone(6 BCD).
-func buildVehicleLogoutSubBody(phoneBCD []byte) []byte {
-	body := make([]byte, 0, 6)
-	body = append(body, phoneBCD...)
-	return body
+func appendUint16(b []byte, v uint16) []byte { return append(b, byte(v>>8), byte(v)) }
+func appendUint32(b []byte, v uint32) []byte {
+	return append(b, byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
 }
-
-// buildAlarmAttachmentSubBody constructs 0x1204 SubBody (design §4B.5):
-// AlarmFlag(4) + AlarmTime(6 BCD) + AlarmInfo(variable) + FileType(1) +
-// FileSize(4 BE) + FileUrl(variable GBK, max 256B).
-func buildAlarmAttachmentSubBody(alarmFlag uint32, alarmTime string, alarmInfo []byte, fileType uint8, fileSize uint32, fileUrl string) ([]byte, error) {
-	timeBCD, err := jtcommon.EncodeTimeBCD(alarmTime)
-	if err != nil {
-		return nil, fmt.Errorf("jt809: AlarmTime BCD: %w", err)
-	}
-	body := make([]byte, 0, 4+6+len(alarmInfo)+1+4+256)
-	body = binary.BigEndian.AppendUint32(body, alarmFlag)
-	body = append(body, timeBCD...)
-	body = append(body, alarmInfo...)
-	body = append(body, fileType)
-	body = binary.BigEndian.AppendUint32(body, fileSize)
-	if fileType != FileTypeNone {
-		url, err := jtcommon.GBKEncode(fileUrl)
-		if err != nil {
-			return nil, fmt.Errorf("jt809: FileUrl GBK: %w", err)
-		}
-		if len(url) > 256 {
-			return nil, fmt.Errorf("jt809: FileUrl GBK length %d > 256", len(url))
-		}
-		body = append(body, url...)
-	}
-	return body, nil
+func appendUint64(b []byte, v uint64) []byte {
+	return append(b, byte(v>>56), byte(v>>48), byte(v>>40), byte(v>>32),
+		byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
 }

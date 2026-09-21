@@ -1507,6 +1507,33 @@ func buildDefaultRegistry() {
 			"procedures":          {Type: "list"}, // 13 键：type/ack_flag/location_data/response_sn/response_msg_id/registration_result/auth_code/imei/software_version/text/text_flag/params/property_data
 		},
 	})
+	// jt809（tcp 终结层。JT/T 809-2019——双 TCP 链路（主 8812 下级→上级
+	// 0x1xxx + 从 8813 上级→下级 0x9xxx，同 GroupID 关联）+5B/转义/CRC16
+	// 信封（22B/30B 版本条件头）+16 型链路管理族，wire 字节由 jt809 生成器
+	// raw 自驱产出（D-JT809-1 裁定1/3；容器族 0x1200-0x1600/0x9200-0x9600
+	// B′ 不编排）。端口=主链 8812 内部缺省+mapToFlowSpec case（jt808 80
+	// 穿透教训移植）；从链 8813=生成器合成面。Fields 登记 parse 14 键：
+	// 12 标量+procedures/slave_procedures 双 list（V9 不下探，嵌套语义锚=
+	// ValidateConfig：gnss 区间/version_flag≤2/password≤8/16 型枚举/链路
+	// 归属/Result≤4/ErrorCode·ReasonCode≤2）。
+	r.Register(LayerSchema{Name: "jt809", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"gnss_center_id":      {Type: "uint32", Min: 0, Max: 999999999}, // ValidateConfig 锚
+			"user_id":             {Type: "uint32", Min: 0, Max: 4294967295},
+			"password":            {Type: "string"}, // ≤8 pad，planner 锚
+			"version_flag":        {Type: "int", Min: 0, Max: 2},
+			"version_bytes":       {Type: "string"}, // 6 hex，planner 锚
+			"encrypt_flag":        {Type: "int", Min: 0, Max: 1},
+			"encrypt_key":         {Type: "uint32", Min: 0, Max: 4294967295},
+			"time_sec":            {Type: "uint64"}, // 0=now（Unix 秒），上界不设（诚实注记）
+			"down_link_ip":        {Type: "string"}, // ≤32 pad，planner 锚
+			"down_link_port":      {Type: "uint16", Min: 0, Max: 65535},
+			"initial_sn":          {Type: "uint32", Min: 0, Max: 4294967295},
+			"platform_initial_sn": {Type: "uint32", Min: 0, Max: 4294967295},
+			"procedures":          {Type: "list"}, // 8 键：type/verify_code/result/password/down_link_ip/down_link_port/error_code/reason_code
+			"slave_procedures":    {Type: "list"}, // 同 procedures 8 键；非空即开从链 TCP
+		},
+	})
 	// pppoe（eth 终结层。RFC 2516——Discovery（PADI/PADO/PADR/PADS，EtherType
 	// 0x8863）+ 会话（LCP/Auth/数据，EtherType 0x8864）+ PADT 终止，wire 字节
 	// 由 pppoe 生成器 raw 自驱产出（D-PPPOE-1 裁定1，帧无外层 IP 头，ip 层

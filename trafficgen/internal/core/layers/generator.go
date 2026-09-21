@@ -511,6 +511,8 @@ type FlowMeta struct {
 	SCTP *core.SCTPConfig
 	// D-JT808-1：jt808 raw 链同款。
 	JT808 *core.JT808Config
+	// D-JT809-1：jt809 raw 链同款。
+	JT809 *core.JT809Config
 	// Radius is the flow's radius config（D-RADIUS-1：raw 自驱终层生成器直传）。Only set for radius chains.
 	Radius *core.RadiusConfig
 	// GBT is the flow's gbt config (注入到 gbt 终结层生成器，B6：BIP 22/23

@@ -1769,6 +1769,51 @@ def check_jt808(cases):
     return rows
 
 
+def check_jt809(cases):
+    """D-JT809-1 P6 反查表（T-JT809-1…13，9.52 对账 分项和 14=T-2 承载 2 项+建例 13）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("jt809"), dict):
+                lays.append((c.get("id", "?"), l["jt809"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    for kw, name in [
+        ("t1_baseline", "T-1 基线关联"),
+        ("t2_envelope_header", "T-2 信封+头字节钉"),
+        ("t3_login_body", "T-3 登录体 50B"),
+        ("t4_keepalive_pair", "T-4 keepalive 对"),
+        ("t5_disconnect", "T-5 断开通知 0x1007"),
+        ("t6_close_notify", "T-6 关闭通知 0x1008"),
+        ("t7_slave_dual_flow", "T-7 从链路双流"),
+        ("t8_slave_resp_negative", "T-8 从链应答负路径"),
+        ("t9_escape_bytes", "T-9 转义真字节"),
+        ("t10_logout", "T-10 注销 0x1003"),
+        ("t11_neg_gnss_overflow", "T-11 gnss 超界拒"),
+        ("t12_neg_version_flag", "T-12 version_flag=3 拒"),
+        ("t13_neg_error_code", "T-13 error_code=3 拒"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    for k in ["gnss_center_id", "user_id", "password", "version_flag", "version_bytes",
+              "encrypt_flag", "encrypt_key", "time_sec", "down_link_ip", "down_link_port",
+              "initial_sn", "platform_initial_sn", "procedures", "slave_procedures"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    for needle, name in [
+        ("GNSSCenterId 1000000000 > 999999999", "T-11 gnss 锚"),
+        ("VersionFlag 3 > 2", "T-12 version 锚"),
+        ("ErrorCode 3 > 2", "T-13 error_code 锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+    return rows
+
+
 def check_xmpp(cases):
     """D-XMPP-1 P6 反查表（T-XMPP-1…10，9.52 对账 18/18）。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -1877,7 +1922,7 @@ def check_vnc(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809}
 
 
 def main(argv):

@@ -3449,3 +3449,31 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 | T-13 | 负例 error_code=3 | 锚词 `ErrorCode 3`（planner 嵌套锚） |
 
 **P3 复审（2026-09-21 对抗走查）：** 编排面=16 型全枚举（T-1/T-3/T-4/T-5/T-6/T-7/T-8/T-10 合盖管理族 16/16）；金向量=单测面（外部权威 0x9400 例逐字节，不占 suite 号）；转义双形=T-9（5A02+5E01 两种 escape 并现）；双链路=§3 真子流唯一协议面=T-7 主断言；负例拦截点=gnss/version_flag 顶层 V9 区间、error_code 嵌套 planner（V9 不下探）——登记点核准。对账分项和 14=T-2 承载 2 项（信封+CRC 复算）+建例 13，可复算。**清单净，待批进 P4。**
+
+### P4 线层勘误（2026-09-21，金向量实测——三处设计表述修正，原文保留备查）
+
+SmallChi 0x1001 单测金向量（上游 Assert.Equal 钉死）逐字节核算 + 库源码
+（JT809Package.Serialize/JT809MessagePackWriter.WriteCRC16/WriteEncode/
+JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
+
+1. **MsgLength 语义修正**：非"头+体"（P1 矩阵行 2 / 裁定 1 原表述），实为
+   **整帧总长=5B+头+体+CRC(2)+5D**。实证：金向量 头22+体46=68≠线上 0x48=72；
+   库组包第 4 步 `WriteInt32Return(当前长度+3)`（+CRC2+5D1）；解包体存在性
+   判断 `MsgLength - fixedByteLength(26/34) > 0` 同口径。2019 形 = 34+体。
+2. **金向量替换**：裁定 1 原定 README 0x9400 组包例——经核算其 MsgLength=146
+   与 帧长 149/内容 147/内容去 CRC 145 三方互斥，手拼不可靠，**弃用**；改用
+   SmallChi 自带单测 0x1001 例（jt809wire_test.go 四锚：CRC 对未转义头+体
+   计算=6A91、MsgLength 整帧语义、转义四规则单遍、反转义回程）。含转义字节
+   的外权威整帧例未寻得，转义面以规则向量+单遍性质钉（B′ 注记）。
+3. **CRC/转义次序实录**：CRC 先对未转义 头+体 计算（init 0xFFFF 表驱动
+   poly 0x1021，与 bitwise 实现等价——金向量 6A91 复算过），随后对标识间
+   整体（含 CRC 字节）单遍转义（WriteEncode 保首尾字节）。
+4. **0x1001 体版本双形**：46B（2011/2013：UserId4+Password8+DownLinkIP32+
+   Port2）/ **50B（2019：Password 后增 GNSSCenterID4）**——JT809_0x1001.cs
+   `IJT809_2019_Version` 条件分支实录，金向量实证 2013 形 46B。suite 用例面
+   （2019 主形态）按 50B 钉；22B/46B 形随裁定 7 B′ 仅单测覆盖。
+5. **Time 基值 B′**：库 2019 Time=UInt64 大端秒（自库内 UTCBaseTime 起算，
+   常量值未寻得——源文件抓取失败）；本引擎 `time_sec` 按原始秒直发
+   （0=生成时刻 Unix 秒），线形 8B 不变，绝对基值差记 B′ 账本。
+6. T-2 断言面随之修正：MsgLength=**整帧长**（=34+体），非原表述"30+体"。
+

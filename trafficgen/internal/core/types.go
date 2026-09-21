@@ -1867,6 +1867,7 @@ type FlowSpec struct {
 	NGAP        *NGAPConfig        `json:"ngap,omitempty"`
 	Xmpp        *XmppConfig        `json:"xmpp,omitempty"`
 	JT808       *JT808Config       `json:"jt808,omitempty"`
+	JT809       *JT809Config       `json:"jt809,omitempty"`
 	DoIP        *DoIPConfig        `json:"doip,omitempty"`
 	TFTP        *TFTPConfig        `json:"tftp,omitempty"`
 	MQTT        *MQTTConfig        `json:"mqtt,omitempty"`
@@ -10768,4 +10769,88 @@ type JT808Property struct {
 	APN             string `json:"apn"`
 	HardwareVersion string `json:"hardware_version"`
 	MaxSpeed        uint16 `json:"max_speed"`
+}
+
+// JT809Config holds JT/T 809-2019 platform-to-platform protocol
+// configuration (D-JT809-1 裁定4：类型迁 core + 16 型链路管理族重排；
+// 容器族 0x1200-0x1600/0x9200-0x9600 B′ 不编排。json tags 即用例层键).
+type JT809Config struct {
+	// GNSSCenterId (下级平台接入码) — header 字段，0..999999999。
+	GNSSCenterId uint32 `json:"gnss_center_id"`
+
+	// UserId (用户名) — 0x1001/0x1003/0x9003 体字段。0 时缺省=GNSSCenterId。
+	UserId uint32 `json:"user_id,omitempty"`
+
+	// Password (密码) — pad 8 字节（0x00 右补）。缺省 "00000000"。
+	Password string `json:"password,omitempty"`
+
+	// VersionFlag (协议版本) — 0=2011, 1=2013, 2=2019（2019 头 30B 带 Time
+	// 且 0x1001 体含 GNSSCenterId；0/1 头 22B）。缺省 2。
+	VersionFlag uint8 `json:"version_flag,omitempty"`
+
+	// VersionBytes (版本号字面 3 字节) — 6 个 hex 字符如 "010000"。
+	// 缺省 "010000"（金向量钉死的库缺省，各版本同形，可配）。
+	VersionBytes string `json:"version_bytes,omitempty"`
+
+	// EncryptFlag (报文加密标识) — 0=明文（缺省），1=加密占位。
+	EncryptFlag uint8 `json:"encrypt_flag,omitempty"`
+
+	// EncryptKey (加密密钥) — 缺省 0。
+	EncryptKey uint32 `json:"encrypt_key,omitempty"`
+
+	// TimeSec (2019 头 Time) — UTC 秒直发（8B 大端）。0=生成时刻
+	// Unix 秒。仅 VersionFlag=2 上线。
+	TimeSec uint64 `json:"time_sec,omitempty"`
+
+	// DownLinkIP (0x1001 下级平台从链路服务端 IP) — pad 32 字节。
+	// 缺省=spec.SrcIP（从链 SYN 目标一致面）。
+	DownLinkIP string `json:"down_link_ip,omitempty"`
+
+	// DownLinkPort (0x1001 从链路端口) — 缺省 8813。
+	DownLinkPort uint16 `json:"down_link_port,omitempty"`
+
+	// InitialSN (下级侧起始流水号) — 主链 上行 与 从链 上行（上级→下级）
+	// 计数器起点。
+	InitialSN uint32 `json:"initial_sn,omitempty"`
+
+	// PlatformInitialSN (上级侧起始流水号) — 主链 下行 与 从链 下行
+	// （下级→上级）计数器起点。缺省 0。
+	PlatformInitialSN uint32 `json:"platform_initial_sn,omitempty"`
+
+	// Procedures (主链路 0x1xxx 流程)，顺序发射。
+	Procedures []JT809Procedure `json:"procedures"`
+
+	// SlaveProcedures (从链路 0x9xxx 流程) — 非空即开从链 TCP（上→下
+	// 8813），取代旧 slave_link_enabled 键（裁定4）。
+	SlaveProcedures []JT809Procedure `json:"slave_procedures,omitempty"`
+}
+
+// JT809Procedure is one step in a JT809 session（16 型链路管理族，D-JT809-1
+// 裁定3）。
+type JT809Procedure struct {
+	// Type selects the message template (main_login…slave_close 16 型).
+	Type string `json:"type"`
+
+	// VerifyCode (验证码) for main_login_resp(0x1002)/slave_connect(0x9001)。
+	VerifyCode uint32 `json:"verify_code,omitempty"`
+
+	// Result (结果) for main_login_resp(0x1002)/slave_connect_resp(0x9002)。
+	// 0=成功，1-4 负路径。
+	Result uint8 `json:"result,omitempty"`
+
+	// Password per-procedure override for main_logout(0x1003)/
+	// slave_logout(0x9003)。空=cfg.Password。
+	Password string `json:"password,omitempty"`
+
+	// DownLinkIP / DownLinkPort per-procedure override for main_login。
+	DownLinkIP   string `json:"down_link_ip,omitempty"`
+	DownLinkPort uint16 `json:"down_link_port,omitempty"`
+
+	// ErrorCode (错误码) for main_disconnect(0x1007)/slave_disconnect
+	// (0x9007)。0-2。
+	ErrorCode uint8 `json:"error_code,omitempty"`
+
+	// ReasonCode (关闭原因) for main_close(0x1008)/slave_close(0x9008)。
+	// 0-2。
+	ReasonCode uint8 `json:"reason_code,omitempty"`
 }

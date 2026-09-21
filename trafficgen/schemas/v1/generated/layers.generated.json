@@ -1264,6 +1264,64 @@
         }
       }
     },
+    "jt809": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "down_link_ip": {
+          "type": "string"
+        },
+        "down_link_port": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "encrypt_flag": {
+          "type": "int",
+          "max": 1
+        },
+        "encrypt_key": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "gnss_center_id": {
+          "type": "uint32",
+          "max": 999999999
+        },
+        "initial_sn": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "password": {
+          "type": "string"
+        },
+        "platform_initial_sn": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "procedures": {
+          "type": "list"
+        },
+        "slave_procedures": {
+          "type": "list"
+        },
+        "time_sec": {
+          "type": "uint64"
+        },
+        "user_id": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "version_bytes": {
+          "type": "string"
+        },
+        "version_flag": {
+          "type": "int",
+          "max": 2
+        }
+      }
+    },
     "l2tp": {
       "category": "terminal",
       "depends_on": [

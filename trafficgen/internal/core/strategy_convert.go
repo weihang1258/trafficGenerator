@@ -921,6 +921,16 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// 同款），链路径 spec 亦经此处（D-JT808-1 P5 实测勘误：缺此 case
 		// 时 80 穿透到线上）。
 		setDefaultDstPort(&spec, cfg, 7611)
+	case "jt809":
+		if sub, ok := cfg["jt809"].(map[string]interface{}); ok {
+			spec.JT809 = ParseJT809ConfigFromMap(sub)
+		}
+		// JT/T 809 defaults to main-link TCP port 8812 (JT/T 809-2019 §5).
+		// legacy PlanWithConfig 内部缺省——mapToFlowSpec 先补（universal 80
+		// 已在 :334 占位，协议缺省必须在此覆盖，jt808 7611 同款——缺此 case
+		// 时 80 穿透到线上，D-JT808-1 P5 勘误教训移植）。从链 8813=生成器
+		// 合成面，无 spec 字段。
+		setDefaultDstPort(&spec, cfg, 8812)
 	case "vnc":
 		if sub, ok := cfg["vnc"].(map[string]interface{}); ok {
 			// Parse-level errors (e.g. non-numeric encodings entries) are
@@ -3254,6 +3264,56 @@ func ParsePPTPConfigFromMap(m map[string]interface{}) *PPTPConfig {
 // core JT808Config (D-JT808-1：单一真相——translate 与扁平同函数；链路径
 // 空 map 也出非 nil 缺省壳，与 vnc/xmpp/sctp 同款). 数值键全直传（V9 区间
 // 锚=registry；嵌套 procedures 不下探，语义锚=protocol ValidateConfig）。
+// ParseJT809ConfigFromMap parses a jt809 layer/flat config map into the
+// core JT809Config (D-JT809-1：单一真相——translate 与扁平同函数；链路径
+// 空 map 也出非 nil 缺省壳). 数值键全直传（V9 区间锚=registry；嵌套
+// procedures/slave_procedures 不下探，语义锚=protocol ValidateConfig）。
+func ParseJT809ConfigFromMap(m map[string]interface{}) *JT809Config {
+	if m == nil {
+		return nil
+	}
+	cfg := &JT809Config{
+		GNSSCenterId:      uint32(getInt(m, "gnss_center_id")),
+		UserId:            uint32(getInt(m, "user_id")),
+		Password:          getString(m, "password"),
+		VersionFlag:       uint8(getInt(m, "version_flag")),
+		VersionBytes:      getString(m, "version_bytes"),
+		EncryptFlag:       uint8(getInt(m, "encrypt_flag")),
+		EncryptKey:        uint32(getInt(m, "encrypt_key")),
+		TimeSec:           uint64(getInt(m, "time_sec")),
+		DownLinkIP:        getString(m, "down_link_ip"),
+		DownLinkPort:      uint16(getInt(m, "down_link_port")),
+		InitialSN:         uint32(getInt(m, "initial_sn")),
+		PlatformInitialSN: uint32(getInt(m, "platform_initial_sn")),
+	}
+	for name, dst := range map[string]*[]JT809Procedure{
+		"procedures":       &cfg.Procedures,
+		"slave_procedures": &cfg.SlaveProcedures,
+	} {
+		v, ok := m[name].([]interface{})
+		if !ok {
+			continue
+		}
+		for _, item := range v {
+			pm, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			*dst = append(*dst, JT809Procedure{
+				Type:         getString(pm, "type"),
+				VerifyCode:   uint32(getInt(pm, "verify_code")),
+				Result:       uint8(getInt(pm, "result")),
+				Password:     getString(pm, "password"),
+				DownLinkIP:   getString(pm, "down_link_ip"),
+				DownLinkPort: uint16(getInt(pm, "down_link_port")),
+				ErrorCode:    uint8(getInt(pm, "error_code")),
+				ReasonCode:   uint8(getInt(pm, "reason_code")),
+			})
+		}
+	}
+	return cfg
+}
+
 func ParseJT808ConfigFromMap(m map[string]interface{}) *JT808Config {
 	if m == nil {
 		return nil
@@ -8197,7 +8257,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 		"pppoe": "[ip,pppoe]", "ldap": "[ip,ldap]", "rtmp": "[ip,rtmp]",
 		"rtsp": "[ip,rtsp]", "pptp": "[ip,pptp]", "vnc": "[ip,vnc]",
 		"xmpp": "[ip,xmpp]", "sctp": "[ip,sctp]",
-		"jt808": "[ip,jt808]",
+		"jt808": "[ip,jt808]", "jt809": "[ip,jt809]",
 	}
 	if chainHint, ok := rawWrapChains[protocol]; ok {
 		if v, ok := cfg[protocol]; ok && v != nil {
