@@ -567,5 +567,34 @@
         "registry V9 区间先拦（Min 16——P3 复审核准拦截点：显式 0 过 V9 走 planner 无分叉缺省，1-15 落 V9）"
       ]
     }
+  },
+  {
+    "id": "sctp_t11_neg_frag_upper",
+    "proto": "sctp",
+    "summary": "负例：fragment_size=1000001 超上界（9.46 上界负例——隔离复审注记补齐）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sctp": {
+            "src_port": 12345,
+            "dst_port": 5000,
+            "fragment_size": 1000001
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "out of range [16,1000000]",
+      "notes": [
+        "registry V9 区间先拦（同 T-10 拦截点：上界 1000000+1 出域）"
+      ]
+    }
   }
 ]

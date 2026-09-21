@@ -1697,7 +1697,8 @@ def check_sctp(cases):
         ("t7_abort", "T-7 ABORT 突断"),
         ("t8_explicit_tsn_sid", "T-8 显式 TSN/SID/PPID"),
         ("t9_neg_altpath_v6", "T-9 AltPath IPv6 拒"),
-        ("t10_neg_frag_small", "T-10 fragment_size 拒"),
+        ("t10_neg_frag_small", "T-10 fragment_size 下界拒"),
+        ("t11_neg_frag_upper", "T-11 fragment_size 上界拒"),
     ]:
         hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
         rows.append((name, hit is not None, hit or "无用例"))

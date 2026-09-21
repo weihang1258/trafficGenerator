@@ -1,10 +1,11 @@
 # sctp Pcap Test Results
 
-Cases: 10 — pass 10, fail 0, error 0
+Cases: 11 — pass 11, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
 | sctp_t10_neg_frag_small | 负例：fragment_size=1 低于下界 | pass | 0 | [pcap]() |
+| sctp_t11_neg_frag_upper | 负例：fragment_size=1000001 超上界（9.46 上界负例——隔离复审注记补齐） | pass | 0 | [pcap]() |
 | sctp_t1_baseline_assoc | T-1 基线关联：4 握手+3 关闭=7 帧，chunk_type 序 1/2/10/11/7/8/14 | pass | 7 | [pcap](sctp/sctp_t1_baseline_assoc.pcap) |
 | sctp_t2_handshake_bytes | T-2 4 握手字节钉：INIT VTag=0/cookie 回显一致/COOKIE-ACK 4B | pass | 7 | [pcap](sctp/sctp_t2_handshake_bytes.pcap) |
 | sctp_t3_data_bidir | T-3 DATA 双向：TSN 双空间自增+SID/SSN/PPID 钉 | pass | 9 | [pcap](sctp/sctp_t3_data_bidir.pcap) |

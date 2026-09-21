@@ -3859,3 +3859,5 @@ RFC 6120/6121 反推 10 例：T-1 PLAIN 19 帧全序（10 阶段+5222）/T-2 DIG
 ### T-SCTP-1…10 sctp 层链收敛（D-SCTP-1 P3 清单见 CODE_DESIGN D-SCTP-1；P5 已执行 10/10 ×2 全绿，2026-09-21）
 
 RFC 4960 反推 10 例：T-1 基线关联 7 帧（chunk_type 序 1/2/10/11/7/8/14）/T-2 4 握手字节钉（显式双 Tag 后 VTag 逐帧可验；cookie 随机=一致性归 legacy 单测）/T-3 DATA 双向（SID/SSN/PPID+payload 钉，TSN 随机不钉）/T-4 分片三 flags（fragment_size=16，100B→7 段+TSN 500 连续）/T-5 HEARTBEAT 主路径 2 对/T-6 AltPath 多宿主（备用 4 元组+INIT IPv4 参数）/T-7 ABORT 突断/T-8 显式 TSN/SID/SSN/PPID 20B 全头钉/T-9…10 负例两锚（AltPath IPv6=planner、fragment_size=V9 区间——P3 复审核准拦截点）。**新教训**：端口 38412/PPID 60 触发 tshark NGAP 启发式 dissector 误报 Malformed——现网特征值与字节断言面冲突时用中性值+注记；SCTP chunk 起点 offset 46。在库 sctp 行已清（1+9，备份 -sctp-purge-20260921.db）。
+
+**追加（2026-09-21，隔离复审完整报告注记）：** T-11 fragment_size=1000001 上界负例补齐（9.46 上界面；同 V9 拦截点），sctp 11/11 全绿+反查 21/21。
