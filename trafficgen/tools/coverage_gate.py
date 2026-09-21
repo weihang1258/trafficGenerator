@@ -1675,6 +1675,49 @@ def check_pptp(cases):
 
     return rows
 
+def check_sctp(cases):
+    """D-SCTP-1 P6 反查表（T-SCTP-1…10，9.52 对账 20/20）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("sctp"), dict):
+                lays.append((c.get("id", "?"), l["sctp"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    for kw, name in [
+        ("t1_baseline_assoc", "T-1 基线关联 7 帧"),
+        ("t2_handshake_bytes", "T-2 4 握手字节钉"),
+        ("t3_data_bidir", "T-3 DATA 双向"),
+        ("t4_fragment_flags", "T-4 分片三 flags"),
+        ("t5_heartbeat_primary", "T-5 HEARTBEAT 主路径"),
+        ("t6_altpath_multihoming", "T-6 AltPath 多宿主"),
+        ("t7_abort", "T-7 ABORT 突断"),
+        ("t8_explicit_tsn_sid", "T-8 显式 TSN/SID/PPID"),
+        ("t9_neg_altpath_v6", "T-9 AltPath IPv6 拒"),
+        ("t10_neg_frag_small", "T-10 fragment_size 拒"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    keys_seen = 0
+    for k in ["verification_tag", "initiate_tag", "chunks", "heartbeats",
+              "abort", "fragment_size", "src_port", "dst_port"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+        if hit is not None:
+            keys_seen += 1
+
+    for needle, name in [
+        ("only IPv4 multi-homing", "T-9 AltPath 锚"),
+        ("out of range [16,1000000]", "T-10 V9 区间锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
 def check_xmpp(cases):
     """D-XMPP-1 P6 反查表（T-XMPP-1…10，9.52 对账 18/18）。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -1783,7 +1826,7 @@ def check_vnc(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp}
 
 
 def main(argv):

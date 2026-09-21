@@ -1,0 +1,571 @@
+[
+  {
+    "id": "sctp_t1_baseline_assoc",
+    "proto": "sctp",
+    "summary": "T-1 基线关联：4 握手+3 关闭=7 帧，chunk_type 序 1/2/10/11/7/8/14",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sctp": {
+            "src_port": 12345,
+            "dst_port": 5000
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": false,
+      "negotiated": false,
+      "terminates": false,
+      "packet_count": 7,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 46,
+          "hex": "0b 00 00 04"
+        }
+      ],
+      "notes": [
+        "包数实测钉 7；f4 COOKIE-ACK=纯 4B 头 0b 00 00 04（chunk 起点 offset 46=eth14+ip20+SCTP 公共头 12）",
+        "SCTP 无 TCP 握手/挥手——has_handshake/terminates 不适用；7 帧=INIT/INIT-ACK/COOKIE-ECHO/COOKIE-ACK/SHUTDOWN/SHUTDOWN-ACK/SHUTDOWN-COMPLETE（RFC 4960 §5.1/§9.2）；端口住 sctp 层（1.12 补位）",
+        "端口选 5000（中性）：38412(NGAP)/2905(M3UA) 端口与 PPID 60(NGAP) 等现网特征值都会触发 tshark 启发式 dissector 对任意载荷误报 Malformed——用例取非启发 PPID 保证字节断言面干净；现网 PPID 语义（NGAP=60/S1AP=24）在 D-SCTP-1 P1 矩阵注记"
+      ],
+      "fields": [
+        {
+          "packet": 1,
+          "field": "sctp.chunk_type",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "sctp.srcport",
+          "value": "12345"
+        },
+        {
+          "packet": 1,
+          "field": "sctp.dstport",
+          "value": "5000"
+        },
+        {
+          "packet": 2,
+          "field": "sctp.chunk_type",
+          "value": "2"
+        },
+        {
+          "packet": 3,
+          "field": "sctp.chunk_type",
+          "value": "10"
+        },
+        {
+          "packet": 4,
+          "field": "sctp.chunk_type",
+          "value": "11"
+        },
+        {
+          "packet": 5,
+          "field": "sctp.chunk_type",
+          "value": "7"
+        },
+        {
+          "packet": 6,
+          "field": "sctp.chunk_type",
+          "value": "8"
+        },
+        {
+          "packet": 7,
+          "field": "sctp.chunk_type",
+          "value": "14"
+        }
+      ]
+    }
+  },
+  {
+    "id": "sctp_t2_handshake_bytes",
+    "proto": "sctp",
+    "summary": "T-2 4 握手字节钉：INIT VTag=0/cookie 回显一致/COOKIE-ACK 4B",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sctp": {
+            "src_port": 12345,
+            "dst_port": 5000,
+            "verification_tag": 305419896,
+            "initiate_tag": 2271560481
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": false,
+      "negotiated": false,
+      "terminates": false,
+      "packet_count": 7,
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 38,
+          "hex": "00 00 00 00"
+        },
+        {
+          "packet": 1,
+          "offset": 46,
+          "hex": "01 00 00 14"
+        },
+        {
+          "packet": 2,
+          "offset": 38,
+          "hex": "12 34 56 78"
+        },
+        {
+          "packet": 2,
+          "offset": 46,
+          "hex": "02 00 00 38"
+        },
+        {
+          "packet": 3,
+          "offset": 38,
+          "hex": "87 65 43 21"
+        },
+        {
+          "packet": 2,
+          "offset": 66,
+          "hex": "00 07 00 24"
+        },
+        {
+          "packet": 3,
+          "offset": 46,
+          "hex": "0a 00 00 24"
+        },
+        {
+          "packet": 4,
+          "offset": 46,
+          "hex": "0b 00 00 04"
+        },
+        {
+          "packet": 4,
+          "offset": 38,
+          "hex": "12 34 56 78"
+        }
+      ],
+      "notes": [
+        "追加：显式双 Tag（verification_tag=0x12345678/initiate_tag=0x87654321，逐键反查补覆盖）→VTag 公共头（offset 38）确定性可钉",
+        "VTag 实测钉（offset 38）：f1 INIT=0（RFC 4960 §5.1.1）/f2 INIT-ACK 用 client Tag 12345678/f3 COOKIE-ECHO 用 server Tag 87654321（=initiate_tag）/f4 COOKIE-ACK 用 client Tag——双 Tag 显式后 VTag 语义逐帧可验",
+        "确定性字节钉（offset 46=chunk 起点）：f1 INIT 01 00 00 14（VTag 位置=0 per RFC 4960 §5.1.1；initiateTag/TSN 随机不钉）/f2 INIT-ACK 02 00 00 38+cookie 参数头 00 07 00 24（offset 66）/f3 COOKIE-ECHO 0a 00 00 24/f4 COOKIE-ACK 0b 00 00 04",
+        "cookie 32B 每轮随机（rand.Read）——回显一致性静态钉不可为，由 legacy 单测钉（cookie echo 相等断言）；INIT-ACK len 56=16 头+36 cookie 参数"
+      ]
+    }
+  },
+  {
+    "id": "sctp_t3_data_bidir",
+    "proto": "sctp",
+    "summary": "T-3 DATA 双向：TSN 双空间自增+SID/SSN/PPID 钉",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sctp": {
+            "src_port": 12345,
+            "dst_port": 5000,
+            "chunks": [
+              {
+                "direction": "up",
+                "data": "ping"
+              },
+              {
+                "direction": "down",
+                "ppid": 1000,
+                "data": "pong"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": false,
+      "negotiated": false,
+      "terminates": false,
+      "packet_count": 9,
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 46,
+          "hex": "00 03 00 14"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "00 00 00 00 00 00 00 00 70 69 6e 67"
+        },
+        {
+          "packet": 6,
+          "offset": 46,
+          "hex": "00 03 00 14"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "00 00 00 00 00 00 03 e8 70 6f 6e 67"
+        }
+      ],
+      "notes": [
+        "包数实测钉 9；f5（up 'ping'）/f6（down 'pong' PPID 03e8=1000）钉 type/flags(B+E)/len+SID/SSN/PPID+payload（TSN 随机不钉）"
+      ],
+      "fields": [
+        {
+          "packet": 5,
+          "field": "sctp.chunk_type",
+          "value": "0"
+        },
+        {
+          "packet": 6,
+          "field": "sctp.chunk_type",
+          "value": "0"
+        }
+      ]
+    }
+  },
+  {
+    "id": "sctp_t4_fragment_flags",
+    "proto": "sctp",
+    "summary": "T-4 分片三 flags：fragment_size=16，100B→7 段 B/middle×5/E+TSN 连续",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sctp": {
+            "src_port": 12345,
+            "dst_port": 5000,
+            "fragment_size": 16,
+            "chunks": [
+              {
+                "tsn": 500,
+                "data": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": false,
+      "negotiated": false,
+      "terminates": false,
+      "packet_count": 14,
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 46,
+          "hex": "00 02 00 20 00 00 01 f4"
+        },
+        {
+          "packet": 11,
+          "offset": 46,
+          "hex": "00 01 00 14 00 00 01 fa"
+        }
+      ],
+      "notes": [
+        "包数实测钉 14（7+7 分片）；f5 首段 B flag(02) len 32+TSN 500=01f4；f11 末段 E flag(01) len 20+TSN 506=01fa（500+6 连续递增）；中段 flags 00 由 7 段序列承载"
+      ]
+    }
+  },
+  {
+    "id": "sctp_t5_heartbeat_primary",
+    "proto": "sctp",
+    "summary": "T-5 HEARTBEAT 主路径：count=2→2 对插在 COOKIE-ACK 后",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sctp": {
+            "src_port": 12345,
+            "dst_port": 5000,
+            "heartbeats": {
+              "count": 2
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": false,
+      "negotiated": false,
+      "terminates": false,
+      "packet_count": 11,
+      "frames": [],
+      "notes": [
+        "11 帧=7 基线+2 对（4 帧）；心跳插在 COOKIE-ACK 后首 DATA（无 DATA 时在 SHUTDOWN 前）——RFC 4960 §3.5.1"
+      ],
+      "fields": [
+        {
+          "packet": 5,
+          "field": "sctp.chunk_type",
+          "value": "4"
+        },
+        {
+          "packet": 6,
+          "field": "sctp.chunk_type",
+          "value": "5"
+        },
+        {
+          "packet": 7,
+          "field": "sctp.chunk_type",
+          "value": "4"
+        },
+        {
+          "packet": 8,
+          "field": "sctp.chunk_type",
+          "value": "5"
+        }
+      ]
+    }
+  },
+  {
+    "id": "sctp_t6_altpath_multihoming",
+    "proto": "sctp",
+    "summary": "T-6 AltPath 多宿主：备用 4 元组子流+INIT 携带 IPv4 Address 参数",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sctp": {
+            "src_port": 12345,
+            "dst_port": 5000,
+            "heartbeats": {
+              "alt_path": {
+                "alt_src_ip": "10.0.0.9",
+                "alt_dst_ip": "20.0.0.9"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": false,
+      "negotiated": false,
+      "terminates": false,
+      "packet_count": 9,
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 46,
+          "hex": "01 00 00 1c"
+        },
+        {
+          "packet": 1,
+          "offset": 66,
+          "hex": "00 05 00 08 0a 00 00 09"
+        }
+      ],
+      "notes": [
+        "包数实测钉 9（7+AltPath 心跳 1 对）；f1 INIT len 1c=28（20+IPv4 参数 8）+offset 66 参数 type 5 len 8+IP 10.0.0.9（RFC 4960 §3.3.2.1）",
+        "9 帧=7 基线+1 对 AltPath 心跳（备用 4 元组 10.0.0.9↔20.0.0.9，端口继承）；f1 INIT 携带 IPv4 Address 参数 type 5（offset74 实测钉：00 05 00 0a+IP 4B）；同地址族约束由 Validate 锚（T-9）"
+      ],
+      "fields": [
+        {
+          "packet": 1,
+          "field": "sctp.chunk_type",
+          "value": "1"
+        },
+        {
+          "packet": 5,
+          "field": "ip.src",
+          "value": "10.0.0.9"
+        },
+        {
+          "packet": 6,
+          "field": "ip.src",
+          "value": "20.0.0.9"
+        }
+      ]
+    }
+  },
+  {
+    "id": "sctp_t7_abort",
+    "proto": "sctp",
+    "summary": "T-7 ABORT 突断：abort=true 替代 3 路 SHUTDOWN",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sctp": {
+            "src_port": 12345,
+            "dst_port": 5000,
+            "abort": true
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": false,
+      "negotiated": false,
+      "terminates": false,
+      "packet_count": 5,
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 46,
+          "hex": "06 00 00 04"
+        }
+      ],
+      "notes": [
+        "包数实测钉 5；f5 ABORT=纯 4B 头 06 00 00 04（VTag=serverVerTag 随机不钉）",
+        "5 帧=4 握手+ABORT（替代非叠加——RFC 4960 §9.1）；ABORT=纯 4B 头 06 00 00 04+VTag=serverVerTag"
+      ],
+      "fields": [
+        {
+          "packet": 5,
+          "field": "sctp.chunk_type",
+          "value": "6"
+        }
+      ]
+    }
+  },
+  {
+    "id": "sctp_t8_explicit_tsn_sid",
+    "proto": "sctp",
+    "summary": "T-8 显式 TSN/SID/SSN/PPID 全钉（PPID 47 用户特征值）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sctp": {
+            "src_port": 12345,
+            "dst_port": 5000,
+            "chunks": [
+              {
+                "tsn": 100,
+                "sid": 5,
+                "ssn": 7,
+                "ppid": 47,
+                "data": "m3ua"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": false,
+      "negotiated": false,
+      "terminates": false,
+      "packet_count": 8,
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 46,
+          "hex": "00 03 00 14 00 00 00 64 00 05 00 07 00 00 00 2f 6d 33 75 61"
+        }
+      ],
+      "notes": [
+        "包数实测钉 8；f5 DATA 20B 全头逐字节钉：type 00/flags 03/len 14/TSN 064(100)/SID 5/SSN 7/PPID 2f(47)/'m3ua'",
+        "8 帧=7+1 DATA；f5 DATA 全头确定性：00 03 00 14|TSN 00000064|SID 0005|SSN 0007|PPID 0000002f(47，任意用户特征值非标准码)|'m3ua'（字节实测钉）"
+      ]
+    }
+  },
+  {
+    "id": "sctp_t9_neg_altpath_v6",
+    "proto": "sctp",
+    "summary": "负例：AltPath IPv6 拒（同地址族约束）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sctp": {
+            "src_port": 12345,
+            "dst_port": 5000,
+            "heartbeats": {
+              "alt_path": {
+                "alt_src_ip": "2e01::46"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "only IPv4 multi-homing",
+      "notes": [
+        "planner Validate 锚（RFC 4960 §3.3.2.1 type 5 仅 IPv4；V9 不下探嵌套对象）"
+      ]
+    }
+  },
+  {
+    "id": "sctp_t10_neg_frag_small",
+    "proto": "sctp",
+    "summary": "负例：fragment_size=1 低于下界",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sctp": {
+            "src_port": 12345,
+            "dst_port": 5000,
+            "fragment_size": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "out of range [16,1000000]",
+      "notes": [
+        "registry V9 区间先拦（Min 16——P3 复审核准拦截点：显式 0 过 V9 走 planner 无分叉缺省，1-15 落 V9）"
+      ]
+    }
+  }
+]

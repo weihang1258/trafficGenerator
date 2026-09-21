@@ -3855,3 +3855,7 @@ RFC 6143 RFB 反推 17 例：T-1 33 帧参考形（Tight 13 握手消息+客户�
 ### T-XMPP-1…11 xmpp 层链收敛（D-XMPP-1 P3 清单见 CODE_DESIGN D-XMPP-1；P5 已执行 11/11 ×2 全绿，2026-09-21）
 
 RFC 6120/6121 反推 10 例：T-1 PLAIN 19 帧全序（10 阶段+5222）/T-2 DIGEST-MD5 21/T-3 SCRAM-SHA-1 23（参考 pcap 同机制）/T-4 ANONYMOUS 19（元素字节钉）/T-5 presence=false 18/T-6 messages 双向（message 节字节钉）/T-7 from/jid/resource/stream_id 定制（流头+bind 钉）/T-8 PLAIN 凭据 base64 钉/T-9…10 负例两锚（auth 枚举/direction 枚举，全落 planner Validate）。包数手算全中（SASL 线性差 +0/+2/+4）；'</stream:stream>' 白名单泛化 xmpp_ 前缀（旧例 id 精确匹配→前缀）。在库 xmpp 行已清（3+77，备份 -xmpp-purge-20260920.db）。**追加复审第 4 轮（改隔离 subagent 执行，用户指令）**：独立复审员抓 1 中（T-6 direction 值未钉→ip.src 双向钉）2 低（XEP-0199 ping B′ 立项/T-11 长 body 3 段分段例）+T-1 缺省凭据钉，11/11 ×2 全绿+反查 23/23。**追加复审第 3 轮**：断言值 vs 配置值逐键核对抓 T-7 stream_id/jid 值未钉（f5/f11 实测补钉）+normalizeAuthMech 大小写宽松 B′ 注记+2 既有 flaky（snmp/goose）记账；10/10 ×2 全绿。
+
+### T-SCTP-1…10 sctp 层链收敛（D-SCTP-1 P3 清单见 CODE_DESIGN D-SCTP-1；P5 已执行 10/10 ×2 全绿，2026-09-21）
+
+RFC 4960 反推 10 例：T-1 基线关联 7 帧（chunk_type 序 1/2/10/11/7/8/14）/T-2 4 握手字节钉（显式双 Tag 后 VTag 逐帧可验；cookie 随机=一致性归 legacy 单测）/T-3 DATA 双向（SID/SSN/PPID+payload 钉，TSN 随机不钉）/T-4 分片三 flags（fragment_size=16，100B→7 段+TSN 500 连续）/T-5 HEARTBEAT 主路径 2 对/T-6 AltPath 多宿主（备用 4 元组+INIT IPv4 参数）/T-7 ABORT 突断/T-8 显式 TSN/SID/SSN/PPID 20B 全头钉/T-9…10 负例两锚（AltPath IPv6=planner、fragment_size=V9 区间——P3 复审核准拦截点）。**新教训**：端口 38412/PPID 60 触发 tshark NGAP 启发式 dissector 误报 Malformed——现网特征值与字节断言面冲突时用中性值+注记；SCTP chunk 起点 offset 46。在库 sctp 行已清（1+9，备份 -sctp-purge-20260921.db）。
