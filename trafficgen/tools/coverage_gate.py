@@ -1795,6 +1795,7 @@ def check_jt809(cases):
         ("t11_neg_gnss_overflow", "T-11 gnss 超界拒"),
         ("t12_neg_version_flag", "T-12 version_flag=3 拒"),
         ("t13_neg_error_code", "T-13 error_code=3 拒"),
+        ("t14_login_resp_body", "T-14 登录应答体 0x1002"),
     ]:
         hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
         rows.append((name, hit is not None, hit or "无用例"))

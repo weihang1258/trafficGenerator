@@ -67,22 +67,23 @@ func ParseFrame(wire []byte, versionFlag uint8) (*ParsedFrame, error) {
 
 // LoginBody decodes 0x1001 (version-conditional per 勘误4: 46B/50B).
 func (f *ParsedFrame) LoginBody() (userId uint32, password string, gnss uint32, ip string, port uint16, err error) {
+	need := 4 + PasswordLen + DownLinkIPLen + 2 // 46B（2011/2013）
+	if len(f.Body) != need && len(f.Body) != need+4 {
+		// 形判定先行（隔离复审 M1：中间带 47-49B 必须报错不越界切片）。
+		return 0, "", 0, "", 0, fmt.Errorf("jt809: 0x1001 body %d bytes, want 46 or 50", len(f.Body))
+	}
 	off := 0
-	need := 4 + PasswordLen + DownLinkIPLen + 2
 	userId = binary.BigEndian.Uint32(f.Body[off:])
 	off += 4
 	password = trimPad(f.Body[off : off+PasswordLen])
 	off += PasswordLen
-	if len(f.Body) > need { // 2019 形 50B
+	if len(f.Body) == need+4 { // 2019 形 50B
 		gnss = binary.BigEndian.Uint32(f.Body[off:])
 		off += 4
 	}
 	ip = trimPad(f.Body[off : off+DownLinkIPLen])
 	off += DownLinkIPLen
 	port = binary.BigEndian.Uint16(f.Body[off:])
-	if want := 4 + PasswordLen + DownLinkIPLen + 2; len(f.Body) != want && len(f.Body) != want+4 {
-		err = fmt.Errorf("jt809: 0x1001 body %d bytes, want 46 or 50", len(f.Body))
-	}
 	return
 }
 

@@ -216,6 +216,11 @@
      "packet": 4,
      "offset": 137,
      "hex": "5d"
+    },
+    {
+     "packet": 4,
+     "offset": 135,
+     "hex": "7f 6f"
     }
    ]
   }
@@ -384,6 +389,16 @@
      "packet": 5,
      "offset": 63,
      "hex": "10 06"
+    },
+    {
+     "packet": 4,
+     "offset": 59,
+     "hex": "00 00 00 32"
+    },
+    {
+     "packet": 5,
+     "offset": 59,
+     "hex": "00 00 00 3c"
     }
    ]
   }
@@ -614,6 +629,11 @@
      "packet": 8,
      "offset": 76,
      "hex": "00 12 34 56"
+    },
+    {
+     "packet": 8,
+     "offset": 59,
+     "hex": "00 00 00 05"
     }
    ]
   }
@@ -687,8 +707,8 @@
     },
     {
      "packet": 7,
-     "offset": 76,
-     "hex": "00"
+     "offset": 77,
+     "hex": "01"
     }
    ]
   }
@@ -937,6 +957,83 @@
    "error_contains": "ErrorCode 3 > 2",
    "notes": [
     "嵌套 procedures 锚=ValidateConfig 遍历"
+   ]
+  }
+ },
+ {
+  "id": "jt809_t14_login_resp_body",
+  "proto": "jt809",
+  "summary": "T-14 登录应答 0x1002：Result(1)+VerifyCode(4)=5B 体（上级→下级；隔离复审 M3 全仓唯一 buildLoginRespBody wire 例）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jt809": {
+      "gnss_center_id": 291,
+      "initial_sn": 3,
+      "procedures": [
+       {
+        "type": "main_login_resp",
+        "result": 0,
+        "verify_code": 305419896
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 7,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "8812"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.flags",
+     "value": "0x018"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "value": "31"
+    }
+   ],
+   "notes": [
+    "31=1+22 头+5 体+2 CRC+1 尾；体钉 Result=00@77+VerifyCode 12345678@78+CRC（体起 payload[23]——5B 占位后，H1 同款偏移教训二次实录）"
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 63,
+     "hex": "10 02"
+    },
+    {
+     "packet": 4,
+     "offset": 77,
+     "hex": "00"
+    },
+    {
+     "packet": 4,
+     "offset": 78,
+     "hex": "12 34 56 78"
+    },
+    {
+     "packet": 4,
+     "offset": 82,
+     "hex": "9a f1"
+    }
    ]
   }
  }

@@ -10785,7 +10785,9 @@ type JT809Config struct {
 	Password string `json:"password,omitempty"`
 
 	// VersionFlag (协议版本) — 0=2011, 1=2013, 2=2019（2019 头 30B 带 Time
-	// 且 0x1001 体含 GNSSCenterId；0/1 头 22B）。缺省 2。
+	// 且 0x1001 体含 GNSSCenterId；0/1 头 22B）。缺省 0（22B 形，隔离复审
+	// M4：原注释"缺省 2"与链路实际缺省不符——链路 getInt 缺键得 0；要
+	// 2019 形必须显式 version_flag=2，T-2/T-3 即显式例）。
 	VersionFlag uint8 `json:"version_flag,omitempty"`
 
 	// VersionBytes (版本号字面 3 字节) — 6 个 hex 字符如 "010000"。

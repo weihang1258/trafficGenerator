@@ -3424,13 +3424,13 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 | 4 | 类型迁 core（vnc 先例）+别名：JT809Config/JT809Procedure；procedures 子键重排（type/link/user_id/password/verify_code/down_link_ip/down_link_port/result/error_code/reason_code/version_bytes）；slave 流程独立键 slave_procedures（原 procedures 内 link 混排废弃——链路归属显式化）；888 行 legacy 测试按新形修钉（线层重建必然面） | jt808 裁定 2 同款+重建必需 |
 | 5 | 翻转五件套：isRawIPChain 双名单/src 0-keep/validateBaseDstPortHandled+=jt809；registry 13 Fields（gnss_center_id/user_name/password/version_flag/version_bytes/encrypt_flag/encrypt_key/login_result/initial_sn/platform_initial_sn/procedures/slave_procedures/vehicle_color...收窄至消费面）；translate case+FlowMeta.JT809+meta 注入；CheckProtoFlat rawWrapChains 第 10 协议+pipe_gate 名单+10；main.go 翻转；**mapToFlowSpec `case "jt809": setDefaultDstPort(&spec,cfg,8812)`（jt808 80 穿透教训直接移植）** | jt808 P4/P5 全套先例 |
 | 6 | 场景强度：信封字节钉（5B/5D/CRC 复算/30B 头逐字段含 Time 定值钉）、金向量单测（外部权威逐字节）、转义真字节（DownLinkPort=0x5A5B 值触发 5A01/5E01 双 escape）、keepalive 对（0x1005/1006——jt808 F4 教训预防性补齐）、双链路真子流（两 4 元组同 GroupID 落同 pcap）、从链应答负路径（result=1）；负例 4 锚（gnss>999999999=V9 区间/version_flag>2=V9 区间/disconnect error_code>2=planner 嵌套/password>8=planner） | 9.46-9.53+F4 预防 |
-| 7 | B′ 账本：容器族（0x1200-0x1600/0x9200-0x9600 车辆动态/报警/监管/静态交换）不编排——真子业务表已三源登记、体前缀形状已明（车牌21+色1+子业务2+长度4），编排缺位立项待需求；无参考 pcap（probe 面）；2011/2013 头 22B 形仅金向量单测覆盖（suite 用例面=2019 30B 主形态）；0x1003 Password pad 宽 8 按 0x1001 对称推定（单源，注记）；Time 语义=打包时刻 UTC 秒（生成器时钟面，钉定值保证确定性） | 如实 |
+| 7 | B′ 账本：容器族（0x1200-0x1600/0x9200-0x9600 车辆动态/报警/监管/静态交换）不编排——真子业务表已三源登记、体前缀形状已明（车牌21+色1+子业务2+长度4），编排缺位立项待需求；无参考 pcap（probe 面）；头 22B 形为链路缺省（version_flag 缺省 0，隔离复审 M4 勘误：types 注释"缺省 2"失实已改）且为 suite 多数例形；2019 30B 形由 T-2/T-3 显式 version_flag=2 承载（含 50B 体），0x1003 Password pad 宽 8 按 0x1001 对称推定（单源，注记）；Time 语义=打包时刻 UTC 秒（生成器时钟面，钉定值保证确定性） | 如实 |
 
 **文件：** jtcommon（CRC809/Escape809）+protocol/jt809/{types 别名化,builder 重建,parser 重建,jt809.go 流程保留+消息族重排,layer_gen 新}+core/types.go（JT809Config 迁入）+core/layers 五件+strategy_convert（Parse+mapToFlowSpec case+rawWrapChains）+main.go 翻转+cases/jt809.json 新+schemagen+pipe_gate/coverage_gate。
 **性能（6.4-6.6）：** channel 256 流式；包数=主链(3+N+3)+从链可选(3+M+3)；pcap 路（网卡未跑注明）。
 **回滚：** 单提交粒度，摘除即回。
 
-### T-JT809-1…13 清单（P3；9.52 对账：信封 1+金向量 0（单测面不占号）+头字段 1+登录体 1+keepalive 1+断开 1+关闭通知 1+从链连接 1+从链应答负路径 1+转义 1+双链路子流 1+注销 1+负例 4 = **分项和 14，T-2 一例承载 2 项（信封+CRC 复算）→ 建例 13**）
+### T-JT809-1…14 清单（P3 建 13 例；P6 隔离复审后修轮增 T-14；9.52 对账勘误 L1——原"分项和 14"算术不可复算，实算：T-1 基线 1+T-2 信封头 CRC 2+T-3 登录体 1+T-4 keepalive 1+T-5 断开 1+T-6 关闭通知 1+T-7 从链连接+双链路子流 2+T-8 应答负 1+T-9 转义 1+T-10 注销 1+T-11…13 负例 3+T-14 应答体 1 = **分项和 16 = 建例 14 + T-2/T-7 各承载 2 项（+2），可复算**；负例 password>8 锚=单测面（裁定6 声明），suite 负例 3）
 
 | # | 用例 | 断言面 |
 |---|---|---|
@@ -3448,7 +3448,7 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 | T-12 | 负例 version_flag=3 | 锚词 `VersionFlag 3 > 2`（V9 区间） |
 | T-13 | 负例 error_code=3 | 锚词 `ErrorCode 3`（planner 嵌套锚） |
 
-**P3 复审（2026-09-21 对抗走查）：** 编排面=16 型全枚举（T-1/T-3/T-4/T-5/T-6/T-7/T-8/T-10 合盖管理族 16/16）；金向量=单测面（外部权威 0x9400 例逐字节，不占 suite 号）；转义双形=T-9（5A02+5E01 两种 escape 并现）；双链路=§3 真子流唯一协议面=T-7 主断言；负例拦截点=gnss/version_flag 顶层 V9 区间、error_code 嵌套 planner（V9 不下探）——登记点核准。对账分项和 14=T-2 承载 2 项（信封+CRC 复算）+建例 13，可复算。**清单净，待批进 P4。**
+**P3 复审（2026-09-21 对抗走查；P6 隔离复审 M3 勘误：原"16 型全枚举合盖 16/16"表述失实，实为 9 型 suite wire 直达 + 7 型分支代表）：** 编排面=16 型族枚举表建立；suite wire 直达 9 型（0x1001/1002/1003/1005/1006/1007/1008/9001/9002，T-1/3/4/5/6/7/8/10/14）；其余 7 型按 9.21 分支代表口径登记——0x9003（12B 体=1003 同形）·0x9004/9005/9006（空体=1005/1006 同形）·0x9007/9008（1B 体=1007/1008 同形）·0x1004（空体族），且方向分支全覆盖（9001=从链 down 已达、9002=从链 up 已达，余 7 型均落同两分支），dispatch 表 16 项代码走查；金向量=单测面（外部权威 0x9400 例逐字节，不占 suite 号）；转义双形=T-9（5A02+5E01 两种 escape 并现）；双链路=§3 真子流唯一协议面=T-7 主断言；负例拦截点=gnss/version_flag 顶层 V9 区间、error_code 嵌套 planner（V9 不下探）——登记点核准。对账分项和 14=T-2 承载 2 项（信封+CRC 复算）+建例 13，可复算。**清单净，待批进 P4。**
 
 ### P4 线层勘误（2026-09-21，金向量实测——三处设计表述修正，原文保留备查）
 
@@ -3476,6 +3476,9 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
    常量值未寻得——源文件抓取失败）；本引擎 `time_sec` 按原始秒直发
    （0=生成时刻 Unix 秒），线形 8B 不变，绝对基值差记 B′ 账本。
 6. T-2 断言面随之修正：MsgLength=**整帧长**（=34+体），非原表述"30+体"。
+7. **T-9 值勘误（L2）**：裁定 6 原"DownLinkPort=0x5A5B 触发 5A 01/5E 01 双 escape 形"双重失实——0x5A5B 的两字节逃逸形=5A 02+5A 01（5B 逃逸为 5A 01 非 5E 01）；实际建例值=0x5B5D→5A 01+5E 01（cases/jt809.json T-9 与单测 TestEscapeOnWire 同值）。
+8. **裁定 5 registry 枚举勘误（L3）**：裁定 5 原"registry 13 Fields（…user_name/login_result/vehicle_color…）"为重形前陈旧枚举；实登记 **14 Fields**（gnss_center_id/user_id/password/version_flag/version_bytes/encrypt_flag/encrypt_key/time_sec/down_link_ip/down_link_port/initial_sn/platform_initial_sn/procedures/slave_procedures），以门 1 §13 行与提交 82661a2 为准。
+9. **修轮补记（H1 教训二实录）**：frames 钉 offset 基准=整以太帧（+54）之外，体首字节=payload[23]（5B 占位后）——T-8 首钉误落 payload[22]（EncryptKey 末字节）即"失败路径不会红"（9.44），修轮重钉并 T-14 提取时同错再犯（断言 body=="0012345678" 拦截）。钉必须带形状断言，不许纯转录。
 
 ### 门 1 开工对照表（§1–§14，2026-09-21 jt809 P6 回填，证据=文档节/代码行/用例号）
 
@@ -3490,11 +3493,11 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 | §7 三份文档 | 设计=D-JT809-1；用例=T-JT809-1…13；cases 文件回指编号 | CODE_DESIGN/TEST_CASES/cases/jt809.json |
 | §8 先设计后代码 | P2 定稿（9f1988f）先于 P4（82661a2） | git 历史 |
 | §9 三源+整格 | 金向量逐字节（外部权威）+T-2 16 钉全格+单测面五锚 | jt809wire_test 四锚；T-2；TestBuildFrame_* |
-| §10 评审闭环 | 自审 2 轮：轮1 抓 slave 4 元组错形（SYN+ACK/FIN2 用 spec.SrcPort）+DownLinkIP>32 静默截断+parser 死块；轮2 全绿后 -race/vet 复核；隔离对抗复审=收官独立轮 | P4 记录；复审轮待跑注记 |
+| §10 评审闭环 | 自审 2 轮：轮1 抓 slave 4 元组错形（SYN+ACK/FIN2 用 spec.SrcPort）+DownLinkIP>32 静默截断+parser 死块；轮2 全绿后 -race/vet 复核；隔离对抗复审=收官独立轮（抓 H1 体钉偏移/M1 panic 带/M2 pr 校验旁路/M3 覆盖表述/M4 缺省矛盾——修轮全落，勘误块 7-9 条） | P4 记录；勘误块 7-9；修轮提交 |
 | §11 白话汇报 | 先一句结论再证据；代号带解释 | 每次汇报 |
 | §12 动态清单 | 四元组=框架白名单（worker 注入）；双链 ISN=randUint32；MsgSN=四计数器（分链分向，InitialSN/PlatformInitialSN 起点）；Time=time_sec 0→生成时刻 Unix 秒；业务键（verify_code/result/error_code 等）=静态单值如实注记（可配非逐包动态） | `jt809.go` 四计数器+rc 缺省化；D-JT809-1 门 1 §12 行 |
 | §13 schema 同步 | registry jt809 14 Fields → schemagen 重生成 111 层 | `generated/layers.generated.json` diff（82661a2） |
-| §14 真实流程 | MCP 建任务→引擎生成→tshark 校对全流程；13/13 ×2 全绿；负例带实际锚词；包号/端口从落盘 pcap 重钉（frames 钉 offset=整以太帧 +54） | T-JT809-1…13；suite ×2（a00b3a0 后复跑绿） |
+| §14 真实流程 | MCP 建任务→引擎生成→tshark 校对全流程；14/14 ×2 全绿（修轮后）；负例带实际锚词；包号/端口从落盘 pcap 重钉（frames 钉 offset=整以太帧 +54，体首 payload[23]） | T-JT809-1…14；suite ×2（修轮后复跑绿） |
 
 **门 3 抽查三条（P6）：** ①§3 关联面——T-7 pcap 实证两 4 元组（12345↔8812 / 8812↔8813）同 group_id 落同 pcap，包 5=从链 SYN dst 8813；②§12 动态面——`strategy_convert.go` case "jt809" setDefaultDstPort(8812)（80 穿透预防位）+`jt809.go` 四计数器分行可点；③§14 验收面——suite RESULT 13 pass ×2 连续（-count=1 两次独立跑）+coverage_gate 30/30+pipe_gate 静态四项绿。
 

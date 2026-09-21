@@ -98,6 +98,14 @@ func ValidateConfig(cfg *JT809Config) error {
 			if pr.Result > 4 {
 				return fmt.Errorf("jt809: Result %d > 4 (allowed 0-4)", pr.Result)
 			}
+			// procedure 级覆盖值同界（隔离复审 M2：pr.Password/pr.DownLinkIP
+			// 绕过 cfg 级校验即被 padRight 静默截断——裁定6 锚的旁路面）。
+			if len(pr.Password) > PasswordLen {
+				return fmt.Errorf("jt809: procedure Password length %d > %d", len(pr.Password), PasswordLen)
+			}
+			if len(pr.DownLinkIP) > DownLinkIPLen {
+				return fmt.Errorf("jt809: procedure DownLinkIP length %d > %d", len(pr.DownLinkIP), DownLinkIPLen)
+			}
 			if pr.ErrorCode > 2 {
 				return fmt.Errorf("jt809: ErrorCode %d > 2 (allowed 0-2)", pr.ErrorCode)
 			}

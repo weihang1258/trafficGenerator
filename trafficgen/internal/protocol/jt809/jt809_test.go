@@ -158,6 +158,28 @@ func TestParseFrame_Negative(t *testing.T) {
 	}
 }
 
+// 解析负路径：0x1001 体畸形 47B（46<47<50 中间带）必须报错不 panic
+// （隔离复审 M1：双形判定 len>need 在长度检查前切片越界）。
+func TestParseFrame_LoginBodyMalformed(t *testing.T) {
+	cfg := &JT809Config{GNSSCenterId: 1, VersionFlag: 1, Password: "x", DownLinkIP: "1.2.3.4"}
+	frame, err := buildFrame(cfg, 1, MsgMainLogin, buildLoginBody(cfg, nil))
+	if err != nil {
+		t.Fatalf("buildFrame: %v", err)
+	}
+	pf, err := ParseFrame(frame, 1)
+	if err != nil {
+		t.Fatalf("ParseFrame: %v", err)
+	}
+	// 篡造 47B 体（CRC 校验通过后的解析面负例）。
+	mal := make([]byte, len(pf.Body)+1)
+	copy(mal, pf.Body)
+	mal[46] = 0xAA
+	pf2 := &ParsedFrame{MsgID: MsgMainLogin, Body: mal}
+	if _, _, _, _, _, err := pf2.LoginBody(); err == nil || !strings.Contains(err.Error(), "want 46 or 50") {
+		t.Fatalf("want 47B body error, got %v", err)
+	}
+}
+
 // ValidateConfig 锚（T-11/T-12/T-13 同源锚词 + 区间面）。
 func TestValidateConfig_Anchors(t *testing.T) {
 	cases := []struct {
@@ -174,6 +196,8 @@ func TestValidateConfig_Anchors(t *testing.T) {
 		{"未知类型", &JT809Config{GNSSCenterId: 1, Procedures: []JT809Procedure{{Type: "vehicle_register"}}}, "unknown procedure type"},
 		{"从链类型混主链", &JT809Config{GNSSCenterId: 1, Procedures: []JT809Procedure{{Type: ProcSlaveConnect}}}, "belongs on the slave link"},
 		{"version_bytes 宽度", &JT809Config{GNSSCenterId: 1, VersionBytes: "0100"}, "must be 6 hex chars"},
+		{"pr password 超宽", &JT809Config{GNSSCenterId: 1, Procedures: []JT809Procedure{{Type: ProcMainLogout, Password: "123456789"}}}, "procedure Password length 9 > 8"},
+		{"pr down_link_ip 超宽", &JT809Config{GNSSCenterId: 1, Procedures: []JT809Procedure{{Type: ProcMainLogin, DownLinkIP: strings.Repeat("a", 33)}}}, "procedure DownLinkIP length 33 > 32"},
 		{"nil", nil, "nil config"},
 	}
 	for _, c := range cases {
