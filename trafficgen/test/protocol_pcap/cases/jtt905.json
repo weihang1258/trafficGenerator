@@ -1,0 +1,799 @@
+[
+ {
+  "id": "jtt905_t1_baseline",
+  "proto": "jtt905",
+  "summary": "T-1 基线关联：自动会话 签到→应答→心跳→应答→签退→应答；3 握手+6 消息+3 挥手=12 帧；MsgId 序 0B03/8001/0002/8001/0B04/8001",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jtt905": {
+      "isu_id": "103456789012",
+      "initial_sn": 100,
+      "heartbeat_count": 1
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 12,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "10700"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.flags",
+     "value": "0x018"
+    }
+   ],
+   "notes": [
+    "MsgId 序从落盘 pcap 重钉（P5）"
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 55,
+     "hex": "0b 03"
+    },
+    {
+     "packet": 5,
+     "offset": 55,
+     "hex": "80 01"
+    },
+    {
+     "packet": 6,
+     "offset": 55,
+     "hex": "00 02"
+    },
+    {
+     "packet": 7,
+     "offset": 55,
+     "hex": "80 01"
+    },
+    {
+     "packet": 8,
+     "offset": 55,
+     "hex": "0b 04"
+    },
+    {
+     "packet": 9,
+     "offset": 55,
+     "hex": "80 01"
+    }
+   ]
+  }
+ },
+ {
+  "id": "jtt905_t2_envelope_header",
+  "proto": "jtt905",
+  "summary": "T-2 信封+头字节钉：7E 定界；DataLength=纯体长（无版本位）；ISU BCD6；SN 起点；XOR=尾 1B",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jtt905": {
+      "isu_id": "103456789012",
+      "initial_sn": 7,
+      "procedures": [
+       {
+        "type": "check_in"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 7,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "10700"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "value": "62"
+    }
+   ],
+   "notes": [
+    "签到体 47B：帧=1+12+47+1+1=62？实测重钉（P5）；字节钉从落盘 pcap",
+    "帧 62=1+12+47 体+1 XOR+1 定界"
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "7e"
+    },
+    {
+     "packet": 4,
+     "offset": 55,
+     "hex": "0b 03"
+    },
+    {
+     "packet": 4,
+     "offset": 57,
+     "hex": "00 2f"
+    },
+    {
+     "packet": 4,
+     "offset": 59,
+     "hex": "10 34 56 78 90 12"
+    },
+    {
+     "packet": 4,
+     "offset": 65,
+     "hex": "00 07"
+    },
+    {
+     "packet": 4,
+     "offset": 67,
+     "hex": "00 00"
+    },
+    {
+     "packet": 4,
+     "offset": 114,
+     "hex": "a8"
+    },
+    {
+     "packet": 4,
+     "offset": 115,
+     "hex": "7e"
+    }
+   ]
+  }
+ },
+ {
+  "id": "jtt905_t3_checkin_body",
+  "proto": "jtt905",
+  "summary": "T-3 签到体钉：license16\\0/qual19\\0/plate6\\0/uptime BCD 全字段",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jtt905": {
+      "isu_id": "103456789012",
+      "initial_sn": 3,
+      "business_license": "BL20240001",
+      "qualification_code": "QC1101080001",
+      "plate_no": "A12345",
+      "on_duty_power_on_time": "202408030800",
+      "procedures": [
+       {
+        "type": "check_in"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 7,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "10700"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "value": "62"
+    }
+   ],
+   "notes": [
+    "体字节逐字段从落盘 pcap 重钉（P5）",
+    "帧 62=1+12+47 体+1 XOR+1 定界"
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 67,
+     "hex": "42 4c 32 30 32 34 30 30 30 31"
+    },
+    {
+     "packet": 4,
+     "offset": 83,
+     "hex": "51 43 31 31 30 31 30 38 30 30"
+    },
+    {
+     "packet": 4,
+     "offset": 102,
+     "hex": "41 31 32 33 34 35"
+    },
+    {
+     "packet": 4,
+     "offset": 108,
+     "hex": "20 24 08 03 08 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "jtt905_t4_heartbeat_pair",
+  "proto": "jtt905",
+  "summary": "T-4 心跳对：0x0002 空体+SN 递增+0x8001 应答自动绑最近上行",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jtt905": {
+      "isu_id": "103456789012",
+      "initial_sn": 50,
+      "procedures": [
+       {
+        "type": "heartbeat"
+       },
+       {
+        "type": "center_general_response"
+       }
+      ],
+      "platform_initial_sn": 60
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "10700"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.flags",
+     "value": "0x018"
+    },
+    {
+     "packet": 5,
+     "field": "tcp.flags",
+     "value": "0x018"
+    }
+   ],
+   "notes": [
+    "SN/绑定面从落盘 pcap 重钉（P5）"
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "7e 00 02 00 00 10 34 56 78 90 12 00 32 b8 7e"
+    },
+    {
+     "packet": 5,
+     "offset": 65,
+     "hex": "00 3c"
+    },
+    {
+     "packet": 5,
+     "offset": 67,
+     "hex": "00 32 00 02 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "jtt905_t5_checkout_body",
+  "proto": "jtt905",
+  "summary": "T-5 签退体钉：K值/双时间/BCD 位数族/总次数 u32/签退方式全字段（帧 106=1+12+91 体+1 XOR+1 定界）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jtt905": {
+      "isu_id": "103456789012",
+      "initial_sn": 9,
+      "business_license": "BL20240001",
+      "qualification_code": "QC1101080001",
+      "plate_no": "A12345",
+      "taximeter_k_value": "0512",
+      "on_duty_power_on_time": "202408030800",
+      "on_duty_power_off_time": "202408031600",
+      "on_duty_mileage": "001250",
+      "on_duty_operation_mileage": "000980",
+      "train_number": "0031",
+      "timing_time": "045530",
+      "total_amount": "001865",
+      "card_amount": "000420",
+      "card_count": "0006",
+      "on_duty_mileage_between": "0210",
+      "total_mileage": "00125600",
+      "total_operation_mileage": "00099000",
+      "unit_price": "1260",
+      "total_operations": 12,
+      "sign_type": 1,
+      "procedures": [
+       {
+        "type": "check_out"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 7,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "10700"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "value": "106"
+    }
+   ],
+   "notes": [
+    "签退体 91B=16+19+6+2+6+6+3+3+2+3+3+3+2+2+4+4+2+4+1；体字节从落盘 pcap 重钉（P5）"
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 108,
+     "hex": "05 12"
+    },
+    {
+     "packet": 4,
+     "offset": 110,
+     "hex": "20 24 08 03 08 00"
+    },
+    {
+     "packet": 4,
+     "offset": 116,
+     "hex": "20 24 08 03 16 00"
+    },
+    {
+     "packet": 4,
+     "offset": 153,
+     "hex": "00 00 00 0c"
+    },
+    {
+     "packet": 4,
+     "offset": 157,
+     "hex": "01"
+    },
+    {
+     "packet": 4,
+     "offset": 158,
+     "hex": "c9"
+    }
+   ]
+  }
+ },
+ {
+  "id": "jtt905_t6_resp_pair",
+  "proto": "jtt905",
+  "summary": "T-6 应答对：0x8001 down（自动绑签到）+0x0001 up（应答 0x8300 缺省面）各 5B",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jtt905": {
+      "isu_id": "103456789012",
+      "initial_sn": 5,
+      "procedures": [
+       {
+        "type": "check_in"
+       },
+       {
+        "type": "center_general_response",
+        "result": 0
+       },
+       {
+        "type": "isu_general_response",
+        "result": 0
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 9,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "10700"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.flags",
+     "value": "0x018"
+    },
+    {
+     "packet": 5,
+     "field": "tcp.flags",
+     "value": "0x018"
+    },
+    {
+     "packet": 6,
+     "field": "tcp.flags",
+     "value": "0x018"
+    }
+   ],
+   "notes": [
+    "ReplySN/ReplyId 绑定面从落盘 pcap 重钉（P5）"
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 55,
+     "hex": "80 01"
+    },
+    {
+     "packet": 5,
+     "offset": 65,
+     "hex": "00 00"
+    },
+    {
+     "packet": 5,
+     "offset": 67,
+     "hex": "00 05 0b 03 00"
+    },
+    {
+     "packet": 6,
+     "offset": 55,
+     "hex": "00 01"
+    },
+    {
+     "packet": 6,
+     "offset": 65,
+     "hex": "00 06"
+    },
+    {
+     "packet": 6,
+     "offset": 67,
+     "hex": "00 00 83 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "jtt905_t7_escape_bytes",
+  "proto": "jtt905",
+  "summary": "T-7 转义真字节：initial_sn=0x007E→线上 7D02（金向量 MsgNum 同款位）帧变长",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jtt905": {
+      "isu_id": "103456789012",
+      "initial_sn": 126,
+      "procedures": [
+       {
+        "type": "heartbeat"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 7,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "10700"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "value": "16"
+    }
+   ],
+   "notes": [
+    "16=15 未转义+1 转义扩位；转义字节序从落盘 pcap 重钉（P5）"
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "7e"
+    },
+    {
+     "packet": 4,
+     "offset": 66,
+     "hex": "7d 02"
+    },
+    {
+     "packet": 4,
+     "offset": 69,
+     "hex": "7e"
+    }
+   ]
+  }
+ },
+ {
+  "id": "jtt905_t9_position_block",
+  "proto": "jtt905",
+  "summary": "T-9 位置块：position 配置→0x0B03 体含 25B 基础位（方向 1B 金向量算术位）帧 87=1+12+72+1+1",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jtt905": {
+      "isu_id": "103456789012",
+      "initial_sn": 2,
+      "on_duty_power_on_time": "202408030800",
+      "position": {
+       "alarm_flag": 1,
+       "status_flag": 2,
+       "lat": 12222222,
+       "lng": 132444444,
+       "speed": 60,
+       "direction": 0,
+       "time": "240803080000"
+      },
+      "procedures": [
+       {
+        "type": "check_in"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 7,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "10700"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "value": "87"
+    }
+   ],
+   "notes": [
+    "位置块字节从落盘 pcap 重钉（P5）"
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 67,
+     "hex": "00 00 00 01"
+    },
+    {
+     "packet": 4,
+     "offset": 71,
+     "hex": "00 00 00 02"
+    },
+    {
+     "packet": 4,
+     "offset": 75,
+     "hex": "00 ba 7f 0e"
+    },
+    {
+     "packet": 4,
+     "offset": 79,
+     "hex": "07 e4 f1 1c"
+    },
+    {
+     "packet": 4,
+     "offset": 83,
+     "hex": "00 3c"
+    },
+    {
+     "packet": 4,
+     "offset": 85,
+     "hex": "00"
+    },
+    {
+     "packet": 4,
+     "offset": 86,
+     "hex": "24 08 03 08 00 00"
+    },
+    {
+     "packet": 4,
+     "offset": 92,
+     "hex": "00 00 00 00 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "jtt905_t10_neg_isu_11digits",
+  "proto": "jtt905",
+  "summary": "负例：isu_id 11 位拒（ValidateConfig）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jtt905": {
+      "isu_id": "12345678901"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "ISUId \"12345678901\" must be 12 digits",
+   "notes": [
+    "planner ValidateConfig 锚（顶层标量）"
+   ]
+  }
+ },
+ {
+  "id": "jtt905_t11_neg_plate_7ascii",
+  "proto": "jtt905",
+  "summary": "负例：plate 7 ASCII 拒（≤6）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jtt905": {
+      "isu_id": "103456789012",
+      "plate_no": "A123456"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "PlateNo length 7 > 6",
+   "notes": [
+    "planner ValidateConfig 锚"
+   ]
+  }
+ },
+ {
+  "id": "jtt905_t12_neg_result_3",
+  "proto": "jtt905",
+  "summary": "负例：result=3 拒（真枚举 0-2；嵌套 procedures V9 不下探拦截点=planner）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jtt905": {
+      "isu_id": "103456789012",
+      "procedures": [
+       {
+        "type": "center_general_response",
+        "result": 3
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "Result 3 > 2",
+   "notes": [
+    "嵌套锚=ValidateConfig 遍历"
+   ]
+  }
+ },
+ {
+  "id": "jtt905_t13_neg_bcd_digits",
+  "proto": "jtt905",
+  "summary": "负例：BCD 时间位数错拒（on_duty_power_on_time 8 位≠12 位）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jtt905": {
+      "isu_id": "103456789012",
+      "on_duty_power_on_time": "20240803"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "OnDutyPowerOnTime \"20240803\" must be 12 digits (yyyyMMddHHmm)",
+   "notes": [
+    "planner ValidateConfig 锚（位数族）"
+   ]
+  }
+ }
+]
