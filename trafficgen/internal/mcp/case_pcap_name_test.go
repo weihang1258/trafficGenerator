@@ -58,8 +58,8 @@ func TestRunProtocolSuite_NegPcapLandsMarked(t *testing.T) {
 	dir := filepath.Join(env.tmp, "cases")
 	os.MkdirAll(dir, 0755)
 	writeSuiteCase(t, dir, "arp.json",
-		`[{"id":"neg_marked","proto":"arp","spec_json":{},"expect":{"expect_error":true,"error_contains":"ARP config is required"}},
-		  {"id":"pos_ok","proto":"arp","spec_json":{"arp":{"operation":1}},"expect":{"packet_count":2}}]`)
+		`[{"id":"neg_marked","proto":"arp","spec_json":{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01"}},{"arp":{"sender_ip":"not-an-ip"}}]},"expect":{"expect_error":true,"error_contains":"invalid sender_ip"}},
+		  {"id":"pos_ok","proto":"arp","spec_json":{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]},"expect":{"packet_count":2}}]`)
 	pcapRoot := filepath.Join(env.tmp, "pcaps")
 
 	_, out, err := env.srv.handleRunProtocolSuite(context.Background(), nil, suiteInput{
@@ -108,9 +108,9 @@ func TestRunProtocolCase_NegDefaultPathMarked(t *testing.T) {
 	_, out, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 		Proto:      "arp",
 		CaseID:     "neg_default_path",
-		SpecJSON:   json.RawMessage(`{}`),
+		SpecJSON:   json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01"}},{"arp":{"sender_ip":"not-an-ip"}}]}`),
 		OutputType: "pcap",
-		Expect:     caseExpectInput{ExpectError: true, ErrorContains: "ARP config is required"},
+		Expect:     caseExpectInput{ExpectError: true, ErrorContains: "invalid sender_ip"},
 	})
 	if err != nil {
 		t.Fatalf("handle: %v", err)

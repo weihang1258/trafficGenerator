@@ -342,6 +342,7 @@ type FlowMeta struct {
 	MMS     *core.MMSConfig
 	GOOSE   *core.GOOSEConfig
 	SV      *core.SVConfig
+	ARP     *core.ARPConfig
 	STUN    *core.STUNConfig
 	HTTPFLV *core.HTTPFLVConfig
 	HLS     *core.HLSConfig

@@ -742,6 +742,20 @@ func buildDefaultRegistry() {
 		FieldContract: map[string]string{"ip.protocol": "103"}, // RFC 7761 PIM IPPROTO=103
 	})
 	r.Register(LayerSchema{Name: "isis", Category: CategoryTerminal, DependsOn: []string{"eth"}})
+	// D-ARP-1：arp 层 5 业务键（L2-only 终结层，[eth,arp] 链，RFC 826）。
+	// 无 Default（goose 决策 F 同款——缺省在生成器侧补：sender_ip=10.0.0.1/
+	// target_ip=10.0.0.2/MAC←eth 层）。operation 注册语义域 [1,2]（V9
+	// create-time 先火，锚词对真实执法门）；IP 承载混入由 V-carrier 通用门
+	// 拒（complete.go DependsOn eth 自动获得）。
+	r.Register(LayerSchema{Name: "arp", Category: CategoryTerminal, DependsOn: []string{"eth"},
+		Fields: map[string]FieldSchema{
+			"operation":  {Type: "uint16", Min: 1, Max: 2},
+			"sender_mac": {Type: "mac"},
+			"sender_ip":  {Type: "string"},
+			"target_mac": {Type: "mac"},
+			"target_ip":  {Type: "string"},
+		},
+	})
 	// D-ICMPV6-1：icmpv6 raw-IP 终结层（[ip,icmpv6]，RFC 4443）。6 业务键
 	// 无 Default（决策 F；缺省语义在 translate 镜像 parse：type 128/code
 	// 0/seq 1/data "ping"）；FieldContract 声明 ip.protocol=58（igmp=2 同款

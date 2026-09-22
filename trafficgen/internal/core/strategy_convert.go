@@ -223,7 +223,7 @@ func StrategyModelToTask(taskModel *storage.TaskModel, strategy *storage.Strateg
 // layer is itself invalid and left to the validator to reject.
 func isL2OnlyProtocol(protocol string) bool {
 	switch protocol {
-	case "goose", "sv":
+	case "goose", "sv", "arp":
 		return true
 	}
 	return false
@@ -8327,6 +8327,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 		"rtsp": "[ip,rtsp]", "pptp": "[ip,pptp]", "vnc": "[ip,vnc]",
 		"xmpp": "[ip,xmpp]", "sctp": "[ip,sctp]",
 		"jt808": "[ip,jt808]", "jt809": "[ip,jt809]", "jtt905": "[ip,jtt905]",
+		"arp": "[eth,arp]",
 	}
 	if chainHint, ok := rawWrapChains[protocol]; ok {
 		if v, ok := cfg[protocol]; ok && v != nil {

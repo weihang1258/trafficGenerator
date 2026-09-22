@@ -61,6 +61,31 @@
         }
       }
     },
+    "arp": {
+      "category": "terminal",
+      "depends_on": [
+        "eth"
+      ],
+      "fields": {
+        "operation": {
+          "type": "uint16",
+          "min": 1,
+          "max": 2
+        },
+        "sender_ip": {
+          "type": "string"
+        },
+        "sender_mac": {
+          "type": "mac"
+        },
+        "target_ip": {
+          "type": "string"
+        },
+        "target_mac": {
+          "type": "mac"
+        }
+      }
+    },
     "bgp": {
       "category": "terminal",
       "depends_on": [

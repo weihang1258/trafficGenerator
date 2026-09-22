@@ -507,7 +507,7 @@ func validateBaseDstPortHandled(name string) bool {
 		"ntp", "ssdp", "stun", "rtmfp", "ldp", "pcep", "cflow", "rip", "dhcp",
 		"dhcpv6", "doip", "gbt32960", "mcp", "modbus", "mqtt", "nfs", "smb",
 		"tds", "moxa", "someip", "postgresql", "goose", "sv",
-		"igmp", "ospf", "pim", "isis", "icmpv6", "h323", "mpls",
+		"igmp", "ospf", "pim", "isis", "icmpv6", "h323", "mpls", "arp",
 		// D-NGAP-1：ngap 端口住层（SCTP 联结端口语义），同 h323/mpls。
 		// D-TELNET-1：telnet 同款（TCP 联结端口语义）。
 		// D-SIP-1：sip 同款（TCP 信令联结端口语义）。
@@ -610,7 +610,7 @@ func (p *ChainPlanner) validateChain() error {
 // 对终结层 udp 链（dns/ntp/snmp/syslog）做协议级端口默认（legacy 各
 // planner 在 Plan 时同款默认）。
 func validateSpecBase(name string, spec *core.FlowSpec) error {
-	if name == "goose" || name == "sv" || name == "isis" {
+	if name == "goose" || name == "sv" || name == "isis" || name == "arp" {
 		// L2-only 终结层（goose/sv/isis）：无 IP/端口概念，直接放行。
 		return nil
 	}
@@ -1053,7 +1053,7 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 		}
 	}
 
-	if p.name == "sv" || p.name == "goose" || p.name == "isis" {
+	if p.name == "sv" || p.name == "goose" || p.name == "isis" || p.name == "arp" {
 		out := make(chan core.PacketConfig, 256)
 		go func() {
 			defer close(out)
@@ -1077,6 +1077,9 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 				}
 				if p.name == "isis" {
 					pkt.L2.EtherType = core.EtherTypeISIS
+				}
+				if p.name == "arp" {
+					pkt.L2.EtherType = core.EtherTypeARP
 				}
 				pkt.L3 = core.L3Config{}
 				pkt.L4.Protocol = p.name

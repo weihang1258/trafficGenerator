@@ -18,7 +18,7 @@ import (
 	"github.com/trafficgen/trafficgen/internal/mcp"
 	"github.com/trafficgen/trafficgen/internal/output"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/a2a"
-	"github.com/trafficgen/trafficgen/internal/protocol/arp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/arp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/bgp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/coap"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/cql"
@@ -535,7 +535,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("sv"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("goose"))
 	app.engine.RegisterPlanner(icmp.NewPlanner())
-	app.engine.RegisterPlanner(arp.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("arp"))
 	// raw-IP 路由终结层（P3 T5）：igmp/ospf/pim 是 [ip,<proto>] 链（无 tcp/udp
 	// 传输层，L3.Protocol=2/89/103 由 ChainPlanner 的 raw-IP 分支处理）；
 	// isis 是 L2-only [eth,isis] LLC 链。

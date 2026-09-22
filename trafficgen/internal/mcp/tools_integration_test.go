@@ -16,7 +16,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/core/layers"
-	"github.com/trafficgen/trafficgen/internal/protocol/arp"
+	// 触发 arp 包 init 注册层生成器+校验器（D-ARP-1）。
+	_ "github.com/trafficgen/trafficgen/internal/protocol/arp"
 	"github.com/trafficgen/trafficgen/internal/replay"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/auth"
@@ -215,7 +216,8 @@ func setupMCPTestWithRealBuilder(t *testing.T) *testMCPEnv {
 		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
 		BufferSize: 256, QueueSize: 64,
 	})
-	eng.RegisterPlanner(arp.NewPlanner())
+	eng.RegisterPlanner(layers.NewChainPlanner("arp")) // D-ARP-1 翻转：链 planner（生产同款）
+	eng.SetLayerPlannerFactory(layers.BuildLayersPlanner) // 层链配置经工厂（生产 main.go:611 同款）
 	eng.SetBuildFunc(replay.NewBuildFunc(core.NewBuilder().Build))
 
 	done := make(chan string, 4)
@@ -1303,7 +1305,11 @@ func TestMCP_GenerateTraffic_PadMinFrame_DefaultON(t *testing.T) {
 		TaskName: "arp-default",
 		Protocol: "arp",
 		Config: map[string]interface{}{
-			"arp": map[string]interface{}{"operation": 1},
+			// D-ARP-1 扁平判死后层链形状。
+			"layers": []map[string]interface{}{
+				{"eth": map[string]interface{}{"src_mac": "aa:bb:cc:dd:ee:01", "dst_mac": "aa:bb:cc:dd:ee:02"}},
+				{"arp": map[string]interface{}{"operation": 1}},
+			},
 		},
 		OutputType: "pcap",
 		OutputConfig: &outputConfigInput{
@@ -1347,7 +1353,10 @@ func TestMCP_GenerateTraffic_PadMinFrame_False_NoPadding(t *testing.T) {
 		TaskName: "arp-nopad",
 		Protocol: "arp",
 		Config: map[string]interface{}{
-			"arp":           map[string]interface{}{"operation": 1},
+			"layers": []map[string]interface{}{
+				{"eth": map[string]interface{}{"src_mac": "aa:bb:cc:dd:ee:01", "dst_mac": "aa:bb:cc:dd:ee:02"}},
+				{"arp": map[string]interface{}{"operation": 1}},
+			}, // D-ARP-1 扁平判死后层链形状
 			"pad_min_frame": false,
 		},
 		OutputType: "pcap",
@@ -1391,7 +1400,10 @@ func TestMCP_GenerateTraffic_PadMinFrame_True_ExplicitON(t *testing.T) {
 		TaskName: "arp-pad",
 		Protocol: "arp",
 		Config: map[string]interface{}{
-			"arp":           map[string]interface{}{"operation": 1},
+			"layers": []map[string]interface{}{
+				{"eth": map[string]interface{}{"src_mac": "aa:bb:cc:dd:ee:01", "dst_mac": "aa:bb:cc:dd:ee:02"}},
+				{"arp": map[string]interface{}{"operation": 1}},
+			}, // D-ARP-1 扁平判死后层链形状
 			"pad_min_frame": true,
 		},
 		OutputType: "pcap",

@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/gopacket/pcapgo"
 	"github.com/trafficgen/trafficgen/internal/core"
-	"github.com/trafficgen/trafficgen/internal/protocol/arp"
+	"github.com/trafficgen/trafficgen/internal/core/layers"
 	"github.com/trafficgen/trafficgen/internal/replay"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/auth"
@@ -66,7 +66,11 @@ func TestMCP_Padding_InspectBytes(t *testing.T) {
 			defer env.db.Close()
 
 			cfg := map[string]interface{}{
-				"arp": map[string]interface{}{"operation": 1},
+				// D-ARP-1 扁平判死后层链形状（op=1 配对语义保持 2 帧）。
+				"layers": []map[string]interface{}{
+					{"eth": map[string]interface{}{"src_mac": "aa:bb:cc:dd:ee:01", "dst_mac": "aa:bb:cc:dd:ee:02"}},
+					{"arp": map[string]interface{}{"operation": 1}},
+				},
 			}
 			if tc.pad != nil {
 				cfg["pad_min_frame"] = tc.pad
@@ -196,7 +200,8 @@ func setupMCPRealEnvAt(t *testing.T, outDir, sub string) *testMCPEnv {
 		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
 		BufferSize: 256, QueueSize: 64,
 	})
-	eng.RegisterPlanner(arp.NewPlanner())
+	eng.RegisterPlanner(layers.NewChainPlanner("arp")) // D-ARP-1 翻转：链 planner
+	eng.SetLayerPlannerFactory(layers.BuildLayersPlanner) // 层链配置经工厂
 	eng.SetBuildFunc(replay.NewBuildFunc(core.NewBuilder().Build))
 
 	done := make(chan string, 4)

@@ -3604,3 +3604,37 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 
 修轮后：suite 13/13 ×2、反查 41/41、门2 四项绿（重编实录）、touched 包 -race 绿。任务书勘误：XORChecksum/Escape/BCDEncode 实住 protocol/jtcommon/jtcommon.go（非 jt808wire.go，该文件属 809 专用面），复用结论不变。
 
+
+## D-ARP-1 arp 层链收敛（#32，P1+P2 定稿 2026-09-22；裁定=L2-only 族接入+线面复用重建）
+
+### P1 规范矩阵（§4 八项；三源=RFC 826 + 本仓 legacy 行为面 + RFC 语义反推）
+
+| 项 | 规范要求 | 业务场景 | 代码现状 | 缺口 |
+|---|---|---|---|---|
+| 1 连接模型 | 无连接：ARP 帧直接以太网承载（EtherType 0x0806），无 IP/端口/传输层；请求=链路层广播 ff:ff:ff:ff:ff:ff，应答=单播 | L2 探针面：地址解析探测 | legacy Planner 直发（main.go:538 arp.NewPlanner），无层链接线 | 五件套缺——本主体 |
+| 2 命令/消息表 | oper=1 request / oper=2 reply（RFC 826 报文格式）；RARP/InARP（3/4/8/9）属他协议 | 请求-应答对 | ARPConfig.Operation 单键，无校验域 | registry 区间+validator 锚 |
+| 3 状态机 | 无状态；一对 request/reply 语义绑定（spa/tpa、sha/tha 角色互换） | 解析问答 | legacy op=1 自动配对 request+reply | 保留（裁定3） |
+| 4 字段表 | 28B=htype2(0001)+ptype2(0800)+hlen1(06)+plen1(04)+oper2+sha6+spa4+tha6+tpa4 | 全字段可配 | buildARPPacket/buildARPReply 字段序正确（RFC 826 对齐） | 线面复用（裁定1）；缺省地址面 |
+| 5 错误处理表 | oper 非法拒；IP/MAC 格式非法拒 | 负例锚 | 零校验（legacy Validate 仅查 spec.ARP 非空） | registry [1,2] V9+validator 双层 |
+| 6 超时与活性 | 不适用（无重传/保活语义） | — | 不适用 | 不适用（如实） |
+| 7 NAT/被动 | 不适用 | — | 不适用 | 不适用（如实） |
+| 8 版本方言 | RFC 826（1982）单一标准；gratuitous/代理 ARP 为行为模式非报文变体 | — | 单版 | B′ 注记 |
+
+**三张子表：** ①消息×语义（request=广播问、reply=单播答）②形态变体（op=1 配对形/op=2 单发宣告形）③商业映射（无参考 pcap——在库 0 tasks，legacy 行为面替代，如实）。
+
+### 裁定（P2 定稿）
+
+| # | 裁定 | 依据 |
+|---|---|---|
+| 1 | **线面复用**：legacy buildARPPacket/buildARPReply 28B 字节面 RFC 826 字段序正确，重建为 layer_gen 事件面（goose Generator 型：Generate+req.Emit，GenEvents=nil）——不重写构造，重写编排与校验 | §4.4 现状行 |
+| 2 | **层形状 [eth, arp]**，5 键 `{operation, sender_mac, sender_ip, target_mac, target_ip}`；无 registry Default（goose 决策 F 同款），缺省生成器侧补：sender_ip=10.0.0.1/target_ip=10.0.0.2/sender_mac←eth src_mac（常量兜底 aa:bb:cc:dd:ee:01）/target_mac←eth dst_mac（兜底 aa:bb:cc:dd:ee:02） | P0b 空配置默认流口径；goose DefaultDstMAC 先例 |
+| 3 | **编排**：operation=1（缺省 0→1）→自动配对 request(up, 广播, tha 全零)+reply(down, 单播, 角色互换)；operation=2→单发 reply(down)（对端宣告形：sha=target_mac/spa=target_ip/tha=sender_mac/tpa=sender_ip/ether 单播）。**勘误**：legacy op=2 仍发"请求形广播帧"（buildARPPacket 硬编码广播+可变 oper）字节错位——重建修正 | RFC 826 语义；legacy 缺陷实录 |
+| 4 | **校验双层**：registry operation uint16 [1,2]（V9 create-time 先火，锚 `out of range [1,2]`）；validator 拒 sender_ip/target_ip 格式错（锚 `invalid sender_ip`/`invalid target_ip`）+ IP/传输承载混入（锚 sv 同款 `must not have an ip/transport carrier`）；空层 {} 合法（零值→生成器缺省） | sv_neg_appid/sv_neg_ip_carrier 先例；P0b |
+| 5 | **五件套（L2-only 族变体，非 raw IP 链）**：validateSpecBase :613 L2-only 豁免+=arp；validateBaseDstPortHandled+=arp；:1056 发射分支+=arp（EtherTypeARP）；flowMetaFor+=ARP；translateTerminalConfig case "arp" 手工映射（goose 同款）；FlowMeta+=ARP 字段；isL2OnlyProtocol+=arp（mapToFlowSpec 不填伪四元组）；rawWrapChains+="arp": "[eth,arp]"（presence 判死）；main.go 翻转（:538 legacy→NewChainPlanner，非空导入→空白）；registry 5 Fields→schemagen 113 层；pipe_gate/coverage_gate 接入 | goose/sv/isis 全套先例 |
+| 6 | **B′ 账本**：RARP/InARP（oper 3/4/8/9）不实现；gratuitous ARP（spa=tpa 自宣告）不单列（oper=2 形可承载同等语义）；代理 ARP 不实现；IPv4 单一协议面（ptype 恒 0x0800） | 如实登记 |
+| 7 | **回滚**：单提交粒度，摘除即回 | 家族口径 |
+
+**文件清单：** core/types.go（ARPConfig +SenderMAC/SenderIP）+core/layers/{registry.go,chain_planner.go（:509/:613/:1056）,chain_planner_chain.go（flowMetaFor）,chain_planner_translate.go（case "arp"）,generator.go（FlowMeta.ARP）}+protocol/arp/{layer_gen.go 新,arp.go Planner 保留,layer_gen_test.go 链级红例}+strategy_convert.go（isL2OnlyProtocol+rawWrapChains）+cmd/server/main.go 翻转+cases/arp.json 新+tools/{coverage_gate.py,pipe_gate.sh}+schemagen。
+
+**性能（§6）：** 事件直发 channel 256（链框架）；包数=op1:2 帧/op2:1 帧（无握手挥手——L2-only）；pcap 路验收（网卡未跑如实）。
+**接口签名：** `Generator{Name/GenEvents/Generate}`；`ValidateARPSpec(spec)` validator；ARPConfig{Operation,SenderMAC,SenderIP,TargetMAC,TargetIP}。

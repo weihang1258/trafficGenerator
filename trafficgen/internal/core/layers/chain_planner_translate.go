@@ -915,6 +915,34 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			spec.SV = sc
 		}
 		return
+	case "arp":
+		// D-ARP-1：层 config 手工逐键映射进 spec.ARP（goose/sv 手工映射
+		// 同款——strategy_convert 的 case "arp" 在包外不可见）。completedConfig
+		// 补全标量（本层 5 键零 Default，补全即原值）+ configUint16/
+		// configString 逐键。空层 {} 翻译出零值配置（非 nil）→ 生成器缺省
+		//（sender_ip=10.0.0.1/target_ip=10.0.0.2/MAC←eth 层，裁定2）。
+		// 层优先（flat 判死后无双轨；spec.ARP 已存在=引擎直调，不覆盖）。
+		if spec.ARP == nil {
+			cfg := completedConfig(s, term.Config)
+			ac := &core.ARPConfig{}
+			if v, ok := configUint16(cfg["operation"]); ok {
+				ac.Operation = v
+			}
+			if v, ok := configString(cfg["sender_mac"]); ok {
+				ac.SenderMAC = v
+			}
+			if v, ok := configString(cfg["sender_ip"]); ok {
+				ac.SenderIP = v
+			}
+			if v, ok := configString(cfg["target_mac"]); ok {
+				ac.TargetMAC = v
+			}
+			if v, ok := configString(cfg["target_ip"]); ok {
+				ac.TargetIP = v
+			}
+			spec.ARP = ac
+		}
+		return
 	case "icmpv6":
 		// D-ICMPV6-1：层 config 手工逐键映射进 spec.ICMPv6（parse 未导出
 		// 不可跨包）。缺省镜像 parse（strategy_convert.go:732，决策 D1）：

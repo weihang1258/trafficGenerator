@@ -46,7 +46,7 @@ func TestRunProtocolCase_InvalidParams(t *testing.T) {
 	env := setupTestDriveEnv(t)
 	defer env.cleanup()
 
-	spec := json.RawMessage(`{"arp":{"operation":1}}`)
+	spec := json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`)
 	cases := []struct {
 		name string
 		in   runCaseInput
@@ -77,7 +77,7 @@ func TestRunProtocolCase_RejectsUnknownOutputType(t *testing.T) {
 	_, _, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 		Proto:      "arp",
 		CaseID:     "bad-output-type",
-		SpecJSON:   json.RawMessage(`{"arp":{"operation":1}}`),
+		SpecJSON:   json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
 		OutputType: "bogus",
 	})
 	if err == nil {
@@ -92,17 +92,17 @@ func TestRunProtocolCase_ExpectError_Pass(t *testing.T) {
 	env := setupTestDriveEnv(t)
 	defer env.cleanup()
 
-	// arp 缺必需 sub-config 触发 Validate 拒绝。
+	// arp 层 sender_ip 格式非法触发 validator 拒绝（D-ARP-1 裁定4 锚）。
 	_, out, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 		Proto:  "arp",
 		CaseID: "neg_arp_no_config",
 		SpecJSON: json.RawMessage(
-			`{"dst_mac":"02:00:00:00:00:02"}`), // 无 arp{} 子配置 → Validate 报 ARP config is required
+			`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01"}},{"arp":{"sender_ip":"not-an-ip"}}]}`), // validator 报 invalid sender_ip
 		OutputType:   "pcap",
 		OutputConfig: &outputConfigInput{PcapPath: filepath.Join(env.tmp, "neg.pcap")},
 		Expect: caseExpectInput{
 			ExpectError:   true,
-			ErrorContains: "ARP config is required",
+			ErrorContains: "invalid sender_ip",
 		},
 	})
 	if err != nil {
@@ -126,7 +126,7 @@ func TestRunProtocolCase_ExpectError_ErrorContainsMismatch(t *testing.T) {
 		Proto:  "arp",
 		CaseID: "neg_arp_wrong_substr",
 		SpecJSON: json.RawMessage(
-			`{}`), // 无 arp{} → 拒绝，但错误信息不是 error_contains → fail（子串失配）
+			`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01"}},{"arp":{"sender_ip":"not-an-ip"}}]}`), // validator 拒绝，但错误信息不是 error_contains → fail（子串失配）
 		OutputType: "pcap",
 		Expect: caseExpectInput{
 			ExpectError:   true,
@@ -154,7 +154,7 @@ func TestRunProtocolCase_ExpectError_NeverRejected(t *testing.T) {
 	_, out, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 		Proto:        "arp",
 		CaseID:       "neg_arp_but_valid_config",
-		SpecJSON:     json.RawMessage(`{"arp":{"operation":1}}`),
+		SpecJSON:     json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
 		OutputType:   "pcap",
 		OutputConfig: &outputConfigInput{PcapPath: filepath.Join(env.tmp, "never-rej.pcap")},
 		Expect:       caseExpectInput{ExpectError: true, ErrorContains: "x"},
@@ -177,7 +177,7 @@ func TestRunProtocolCase_PositivePcap_Arp(t *testing.T) {
 	_, out, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 		Proto:        "arp",
 		CaseID:       "arp_pos_ok",
-		SpecJSON:     json.RawMessage(`{"arp":{"operation":1}}`),
+		SpecJSON:     json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
 		OutputType:   "pcap",
 		OutputConfig: &outputConfigInput{PcapPath: pcapPath},
 		Expect: caseExpectInput{
@@ -213,7 +213,7 @@ func TestRunProtocolCase_VerifyFailure(t *testing.T) {
 	_, out, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 		Proto:        "arp",
 		CaseID:       "arp_verify_fail",
-		SpecJSON:     json.RawMessage(`{"arp":{"operation":1}}`),
+		SpecJSON:     json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
 		OutputType:   "pcap",
 		OutputConfig: &outputConfigInput{PcapPath: filepath.Join(env.tmp, "vfail.pcap")},
 		Expect:       caseExpectInput{PacketCount: 3},
@@ -238,7 +238,7 @@ func TestRunProtocolCase_PortGroupMissingID(t *testing.T) {
 	_, out, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 		Proto:        "arp",
 		CaseID:       "arp_nic_nopgid",
-		SpecJSON:     json.RawMessage(`{"arp":{"operation":1}}`),
+		SpecJSON:     json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
 		OutputType:   "port_group", // 无 OutputConfig.PortGroupID
 		OutputConfig: &outputConfigInput{},
 	})
@@ -279,7 +279,7 @@ func TestRunProtocolSuite_PortGroupRequiresID(t *testing.T) {
 
 	dir := filepath.Join(env.tmp, "cases")
 	os.MkdirAll(dir, 0755)
-	writeSuiteCase(t, dir, "arp_basic.json", `[{"id":"s1","proto":"arp","spec_json":{"arp":{"operation":1}},"expect":{"packet_count":2}}]`)
+	writeSuiteCase(t, dir, "arp_basic.json", `[{"id":"s1","proto":"arp","spec_json":{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]},"expect":{"packet_count":2}}]`)
 
 	_, _, err := env.srv.handleRunProtocolSuite(context.Background(), nil, suiteInput{
 		CaseDir:      dir,
@@ -323,7 +323,7 @@ func TestRunProtocolSuite_BadCaseJSON(t *testing.T) {
 	dir := filepath.Join(env.tmp, "cases")
 	os.MkdirAll(dir, 0755)
 	writeSuiteCase(t, dir, "bad.json", `{"not":"an array"}`)
-	writeSuiteCase(t, dir, "good.json", `[{"id":"s1","proto":"arp","spec_json":{"arp":{"operation":1}},"expect":{"packet_count":2}}]`)
+	writeSuiteCase(t, dir, "good.json", `[{"id":"s1","proto":"arp","spec_json":{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]},"expect":{"packet_count":2}}]`)
 
 	_, _, err := env.srv.handleRunProtocolSuite(context.Background(), nil, suiteInput{
 		CaseDir:    dir,
@@ -347,13 +347,13 @@ func TestRunProtocolSuite_AggregatesPassFail(t *testing.T) {
 	os.MkdirAll(dir, 0755)
 	// pass：合法 arp 2 帧
 	writeSuiteCase(t, dir, "arp_ok.json",
-		`[{"id":"a1","proto":"arp","spec_json":{"arp":{"operation":1}},"expect":{"packet_count":2}}]`)
+		`[{"id":"a1","proto":"arp","spec_json":{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]},"expect":{"packet_count":2}}]`)
 	// fail：期望 3 帧实为 2 帧
 	writeSuiteCase(t, dir, "arp_bad.json",
-		`[{"id":"a2","proto":"arp","spec_json":{"arp":{"operation":1}},"expect":{"packet_count":3}}]`)
+		`[{"id":"a2","proto":"arp","spec_json":{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]},"expect":{"packet_count":3}}]`)
 	// expect_error pass：缺 arp{} → 拒绝
 	writeSuiteCase(t, dir, "arp_neg.json",
-		`[{"id":"a3","proto":"arp","spec_json":{},"expect":{"expect_error":true,"error_contains":"ARP config is required"}}]`)
+		`[{"id":"a3","proto":"arp","spec_json":{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01"}},{"arp":{"sender_ip":"not-an-ip"}}]},"expect":{"expect_error":true,"error_contains":"invalid sender_ip"}}]`)
 
 	_, out, err := env.srv.handleRunProtocolSuite(context.Background(), nil, suiteInput{
 		CaseDir:    dir,
@@ -394,7 +394,7 @@ func TestRunProtocolSuite_ProtoFilter(t *testing.T) {
 	dir := filepath.Join(env.tmp, "cases")
 	os.MkdirAll(dir, 0755)
 	writeSuiteCase(t, dir, "arp.json",
-		`[{"id":"a1","proto":"arp","spec_json":{"arp":{"operation":1}},"expect":{"packet_count":2}},
+		`[{"id":"a1","proto":"arp","spec_json":{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]},"expect":{"packet_count":2}},
 		  {"id":"t1","proto":"tcp","spec_json":{"layers":[{"tcp":{}}]},"expect":{"packet_count":1}}]`)
 
 	// 只跑 tcp：载入器应过滤掉 arp 用例。
@@ -424,7 +424,7 @@ func TestRunProtocolSuite_MaxCases(t *testing.T) {
 	// 3 个 arp 用例（按文件名序 a-t）
 	for i := 1; i <= 3; i++ {
 		writeSuiteCase(t, dir, strings.Repeat("a", i)+".json",
-			`[{"id":"c`+string(rune('0'+i))+`","proto":"arp","spec_json":{"arp":{"operation":1}},"expect":{"packet_count":2}}]`)
+			`[{"id":"c`+string(rune('0'+i))+`","proto":"arp","spec_json":{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]},"expect":{"packet_count":2}}]`)
 	}
 
 	_, out, err := env.srv.handleRunProtocolSuite(context.Background(), nil, suiteInput{
@@ -450,7 +450,7 @@ func TestRunProtocolSuite_CarriesSummary(t *testing.T) {
 	dir := filepath.Join(env.tmp, "cases")
 	os.MkdirAll(dir, 0755)
 	writeSuiteCase(t, dir, "arp_sum.json",
-		`[{"id":"a1","proto":"arp","summary":"ARP 请求+响应","spec_json":{"arp":{"operation":1}},"expect":{"packet_count":2}}]`)
+		`[{"id":"a1","proto":"arp","summary":"ARP 请求+响应","spec_json":{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]},"expect":{"packet_count":2}}]`)
 
 	_, out, err := env.srv.handleRunProtocolSuite(context.Background(), nil, suiteInput{
 		CaseDir:    dir,
@@ -606,7 +606,7 @@ func TestRunProtocolSuite_DuplicateCaseKeyRejected(t *testing.T) {
 	os.MkdirAll(dir, 0755)
 	// 两个文件、两个用例，但 (proto, case_id) 都相同。
 	writeSuiteCase(t, dir, "a.json",
-		`[{"id":"dup","proto":"arp","spec_json":{"arp":{"operation":1}},"expect":{"packet_count":2}}]`)
+		`[{"id":"dup","proto":"arp","spec_json":{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]},"expect":{"packet_count":2}}]`)
 	writeSuiteCase(t, dir, "b.json",
 		`[{"id":"dup","proto":"arp","spec_json":{"arp":{"operation":2}},"expect":{"packet_count":2}}]`)
 
@@ -630,7 +630,7 @@ func TestRunProtocolSuite_UnsafeCasePathRejected(t *testing.T) {
 	dir := filepath.Join(env.tmp, "cases")
 	os.MkdirAll(dir, 0755)
 	writeSuiteCase(t, dir, "escape.json",
-		`[{"id":"../../outside","proto":"arp","spec_json":{"arp":{"operation":1}},"expect":{"packet_count":2}}]`)
+		`[{"id":"../../outside","proto":"arp","spec_json":{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]},"expect":{"packet_count":2}}]`)
 
 	_, _, err := env.srv.handleRunProtocolSuite(context.Background(), nil, suiteInput{
 		CaseDir:    dir,

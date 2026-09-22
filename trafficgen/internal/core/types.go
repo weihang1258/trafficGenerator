@@ -2384,9 +2384,12 @@ type ICMPStep struct {
 	Data     []byte `json:"data"`
 }
 
-// ARPConfig for ARP protocol.
+// ARPConfig for ARP protocol（D-ARP-1 裁定2：5 键；sender/target 为 RFC 826
+// 报文角色地址，缺省在生成器侧补）。
 type ARPConfig struct {
 	Operation uint16 `json:"operation"` // 1=Request, 2=Reply
+	SenderMAC string `json:"sender_mac"`
+	SenderIP  string `json:"sender_ip"`
 	TargetMAC string `json:"target_mac"`
 	TargetIP  string `json:"target_ip"`
 }
