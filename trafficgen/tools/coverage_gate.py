@@ -1904,6 +1904,66 @@ def check_icmp(cases):
     return rows
 
 
+def check_cwmp(cases):
+    """D-CWMP-1 P6 反查表（T-CWMP-1…153：150 存量等价迁移 + 3 新例）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("cwmp"), dict):
+                lays.append((c.get("id", "?"), l["cwmp"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 迁移面 + 行为面代表场景（150 存量 B6 契约枚举 + 3 新例）。
+    for kw, name in [
+        ("_inform_ipv4_2p", "T-1 Inform 基线（4 帧对）"),
+        ("multi_session_sequential", "多会话顺序"),
+        ("_concurrent", "多会话并发"),
+        ("connection_request_auth_challenge", "acs_cr/鉴权面"),
+        ("download_flow_correlation", "flows 流关联副连接"),
+        ("pres_kill_neg", "T-151 顶层 presence 判死"),
+        ("v9_unknown_field_neg", "T-152 未知字段 V9 拒"),
+        ("empty_layer_baseline", "T-153 空层 P0b 基线"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. 六键承载（层 config 迁移后，顶层不再承载）。auth 顶层键 B6 契约
+    # 登记但无用例（digest 重试面走 challenge kind 序列）——对 allowlist
+    # 生成表核键，不对用例核。
+    try:
+        gen = json.loads((Path(__file__).resolve().parent / ".." / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
+        allow = ((gen.get("layers") or {}).get("cwmp") or {}).get("fields") or {}
+    except Exception:
+        allow = {}
+    for k in ["profile", "namespace", "concurrent", "sessions", "flows"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "层内无用例"))
+    rows.append(("auth（allowlist 登记，B6 契约重试面）", "auth" in allow, "allowlist" if "auth" in allow else "allowlist 缺键"))
+    rows.append(("registry 六键对齐 allowlist", allow and set(allow) >= {"profile", "namespace", "concurrent", "sessions", "flows", "auth"}, "六键齐" if allow else "生成表不可读"))
+
+    # 3. 负例锚词（validator/B6 §7 契约 + 判死门文案）。
+    for needle, name in [
+        ("no longer accepts a top-level cwmp sub-config", "presence 判死锚"),
+        ("unknown field", "V9 未知字段锚"),
+        ("cwmp_neg_oui_lowercase", "validator device_id 锚（oui 域）"),
+        ("correlation|no pending|invalid", "correlation/id 族锚"),
+    ]:
+        found = needle in blob
+        if "|" in needle:
+            found = any(n in blob for n in needle.split("|"))
+        rows.append((name, found, "锚词出现" if found else "无用例"))
+
+    # 4. 迁移完整性：非 presence 负例的用例顶层不得再出现 cwmp 键。
+    leaked = [c.get("id") for c in cases
+              if "cwmp" in (c.get("spec_json", {}) or {})
+              and "pres_kill" not in c.get("id", "")]
+    rows.append(("顶层残留为零（presence 负例豁免）", not leaked, leaked or "零残留"))
+    return rows
+
+
 def check_arp(cases):
     """D-ARP-1 P6 反查表（T-ARP-1…12，9.52 对账 分项和 12=建例 12。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -2056,7 +2116,7 @@ def check_vnc(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp}
 
 
 def main(argv):

@@ -63,8 +63,13 @@ PYEOF
   # dns/mqtt/smtp/pop3/imap/mcp 单协议 presence 红线（各 D-条目 P4 判死分支同款）：
   # 口径与 http 族一致——presence 负例豁免，其余共存即红。
   case "$PROTO" in
-    http|http_flv|hls|hds|gbt|getwork|cwmp|doh|onvif)
+    http|http_flv|hls|hds|gbt|getwork|doh|onvif)
       _pres_key="http"
+      ;;
+    # D-CWMP-1：cwmp 配置已迁层（B6 注入形退役），presence 红线切自键
+    # （dns/mqtt/smtp 先例；presence 负例豁免，其余顶层 cwmp 共存即红）。
+    cwmp)
+      _pres_key="cwmp"
       ;;
     dns|mqtt|smtp|pop3|imap|mcp|srv6|fins|goose|sv|icmpv6|h323|mpls|ngap|telnet|sip|radius|pppoe|ldap|rtmp|rtsp|pptp|vnc|xmpp|sctp|jt808|jt809|jtt905|arp|icmp)
       _pres_key="$PROTO"
