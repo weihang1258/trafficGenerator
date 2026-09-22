@@ -2065,6 +2065,77 @@ def check_kingbase(cases):
     rows.append(("顶层残留为零（仅 layers）", not leaked, leaked or "零残留"))
     return rows
 
+
+def check_megaco(cases):
+    """D-MEGACO-1 P6 反查表（79 例=46 正+31 wire_fault 负+2 事务级 error 边界，
+    RFC 3525 / ITU-T H.248.1 文本编码。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 准入与接线（白名单收 megaco；translate/FlowMeta/planner 注册）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 megaco", '"megaco": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 megaco（已准入）", '"megaco"' not in pt[i_neg:i_neg + 400], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case megaco", 'case "megaco":' in tr, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.Megaco", "Megaco     *core.MegacoConfig" in gen, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry megaco 行+双 carrier 2944 契约",
+                 '"udp.dst_port": "2944", "tcp.dst_port": "2944"' in rg, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain carrier/端口域块", "Megaco carrier + port contract" in cp, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go ChainPlanner(megaco) 接线", 'NewChainPlanner("megaco")' in mn, "在案"))
+
+    # 2. 行为面（builder/validator 关键件）。
+    pl = (tg / "internal" / "protocol" / "megaco" / "planner.go").read_text()
+    import re as _re
+    _i = pl.index("wireFaultAnchors")
+    _seg = pl[_i:pl.index("\n}", _i)]
+    _n = len(_re.findall(r'"([a-z_0-9]+)":', _seg))
+    rows.append(("wire_fault 闭环 31 值锚词表", _n == 31, f"{_n} 值"))
+    bd = (tg / "internal" / "protocol" / "megaco" / "builder.go").read_text()
+    rows.append(("TPKT 成帧（RFC 1006）", "func WrapTPKT" in bd, "在案"))
+    rows.append(("长/缩 token 双形", "reverseTokens" in bd and "tokenToWire" in bd, "在案"))
+    rows.append(("八命令域", '"ServiceChange": true' in pl, "在案"))
+    lg = (tg / "internal" / "protocol" / "megaco" / "layer_gen.go").read_text()
+    rows.append(("空层 P0b 基线注册对", "defaultFlow" in lg, "在案"))
+
+    # 3. 用例面（46 正 + 33 负；proto=megaco；顶层仅 layers；端口域）。
+    pos = [c for c in cases if "packet_count" in (c.get("expect") or {})]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("79 例对账（46 正+33 负）", len(pos) == 46 and len(neg) == 33 and len(cases) == 79,
+                 f"{len(pos)}+{len(neg)}={len(cases)}"))
+    bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "megaco"]
+    rows.append(("proto 全=megaco（三名合一：mgcp/h248 不独立准入）", not bad_proto, bad_proto or "全 megaco"))
+    leaked = sorted({k for c in cases for k in (c.get("spec_json", {}) or {}) if k != "layers"})
+    rows.append(("顶层残留为零（仅 layers）", not leaked, leaked or "零残留"))
+    ports = {l.get("dst_port") for c in cases for l2 in (c["spec_json"].get("layers") or [])
+             if isinstance(l2, dict) for l in [list(l2.values())[0]] if isinstance(l, dict) and "dst_port" in l}
+    rows.append(("显式端口 ∈ {2944, 2427}", ports <= {2944, 2427, "2944", "2427"}, sorted(map(str, ports))))
+    for kw, name in [
+        ("megaco_udp_ipv4_registration", "T-1 注册基线"),
+        ("megaco_tcp_ipv4_mss_reassembly", "T-11 TPKT 跨段重组"),
+        ("megaco_udp_ipv4_concurrent_sessions", "T-45 并发会话"),
+        ("megaco_udp_2427_mgcp_alias", "T-14 mgcp 别名 2427"),
+        ("megaco_neg_encoding_text_as_ber", "T-47 编码负例"),
+        ("megaco_neg_pairing_ack_unconfirmed", "T-64 K 确认负例"),
+        ("megaco_neg_carrier_udp_mtu_exceeded", "T-76 UDP 超 MTU"),
+        ("megaco_neg_tx_error_with_actions", "事务级 error 互斥边界"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 4. 锚词面（九族主锚词在负例 expect 中）。
+    anchors = {"encoding", "message", "version", "mid", "command", "transaction", "length", "carrier", "port", "services"}
+    got = {(c.get("expect") or {}).get("error_contains") for c in neg}
+    rows.append(("负例锚词覆盖十族", anchors <= got, sorted(got)))
+    return rows
+
 def check_arp(cases):
     """D-ARP-1 P6 反查表（T-ARP-1…12，9.52 对账 分项和 12=建例 12。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -2217,7 +2288,7 @@ def check_vnc(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco}
 
 
 def main(argv):

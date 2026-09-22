@@ -1,25 +1,5827 @@
 [
   {
-    "id": "megaco_neg_unregistered",
+    "id": "megaco_udp_ipv4_registration",
     "proto": "megaco",
-    "summary": "Megaco/H.248 layer is not registered yet; reject at layer validation",
+    "summary": "MG registration: SC(Restart,ROOT)+Services, Reply pairing",
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
         },
         {
-          "megaco": {}
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Restart",
+                                    "reason": "901 Cold Boot",
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "same_as_request:0",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.start_token",
+          "value": "MEGACO"
+        },
+        {
+          "packet": 1,
+          "field": "megaco.version",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "megaco.mId",
+          "value": "[192.0.2.70]"
+        },
+        {
+          "packet": 1,
+          "field": "megaco.transid",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "megaco.command",
+          "value": "ServiceChange"
+        },
+        {
+          "packet": 2,
+          "field": "megaco.transaction",
+          "value": "Reply"
+        },
+        {
+          "packet": 2,
+          "field": "megaco.transid",
+          "same_as_packet": 1
         }
       ],
-      "src_ip": "192.0.2.70",
-      "dst_ip": "198.51.100.70",
-      "src_port": 40070,
-      "dst_port": 2944
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "4D 45 47 41 43 4F 2F 31 20 5B 31 39 32 2E 30 2E 32 2E 37 30 5D",
+          "offset": 42
+        },
+        {
+          "packet": 1,
+          "hex": "54 72 61 6E 73 61 63 74 69 6F 6E 20 3D 20 31 20 7B",
+          "offset": 64
+        },
+        {
+          "packet": 1,
+          "hex": "4D 65 74 68 6F 64 3D 52 65 73 74 61 72 74 2C 20 52 65 61 73 6F 6E 3D 22 39 30 31 20 43 6F 6C 64 20 42 6F 6F 74 22",
+          "offset": 130
+        },
+        {
+          "packet": 2,
+          "hex": "52 65 70 6C 79 20 3D 20 31 20 7B",
+          "offset": 67
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv6_failover",
+    "proto": "megaco",
+    "summary": "SC(Failover)+Reason 909 over IPv6 (offset 62)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::70",
+            "dst": "2001:db8:bb::70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[2001:db8::70]",
+                "peer_mid": "[2001:db8:bb::70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Failover",
+                                    "reason": "909 MGC Impending Failure",
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "same_as_request:0",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ipv6.version",
+          "value": "6"
+        },
+        {
+          "packet": 1,
+          "field": "megaco.mId",
+          "value": "[2001:db8::70]"
+        },
+        {
+          "packet": 1,
+          "field": "megaco.transid",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "4D 65 74 68 6F 64 3D 46 61 69 6C 6F 76 65 72",
+          "offset": 152
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_tcp_ipv4_dual_transaction",
+    "proto": "megaco",
+    "summary": "same-message dual transactions over TPKT",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "11",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "AuditValue",
+                                "termination": "A4445",
+                                "descriptor": {
+                                  "audit": {
+                                    "items": [
+                                      "Media"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "request",
+                        "id": "12",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Notify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "observed_events": {
+                                    "request_id": 2222,
+                                    "items": [
+                                      "al/on"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "transport": "tcp"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 8,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "2944"
+        },
+        {
+          "packet": 4,
+          "field": "megaco.transid",
+          "value": "11,12"
+        },
+        {
+          "packet": 4,
+          "field": "megaco.command",
+          "value": "AuditValue,Notify"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "hex": "03 00",
+          "offset": 54
+        },
+        {
+          "packet": 4,
+          "hex": "54 72 61 6E 73 61 63 74 69 6F 6E 20 3D 20 31 31 20 7B",
+          "offset": 80
+        },
+        {
+          "packet": 4,
+          "hex": "54 72 61 6E 73 61 63 74 69 6F 6E 20 3D 20 31 32 20 7B",
+          "offset": 156
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_tcp_ipv6_call_flow",
+    "proto": "megaco",
+    "summary": "program->notify->reply multi-message dependency over TCP/IPv6",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::70",
+            "dst": "2001:db8:bb::70"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[2001:db8::70]",
+                "peer_mid": "[2001:db8:bb::70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Modify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "events": {
+                                    "request_id": 2222,
+                                    "items": [
+                                      "al/of"
+                                    ]
+                                  },
+                                  "digit_map": {
+                                    "name": "dialplan",
+                                    "t": 5,
+                                    "l": 10,
+                                    "value": "[0-9#*]."
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "same_as_request:0",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Modify",
+                                "termination": "A4444"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "2",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Notify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "observed_events": {
+                                    "request_id": 2222,
+                                    "items": [
+                                      "20090101T01234567:al/of"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "same_as_request:1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Notify",
+                                "termination": "A4444"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "transport": "tcp"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "ipv6.version",
+          "value": "6"
+        },
+        {
+          "packet": 4,
+          "field": "megaco.transid",
+          "value": "1"
+        },
+        {
+          "packet": 5,
+          "field": "megaco.transaction",
+          "value": "Reply"
+        },
+        {
+          "packet": 6,
+          "field": "megaco.command",
+          "value": "Notify"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "hex": "03 00",
+          "offset": 74
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_notify_events",
+    "proto": "megaco",
+    "summary": "Events(RequestID) programming -> Notify(ObservedEvents same rid)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Modify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "events": {
+                                    "request_id": 2222,
+                                    "items": [
+                                      "al/of"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "same_as_request:0",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "2",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Notify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "observed_events": {
+                                    "request_id": 2222,
+                                    "items": [
+                                      "20090101T01234567:al/of"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "same_as_request:1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Notify",
+                                "termination": "A4444"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 4,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.requestid",
+          "value": "2222"
+        },
+        {
+          "packet": 3,
+          "field": "megaco.requestid",
+          "value": "2222"
+        },
+        {
+          "packet": 3,
+          "field": "megaco.observedevents",
+          "value": "1"
+        },
+        {
+          "packet": 3,
+          "field": "megaco.command",
+          "value": "Notify"
+        },
+        {
+          "packet": 3,
+          "field": "megaco.transid",
+          "value": "2"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 3,
+          "hex": "4F 62 73 65 72 76 65 64 45 76 65 6E 74 73 3D 32 32 32 32",
+          "offset": 113
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_audit_wildcard",
+    "proto": "megaco",
+    "summary": "O-AuditValue(ROOT) + W-AuditCapability(*) in one message",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "5",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "AuditValue",
+                                "termination": "ROOT",
+                                "optional": true,
+                                "descriptor": {
+                                  "audit": {
+                                    "items": [
+                                      "Packages"
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "name": "AuditCapability",
+                                "termination": "*",
+                                "wildcard_response": true,
+                                "descriptor": {
+                                  "audit": {
+                                    "items": [
+                                      "Media"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.command",
+          "value": "AuditValue,AuditCapability"
+        },
+        {
+          "packet": 1,
+          "field": "megaco.command_optional",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "megaco.wildcard_response",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "megaco.transid",
+          "value": "5"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "4F 2D 41 75 64 69 74 56 61 6C 75 65 20 3D 20 52 4F 4F 54",
+          "offset": 96
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_handoff",
+    "proto": "megaco",
+    "summary": "two-session handoff: SC HandOff+MgcIdToTry then re-registration",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mgc",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "HandOff",
+                                    "reason": "903 MGC Directed Change",
+                                    "mgc_id_to_try": "[198.51.100.71]"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Restart",
+                                    "reason": "901 Cold Boot",
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "same_as_request:0",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "src_port": 40701
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 3,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.command",
+          "value": "ServiceChange"
+        },
+        {
+          "packet": 3,
+          "field": "megaco.transid",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "4D 65 74 68 6F 64 3D 48 61 6E 64 4F 66 66",
+          "offset": 133
+        },
+        {
+          "packet": 1,
+          "hex": "4D 67 63 49 64 54 6F 54 72 79 3D 5B 31 39 38 2E 35 31 2E 31 30 30 2E 37 31 5D",
+          "offset": 183
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_abbrev_tokens",
+    "proto": "megaco",
+    "summary": "abbrev token form: !/1 start line, T/C/SC/SV short tokens",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "token_form": "abbrev",
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Restart",
+                                    "reason": "901 Cold Boot",
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.start_token",
+          "value": "!"
+        },
+        {
+          "packet": 1,
+          "field": "megaco.transid",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "21 2F 31 20 5B 31 39 32 2E 30 2E 32 2E 37 30 5D",
+          "offset": 42
+        },
+        {
+          "packet": 1,
+          "hex": "54 20 3D 20 31 20 7B",
+          "offset": 59
+        },
+        {
+          "packet": 1,
+          "hex": "43 20 3D 20 2D 20 7B",
+          "offset": 67
+        },
+        {
+          "packet": 1,
+          "hex": "53 43 20 3D 20 52 4F 4F 54 20 7B",
+          "offset": 75
+        },
+        {
+          "packet": 1,
+          "hex": "53 56 20 7B",
+          "offset": 87
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_move_media",
+    "proto": "megaco",
+    "summary": "Move command + full Media descriptor",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Add",
+                                "termination": "A4444"
+                              },
+                              {
+                                "name": "Add",
+                                "termination": "A4445"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "same_as_request:0",
+                        "actions": [
+                          {
+                            "context": "1",
+                            "commands": [
+                              {
+                                "name": "Add",
+                                "termination": "A4444"
+                              },
+                              {
+                                "name": "Add",
+                                "termination": "A4445"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "2",
+                        "actions": [
+                          {
+                            "context": "1",
+                            "commands": [
+                              {
+                                "name": "Move",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "media": {
+                                    "streams": [
+                                      {
+                                        "id": 1,
+                                        "local_control": {
+                                          "mode": "SendReceive",
+                                          "reserved_value": "OFF",
+                                          "reserved_group": "OFF"
+                                        },
+                                        "local_sdp": "$",
+                                        "remote_sdp": "$"
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 3,
+      "fields": [
+        {
+          "packet": 3,
+          "field": "megaco.command",
+          "value": "Move"
+        },
+        {
+          "packet": 3,
+          "field": "megaco.mode",
+          "value": "SendReceive"
+        },
+        {
+          "packet": 3,
+          "field": "megaco.reservevalue",
+          "value": "OFF"
+        },
+        {
+          "packet": 3,
+          "field": "megaco.reservegroup",
+          "value": "OFF"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 3,
+          "hex": "4D 6F 76 65 20 3D 20 41 34 34 34 34",
+          "offset": 96
+        },
+        {
+          "packet": 3,
+          "hex": "53 74 72 65 61 6D 20 3D 20 31 20 7B",
+          "offset": 119
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_large_digitmap",
+    "proto": "megaco",
+    "summary": "large DigitMap message in one UDP datagram",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Modify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "digit_map": {
+                                    "name": "dialplan",
+                                    "t": 5,
+                                    "l": 10,
+                                    "value": "[2-8]XXXXXX|0|00|1[12]1X|1[0-25-9]XXXXXXXXX|0X.XXXXXXXXXX|9XXXXXXXX|*XX|8XXXXXXXXXX|7XXXXXXXXXX|1[0-25-9]XX[2-9]XXXXXXX|6XXXXXXXXXX|49XXXXXXXXX|5XXXXXXXXXXX|4XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.digitmap",
+          "value": "DigitMap = dialplan { T:5, L:10, [2-8]XXXXXX|0|00|1[12]1X|1[0-25-9]XXXXXXXXX|0X.XXXXXXXXXX|9XXXXXXXX|*XX|8XXXXXXXXXX|7XXXXXXXXXX|1[0-25-9]XX[2-9]XXXXXXX|6XXXXXXXXXX|49XXXXXXXXX|5XXXXXXXXXXX|4XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        },
+        {
+          "packet": 1,
+          "field": "megaco.command",
+          "value": "Modify"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "44 69 67 69 74 4D 61 70 20 3D 20 64 69 61 6C 70 6C 61 6E",
+          "offset": 113
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_tcp_ipv4_mss_reassembly",
+    "proto": "megaco",
+    "summary": "long TPKT PDU spans TCP segments (mss=536, 4 segments)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "tcp": {
+            "mss": 536,
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Modify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "digit_map": {
+                                    "name": "dialplan",
+                                    "t": 5,
+                                    "l": 10,
+                                    "value": "[2-8]XXXXXX|0|00|1[12]1X|1[0-25-9]XXXXXXXXX|0X.XXXXXXXXXX|9XXXXXXXX|*XX|8XXXXXXXXXX|7XXXXXXXXXX|1[0-25-9]XX[2-9]XXXXXXX|6XXXXXXXXXX|49XXXXXXXXX|5XXXXXXXXXXX|4XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX|[2-8]XXXXXX|0|00|1[12]1X|1[0-25-9]XXXXXXXXX|0X.XXXXXXXXXX|9XXXXXXXX|*XX|8XXXXXXXXXX|7XXXXXXXXXX|1[0-25-9]XX[2-9]XXXXXXX|6XXXXXXXXXX|49XXXXXXXXX|5XXXXXXXXXXX|4XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX|[2-8]XXXXXX|0|00|1[12]1X|1[0-25-9]XXXXXXXXX|0X.XXXXXXXXXX|9XXXXXXXX|*XX|8XXXXXXXXXX|7XXXXXXXXXX|1[0-25-9]XX[2-9]XXXXXXX|6XXXXXXXXXX|49XXXXXXXXX|5XXXXXXXXXXX|4XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX|[2-8]XXXXXX|0|00|1[12]1X|1[0-25-9]XXXXXXXXX|0X.XXXXXXXXXX|9XXXXXXXX|*XX|8XXXXXXXXXX|7XXXXXXXXXX|1[0-25-9]XX[2-9]XXXXXXX|6XXXXXXXXXX|49XXXXXXXXX|5XXXXXXXXXXX|4XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX|[2-8]XXXXXX|0|00|1[12]1X|1[0-25-9]XXXXXXXXX|0X.XXXXXXXXXX|9XXXXXXXX|*XX|8XXXXXXXXXX|7XXXXXXXXXX|1[0-25-9]XX[2-9]XXXXXXX|6XXXXXXXXXX|49XXXXXXXXX|5XXXXXXXXXXX|4XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX|[2-8]XXXXXX|0|00|1[12]1X|1[0-25-9]XXXXXXXXX|0X.XXXXXXXXXX|9XXXXXXXX|*XX|8XXXXXXXXXX|7XXXXXXXXXX|1[0-25-9]XX[2-9]XXXXXXX|6XXXXXXXXXX|49XXXXXXXXX|5XXXXXXXXXXX|4XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX|[2-8]XXXXXX|0|00|1[12]1X|1[0-25-9]XXXXXXXXX|0X.XXXXXXXXXX|9XXXXXXXX|*XX|8XXXXXXXXXX|7XXXXXXXXXX|1[0-25-9]XX[2-9]XXXXXXX|6XXXXXXXXXX|49XXXXXXXXX|5XXXXXXXXXXX|4XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX|[2-8]XXXXXX|0|00|1[12]1X|1[0-25-9]XXXXXXXXX|0X.XXXXXXXXXX|9XXXXXXXX|*XX|8XXXXXXXXXX|7XXXXXXXXXX|1[0-25-9]XX[2-9]XXXXXXX|6XXXXXXXXXX|49XXXXXXXXX|5XXXXXXXXXXX|4XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "transport": "tcp"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "2944"
+        },
+        {
+          "packet": 7,
+          "field": "megaco.digitmap",
+          "nonzero": true
+        },
+        {
+          "packet": 7,
+          "field": "megaco.command",
+          "value": "Modify"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "hex": "03 00 06 8C",
+          "offset": 54
+        },
+        {
+          "packet": 4,
+          "hex": "4D 45 47 41 43 4F 2F 31 20 5B",
+          "offset": 58
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_multi_session",
+    "proto": "megaco",
+    "summary": "two sessions with independent 4-tuples and txid spaces",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Restart",
+                                    "reason": "901 Cold Boot",
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Notify",
+                                "termination": "A5555",
+                                "descriptor": {
+                                  "observed_events": {
+                                    "request_id": 3333,
+                                    "items": [
+                                      "al/on"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "src_port": 40701
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.command",
+          "value": "ServiceChange"
+        },
+        {
+          "packet": 2,
+          "field": "megaco.command",
+          "value": "Notify"
+        },
+        {
+          "packet": 2,
+          "field": "megaco.transid",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "megaco.requestid",
+          "value": "3333"
+        }
+      ],
+      "frames": []
+    }
+  },
+  {
+    "id": "megaco_tcp_ipv4_pending_immack",
+    "proto": "megaco",
+    "summary": "T -> PN{} -> Reply(IA) -> K three-way handshake",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Restart",
+                                    "reason": "901 Cold Boot",
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "pending",
+                        "id": "same_as_request:0"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "same_as_request:0",
+                        "imm_ack_required": true,
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "response_ack",
+                        "ack": "1"
+                      }
+                    ]
+                  }
+                ],
+                "transport": "tcp"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "megaco.transid",
+          "value": "1"
+        },
+        {
+          "packet": 5,
+          "field": "megaco.transid",
+          "value": "1"
+        },
+        {
+          "packet": 6,
+          "field": "megaco.transid",
+          "value": "1"
+        },
+        {
+          "packet": 7,
+          "field": "megaco.transaction",
+          "value": "TransactionResponseAck"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "hex": "03 00",
+          "offset": 54
+        },
+        {
+          "packet": 6,
+          "hex": "49 41 2C 20",
+          "offset": 95
+        },
+        {
+          "packet": 7,
+          "hex": "54 72 61 6E 73 61 63 74 69 6F 6E 52 65 73 70 6F 6E 73 65 41 63 6B 20 7B 20 31 20 7D",
+          "offset": 80
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_2427_mgcp_alias",
+    "proto": "megaco",
+    "summary": "mgcp alias entry: default port 2427, same text wire format",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2427
+          }
+        },
+        {
+          "megaco": {
+            "profile": "mgcp_alias",
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Restart",
+                                    "reason": "901 Cold Boot",
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "2427"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "4D 45 47 41 43 4F 2F 31 20 5B 31 39 32 2E 30 2E 32 2E 37 30 5D",
+          "offset": 42
+        },
+        {
+          "packet": 1,
+          "hex": "53 65 72 76 69 63 65 43 68 61 6E 67 65 20 3D 20 52 4F 4F 54",
+          "offset": 96
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_termid_max_length",
+    "proto": "megaco",
+    "summary": "TerminationID exactly 64 chars (pathNAME upper bound)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "AuditValue",
+                                "termination": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.command",
+          "value": "AuditValue"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "41 75 64 69 74 56 61 6C 75 65 20 3D 20 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54",
+          "offset": 96
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_transid_max",
+    "proto": "megaco",
+    "summary": "transactionId exactly 4294967295 (UINT32 upper bound)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "4294967295",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "AuditValue",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "audit": {
+                                    "items": [
+                                      "Media"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.transid",
+          "value": "4294967295"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "54 72 61 6E 73 61 63 74 69 6F 6E 20 3D 20 34 32 39 34 39 36 37 32 39 35 20 7B",
+          "offset": 64
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_digitmap_timer_max",
+    "proto": "megaco",
+    "summary": "DigitMap T timer exactly 99 (1-99 upper bound)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Modify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "digit_map": {
+                                    "name": "dialplan",
+                                    "t": 99,
+                                    "s": 5,
+                                    "l": 10,
+                                    "value": "[0-9]."
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.digitmap",
+          "value": "DigitMap = dialplan { T:99, S:5, L:10, [0-9]."
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "54 3A 39 39",
+          "offset": 135
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_termination_state",
+    "proto": "megaco",
+    "summary": "TerminationState: ServiceStates + EventBufferControl",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Modify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "media": {
+                                    "termination_state": {
+                                      "service_states": "test",
+                                      "event_buffer_control": "off"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.servicestates",
+          "value": "test"
+        },
+        {
+          "packet": 1,
+          "field": "megaco.eventbuffercontrol",
+          "value": "off"
+        },
+        {
+          "packet": 1,
+          "field": "megaco.terminationstate",
+          "value": "1"
+        }
+      ],
+      "frames": []
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_version_negotiation",
+    "proto": "megaco",
+    "summary": "MG proposes Version=2, Reply wins with Version=1",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Restart",
+                                    "reason": "901 Cold Boot",
+                                    "profile": "ResGW/1",
+                                    "version": 2
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "same_as_request:0",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "profile": "ResGW/1",
+                                    "version": 1
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.transid",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "megaco.transaction",
+          "value": "Reply"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 2,
+          "hex": "56 65 72 73 69 6F 6E 3D 31",
+          "offset": 144
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_whitespace_comment_variants",
+    "proto": "megaco",
+    "summary": "comment line + LWSP variants tolerated",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "whitespace": "comment",
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "AuditValue",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "audit": {
+                                    "items": [
+                                      "Media"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.start_token",
+          "value": "MEGACO"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "3B 20 74 72 61 66 66 69 63 67 65 6E 20 66 69 78 74 75 72 65",
+          "offset": 65
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_mid_address_port",
+    "proto": "megaco",
+    "summary": "mId domainAddress with port [IP]:2944",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]:2944",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "AuditValue",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "audit": {
+                                    "items": [
+                                      "Media"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.mId",
+          "value": "[192.0.2.70]:2944"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "4D 45 47 41 43 4F 2F 31 20 5B 31 39 32 2E 30 2E 32 2E 37 30 5D 3A 32 39 34 34",
+          "offset": 42
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_mid_devicename",
+    "proto": "megaco",
+    "summary": "mId deviceName (pathNAME) form",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "mg1.example.com",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "AuditValue",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "audit": {
+                                    "items": [
+                                      "Media"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.mId",
+          "value": "mg1.example.com"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "4D 45 47 41 43 4F 2F 31 20 6D 67 31 2E 65 78 61 6D 70 6C 65 2E 63 6F 6D",
+          "offset": 42
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_tcp_ipv4_transaction_level_error",
+    "proto": "megaco",
+    "summary": "transaction-level errorDescriptor reply (Reply=id{Error=430})",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Restart",
+                                    "reason": "901 Cold Boot",
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "same_as_request:0",
+                        "error": {
+                          "code": 430,
+                          "text": "Unknown TerminationID"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "transport": "tcp"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "megaco.error_code",
+          "value": "430"
+        },
+        {
+          "packet": 5,
+          "field": "megaco.transaction",
+          "value": "Reply"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "hex": "45 72 72 6F 72 20 3D 20 34 33 30 20 7B 20 22 55 6E 6B 6E 6F 77 6E 20 54 65 72 6D 69 6E 61 74 69 6F 6E 49 44 22 20 7D",
+          "offset": 95
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_tcp_ipv4_ack_range",
+    "proto": "megaco",
+    "summary": "K range form K{100-101}",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "100",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Restart",
+                                    "reason": "901 Cold Boot",
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "request",
+                        "id": "101",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Restart",
+                                    "reason": "901 Cold Boot",
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "same_as_request:0",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "same_as_request:1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "response_ack",
+                        "ack": "100-101"
+                      }
+                    ]
+                  }
+                ],
+                "transport": "tcp"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "megaco.transid",
+          "value": "100,101"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 7,
+          "hex": "54 72 61 6E 73 61 63 74 69 6F 6E 52 65 73 70 6F 6E 73 65 41 63 6B 20 7B 20 31 30 30 2D 31 30 31 20 7D",
+          "offset": 80
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_transid_zero_error_reply",
+    "proto": "megaco",
+    "summary": "transactionId 0 error reply for missing-id request",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "0",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "AuditValue",
+                                "termination": "ROOT"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "0",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "error": {
+                                    "code": 401,
+                                    "text": "Protocol Error"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.transid",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "megaco.transid",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "megaco.error_code",
+          "value": "401"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 2,
+          "hex": "52 65 70 6C 79 20 3D 20 30 20 7B",
+          "offset": 67
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_reserved_value_group",
+    "proto": "megaco",
+    "summary": "LocalControl ReservedValue/ReservedGroup ON/OFF",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Modify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "media": {
+                                    "streams": [
+                                      {
+                                        "id": 1,
+                                        "local_control": {
+                                          "mode": "SendReceive",
+                                          "reserved_value": "ON",
+                                          "reserved_group": "ON"
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.reservevalue",
+          "value": "ON"
+        },
+        {
+          "packet": 1,
+          "field": "megaco.reservegroup",
+          "value": "ON"
+        }
+      ],
+      "frames": []
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_eventbuffer_descriptor",
+    "proto": "megaco",
+    "summary": "EventBuffer descriptor items",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Modify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "event_buffer": {
+                                    "items": [
+                                      "al/on",
+                                      "dd/ce"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.command",
+          "value": "Modify"
+        }
+      ],
+      "frames": []
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_audit_item_domain",
+    "proto": "megaco",
+    "summary": "Audit auditItem domain: Media/Signals/DigitMap/Statistics",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "AuditValue",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "audit": {
+                                    "items": [
+                                      "Media",
+                                      "Signals",
+                                      "DigitMap",
+                                      "Statistics"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.audititem",
+          "value": "Media,Signals,DigitMap,Statistics"
+        }
+      ],
+      "frames": []
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_signals_types",
+    "proto": "megaco",
+    "summary": "Signals OO/TO/BR + SignalList",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Modify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "signals": {
+                                    "items": [
+                                      "cg/dt",
+                                      "cg/bt(0)",
+                                      "al/ri(1)"
+                                    ],
+                                    "signal_list": [
+                                      {
+                                        "id": 5,
+                                        "items": [
+                                          "cg/ct",
+                                          "cg/dt"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.signal",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "53 69 67 6E 61 6C 4C 69 73 74 3D 35",
+          "offset": 150
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_services_delay_timestamp",
+    "proto": "megaco",
+    "summary": "Services Delay + TimeStamp parameters",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Graceful",
+                                    "reason": "901 Cold Boot",
+                                    "delay": 30,
+                                    "timestamp": "20260901T08300000"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.command",
+          "value": "ServiceChange"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "44 65 6C 61 79 3D 33 30 2C 20 54 69 6D 65 53 74 61 6D 70 3D 32 30 32 36 30 39 30 31 54 30 38 33 30 30 30 30 30",
+          "offset": 171
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_context_id_high_boundary",
+    "proto": "megaco",
+    "summary": "ContextID 0xFFFFFFFD near upper bound",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "4294967293",
+                            "commands": [
+                              {
+                                "name": "AuditValue",
+                                "termination": "A4444"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.context",
+          "value": "4294967293"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "43 6F 6E 74 65 78 74 20 3D 20 34 32 39 34 39 36 37 32 39 33 20 7B",
+          "offset": 82
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_version_two_digits",
+    "proto": "megaco",
+    "summary": "start line Version 2-digit form (1*2 DIGIT carve-out)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "version": 12,
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "AuditValue",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "audit": {
+                                    "items": [
+                                      "Media"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.version",
+          "value": "12"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "4D 45 47 41 43 4F 2F 31 32 20 5B 31 39 32 2E 30 2E 32 2E 37 30 5D",
+          "offset": 42
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_streamid_max",
+    "proto": "megaco",
+    "summary": "StreamID UINT16 upper bound 65535",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Modify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "media": {
+                                    "streams": [
+                                      {
+                                        "id": 65535,
+                                        "local_control": {
+                                          "mode": "SendReceive"
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.streamid",
+          "value": "65535"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "53 74 72 65 61 6D 20 3D 20 36 35 35 33 35 20 7B",
+          "offset": 121
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_embed_events",
+    "proto": "megaco",
+    "summary": "Events nested descriptor (Embed)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Modify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "events": {
+                                    "request_id": 2222,
+                                    "items": [
+                                      "al/of"
+                                    ]
+                                  },
+                                  "embed": {
+                                    "request_id": 0,
+                                    "items": [
+                                      "al/on"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.requestid",
+          "value": "2222"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "45 6D 62 65 64 20 7B 20 45 76 65 6E 74 73 20 7B 20 61 6C 2F 6F 6E 20 7D 20 7D",
+          "offset": 136
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_events_no_requestid",
+    "proto": "megaco",
+    "summary": "Events without RequestID (ABNF optional)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Modify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "events": {
+                                    "items": [
+                                      "al/of"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.events",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "45 76 65 6E 74 73 20 7B 20 61 6C 2F 6F 66 20 7D",
+          "offset": 113
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_registration_redirect",
+    "proto": "megaco",
+    "summary": "redirect: Reply ServiceChangeMgcId then MG re-registers at new MGC",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Restart",
+                                    "reason": "901 Cold Boot",
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "same_as_request:0",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "service_change_mgc_id": "[198.51.100.71]"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Restart",
+                                    "reason": "901 Cold Boot",
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "same_as_request:0",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "src_port": 40701
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 4,
+      "fields": [
+        {
+          "packet": 2,
+          "field": "megaco.transaction",
+          "value": "Reply"
+        },
+        {
+          "packet": 3,
+          "field": "megaco.transid",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 2,
+          "hex": "53 65 72 76 69 63 65 43 68 61 6E 67 65 4D 67 63 49 64 3D 5B 31 39 38 2E 35 31 2E 31 30 30 2E 37 31 5D",
+          "offset": 127
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_concurrent_sessions",
+    "proto": "megaco",
+    "summary": "concurrent sessions interleaved replay",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Restart",
+                                    "reason": "901 Cold Boot",
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "same_as_request:0",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "concurrent": true
+              },
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Notify",
+                                "termination": "A5555",
+                                "descriptor": {
+                                  "observed_events": {
+                                    "request_id": 3333,
+                                    "items": [
+                                      "al/on"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "same_as_request:0",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Notify",
+                                "termination": "A5555"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "concurrent": true,
+                "src_port": 40701
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 4,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.command",
+          "value": "ServiceChange"
+        },
+        {
+          "packet": 2,
+          "field": "megaco.command",
+          "value": "Notify"
+        }
+      ],
+      "frames": []
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_digitmap_z_timer",
+    "proto": "megaco",
+    "summary": "DigitMap Z long-duration modifier",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Modify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "digit_map": {
+                                    "name": "dialplan",
+                                    "t": 5,
+                                    "l": 10,
+                                    "value": "Z[0-9]."
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.digitmap",
+          "value": "DigitMap = dialplan { T:5, L:10, Z[0-9]."
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "5A 5B 30 2D 39 5D 2E",
+          "offset": 146
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_method_graceful",
+    "proto": "megaco",
+    "summary": "SC Method=Graceful (902 Scheduled Maintenance)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Graceful",
+                                    "reason": "902 Scheduled Maintenance",
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.command",
+          "value": "ServiceChange"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "4D 65 74 68 6F 64 3D 47 72 61 63 65 66 75 6C",
+          "offset": 130
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_method_forced",
+    "proto": "megaco",
+    "summary": "SC Method=Forced (905 Forced)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Forced",
+                                    "reason": "905 Forced",
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.command",
+          "value": "ServiceChange"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "4D 65 74 68 6F 64 3D 46 6F 72 63 65 64",
+          "offset": 130
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_method_disconnected",
+    "proto": "megaco",
+    "summary": "SC Method=Disconnected (908 Disconnected)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Disconnected",
+                                    "reason": "908 Disconnected",
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.command",
+          "value": "ServiceChange"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "hex": "4D 65 74 68 6F 64 3D 44 69 73 63 6F 6E 6E 65 63 74 65 64",
+          "offset": 130
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_mode_sendonly",
+    "proto": "megaco",
+    "summary": "LocalControl Mode=SendOnly",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Modify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "media": {
+                                    "streams": [
+                                      {
+                                        "id": 1,
+                                        "local_control": {
+                                          "mode": "SendOnly"
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.mode",
+          "value": "SendOnly"
+        }
+      ],
+      "frames": []
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_mode_inactive",
+    "proto": "megaco",
+    "summary": "LocalControl Mode=Inactive",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Modify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "media": {
+                                    "streams": [
+                                      {
+                                        "id": 1,
+                                        "local_control": {
+                                          "mode": "Inactive"
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.mode",
+          "value": "Inactive"
+        }
+      ],
+      "frames": []
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_mode_loopback",
+    "proto": "megaco",
+    "summary": "LocalControl Mode=Loopback",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "Modify",
+                                "termination": "A4444",
+                                "descriptor": {
+                                  "media": {
+                                    "streams": [
+                                      {
+                                        "id": 1,
+                                        "local_control": {
+                                          "mode": "Loopback"
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.mode",
+          "value": "Loopback"
+        }
+      ],
+      "frames": []
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_error_code_431",
+    "proto": "megaco",
+    "summary": "error code 431: No TerminationID matched a wildcard",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "0",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "AuditValue",
+                                "termination": "ROOT"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "0",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "error": {
+                                    "code": 431,
+                                    "text": "No TerminationID matched a wildcard"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.transid",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "megaco.transid",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "megaco.error_code",
+          "value": "431"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 2,
+          "hex": "52 65 70 6C 79 20 3D 20 30 20 7B",
+          "offset": 67
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_udp_ipv4_error_code_442",
+    "proto": "megaco",
+    "summary": "error code 442: Syntax error in command",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "0",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "AuditValue",
+                                "termination": "ROOT"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "0",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "error": {
+                                    "code": 442,
+                                    "text": "Syntax error in command"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "megaco.transid",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "megaco.transid",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "megaco.error_code",
+          "value": "442"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 2,
+          "hex": "52 65 70 6C 79 20 3D 20 30 20 7B",
+          "offset": 67
+        }
+      ]
+    }
+  },
+  {
+    "id": "megaco_neg_encoding_text_as_ber",
+    "proto": "megaco",
+    "summary": "encoding=ber declared while payload is text bytes",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "encoding_text_as_ber"
+          }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
-      "error_contains": "unknown layer"
+      "error_contains": "encoding"
+    }
+  },
+  {
+    "id": "megaco_neg_encoding_port_mismatch",
+    "proto": "megaco",
+    "summary": "text encoding declared with BER port 2945",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "encoding_port_mismatch"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "encoding"
+    }
+  },
+  {
+    "id": "megaco_neg_syntax_start_line",
+    "proto": "megaco",
+    "summary": "start line MegacopToken missing/misspelled",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "syntax_start_line"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "message"
+    }
+  },
+  {
+    "id": "megaco_neg_syntax_version_zero",
+    "proto": "megaco",
+    "summary": "start line version 0",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "syntax_version_zero"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "version"
+    }
+  },
+  {
+    "id": "megaco_neg_syntax_version_three_digits",
+    "proto": "megaco",
+    "summary": "start line version 3 digits (1*2DIGIT overflow)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "syntax_version_three_digits"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "version"
+    }
+  },
+  {
+    "id": "megaco_neg_syntax_mid_missing",
+    "proto": "megaco",
+    "summary": "mId missing (messageBody directly after start line)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "syntax_mid_missing"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "mid"
+    }
+  },
+  {
+    "id": "megaco_neg_syntax_mid_invalid",
+    "proto": "megaco",
+    "summary": "mId not one of the four legal forms",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "syntax_mid_invalid"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "mid"
+    }
+  },
+  {
+    "id": "megaco_neg_syntax_body_form",
+    "proto": "megaco",
+    "summary": "messageBody neither transactionList nor errorDescriptor",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "syntax_body_form"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "message"
+    }
+  },
+  {
+    "id": "megaco_neg_syntax_services_missing_params",
+    "proto": "megaco",
+    "summary": "Services missing required Method/Reason",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "syntax_services_missing_params"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "message"
+    }
+  },
+  {
+    "id": "megaco_neg_command_pre_registration",
+    "proto": "megaco",
+    "summary": "non-SC command before registration (505)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "command_pre_registration"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "command"
+    }
+  },
+  {
+    "id": "megaco_neg_command_modify_nonexistent",
+    "proto": "megaco",
+    "summary": "Modify/Subtract on nonexistent termination",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "command_modify_nonexistent"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "command"
+    }
+  },
+  {
+    "id": "megaco_neg_command_reply_choose_all",
+    "proto": "megaco",
+    "summary": "reply action uses $/* context (request-side only)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "command_reply_choose_all"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "command"
+    }
+  },
+  {
+    "id": "megaco_neg_command_uncreated_context",
+    "proto": "megaco",
+    "summary": "references uncreated numeric Context",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "command_uncreated_context"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "command"
+    }
+  },
+  {
+    "id": "megaco_neg_command_first_error_continues",
+    "proto": "megaco",
+    "summary": "second command response after first error (no O-)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "command_first_error_continues"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "command"
+    }
+  },
+  {
+    "id": "megaco_neg_pairing_reply_id_mismatch",
+    "proto": "megaco",
+    "summary": "Reply transactionId != request",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "pairing_reply_id_mismatch"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "transaction"
+    }
+  },
+  {
+    "id": "megaco_neg_pairing_pending_id_mismatch",
+    "proto": "megaco",
+    "summary": "Pending transactionId != request",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "pairing_pending_id_mismatch"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "transaction"
+    }
+  },
+  {
+    "id": "megaco_neg_pairing_duplicate_transid",
+    "proto": "megaco",
+    "summary": "duplicate transactionId in one session",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "pairing_duplicate_transid"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "transaction"
+    }
+  },
+  {
+    "id": "megaco_neg_pairing_ack_unconfirmed",
+    "proto": "megaco",
+    "summary": "K acknowledges unconfirmed transaction",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "pairing_ack_unconfirmed"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "transaction"
+    }
+  },
+  {
+    "id": "megaco_neg_pairing_ia_without_pending",
+    "proto": "megaco",
+    "summary": "ImmAckRequired without prior Pending",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "pairing_ia_without_pending"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "transaction"
+    }
+  },
+  {
+    "id": "megaco_neg_pairing_observed_requestid",
+    "proto": "megaco",
+    "summary": "ObservedEvents RequestID mismatch with Events",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "pairing_observed_requestid"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "transaction"
+    }
+  },
+  {
+    "id": "megaco_neg_length_message_truncated",
+    "proto": "megaco",
+    "summary": "message truncated (unclosed body)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "length_message_truncated"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "length"
+    }
+  },
+  {
+    "id": "megaco_neg_length_termid_over_64",
+    "proto": "megaco",
+    "summary": "TerminationID over 64 chars",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "length_termid_over_64"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "length"
+    }
+  },
+  {
+    "id": "megaco_neg_length_transid_over_uint32",
+    "proto": "megaco",
+    "summary": "transactionId over UINT32",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "length_transid_over_uint32"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "length"
+    }
+  },
+  {
+    "id": "megaco_neg_length_digitmap_timer",
+    "proto": "megaco",
+    "summary": "DigitMap timer out of range (T>99 / S=0 / L=0)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "length_digitmap_timer"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "length"
+    }
+  },
+  {
+    "id": "megaco_neg_length_context_reserved",
+    "proto": "megaco",
+    "summary": "reserved ContextID as concrete value",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "length_context_reserved"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "length"
+    }
+  },
+  {
+    "id": "megaco_neg_carrier_layer_mismatch",
+    "proto": "megaco",
+    "summary": "carrier layer conflicts with chain shape",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "carrier_layer_mismatch"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "carrier"
+    }
+  },
+  {
+    "id": "megaco_neg_carrier_entry_port_encoding",
+    "proto": "megaco",
+    "summary": "entry-name/port/encoding triple mismatch",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "carrier_entry_port_encoding"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "carrier"
+    }
+  },
+  {
+    "id": "megaco_neg_carrier_invalid_port",
+    "proto": "megaco",
+    "summary": "invalid port value",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "carrier_invalid_port"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "port"
+    }
+  },
+  {
+    "id": "megaco_neg_carrier_return_address",
+    "proto": "megaco",
+    "summary": "response not returned to request source address",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "carrier_return_address"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "carrier"
+    }
+  },
+  {
+    "id": "megaco_neg_carrier_udp_mtu_exceeded",
+    "proto": "megaco",
+    "summary": "UDP datagram over MTU",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "carrier_udp_mtu_exceeded"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "length"
+    }
+  },
+  {
+    "id": "megaco_neg_services_address_mgcidtotry_conflict",
+    "proto": "megaco",
+    "summary": "ServiceChangeAddress and MgcIdToTry both set",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "wire_fault": "services_address_mgcidtotry_conflict"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "services"
+    }
+  },
+  {
+    "id": "megaco_neg_tx_error_with_actions",
+    "proto": "megaco",
+    "summary": "reply carries both error descriptor and actions (ABNF exclusive)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT",
+                                "descriptor": {
+                                  "services": {
+                                    "method": "Restart",
+                                    "reason": "901 Cold Boot",
+                                    "profile": "ResGW/1"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "message",
+                    "direction": "s2c",
+                    "transactions": [
+                      {
+                        "type": "reply",
+                        "id": "same_as_request:0",
+                        "error": {
+                          "code": 430,
+                          "text": "Unknown TerminationID"
+                        },
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "both error descriptor and actions"
+    }
+  },
+  {
+    "id": "megaco_neg_tx_error_on_request",
+    "proto": "megaco",
+    "summary": "transaction-level error descriptor on a request (reply-side only)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40700,
+            "dst_port": 2944
+          }
+        },
+        {
+          "megaco": {
+            "sessions": [
+              {
+                "role": "mg",
+                "mid": "[192.0.2.70]",
+                "peer_mid": "[198.51.100.70]",
+                "events": [
+                  {
+                    "kind": "message",
+                    "direction": "c2s",
+                    "transactions": [
+                      {
+                        "type": "request",
+                        "id": "1",
+                        "error": {
+                          "code": 430,
+                          "text": "Unknown TerminationID"
+                        },
+                        "actions": [
+                          {
+                            "context": "-",
+                            "commands": [
+                              {
+                                "name": "ServiceChange",
+                                "termination": "ROOT"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "only valid on type=reply"
     }
   }
 ]
