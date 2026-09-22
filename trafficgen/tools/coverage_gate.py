@@ -1866,7 +1866,7 @@ def check_jtt905(cases):
 
 
 def check_arp(cases):
-    """D-ARP-1 P6 反查表（T-ARP-1…8，9.52 对账 分项和 8=建例 8。返回 [(检查名, 通过?, 证据)]。"""
+    """D-ARP-1 P6 反查表（T-ARP-1…12，9.52 对账 分项和 12=建例 12。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
     lays = []
     for c in cases:
@@ -1886,6 +1886,10 @@ def check_arp(cases):
         ("t6_neg_sender_ip", "T-6 sender_ip 格式拒"),
         ("t7_neg_ip_carrier", "T-7 ip 承载混入拒"),
         ("t8_neg_presence", "T-8 顶层 presence 判死"),
+        ("t9_neg_sender_mac", "T-9 sender_mac 格式拒"),
+        ("t10_neg_target_mac", "T-10 target_mac 格式拒"),
+        ("t11_neg_target_ip", "T-11 target_ip 格式拒"),
+        ("t12_neg_static_copy", "T-12 静态复制拒"),
     ]:
         hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
         rows.append((name, hit is not None, hit or "无用例"))
@@ -1899,6 +1903,7 @@ def check_arp(cases):
         ("invalid sender_ip", "T-6 sender_ip 锚"),
         ("must not have an ip/transport carrier", "T-7 carrier 锚"),
         ("no longer accepts a top-level arp", "T-8 presence 锚"),
+        ("static four-tuple", "T-12 静态复制锚"),
     ]:
         rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
     return rows

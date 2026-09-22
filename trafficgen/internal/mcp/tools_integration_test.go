@@ -182,7 +182,7 @@ func (e *testMCPEnv) cleanup() {
 }
 
 // setupMCPTestWithRealBuilder creates a test env that registers the real ARP
-// planner (arp.NewPlanner) and uses the production BuildFunc wrapper
+// planner (layers.NewChainPlanner("arp"), D-ARP-1 翻转) and uses the production BuildFunc wrapper
 // (replay.NewBuildFunc(builder.Build)). Tests that need to verify byte-exact
 // packet output (e.g. Ethernet padding) must use this helper instead of
 // setupMCPTest, whose mockMCPPlanner + fake `make([]byte, 64)` BuildFunc
@@ -1276,7 +1276,7 @@ func TestMCP_ManageTasks_StopRunning(t *testing.T) {
 //
 // These tests exercise the pad_min_frame (Ethernet padding to 60-byte minimum)
 // feature end-to-end through the MCP generate_traffic tool surface. They use
-// the real ARP planner (arp.NewPlanner) and the production BuildFunc wrapper
+// the arp layer-chain planner (layers.NewChainPlanner("arp")) and the production BuildFunc wrapper
 // (replay.NewBuildFunc(builder.Build)), so Builder.Build is actually invoked
 // and its padding logic is exercised. Frame lengths are verified by reading
 // the pcap output back with pcapgo (pure Go, no tcpdump or root required).

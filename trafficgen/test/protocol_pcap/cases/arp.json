@@ -356,5 +356,103 @@
    "expect_error": true,
    "error_contains": "no longer accepts a top-level arp"
   }
+ },
+ {
+  "id": "arp_t9_neg_sender_mac",
+  "proto": "arp",
+  "summary": "负例：sender_mac 格式非法拒（复审 M1 补例——矩阵行5 MAC 半面）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01",
+      "dst_mac": "aa:bb:cc:dd:ee:02"
+     }
+    },
+    {
+     "arp": {
+      "sender_mac": "zz:bb:cc:dd:ee:01"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "invalid sender_mac"
+  }
+ },
+ {
+  "id": "arp_t10_neg_target_mac",
+  "proto": "arp",
+  "summary": "负例：target_mac 格式非法拒（复审 M1 补例）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01",
+      "dst_mac": "aa:bb:cc:dd:ee:02"
+     }
+    },
+    {
+     "arp": {
+      "target_mac": "nope"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "invalid target_mac"
+  }
+ },
+ {
+  "id": "arp_t11_neg_target_ip",
+  "proto": "arp",
+  "summary": "负例：target_ip 格式非法拒（复审 M1 补例）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01",
+      "dst_mac": "aa:bb:cc:dd:ee:02"
+     }
+    },
+    {
+     "arp": {
+      "target_ip": "999.0.0.1"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "invalid target_ip"
+  }
+ },
+ {
+  "id": "arp_t12_neg_static_copy",
+  "proto": "arp",
+  "summary": "T-12 静态复制拒（12.9）：eth 层显式标量+flows=2 → 框架通用门（复审 M2 补例，sv_vn_static_copy 同款）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01",
+      "dst_mac": "aa:bb:cc:dd:ee:02"
+     }
+    },
+    {
+     "arp": {}
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "static four-tuple"
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  }
  }
 ]
