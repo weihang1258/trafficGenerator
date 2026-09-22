@@ -4127,3 +4127,59 @@ F1/F3/F4/F5/F6 五项闭合经独立复现确认（12 面探针/双向突变/8 �
 - Reshape: `test/protocol_pcap/cases/hl7.json`（B6 95 例层链整形：四元组进 ip/tcp 层、hl7 子映射进 hl7 层、占位例移除）
 - Regenerate: `schemas/v1/generated/layers.generated.json`（115→116）+ webgen
 - Tools: `tools/pipe_gate.sh`（hl7 自键组）、`tools/coverage_gate.py`（check_hl7）
+
+### wire_fault 逐值处置表（裁定4；P4 落码同步——33 值 = 20 自然面守卫 + 13 书面豁免）
+
+自然面守卫 = 自然配置可表达同一故障且 validator 同步拒绝；书面豁免 = builder 恒产合法线格式 / 生成器不变式 / 结构不可达，注入通道唯一入口。
+
+**守卫在位（20 值）：**
+
+| wire_fault 值 | 锚 | 自然面表达 | 守卫证据 |
+|---|---|---|---|
+| msh1_invalid | separator | field_separator 长度≠1（如 `\|\|`） | validateConfig；红例⑦ |
+| msh2_invalid | separator | encoding_chars 长度≠4 | validateConfig；红例③⑦ |
+| escape_invalid | escape | 字段值 `\XG1\` 十六进制不成对 | invalidHexEscape；红例⑭ |
+| msh9_missing | msh | message_type 空缺 | validateEvent 必填；红例⑭ |
+| msh9_domain | msh | message_type 码 ∉ {ADT,ORU,SIU,ACK,ORM,MDM,DFT}（XYZ 拒） | knownMessageCodes；红例⑭ |
+| len_msh9 | length | message_type >15 字符 | validateEvent 上界 |
+| len_msh10 | length | control_id 显式钉值 >20 | validateEvent 上界 |
+| len_msh12 | length | 事件级 version >60 | validateEvent 上界 |
+| len_msh7 | length | timestamp 钉值 >26 | validateEvent 上界 |
+| len_msa2 | length | （传递守卫：MSA-2 回显 MSH-10，>20 蕴含 MSH-10 越界已拒） | len_msh10 守卫传递 |
+| ack_code_invalid | ack | ack/ack_mode 码 ∉ {AA,AE,AR} | isValidAckCodeOrObject |
+| carrier_udp | carrier | 层链含 udp 层（契约 §7 指定故障输入=udp 载体链本身） | complete.go 补全面 + BuildLayersPlanner/ValidateSpec 预检；cases 即自然面负例 |
+| port_invalid | port | tcp 层显式 dst_port=0 或不可解析（65536） | chain 块 |
+| address_family_mixed | address | ip 层 src/dst 混族（v4+v6 并用） | BuildLayersPlanner 预检；红例⑬ |
+| required_segment_missing | segment | ADT^A01/A02/A03 缺 EVN/PID/PV1、ORU^R01 缺 OBR、SIU^S12 缺 SCH+AIS | requiredSegmentsByStructure；红例⑨ |
+| event_mismatch | event | EVN-1 ≠ MSH-9 触发事件 | validateEvent；红例⑩ |
+| z_segment_unconfigured | z | Z 段存在且无 allow_z_segments | validateEvent；红例⑪ |
+| segment_name_invalid | segment | 段名非 3 字符 ∉ 段表白名单 ∪ 显式 Z 段 | validateEvent |
+| framing_control_byte | mllp | 字段值携带未转义 0x0B/0x1C | validateEvent 字节扫描 |
+| （控制 ID 会话内判重——megaco U1 前置，非 33 值映射行） | msh | 显式钉值与运行期分配撞号 | validateSession seenCtrl；红例⑫ |
+
+**书面豁免（13 值，wire_fault-only）：**
+
+| wire_fault 值 | 锚 | 豁免理由 |
+|---|---|---|
+| framing_sob_missing | mllp | builder 恒以 0x0B 起帧，无配置键产缺起始块载荷 |
+| framing_eob_missing | mllp | builder 恒闭合 0x1C 0x0D，无配置产截断帧 |
+| framing_eob_malformed | mllp | EOB 两字节由 buildMLLPFrame 恒定写入 |
+| segment_first_not_msh | msh | builder 由 message_type 自动前置 MSH——"首段非 MSH"不可构造 |
+| segment_no_cr | segment | buildSegment 恒补 CR 终止 |
+| segment_after_eob | segment | 帧闭合由 buildMLLPFrame 单点负责，EOB 后无追加路径 |
+| separator_mismatch | separator | 正文与 MSH-2 同源于 resolveSeparators，配置面不可拆 |
+| msh10_missing | msh | 控制 ID 显式钉值或 MSG%04d 自动分配，恒非空 |
+| msh11_missing | msh | processing_id 缺省 P，恒非空 |
+| msh12_missing | msh | version 缺省 2.5，恒非空 |
+| ack_msa2_mismatch | ack | ACK 由生成器派生，MSA-2=请求 MSH-10 为生成器不变式 |
+| ack_no_msh9 | ack | 派生 ACK 的 MSH-9=ACK^触发 恒由 buildACKSegments 写出 |
+| ack_no_msa | ack | ack_mode=null 时无 ACK 帧（合法），有 ACK 时 MSA 恒在 |
+| carrier_no_tcp | layer | hl7 DependsOn tcp 使链补全自动供给 tcp——"缺 tcp"形状结构性不可达（红例⑥钉自动补全语义） |
+
+（表计 20+13=33；控制 ID 判重行系附加守卫注记，不入 33 值计数。）
+
+### 门 3 抽查三条（P6 验收门；每条点到代码行或用例号）
+
+1. **裁定2 载体双拒**：complete.go 补全面 tcp-only 分支（锚 carrier）+ validate_layers.go 预检 ↔ 红例⑥ TestHL7Chain_CarrierContract ↔ 用例 hl7_neg_carrier_udp（自然面：层链 [udp,hl7] 即故障输入）。
+2. **裁定7 必需段集 + 一致性**：planner.go requiredSegmentsByStructure + EVN-1↔MSH-9 守卫 ↔ 红例⑨⑩ ↔ 用例 hl7_neg_required_segment_missing / hl7_neg_event_mismatch（锚 segment/event）。
+3. **裁定5 ack 配对**：builder buildACKSegments（MSA-2=请求 MSH-10）+ planner isValidAckCodeOrObject ↔ 红例⑧ TestHL7Chain_AckPairing（线面 MSA-2 回显断言）↔ 用例 hl7_neg_ack_msa2_mismatch（锚 ack）。
