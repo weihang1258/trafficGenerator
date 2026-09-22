@@ -1,8 +1,8 @@
 # Protocol Pcap Test Results
 
-Run at 2026-09-22 10:16:37 — 13 total cases, 13 pass, 0 fail, 0 error
+Run at 2026-09-22 12:03:26 — 8 total cases, 8 pass, 0 fail, 0 error
 
 | Protocol | Cases | Pass | Fail | Error |
 |----------|-------|------|------|-------|
-| jtt905 | 13 | 13 | 0 | 0 |
+| arp | 8 | 8 | 0 | 0 |
 

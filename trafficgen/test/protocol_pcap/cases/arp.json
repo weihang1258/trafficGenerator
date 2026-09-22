@@ -1,0 +1,360 @@
+[
+ {
+  "id": "arp_t1_baseline_pair",
+  "proto": "arp",
+  "summary": "T-1 基线配对：op=1 缺省地址 2 帧——帧1 广播 ff*6+oper 0001+tha 全零；帧2 单播+oper 0002 角色互换",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01",
+      "dst_mac": "aa:bb:cc:dd:ee:02"
+     }
+    },
+    {
+     "arp": {}
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "eth.dst",
+     "value": "ff:ff:ff:ff:ff:ff"
+    },
+    {
+     "packet": 1,
+     "field": "arp.opcode",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "arp.opcode",
+     "value": "2"
+    },
+    {
+     "packet": 2,
+     "field": "eth.dst",
+     "value": "aa:bb:cc:dd:ee:01"
+    }
+   ],
+   "notes": [
+    "缺省 sender_ip=10.0.0.1/target_ip=10.0.0.2（裁定2 生成器缺省）；帧序从落盘 pcap 钉（P5）"
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 14,
+     "hex": "00 01 08 00 06 04 00 01"
+    },
+    {
+     "packet": 1,
+     "offset": 38,
+     "hex": "0a 00 00 02"
+    },
+    {
+     "packet": 2,
+     "offset": 20,
+     "hex": "00 02"
+    },
+    {
+     "packet": 2,
+     "offset": 22,
+     "hex": "aa bb cc dd ee 02"
+    },
+    {
+     "packet": 2,
+     "offset": 32,
+     "hex": "aa bb cc dd ee 01"
+    },
+    {
+     "packet": 2,
+     "offset": 38,
+     "hex": "0a 00 00 01"
+    }
+   ]
+  }
+ },
+ {
+  "id": "arp_t2_bytes_full",
+  "proto": "arp",
+  "summary": "T-2 字节全钉：帧1 28B 载荷五段全等（htype 0001+ptype 0800+hlen 06+plen 04+oper 0001+sha/spa/tha 全零/tpa）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01",
+      "dst_mac": "aa:bb:cc:dd:ee:02"
+     }
+    },
+    {
+     "arp": {}
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "eth.type",
+     "value": "0x0806"
+    }
+   ],
+   "notes": [
+    "28B RFC 826 字段序整格钉（9.5 全字段有例）"
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 14,
+     "hex": "00 01 08 00 06 04 00 01"
+    },
+    {
+     "packet": 1,
+     "offset": 22,
+     "hex": "aa bb cc dd ee 01"
+    },
+    {
+     "packet": 1,
+     "offset": 28,
+     "hex": "0a 00 00 01"
+    },
+    {
+     "packet": 1,
+     "offset": 32,
+     "hex": "00 00 00 00 00 00"
+    },
+    {
+     "packet": 1,
+     "offset": 38,
+     "hex": "0a 00 00 02"
+    }
+   ]
+  }
+ },
+ {
+  "id": "arp_t3_explicit_addrs",
+  "proto": "arp",
+  "summary": "T-3 显式地址覆盖：sender/target IP+MAC 全显式 → sha/spa/tha/tpa 与 ether src 双钉",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01",
+      "dst_mac": "aa:bb:cc:dd:ee:02"
+     }
+    },
+    {
+     "arp": {
+      "sender_mac": "11:22:33:44:55:66",
+      "target_mac": "66:55:44:33:22:11",
+      "sender_ip": "192.168.10.5",
+      "target_ip": "192.168.10.1"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "eth.src",
+     "value": "11:22:33:44:55:66"
+    }
+   ],
+   "notes": [
+    "ARP 层 sender_mac 覆盖 eth 层推导（层键优先）"
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 22,
+     "hex": "11 22 33 44 55 66"
+    },
+    {
+     "packet": 1,
+     "offset": 28,
+     "hex": "c0 a8 0a 05"
+    },
+    {
+     "packet": 1,
+     "offset": 38,
+     "hex": "c0 a8 0a 01"
+    },
+    {
+     "packet": 2,
+     "offset": 22,
+     "hex": "66 55 44 33 22 11"
+    },
+    {
+     "packet": 2,
+     "offset": 32,
+     "hex": "11 22 33 44 55 66"
+    },
+    {
+     "packet": 2,
+     "offset": 38,
+     "hex": "c0 a8 0a 05"
+    }
+   ]
+  }
+ },
+ {
+  "id": "arp_t4_single_reply",
+  "proto": "arp",
+  "summary": "T-4 单发宣告（op=2）：1 帧，ether 单播 dst=sender_mac（裁定3 勘误：legacy 此形广播错位）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01",
+      "dst_mac": "aa:bb:cc:dd:ee:02"
+     }
+    },
+    {
+     "arp": {
+      "operation": 2
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "eth.dst",
+     "value": "aa:bb:cc:dd:ee:01"
+    },
+    {
+     "packet": 1,
+     "field": "arp.opcode",
+     "value": "2"
+    }
+   ],
+   "notes": [
+    "op=2 对端角色：sha=target_mac/spa=target_ip/tha=sender_mac/tpa=sender_ip"
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 20,
+     "hex": "00 02"
+    },
+    {
+     "packet": 1,
+     "offset": 22,
+     "hex": "aa bb cc dd ee 02"
+    },
+    {
+     "packet": 1,
+     "offset": 32,
+     "hex": "aa bb cc dd ee 01"
+    }
+   ]
+  }
+ },
+ {
+  "id": "arp_t5_neg_operation",
+  "proto": "arp",
+  "summary": "负例：operation=3 拒（V9 registry [1,2] 先火）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01",
+      "dst_mac": "aa:bb:cc:dd:ee:02"
+     }
+    },
+    {
+     "arp": {
+      "operation": 3
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "out of range [1,2]"
+  }
+ },
+ {
+  "id": "arp_t6_neg_sender_ip",
+  "proto": "arp",
+  "summary": "负例：sender_ip 格式非法拒（validator 锚）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01",
+      "dst_mac": "aa:bb:cc:dd:ee:02"
+     }
+    },
+    {
+     "arp": {
+      "sender_ip": "not-an-ip"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "invalid sender_ip"
+  }
+ },
+ {
+  "id": "arp_t7_neg_ip_carrier",
+  "proto": "arp",
+  "summary": "负例：[eth,ip,arp] IP 承载混入拒（V-carrier 通用门，sv 同款锚）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01",
+      "dst_mac": "aa:bb:cc:dd:ee:02"
+     }
+    },
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "arp": {}
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "must not have an ip/transport carrier"
+  }
+ },
+ {
+  "id": "arp_t8_neg_presence",
+  "proto": "arp",
+  "summary": "负例：层链+顶层 arp 子映射并存=判死（presence 负例形状）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01",
+      "dst_mac": "aa:bb:cc:dd:ee:02"
+     }
+    },
+    {
+     "arp": {}
+    }
+   ],
+   "arp": {}
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "no longer accepts a top-level arp"
+  }
+ }
+]
