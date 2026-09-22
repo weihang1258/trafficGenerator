@@ -117,3 +117,13 @@ func TestValidate_TxLevelError_OnRequestRejected(t *testing.T) {
 		t.Errorf("request carrying error: got %v, want 'only valid on type=reply' rejection", err)
 	}
 }
+
+// D-MEGACO-1 复评3 cosmetic 收口：pending 空 id 自然面可达且带 (transaction)
+// 锚词（复评3 F3 闭合的断言面——此前锚词修复零测试断言）。
+func TestValidate_PendingMissingIDAnchored(t *testing.T) {
+	tx := core.MegacoTransaction{Type: "pending", ID: ""}
+	err := Validate(specShape(tx))
+	if err == nil || !strings.Contains(err.Error(), "(transaction)") {
+		t.Fatalf("pending missing id must carry (transaction) anchor, got %v", err)
+	}
+}

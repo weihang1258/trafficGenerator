@@ -534,6 +534,67 @@ func TestMegacoChain_BaselineHonorsVersion(t *testing.T) {
 	}
 }
 
+// 红例⑳【复评3 F-A】：UDP MTU 天花板自然面边界例——render 恰 1472 收
+// （1 包）、1473 拒（锚 length）。parity 守卫（TestRenderParityWithGenerator）
+// 防渲染漂移，本例钉天花板常量本身（终审 F5/复评3 F-A：1296..1472 窗口
+// 与三处常量曾零自然面守卫）。
+func TestMegacoChain_UDPMtuBoundary(t *testing.T) {
+	mk := func(pad int) json.RawMessage {
+		big := strings.Repeat("1", pad)
+		return megacoChain(t, "udp", map[string]interface{}{
+			"sessions": []interface{}{
+				map[string]interface{}{
+					"role": "mg", "mid": "[192.0.2.70]",
+					"events": []interface{}{
+						map[string]interface{}{
+							"kind": "message", "direction": "c2s",
+							"transactions": []interface{}{
+								map[string]interface{}{
+									"type": "request", "id": "1",
+									"actions": []interface{}{
+										map[string]interface{}{"context": "-", "commands": []interface{}{
+											map[string]interface{}{"name": "Modify", "termination": "A4444", "descriptor": map[string]interface{}{
+												"digit_map": map[string]interface{}{"name": "D1", "value": big},
+											}},
+										}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+	}
+	// 恰 1472（DigitMap 体 1376 + 96B 消息开销）：收。
+	p, err := layers.BuildLayersPlanner("megaco", mk(1376))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner(1472): %v", err)
+	}
+	if err := p.Validate(megacoSpec()); err != nil {
+		t.Fatalf("render exactly 1472 must be accepted, got %v", err)
+	}
+	ch, err := p.Plan(context.Background(), megacoSpec())
+	if err != nil {
+		t.Fatalf("Plan(1472): %v", err)
+	}
+	n := 0
+	for range ch {
+		n++
+	}
+	if n != 1 {
+		t.Fatalf("packets=%d, want 1", n)
+	}
+	// 1473：拒（锚 length）。
+	p2, err := layers.BuildLayersPlanner("megaco", mk(1377))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner(1473): %v", err)
+	}
+	if err := p2.Validate(megacoSpec()); err == nil || !strings.Contains(err.Error(), "length") {
+		t.Fatalf("render 1473 must be rejected with length anchor, got %v", err)
+	}
+}
+
 // 红例⑯【复评 U1】：auto transactionId 逐请求递增（validator 状态机与
 // sessionRenderSizes/生成器共享同一解析——终审修轮的 auto→"1" 固定归一
 // 曾致 auto+auto 误拒、"1"+auto 撞号漏网）。

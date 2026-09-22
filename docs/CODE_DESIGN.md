@@ -4054,6 +4054,14 @@ U1/U2/U3 闭合经独立复现确认（四行矩阵/1472 边界逐字节/cmpBoun
 - **F4（低）**：freshness 测试 cmpDefault 落地（dump 缺失 ⇔ registry nil；在场 ⇔ 相等，数值 float64 归一 + map 长度比对）——registry default 0→1 突变实测红（dump=0 registry=1）。
 - **F5（低，既有）**：空 sessions 基线流继承显式 version/token_form/whitespace（defaultFlow(from)）——`{"version":2}` 无会话渲染 MEGACO/2；红例⑲先红后绿。
 - **F6（低，文档）**：CODE_DESIGN 两处 `resolveTransactionID` 存量名更新为 sessionTxState.resolve；设计 §7 neg50 行注记豁免（自然面不执法，仅注入通道）。
+
+### 第四轮范围复评（rereview3.md：PASS-WITH-FINDINGS，可关单）+ 关单残项批
+
+F1/F3/F4/F5/F6 五项闭合经独立复现确认（12 面探针/双向突变/8 面基线探针）。残项处置：
+
+- **F-A（中，覆盖缺口）**：parity 守卫机制为真但 big-digitmap 形 render=1296，1472 天花板常量本身零自然面边界例——红例⑳ TestMegacoChain_UDPMtuBoundary（pad=1376 → render 恰 1472 收 1 包；pad=1377 → 拒锚 `length`）；天花板常量 1472→1471 突变实测红（1472 收例报 `exceeds the MTU budget`）。
+- **F-B（低，文档）**：§3.1 正文（:67）"0 与 3 位数字拒绝"与 v1.2.2 豁免口径矛盾——正文改指 §6 version 行 v1.2.2 处置。
+- **cosmetic**：本条目 tls flake 观察重复段删除（收口轮 2 插入与原有 bullet 重叠）；pending 空 id 自然面锚词补断言（TestValidate_PendingMissingIDAnchored）。
 - **附带观察登记**：tls `planner_test.go:1172` 随机首字节 flake（自 1659a55 起既有）另行立项修断言。
 
-- 附带观察（非裁定项，如实登记）：`TestTLS_Plan_HTTPDelegation_NoHTTPKeepsSynthAppData`（tls planner_test.go:1172，自 1659a55 起既有）随机首字节致断言约 3/8 概率翻车——与 megaco 无关，另行立项修断言（多字节非 HTTP 方法前缀判定）。
+

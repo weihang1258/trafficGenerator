@@ -64,7 +64,7 @@ message       = MegacopToken SLASH Version SEP mId SEP messageBody
 messageBody   = ( errorDescriptor / transactionList )
 ```
 
-- 起始行两种等价形态：`MEGACO/<version>`（全称 token）或 `!/<version>`（缩写 token，`MegacopToken = ("MEGACO" / "!")`）。`Version = 1*2(DIGIT)`（1-2 位数字，§8.3：版本从 1 起），主口径恒为 `1`；2 位数字形态属语法边界正例 carve-out（用例 40，只断言解析接受、不做语义裁决），`0` 与 3 位数字拒绝（§7）。**注意：起始行后没有字面方括号包消息体——RFC 附录示例里的 `[124.124.124.222]` 是 `mId` 的 domainAddress（IP 地址字面方括号）形式，不是消息体括号**；任务书 `!/1 [Msg...]` 口径按规范修正。
+- 起始行两种等价形态：`MEGACO/<version>`（全称 token）或 `!/<version>`（缩写 token，`MegacopToken = ("MEGACO" / "!")`）。`Version = 1*2(DIGIT)`（1-2 位数字，§8.3：版本从 1 起），主口径恒为 `1`；2 位数字形态属语法边界正例 carve-out（用例 40，只断言解析接受、不做语义裁决），3 位数字拒绝（§7；显式 `0` 的处置见 §6 version 行 v1.2.2——缺省语义、线上无差异，自然面豁免仅注入通道表达）。**注意：起始行后没有字面方括号包消息体——RFC 附录示例里的 `[124.124.124.222]` 是 `mId` 的 domainAddress（IP 地址字面方括号）形式，不是消息体括号**；任务书 `!/1 [Msg...]` 口径按规范修正。
 - `mId`（消息发起方标识，§8.3：同一控制关联期间必须恒定）四种形式：`domainAddress`（`[192.0.2.10]` / `[2001:db8::10]`，可带 `:端口`）、`domainName`（`<mgw-1.example.net>`，尖括号内 ≤64 字符）、`mtpAddress`（`MTP{十六进制}` 花括号形态，七号信令场景，本版不用；v1.2 D-3 修正——RFC 3525 Annex B `mtpAddress` 以花括号包十六进制 token，旧稿方括号系笔误）、`deviceName`（pathNAME）。
 - `SEP = (WSP / EOL / COMMENT) LWSP`，`EOL = (CR [LF] / LF)`，`LWSP = *(WSP / COMMENT / EOL)`，`COMMENT = ";" ... EOL`——空白、换行与 `;` 注释高度自由；**ABNF 与文本编码全部大小写不敏感（含 TerminationID、DigitMap 名），唯独 SDP 内容大小写敏感**。
 - `messageBody` 或者是一个 `errorDescriptor`（消息级错误），或者是 1..n 个事务的 `transactionList`。多个事务拼接进一个消息；消息只是运输机制，**事务之间没有顺序含义**（§8.3）。
