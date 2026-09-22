@@ -25,24 +25,24 @@ func TestPlanner_Validate(t *testing.T) {
 		{
 			name: "valid spec",
 			spec: core.FlowSpec{
-				SrcIP:   "192.168.1.1",
-				DstIP:   "192.168.1.2",
+				SrcIP: "192.168.1.1",
+				DstIP: "192.168.1.2",
 			},
 			wantErr: false,
 		},
 		{
 			name: "invalid source IP",
 			spec: core.FlowSpec{
-				SrcIP:   "invalid",
-				DstIP:   "192.168.1.2",
+				SrcIP: "invalid",
+				DstIP: "192.168.1.2",
 			},
 			wantErr: true,
 		},
 		{
 			name: "invalid destination IP",
 			spec: core.FlowSpec{
-				SrcIP:   "192.168.1.1",
-				DstIP:   "invalid",
+				SrcIP: "192.168.1.1",
+				DstIP: "invalid",
 			},
 			wantErr: true,
 		},
@@ -62,10 +62,10 @@ func TestPlanner_Plan(t *testing.T) {
 	p := NewPlanner()
 
 	spec := core.FlowSpec{
-		SrcIP:   "192.168.1.1",
-		DstIP:   "192.168.1.2",
-		SrcMAC:  "aa:bb:cc:dd:ee:ff",
-		DstMAC:  "11:22:33:44:55:66",
+		SrcIP:  "192.168.1.1",
+		DstIP:  "192.168.1.2",
+		SrcMAC: "aa:bb:cc:dd:ee:ff",
+		DstMAC: "11:22:33:44:55:66",
 		ICMP: &core.ICMPConfig{
 			Type:     TypeEchoRequest,
 			Code:     0,
@@ -109,10 +109,10 @@ func TestPlanner_PlanEchoReply(t *testing.T) {
 	p := NewPlanner()
 
 	spec := core.FlowSpec{
-		SrcIP:   "192.168.1.1",
-		DstIP:   "192.168.1.2",
-		SrcMAC:  "aa:bb:cc:dd:ee:ff",
-		DstMAC:  "11:22:33:44:55:66",
+		SrcIP:  "192.168.1.1",
+		DstIP:  "192.168.1.2",
+		SrcMAC: "aa:bb:cc:dd:ee:ff",
+		DstMAC: "11:22:33:44:55:66",
 		ICMP: &core.ICMPConfig{
 			Type:     TypeEchoReply,
 			Code:     0,

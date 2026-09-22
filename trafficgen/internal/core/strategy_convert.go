@@ -632,6 +632,10 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// validateSpecBase 的 DstPort switch，mapToFlowSpec 不再重复设默认）。
 	case "icmp":
 		// ICMP sub-config already read in the universal section above.
+		// ICMP does not use ports（D-ICMP-1：icmpv6 同款——L4 恒不发射，
+		// 清端口防 stale 值干扰包检查）。
+		spec.SrcPort = 0
+		spec.DstPort = 0
 	case "arp":
 		if sub, ok := cfg["arp"].(map[string]interface{}); ok {
 			spec.ARP = &ARPConfig{
@@ -8327,7 +8331,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 		"rtsp": "[ip,rtsp]", "pptp": "[ip,pptp]", "vnc": "[ip,vnc]",
 		"xmpp": "[ip,xmpp]", "sctp": "[ip,sctp]",
 		"jt808": "[ip,jt808]", "jt809": "[ip,jt809]", "jtt905": "[ip,jtt905]",
-		"arp": "[eth,arp]",
+		"arp": "[eth,arp]", "icmp": "[ip,icmp]",
 	}
 	if chainHint, ok := rawWrapChains[protocol]; ok {
 		if v, ok := cfg[protocol]; ok && v != nil {

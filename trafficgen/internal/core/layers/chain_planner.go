@@ -507,7 +507,7 @@ func validateBaseDstPortHandled(name string) bool {
 		"ntp", "ssdp", "stun", "rtmfp", "ldp", "pcep", "cflow", "rip", "dhcp",
 		"dhcpv6", "doip", "gbt32960", "mcp", "modbus", "mqtt", "nfs", "smb",
 		"tds", "moxa", "someip", "postgresql", "goose", "sv",
-		"igmp", "ospf", "pim", "isis", "icmpv6", "h323", "mpls", "arp",
+		"igmp", "ospf", "pim", "isis", "icmpv6", "icmp", "h323", "mpls", "arp",
 		// D-NGAP-1：ngap 端口住层（SCTP 联结端口语义），同 h323/mpls。
 		// D-TELNET-1：telnet 同款（TCP 联结端口语义）。
 		// D-SIP-1：sip 同款（TCP 信令联结端口语义）。
@@ -745,7 +745,7 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// 不在此默认化。
 		case "moxa":
 		// Moxa 源端口 0 保持 0：透传单连接，多流由 worker 递增。
-		case "igmp", "ospf", "pim", "isis", "nvgre", "srv6", "icmpv6", "h323", "mpls", "ngap", "telnet", "sip", "radius", "pppoe", "ldap", "rtmp", "rtsp", "pptp", "vnc", "xmpp", "sctp", "jt808", "jt809", "jtt905":
+		case "igmp", "ospf", "pim", "isis", "nvgre", "srv6", "icmpv6", "icmp", "h323", "mpls", "ngap", "telnet", "sip", "radius", "pppoe", "ldap", "rtmp", "rtsp", "pptp", "vnc", "xmpp", "sctp", "jt808", "jt809", "jtt905":
 			// pppoe（D-PPPOE-1）同列：帧无外层传输层，链路径无端口可写
 			// （内层 IPv4 数据面的 L4 端口住 spec，0 由生成器合成面承担）。
 			// raw-IP 路由终结层（P3 T5）与 nvgre（B4 封装类）/srv6

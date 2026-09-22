@@ -772,6 +772,21 @@ func buildDefaultRegistry() {
 			"pattern":    {Type: "list"},
 		},
 	})
+	// D-ICMP-1：icmp 层 6 业务键（raw-IP 终结层，[ip,icmp] 链，RFC 792——
+	// icmpv6 对称）。无 Default（缺省 translate 镜像 flat parse：type 8/
+	// code 0/seq 1/data "ping"，决策 D1）；FieldContract ip.protocol=1
+	//（IPPROTO_ICMP）。file_source 不映射（③ C 类）。
+	r.Register(LayerSchema{Name: "icmp", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		FieldContract: map[string]string{"ip.protocol": "1"},
+		Fields: map[string]FieldSchema{
+			"type":       {Type: "uint8", Min: 0, Max: 255},
+			"code":       {Type: "uint8", Min: 0, Max: 255},
+			"identifier": {Type: "uint16", Min: 0, Max: 65535},
+			"sequence":   {Type: "uint16", Min: 0, Max: 65535},
+			"data":       {Type: "string"},
+			"pattern":    {Type: "list"},
+		},
+	})
 	// D-H323-1：h323 raw 自驱终层（[ip,h323]，ITU-T H.225.0/Q.931）。10 键
 	// 无 Default（决策 F；缺省语义在 translate 镜像 parse：role caller/
 	// scenario full/crv 0x2584/display Administrator/calls 1/dst_port 1720/

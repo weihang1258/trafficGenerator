@@ -1004,6 +1004,65 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			spec.ICMPv6 = ic
 		}
 		return
+	case "icmp":
+		// D-ICMP-1：层 config 手工逐键映射进 spec.ICMP（parse 未导出
+		// 不可跨包）。缺省镜像 parse（strategy_convert.go:507，决策 D1）：
+		// type 8/code 0/sequence 1/data "ping"——空层=合法缺省 ping，
+		// 存量例语义保持。data 字符串直转 []byte；pattern 槽位下钻
+		//（step 缺省镜像 parseICMPPattern：type 8/code 0/sequence==0 自动
+		// 补 index+1/data "ping"）。file_source 不映射（③ C 类）。层优先
+		//（spec.ICMP 缺席走翻译，icmpv6 同款）。空层 {} 翻译出零值+缺省 →
+		// validator type/code 分支不触发（8/0 合法）。
+		if spec.ICMP == nil {
+			cfg := completedConfig(s, term.Config)
+			ic := &core.ICMPConfig{Type: 8, Code: 0, Sequence: 1}
+			if v, ok := configUint8(cfg["type"]); ok {
+				ic.Type = v
+			}
+			if v, ok := configUint8(cfg["code"]); ok {
+				ic.Code = v
+			}
+			if v, ok := configUint16(cfg["identifier"]); ok {
+				ic.Identifier = v
+			}
+			if v, ok := configUint16(cfg["sequence"]); ok {
+				ic.Sequence = v
+			}
+			if v, ok := cfg["data"].(string); ok {
+				ic.Data = []byte(v)
+			} else {
+				ic.Data = []byte("ping")
+			}
+			if v, ok := cfg["pattern"].([]interface{}); ok {
+				for _, raw := range v {
+					if item, ok := raw.(map[string]interface{}); ok {
+						// 缺省镜像 parseICMPPattern（D1）：type 8/code 0/
+						// sequence==0（含显式 0）自动补 index+1/data "ping"。
+						st := core.ICMPStep{Type: 8}
+						if u, ok := configUint8(item["type"]); ok {
+							st.Type = u
+						}
+						if u, ok := configUint8(item["code"]); ok {
+							st.Code = u
+						}
+						if u, ok := configUint16(item["sequence"]); ok {
+							st.Sequence = u
+						}
+						if st.Sequence == 0 {
+							st.Sequence = uint16(len(ic.Pattern) + 1)
+						}
+						if d, ok := item["data"].(string); ok {
+							st.Data = []byte(d)
+						} else {
+							st.Data = []byte("ping")
+						}
+						ic.Pattern = append(ic.Pattern, st)
+					}
+				}
+			}
+			spec.ICMP = ic
+		}
+		return
 	case "h323":
 		// D-H323-1：层 config 手工逐键映射进 spec.H323（parseH323Config
 		// 未导出不可跨包，决策 C1）。缺省镜像 parse（strategy_convert.go

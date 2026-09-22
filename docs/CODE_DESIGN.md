@@ -3677,3 +3677,50 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 | L5 | CORE_MEMORY 13.6 "95 层字段表"计数过期（实 113 层） | 用户维护文档只报不改——已向用户报告 |
 
 修轮后：suite 12/12 ×2、反查 22/22、门2 四项绿（重编实录）、touched 包 -race 绿、vet 净。
+
+## D-ICMP-1 icmp 层链收敛（#33，P1+P2 定稿 2026-09-22；裁定=raw-IP 面线面复用+icmpv6 对称重建）
+
+### P1 规范矩阵（§4 八项；三源=RFC 792 + legacy 行为面实录 + icmpv6/igmp 家族先例）
+
+| 项 | 规范要求 | 业务场景 | 代码现状 | 缺口 |
+|---|---|---|---|---|
+| 1 连接模型 | 无连接：IPv4 直载（IPPROTO=1），Echo 请求/应答对 | 探针面 ping | legacy Planner 直发（main.go:537），无层链接线 | 五件套缺——本主体 |
+| 2 命令/消息表 | type 8/0=Echo Request/Reply（RFC 792 §Echo）；3/5/11/12 等差错型 | ping 对/多轮 | ICMPConfig.Type 单键+Pattern 多轮（f7 面已有） | registry+validator 锚（裁定4） |
+| 3 状态机 | 无状态；Echo 对靠 id/seq 绑定（RFC 792：Identifier 分组会话、Sequence 会话内递增；id=0 回退 Sequence） | ping 会话 | legacy 已实现（单 ping/Pattern 两路） | 保留（裁定1） |
+| 4 字段表 | 8B 头=Type1+Code1+Checksum2+Identifier2+Sequence2+data（RFC 792） | 全字段可配 | buildICMPPayload 含校验和 | 线面复用（裁定1） |
+| 5 错误处理表 | type/code 语义域校验 | 负例锚 | legacy Validate 仅查 IP 格式 | validator 逐步校验（裁定4） |
+| 6 超时与活性 | 不适用（无重传语义） | — | 不适用 | 不适用（如实） |
+| 7 NAT/被动 | 不适用 | — | 不适用 | 不适用（如实） |
+| 8 版本方言 | RFC 792 单一（RFC 1122 增补注记）；ICMPv6 属姊妹协议（D-ICMPV6-1 已链化） | — | 单版 | B′ 注记 |
+
+**三张子表：** ①type×语义（8=request/0=reply，auto-reply 面）②形态变体（单 ping/Pattern 多轮）③商业映射（无参考 pcap——在库 0 tasks，legacy 行为面替代，如实）。
+
+### 裁定（P2 定稿）
+
+| # | 裁定 | 依据 |
+|---|---|---|
+| 1 | **线面复用零字节分歧**：legacy Plan（Echo 配对/Pattern 多轮/FileSource 优先级/校验和）全保留，layer_gen 包装直传（icmpv6 Generator 同款：Meta.ICMP 直传、Direction 强制 "up" 防双换——legacy reply 已完成 L3 地址换向） | icmpv6 layer_gen 先例；D-ICMPV6-1 零字节分歧口径 |
+| 2 | **层形状 [ip, icmp]**，6 键 `{type, code, identifier, sequence, data, pattern}`（file_source 不映射=③ C 类，icmpv6 同口径）；registry FieldContract `ip.protocol: 1`（IPPROTO_ICMP）；无 Default（缺省 translate 镜像 flat parse：type 8/code 0/seq 1/data "ping"，决策 D1） | icmpv6 registry 行；strategy_convert:507 flat parse |
+| 3 | **编排**：单 ping（type=8 自动配对 reply=2 帧；type=0 单发 1 帧）；Pattern 非 0 逐步发射、8 步自动 reply、step seq 缺省 index+1（RFC 792 会话语义 legacy 已实现） | legacy Plan 两路面 |
+| 4 | **validator 逐步校验**（icmpv6 §5 同款）：type∈{8,0}（锚 `icmp type must be 8 (Echo Request) or 0 (Echo Reply), got %d`）、code=0（锚 `icmp code must be 0 for Echo, got %d`）、pattern step type∈{8,0}（锚 `icmp pattern step %d type must be 8 or 0, got %d`）；IP 族检查复用 legacy Validate（HasLayerDynIP 豁免同 icmpv6 D-FTP-4 口径） | icmpv6 validateLayer 全对称 |
+| 5 | **五件套（raw-IP 族变体）**：isRawIPChain 双名单+=icmp（第 24 协议）；FlowMeta.ICMP+flowMetaFor；translateTerminalConfig case "icmp" 手工映射（6 键+pattern 槽位下钻）；registry 6 Fields→schemagen 114 层；validateBaseDstPortHandled+=icmp；validateSpecBase raw-IP 端口豁免 switch+=icmp（:764——src/dst 端口 0 保持 0）；mapToFlowSpec case "icmp" 清端口（icmpv6 同款——L4 恒不发射）；rawWrapChains+="icmp": "[ip,icmp]"（顶层 icmp 子映射 presence 判死）；main.go 翻转（:537 legacy→NewChainPlanner+空白导入）；pipe_gate/coverage_gate 接入 | icmpv6 五件套全对称；raw 家族第 12 协议 |
+| 6 | **B′ 账本**：非 Echo 型（3 目标不可达/5 重定向/11 超时/12 参数问题/13/14 时间戳）不编排（legacy 单发面保留但层链 validator 不放行——Echo 语义收窄同 icmpv6 决策）；FileSource 层链不映射（C 类，flat 判死后经 MCP 不可达，单测面保留）；广播/组播 ping 面不实现 | icmpv6 B′ 对称；如实登记 |
+| 7 | **回滚**：单提交粒度，摘除即回 | 家族口径 |
+
+**文件清单：** protocol/icmp/{layer_gen.go 新}+core/layers/{registry.go,chain_planner.go（:509/isRawIPChain 双名单经 util）,chain_planner_chain.go（flowMetaFor）,chain_planner_translate.go（case "icmp"）,generator.go（FlowMeta.ICMP）,icmp_chain_test.go 链级红例}+core/strategy_convert.go（isRawIPChain util 双名单+rawWrapChains+case "icmp" 清端口）+cmd/server/main.go 翻转+cases/icmp.json 新+tools/{coverage_gate.py,pipe_gate.sh}+schemagen。
+
+**性能（§6）：** 复用 legacy Plan（channel 256 流式）；包数=单 ping 2 帧/type=0 单发 1 帧/Pattern 2×#8步；pcap 路验收（网卡未跑如实）。
+**接口签名：** `Generator{legacy *Planner; Name/GenEvents/Generate}`；validateLayer（链路径）。
+
+### T-ICMP-1…8 清单（P3；9.52 对账：分项和 8=建例 8（T-1…8 各 1 点），可复算；链级红例=单测面不占号）
+
+| # | 用例 | 断言面 |
+|---|---|---|
+| T-1 | smoke 配对（缺省） | 2 帧；ip.proto=1；icmp.type p1=8/p2=0；角色互换（src/dst 换向） |
+| T-2 | 头字节钉 | 8B 头整钉（type 08/code 00/校验和/id=seq=1 回退面）+data "ping"@42；体首=帧偏移 34（eth14+ip20） |
+| T-3 | 显式 id/seq/data | identifier/sequence/data 覆盖 → 头钉 |
+| T-4 | Pattern 多轮 | 2×echo 步 → 4 帧；seq 1/2 递增；data 逐字节 |
+| T-5 | 负例 type=3 | 锚 `icmp type must be 8 (Echo Request) or 0 (Echo Reply), got 3` |
+| T-6 | 负例 code=1 | 锚 `icmp code must be 0 for Echo, got 1` |
+| T-7 | 负例 presence | 层链+顶层 icmp 子映射并存 → `no longer accepts a top-level icmp` |
+| T-8 | 负例静态复制 | ip 层显式标量+flows=2 → 框架层链门 `static four-tuple`（icmpv6_vn_static_copy 同款） |

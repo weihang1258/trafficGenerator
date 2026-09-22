@@ -483,6 +483,8 @@ type FlowMeta struct {
 	ISIS *core.ISISConfig
 	// ICMPv6 is the flow's ICMPv6 config（D-ICMPV6-1：raw-IP 终结层生成器直传）。Only set for icmpv6 chains.
 	ICMPv6 *core.ICMPv6Config
+	// ICMP is the flow's ICMP config（D-ICMP-1：raw-IP 终结层生成器直传）。Only set for icmp chains.
+	ICMP *core.ICMPConfig
 	// H323 is the flow's h323 config（D-H323-1：raw 自驱终层生成器直传）。Only set for h323 chains.
 	H323 *core.H323Config
 	// MPLS is the flow's mpls config（D-MPLS-1：raw 自驱终层生成器直传）。Only set for mpls chains.

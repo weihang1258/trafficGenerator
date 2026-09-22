@@ -72,7 +72,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dameng"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dns"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/drda"
-	"github.com/trafficgen/trafficgen/internal/protocol/icmp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/icmp" // 空导入：icmp 包 init 注册层生成器 + 校验器（D-ICMP-1）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/icmpv6" // 空导入：icmpv6 包 init 注册层生成器 + 校验器（D-ICMPV6-1）
 	// 空导入：ike 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ike"
@@ -534,7 +534,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("dhcpv6"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("sv"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("goose"))
-	app.engine.RegisterPlanner(icmp.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("icmp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("arp"))
 	// raw-IP 路由终结层（P3 T5）：igmp/ospf/pim 是 [ip,<proto>] 链（无 tcp/udp
 	// 传输层，L3.Protocol=2/89/103 由 ChainPlanner 的 raw-IP 分支处理）；

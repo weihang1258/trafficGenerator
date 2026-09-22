@@ -1865,6 +1865,45 @@ def check_jtt905(cases):
     return rows
 
 
+def check_icmp(cases):
+    """D-ICMP-1 P6 反查表（T-ICMP-1…8，9.52 对账 分项和 8=建例 8。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("icmp"), dict):
+                lays.append((c.get("id", "?"), l["icmp"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    for kw, name in [
+        ("t1_smoke", "T-1 smoke 配对"),
+        ("t2_header_bytes", "T-2 头字节钉"),
+        ("t3_explicit", "T-3 显式 id/seq/data"),
+        ("t4_pattern", "T-4 Pattern 多轮"),
+        ("t5_neg_type", "T-5 type 区间拒"),
+        ("t6_neg_code", "T-6 code 拒"),
+        ("t7_neg_presence", "T-7 顶层 presence 判死"),
+        ("t8_neg_static_copy", "T-8 静态复制拒"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    for k in ["type", "code", "identifier", "sequence", "data", "pattern"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    for needle, name in [
+        ("icmp type must be 8 (Echo Request) or 0 (Echo Reply), got 3", "T-5 type 锚"),
+        ("icmp code must be 0 for Echo, got 1", "T-6 code 锚"),
+        ("no longer accepts a top-level icmp", "T-7 presence 锚"),
+        ("static four-tuple", "T-8 静态复制锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+    return rows
+
+
 def check_arp(cases):
     """D-ARP-1 P6 反查表（T-ARP-1…12，9.52 对账 分项和 12=建例 12。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -2017,7 +2056,7 @@ def check_vnc(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp}
 
 
 def main(argv):
