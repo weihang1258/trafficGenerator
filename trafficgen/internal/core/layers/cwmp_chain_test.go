@@ -242,8 +242,9 @@ func TestCWMPChain_RequestLineTarget(t *testing.T) {
 	for pkt := range ch {
 		if pkt.Direction == "up" && len(pkt.Payload) >= 15 {
 			// P0b 基线首请求=inform POST；请求行在 TCP payload 起始。
-			head := string(pkt.Payload[:15])
-			if head == "POST  HTTP/1.1" {
+			// N1 勘误：原实现取 [:15] 与 14 字节串比相等恒 false（空断言，
+			// 复审突变回退实测 ⑧ 不红）——改 HasPrefix 真守卫。
+			if strings.HasPrefix(string(pkt.Payload), "POST  HTTP/1.1") {
 				t.Fatal("empty request-target on the wire (want `POST / HTTP/1.1`; session URI default missing)")
 			}
 		}

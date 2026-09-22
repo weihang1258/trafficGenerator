@@ -3846,7 +3846,9 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 | L4 | coverage_gate device_id 行查用例 id 而泛锚 value | 用例锚词升级为 validator 具体文案 `not six uppercase hex digits`，gate 行改同锚 |
 | L5 | in-store 防御分支无红例 | 本块登记：纯防御（在库 cwmp 0 条），不设红例 |
 
-修轮后：suite 153/153 ×2（含六例新钉）、反查 20/20、门2 四项绿、race/vet 绿。
+| N1（定向复验 NEW） | 红例⑧ RequestLineTarget 空断言（原实现 [:15] 切片与 14 字节串比相等恒 false——突变回退修3 后 ⑧ 仍绿） | 一行修：改 `strings.HasPrefix(payload, "POST  HTTP/1.1")`；突变自验：回退 URI 兜底→⑧ 红（报文 `empty request-target on the wire`）、本树 8/8 绿 |
+
+修轮后：suite 153/153 ×2（含六例新钉）、反查 20/20、门2 四项绿、race/vet 绿；N1 修后链级 8/8（突变双向验证）。
 
 ### 文件清单（P4）
 
