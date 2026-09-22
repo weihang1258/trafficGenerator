@@ -1,0 +1,336 @@
+[
+ {
+  "id": "icmp_t1_smoke",
+  "proto": "icmp",
+  "summary": "T-1 smoke 配对：缺省 ping 2 帧——ip.proto=1；icmp.type p1=8/p2=0；src/dst 换向",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "icmp": {}
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "ip.proto",
+     "value": "1"
+    },
+    {
+     "packet": 1,
+     "field": "icmp.type",
+     "value": "8"
+    },
+    {
+     "packet": 2,
+     "field": "icmp.type",
+     "value": "0"
+    },
+    {
+     "packet": 2,
+     "field": "ip.src",
+     "value": "20.0.0.1"
+    }
+   ],
+   "notes": [
+    "缺省 type=8/code=0/seq=1/data=ping（决策 D1 镜像 flat parse）；id=0 回退 Sequence=1",
+    "角色互换：p2 ip.src=20.0.0.1（对端）"
+   ]
+  }
+ },
+ {
+  "id": "icmp_t2_header_bytes",
+  "proto": "icmp",
+  "summary": "T-2 头字节钉：8B 头整钉（type 08/code 00/校验和 192d/id=seq=1 回退面）+data ping；体首=帧偏移 34（eth14+ip20）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "icmp": {}
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "icmp.type",
+     "value": "8"
+    }
+   ],
+   "notes": [
+    "校验和预计算 RFC 1071：0800 0000 0001 0001 + ping → 0x192d；reply(0000) → 0x192f",
+    "重钉实录：reply 校验和首算 192f 误（0xE6D0 加错）→ pcap 实测 212d"
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 34,
+     "hex": "08 00 19 2d 00 01 00 01"
+    },
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "70 69 6e 67"
+    },
+    {
+     "packet": 2,
+     "offset": 34,
+     "hex": "00 00 21 2d 00 01 00 01"
+    },
+    {
+     "packet": 2,
+     "offset": 42,
+     "hex": "70 69 6e 67"
+    }
+   ]
+  }
+ },
+ {
+  "id": "icmp_t3_explicit",
+  "proto": "icmp",
+  "summary": "T-3 显式 identifier=7/sequence=9/data=abc 覆盖钉",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "icmp": {
+      "identifier": 7,
+      "sequence": 9,
+      "data": "abc"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "icmp.ident",
+     "value": "7"
+    },
+    {
+     "packet": 1,
+     "field": "icmp.seq",
+     "value": "9"
+    }
+   ],
+   "notes": [
+    "显式 id=7 不走回退面（id=0 才回退 Sequence）"
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 34,
+     "hex": "08 00 33 8d 00 07 00 09"
+    },
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "61 62 63"
+    },
+    {
+     "packet": 2,
+     "offset": 34,
+     "hex": "00 00 3b 8d 00 07 00 09"
+    }
+   ]
+  }
+ },
+ {
+  "id": "icmp_t4_pattern",
+  "proto": "icmp",
+  "summary": "T-4 Pattern 多轮：2×echo 步 → 4 帧（req+auto-reply×2）；identifier=5 显式、seq 1/2 递增、data aa/bb 逐字节",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "icmp": {
+      "identifier": 5,
+      "pattern": [
+       {
+        "type": 8,
+        "sequence": 1,
+        "data": "aa"
+       },
+       {
+        "type": 8,
+        "sequence": 2,
+        "data": "bb"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 4,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "icmp.seq",
+     "value": "1"
+    },
+    {
+     "packet": 3,
+     "field": "icmp.seq",
+     "value": "2"
+    },
+    {
+     "packet": 4,
+     "field": "icmp.type",
+     "value": "0"
+    }
+   ],
+   "notes": [
+    "Pattern 每 echo 步自动 reply；step seq 显式 1/2",
+    "重钉实录：p4=reply2（帧序 req1/rep1/req2/rep2）首标 req2 误 → pcap 实测"
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 34,
+     "hex": "08 00 96 98 00 05 00 01"
+    },
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "61 61"
+    },
+    {
+     "packet": 4,
+     "offset": 34,
+     "hex": "00 00 9d 96 00 05 00 02"
+    },
+    {
+     "packet": 4,
+     "offset": 42,
+     "hex": "62 62"
+    }
+   ]
+  }
+ },
+ {
+  "id": "icmp_t5_neg_type",
+  "proto": "icmp",
+  "summary": "负例：type=3 非 Echo 拒（validator 逐步校验）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "icmp": {
+      "type": 3
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "icmp type must be 8 (Echo Request) or 0 (Echo Reply), got 3"
+  }
+ },
+ {
+  "id": "icmp_t6_neg_code",
+  "proto": "icmp",
+  "summary": "负例：code=1 拒（Echo code 恒 0）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "icmp": {
+      "type": 8,
+      "code": 1
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "icmp code must be 0 for Echo, got 1"
+  }
+ },
+ {
+  "id": "icmp_t7_neg_presence",
+  "proto": "icmp",
+  "summary": "负例：层链+顶层 icmp 子映射并存=判死（presence 负例形状）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "icmp": {}
+    }
+   ],
+   "icmp": {}
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "no longer accepts a top-level icmp"
+  }
+ },
+ {
+  "id": "icmp_t8_neg_static_copy",
+  "proto": "icmp",
+  "summary": "负例：ip 层显式标量+strategy_fc flows=2 → 框架层链门（icmpv6_vn_static_copy 同款）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "icmp": {}
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "static four-tuple"
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  }
+ }
+]
