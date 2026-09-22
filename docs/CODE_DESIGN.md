@@ -3806,6 +3806,25 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 8. **动态面**：业务键（sessions/transactions/auth 全键）静态单值——B6 未做业务动态（会话端点覆盖=静态 per-session 值非策略），声明无动态消费面；四元组走 ip/tcp 层框架策略（150 例静态直发）。cwmp:ID 自增=序号算法（layer_gen autoIDCtr，B6 §9 ID 权威），非动态策略面。
 9. **回滚**：单提交粒度摘除（registry Fields+translate case+判死+cases 整形各归一提交）。
 
+### 门 1 开工对照表（§1–§14，2026-09-22 cwmp P6 回填，证据=文档节/代码行/用例号）
+
+| § | 要求 | cwmp 怎么满足 + 证据 |
+|---|---|---|
+| §1 | 层链唯一真相 | 150 例顶层 `cwmp` 子映射迁入 cwmp 层六键（beec434）；presence 判死（SC CheckProtoFlat + T-151）；目标形 `{"layers":[ip,tcp,http,cwmp六键]}`（cases 首例）；在库 0\|0（live 库两清对账平） |
+| §2 | 策略/任务分工 | 框架语义未动；T-153 空层缺省面=单策略模板可复用 |
+| §3 | 五件套 | 会话表 sessions[]（一连接一会话）/事务序列 transactions[]（kind 定方向）/关联 flows[] driven_by 锚点+Set-Cookie 回显+id 关联/插入位置（副连接锚点后）/时间线（sequential|concurrent 轮转）——B6 设计 §5 + layer_gen sessionRun 状态机 |
+| §4 | 规范矩阵 | TR-069 Issue 1 A6 Corr 1 基线，八项确认态+承载面缺口（本条目 P1 表）；B6 契约逐条标注出处 |
+| §5 | 依赖与错误处理 | DependsOn http + FieldContract tcp.dst_port=7547（RG）；validator 双层 device_id 校验+profile/namespace 域+B6 §7 锚词表（41 负例在案） |
+| §6 | 性能与验收 | 包数公式（每事务 1 帧+TCP 3+4）；pcap 路 suite ×2；网卡路框架级注记（家族口径） |
+| §7 | 三份文档 | B6 契约（protocol-designs/64-cwmp-*）+ D-CWMP-1 + T-CWMP-1…153 |
+| §8 | 设计先行 | B6 契约 v2.2.2 先于实现（历史）；本迁移 D-CWMP-1 裁定 9 条先于 P4 落地（6912ba5 同提交粒度，如实注记） |
+| §9 | 测试三源+颗粒度 | 三源=TR-069 标准文本+D-CWMP-1+legacy 行为面；150 例 B6 契约全枚举（109 正+41 负）+3 新例；一例一行为点 |
+| §10 | 评审闭环 | 每阶段自审+收官隔离复审（子代理）+修轮定向复审；红先绿后（链级红例 5+负例 153 例中 44） |
+| §11 | 白话汇报 | 每阶段白话一句先行（P4/P5/P6 汇报口径） |
+| §12 | 动态字段 | 四元组走 ip/tcp 层框架策略；业务键静态单值如实声明（裁定8）；cwmp:ID 自增=序号算法面（layer_gen autoIDCtr，B6 §9 ID 权威） |
+| §13 | schema | registry 六键→schemagen 再生（TestLayersGeneratedMatchesRegistry 绿）；V9 只验顶层键、嵌套值语义归 translate+validator |
+| §14 | 真实流程 | suite 153/153 ×2（MCP 建任务→引擎生成→tshark 校对）；pcap 落盘 /tmp/mcp-pcaps/cwmp/；负例 44 锚词真红 |
+
 ### 文件清单（P4）
 
 - Modify: `internal/core/layers/registry.go`（cwmp 层 Fields 六键）
