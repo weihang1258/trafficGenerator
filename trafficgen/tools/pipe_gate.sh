@@ -71,6 +71,13 @@ PYEOF
     cwmp)
       _pres_key="cwmp"
       ;;
+    # D-KINGBASE-1 裁定1/裁定3：协议身份退役（唯一形态=postgresql 层
+    # dialect=kingbase，cases 自带 proto=postgresql）——无自键 presence 门
+    # （白名单即 400，CheckProtoFlat 创建路径不可达）；游离顶层键由上方
+    # 通用"顶层子映射并存"黄线覆盖，立项缺口已登记 D-条目 G5。
+    kingbase)
+      _pres_key=""
+      ;;
     dns|mqtt|smtp|pop3|imap|mcp|srv6|fins|goose|sv|icmpv6|h323|mpls|ngap|telnet|sip|radius|pppoe|ldap|rtmp|rtsp|pptp|vnc|xmpp|sctp|jt808|jt809|jtt905|arp|icmp)
       _pres_key="$PROTO"
       ;;
@@ -113,7 +120,11 @@ else
   fi
 fi
 
-echo "== 门2-2 用例全量绿: 本脚本不跑suite（调用方跑 CASE_PROTO=$PROTO 全量，贴 RESULT 行）"
+if [ "$PROTO" = "kingbase" ]; then
+  echo "== 门2-2 用例全量绿: 本脚本不跑suite（退役口径：调用方跑 CASE_PROTO=postgresql 全量——kingbase.json 15 例自带 proto=postgresql，贴 RESULT 行）"
+else
+  echo "== 门2-2 用例全量绿: 本脚本不跑suite（调用方跑 CASE_PROTO=$PROTO 全量，贴 RESULT 行）"
+fi
 echo "== 门2-4 覆盖反查: coverage_gate.py（已登记协议才查，未登记判黄不挡路）"
 if [ -f "trafficgen/tools/coverage_gate.py" ]; then
   python3 trafficgen/tools/coverage_gate.py "$PROTO" 2>&1 | tail -8

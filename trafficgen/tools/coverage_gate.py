@@ -1964,6 +1964,75 @@ def check_cwmp(cases):
     return rows
 
 
+
+def check_kingbase(cases):
+    """D-KINGBASE-1 P6 反查表（T-KINGBASE-1…15，退役口径：协议身份=postgresql dialect，
+    9.52 对账 分项和 15=建例 15。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent  # trafficgen/
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("postgresql"), dict):
+                lays.append((c.get("id", "?"), l["postgresql"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 退役面（G5）：白名单摘除 + negativeOnly 守卫 + 死遗留零残留。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单无 kingbase（退役：create→400）", '"kingbase": true' not in pg,
+                 "已摘除" if '"kingbase": true' not in pg else "白名单仍收"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    rows.append(("negativeOnly 收 kingbase（must remain rejected 守卫）",
+                 pt.count('"kingbase"') >= 1 and '"kingbase": true' not in pt,
+                 "守卫在列"))
+    rows.append(("protocol/kingbase 包已删", not (tg / "internal" / "protocol" / "kingbase").exists(), "包不存在"))
+    tys = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("types.go 死类型零残留（KingBaseConfig/Session/Event/FlowSpec.KingBase）",
+                 all(x not in tys for x in ("type KingBaseConfig", "type KingBaseSession", "type KingBaseEvent", "KingBase  *KingBaseConfig")),
+                 "零残留"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.KingBase 已删", "KingBase *core.KingBaseConfig" not in gen, "零残留"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate KingBase 行已删", "spec.KingBase" not in tr, "零残留"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空导入已删", "protocol/kingbase" not in mn, "零残留"))
+
+    # 2. dialect 面确认（零改动验收线）。
+    bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "postgresql"]
+    rows.append(("15 例 proto 全=postgresql（退役跑法 CASE_PROTO=postgresql）", not bad_proto, bad_proto or "全 postgresql"))
+    hit = next((cid for cid, m in lays if m.get("dialect") == "kingbase"), None)
+    rows.append(("dialect=kingbase 层键", hit is not None, hit or "无用例"))
+    reg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("FieldContract dialect 契约 54321 在案", '"kingbase": {"tcp.dst_port": "54321"}' in reg, "registry.go 在列"))
+    cps = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain_planner dialect 端口分支在案", 'dialect == "kingbase"' in cps, "chain_planner.go 在列"))
+
+    # 3. 负例锚词（六负例具体锚）。
+    for needle, name in [
+        ("54321", "neg_port 端口契约锚"),
+        ("length", "neg_truncated 长度锚"),
+        ("limit", "neg_oversize 上限锚"),
+    ]:
+        found = needle in blob
+        rows.append((name, found, "锚词出现" if found else "无用例"))
+    # neg_udp/neg_state 锚词为短值（"tcp"/"state"）——对 expect.error_contains
+    # 字段直读断言（blob 全文搜短词无判别力）。
+    def _err_anchor(kwid, want):
+        c = next((c for c in cases if kwid in c.get("id", "")), None)
+        got = (c.get("expect", {}) or {}).get("error_contains") if c else None
+        return got == want, got or "无用例"
+    ok, ev = _err_anchor("neg_udp", "tcp")
+    rows.append(("neg_udp 承载锚（error_contains=tcp）", ok, ev))
+    ok, ev = _err_anchor("neg_state", "state")
+    rows.append(("neg_state 状态机锚（error_contains=state）", ok, ev))
+
+    # 4. 顶层残留为零（退役口径：kingbase.json 只允许 layers）。
+    leaked = sorted({k for c in cases for k in (c.get("spec_json", {}) or {}) if k != "layers"})
+    rows.append(("顶层残留为零（仅 layers）", not leaked, leaked or "零残留"))
+    return rows
+
 def check_arp(cases):
     """D-ARP-1 P6 反查表（T-ARP-1…12，9.52 对账 分项和 12=建例 12。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -2116,7 +2185,7 @@ def check_vnc(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase}
 
 
 def main(argv):
