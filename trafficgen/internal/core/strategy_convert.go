@@ -931,6 +931,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// 时 80 穿透到线上，D-JT808-1 P5 勘误教训移植）。从链 8813=生成器
 		// 合成面，无 spec 字段。
 		setDefaultDstPort(&spec, cfg, 8812)
+	case "jtt905":
+		if sub, ok := cfg["jtt905"].(map[string]interface{}); ok {
+			spec.JTT905 = ParseJTT905ConfigFromMap(sub)
+		}
+		// JT/T 905 defaults to TCP port 10700 (legacy 自选缺省；标准未定
+		// 端口)。legacy PlanWithConfig 内部缺省——mapToFlowSpec 先补
+		// （jt808 80 穿透教训移植；在库 probe 面 dst_port=80 即此病征）。
+		setDefaultDstPort(&spec, cfg, 10700)
 	case "vnc":
 		if sub, ok := cfg["vnc"].(map[string]interface{}); ok {
 			// Parse-level errors (e.g. non-numeric encodings entries) are
@@ -3308,6 +3316,67 @@ func ParseJT809ConfigFromMap(m map[string]interface{}) *JT809Config {
 				DownLinkPort: uint16(getInt(pm, "down_link_port")),
 				ErrorCode:    uint8(getInt(pm, "error_code")),
 				ReasonCode:   uint8(getInt(pm, "reason_code")),
+			})
+		}
+	}
+	return cfg
+}
+
+// ParseJTT905ConfigFromMap parses a jtt905 layer/flat config map into the
+// core JTT905Config (D-JTT905-1：单一真相；链路径空 map 也出非 nil 缺省壳).
+// 数值/位数键直传（V9 区间锚=registry；嵌套 procedures/position 不下探，
+// 语义锚=protocol ValidateConfig）。
+func ParseJTT905ConfigFromMap(m map[string]interface{}) *JTT905Config {
+	if m == nil {
+		return nil
+	}
+	cfg := &JTT905Config{
+		ISUId:                 getString(m, "isu_id"),
+		InitialSN:             uint16(getInt(m, "initial_sn")),
+		PlatformInitialSN:     uint16(getInt(m, "platform_initial_sn")),
+		BusinessLicense:       getString(m, "business_license"),
+		QualificationCode:     getString(m, "qualification_code"),
+		PlateNo:               getString(m, "plate_no"),
+		TaximeterKValue:       getString(m, "taximeter_k_value"),
+		OnDutyPowerOnTime:     getString(m, "on_duty_power_on_time"),
+		OnDutyPowerOffTime:    getString(m, "on_duty_power_off_time"),
+		OnDutyMileage:         getString(m, "on_duty_mileage"),
+		OnDutyOperationMileage: getString(m, "on_duty_operation_mileage"),
+		TrainNumber:           getString(m, "train_number"),
+		TimingTime:            getString(m, "timing_time"),
+		TotalAmount:           getString(m, "total_amount"),
+		CardAmount:            getString(m, "card_amount"),
+		CardCount:             getString(m, "card_count"),
+		OnDutyMileageBetween:  getString(m, "on_duty_mileage_between"),
+		TotalMileage:          getString(m, "total_mileage"),
+		TotalOperationMileage: getString(m, "total_operation_mileage"),
+		UnitPrice:             getString(m, "unit_price"),
+		TotalOperations:       uint32(getInt(m, "total_operations")),
+		SignType:              uint8(getInt(m, "sign_type")),
+		HeartbeatCount:        getInt(m, "heartbeat_count"),
+	}
+	if pm, ok := m["position"].(map[string]interface{}); ok {
+		cfg.Position = &JTT905Position{
+			AlarmFlag:  uint32(getInt(pm, "alarm_flag")),
+			StatusFlag: uint32(getInt(pm, "status_flag")),
+			Lat:        uint32(getInt(pm, "lat")),
+			Lng:        uint32(getInt(pm, "lng")),
+			Speed:      uint16(getInt(pm, "speed")),
+			Direction:  uint8(getInt(pm, "direction")),
+			Time:       getString(pm, "time"),
+		}
+	}
+	if v, ok := m["procedures"].([]interface{}); ok {
+		for _, item := range v {
+			prm, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			cfg.Procedures = append(cfg.Procedures, JTT905Procedure{
+				Type:       getString(prm, "type"),
+				Result:     uint8(getInt(prm, "result")),
+				ReplySN:    uint16(getInt(prm, "reply_sn")),
+				ReplyMsgId: uint16(getInt(prm, "reply_msg_id")),
 			})
 		}
 	}
@@ -8257,7 +8326,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 		"pppoe": "[ip,pppoe]", "ldap": "[ip,ldap]", "rtmp": "[ip,rtmp]",
 		"rtsp": "[ip,rtsp]", "pptp": "[ip,pptp]", "vnc": "[ip,vnc]",
 		"xmpp": "[ip,xmpp]", "sctp": "[ip,sctp]",
-		"jt808": "[ip,jt808]", "jt809": "[ip,jt809]",
+		"jt808": "[ip,jt808]", "jt809": "[ip,jt809]", "jtt905": "[ip,jtt905]",
 	}
 	if chainHint, ok := rawWrapChains[protocol]; ok {
 		if v, ok := cfg[protocol]; ok && v != nil {

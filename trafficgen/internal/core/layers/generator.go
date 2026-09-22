@@ -513,6 +513,8 @@ type FlowMeta struct {
 	JT808 *core.JT808Config
 	// D-JT809-1：jt809 raw 链同款。
 	JT809 *core.JT809Config
+	// D-JTT905-1：jtt905 raw 链同款。
+	JTT905 *core.JTT905Config
 	// Radius is the flow's radius config（D-RADIUS-1：raw 自驱终层生成器直传）。Only set for radius chains.
 	Radius *core.RadiusConfig
 	// GBT is the flow's gbt config (注入到 gbt 终结层生成器，B6：BIP 22/23

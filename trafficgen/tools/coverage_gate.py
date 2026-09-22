@@ -1815,6 +1815,55 @@ def check_jt809(cases):
     return rows
 
 
+def check_jtt905(cases):
+    """D-JTT905-1 P6 反查表（T-JTT905-1…10，9.52 对账 分项和 13=建例 12+T-2 承载 2）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("jtt905"), dict):
+                lays.append((c.get("id", "?"), l["jtt905"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    for kw, name in [
+        ("t1_baseline", "T-1 基线关联 12 帧"),
+        ("t2_envelope_header", "T-2 信封+头钉"),
+        ("t3_checkin_body", "T-3 签到体钉"),
+        ("t4_heartbeat_pair", "T-4 心跳对"),
+        ("t5_checkout_body", "T-5 签退体钉"),
+        ("t6_resp_pair", "T-6 应答对"),
+        ("t7_escape_bytes", "T-7 转义真字节"),
+        ("t9_position_block", "T-9 位置块"),
+        ("t10_neg_isu_11digits", "T-10 isu 11 位拒"),
+        ("t11_neg_plate_7ascii", "T-11 plate 7 ASCII 拒"),
+        ("t12_neg_result_3", "T-12 result=3 拒"),
+        ("t13_neg_bcd_digits", "T-13 BCD 位数拒"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    for k in ["isu_id", "initial_sn", "platform_initial_sn", "business_license",
+              "qualification_code", "plate_no", "position", "taximeter_k_value",
+              "on_duty_power_on_time", "on_duty_power_off_time", "on_duty_mileage",
+              "on_duty_operation_mileage", "train_number", "timing_time", "total_amount",
+              "card_amount", "card_count", "on_duty_mileage_between", "total_mileage",
+              "total_operation_mileage", "unit_price", "total_operations", "sign_type",
+              "procedures", "heartbeat_count"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    for needle, name in [
+        ("must be 12 digits", "T-10 isu 锚"),
+        ("PlateNo length 7 > 6", "T-11 plate 锚"),
+        ("Result 3 > 2", "T-12 result 锚"),
+        ("must be 12 digits (yyyyMMddHHmm)", "T-13 BCD 锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+    return rows
+
+
 def check_xmpp(cases):
     """D-XMPP-1 P6 反查表（T-XMPP-1…10，9.52 对账 18/18）。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -1923,7 +1972,7 @@ def check_vnc(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905}
 
 
 def main(argv):

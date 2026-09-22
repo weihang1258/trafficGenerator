@@ -1868,6 +1868,7 @@ type FlowSpec struct {
 	Xmpp        *XmppConfig        `json:"xmpp,omitempty"`
 	JT808       *JT808Config       `json:"jt808,omitempty"`
 	JT809       *JT809Config       `json:"jt809,omitempty"`
+	JTT905      *JTT905Config      `json:"jtt905,omitempty"`
 	DoIP        *DoIPConfig        `json:"doip,omitempty"`
 	TFTP        *TFTPConfig        `json:"tftp,omitempty"`
 	MQTT        *MQTTConfig        `json:"mqtt,omitempty"`
@@ -10855,4 +10856,122 @@ type JT809Procedure struct {
 	// ReasonCode (关闭原因) for main_close(0x1008)/slave_close(0x9008)。
 	// 0-2。
 	ReasonCode uint8 `json:"reason_code,omitempty"`
+}
+
+// JTT905Position models the JT/T 905-2014 0x0200 位置基本信息（25B 基础位，
+// D-JTT905-1 裁定3；方向 1B 由金向量算术钉死；附加列表 B′ 不编排）。
+type JTT905Position struct {
+	// AlarmFlag (报警标志) 4B。
+	AlarmFlag uint32 `json:"alarm_flag"`
+	// StatusFlag (状态位标志) 4B。
+	StatusFlag uint32 `json:"status_flag"`
+	// Lat (纬度) 4B，1e-6 度。
+	Lat uint32 `json:"lat"`
+	// Lng (经度) 4B，1e-6 度。
+	Lng uint32 `json:"lng"`
+	// Speed (速度) 2B，km/h。
+	Speed uint16 `json:"speed"`
+	// Direction (方向) 1B，0-359 取 1B 下位。
+	Direction uint8 `json:"direction"`
+	// Time (时间) "yyMMddHHmmss" 12 位→BCD6。
+	Time string `json:"time"`
+}
+
+// JTT905Config holds JT/T 905-2014 taxi ISU protocol configuration
+// (D-JTT905-1 裁定4：类型迁 core+体重建；legacy 虚构面 phone/driver_id/
+// driver_name/license_color/version/encrypt_flag 等全废弃。json tags 即
+// 用例层键). 线面=808 族 7E 信封（jtcommon 复用），头 12B，DataLength=
+// 纯体长（裁定1）。
+type JTT905Config struct {
+	// ISUId (ISU 标识) 12 位数字→BCD6。必填。
+	ISUId string `json:"isu_id"`
+
+	// InitialSN (ISU 侧起始流水号) MsgNum 计数器起点。
+	InitialSN uint16 `json:"initial_sn,omitempty"`
+
+	// PlatformInitialSN (中心侧起始流水号) 下行 MsgNum 起点。缺省 0。
+	PlatformInitialSN uint16 `json:"platform_initial_sn,omitempty"`
+
+	// BusinessLicense (企业经营许可证号) ASCII，\0 右补 16B。
+	BusinessLicense string `json:"business_license,omitempty"`
+
+	// QualificationCode (驾驶员从业资格证号) ASCII，\0 右补 19B。
+	QualificationCode string `json:"qualification_code,omitempty"`
+
+	// PlateNo (车牌号) ASCII，\0 右补 6B。
+	PlateNo string `json:"plate_no,omitempty"`
+
+	// Position (位置基本信息) 可选——非 nil 时 0x0B03/0x0B04 体首携带 25B。
+	Position *JTT905Position `json:"position,omitempty"`
+
+	// TaximeterKValue (计价器 K 值) 4 位数字→BCD2（0x0B04）。空="0000"。
+	TaximeterKValue string `json:"taximeter_k_value,omitempty"`
+
+	// OnDutyPowerOnTime (当班开机时间) "yyyyMMddHHmm" 12 位→BCD6。空=全 0。
+	OnDutyPowerOnTime string `json:"on_duty_power_on_time,omitempty"`
+
+	// OnDutyPowerOffTime (当班关机时间) 同上。
+	OnDutyPowerOffTime string `json:"on_duty_power_off_time,omitempty"`
+
+	// OnDutyMileage (当班里程) 6 位数字→BCD3。空="000000"。
+	OnDutyMileage string `json:"on_duty_mileage,omitempty"`
+
+	// OnDutyOperationMileage (当班运营里程) 6 位数字→BCD3。空=全 0。
+	OnDutyOperationMileage string `json:"on_duty_operation_mileage,omitempty"`
+
+	// TrainNumber (车次) 4 位数字→BCD2。空="0000"。
+	TrainNumber string `json:"train_number,omitempty"`
+
+	// TimingTime (计时时间) 6 位数字→BCD3。空=全 0。
+	TimingTime string `json:"timing_time,omitempty"`
+
+	// TotalAmount (总计金额) 6 位数字→BCD3。空=全 0。
+	TotalAmount string `json:"total_amount,omitempty"`
+
+	// CardAmount (卡收金额) 6 位数字→BCD3。空=全 0。
+	CardAmount string `json:"card_amount,omitempty"`
+
+	// CardCount (卡次) 4 位数字→BCD2。空="0000"。
+	CardCount string `json:"card_count,omitempty"`
+
+	// OnDutyMileageBetween (班间里程) 4 位数字→BCD2。空="0000"。
+	OnDutyMileageBetween string `json:"on_duty_mileage_between,omitempty"`
+
+	// TotalMileage (总计里程) 8 位数字→BCD4。空=全 0。
+	TotalMileage string `json:"total_mileage,omitempty"`
+
+	// TotalOperationMileage (总运营里程) 8 位数字→BCD4。空=全 0。
+	TotalOperationMileage string `json:"total_operation_mileage,omitempty"`
+
+	// UnitPrice (单价) 4 位数字→BCD2。空="0000"。
+	UnitPrice string `json:"unit_price,omitempty"`
+
+	// TotalOperations (总运营次数) u32。
+	TotalOperations uint32 `json:"total_operations,omitempty"`
+
+	// SignType (签退方式) 1B。
+	SignType uint8 `json:"sign_type,omitempty"`
+
+	// Procedures (业务流程) 显式序列。空=自动生成：签到→应答→(心跳→应答)×N
+	// →签退→应答（HeartbeatCount 缺省 1）。
+	Procedures []JTT905Procedure `json:"procedures"`
+
+	// HeartbeatCount (心跳次数) 自动会话面。缺省 1。
+	HeartbeatCount int `json:"heartbeat_count,omitempty"`
+}
+
+// JTT905Procedure is one step in a JTT905 session（D-JTT905-1 裁定2 5 型）。
+type JTT905Procedure struct {
+	// Type: check_in(0x0B03)/heartbeat(0x0002)/check_out(0x0B04)/
+	// isu_general_response(0x0001)/center_general_response(0x8001)。
+	Type string `json:"type"`
+
+	// Result (结果) 应答族 0-2（成功/失败/消息有误——真枚举，legacy 0-3 废弃）。
+	Result uint8 `json:"result,omitempty"`
+
+	// ReplySN (应答流水号) 应答族绑定；0=自动绑最近上行 SN。
+	ReplySN uint16 `json:"reply_sn,omitempty"`
+
+	// ReplyMsgId (应答消息 ID) 0=自动绑最近上行 MsgId。
+	ReplyMsgId uint16 `json:"reply_msg_id,omitempty"`
 }

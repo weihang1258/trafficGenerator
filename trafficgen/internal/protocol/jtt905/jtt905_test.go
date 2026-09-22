@@ -1,637 +1,250 @@
 package jtt905
 
+// D-JTT905-1 P4 单测面：金向量（SmallChi/JT905 README 0x0200 组包例，
+// 上游 Assert 钉死，含 7D02/7D01 双转义形）逐字节核算、信封+头钉
+// （DataLength=纯体长）、体形钉、解析负路径、ValidateConfig 锚、编排面。
+
 import (
-	"bytes"
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/protocol/jtcommon"
 )
 
-// mustPlan collects all PacketConfig from PlanWithConfig.
-func mustPlan(t *testing.T, spec core.FlowSpec, cfg *JTT905Config) []core.PacketConfig {
-	t.Helper()
-	p := NewPlanner()
-	ch, err := p.PlanWithConfig(context.Background(), spec, cfg)
+// SmallChi/JT905 README 组包例（0x0200 位置信息汇报，上游 Assert.Equal 通过）。
+const goldenWireHex = "7E02000023103456789012007D02000000010000000200BA7F0E07E4F11C" +
+	"003C002110152110100104000000640202007D01347E"
+
+// 锚1：金向量反转义+XOR 复算+头核算（DataLength=35 纯体长/ISU BCD/MsgNum 含 7E 转义位）。
+func TestGoldenVector(t *testing.T) {
+	wire := jtcommon.MustParseHex(goldenWireHex)
+	pf, err := ParseFrame(wire)
 	if err != nil {
-		t.Fatalf("PlanWithConfig error: %v", err)
+		t.Fatalf("ParseFrame: %v", err)
 	}
-	var out []core.PacketConfig
-	for pc := range ch {
-		out = append(out, pc)
+	if pf.MsgID != 0x0200 {
+		t.Fatalf("MsgID %04x, want 0200", pf.MsgID)
 	}
-	return out
+	if pf.DataLength != 35 || len(pf.Body) != 35 {
+		t.Fatalf("DataLength %d body %d, want 35/35（纯体长语义）", pf.DataLength, len(pf.Body))
+	}
+	if pf.ISUId != "103456789012" {
+		t.Fatalf("ISUId %q, want 103456789012", pf.ISUId)
+	}
+	if pf.MsgNum != 0x007E {
+		t.Fatalf("MsgNum %04x, want 007e（线上 7D02 反转义）", pf.MsgNum)
+	}
+	// 体内容锚：报警=1 状态=2 纬=12222222 经=132444444 速=60 方向=0 时间=211015211010。
+	want := "000000010000000200ba7f0e07e4f11c003c00211015211010"
+	if got := hexl(pf.Body[:25]); got != want {
+		t.Fatalf("position base: got %s want %s", got, want)
+	}
 }
 
-// findFrames returns all JTT905 frames parsed from payloads.
-func findFrames(packets []core.PacketConfig) []*ParsedFrame {
-	var out []*ParsedFrame
-	for _, p := range packets {
-		if len(p.Payload) < 14 {
-			continue
-		}
-		if p.Payload[0] != jtcommon.FrameDelimiter {
-			continue
-		}
-		pf, err := ParseFrame(p.Payload)
-		if err != nil {
-			continue
-		}
-		out = append(out, pf)
-	}
-	return out
-}
-
-// TestCheckInSuccess (C-01) verifies 0x1001 hex matches design §7C.8.
-func TestCheckInSuccess(t *testing.T) {
-	cfg := &JTT905Config{
-		Phone:          "013800138000",
-		Version:        jtcommon.Version2019,
-		DriverId:       "11012345678901234567",
-		DriverName:     "张三",
-		LicensePlate:   "京A12345",
-		LicenseColor:   LicenseColorBlue,
-		VehicleModel:   "BJ-TAXI",
-		LoadCapacity:   4,
-		OnTime:         "240803080000",
-		OffTime:        "240803160000",
-		Mileage:        250000,
-		Income:         50000,
-		PassengerCount: 12,
-		InitialSN:      0,
-		Procedures:     []JTT905Procedure{{Type: ProcCheckIn}},
-	}
-	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 50000, DstPort: 10700}
-	packets := mustPlan(t, spec, cfg)
-	frames := findFrames(packets)
-	if len(frames) == 0 {
-		t.Fatalf("no frames")
-	}
-	pf := frames[0]
-	if pf.MsgID != MsgCheckIn {
-		t.Fatalf("MsgID = 0x%04x, want 0x1001", pf.MsgID)
-	}
-	if pf.MsgSN != 0 {
-		t.Fatalf("MsgSN = %d, want 0 (first = InitialSN)", pf.MsgSN)
-	}
-	if pf.BodyLen != 82 {
-		t.Fatalf("BodyLen = %d, want 82", pf.BodyLen)
-	}
-	// MsgBodyProps = 0x0852 (BodyLength=82, Version=2019 bits10-12=010).
-	if pf.MsgBodyProps != 0x0852 {
-		t.Fatalf("MsgBodyProps = 0x%04x, want 0x0852", pf.MsgBodyProps)
-	}
-	if pf.Phone != "013800138000" {
-		t.Fatalf("Phone = %q", pf.Phone)
-	}
-	cb, err := ParseCheckInBody(pf.Body)
+// 锚2：builder 复现金向量（typed 位置块 → 逐字节）。
+func TestBuildFrame_GoldenVector(t *testing.T) {
+	pos, err := buildPosition(&JTT905Position{
+		AlarmFlag: 1, StatusFlag: 2,
+		Lat: 12222222, Lng: 132444444, Speed: 60, Direction: 0,
+		Time: "211015211010",
+	})
 	if err != nil {
-		t.Fatalf("ParseCheckInBody: %v", err)
+		t.Fatalf("buildPosition: %v", err)
 	}
-	if cb.DriverId != "11012345678901234567" {
-		t.Fatalf("DriverId = %q", cb.DriverId)
-	}
-	if cb.DriverName != "张三" {
-		t.Fatalf("DriverName = %q, want 张三", cb.DriverName)
-	}
-	if cb.LicensePlate != "京A12345" {
-		t.Fatalf("LicensePlate = %q", cb.LicensePlate)
-	}
-	if cb.LicenseColor != LicenseColorBlue {
-		t.Fatalf("LicenseColor = %d", cb.LicenseColor)
-	}
-	if cb.OnTime != "240803080000" {
-		t.Fatalf("OnTime = %q", cb.OnTime)
-	}
-	if cb.VehicleModel != "BJ-TAXI" {
-		t.Fatalf("VehicleModel = %q", cb.VehicleModel)
-	}
-	if cb.LoadCapacity != 4 {
-		t.Fatalf("LoadCapacity = %d", cb.LoadCapacity)
-	}
-}
-
-// TestHeartbeatBasic (C-05) verifies 0x0002 has an empty body and
-// MsgBodyProps=0x0800 (design §7C.8 C-33).
-func TestHeartbeatBasic(t *testing.T) {
-	cfg := &JTT905Config{
-		Phone:       "013800138000",
-		Version:     jtcommon.Version2019,
-		DriverId:    "11012345678901234567",
-		InitialSN:   1,
-		Procedures:  []JTT905Procedure{{Type: ProcHeartbeat}},
-	}
-	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 50000, DstPort: 10700}
-	packets := mustPlan(t, spec, cfg)
-	frames := findFrames(packets)
-	if len(frames) == 0 {
-		t.Fatalf("no frames")
-	}
-	pf := frames[0]
-	if pf.MsgID != MsgHeartbeat {
-		t.Fatalf("MsgID = 0x%04x, want 0x0002", pf.MsgID)
-	}
-	if len(pf.Body) != 0 {
-		t.Fatalf("heartbeat body length %d, want 0", len(pf.Body))
-	}
-	if pf.MsgBodyProps != 0x0800 {
-		t.Fatalf("MsgBodyProps = 0x%04x, want 0x0800 (BodyLength=0, Version=2019)", pf.MsgBodyProps)
-	}
-	if pf.MsgSN != 1 {
-		t.Fatalf("MsgSN = %d, want 1", pf.MsgSN)
-	}
-}
-
-// TestAutoProcedures (C-32) verifies the auto-generated session:
-// check-in → response → (heartbeat → response)×3 → check-out → response.
-func TestAutoProcedures(t *testing.T) {
-	cfg := DefaultJTT905Config()
-	cfg.HeartbeatCount = 3
-	cfg.Procedures = nil
-	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 50000, DstPort: 10700}
-	packets := mustPlan(t, spec, cfg)
-	frames := findFrames(packets)
-	// Messages: 1 (check-in) + 1 (resp) + 3*2 (hb+resp) + 1 (check-out)
-	// + 1 (resp) = 10.
-	if len(frames) != 10 {
-		t.Fatalf("got %d frames, want 10", len(frames))
-	}
-	wantIDs := []uint16{
-		MsgCheckIn,
-		MsgCenterGeneralResp,
-		MsgHeartbeat,
-		MsgCenterGeneralResp,
-		MsgHeartbeat,
-		MsgCenterGeneralResp,
-		MsgHeartbeat,
-		MsgCenterGeneralResp,
-		MsgCheckOut,
-		MsgCenterGeneralResp,
-	}
-	for i, id := range wantIDs {
-		if frames[i].MsgID != id {
-			t.Fatalf("frame %d MsgID = 0x%04x, want 0x%04x", i, frames[i].MsgID, id)
-		}
-	}
-	// ISU-side MsgSN: check-in=0, hb1=1, hb2=2, hb3=3, check-out=4 (C-09).
-	wantSNs := []uint16{0, 0, 1, 1, 2, 2, 3, 3, 4, 4}
-	for i, sn := range wantSNs {
-		if frames[i].MsgSN != sn {
-			t.Fatalf("frame %d MsgSN = %d, want %d", i, frames[i].MsgSN, sn)
-		}
-	}
-	// Platform-side MsgSN: 5 responses, SNs = 0,1,2,3,4 (C-34).
-	wantPlatSNs := []uint16{0, 1, 2, 3, 4}
-	var platSNs []uint16
-	for _, f := range frames {
-		if f.MsgID == MsgCenterGeneralResp {
-			platSNs = append(platSNs, f.MsgSN)
-		}
-	}
-	if len(platSNs) != len(wantPlatSNs) {
-		t.Fatalf("got %d platform responses, want %d", len(platSNs), len(wantPlatSNs))
-	}
-	for i, sn := range wantPlatSNs {
-		if platSNs[i] != sn {
-			t.Fatalf("platform response %d MsgSN = %d, want %d", i, platSNs[i], sn)
-		}
-	}
-}
-
-// TestHeartbeatZeroCount (C-07) verifies HeartbeatCount=0 → check-in
-// directly followed by check-out.
-func TestHeartbeatZeroCount(t *testing.T) {
-	cfg := DefaultJTT905Config()
-	cfg.HeartbeatCount = 0
-	cfg.Procedures = nil
-	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 50000, DstPort: 10700}
-	packets := mustPlan(t, spec, cfg)
-	frames := findFrames(packets)
-	// check-in + response + check-out + response = 4.
-	if len(frames) != 4 {
-		t.Fatalf("got %d frames, want 4", len(frames))
-	}
-	if frames[0].MsgID != MsgCheckIn {
-		t.Fatalf("frame 0 = 0x%04x, want 0x1001", frames[0].MsgID)
-	}
-	if frames[2].MsgID != MsgCheckOut {
-		t.Fatalf("frame 2 = 0x%04x, want 0x1002 (no heartbeats)", frames[2].MsgID)
-	}
-}
-
-// TestCheckOutSuccess (C-10) verifies 0x1002 fields.
-func TestCheckOutSuccess(t *testing.T) {
-	cfg := &JTT905Config{
-		Phone:          "013800138000",
-		Version:        jtcommon.Version2019,
-		DriverId:       "11012345678901234567",
-		DriverName:     "张三",
-		LicensePlate:   "京A12345",
-		LicenseColor:   LicenseColorBlue,
-		OffTime:        "240803160000",
-		Mileage:        250000,
-		Income:         50000,
-		PassengerCount: 12,
-		InitialSN:      6,
-		Procedures:     []JTT905Procedure{{Type: ProcCheckOut}},
-	}
-	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 50000, DstPort: 10700}
-	packets := mustPlan(t, spec, cfg)
-	frames := findFrames(packets)
-	if len(frames) == 0 {
-		t.Fatalf("no frames")
-	}
-	pf := frames[0]
-	if pf.MsgID != MsgCheckOut {
-		t.Fatalf("MsgID = 0x%04x, want 0x1002", pf.MsgID)
-	}
-	if pf.MsgSN != 6 {
-		t.Fatalf("MsgSN = %d, want 6", pf.MsgSN)
-	}
-	if pf.BodyLen != 74 {
-		t.Fatalf("BodyLen = %d, want 74", pf.BodyLen)
-	}
-	if pf.MsgBodyProps != 0x084a {
-		t.Fatalf("MsgBodyProps = 0x%04x, want 0x084a", pf.MsgBodyProps)
-	}
-	cb, err := ParseCheckOutBody(pf.Body)
+	attaches := jtcommon.MustParseHex("0104000000640202007d")
+	body := append(append([]byte{}, pos...), attaches...)
+	isuBCD, _ := jtcommon.BCDEncode("103456789012")
+	frame, err := buildSimpleFrame(0x0200, body, isuBCD, 126)
 	if err != nil {
-		t.Fatalf("ParseCheckOutBody: %v", err)
+		t.Fatalf("buildSimpleFrame: %v", err)
 	}
-	if cb.OffTime != "240803160000" {
-		t.Fatalf("OffTime = %q", cb.OffTime)
-	}
-	if cb.Mileage != 250000 {
-		t.Fatalf("Mileage = %d, want 250000", cb.Mileage)
-	}
-	if cb.Income != 50000 {
-		t.Fatalf("Income = %d, want 50000", cb.Income)
-	}
-	if cb.PassengerCount != 12 {
-		t.Fatalf("PassengerCount = %d, want 12", cb.PassengerCount)
+	got := hexl(frame)
+	if !strings.EqualFold(got, goldenWireHex) {
+		t.Fatalf("golden mismatch:\n got %s\nwant %s", got, goldenWireHex)
 	}
 }
 
-// TestCenterGeneralResponse (C-19/C-20/C-37) verifies 0x8001 body is
-// 5 bytes with MsgBodyProps=0x0805 (Version=2019) and no Phone.
-func TestCenterGeneralResponse(t *testing.T) {
-	for _, result := range []uint8{0, 1, 2, 3} {
-		body := buildGeneralResponseBody(2, MsgHeartbeat, result)
-		if len(body) != 5 {
-			t.Fatalf("Result=%d: body length %d, want 5", result, len(body))
-		}
-		rb, err := ParseGeneralResponseBody(body)
-		if err != nil {
-			t.Fatalf("Result=%d parse: %v", result, err)
-		}
-		if rb.ResponseSN != 2 || rb.ResponseMsgID != MsgHeartbeat || rb.Result != result {
-			t.Fatalf("Result=%d: parsed (%d,0x%04x,%d)", result, rb.ResponseSN, rb.ResponseMsgID, rb.Result)
-		}
+// 信封+头钉：DataLength=纯体长（无版本位）。
+func TestDataLengthPureSemantics(t *testing.T) {
+	body := buildGeneralResponseBody(5, 0x8300, 1)
+	frame, err := buildSimpleFrame(MsgISUGeneralResponse, body, mustBCD(t, "103456789012"), 7)
+	if err != nil {
+		t.Fatalf("build: %v", err)
 	}
-	// MsgBodyProps for a 5-byte body + Version=2019 = 0x0805 (C-37).
-	props, _ := jtcommon.EncodeMsgBodyProps(5, jtcommon.Version2019, 0, 0)
-	if props != 0x0805 {
-		t.Fatalf("props = 0x%04x, want 0x0805", props)
-	}
-}
-
-// TestISUGeneralResponseValues (C-14..C-17) verifies 0x0001 Result
-// 0/1/2/3 each produce a 5-byte body.
-func TestISUGeneralResponseValues(t *testing.T) {
-	for _, result := range []uint8{0, 1, 2, 3} {
-		body := buildGeneralResponseBody(1, MsgTextDown, result)
-		if len(body) != 5 {
-			t.Fatalf("Result=%d: body length %d, want 5", result, len(body))
-		}
-	}
-}
-
-// TestValidateBadACK (C-18) verifies ACKFlag=99 is rejected.
-func TestValidateBadACK(t *testing.T) {
-	cfg := DefaultJTT905Config()
-	cfg.Procedures = []JTT905Procedure{{Type: ProcISUGeneralResponse, ACKFlag: 99}}
-	if err := ValidateConfig(cfg); err == nil {
-		t.Fatalf("ACKFlag=99 expected rejection")
-	}
-}
-
-// TestValidateBadPhone (C-23) rejects non-12-digit Phone.
-func TestValidateBadPhone(t *testing.T) {
-	cfg := DefaultJTT905Config()
-	cfg.Phone = "123"
-	if err := ValidateConfig(cfg); err == nil {
-		t.Fatalf("short Phone expected rejection")
-	}
-}
-
-// TestValidateBadDriverId (C-24) rejects non-20-char DriverId.
-func TestValidateBadDriverId(t *testing.T) {
-	cfg := DefaultJTT905Config()
-	cfg.DriverId = "short"
-	if err := ValidateConfig(cfg); err == nil {
-		t.Fatalf("short DriverId expected rejection")
-	}
-}
-
-// TestValidateBadDriverName (C-25) rejects DriverName > 16 GBK bytes.
-func TestValidateBadDriverName(t *testing.T) {
-	cfg := DefaultJTT905Config()
-	cfg.DriverName = "一二三四五六七八九十一二三四五六七" // 17 chars = 34 GBK bytes
-	if err := ValidateConfig(cfg); err == nil {
-		t.Fatalf("long DriverName expected rejection")
-	}
-}
-
-// TestValidateBadOnTime (C-26) rejects malformed OnTime.
-func TestValidateBadOnTime(t *testing.T) {
-	cfg := DefaultJTT905Config()
-	cfg.OnTime = "24-08-03"
-	if err := ValidateConfig(cfg); err == nil {
-		t.Fatalf("bad OnTime expected rejection")
-	}
-}
-
-// TestValidateNegativeHeartbeatCount (C-27) rejects HeartbeatCount < 0.
-func TestValidateNegativeHeartbeatCount(t *testing.T) {
-	cfg := DefaultJTT905Config()
-	cfg.HeartbeatCount = -1
-	if err := ValidateConfig(cfg); err == nil {
-		t.Fatalf("HeartbeatCount=-1 expected rejection")
-	}
-}
-
-// TestHeartbeatIntervalZero (C-28) allows HeartbeatInterval=0.
-func TestHeartbeatIntervalZero(t *testing.T) {
-	cfg := DefaultJTT905Config()
-	cfg.HeartbeatInterval = 0
-	if err := ValidateConfig(cfg); err != nil {
-		t.Fatalf("HeartbeatInterval=0 expected acceptance, got %v", err)
-	}
-}
-
-// TestMsgSNWraparound (C-29) verifies InitialSN=65535 wraps to 0.
-func TestMsgSNWraparound(t *testing.T) {
-	cfg := &JTT905Config{
-		Phone:       "013800138000",
-		Version:     jtcommon.Version2019,
-		DriverId:    "11012345678901234567",
-		InitialSN:   65535,
-		Procedures: []JTT905Procedure{
-			{Type: ProcHeartbeat},
-			{Type: ProcHeartbeat},
-		},
-	}
-	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 50000, DstPort: 10700}
-	packets := mustPlan(t, spec, cfg)
-	frames := findFrames(packets)
-	if len(frames) != 2 {
-		t.Fatalf("got %d frames, want 2", len(frames))
-	}
-	if frames[0].MsgSN != 65535 {
-		t.Fatalf("frame 0 SN = %d, want 65535", frames[0].MsgSN)
-	}
-	if frames[1].MsgSN != 0 {
-		t.Fatalf("frame 1 SN = %d, want 0 (wraparound)", frames[1].MsgSN)
-	}
-}
-
-// TestEscapeInPlate (C-30) verifies 0x7e in GBK plate is escaped.
-// GBK encoding of characters never produces 0x7e (GBK lead bytes are
-// 0x81-0xFE, trail bytes 0x40-0xFE excluding 0x7F) — the adversarial
-// case here is a body byte equal to 0x7e, which the escape layer must
-// still handle. We use an ASCII payload with 0x7e in it.
-func TestEscapeInPlate(t *testing.T) {
-	// Build a frame with a body containing 0x7e via a synthetic message.
-	phoneBCD, _ := jtcommon.BCDEncode("013800138000")
-	props, _ := jtcommon.EncodeMsgBodyProps(1, jtcommon.Version2019, 0, 0)
-	body := []byte{0x7e}
-	frame := buildSimpleFrame(MsgHeartbeat, props, phoneBCD, 1, body)
-	inner := frame[1 : len(frame)-1]
-	if bytes.Contains(inner, []byte{0x7e}) {
-		t.Fatalf("raw 0x7e found in escaped frame: %x", inner)
-	}
-	if !bytes.Contains(inner, []byte{0x7d, 0x02}) {
-		t.Fatalf("escaped 0x7e not found: %x", inner)
-	}
-	// Round-trip.
 	pf, err := ParseFrame(frame)
 	if err != nil {
 		t.Fatalf("ParseFrame: %v", err)
 	}
-	if len(pf.Body) != 1 || pf.Body[0] != 0x7e {
-		t.Fatalf("body = %x", pf.Body)
+	if pf.DataLength != 5 || len(pf.Body) != 5 {
+		t.Fatalf("DataLength %d body %d, want 5/5（纯体长，无版本/加密位）", pf.DataLength, len(pf.Body))
+	}
+	if pf.MsgID != MsgISUGeneralResponse || pf.MsgNum != 7 {
+		t.Fatalf("header: %04x sn=%d", pf.MsgID, pf.MsgNum)
+	}
+	rsn, rid, result, err := pf.GeneralRespBody()
+	if err != nil || rsn != 5 || rid != 0x8300 || result != 1 {
+		t.Fatalf("resp body: %d/%d/%d err=%v", rsn, rid, result, err)
 	}
 }
 
-// TestFullLifecycleE2E (C-31) verifies check-in → heartbeat×3 →
-// check-out full flow.
-func TestFullLifecycleE2E(t *testing.T) {
-	cfg := DefaultJTT905Config()
-	cfg.HeartbeatCount = 3
-	cfg.Procedures = nil
-	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 50000, DstPort: 10700}
-	packets := mustPlan(t, spec, cfg)
-	frames := findFrames(packets)
-	wantIDs := []uint16{
-		MsgCheckIn, MsgCenterGeneralResp,
-		MsgHeartbeat, MsgCenterGeneralResp,
-		MsgHeartbeat, MsgCenterGeneralResp,
-		MsgHeartbeat, MsgCenterGeneralResp,
-		MsgCheckOut, MsgCenterGeneralResp,
-	}
-	if len(frames) != len(wantIDs) {
-		t.Fatalf("got %d frames, want %d", len(frames), len(wantIDs))
-	}
-	for i, id := range wantIDs {
-		if frames[i].MsgID != id {
-			t.Fatalf("frame %d = 0x%04x, want 0x%04x", i, frames[i].MsgID, id)
-		}
-	}
-}
-
-// TestMultiISUIndependent (C-21) verifies 2 ISUs get distinct flowIDs.
-func TestMultiISUIndependent(t *testing.T) {
-	cfg1 := DefaultJTT905Config()
-	cfg1.Phone = "013800138000"
-	cfg1.HeartbeatCount = 2
-	cfg1.Procedures = nil
-	cfg2 := DefaultJTT905Config()
-	cfg2.Phone = "013800138001"
-	cfg2.HeartbeatCount = 2
-	cfg2.Procedures = nil
-	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 50000, DstPort: 10700}
-	p1 := mustPlan(t, spec, cfg1)
-	p2 := mustPlan(t, spec, cfg2)
-	if p1[0].FlowID == p2[0].FlowID {
-		t.Fatalf("flowIDs should differ: %s", p1[0].FlowID)
-	}
-	if p1[0].FlowID != "jtt905-013800138000-0" {
-		t.Fatalf("flowID = %q", p1[0].FlowID)
-	}
-	// MsgSN independence: both start at 0.
-	f1 := findFrames(p1)
-	f2 := findFrames(p2)
-	if f1[0].MsgSN != 0 || f2[0].MsgSN != 0 {
-		t.Fatalf("independent counters broken: %d vs %d", f1[0].MsgSN, f2[0].MsgSN)
-	}
-}
-
-// TestPlatformMsgSNIndependentFromInitialSN (C-34) verifies the platform
-// counter starts at PlatformInitialSN, not InitialSN.
-func TestPlatformMsgSNIndependentFromInitialSN(t *testing.T) {
+// 体形钉：0x0B03/0x0B04 宽度与字段序。
+func TestBodyShapes(t *testing.T) {
 	cfg := &JTT905Config{
-		Phone:             "013800138000",
-		Version:           jtcommon.Version2019,
-		DriverId:          "11012345678901234567",
-		OnTime:            "240803080000", // required by buildCheckInBody (BCD time)
-		InitialSN:         5, // ISU-side
-		PlatformInitialSN: 0, // platform-side
-		Procedures: []JTT905Procedure{
-			{Type: ProcCheckIn},
-			{Type: ProcCenterGeneralResponse, ACKFlag: ACKSuccess},
-			{Type: ProcCenterGeneralResponse, ACKFlag: ACKSuccess},
-		},
+		ISUId:              "103456789012",
+		BusinessLicense:    "BL-001",
+		QualificationCode:  "QC-0001",
+		PlateNo:            "A12345",
+		OnDutyPowerOnTime:  "202408030800",
+		OnDutyPowerOffTime: "202408031600",
+		TaximeterKValue:    "0512",
+		OnDutyMileage:      "001250",
+		TotalMileage:       "00125000",
+		TotalOperations:    12,
+		SignType:           1,
+		Position:           &JTT905Position{Time: "240803080000"},
 	}
-	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 50000, DstPort: 10700}
-	packets := mustPlan(t, spec, cfg)
-	frames := findFrames(packets)
-	// ISU: check-in SN=5. Platform: responses SN=0, then 1.
-	if frames[0].MsgSN != 5 {
-		t.Fatalf("ISU check-in SN = %d, want 5", frames[0].MsgSN)
+	in, err := buildCheckInBody(cfg)
+	if err != nil {
+		t.Fatalf("checkin: %v", err)
 	}
-	if frames[1].MsgSN != 0 {
-		t.Fatalf("first platform response SN = %d, want 0", frames[1].MsgSN)
+	if len(in) != PositionLen+baseCheckInLen {
+		t.Fatalf("checkin body %d, want %d (25 位置+47 基础)", len(in), PositionLen+baseCheckInLen)
 	}
-	if frames[2].MsgSN != 1 {
-		t.Fatalf("second platform response SN = %d, want 1", frames[2].MsgSN)
+	out, err := buildCheckOutBody(cfg)
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+	if len(out) != PositionLen+91 {
+		t.Fatalf("checkout body %d, want %d (25 位置+91 基础)", len(out), PositionLen+91)
 	}
 }
 
-// TestProceduresNonEmptyCustom (C-38) verifies an explicit procedure list
-// is honored exactly (no auto heartbeats inserted).
-func TestProceduresNonEmptyCustom(t *testing.T) {
+// 解析负路径：XOR 破坏/DataLength 自洽。
+func TestParseFrame_Negative(t *testing.T) {
+	frame, err := buildSimpleFrame(MsgHeartbeat, nil, mustBCD(t, "103456789012"), 1)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	bad := append([]byte(nil), frame...)
+	bad[len(bad)-2] ^= 0xFF
+	if _, err := ParseFrame(bad); err == nil || !strings.Contains(err.Error(), "checksum") {
+		t.Fatalf("want checksum mismatch, got %v", err)
+	}
+	// DataLength 篡改（补回正确 XOR，仅剩 DataLength-vs-体 自洽错）。
+	bad2 := append([]byte(nil), frame...)
+	bad2[4] = 0x01 // DataLength 0→1（心跳体为空）
+	var cs byte
+	for _, b := range bad2[1 : len(bad2)-2] {
+		cs ^= b
+	}
+	bad2[len(bad2)-2] = cs
+	if _, err := ParseFrame(bad2); err == nil || !strings.Contains(err.Error(), "DataLength") {
+		t.Fatalf("want DataLength error, got %v", err)
+	}
+}
+
+// ValidateConfig 锚（T-10…13 同源锚词）。
+func TestValidateConfig_Anchors(t *testing.T) {
+	cases := []struct {
+		name string
+		cfg  *JTT905Config
+		want string
+	}{
+		{"isu 11 位", &JTT905Config{ISUId: "12345678901"}, `ISUId "12345678901" must be 12 digits`},
+		{"isu 非数字", &JTT905Config{ISUId: "12345678901a"}, "contains non-digit"},
+		{"plate 7 ASCII", &JTT905Config{ISUId: "103456789012", PlateNo: "A123456"}, "PlateNo length 7 > 6"},
+		{"license 超宽", &JTT905Config{ISUId: "103456789012", BusinessLicense: strings.Repeat("a", 17)}, "BusinessLicense length 17 > 16"},
+		{"result=3", &JTT905Config{ISUId: "103456789012", Procedures: []JTT905Procedure{{Type: ProcCenterGeneralResponse, Result: 3}}}, "Result 3 > 2"},
+		{"未知类型", &JTT905Config{ISUId: "103456789012", Procedures: []JTT905Procedure{{Type: "vehicle_register"}}}, "unknown procedure type"},
+		{"K值位数错", &JTT905Config{ISUId: "103456789012", TaximeterKValue: "123"}, `TaximeterKValue "123" must be 4 digits`},
+		{"uptime 位数错", &JTT905Config{ISUId: "103456789012", OnDutyPowerOnTime: "20240803"}, "OnDutyPowerOnTime \"20240803\" must be 12 digits"},
+		{"nil", nil, "nil config"},
+	}
+	for _, c := range cases {
+		err := ValidateConfig(c.cfg)
+		if err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Fatalf("%s: want %q, got %v", c.name, c.want, err)
+		}
+	}
+	if err := ValidateConfig(DefaultJTT905Config()); err != nil {
+		t.Fatalf("default config must validate: %v", err)
+	}
+}
+
+// 编排面：自动会话 签到→应答→心跳→应答→签退→应答 = 6 消息 + 3+3 = 12 帧；
+// 双计数器/应答自动绑定最近上行。
+func TestPlanWithConfig_AutoSession(t *testing.T) {
 	cfg := &JTT905Config{
-		Phone:          "013800138000",
-		Version:        jtcommon.Version2019,
-		DriverId:       "11012345678901234567",
-		OnTime:         "240803080000", // required by buildCheckInBody
-		OffTime:        "240803160000", // required by buildCheckOutBody
-		InitialSN:      0,
-		Procedures: []JTT905Procedure{
-			{Type: ProcCheckIn},
-			{Type: ProcHeartbeat},
-			{Type: ProcHeartbeat},
-			{Type: ProcCheckOut},
-		},
+		ISUId:     "103456789012",
+		InitialSN: 100,
 	}
-	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 50000, DstPort: 10700}
-	packets := mustPlan(t, spec, cfg)
-	frames := findFrames(packets)
-	wantIDs := []uint16{MsgCheckIn, MsgHeartbeat, MsgHeartbeat, MsgCheckOut}
-	if len(frames) != len(wantIDs) {
-		t.Fatalf("got %d frames, want %d (no auto-completion)", len(frames), len(wantIDs))
+	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcMAC: "02:00:00:00:00:01", DstMAC: "02:00:00:00:00:02"}
+	ch, err := NewPlanner().PlanWithConfig(context.Background(), spec, cfg)
+	if err != nil {
+		t.Fatalf("PlanWithConfig: %v", err)
 	}
-	for i, id := range wantIDs {
-		if frames[i].MsgID != id {
-			t.Fatalf("frame %d = 0x%04x, want 0x%04x", i, frames[i].MsgID, id)
+	var ids []uint16
+	var snsDown []uint16
+	n := 0
+	for pkt := range ch {
+		n++
+		if len(pkt.Payload) > 0 && pkt.Payload[0] == jtcommon.FrameDelimiter {
+			pf, err := ParseFrame(pkt.Payload)
+			if err != nil {
+				t.Fatalf("parse frame %d: %v", n, err)
+			}
+			ids = append(ids, pf.MsgID)
+			if pkt.Direction == "down" {
+				snsDown = append(snsDown, pf.MsgNum)
+			}
+		}
+	}
+	if n != 12 {
+		t.Fatalf("packets %d, want 12 (3+6+3)", n)
+	}
+	want := []uint16{0x0B03, 0x8001, 0x0002, 0x8001, 0x0B04, 0x8001}
+	if len(ids) != len(want) {
+		t.Fatalf("frames %d, want 6", len(ids))
+	}
+	for i := range want {
+		if ids[i] != want[i] {
+			t.Fatalf("msg %d: %04x, want %04x", i, ids[i], want[i])
+		}
+	}
+	// 中心侧应答 SN 从 PlatformInitialSN=0 递增。
+	for i, sn := range snsDown {
+		if sn != uint16(i) {
+			t.Fatalf("down SN %d at %d, want %d", sn, i, i)
 		}
 	}
 }
 
-// TestPadRightSpaceFields (C-36) verifies DriverName/VehicleModel/
-// LicensePlate are 0x20-padded (not 0x00).
-func TestPadRightSpaceFields(t *testing.T) {
-	cfg := &JTT905Config{
-		Phone:        "013800138000",
-		Version:      jtcommon.Version2019,
-		DriverId:     "11012345678901234567",
-		DriverName:   "张三",
-		LicensePlate: "京A12345",
-		LicenseColor: LicenseColorBlue,
-		VehicleModel: "BJ-TAXI",
-		LoadCapacity: 4,
-		OnTime:       "240803080000",
-		InitialSN:    0,
-		Procedures:   []JTT905Procedure{{Type: ProcCheckIn}},
+// 负路径：Plan 硬错 + ValidateConfig 直达。
+func TestPlanWithConfig_Negative(t *testing.T) {
+	if _, err := NewPlanner().PlanWithConfig(context.Background(), core.FlowSpec{}, &JTT905Config{ISUId: "12345"}); err == nil {
+		t.Fatal("want error for short ISUId")
 	}
-	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 50000, DstPort: 10700}
-	packets := mustPlan(t, spec, cfg)
-	frames := findFrames(packets)
-	if len(frames) == 0 {
-		t.Fatalf("no frames")
-	}
-	body := frames[0].Body
-	// DriverName field: bytes 20-35 (16 bytes).
-	// GBK 张三 = 4 bytes (d5 c5 c8 fd) + 12 spaces.
-	if !bytes.Equal(body[20:24], []byte{0xd5, 0xc5, 0xc8, 0xfd}) {
-		t.Fatalf("DriverName GBK = %x", body[20:24])
-	}
-	for i := 24; i < 36; i++ {
-		if body[i] != 0x20 {
-			t.Fatalf("DriverName pad byte %d = 0x%02x, want 0x20", i, body[i])
-		}
-	}
-	// LicensePlate field: bytes 36-56 (21 bytes).
-	// GBK 京A12345 = 8 bytes + 13 spaces.
-	if !bytes.Equal(body[36:44], []byte{0xbe, 0xa9, 'A', '1', '2', '3', '4', '5'}) {
-		t.Fatalf("LicensePlate GBK = %x", body[36:44])
-	}
-	for i := 44; i < 57; i++ {
-		if body[i] != 0x20 {
-			t.Fatalf("LicensePlate pad byte %d = 0x%02x, want 0x20", i, body[i])
-		}
-	}
-	// VehicleModel field: bytes 64-79 (16 bytes).
-	// "BJ-TAXI" = 7 bytes + 9 spaces.
-	if !bytes.Equal(body[64:71], []byte("BJ-TAXI")) {
-		t.Fatalf("VehicleModel = %q", body[64:71])
-	}
-	for i := 71; i < 80; i++ {
-		if body[i] != 0x20 {
-			t.Fatalf("VehicleModel pad byte %d = 0x%02x, want 0x20", i, body[i])
-		}
+	if _, err := NewPlanner().Plan(context.Background(), core.FlowSpec{}); err == nil {
+		t.Fatal("Plan must hard-error")
 	}
 }
 
-// TestCheckInEmptyPlate (C-03) verifies LicensePlate="" → 21 spaces.
-func TestCheckInEmptyPlate(t *testing.T) {
-	cfg := &JTT905Config{
-		Phone:        "013800138000",
-		Version:      jtcommon.Version2019,
-		DriverId:     "11012345678901234567",
-		DriverName:   "张三",
-		LicenseColor: LicenseColorBlue,
-		VehicleModel: "BJ-TAXI",
-		LoadCapacity: 4,
-		OnTime:       "240803080000",
-		InitialSN:    0,
-		Procedures:   []JTT905Procedure{{Type: ProcCheckIn}},
+func mustBCD(t *testing.T, s string) []byte {
+	t.Helper()
+	b, err := jtcommon.BCDEncode(s)
+	if err != nil {
+		t.Fatalf("BCD: %v", err)
 	}
-	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 50000, DstPort: 10700}
-	packets := mustPlan(t, spec, cfg)
-	frames := findFrames(packets)
-	if len(frames) == 0 {
-		t.Fatalf("no frames")
-	}
-	for i := 36; i < 57; i++ {
-		if frames[0].Body[i] != 0x20 {
-			t.Fatalf("empty plate byte %d = 0x%02x, want 0x20", i, frames[0].Body[i])
-		}
-	}
+	return b
 }
 
-// TestPlanRejectsDirectUse (review finding #5): legacy Plan() must return an
-// error instead of an empty channel — an empty channel made engine tasks
-// report "completed" with 0 packets (false completion). PlanWithConfig is the
-// real path.
-func TestPlanRejectsDirectUse(t *testing.T) {
-	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 50000, DstPort: 10700}
-	ch, err := NewPlanner().Plan(context.Background(), spec)
-	if err == nil {
-		t.Fatal("Plan() returned nil error, want error (use PlanWithConfig)")
+func hexl(b []byte) string {
+	const digits = "0123456789abcdef"
+	out := make([]byte, 0, len(b)*2)
+	for _, x := range b {
+		out = append(out, digits[x>>4], digits[x&0xF])
 	}
-	if ch != nil {
-		t.Fatalf("Plan() returned a channel, want nil")
-	}
+	return string(out)
 }

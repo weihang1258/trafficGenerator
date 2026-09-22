@@ -82,6 +82,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/imap"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/jt808"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/jt809"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/jtt905"
 	"github.com/trafficgen/trafficgen/internal/protocol/jt809"
 	"github.com/trafficgen/trafficgen/internal/protocol/jtt905"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/kingbase"
@@ -589,6 +590,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("tftp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("jt808"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("jt809"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("jtt905"))
 	app.engine.RegisterPlanner(jt809.NewPlanner())
 	app.engine.RegisterPlanner(jtt905.NewPlanner())
 	app.engine.RegisterPlanner(layers.NewChainPlanner("doip"))

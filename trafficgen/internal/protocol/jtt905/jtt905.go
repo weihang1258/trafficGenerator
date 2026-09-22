@@ -13,27 +13,21 @@ import (
 )
 
 const (
-	// DefaultTTL (默认TTL) used when spec.TTL is zero.
 	DefaultTTL = 64
-	// DefaultMSS mirrors internal/protocol/tcp.DefaultMSS.
 	DefaultMSS = 1460
-	// MinMSS per RFC 879.
-	MinMSS = 536
+	MinMSS     = 536
 )
 
-// Planner implements the JT/T 905-2014 protocol planner. A single JTT905
-// flow models ONE taxi ISU session over one TCP 4-tuple (design §6C).
+// Planner implements the JT/T 905.2-2014 taxi ISU protocol planner. One
+// flow = one ISU session over a single TCP 4-tuple (default port 10700).
 type Planner struct{}
 
-// NewPlanner creates a new JTT905 planner.
 func NewPlanner() *Planner { return &Planner{} }
 
-// Name returns the protocol name.
 func (p *Planner) Name() string { return "jtt905" }
 
-// Validate validates the L3/L4 fields of the spec. Config validation is
-// performed via ValidateConfig (core FlowSpec does not carry a JTT905
-// pointer until the main agent wires integration).
+// Validate validates the L3/L4 spec fields. Business validation lives in
+// ValidateConfig (chain validator anchor).
 func (p *Planner) Validate(spec core.FlowSpec) error {
 	if spec.SrcIP != "" {
 		if net.ParseIP(spec.SrcIP) == nil {
@@ -51,109 +45,98 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	return nil
 }
 
-// ValidateConfig validates a JTT905 config (design §5C.1).
+// ValidateConfig validates a JTT905 config（D-JTT905-1 裁定3/6 锚：
+// isu_id 12 位/plate≤6 ASCII/Result 0-2/BCD 位数族——嵌套 procedures V9
+// 不下探的拦截点=此处遍历）.
 func ValidateConfig(cfg *JTT905Config) error {
 	if cfg == nil {
 		return fmt.Errorf("jtt905: nil config")
 	}
-	// Phone: ^\d{12}$.
-	if len(cfg.Phone) != 12 {
-		return fmt.Errorf("jtt905: Phone %q must be 12 digits", cfg.Phone)
+	if len(cfg.ISUId) != 12 {
+		return fmt.Errorf("jtt905: ISUId %q must be 12 digits", cfg.ISUId)
 	}
-	for i := 0; i < len(cfg.Phone); i++ {
-		if cfg.Phone[i] < '0' || cfg.Phone[i] > '9' {
-			return fmt.Errorf("jtt905: Phone %q contains non-digit", cfg.Phone)
+	for i := 0; i < len(cfg.ISUId); i++ {
+		if cfg.ISUId[i] < '0' || cfg.ISUId[i] > '9' {
+			return fmt.Errorf("jtt905: ISUId %q contains non-digit", cfg.ISUId)
 		}
 	}
-	// Version.
-	if cfg.Version != "" && cfg.Version != jtcommon.Version2011 &&
-		cfg.Version != jtcommon.Version2013 && cfg.Version != jtcommon.Version2019 {
-		return fmt.Errorf("jtt905: invalid Version %q", cfg.Version)
+	if len(cfg.BusinessLicense) > LicenseLen {
+		return fmt.Errorf("jtt905: BusinessLicense length %d > %d", len(cfg.BusinessLicense), LicenseLen)
 	}
-	// EncryptFlag.
-	if cfg.EncryptFlag > 1 {
-		return fmt.Errorf("jtt905: EncryptFlag %d must be 0 or 1", cfg.EncryptFlag)
-	}
-	// DriverId: exactly 20 ASCII chars.
-	if len(cfg.DriverId) != DriverIdLen {
-		return fmt.Errorf("jtt905: DriverId length %d != %d", len(cfg.DriverId), DriverIdLen)
-	}
-	for i := 0; i < len(cfg.DriverId); i++ {
-		if cfg.DriverId[i] > 0x7F {
-			return fmt.Errorf("jtt905: DriverId non-ASCII at %d", i)
+	for i := 0; i < len(cfg.BusinessLicense); i++ {
+		if cfg.BusinessLicense[i] > 0x7F {
+			return fmt.Errorf("jtt905: BusinessLicense non-ASCII at %d", i)
 		}
 	}
-	// DriverName: GBK ≤ 16 bytes.
-	dn, err := jtcommon.GBKEncode(cfg.DriverName)
-	if err != nil {
-		return fmt.Errorf("jtt905: DriverName GBK: %w", err)
+	if len(cfg.QualificationCode) > QualCodeLen {
+		return fmt.Errorf("jtt905: QualificationCode length %d > %d", len(cfg.QualificationCode), QualCodeLen)
 	}
-	if len(dn) > DriverNameLen {
-		return fmt.Errorf("jtt905: DriverName GBK length %d > %d", len(dn), DriverNameLen)
-	}
-	// LicensePlate: GBK ≤ 21 bytes.
-	plate, err := jtcommon.GBKEncode(cfg.LicensePlate)
-	if err != nil {
-		return fmt.Errorf("jtt905: LicensePlate GBK: %w", err)
-	}
-	if len(plate) > LicensePlateLen {
-		return fmt.Errorf("jtt905: LicensePlate GBK length %d > %d", len(plate), LicensePlateLen)
-	}
-	// LicenseColor: 0,1,2,3,4,5,9.
-	switch cfg.LicenseColor {
-	case 0, 1, 2, 3, 4, 5, 9:
-	default:
-		return fmt.Errorf("jtt905: LicenseColor %d invalid (allowed 0,1,2,3,4,5,9)", cfg.LicenseColor)
-	}
-	// OnTime / OffTime: 12-digit BCD + valid date.
-	if cfg.OnTime != "" {
-		if _, err := jtcommon.EncodeTimeBCD(cfg.OnTime); err != nil {
-			return fmt.Errorf("jtt905: OnTime: %w", err)
+	for i := 0; i < len(cfg.QualificationCode); i++ {
+		if cfg.QualificationCode[i] > 0x7F {
+			return fmt.Errorf("jtt905: QualificationCode non-ASCII at %d", i)
 		}
 	}
-	if cfg.OffTime != "" {
-		if _, err := jtcommon.EncodeTimeBCD(cfg.OffTime); err != nil {
-			return fmt.Errorf("jtt905: OffTime: %w", err)
+	if len(cfg.PlateNo) > PlateLen {
+		return fmt.Errorf("jtt905: PlateNo length %d > %d", len(cfg.PlateNo), PlateLen)
+	}
+	for i := 0; i < len(cfg.PlateNo); i++ {
+		if cfg.PlateNo[i] > 0x7F {
+			return fmt.Errorf("jtt905: PlateNo non-ASCII at %d", i)
 		}
 	}
-	// VehicleModel: ASCII ≤ 16.
-	if len(cfg.VehicleModel) > VehicleModelLen {
-		return fmt.Errorf("jtt905: VehicleModel length %d > %d", len(cfg.VehicleModel), VehicleModelLen)
-	}
-	for i := 0; i < len(cfg.VehicleModel); i++ {
-		if cfg.VehicleModel[i] > 0x7F {
-			return fmt.Errorf("jtt905: VehicleModel non-ASCII at %d", i)
+	// BCD 位数族（0x0B04；空=缺省全 0 合法）。
+	for _, f := range []struct {
+		v   string
+		n   int
+		key string
+	}{
+		{cfg.TaximeterKValue, 4, "TaximeterKValue"},
+		{cfg.OnDutyMileage, 6, "OnDutyMileage"},
+		{cfg.OnDutyOperationMileage, 6, "OnDutyOperationMileage"},
+		{cfg.TrainNumber, 4, "TrainNumber"},
+		{cfg.TimingTime, 6, "TimingTime"},
+		{cfg.TotalAmount, 6, "TotalAmount"},
+		{cfg.CardAmount, 6, "CardAmount"},
+		{cfg.CardCount, 4, "CardCount"},
+		{cfg.OnDutyMileageBetween, 4, "OnDutyMileageBetween"},
+		{cfg.TotalMileage, 8, "TotalMileage"},
+		{cfg.TotalOperationMileage, 8, "TotalOperationMileage"},
+		{cfg.UnitPrice, 4, "UnitPrice"},
+	} {
+		if f.v != "" && len(f.v) != f.n {
+			return fmt.Errorf("jtt905: %s %q must be %d digits", f.key, f.v, f.n)
 		}
 	}
-	// HeartbeatCount / HeartbeatInterval: ≥ 0.
-	if cfg.HeartbeatCount < 0 {
-		return fmt.Errorf("jtt905: HeartbeatCount %d must be >= 0", cfg.HeartbeatCount)
+	if cfg.OnDutyPowerOnTime != "" && len(cfg.OnDutyPowerOnTime) != 12 {
+		return fmt.Errorf("jtt905: OnDutyPowerOnTime %q must be 12 digits (yyyyMMddHHmm)", cfg.OnDutyPowerOnTime)
 	}
-	if cfg.HeartbeatInterval < 0 {
-		return fmt.Errorf("jtt905: HeartbeatInterval %d must be >= 0", cfg.HeartbeatInterval)
+	if cfg.OnDutyPowerOffTime != "" && len(cfg.OnDutyPowerOffTime) != 12 {
+		return fmt.Errorf("jtt905: OnDutyPowerOffTime %q must be 12 digits (yyyyMMddHHmm)", cfg.OnDutyPowerOffTime)
 	}
-	// Per-procedure ACKFlag: 0-3 only (design §7C.5 — no 99).
-	for _, pr := range cfg.Procedures {
-		if pr.Type == ProcCenterGeneralResponse || pr.Type == ProcISUGeneralResponse {
-			if pr.ACKFlag > 3 {
-				return fmt.Errorf("jtt905: ACKFlag %d invalid (allowed 0,1,2,3)", pr.ACKFlag)
-			}
+	if cfg.Position != nil && cfg.Position.Time != "" && len(cfg.Position.Time) != 12 {
+		return fmt.Errorf("jtt905: position Time %q must be 12 digits (yyMMddHHmmss)", cfg.Position.Time)
+	}
+	for i := range cfg.Procedures {
+		pr := &cfg.Procedures[i]
+		if _, ok := msgTypeByName[pr.Type]; !ok {
+			return fmt.Errorf("jtt905: unknown procedure type %q (procedures[%d])", pr.Type, i)
+		}
+		if (pr.Type == ProcCenterGeneralResponse || pr.Type == ProcISUGeneralResponse) && pr.Result > 2 {
+			return fmt.Errorf("jtt905: Result %d > 2 (allowed 0,1,2)", pr.Result)
 		}
 	}
 	return nil
 }
 
-// Plan is not supported for JTT905: the engine requires a full config which
-// the core FlowSpec cannot carry. Returning an empty channel here made tasks
-// report "completed" with 0 packets. Callers must use PlanWithConfig.
+// Plan is not supported: the engine requires the full config. Use
+// PlanWithConfig (唯一入口，防 0 包静默).
 func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.PacketConfig, error) {
 	return nil, fmt.Errorf("jtt905: Plan not supported, use PlanWithConfig or a layers config")
 }
 
-// PlanWithConfig generates packet configs for a JTT905 flow. It emits a
-// TCP 3-way handshake, the check-in → heartbeats → check-out message
-// sequence (auto-generated when Procedures is empty, design §5C H-09),
-// and a TCP 3-way teardown.
+// PlanWithConfig generates the ISU session: TCP 3-way handshake →
+// check-in → center resp → (heartbeat → center resp)×N → check-out →
+// center resp → TCP teardown（procedures 空时自动生成，裁定4）.
 func (p *Planner) PlanWithConfig(ctx context.Context, spec core.FlowSpec, cfg *JTT905Config) (<-chan core.PacketConfig, error) {
 	if err := ValidateConfig(cfg); err != nil {
 		return nil, err
@@ -162,19 +145,23 @@ func (p *Planner) PlanWithConfig(ctx context.Context, spec core.FlowSpec, cfg *J
 		spec.DstPort = DefaultPort
 	}
 
+	// Resolved defaults（不改调用方 cfg）。
+	rc := *cfg
+	if rc.HeartbeatCount == 0 {
+		rc.HeartbeatCount = 1
+	}
+	isuBCD, err := jtcommon.BCDEncode(rc.ISUId)
+	if err != nil {
+		return nil, fmt.Errorf("jtt905: ISUId: %w", err)
+	}
+
 	configChan := make(chan core.PacketConfig, 256)
 
 	go func() {
 		defer close(configChan)
 
-		flowID := fmt.Sprintf("jtt905-%s-%d", cfg.Phone, cfg.InitialSN)
-		groupID := hashPhone(cfg.Phone)
-
-		version := cfg.Version
-		if version == "" {
-			version = jtcommon.Version2019
-		}
-		phoneBCD, _ := jtcommon.BCDEncode(cfg.Phone)
+		flowID := fmt.Sprintf("jtt905-%s-%d", rc.ISUId, rc.InitialSN)
+		groupID := hashISU(rc.ISUId)
 
 		effectiveTTL := spec.TTL
 		if effectiveTTL == 0 {
@@ -205,19 +192,13 @@ func (p *Planner) PlanWithConfig(ctx context.Context, spec core.FlowSpec, cfg *J
 		serverSeq := randUint32()
 		winSize := uint16(65535)
 
-		// MsgSN counters (design §6C.2). msgSN starts at InitialSN and
-		// increments after each message; platformMsgSN starts at
-		// PlatformInitialSN and increments after each response.
-		msgSN := cfg.InitialSN
-		platformMsgSN := cfg.PlatformInitialSN
+		// 双流水号计数器：ISU 侧（InitialSN 起）/中心侧（PlatformInitialSN 起）。
+		isuSN := rc.InitialSN
+		centerSN := rc.PlatformInitialSN
+		lastUpMsgID := uint16(0)
+		lastUpSN := uint16(0)
 
-		// Build the procedure list: explicit or auto-generated.
-		procedures := cfg.Procedures
-		if len(procedures) == 0 {
-			procedures = autoProcedures(cfg)
-		}
-
-		emitTCP := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, seq, ack uint32, flags uint8, payload []byte) {
+		emitTCP := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, seq, ack uint32, flags uint8, payload []byte) error {
 			if payload == nil {
 				payload = []byte{}
 			}
@@ -251,41 +232,48 @@ func (p *Planner) PlanWithConfig(ctx context.Context, spec core.FlowSpec, cfg *J
 			}
 			select {
 			case <-ctx.Done():
-				return
+				return ctx.Err()
 			case configChan <- cfg2:
 			}
 			packetIndex++
+			return nil
 		}
 
-		emitData := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, senderSeq, peerSeq uint32, payload []byte) uint32 {
+		emitData := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, senderSeq, peerSeq uint32, payload []byte) (uint32, error) {
 			for _, seg := range segmentByMSS(payload, int(mss)) {
 				select {
 				case <-ctx.Done():
-					return senderSeq
+					return senderSeq, ctx.Err()
 				default:
 				}
-				emitTCP(direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, senderSeq, peerSeq, 0x18, seg)
+				if err := emitTCP(direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, senderSeq, peerSeq, 0x18, seg); err != nil {
+					return senderSeq, err
+				}
 				senderSeq += uint32(len(seg))
 			}
-			return senderSeq
+			return senderSeq, nil
 		}
 
-		// emitMsg builds and emits one JTT905 message. isISUUpstream=true
-		// uses the ISU MsgSN counter; false uses the platform counter.
-		emitMsg := func(direction string, msgID uint16, body []byte, isISUUpstream bool) {
+		// emitMsg builds one JTT905 frame; 计数器按方向选（裁定2/4）。
+		emitMsg := func(direction string, msgID uint16, body []byte) error {
 			var sn uint16
-			if isISUUpstream {
-				sn = msgSN
-				msgSN++
+			isDown := direction == "down"
+			if isDown {
+				sn = centerSN
+				centerSN++
 			} else {
-				sn = platformMsgSN
-				platformMsgSN++
+				sn = isuSN
+				isuSN++
+				lastUpMsgID = msgID
+				lastUpSN = sn
 			}
-			props, _ := jtcommon.EncodeMsgBodyProps(len(body), version, 0, cfg.EncryptFlag)
-			frame := buildSimpleFrame(msgID, props, phoneBCD, sn, body)
+			frame, err := buildSimpleFrame(msgID, body, isuBCD, sn)
+			if err != nil {
+				return err
+			}
 			var srcMAC, dstMAC, srcIP, dstIP string
 			var srcPort, dstPort uint16
-			if direction == "down" {
+			if isDown {
 				srcMAC, dstMAC = spec.DstMAC, spec.SrcMAC
 				srcIP, dstIP = spec.DstIP, spec.SrcIP
 				srcPort, dstPort = spec.DstPort, spec.SrcPort
@@ -294,61 +282,88 @@ func (p *Planner) PlanWithConfig(ctx context.Context, spec core.FlowSpec, cfg *J
 				srcIP, dstIP = spec.SrcIP, spec.DstIP
 				srcPort, dstPort = spec.SrcPort, spec.DstPort
 			}
-			if direction == "down" {
-				serverSeq = emitData(direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, serverSeq, clientSeq, frame)
+			if isDown {
+				serverSeq, err = emitData(direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, serverSeq, clientSeq, frame)
 			} else {
-				clientSeq = emitData(direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, clientSeq, serverSeq, frame)
+				clientSeq, err = emitData(direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, clientSeq, serverSeq, frame)
 			}
+			return err
 		}
 
 		// --- TCP 3-way handshake ---
-		emitTCP("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, 0, 0x02, nil)
+		if err := emitTCP("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, 0, 0x02, nil); err != nil {
+			return
+		}
 		clientSeq++
-		emitTCP("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, 0x12, nil)
+		if err := emitTCP("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, 0x12, nil); err != nil {
+			return
+		}
 		serverSeq++
-		emitTCP("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x10, nil)
+		if err := emitTCP("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x10, nil); err != nil {
+			return
+		}
 
-		// --- JTT905 message sequence ---
-		for _, pr := range procedures {
+		// --- message sequence ---
+		procedures := rc.Procedures
+		if len(procedures) == 0 {
+			procedures = autoProcedures(&rc)
+		}
+		for i := range procedures {
 			select {
 			case <-ctx.Done():
 				return
 			default:
 			}
+			pr := &procedures[i]
+			t := msgTypeByName[pr.Type]
+			direction := "up"
+			if t.down {
+				direction = "down"
+			}
+			var body []byte
 			switch pr.Type {
 			case ProcCheckIn:
-				body, err := buildCheckInBody(cfg)
-				if err != nil {
+				if body, err = buildCheckInBody(&rc); err != nil {
 					return
 				}
-				emitMsg("up", MsgCheckIn, body, true)
-			case ProcHeartbeat:
-				emitMsg("up", MsgHeartbeat, nil, true)
 			case ProcCheckOut:
-				body, err := buildCheckOutBody(cfg)
-				if err != nil {
+				if body, err = buildCheckOutBody(&rc); err != nil {
 					return
 				}
-				emitMsg("up", MsgCheckOut, body, true)
 			case ProcCenterGeneralResponse:
-				respSN := pr.ResponseSN
-				respMsgId := pr.ResponseMsgId
-				body := buildGeneralResponseBody(respSN, respMsgId, pr.ACKFlag)
-				emitMsg("down", MsgCenterGeneralResp, body, false)
+				// 应答自动绑最近上行（reply_sn/reply_msg_id=0 时）。
+				rsn, rid := pr.ReplySN, pr.ReplyMsgId
+				if rsn == 0 {
+					rsn = lastUpSN
+				}
+				if rid == 0 {
+					rid = lastUpMsgID
+				}
+				body = buildGeneralResponseBody(rsn, rid, pr.Result)
 			case ProcISUGeneralResponse:
-				respSN := pr.ResponseSN
-				respMsgId := pr.ResponseMsgId
-				body := buildGeneralResponseBody(respSN, respMsgId, pr.ACKFlag)
-				emitMsg("up", MsgISUGeneralResponse, body, true)
-			default:
+				rsn, rid := pr.ReplySN, pr.ReplyMsgId
+				if rsn == 0 {
+					rsn = centerSN - 1
+				}
+				if rid == 0 {
+					rid = MsgTextDownRef
+				}
+				body = buildGeneralResponseBody(rsn, rid, pr.Result)
+			default: // ProcHeartbeat：空体
+			}
+			if err := emitMsg(direction, t.id, body); err != nil {
 				return
 			}
 		}
 
 		// --- TCP 3-way teardown ---
-		emitTCP("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x11, nil)
+		if err := emitTCP("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x11, nil); err != nil {
+			return
+		}
 		clientSeq++
-		emitTCP("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, 0x11, nil)
+		if err := emitTCP("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, 0x11, nil); err != nil {
+			return
+		}
 		serverSeq++
 		emitTCP("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x10, nil)
 	}()
@@ -356,45 +371,34 @@ func (p *Planner) PlanWithConfig(ctx context.Context, spec core.FlowSpec, cfg *J
 	return configChan, nil
 }
 
-// autoProcedures builds the default session when Procedures is empty
-// (design §5C H-09):
-//
-//	1. check-in (0x1001), MsgSN = InitialSN
-//	2. center_general_response (0x8001) ACK'ing 0x1001, platform SN starts
-//	   at PlatformInitialSN
-//	3. for i in 1..HeartbeatCount:
-//	     heartbeat (0x0002), MsgSN = InitialSN + i
-//	     center_general_response (0x8001) ACK'ing it
-//	4. check-out (0x1002), MsgSN = InitialSN + HeartbeatCount + 1
-//	5. center_general_response (0x8001) ACK'ing 0x1002
-//
-// When HeartbeatCount=0, step 3 is skipped (check-in → check-out).
+// MsgTextDownRef 是 isu_general_response 未给 reply_msg_id 时的缺省应答
+// 对象（0x8300 文本下发——在库 probe 面最近似的中心下行命令）。
+const MsgTextDownRef = 0x8300
+
+// autoProcedures builds the default session（procedures 空）：签到→应答→
+// (心跳→应答)×N→签退→应答（legacy H-09 形保留，MsgId 已实名化）。
 func autoProcedures(cfg *JTT905Config) []JTT905Procedure {
 	var procs []JTT905Procedure
 	procs = append(procs, JTT905Procedure{Type: ProcCheckIn})
-	// The response SNs are auto-bound by the planner at emit time via the
-	// counters; the procedure entries only carry the type + ACKFlag.
-	procs = append(procs, JTT905Procedure{Type: ProcCenterGeneralResponse, ACKFlag: ACKSuccess})
+	procs = append(procs, JTT905Procedure{Type: ProcCenterGeneralResponse})
 	for i := 0; i < cfg.HeartbeatCount; i++ {
 		procs = append(procs, JTT905Procedure{Type: ProcHeartbeat})
-		procs = append(procs, JTT905Procedure{Type: ProcCenterGeneralResponse, ACKFlag: ACKSuccess})
+		procs = append(procs, JTT905Procedure{Type: ProcCenterGeneralResponse})
 	}
 	procs = append(procs, JTT905Procedure{Type: ProcCheckOut})
-	procs = append(procs, JTT905Procedure{Type: ProcCenterGeneralResponse, ACKFlag: ACKSuccess})
+	procs = append(procs, JTT905Procedure{Type: ProcCenterGeneralResponse})
 	return procs
 }
 
-// hashPhone computes a stable GroupID from Phone.
-func hashPhone(phone string) string {
+func hashISU(isu string) string {
 	h := uint32(2166136261)
-	for i := 0; i < len(phone); i++ {
-		h ^= uint32(phone[i])
+	for i := 0; i < len(isu); i++ {
+		h ^= uint32(isu[i])
 		h *= 16777619
 	}
 	return fmt.Sprintf("jtt905-%08x", h)
 }
 
-// randUint32 returns a random uint32.
 func randUint32() uint32 {
 	n, err := rand.Int(rand.Reader, big.NewInt(1<<32))
 	if err != nil {
@@ -403,7 +407,6 @@ func randUint32() uint32 {
 	return uint32(n.Uint64())
 }
 
-// synOptions builds TCP options for SYN packets.
 func synOptions(mss uint16) []core.TCPOption {
 	if mss == 0 {
 		mss = DefaultMSS
@@ -415,7 +418,6 @@ func synOptions(mss uint16) []core.TCPOption {
 	return opts
 }
 
-// segmentByMSS splits payload into chunks of at most mss bytes.
 func segmentByMSS(payload []byte, mss int) [][]byte {
 	if mss <= 0 {
 		return [][]byte{payload}

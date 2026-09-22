@@ -3,183 +3,76 @@ package jtt905
 import (
 	"encoding/binary"
 	"fmt"
+	"strings"
 
 	"github.com/trafficgen/trafficgen/internal/protocol/jtcommon"
 )
 
-// ParsedFrame holds the decoded fields of one JTT905 frame.
+// ParsedFrame is a decoded JTT905 frame（解析与 builder 严格对称；
+// 金向量 0x0200 例为外部权威锚）。
 type ParsedFrame struct {
-	MsgID        uint16
-	MsgBodyProps uint16
-	BodyLen      int
-	Version      string
-	PackageFlag  uint8
-	EncryptFlag  uint8
-	PhoneBCD     []byte // 6 bytes
-	Phone        string // 12-digit string
-	MsgSN        uint16
-	PackageNum   uint16 // 0 when not fragmented
-	PackageTotal uint16 // 0 when not fragmented
-	Body         []byte
-	Checksum     byte
+	MsgID      uint16
+	DataLength uint16 // 纯消息体长度（裁定1）
+	ISUId      string // BCD 解码 12 位
+	MsgNum     uint16
+	Body       []byte
 }
 
-// ParseFrame decodes one JTT905 frame (same format as JT808: 0x7e
-// delimiters + escape + XOR checksum). See jt808.ParseFrame for the
-// equivalent semantics; this mirrors it with the JTT905 header constants.
-func ParseFrame(raw []byte) (*ParsedFrame, error) {
-	if len(raw) < 14 {
-		return nil, fmt.Errorf("jtt905: frame too short (%d bytes)", len(raw))
+// ParseFrame decodes one wire frame: delimiters → unescape → XOR 复算 →
+// 头字段。体长自洽（DataLength==len(Body)）随解包断言。
+func ParseFrame(wire []byte) (*ParsedFrame, error) {
+	if len(wire) < HeaderLen+ChecksumLen+2 {
+		return nil, fmt.Errorf("jtt905: frame too short: %d", len(wire))
 	}
-	if raw[0] != jtcommon.FrameDelimiter {
-		return nil, fmt.Errorf("jtt905: leading byte 0x%02x != 0x7e", raw[0])
+	if wire[0] != jtcommon.FrameDelimiter || wire[len(wire)-1] != jtcommon.FrameDelimiter {
+		return nil, fmt.Errorf("jtt905: bad delimiters %02x %02x", wire[0], wire[len(wire)-1])
 	}
-	if raw[len(raw)-1] != jtcommon.FrameDelimiter {
-		return nil, fmt.Errorf("jtt905: trailing byte 0x%02x != 0x7e", raw[len(raw)-1])
-	}
-	middle := raw[1 : len(raw)-1]
-	decoded, err := jtcommon.Unescape(middle)
+	content, err := jtcommon.Unescape(wire[1 : len(wire)-1])
 	if err != nil {
 		return nil, fmt.Errorf("jtt905: unescape: %w", err)
 	}
-	if len(decoded) < 12+1 {
-		return nil, fmt.Errorf("jtt905: decoded frame too short (%d bytes)", len(decoded))
+	if len(content) < HeaderLen+ChecksumLen {
+		return nil, fmt.Errorf("jtt905: content %d < header %d + checksum", len(content), HeaderLen+ChecksumLen)
 	}
-	p := &ParsedFrame{}
-	p.MsgID = binary.BigEndian.Uint16(decoded[0:2])
-	p.MsgBodyProps = binary.BigEndian.Uint16(decoded[2:4])
-	p.BodyLen, p.Version, p.PackageFlag, p.EncryptFlag = jtcommon.DecodeMsgBodyProps(p.MsgBodyProps)
-	p.PhoneBCD = make([]byte, 6)
-	copy(p.PhoneBCD, decoded[4:10])
-	p.Phone = jtcommon.BCDDecode(p.PhoneBCD)
-	p.MsgSN = binary.BigEndian.Uint16(decoded[10:12])
-	hdrLen := 12
-	if p.PackageFlag == 1 {
-		if len(decoded) < 12+4+1 {
-			return nil, fmt.Errorf("jtt905: fragmented frame too short")
-		}
-		p.PackageNum = binary.BigEndian.Uint16(decoded[12:14])
-		p.PackageTotal = binary.BigEndian.Uint16(decoded[14:16])
-		hdrLen = 16
+	wantCS := jtcommon.XORChecksum(content[:len(content)-1])
+	if wantCS != content[len(content)-1] {
+		return nil, fmt.Errorf("jtt905: XOR checksum mismatch got %02x want %02x", wantCS, content[len(content)-1])
 	}
-	if len(decoded) < hdrLen+p.BodyLen+1 {
-		return nil, fmt.Errorf("jtt905: body length %d exceeds remaining %d bytes",
-			p.BodyLen, len(decoded)-hdrLen-1)
+	f := &ParsedFrame{}
+	f.MsgID = binary.BigEndian.Uint16(content[0:2])
+	f.DataLength = binary.BigEndian.Uint16(content[2:4])
+	f.ISUId = jtcommon.BCDDecode(content[4:10])
+	f.MsgNum = binary.BigEndian.Uint16(content[10:12])
+	f.Body = append([]byte(nil), content[HeaderLen:len(content)-ChecksumLen]...)
+	if int(f.DataLength) != len(f.Body) {
+		return nil, fmt.Errorf("jtt905: DataLength %d != body length %d", f.DataLength, len(f.Body))
 	}
-	p.Body = make([]byte, p.BodyLen)
-	copy(p.Body, decoded[hdrLen:hdrLen+p.BodyLen])
-	p.Checksum = decoded[hdrLen+p.BodyLen]
-	expected := jtcommon.XORChecksum(decoded[:hdrLen+p.BodyLen])
-	if p.Checksum != expected {
-		return nil, fmt.Errorf("jtt905: checksum mismatch (got 0x%02x, want 0x%02x)",
-			p.Checksum, expected)
-	}
-	return p, nil
+	return f, nil
 }
 
-// ParseCheckInBody decodes a 0x1001 check-in body (design §4C.2).
-type CheckInBody struct {
-	DriverId     string // trailing 0x20 stripped
-	DriverName   string // GBK-decoded, trailing 0x20 stripped
-	LicensePlate string // GBK-decoded, trailing 0x20 stripped
-	LicenseColor uint8
-	OnTime       string // "YYMMDDhhmmss"
-	VehicleModel string // trailing 0x20 stripped
-	LoadCapacity uint16
+// GeneralRespBody decodes 0x0001/0x8001: ReplySN(2)+ReplyMsgId(2)+Result(1)。
+func (f *ParsedFrame) GeneralRespBody() (replySN, replyMsgID uint16, result uint8, err error) {
+	if len(f.Body) != GeneralRespLen {
+		return 0, 0, 0, fmt.Errorf("jtt905: 0x%04x body %d bytes, want %d", f.MsgID, len(f.Body), GeneralRespLen)
+	}
+	return binary.BigEndian.Uint16(f.Body), binary.BigEndian.Uint16(f.Body[2:4]), f.Body[4], nil
 }
 
-func ParseCheckInBody(body []byte) (*CheckInBody, error) {
-	fixedLen := DriverIdLen + DriverNameLen + LicensePlateLen + LicenseColorLen + OnTimeLen + VehicleModelLen + LoadCapacityLen
-	if len(body) != fixedLen {
-		return nil, fmt.Errorf("jtt905: 0x1001 body length %d != %d", len(body), fixedLen)
+// CheckInBody decodes 0x0B03（Position 可选，体首 25B 判定与库同口径）。
+func (f *ParsedFrame) CheckInBody() (license, qual, plate, uptime string, err error) {
+	b := f.Body
+	if len(b) >= PositionLen && len(b) != baseCheckInLen {
+		b = b[PositionLen:] // 带位置形态
 	}
-	c := &CheckInBody{}
-	c.DriverId = stripTrailingSpace(string(body[0:20]))
-	dn, err := jtcommon.GBKDecode(stripTrailingSpaceBytes(body[20:36]))
-	if err != nil {
-		return nil, fmt.Errorf("jtt905: DriverName GBK: %w", err)
+	if len(b) != baseCheckInLen {
+		return "", "", "", "", fmt.Errorf("jtt905: 0x0B03 body %d bytes, want %d (±25 position)", len(f.Body), baseCheckInLen)
 	}
-	c.DriverName = dn
-	plate, err := jtcommon.GBKDecode(stripTrailingSpaceBytes(body[36:57]))
-	if err != nil {
-		return nil, fmt.Errorf("jtt905: LicensePlate GBK: %w", err)
-	}
-	c.LicensePlate = plate
-	c.LicenseColor = body[57]
-	c.OnTime = jtcommon.BCDDecode(body[58:64])
-	c.VehicleModel = stripTrailingSpace(string(body[64:80]))
-	c.LoadCapacity = binary.BigEndian.Uint16(body[80:82])
-	return c, nil
+	license = strings.TrimRight(string(b[0:LicenseLen]), "\x00")
+	qual = strings.TrimRight(string(b[LicenseLen:LicenseLen+QualCodeLen]), "\x00")
+	plate = strings.TrimRight(string(b[LicenseLen+QualCodeLen:LicenseLen+QualCodeLen+PlateLen]), "\x00")
+	uptime = jtcommon.BCDDecode(b[LicenseLen+QualCodeLen+PlateLen:])
+	return
 }
 
-// ParseCheckOutBody decodes a 0x1002 check-out body (design §4C.3).
-type CheckOutBody struct {
-	DriverId       string
-	DriverName     string
-	LicensePlate   string
-	LicenseColor   uint8
-	OffTime        string
-	Mileage        uint32
-	Income         uint32
-	PassengerCount uint16
-}
-
-func ParseCheckOutBody(body []byte) (*CheckOutBody, error) {
-	fixedLen := DriverIdLen + DriverNameLen + LicensePlateLen + LicenseColorLen + OffTimeLen + MileageLen + IncomeLen + PassengerCountLen
-	if len(body) != fixedLen {
-		return nil, fmt.Errorf("jtt905: 0x1002 body length %d != %d", len(body), fixedLen)
-	}
-	c := &CheckOutBody{}
-	c.DriverId = stripTrailingSpace(string(body[0:20]))
-	dn, err := jtcommon.GBKDecode(stripTrailingSpaceBytes(body[20:36]))
-	if err != nil {
-		return nil, fmt.Errorf("jtt905: DriverName GBK: %w", err)
-	}
-	c.DriverName = dn
-	plate, err := jtcommon.GBKDecode(stripTrailingSpaceBytes(body[36:57]))
-	if err != nil {
-		return nil, fmt.Errorf("jtt905: LicensePlate GBK: %w", err)
-	}
-	c.LicensePlate = plate
-	c.LicenseColor = body[57]
-	c.OffTime = jtcommon.BCDDecode(body[58:64])
-	c.Mileage = binary.BigEndian.Uint32(body[64:68])
-	c.Income = binary.BigEndian.Uint32(body[68:72])
-	c.PassengerCount = binary.BigEndian.Uint16(body[72:74])
-	return c, nil
-}
-
-// ParseGeneralResponseBody decodes a 0x8001 / 0x0001 general response
-// body (design §4C.4): 5 bytes, no Phone.
-type GeneralResponseBody struct {
-	ResponseSN    uint16
-	ResponseMsgID uint16
-	Result        uint8
-}
-
-func ParseGeneralResponseBody(body []byte) (*GeneralResponseBody, error) {
-	if len(body) != GeneralResponseLen {
-		return nil, fmt.Errorf("jtt905: general response body length %d != %d", len(body), GeneralResponseLen)
-	}
-	r := &GeneralResponseBody{}
-	r.ResponseSN = binary.BigEndian.Uint16(body[0:2])
-	r.ResponseMsgID = binary.BigEndian.Uint16(body[2:4])
-	r.Result = body[4]
-	return r, nil
-}
-
-// stripTrailingSpace removes trailing 0x20 bytes from a string.
-func stripTrailingSpace(s string) string {
-	for len(s) > 0 && s[len(s)-1] == 0x20 {
-		s = s[:len(s)-1]
-	}
-	return s
-}
-
-// stripTrailingSpaceBytes removes trailing 0x20 bytes from a byte slice.
-func stripTrailingSpaceBytes(b []byte) []byte {
-	for len(b) > 0 && b[len(b)-1] == 0x20 {
-		b = b[:len(b)-1]
-	}
-	return b
-}
+// baseCheckInLen = 16+19+6+6（无 Position 形）。
+const baseCheckInLen = LicenseLen + QualCodeLen + PlateLen + TimeLen

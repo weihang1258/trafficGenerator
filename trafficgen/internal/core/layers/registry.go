@@ -1534,6 +1534,45 @@ func buildDefaultRegistry() {
 			"slave_procedures":    {Type: "list"}, // 同 procedures 8 键；非空即开从链 TCP
 		},
 	})
+	// jtt905（tcp 终结层。JT/T 905.2-2014 出租汽车 ISU——单 TCP（缺省
+	// 10700）+7E 信封（808 族线面复用，XOR+转义；DataLength=纯体长无版本
+	// 位——金向量 0x0023 实证）+5 型消息面（0x0B03 签到/0x0B04 签退/
+	// 0x0002 心跳/0x0001·0x8001 通用应答）+position 可选块，wire 字节由
+	// jtt905 生成器 raw 自驱产出（D-JTT905-1 裁定1-3；legacy 虚构
+	// 0x1001/0x1002 与 GBK 体面废弃）。端口=10700 内部缺省+mapToFlowSpec
+	// case（jt808 80 穿透教训移植）。Fields 登记 parse 25 键：24 标量+
+	// procedures list（V9 不下探，嵌套语义锚=ValidateConfig：isu_id 12 位/
+	// plate≤6 ASCII/Result 0-2/BCD 位数族）。position 为 object 键
+	// （getByteSlice 无关，直接 map 直传）。
+	r.Register(LayerSchema{Name: "jtt905", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"isu_id":                    {Type: "string"}, // 12 位数字 BCD6，planner 锚
+			"initial_sn":                {Type: "uint16", Min: 0, Max: 65535},
+			"platform_initial_sn":       {Type: "uint16", Min: 0, Max: 65535},
+			"business_license":          {Type: "string"}, // ≤16 ASCII，planner 锚
+			"qualification_code":        {Type: "string"}, // ≤19 ASCII，planner 锚
+			"plate_no":                  {Type: "string"}, // ≤6 ASCII，planner 锚
+			"position":                  {Type: "object"}, // 0x0200 基础位 7 键
+			"taximeter_k_value":         {Type: "string"}, // 4 位 BCD，planner 锚
+			"on_duty_power_on_time":     {Type: "string"}, // 12 位 yyyyMMddHHmm，planner 锚
+			"on_duty_power_off_time":    {Type: "string"},
+			"on_duty_mileage":           {Type: "string"}, // 6 位 BCD，planner 锚
+			"on_duty_operation_mileage": {Type: "string"},
+			"train_number":              {Type: "string"}, // 4 位
+			"timing_time":               {Type: "string"}, // 6 位
+			"total_amount":              {Type: "string"}, // 6 位
+			"card_amount":               {Type: "string"}, // 6 位
+			"card_count":                {Type: "string"}, // 4 位
+			"on_duty_mileage_between":   {Type: "string"}, // 4 位
+			"total_mileage":             {Type: "string"}, // 8 位
+			"total_operation_mileage":   {Type: "string"}, // 8 位
+			"unit_price":                {Type: "string"}, // 4 位
+			"total_operations":          {Type: "uint32", Min: 0, Max: 4294967295},
+			"sign_type":                 {Type: "int", Min: 0, Max: 255},
+			"procedures":                {Type: "list"}, // 4 键：type/result/reply_sn/reply_msg_id
+			"heartbeat_count":           {Type: "int", Min: 0, Max: 1000},
+		},
+	})
 	// pppoe（eth 终结层。RFC 2516——Discovery（PADI/PADO/PADR/PADS，EtherType
 	// 0x8863）+ 会话（LCP/Auth/数据，EtherType 0x8864）+ PADT 终止，wire 字节
 	// 由 pppoe 生成器 raw 自驱产出（D-PPPOE-1 裁定1，帧无外层 IP 头，ip 层

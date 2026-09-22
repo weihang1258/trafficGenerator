@@ -3504,3 +3504,62 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 **验收两门（§1）：** ①层链跑通=P5 绿；②旧格式移除=顶层子映射判死+无 flat 用例面+rawWrapChains 执法。两门全过。
 
 **P6 收官结论（白话一句）：** jt809 线层重建后信封/头/体/校验/转义全对齐 JT/T 809-2019 权威实现（金向量逐字节），16 型链路管理族双 TCP 真子流可编排可校验，13 例 ×2 全绿、反查 30/30、门 2 四项绿、在库清零对账平。
+
+## D-JTT905-1 jtt905 层链收敛（#31，P1+P2 定稿 2026-09-22；裁定=体面重建+线面复用）
+
+### P1 规范矩阵（JT/T 905.2-2014 反推，三源：SmallChi/JT905 源码+README 金向量（独立核算过）+标准目录结构；在库需求面=2 probe 策略（flat 80 端口，msg_id 0x0001）+9 任务）
+
+| 规范点 | 出处 | 代码现状 | 缺口 |
+|---|---|---|---|
+| 帧模型：`7E`+转义(头+体+XOR(1))+`7E`；转义 7E→7D 02/7D→7D 01；XOR 对未转义内容算（金向量独立复算 34✓）；转义含头内 7E（金向量 MsgNum=007E 上线 7D02 实证） | SmallChi/JT905 README 组包例 | 同构已实现（jtcommon XORChecksum/Escape 共享） | 无（线面复用） |
+| 消息头 12B：MsgId(2)+**DataLength(2)=纯消息体长度（无版本/加密/分包位——金向量 0x0023=35 纯值实证）**+ISU 标识(6 BCD 12 位)+MsgNum(2) | README 金向量逐字段核算 | EncodeMsgBodyProps 版本/加密位（808 面） | **缺口 F1：props 改纯长度** |
+| MsgId 空间：0x0001 ISU 通用应答/0x8001 中心通用应答/0x0002 ISU 心跳/0x8103-0x0105 参数控制族/0x0200 位置族/0x8300-0x0302 文本事件族/0x8400-0x0500 电话车辆族/0x08xx-0x88xx 图像音频族/0x8B00-0x0B11 订单签到运营族（README 对照表 46 型） | 同上 | **0x1001 签到/0x1002 签退=虚构 MsgId**（真=0x0B03/0x0B04）；0x8300 有常量无过程 | **缺口 F2：MsgId 重排** |
+| 0x0B03 上班签到体：Position(0x0200，可选≥25B)+企业经营许可证号(16 ASCII \0补)+从业资格证号(19 ASCII \0补)+车牌号(6 ASCII \0补)+开机时间(BCD6=yyyyMMddHHmm)+扩展(可选) | JT905_0x0B03.cs | 82B 虚构体（GBK 姓名/GBK 车牌/BCD yyMMddHHmmss） | **缺口 F3：体重建** |
+| 0x0B04 下班签退体：Position(可选)+许可证16+资格证19+车牌6+计价器K值(BCD4=2B)+当班开机(6)+当班关机(6)+当班里程(BCD6=3B)+运营里程(3B)+车次(BCD4=2B)+计时(BCD6=3B)+总计金额(3B)+卡收金额(3B)+卡次(BCD4=2B)+班间里程(2B)+总计里程(BCD8=4B)+总运营里程(4B)+单价(BCD4=2B)+总运营次数(u32)+签退方式(1B)+扩展(可选) | JT905_0x0B04.cs | 74B 虚构体（mileage/income u32 等） | **缺口 F3 同** |
+| 0x0001/0x8001 通用应答体：ReplyMsgNum(2)+ReplyMsgId(2)+Result(1)，Result 枚举 0/1/2（成功/失败/消息有误） | JT905_0x0001.cs | 5B 同形✓；ACKFlag 0-3（多一个"不支持"） | 缺口：Result 收窄 0-2 |
+| 0x0002 心跳：空体 | README 对照表 | ✓ | 无 |
+| 0x0200 位置基本体 25B：报警(4)+状态(4)+纬(4)+经(4)+速度(2)+方向(1——金向量算术钉死)+时间(BCD6=yyMMddHHmmss)+附加列表(可选) | 金向量+JT905_0x0200 | 无 | 新增 Position 可选块 |
+| 单 TCP 连接（ISU→中心），ISU 上行/中心下行 | README/协议结构 | ✓ 单链 | 无 |
+| legacy Plan 入口 | — | Plan 硬错✓ | layer_gen 唯一入口=PlanWithConfig |
+| 方向换向 | — | — | layer_gen 防双换 Direction=up（十连同款） |
+| 层链接线 | — | main.go :591 legacy+具名导入；零接线 | 五件套+翻转+类型迁 core |
+| 端口缺省 10700 | legacy 自选（标准未定端口） | PlanWithConfig :162 内部缺省 | mapToFlowSpec case 先补（80 穿透预防；probe 面 dst_port=80 即病征） |
+| 校验锚 | ValidateConfig :55 | phone 12 位/DriverId 20/GBK 面全虚构 | 重建后：isu_id 12 位数字/plate 6 ASCII/license 16/qual 19/BCD 位数族/result 0-2 |
+
+**①命令×响应矩阵：** 签到 0x0B03→0x8001/心跳 0x0002→0x8001/签退 0x0B04→0x8001/ISU 应答 0x0001（对中心下行命令）——编排可达 5 型+Position 块；其余 41 型 B′ 登记（在库需求面仅 0x0001）。
+**②数据形态变体：** 转义真字节（ISU/MsgNum/车牌值含 7E/7D）、BCD 位数族（4/6/8 位三档）、ASCII \0 补齐、Position 可选性（≥25B 判定）、体长纯值位。
+**③商业行为映射：** 在库 probe=0x0001 通用应答冒烟（flat 80 端口=待修病征）；无参考 pcap 如实注记。
+**三路对照：** ①JT/T 905.2-2014（经 SmallChi/JT905 源码+金向量交叉落地）②在库 probe 需求面 ③开源实现 SmallChi/JT905（同 JT809 作者，权威参照）。**候选对比：** (a) 体面重建+线面复用 jtcommon（XOR/Escape 已共享，props 改纯长度）✓ vs (b) 照 legacy 虚构 MsgId/体形 B′ 登记（4.12 整帧级虚构不容）→裁定 (a)。**jt809 裁定2 预设勘误：jtt905 线面属 808 族（0x7e/XOR），不复用 CRC809；jtcommon 的 808 族原语即共享点。**
+
+### 裁定（P2 定稿）
+| # | 裁定 | 依据 |
+|---|---|---|
+| 1 | **线面复用+props 纠偏**：7E+Escape(头+体+XOR)+7E 复用 jtcommon；消息头 12B，DataLength=纯体长（去 EncodeMsgBodyProps 版本/加密位——金向量 0x0023 实证）；XOR 对未转义内容、转义含校验码与头内特殊字节 | 金向量独立核算；4.12 |
+| 2 | **MsgId 重排**：check_in=0x0B03/check_out=0x0B04/heartbeat=0x0002/isu_general_response=0x0001/center_general_response=0x8001；legacy 虚构 0x1001/0x1002 废弃；其余 41 型 B′（在库需求面=0x0001 已覆盖）；0x8300 常量随 B′ 关闭 | README 对照表 |
+| 3 | **体重建**：0x0B03=Position?+license16 ASCII\0补+qual19+plate6+uptime BCD6(yyyyMMddHHmm)；0x0B04=Position?+license16+qual19+plate6+K值2+开机6+关机6+里程3+运营里程3+车次2+计时3+总金额3+卡金额3+卡次2+班间里程2+总里程4+总运营里程4+单价2+总次数u32+签退方式1；应答族 5B Result 0-2；Position 可选块（报警4/状态4/纬4/经4/速2/向1/时间6，附加列表 B′） | JT905_0x0B03/0x0B04/0x0001.cs+金向量 |
+| 4 | **类型迁 core（jt808/809 先例）+重形**：JTT905Config{isu_id/initial_sn/platform_initial_sn/business_license/qualification_code/plate_no/position{...}/procedures}；过程 5 型{type/result/reply_sn/reply_msg_id}；废弃 phone/driver_id/driver_name/license_color/version/encrypt_flag/vehicle_model/load_capacity/on_time/off_time/mileage/income/passenger_count 全虚构面；auto 会话=签到→应答→(心跳→应答)×N→签退→应答（原 H-09 形保留） | 重建必需 |
+| 5 | **翻转五件套**：isRawIPChain 双名单/src 0-keep/validateBaseDstPortHandled+=jtt905（第 11 协议）；registry Fields（新消费面）；translate case+FlowMeta.JTT905+meta 注入；CheckProtoFlat rawWrapChains 第 11 协议+pipe_gate 名单+1；main.go 翻转；**mapToFlowSpec `case "jtt905": setDefaultDstPort(&spec,cfg,10700)`** | jt809 全套先例 |
+| 6 | **场景强度**：信封钉（7E/DataLength=体长/ISU BCD/SN）、金向量单测（0x0200 例反转义+XOR 复算+头核算，parse 面）、转义真字节（initial_sn=0x007E→线上 7D02——金向量同款位）、应答对（0x8001 down+0x0001 up）、负例锚（isu_id 11 位/plate 7 ASCII/result 3/BCD 位数错） | 9.46-9.53+F 系预防 |
+| 7 | **B′ 账本**：其余 41 型（参数/位置查询/文本事件/电话/车辆控制/图像音频/订单族）不编排；Position 附加信息列表（0x01-0x26）不编排（基础 25B 已覆盖）；分包不存在面（header 无分包位）；加密不存在面（无加密位）；2011/2013 版本方言不存在（单版） | 如实 |
+
+**文件：** protocol/jtt905/{types 别名化,builder 重建,parser 重建,jtt905.go 编排保留+MsgId 重排,layer_gen 新}+core/types.go（JTT905Config 迁入）+core/layers 五件+strategy_convert（Parse+case+rawWrapChains）+main.go 翻转+cases/jtt905.json 新+schemagen+pipe_gate/coverage_gate。
+**性能（6.4-6.6）：** channel 256 流式；包数=3 握手+(1+Σ resp)+3 挥手；pcap 路验收（网卡未跑注明）。
+**回滚：** 单提交粒度，摘除即回。
+
+### T-JTT905-1…13 清单（P3；9.52 对账：T-1 基线 1+T-2 信封头 2+T-3 签到体 1+T-4 心跳对 1+T-5 签退体 1+T-6 应答对 1+T-7 转义 1+T-8 金向量 0（单测面）+T-9 位置块 1+T-10 负例 4 = **分项和 13 = 建例 12 + T-2 承载 2 项（信封+体长纯值），可复算**；suite 负例 4）
+
+| # | 用例 | 断言面 |
+|---|---|---|
+| T-1 | 基线关联（签到→应答→心跳→应答→签退→应答） | 12 帧=3 握手+6 消息+3 挥手；MsgId 序 0B03/8001/0002/8001/0B04/8001 |
+| T-2 | 信封+头字节钉 | 7E 首尾；DataLength=纯体长；ISU BCD；SN 起点；XOR 复算=尾 1B |
+| T-3 | 签到体钉 | license16\0/qual19\0/plate6\0/uptime BCD 全字段 |
+| T-4 | 心跳对 | 0x0002 空体+SN 递增 |
+| T-5 | 签退体钉 | K值/双时间/BCD 位数族/总次数 u32/签退方式全字段 |
+| T-6 | 应答对 | 0x8001 down+0x0001 up 各 5B；ReplySN/ReplyId 绑定 |
+| T-7 | 转义真字节 | initial_sn=0x007E→线上 7D02（金向量同款位）帧变长钉 |
+| T-8 | 金向量 | 单测面：0x0200 例反转义+XOR 复算 34+头核算（parse 面，不占 suite 号） |
+| T-9 | 位置块 | position 配置→0x0B03 体含 25B 基础位（方向 1B 钉） |
+| T-10 | 负例 isu_id 11 位 | 锚词 `ISUId "12345678901" must be 12 digits` |
+| T-11 | 负例 plate 7 ASCII | 锚词 `PlateNo length 7 > 6` |
+| T-12 | 负例 result=3 | 锚词 `Result 3 > 2` |
+| T-13 | 负例 uptime 位数错 | 锚词 `Uptime`（BCD 位数锚） |

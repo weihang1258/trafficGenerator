@@ -2139,6 +2139,14 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.JT809 == nil {
 			spec.JT809 = core.ParseJT809ConfigFromMap(completedConfig(s, term.Config))
 		}
+	case "jtt905":
+		// D-JTT905-1：层 config 经 core.ParseJTT905ConfigFromMap 复用扁平
+		// 解析单一真相（procedures 嵌套全 parse 承接；position 块对象键）。
+		// 空层 config 也翻译出非 nil。端口=legacy 内部缺省 10700（mapToFlowSpec
+		// case 先补，jt808 同款），无端口回填分支。
+		if spec.JTT905 == nil {
+			spec.JTT905 = core.ParseJTT905ConfigFromMap(completedConfig(s, term.Config))
+		}
 	case "fins":
 		// D-FINS-1：层 config map 直存 Metadata（GetConfig map 分支既有
 		// types.go:159-168；Data []byte 经 JSON 数字数组无双语义，无 srv6

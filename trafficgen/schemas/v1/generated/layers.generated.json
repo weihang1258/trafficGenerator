@@ -1322,6 +1322,94 @@
         }
       }
     },
+    "jtt905": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "business_license": {
+          "type": "string"
+        },
+        "card_amount": {
+          "type": "string"
+        },
+        "card_count": {
+          "type": "string"
+        },
+        "heartbeat_count": {
+          "type": "int",
+          "max": 1000
+        },
+        "initial_sn": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "isu_id": {
+          "type": "string"
+        },
+        "on_duty_mileage": {
+          "type": "string"
+        },
+        "on_duty_mileage_between": {
+          "type": "string"
+        },
+        "on_duty_operation_mileage": {
+          "type": "string"
+        },
+        "on_duty_power_off_time": {
+          "type": "string"
+        },
+        "on_duty_power_on_time": {
+          "type": "string"
+        },
+        "plate_no": {
+          "type": "string"
+        },
+        "platform_initial_sn": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "position": {
+          "type": "object"
+        },
+        "procedures": {
+          "type": "list"
+        },
+        "qualification_code": {
+          "type": "string"
+        },
+        "sign_type": {
+          "type": "int",
+          "max": 255
+        },
+        "taximeter_k_value": {
+          "type": "string"
+        },
+        "timing_time": {
+          "type": "string"
+        },
+        "total_amount": {
+          "type": "string"
+        },
+        "total_mileage": {
+          "type": "string"
+        },
+        "total_operation_mileage": {
+          "type": "string"
+        },
+        "total_operations": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "train_number": {
+          "type": "string"
+        },
+        "unit_price": {
+          "type": "string"
+        }
+      }
+    },
     "l2tp": {
       "category": "terminal",
       "depends_on": [
