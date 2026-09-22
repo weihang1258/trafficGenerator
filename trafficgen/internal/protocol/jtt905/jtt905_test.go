@@ -159,6 +159,9 @@ func TestValidateConfig_Anchors(t *testing.T) {
 		{"result=3", &JTT905Config{ISUId: "103456789012", Procedures: []JTT905Procedure{{Type: ProcCenterGeneralResponse, Result: 3}}}, "Result 3 > 2"},
 		{"未知类型", &JTT905Config{ISUId: "103456789012", Procedures: []JTT905Procedure{{Type: "vehicle_register"}}}, "unknown procedure type"},
 		{"K值位数错", &JTT905Config{ISUId: "103456789012", TaximeterKValue: "123"}, `TaximeterKValue "123" must be 4 digits`},
+		// L1 红例：等长非数字串必须在校验层拒（原缺口=漏到 BCDEncode 才以他锚词失败）。
+		{"K值非数字", &JTT905Config{ISUId: "103456789012", TaximeterKValue: "12a4"}, `TaximeterKValue "12a4" contains non-digit`},
+		{"uptime 非数字", &JTT905Config{ISUId: "103456789012", OnDutyPowerOnTime: "20240803080a"}, "contains non-digit"},
 		{"uptime 位数错", &JTT905Config{ISUId: "103456789012", OnDutyPowerOnTime: "20240803"}, "OnDutyPowerOnTime \"20240803\" must be 12 digits"},
 		{"nil", nil, "nil config"},
 	}

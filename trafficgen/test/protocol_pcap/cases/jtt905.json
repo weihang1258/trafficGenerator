@@ -795,5 +795,107 @@
     "planner ValidateConfig 锚（位数族）"
    ]
   }
+ },
+ {
+  "id": "jtt905_t14_result_enum",
+  "proto": "jtt905",
+  "summary": "T-14 Result 枚举正例：center_general_response result=1（失败）+result=2（消息有误）双钉（复审 M1 补例，枚举 0/1/2 全线达）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "jtt905": {
+      "isu_id": "103456789012",
+      "initial_sn": 5,
+      "procedures": [
+       {
+        "type": "check_in"
+       },
+       {
+        "type": "center_general_response",
+        "result": 1
+       },
+       {
+        "type": "heartbeat"
+       },
+       {
+        "type": "center_general_response",
+        "result": 2
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "packet_count": 10,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "10700"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.flags",
+     "value": "0x018"
+    },
+    {
+     "packet": 5,
+     "field": "tcp.flags",
+     "value": "0x018"
+    },
+    {
+     "packet": 6,
+     "field": "tcp.flags",
+     "value": "0x018"
+    }
+   ],
+   "notes": [
+    "Result 字节钉：p5 体尾=01（失败）、p7 体尾=02（消息有误）；rsn/rid 自动绑最近上行（T-6 同面）",
+    "复审 M1：Result 枚举 1/2 无线上正例补齐——9.46/9.47 逐值至少一例"
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 55,
+     "hex": "80 01"
+    },
+    {
+     "packet": 5,
+     "offset": 65,
+     "hex": "00 00"
+    },
+    {
+     "packet": 5,
+     "offset": 67,
+     "hex": "00 05 0b 03 01"
+    },
+    {
+     "packet": 7,
+     "offset": 55,
+     "hex": "80 01"
+    },
+    {
+     "packet": 7,
+     "offset": 65,
+     "hex": "00 01"
+    },
+    {
+     "packet": 7,
+     "offset": 67,
+     "hex": "00 06 00 02 02"
+    }
+   ]
+  }
  }
 ]

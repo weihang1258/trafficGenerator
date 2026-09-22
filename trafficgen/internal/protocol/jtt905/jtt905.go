@@ -84,7 +84,8 @@ func ValidateConfig(cfg *JTT905Config) error {
 			return fmt.Errorf("jtt905: PlateNo non-ASCII at %d", i)
 		}
 	}
-	// BCD 位数族（0x0B04；空=缺省全 0 合法）。
+	// BCD 位数族（0x0B04；空=缺省全 0 合法）——长度+数字性双查
+	//（复审 L1：等长非数字串不得漏到 BCDEncode 才以他锚词失败）。
 	for _, f := range []struct {
 		v   string
 		n   int
@@ -103,18 +104,28 @@ func ValidateConfig(cfg *JTT905Config) error {
 		{cfg.TotalOperationMileage, 8, "TotalOperationMileage"},
 		{cfg.UnitPrice, 4, "UnitPrice"},
 	} {
-		if f.v != "" && len(f.v) != f.n {
+		if f.v == "" {
+			continue
+		}
+		if len(f.v) != f.n {
 			return fmt.Errorf("jtt905: %s %q must be %d digits", f.key, f.v, f.n)
 		}
+		for i := 0; i < len(f.v); i++ {
+			if f.v[i] < '0' || f.v[i] > '9' {
+				return fmt.Errorf("jtt905: %s %q contains non-digit", f.key, f.v)
+			}
+		}
 	}
-	if cfg.OnDutyPowerOnTime != "" && len(cfg.OnDutyPowerOnTime) != 12 {
-		return fmt.Errorf("jtt905: OnDutyPowerOnTime %q must be 12 digits (yyyyMMddHHmm)", cfg.OnDutyPowerOnTime)
+	if err := checkTime12("OnDutyPowerOnTime", cfg.OnDutyPowerOnTime, "yyyyMMddHHmm"); err != nil {
+		return err
 	}
-	if cfg.OnDutyPowerOffTime != "" && len(cfg.OnDutyPowerOffTime) != 12 {
-		return fmt.Errorf("jtt905: OnDutyPowerOffTime %q must be 12 digits (yyyyMMddHHmm)", cfg.OnDutyPowerOffTime)
+	if err := checkTime12("OnDutyPowerOffTime", cfg.OnDutyPowerOffTime, "yyyyMMddHHmm"); err != nil {
+		return err
 	}
-	if cfg.Position != nil && cfg.Position.Time != "" && len(cfg.Position.Time) != 12 {
-		return fmt.Errorf("jtt905: position Time %q must be 12 digits (yyMMddHHmmss)", cfg.Position.Time)
+	if cfg.Position != nil {
+		if err := checkTime12("position Time", cfg.Position.Time, "yyMMddHHmmss"); err != nil {
+			return err
+		}
 	}
 	for i := range cfg.Procedures {
 		pr := &cfg.Procedures[i]
@@ -370,6 +381,23 @@ func (p *Planner) PlanWithConfig(ctx context.Context, spec core.FlowSpec, cfg *J
 
 	return configChan, nil
 }
+
+// checkTime12 校验 BCD 时间串（长度+数字性；空=缺省合法）。
+func checkTime12(key, v, layout string) error {
+	if v == "" {
+		return nil
+	}
+	if len(v) != 12 {
+		return fmt.Errorf("jtt905: %s %q must be 12 digits (%s)", key, v, layout)
+	}
+	for i := 0; i < len(v); i++ {
+		if v[i] < '0' || v[i] > '9' {
+			return fmt.Errorf("jtt905: %s %q contains non-digit", key, v)
+		}
+	}
+	return nil
+}
+
 
 // MsgTextDownRef 是 isu_general_response 未给 reply_msg_id 时的缺省应答
 // 对象（0x8300 文本下发——在库 probe 面最近似的中心下行命令）。

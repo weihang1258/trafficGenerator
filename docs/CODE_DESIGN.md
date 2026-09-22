@@ -3546,7 +3546,7 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 **性能（6.4-6.6）：** channel 256 流式；包数=3 握手+(1+Σ resp)+3 挥手；pcap 路验收（网卡未跑注明）。
 **回滚：** 单提交粒度，摘除即回。
 
-### T-JTT905-1…13 清单（P3；9.52 对账：T-1 基线 1+T-2 信封头 2+T-3 签到体 1+T-4 心跳对 1+T-5 签退体 1+T-6 应答对 1+T-7 转义 1+T-8 金向量 0（单测面）+T-9 位置块 1+T-10 负例 4 = **分项和 13 = 建例 12 + T-2 承载 2 项（信封+体长纯值），可复算**；suite 负例 4）
+### T-JTT905-1…14 清单（P3+修轮；9.52 对账：T-1 基线 1+T-2 信封头 2+T-3 签到体 1+T-4 心跳对 1+T-5 签退体 1+T-6 应答对 1+T-7 转义 1+T-8 金向量 0（单测面）+T-9 位置块 1+T-10…13 负例 4+T-14 枚举 1 = **分项和 14 = 建例 13（其中 T-2 承载 2 项信封+体长纯值，余 12 例各 1 点），可复算**；suite 负例 4）
 
 | # | 用例 | 断言面 |
 |---|---|---|
@@ -3562,7 +3562,8 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 | T-10 | 负例 isu_id 11 位 | 锚词 `ISUId "12345678901" must be 12 digits` |
 | T-11 | 负例 plate 7 ASCII | 锚词 `PlateNo length 7 > 6` |
 | T-12 | 负例 result=3 | 锚词 `Result 3 > 2` |
-| T-13 | 负例 uptime 位数错 | 锚词 `Uptime`（BCD 位数锚） |
+| T-13 | 负例 uptime 位数错 | 锚词 `OnDutyPowerOnTime "20240803" must be 12 digits (yyyyMMddHHmm)`（L3a 勘误：原列 `Uptime` 为 build 路径锚，e2e 不可达） |
+| T-14 | Result 枚举正例（修轮 M1） | result=1（失败）+result=2（消息有误）体尾字节双钉；枚举 0/1/2 线上全达 |
 
 ### 门 1 开工对照表（§1–§14，2026-09-22 jtt905 P6 回填，证据=文档节/代码行/用例号）
 
@@ -3581,11 +3582,25 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 | §11 白话汇报 | 先一句结论再证据 | 各阶段汇报 |
 | §12 动态清单 | 四元组=框架白名单；双流水号（ISU/中心）=InitialSN/PlatformInitialSN 起点；业务键静态单值如实注记（无动态消费面） | 门1 §12 行；`jtt905.go` 双计数器 |
 | §13 schema 同步 | registry 25 Fields → schemagen 重生成 112 层 | generated/layers.generated.json（fb7f923） |
-| §14 真实流程 | MCP 建→引擎生成→tshark 校对；12/12 ×2；负例带锚词；钉从落盘 pcap | T-JTT905-1…13；suite ×2 |
+| §14 真实流程 | MCP 建→引擎生成→tshark 校对；13/13 ×2（修轮 T-14 后）；负例带锚词；钉从落盘 pcap | T-JTT905-1…14；suite ×2 |
 
 **门 3 抽查三条（P6）：** ①§3——T-1 自动会话 MsgId 序 0B03/8001/0002/8001/0B04/8001 六钉（pcap 实证）；②§12——双流水号 `jtt905.go` isuSN/centerSN 分行可点+T-4 platform_initial_sn=60→应答 SN 0x3c 钉；③§14——suite 12/12 ×2+反查 41/41+门2-3 二进制同代。
 
 **验收两门：** ①层链跑通=P5 绿；②旧格式移除=presence 判死+probe 清库。两门全过。
 
 **P6 收官结论（白话一句）：** jtt905 体面重建后 MsgId/体形/头语义全对齐 JT/T 905.2-2014 权威实现（金向量逐字节），5 型会话可编排可校验，12 例 ×2 全绿、反查 41/41、门2 四项绿、在库清零对账平。
+
+### 修轮块（2026-09-22 收官隔离复审 PASS-WITH-FINDINGS → 处置，红先绿后）
+
+| 级 | 发现 | 处置 |
+|---|---|---|
+| M1 | Result 枚举 1/2 全量缺例（9.46/9.47 逐值至少一例不满足） | T-14 wire 例新建（result=1/2 体尾双钉，rsn/rid 绑定同 T-6 面）；枚举 0/1/2 线上全达 |
+| L1 | BCD 位数族只查长度不查数字性（等长非数字漏到 BCDEncode 才以他锚词失败） | ValidateConfig 位数族 12 项+三时间字段补逐位数字查（锚 `contains non-digit`）；红例先行（"12a4" 放行实录）修复转绿 |
+| L2 | isu_general_response 无前置下行合成缺省：rsn=centerSN-1（0 时回绕 65535）、rid 缺省 0x8300 | **B′ 登记**：合成缺省面如实注记（MsgTextDownRef 注释已在码），边界例不建 |
+| L3 | 文档措辞三处（T-13 锚词 `Uptime` 不可达/coverage docstring 1…10/分项和算术含混） | 三处同修（本块+TEST_CASES+coverage_gate.py） |
+| L4 | 仅 IPv4 例 | **B′ 登记**：raw 家族通病，随家族级 IPv6 立项 |
+| L5 | 线上 7D01 转义例缺 | **B′ 登记**：转义函数金向量单测逐字节钉（体尾 7D→7D01），wire 例不建 |
+| L6 | initial_sn 0/65535 边界、heartbeat_count>1 无例 | **B′ 登记**：循环体走查平凡正确，边界例不建 |
+
+修轮后：suite 13/13 ×2、反查 41/41、门2 四项绿（重编实录）、touched 包 -race 绿。任务书勘误：XORChecksum/Escape/BCDEncode 实住 protocol/jtcommon/jtcommon.go（非 jt808wire.go，该文件属 809 专用面），复用结论不变。
 
