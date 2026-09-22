@@ -2027,6 +2027,14 @@ def check_kingbase(cases):
     rows.append(("neg_udp 承载锚（error_contains=tcp）", ok, ev))
     ok, ev = _err_anchor("neg_state", "state")
     rows.append(("neg_state 状态机锚（error_contains=state）", ok, ev))
+    # 收官复审 NOTE：锚词三项是在 cases 全 blob 搜词，error_contains 自身即
+    # 含这些词——加"负例层配置非空"守卫，防"配置被清空仍全绿"的自满足面
+    # （真跑真红由 suite 门2-2 兜）。
+    empty_cfg = [c.get("id", "?") for c in cases
+                 if "neg_" in c.get("id", "")
+                 and next((m for cid, m in lays if cid == c.get("id") and "neg_" in cid), None) is not None
+                 and not next((m for cid, m in lays if cid == c.get("id") and "neg_" in cid), {}).get("events")]
+    rows.append(("负例层配置非空（防锚词自满足）", not empty_cfg, empty_cfg or "非空"))
 
     # 4. 顶层残留为零（退役口径：kingbase.json 只允许 layers）。
     leaked = sorted({k for c in cases for k in (c.get("spec_json", {}) or {}) if k != "layers"})
