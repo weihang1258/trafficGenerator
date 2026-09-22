@@ -21,7 +21,7 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		"dhcp", "dhcpv6", "dnp3", "dns", "doip", "drda", "enip", "fins",
 		"ftp", "gbt32960", "goose", "gre", "grpc", "gtp", "h323", "hds",
 		"hls", "http", "http_flv", "icmp", "icmpv6", "iec104", "igmp", "ike",
-		"ike_nat_t", "imap", "isis", "jt808", "jt809", "jtt905", "kingbase", "l2tp",
+		"ike_nat_t", "imap", "isis", "jt808", "jt809", "jtt905", "l2tp",
 		"ldap", "ldp", "mcp", "mcpprotocol", "mdns", "mms", "modbus",
 		"mongodb", "moxa", "mpls", "mqtt", "mysql", "nfs", "ngap", "ntp",
 		"opcua", "openvpn", "ospf", "pcep", "pim", "pop3", "postgresql", "pppoe", "pptp",
@@ -76,6 +76,9 @@ func TestAllowedProtocolsStable(t *testing.T) {
 // flipping its "should be rejected" case to a false pass.
 func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 	negativeOnly := []string{
+		// D-KINGBASE-1 裁定1：协议身份退役（唯一形态 = postgresql 层
+		// dialect=kingbase）——must remain rejected，防复活。
+		"kingbase",
 		"bacnet", "dcerpc", "dtls", "edp",
 		"hl7",
 		"kerberos", "megaco", "mmse", "ntlm", "ocsp",

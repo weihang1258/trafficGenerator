@@ -28,7 +28,7 @@ var allowedProtocols = map[string]bool{
 	"hls": true, "http": true, "http_flv": true, "icmp": true,
 	"icmpv6": true, "iec104": true, "igmp": true, "ike": true, "ike_nat_t": true,
 	"imap": true, "isis": true, "jt808": true, "jt809": true, "jtt905": true,
-	"kingbase": true, "l2tp": true, "ldap": true, "ldp": true,
+	"l2tp": true, "ldap": true, "ldp": true,
 	"mcp": true, "mcpprotocol": true, "mdns": true, "mms": true,
 	"modbus": true, "mongodb": true, "moxa": true, "mpls": true,
 	"mqtt": true, "mysql": true, "nfs": true, "ngap": true,

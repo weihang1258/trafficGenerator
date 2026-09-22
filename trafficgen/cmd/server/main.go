@@ -85,7 +85,6 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/jtt905"
 	"github.com/trafficgen/trafficgen/internal/protocol/jt809"
 	"github.com/trafficgen/trafficgen/internal/protocol/jtt905"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/kingbase"
 	// 空导入：l2tp 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ams"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/geneve"

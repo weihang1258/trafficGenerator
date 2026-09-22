@@ -1288,32 +1288,6 @@ type DamengConfig struct {
 	WireFault   json.RawMessage `json:"wire_fault,omitempty"`
 }
 
-// KingBaseEvent is one KingBase database protocol event.
-type KingBaseEvent struct {
-	Kind      string `json:"kind,omitempty"`
-	Direction string `json:"direction,omitempty"`
-	Profile   string `json:"profile,omitempty"`
-	User      string `json:"user,omitempty"`
-	Database  string `json:"database,omitempty"`
-	Result    string `json:"result,omitempty"`
-	SQL       string `json:"sql,omitempty"`
-	Tag       string `json:"tag,omitempty"`
-}
-
-// KingBaseSession is a single KingBase session with its own source port and events.
-type KingBaseSession struct {
-	SrcPort uint16          `json:"src_port,omitempty"`
-	Events  []KingBaseEvent `json:"events,omitempty"`
-}
-
-// KingBaseConfig configures a KingBase database session (TCP 54321).
-type KingBaseConfig struct {
-	WireProfile string            `json:"wire_profile,omitempty"`
-	Events      []KingBaseEvent   `json:"events,omitempty"`
-	Sessions    []KingBaseSession `json:"sessions,omitempty"`
-	WireFault   json.RawMessage   `json:"wire_fault,omitempty"`
-}
-
 // CQLEvent is one CQL/Cassandra native protocol event.
 type CQLEvent struct {
 	Kind        string                 `json:"kind,omitempty"`
@@ -1724,7 +1698,6 @@ type FlowSpec struct {
 	TNS       *TNSConfig       `json:"tns,omitempty"`
 	MongoDB   *MongoDBConfig   `json:"mongodb,omitempty"`
 	Dameng    *DamengConfig    `json:"dameng,omitempty"`
-	KingBase  *KingBaseConfig  `json:"kingbase,omitempty"`
 	CQL       *CQLConfig       `json:"cql,omitempty"`
 	LDP       *LDPConfig       `json:"ldp,omitempty"`
 	PCEP      *PCEPConfig      `json:"pcep,omitempty"`
@@ -6445,9 +6418,10 @@ type OpenVPNInnerIP struct {
 // PostgreSQLEvent is a single PostgreSQL v3 wire event for the shared
 // postgresql layer's event-driven generator (layer_gen.go). It is the
 // terminal-layer event carring the kind/direction/profile that the generator
-// turns into PG v3 bytes. Richer than KingBaseEvent: it carries the
-// auth sub-type (authtype), parameter-status name/value, and backend-key
-// pid/secret so the postgresql layer can emit profile-complete events.
+// turns into PG v3 bytes: it carries the auth sub-type (authtype),
+// parameter-status name/value, and backend-key pid/secret so the postgresql
+// layer can emit profile-complete events (D-KINGBASE-1：dialect=kingbase 同层
+// 复用，protocol 身份已退役).
 type PostgreSQLEvent struct {
 	Kind      string `json:"kind,omitempty"`
 	Direction string `json:"direction,omitempty"`

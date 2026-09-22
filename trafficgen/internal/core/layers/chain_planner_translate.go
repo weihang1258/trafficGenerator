@@ -126,7 +126,6 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		TNS:        spec.TNS,
 		MongoDB:    spec.MongoDB,
 		Dameng:     spec.Dameng,
-		KingBase:   spec.KingBase,
 		PostgreSQL: spec.PostgreSQL,
 		CQL:        spec.CQL,
 		LDP:        spec.LDP,

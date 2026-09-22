@@ -367,7 +367,6 @@ type FlowMeta struct {
 	TNS      *core.TNSConfig
 	MongoDB  *core.MongoDBConfig
 	Dameng   *core.DamengConfig
-	KingBase *core.KingBaseConfig
 	// PostgreSQL is the flow's PostgreSQL config (注入到 postgresql 终结层生成器，
 	// P0a：共享 PG v3 wire 层，kingbase 是其 dialect 变体——共享层读
 	// req.Meta.PostgreSQL 的 Events/Sessions，dialect 决定端口 5432/54321）。
