@@ -12,34 +12,34 @@ import (
 
 // longTokens maps abbrev → long form for the wire encoder.
 var longTokens = map[string]string{
-	"MEGACO/": "MEGACO/",
-	"!/":      "MEGACO/",
-	"Transaction": "Transaction",
-	"T":          "Transaction",
-	"Reply":      "Reply",
-	"P":          "Reply",
-	"Pending":    "Pending",
-	"PN":         "Pending",
-	"ResponseAck": "TransactionResponseAck",
-	"K":           "TransactionResponseAck",
-	"Context":    "Context",
-	"C":          "Context",
-	"Add":      "Add",
-	"A":        "Add",
-	"Modify":   "Modify",
-	"MF":       "Modify",
-	"Subtract": "Subtract",
-	"S":        "Subtract",
-	"Move":     "Move",
-	"MV":       "Move",
-	"AuditValue":      "AuditValue",
-	"AV":              "AuditValue",
-	"AuditCapability": "AuditCapability",
-	"AC":              "AuditCapability",
-	"Notify":          "Notify",
-	"N":               "Notify",
-	"ServiceChange":   "ServiceChange",
-	"SC":              "ServiceChange",
+	"MEGACO/":          "MEGACO/",
+	"!/":               "MEGACO/",
+	"Transaction":      "Transaction",
+	"T":                "Transaction",
+	"Reply":            "Reply",
+	"P":                "Reply",
+	"Pending":          "Pending",
+	"PN":               "Pending",
+	"ResponseAck":      "TransactionResponseAck",
+	"K":                "TransactionResponseAck",
+	"Context":          "Context",
+	"C":                "Context",
+	"Add":              "Add",
+	"A":                "Add",
+	"Modify":           "Modify",
+	"MF":               "Modify",
+	"Subtract":         "Subtract",
+	"S":                "Subtract",
+	"Move":             "Move",
+	"MV":               "Move",
+	"AuditValue":       "AuditValue",
+	"AV":               "AuditValue",
+	"AuditCapability":  "AuditCapability",
+	"AC":               "AuditCapability",
+	"Notify":           "Notify",
+	"N":                "Notify",
+	"ServiceChange":    "ServiceChange",
+	"SC":               "ServiceChange",
 	"Media":            "Media",
 	"M":                "Media",
 	"Stream":           "Stream",
@@ -52,26 +52,26 @@ var longTokens = map[string]string{
 	"R":                "Remote",
 	"TerminationState": "TerminationState",
 	"TS":               "TerminationState",
-	"Events":            "Events",
-	"E":                 "Events",
-	"EventBuffer":       "EventBuffer",
-	"EB":                "EventBuffer",
-	"Signals":           "Signals",
-	"SG":                "Signals",
-	"DigitMap":          "DigitMap",
-	"DM":                "DigitMap",
-	"ObservedEvents":    "ObservedEvents",
-	"OE":                "ObservedEvents",
-	"Statistics":        "Statistics",
-	"SA":                "Statistics",
-	"Packages":          "Packages",
-	"PG":                "Packages",
-	"Audit":             "Audit",
-	"AT":                "Audit",
-	"Services":          "Services",
-	"SV":                "Services",
-	"Error":             "Error",
-	"ER":                "Error",
+	"Events":           "Events",
+	"E":                "Events",
+	"EventBuffer":      "EventBuffer",
+	"EB":               "EventBuffer",
+	"Signals":          "Signals",
+	"SG":               "Signals",
+	"DigitMap":         "DigitMap",
+	"DM":               "DigitMap",
+	"ObservedEvents":   "ObservedEvents",
+	"OE":               "ObservedEvents",
+	"Statistics":       "Statistics",
+	"SA":               "Statistics",
+	"Packages":         "Packages",
+	"PG":               "Packages",
+	"Audit":            "Audit",
+	"AT":               "Audit",
+	"Services":         "Services",
+	"SV":               "Services",
+	"Error":            "Error",
+	"ER":               "Error",
 }
 
 // tokenToWire renders a command/descriptor name in the configured form
@@ -94,19 +94,40 @@ func tokenToWire(tok, form string) string {
 	return tok
 }
 
-// reverseTokens is built once from longTokens for abbrev lookups.
-var reverseTokens = map[string]string{}
-
-func init() {
-	seen := map[string]bool{}
-	// longTokens maps abbrev→long. We want long→abbrev. Walk known abbrev
-	// forms; for each, the value is the long form.
-	for ab, long := range longTokens {
-		if !seen[long] && ab != long {
-			reverseTokens[long] = ab
-			seen[long] = true
-		}
-	}
+// reverseTokens maps long→abbrev explicitly (D-MEGACO-1 修轮 F2：旧版由
+// longTokens 反推 + map 迭代序——"K" 与 "ResponseAck" 同映射 long 时随机
+// 胜出，且渲染点长键 "TransactionResponseAck" 与表内长值不一致 → 缩写形
+// response_ack 发出 "ResponseAck" 而非契约 §3.2 的 "K"。显式表消除二义）。
+var reverseTokens = map[string]string{
+	"Transaction":            "T",
+	"Reply":                  "P",
+	"Pending":                "PN",
+	"TransactionResponseAck": "K",
+	"Context":                "C",
+	"Add":                    "A",
+	"Modify":                 "MF",
+	"Subtract":               "S",
+	"Move":                   "MV",
+	"AuditValue":             "AV",
+	"AuditCapability":        "AC",
+	"Notify":                 "N",
+	"ServiceChange":          "SC",
+	"Media":                  "M",
+	"Stream":                 "ST",
+	"LocalControl":           "O",
+	"Local":                  "L",
+	"Remote":                 "R",
+	"TerminationState":       "TS",
+	"Events":                 "E",
+	"EventBuffer":            "EB",
+	"Signals":                "SG",
+	"DigitMap":               "DM",
+	"ObservedEvents":         "OE",
+	"Statistics":             "SA",
+	"Packages":               "PG",
+	"Audit":                  "AT",
+	"Services":               "SV",
+	"Error":                  "ER",
 }
 
 // buildStartLine emits the megaco start line:
@@ -168,6 +189,14 @@ func buildServicesBlock(s *core.MegacoServices, form string) string {
 	return tokenToWire("Services", form) + " { " + strings.Join(parts, ", ") + " }"
 }
 
+// escapeSDP escapes octetString content per RFC 3525 §3.6/Annex B (D-MEGACO-1
+// 修轮 F8): a literal "}" would close the enclosing descriptor block early,
+// so "}" → "\}" and "\" → "\\" (backslash first).
+func escapeSDP(sdp string) string {
+	sdp = strings.ReplaceAll(sdp, "\\", "\\\\")
+	return strings.ReplaceAll(sdp, "}", "\\}")
+}
+
 // buildMediaBlock renders the Media { Stream = <id> { ... } } block.
 func buildMediaBlock(m *core.MegacoMedia, form string) string {
 	if m == nil {
@@ -192,10 +221,10 @@ func buildMediaBlock(m *core.MegacoMedia, form string) string {
 			inner = append(inner, "LocalControl { "+strings.Join(lcParts, ", ")+" }")
 		}
 		if s.LocalSDP != "" {
-			inner = append(inner, "Local { "+s.LocalSDP+" }")
+			inner = append(inner, "Local { "+escapeSDP(s.LocalSDP)+" }")
 		}
 		if s.RemoteSDP != "" {
-			inner = append(inner, "Remote { "+s.RemoteSDP+" }")
+			inner = append(inner, "Remote { "+escapeSDP(s.RemoteSDP)+" }")
 		}
 		parts = append(parts, fmt.Sprintf("%s = %d { %s }", tokenToWire("Stream", form), s.ID, strings.Join(inner, ", ")))
 	}
@@ -343,9 +372,12 @@ func buildDescriptor(d *core.MegacoDescriptor, form string) string {
 }
 
 // buildCommand renders one command line, e.g.:
-//   "ServiceChange = ROOT { Services { ... } }"
+//
+//	"ServiceChange = ROOT { Services { ... } }"
+//
 // or with optional/wildcard prefixes:
-//   "O-AuditValue = * { ... }"
+//
+//	"O-AuditValue = * { ... }"
 func buildCommand(cmd core.MegacoCommand, form string) string {
 	var pre string
 	if cmd.Optional {
@@ -388,7 +420,7 @@ func buildTransaction(tx core.MegacoTransaction, form string) string {
 	case "pending":
 		return fmt.Sprintf("%s = %s { }", tokenToWire("Pending", form), tx.ID)
 	case "response_ack":
-		return fmt.Sprintf("%s { %s }", tokenToWire("ResponseAck", form), tx.Ack)
+		return fmt.Sprintf("%s { %s }", tokenToWire("TransactionResponseAck", form), tx.Ack)
 	case "reply":
 		var pre string
 		if tx.ImmAckRequired {
@@ -456,7 +488,13 @@ func BuildMessageText(cfg *core.MegacoConfig, version int, mid string, transacti
 
 // WrapTPKT prepends the 4-byte RFC 1006 TPKT header (version 0x03, reserved
 // 0x00, total length = 4 + body) used by TCP carrier (RFC 3525 Annex D.2).
-func WrapTPKT(body []byte) []byte {
-	plen := uint16(len(body) + 4)
-	return append([]byte{0x03, 0x00, byte(plen >> 8), byte(plen)}, body...)
+// WrapTPKT prepends the TPKT header; errors when the PDU exceeds the 16-bit
+// length domain (D-MEGACO-1 修轮 F1：>0xFFFF 静默截断长度域 = 接收端按声明
+// 长度切分必错——RFC 1006 上界即协议约束，超界必须报错而非产错帧）。
+func WrapTPKT(body []byte) ([]byte, error) {
+	total := len(body) + 4
+	if total > 0xFFFF {
+		return nil, fmt.Errorf("megaco: TPKT PDU %d bytes exceeds the RFC 1006 16-bit length domain (max %d); split the message or use a smaller descriptor body", total, 0xFFFF)
+	}
+	return append([]byte{0x03, 0x00, byte(total >> 8), byte(total)}, body...), nil
 }

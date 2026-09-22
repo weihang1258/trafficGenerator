@@ -3927,7 +3927,7 @@ ICMPv4（RFC 792）反推 8 例（4 正+4 负；链级红例=单测面不占号�
 
 **存量审计（79 例去向，9.14 口径）：** B6 旧分支 79 例全量等价承载——spec_json 层链整形（顶层四元组→ip 层 src/dst；→udp/tcp 层 src_port/dst_port；顶层 megaco 子映射→megaco 层 config），expect 断言面（packet_count/fields/frames）零变化；注册前置占位 megaco_neg_unregistered 随注册移除（契约 §1）。tshark 口径校准已烘入 B6 fixture（megaco.context 字段名/ack_range 包数/mss=536 下限——aa72e36 十三修的遗产）。
 
-**P4 新增（本分支，红先绿后）：** 链级红例 8（megaco_chain_test.go：presence 判死/翻译落线/V9 七键/空层基线 2 包/TPKT 成帧/端口域/wire_fault 闭环锚/会话 transport 载体不符）——三突变实证（删 translate case→②红；neuter wire_fault 拒绝→⑦红；删 carrier 块→⑥⑧红）。白名单收 megaco 同红先绿后（negativeOnly 守卫先红→摘除→绿）。
+**P4 新增（本分支，红先绿后）：** 链级红例 15（megaco_chain_test.go：P4 八例 presence 判死/翻译落线/V9 七键/空层基线 2 包/TPKT 成帧/端口域/wire_fault 闭环锚/会话 transport 载体不符 + 修轮七例 TPKT 溢出/缩写 K/会话 dst_port 域/transid 溢出/重复 transid/自然面守卫/SDP 转义）——**四突变实证（修轮 F7 重跑，cp 备份 harness）**：A 删 translate case→LayerConfigTranslates 红（断言已改钉非缺省值 mgc mid + 自定义 Reason；旧版钉 defaultFlow 派生串系伪证，已废弃）；B neuter wire_fault 拒绝→WireFaultClosedEnum 红；C 短路 carrier 块→4 红（PortContract/SessionTransportMismatch/SessionDstPortDomain/TPKTOverflowRejected）；D 禁用 CheckProtoFlat 分支→FlatPresenceRejected 红。复原全绿。白名单收 megaco 同红先绿后（negativeOnly 守卫先红→摘除→绿）。
 
 **跑法口径：** `CASE_PROTO=megaco` 79/79 ×2 全绿；MCP 真实流程（strategy create→task→engine→tshark 校验），pcap 落盘 `/tmp/mcp-pcaps/megaco/`。
 

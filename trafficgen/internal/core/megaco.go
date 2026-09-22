@@ -119,8 +119,6 @@ type MegacoTransaction struct {
 	// transactionReply body is actionReplyList / errorDescriptor — mutually
 	// exclusive). Only valid for type=reply with empty Actions.
 	Error *MegacoError `json:"error,omitempty"`
-	// WireFault injects a per-transaction wire fault.
-	WireFault string `json:"wire_fault,omitempty"`
 }
 
 // MegacoAction is one Context = ContextID { commands... } inside a transaction.
@@ -150,8 +148,6 @@ type MegacoCommand struct {
 	// media/services/events/signals/digit_map/observed_events/audit/
 	// event_buffer/statistics/packages/error/...).
 	Descriptor *MegacoDescriptor `json:"descriptor,omitempty"`
-	// WireFault injects a per-command wire fault.
-	WireFault string `json:"wire_fault,omitempty"`
 }
 
 // MegacoDescriptor carries the named parameter blocks per §3.5. All fields

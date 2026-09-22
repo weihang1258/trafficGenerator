@@ -1,6 +1,6 @@
 # Megaco/H.248（媒体网关控制协议，文本编码）设计契约
 
-> 版本：v1.2.0（设计阶段）  
+> 版本：v1.2.1（设计阶段）  
 > 日期：2026-09-01  
 > 状态：仅设计与 PCAP（抓包文件）/NIC（网卡）用例契约；`megaco`/`h248`/`mgcp` 层尚未注册，不修改 Go（编程语言）实现，不宣称当前 suite（测试套件）可运行。**按《协议设计文档与用例文档需求文档 v1.3》完成独立对抗重审**（审查员 rr-megaco：行为面 114 点，✓79/半8/✗27；confirmed findings 5 MAJOR C 项 + 2 MAJOR D 项 + 约 20 MINOR + 4 N 项），本版 v1.2.0 为修复轮产物：语义 ID 23 → 77（46 正 + 31 负），待 rr-megaco 复验；v1.1.0 及以前的审查/修复记录见 §10 修订记录。
 > 配套文件：`docs/protocol-designs/70-megaco-testcase.md`、`trafficgen/test/protocol_pcap/cases/megaco.json`  
@@ -329,7 +329,8 @@ megaco.error  megaco.error_code  megaco.error_string
 | `profile` | 本版固定 `megaco_v1_text`；`mgcp_alias` 仅表示"入口名 mgcp + 2427 默认端口"，线格式不变 |
 | `encoding` | `text`（主线）；`ber` 仅可声明，本期不产生 BER 载荷——声明与载荷不一致必须拒绝（负例 47）；text 编码配 2945 端口同拒（负例 48） |
 | `version` | 起始行版本 1-2 位数字，主口径恒 `1`（2 位数字形态为语法边界 carve-out，用例 40）；`0` 与 3 位数字拒绝（负例 50/51） |
-| `token_form` | `long`（`MEGACO/1`、`Transaction`、`Context`、`Add`）或 `abbrev`（`!/1`、`T`、`C`、`MF`、`AV` 等），仅影响编码形式，语义相同 |
+| `token_form` | `long`（`MEGACO/1`、`Transaction`、`Context`、`Add`）或 `abbrev`（`!/1`、`T`、`C`、`MF`、`AV` 等），仅影响编码形式，语义相同；response_ack 缩写形恒 `K`（§3.2 表， abbrev 下不得出现 `ResponseAck` 长串） |
+| `whitespace` | 空白/注释变体（RFC 3525 Annex B.2 LWSP/EOL/COMMENT，用例 23）：缺省标准 LF；`cr` = CR-only EOL；`comment` = 起始行与事务列表之间插入独立 `; ...` 注释行（合法 ABNF COMMENT，tshark 3.6 dissector 不实现会报 `_ws.malformed` 伪影，帧字节以用例 frames 六钉为准）；`lwsp` = 起始行 SEP 双空格 |
 | `mid` | 会话 role 实体（`mg`/`mgc`）的 mId，四种形式之一（§3.1），同一会话内恒定；方向映射随角色翻转（§5.1）：role=mg 用于 c2s 消息、role=mgc 用于 s2c 消息 |
 | `peer_mid` | 对端实体的 mId，四种形式之一，用于另一方向消息（role=mg 的 s2c / role=mgc 的 c2s）。优先级：显式 `peer_mid` > 自动派生（未声明时取对端地址 domainAddress：role=mg → `[dst_ip]`、role=mgc → `[src_ip]`，地址族随外层 v4/v6）；validator 校验两方向各自恒定（§5.1） |
 | `sessions[]` | 事件编排会话：四元组 + `role`（`mg`/`mgc`）+ `events[]`；多会话按序整块回放，第二会话包号起点 = 前会话总包数 + 1；`concurrent: true` 交错回放（v1.2 翻案，正例 45） |
@@ -431,6 +432,7 @@ megaco.error  megaco.error_code  megaco.error_string
 
 ## 10. 修订记录
 
+- v1.2.1（2026-09-23，实现轮补行）：§6 键表补 `whitespace` 行（实现面 `registry.go` 七键已含该键，用例 23 帧字节已钉——v1.2.0 键表漏行，D-MEGACO-1 修轮 F13 补记）+ `token_form` 行补 response_ack 缩写恒 `K` 澄清（修轮 F2 实证旧渲染歧义）。
 - v1.2.0（2026-09-01，v1.3 重审修复轮）：rr-megaco 行为面 114 点全枚举重审（✓79/半8/✗27；5 MAJOR C + 2 MAJOR D + 约 20 MINOR + 4 N）后重出：语义 ID 23 → 77（46 正 + 31 负）。关键修复：**D-1**（CRITICAL）§9 固化契约废除——ID 权威改 testcase §2，设计 §9 改簇级覆盖图景；**C-2**（CRITICAL）负例逐故障输入原子拆分 6→31 行（一行一例单一注入），§7 表整表重排、§6 `wire_fault` 枚举扩 31 值（三方同序）；**C-1** 三基线声明入 §1（pcap/NIC 双输出、RST 不产生、并发会话翻案）+ §5.2/§6/§8 翻案落点与正例 45；**C-5** TerminationState 例（18）、**C-6** 版本协商例（19）、**C-7** Method 值域补 Graceful/Forced/Disconnected（20/21/22）、**C-8** UDP 超 MTU 负例（76）、**C-9** 空白/注释例（23）、**C-10** mId `[IP]:port`/deviceName 例（24/25）、**C-11** 事务级 errorDescriptor 例（26）、**C-12** K 区间例（27）、**C-13** `transid 0` 错误 Reply 例（28）、**C-14** RV/RG（29）+EventBuffer（30）、**C-15** Mode SO/IN/LB（31/32/33）+auditItem（34）+Signals OO/TO/BR（35）、**C-16** 错误码 431/442 例（36/37）、**C-17** Delay/TimeStamp 例（38）+Services 互斥负例（77）、**C-18** 边界相邻值例（39/40/41）、**C-19** Embed（42）+Events 无 RequestID（43）、**C-20** 注册改派例（44）；**D-3/N-1** `mtpAddress` 改 `MTP{...}` 花括号（§3.1）；**D-4/N-3** DigitMap `T:0` 合法语义口径（§3.5/§8）+越界负例限定 T>99 与 S/L 的 0（负例 70）+Z 修饰符例（46）；**D-5/N-2** 错误码出处改"部分正文引用、部分 H.248.8/IANA 注册"（§3.5/§3.6）；**D-6/N-4** 用例 3 首错停止断言改包级字节包含原语；**N-5** §3.9 字段清单补实测字段 `reservevalue/reservegroup/terminationstate`；§3.1 Version 口径改"主口径恒 1、2 位数字为语法边界 carve-out"；§6 typedef 补 `concurrent`/`event_buffer`/`embed`/`service_change_mgc_id`、负例编号全量重指（47-77）。既有决策未改：三名合一、TPKT 主路径、消息级 Error 不覆盖声明（77 例内仍不设正例）、边界固化 carve-out、流关联/多流不适用。
 - v1.0.0（2026-08-31）：按 `protocol-doc-requirements.md` v1.0 强制契约重写，取代 2026-08-21 旧稿。两文档独立、统一术语（事件编排会话/多会话展开/事务/锚词）、业务场景分析、五层覆盖逐层落点、三名合一决策出处（00-unimplemented-list.md 备注 3 与实现决策 3，需求方 2026-08-18）。相对旧稿的规范修正：①二进制编码默认端口按 RFC 3525 §9.1 修正为 2945（旧稿默认 2944）；②明确 RFC 3525 文本编码无应用层消息分段，"长消息 Segmentation" 修正为 TCP MSS 分段重组 + UDP 单数据报口径；③起始行方括号归属 mId 地址形式，非消息体括号；④主线文本编码，BER 降为 profile 边界（不再设 BER 正例，编码不一致进负例）；⑤正例 ID 统一 `megaco_` 前缀（旧稿正例为 `h248_` 前缀）；⑥依据 tshark 实测补充 megaco dissector 字段清单与 2427 端口 mgcp 绑定事实（旧稿误写"没有专用 Megaco dissector"）。
 - 三向交叉审计（2026-08-31，用例审设计/设计审用例/规范审两份）2 轮，修复项见两份文档修订记录；本轮主要修复：①用例 3 的 T2 从"Modify 不存在终结点"改为"AuditValue 不存在终结点"——避免与负例 17 的状态机错语义重叠，并顺势覆盖 Error 描述符正例；②用例 6 补 AuditCapability 命令与 Audit 描述符落点（此前八命令缺 AC）；③用例 9 并入 Move 命令（此前八命令缺 Move），packet_count 2→4；④用例 5 从 2 消息扩为 4 消息（补 Events 编程事务），使 ObservedEvents↔Events RequestID 关联可断言；⑤§3.5 补 `Events` 描述符 RequestID 可选、`ObservedEvents` RequestID 必选的区分；⑥负例 17 锚词从 `state` 调整主锚词为 `command` 并在 §7 表内对齐 testcase §5；⑦规范审回对 RFC 3525：补 §9.1 规则 6（SC 必为 MG 首命令）与错误 505 到负例 17 依据、补 `ImmAckRequired` 仅出现在回过 Pending 的最终 Reply 的前提表述、修正 `Reason` 为 quotedString 必选形式的表述。

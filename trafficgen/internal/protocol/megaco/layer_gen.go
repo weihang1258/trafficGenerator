@@ -174,20 +174,22 @@ func emitSessionEvent(cfg *core.MegacoConfig, r *sessionRun, ev core.MegacoEvent
 	mid := pickMid(r.sess, ev.Direction, r.srcIP, dstIP)
 	body := BuildMessageText(cfg, versionFor(cfg), mid, txs, form)
 
-	// wire_fault 在 validator 即拒（D-MEGACO-1 裁定：所有负例以 task error
-	// 呈现，绝不落线）；此处防御性再拒（防绕过 Validate 直驱）。
-	if wf := ev.WireFault; wf == "" {
-		wf = cfg.WireFault
-		if wf != "" {
-			return fmt.Errorf("megaco: sessions[%d]: wire fault %q rejected at generation (validator gate missed)", r.idx, wf)
-		}
+	// D-MEGACO-1 修轮 F5：UDP 载体单数据报受 MTU 约束（Annex D.1；契约 §8
+	// "不静默截断、不做 IP 分片依赖"）——IPv4 预算 1500-20(IP)-8(UDP)=1472。
+	// 超 MTU 的长消息必须改走 TCP 载体（TPKT 定界+MSS 分段）。
+	if !tcpCarrier && len(body) > 1472 {
+		return fmt.Errorf("megaco: sessions[%d]: UDP datagram %d bytes exceeds the MTU budget 1472 — use a tcp carrier for long messages (%s)", r.idx, len(body), "length")
 	}
 
 	// TCP carrier prepends RFC 1006 TPKT 4B header (version=0x03, reserved=0x00,
 	// 16-bit big-endian length = 4+message_length), Annex D.2 SHALL. UDP carrier
 	// is raw bytes (no framing).
 	if tcpCarrier {
-		body = string(WrapTPKT([]byte(body)))
+		tpkt, err := WrapTPKT([]byte(body))
+		if err != nil {
+			return err
+		}
+		body = string(tpkt)
 	}
 
 	up := ev.Direction != "s2c"

@@ -6,6 +6,7 @@ package megaco
 
 import (
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 
@@ -89,9 +90,28 @@ func Validate(spec core.FlowSpec) error {
 		// 负例以 task error 形态呈现，绝不静默放行成 0 包假成功。
 		return fmt.Errorf("megaco: wire fault %q injected (%s)", cfg.WireFault, anchor)
 	}
+	carrier, _ := spec.Metadata["megaco_carrier"].(string)
 	for si, sess := range cfg.Sessions {
 		if err := validateSession(cfg, sess, si); err != nil {
 			return err
+		}
+		// D-MEGACO-1 修轮 F5/F1：UDP 单数据报 ≤1472（1500-20-8，Annex D.1
+		// 不做 IP 分片依赖）；TCP TPKT PDU ≤0xFFFF（RFC 1006 16-bit 长度域）。
+		sizes, rerr := sessionRenderSizes(cfg, sess, spec.SrcIP, spec.DstIP)
+		if rerr != nil {
+			return rerr
+		}
+		for ei, n := range sizes {
+			switch carrier {
+			case "udp":
+				if n > 1472 {
+					return fmt.Errorf("megaco: sessions[%d].events[%d]: UDP datagram %d bytes exceeds the MTU budget 1472 — use a tcp carrier for long messages (%s)", si, ei, n, "length")
+				}
+			case "tcp":
+				if n+4 > 0xFFFF {
+					return fmt.Errorf("megaco: sessions[%d].events[%d]: TPKT PDU %d bytes exceeds the RFC 1006 16-bit length domain (%s)", si, ei, n+4, "length")
+				}
+			}
 		}
 	}
 	return nil
@@ -103,8 +123,11 @@ func validateConfig(cfg *core.MegacoConfig) error {
 	default:
 		return fmt.Errorf("megaco: profile %q is not supported (megaco_v1_text|mgcp_alias|megaco_v1_ber)", cfg.Profile)
 	}
-	if cfg.Encoding != "" && cfg.Encoding != "text" && cfg.Encoding != "ber" {
-		return fmt.Errorf("megaco: encoding %q is not supported (text|ber)", cfg.Encoding)
+	if cfg.Encoding != "" && cfg.Encoding != "text" {
+		// D-MEGACO-1 修轮 F6：ber 仅是 profile 边界声明，本版不产 BER 载荷
+		//（契约 §1/负例 47）——自然面即拒（旧版放行 "ber" 使该故障只能经
+		// wire_fault 表达）。
+		return fmt.Errorf("megaco: encoding %q is not produced in this version (text only; ber is a boundary declaration, not a payload)", cfg.Encoding)
 	}
 	if cfg.Version < 0 || cfg.Version > 99 {
 		return fmt.Errorf("megaco: version %d out of 1*2 DIGIT range", cfg.Version)
@@ -216,10 +239,20 @@ func validateTransaction(
 			if idStr == "auto" {
 				idStr = "1"
 			}
-			if v, perr := strconv.ParseUint(idStr, 10, 32); perr == nil {
-				(*seenTransIDs)[uint32(v)] = true
-				*requestOrder = append(*requestOrder, uint32(v))
+			// D-MEGACO-1 修轮 F4：显式 transactionId 必须 parse 为 UINT32
+			//（契约 §8 ">4294967295 拒绝"）——旧版解析失败静默跳过，越界值
+			// 原样落线（probe11 实证）。
+			v, perr := strconv.ParseUint(idStr, 10, 32)
+			if perr != nil {
+				return fmt.Errorf("%s: transaction id %q is not a UINT32 decimal (1..4294967295) (%s)", prefix, tx.ID, "length")
 			}
+			// D-MEGACO-1 修轮 F9：同会话 transactionId 作用域唯一（RFC 3525
+			// §8.1.1；重复 = At-Most-Once 去重失效，锚 transaction）。
+			if (*seenTransIDs)[uint32(v)] {
+				return fmt.Errorf("%s: duplicate transaction id %d within the session scope (%s)", prefix, v, "transaction")
+			}
+			(*seenTransIDs)[uint32(v)] = true
+			*requestOrder = append(*requestOrder, uint32(v))
 		}
 		// validate per-action below
 	case "reply":
@@ -525,8 +558,24 @@ func validateMidForm(where, mid string) error {
 		return nil
 	}
 	switch {
-	// domainAddress: [v4]/[v6] 或带端口 [v4]:port / [v6]:port。
+	// domainAddress: [v4]/[v6] 或带端口 [v4]:port / [v6]:port——括号内必须
+	// 是可解析 IP 字面量（修轮 F11："[bad mid with spaces]" 旧版放行并原样
+	// 落线破坏起始行 SEP 结构）。
 	case strings.HasPrefix(mid, "[") && (strings.HasSuffix(mid, "]") || strings.Contains(mid, "]:")):
+		inner := strings.TrimPrefix(mid, "[")
+		if idx := strings.LastIndex(inner, "]:"); idx >= 0 {
+			port := inner[idx+2:]
+			inner = inner[:idx]
+			if perr := port; perr == "" {
+				return fmt.Errorf("%s %q domainAddress port is empty (mid)", where, mid)
+			} else if _, perr2 := strconv.Atoi(port); perr2 != nil {
+				return fmt.Errorf("%s %q domainAddress port %q is not numeric (mid)", where, mid, port)
+			}
+		}
+		inner = strings.TrimSuffix(inner, "]")
+		if net.ParseIP(inner) == nil {
+			return fmt.Errorf("%s %q domainAddress %q is not an IP literal (mid)", where, mid, inner)
+		}
 		return nil
 	// domainName: <name>（尖括号）。
 	case strings.HasPrefix(mid, "<") && strings.HasSuffix(mid, ">"):
@@ -539,4 +588,48 @@ func validateMidForm(where, mid string) error {
 		return nil
 	}
 	return fmt.Errorf("%s %q is not one of the four mId forms ([addr][:port]|<domain>|MTP{hex}|deviceName) (mid)", where, mid)
+}
+
+// sessionRenderSizes renders each of the session's messages exactly the way
+// the generator will (same transactionId resolution, same mId derivation) and
+// returns their byte lengths. D-MEGACO-1 修轮 F5/F1：长度类上界（UDP MTU、
+// TPKT 16-bit 域）必须在 Validate 同步面执法——生成期错误会被 Plan goroutine
+// 吞成空流（既有的"驱动失败 → 空流"契约），负例锚词就到不了 task error。
+func sessionRenderSizes(cfg *core.MegacoConfig, sess core.MegacoSession, srcIP, dstIP string) ([]int, error) {
+	ctrlSeq := uint32(0)
+	var requestIDs []uint32
+	sizes := make([]int, 0, len(sess.Events))
+	form := cfg.TokenForm
+	if form == "" {
+		form = "long"
+	}
+	for _, ev := range sess.Events {
+		txs := make([]core.MegacoTransaction, len(ev.Transactions))
+		for i, tx := range ev.Transactions {
+			switch tx.Type {
+			case "request":
+				if tx.ID == "" || tx.ID == "auto" {
+					ctrlSeq++
+					tx.ID = strconv.FormatUint(uint64(ctrlSeq), 10)
+				}
+				if v, err := strconv.ParseUint(tx.ID, 10, 32); err == nil {
+					requestIDs = append(requestIDs, uint32(v))
+				}
+			case "reply", "pending":
+				if strings.HasPrefix(tx.ID, "same_as_request:") {
+					idxStr := strings.TrimPrefix(tx.ID, "same_as_request:")
+					idx, aerr := strconv.Atoi(idxStr)
+					if aerr != nil || idx < 0 || idx >= len(requestIDs) {
+						return nil, fmt.Errorf("same_as_request:%d unresolvable", idx)
+					}
+					tx.ID = strconv.FormatUint(uint64(requestIDs[idx]), 10)
+				}
+			}
+			txs[i] = tx
+		}
+		mid := pickMid(sess, ev.Direction, srcIP, dstIP)
+		body := BuildMessageText(cfg, versionFor(cfg), mid, txs, form)
+		sizes = append(sizes, len(body))
+	}
+	return sizes, nil
 }

@@ -3963,7 +3963,77 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 - Create: `internal/core/megaco.go`（Megaco* 类型）+ `internal/protocol/megaco/`（builder/planner/layer_gen/builder_test）
 - Modify: `internal/core/types.go`（FlowSpec.Megaco）、`layers/registry.go`（层行）、`layers/chain_planner.go`（carrier/端口域块）+ `chain_planner_util.go`（rawMegacoSessions）+ `chain_planner_translate.go`（case+flowMetaFor）+ `layers/generator.go`（FlowMeta.Megaco）
 - Modify: `internal/core/strategy_convert.go`（CheckProtoFlat 判死+在库 switch）、`cmd/server/main.go`（ChainPlanner 接线）
-- Test: `internal/core/layers/megaco_chain_test.go`（链级红例 8 例，三突变实测）+ `internal/pcaptest/verify.go`（伪影白名单）
+- Test: `internal/core/layers/megaco_chain_test.go`（链级红例 15 例 = P4 八 + 修轮七；四突变实测，见 T-MEGACO P4 新增行）+ `internal/pcaptest/verify.go`（伪影白名单）
 - Reshape: `test/protocol_pcap/cases/megaco.json`（B6 79 例层链整形：四元组进 ip/udp(tcp) 层、megaco 子映射进 megaco 层）
 - Regenerate: `schemas/v1/generated/layers.generated.json`（114→115）+ webgen 产物
 - Tools: `tools/pipe_gate.sh`（megaco 自键组）、`tools/coverage_gate.py`（check_megaco 25 项）
+
+### 门 1 开工对照表（§1–§14，三道硬门之门 1；证据=文档节/代码行/用例号）
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 顶层旧键：`src_ip/dst_ip/src_port/dst_port/count` 零残留（门 2-1 脚本扫）；顶层 `megaco` 子映射 presence 判死（B6 注入形退役，kingbase 同型）；目标形状：`{"layers":[{"ip":{"src":"192.0.2.70","dst":"198.51.100.70"}},{"udp":{"src_port":40700}},{"megaco":{"profile":"megaco_v1_text","encoding":"text","version":1,"token_form":"long","whitespace":"","sessions":[{"role":"mg","mid":"[192.0.2.70]","peer_mid":"[198.51.100.70]","events":[{"kind":"message","direction":"c2s","transactions":[{"type":"request","id":"auto","actions":[{"context":"-","commands":[{"name":"ServiceChange","termination":"ROOT","descriptor":{"services":{"method":"Restart","reason":"901 Cold Boot"}}}]}]}]}]}],"wire_fault":""}}]}`（megaco 层七键全列；TCP 载体 = `[ip,tcp,megaco]`，TPKT 成帧） | `strategy_convert.go:8242` CheckProtoFlat megaco 分支（锚 `no longer accepts a top-level megaco sub-config`）；红例① TestMegacoChain_FlatPresenceRejected；门 2-1 绿 |
+| §2 策略/任务分工 | megaco 无子流派生端口；多流只走 `flow_control`；会话编排住 megaco 层 `sessions[]`，任务合跑沿框架语义 | registry.go megaco 行（无 dyn 字段）；T-MEGACO 用例面 |
+| §3 五件套 | 会话表=`sessions[]`（role/mid/peer_mid/transport/ports）；事务序列=`events[].transactions[]`（request/reply/pending/response_ack 四形态）；关联=`same_as_request:<i>` 引用 + `ack` 覆盖已确认事务 + ObservedEvents RequestID 关联（observedReqIDs）；插入位置=链终结层生成器每消息一 MessageEvent；时间线=会话内顺序回放，`concurrent:true` 按事件下标 round-robin 交错 | `layer_gen.go` sessionRun/resolveTransactionID；`planner.go:172-179` 状态机面；正例 45（concurrent） |
+| §4 规范矩阵 | RFC 3525 / ITU-T H.248.1 (03/2002)：§7 命令与描述符、§8 事务、Annex B.2 文本 ABNF、Annex D.1 UDP / D.2 TPKT；B6 契约 70-megaco-design.md v1.2.1 为行为面权威 | 本条目 P1 矩阵 10 行 |
+| §5 有错必处理 | 31 wire_fault 闭环锚词 validator 即拒（绝不 0 包假成功）+ 2 事务级 error 边界（裁定6）；载体双 carrier 校验；长度类拒绝在 Validate 同步面（Plan goroutine 空流契约不吞锚词） | `planner.go` wireFaultAnchors/Validate；`chain_planner.go` megaco 块 |
+| §6 性能 | 事件流式渲染（无全量收集、无锁无 sleep）；UDP 单数据报 ≤1472 / TPKT ≤0xFFFF 天花板 Validate 面执法；边界诚实声明（无吞吐/并发目标，网卡未跑） | `planner.go` sessionRenderSizes + Validate 天花板块；T-MEGACO 跑法口径 |
+| §7 三份文档 | 设计=70-megaco-design.md v1.2.1 + 本条目；用例=T-MEGACO（79 审计）；cases 回指语义 ID；schema 为机器契约 | T-MEGACO 三源回指行 |
+| §8 先设计后代码 | P1 矩阵 + 缺口清单与裁定（G1–G5 + 裁定1–7）定稿后开工；修轮按隔离终审 F1–F15 处置后再复评 | 本条目两节 |
+| §9 三源+整格 | 三源每条回指（RFC 行/B6 语义 ID/用例号）；wire_fault 31 值逐一单一注入；正例覆盖描述符族代表+双载体+双 token 形+空白变体 | T-MEGACO 存量审计行 |
+| §10 评审闭环 | 改→审→测→修→再审：主线程逐相位对抗自审 + 收官隔离终审（FAIL 判定→修轮 F1–F15→同审查员范围复评）；测试四问逐例过 | 本条目修轮记录；门 3 抽查 |
+| §11 白话汇报 | 先一句结论再贴证据；锚词/突变逐一实录（含证伪更正：旧"三突变"中"删 translate→②红"系伪证已废弃重测） | T-MEGACO P4 新增行 |
+| §12 动态清单 | 四元组：ip 层 src/dst + udp/tcp 层 src_port/dst_port（链级）+ 会话级 src_port/dst_port 覆盖（域校验同链级，修轮 F3）；业务动态：`transactions[].id` `auto`（会话内计数器从 1 起）/`same_as_request:<i>`（第 i 个请求 id）——序号算法 `layer_gen.go` resolveTransactionID；megaco 层七键静态无 dyn 对象 | `layer_gen.go:229-264`；`chain_planner.go` 会话 dst_port 域；红例⑫ |
+| §13 schema 同步 | registry 新增 megaco 行（七键，version Min 1/Max 99）→ schemagen/webgen 重跑提交（114→115 层） | `schemas/v1/generated/layers.generated.json` |
+| §14 真实流程 | cases 即任务 spec；MCP 建任务→引擎生成→tshark 校对；负例带锚词 task error；79/79 全量 ×4；二进制同代；pcap 落盘 `/tmp/mcp-pcaps/megaco/` | T-MEGACO 跑法口径行；门 2 三项 |
+
+### F6 逐值处置表（修轮收官；隔离终审 F6 指控"31 负例自证循环"的完整裁定——22 值自然面守卫在位，9 值书面豁免）
+
+自然面守卫 = 去掉 `wire_fault` 后用自然配置可表达同一故障且 validator 同步拒绝；书面豁免 = 故障无自然配置面（builder 恒产合法线格式 / 框架规则 / 合法测试目标），注入通道是唯一入口。
+
+**守卫在位（22 值）：**
+
+| wire_fault 值 | 锚 | 自然面表达 | 守卫证据 |
+|---|---|---|---|
+| encoding_text_as_ber | encoding | `{"encoding":"ber"}` | validateConfig 拒（修轮 F6-ber）；红例⑭ |
+| encoding_port_mismatch | encoding | dst_port 2945 | 链块端口域（锚 encoding）；红例⑥ |
+| syntax_version_three_digits | version | `version: 100` | validateConfig >99 拒 |
+| syntax_mid_invalid | mid | `mid:"[bad mid with spaces]"` | validateMidForm 四形+ParseIP（修轮 F11）；红例⑭ |
+| syntax_services_missing_params | message | SC 请求缺 method/reason | planner SC 块（:508-517） |
+| command_reply_choose_all | command | reply 后 $-CHOOSE 上下文复用 | choseRequested 状态机（:413） |
+| command_uncreated_context | command | 未创建 Context 数字引用 | createdContexts 状态机（:448） |
+| pairing_reply_id_mismatch | transaction | reply 引用不存在请求 | resolveTxID/requestOrder |
+| pairing_pending_id_mismatch | transaction | pending 引用不存在请求 | resolveTxID |
+| pairing_duplicate_transid | transaction | 同会话两 id=7（修轮 F9） | seenTransIDs；红例⑬ |
+| pairing_ack_unconfirmed | transaction | K 引用未确认事务（红例⑩ 数据面） | checkAckCoverage（:314） |
+| pairing_ia_without_pending | transaction | ImmAckRequired 无前置 PN | eventsPending（:288-291） |
+| pairing_observed_requestid | transaction | Notify OE RequestID 与生效 Events 不符 | observedReqIDs（:537） |
+| length_termid_over_64 | length | termination >64 字符 | planner（:477） |
+| length_transid_over_uint32 | length | `id:"4294967296"` | ParseUint 32 拒（修轮 F4）；红例⑫ |
+| length_digitmap_timer | length | digit_map T>99 / S/L=0 | DigitMap 域校验（:525-536） |
+| length_context_reserved | length | Context=0/0xFFFFFFFE/FFFFFFFF | contextIDReserved |
+| carrier_layer_mismatch | carrier | udp 链会话 transport=tcp | 链块 transport vs 载体；红例⑧ |
+| carrier_entry_port_encoding | carrier | dst_port 2945（自然面锚=encoding） | 链块端口域 |
+| carrier_invalid_port | port | dst_port 9999 | 链块端口域；红例⑥⑪ |
+| carrier_udp_mtu_exceeded | length | UDP 链 >1472 长消息 | sessionRenderSizes 天花板（修轮 F5）；红例⑨ |
+| services_address_mgcidtotry_conflict | services | SC 同带 address+mgc_id_to_try | SC 块互斥（:519-521） |
+
+**书面豁免（9 值，wire_fault-only）：**
+
+| wire_fault 值 | 锚 | 豁免理由 |
+|---|---|---|
+| syntax_start_line | message | builder 起始行恒由 buildStartLine 渲染，无配置键可产畸形行 |
+| syntax_version_zero | version | V9 框架规则"显式 0 = schema 默认值"（complete.go u==0 skip）使显式 0 与缺席不可区分，渲染恒 1；与 §6"0 拒绝"的冲突以框架规则优先（裁定5 同源书面豁免） |
+| syntax_mid_missing | mid | 空 mid 是合法缺省派生语义（pickMid 按角色+地址派生）；"消息无 mId"无自然配置面 |
+| syntax_body_form | message | builder 恒产合法消息体结构 |
+| command_pre_registration | command | 契约 §5.2 初始状态规则：非 SC-first 会话初始即 Registered 等价态，Modify-first 合法——自然配置下不可构造（裁定5，首版自然面门误红 32 合法会话后撤除） |
+| command_modify_nonexistent | command | 终结点存在性属协议端状态，生成器无端侧状态面；对任意 termination 的 Modify 是合法流量场景（用户编排骨），拒之将断真实用法 |
+| command_first_error_continues | command | "错误响应后同事务继续"是协议端行为，请求序列配置无法自然表达 |
+| length_message_truncated | length | builder 恒产完整消息（长度域由 WrapTPKT/render 完整性保证），截断无配置面 |
+| carrier_return_address | carrier | 环回地址是合法测试目标（本工具即本机自测场景），ip 层不拒 127.0.0.1 |
+
+### 门 3 抽查三条（收官验收门；每条点到代码行或用例号）
+
+1. **裁定3 端口域**：`chain_planner.go` megaco 块（2944/2427 放行、2945 锚 encoding、其余锚 port，会话级同域=修轮 F3）↔ 红例⑥ TestMegacoChain_PortContract + 红例⑪ TestMegacoChain_SessionDstPortDomain ↔ 用例 megaco_neg_carrier_invalid_port（锚 `port`）。
+2. **修轮 F1/F5 长度天花板**：`planner.go` Validate 面 carrier 分支（UDP >1472 / TPKT n+4 >0xFFFF）+ sessionRenderSizes（:596）+ `chain_planner.go` megaco_carrier 元数据供给（先于 protocolValidator——修轮实证原顺序天花板空转）↔ 红例⑨ TestMegacoChain_TPKTOverflowRejected ↔ 用例 megaco_neg_carrier_udp_mtu_exceeded（锚 `length`）。
+3. **修轮 F2 缩写 K**：`builder.go` 显式 reverseTokens 表（`"TransactionResponseAck": "K"`）+ renderResponseAck 长键改传 `"TransactionResponseAck"` ↔ 红例⑩ TestMegacoChain_AbbrevAckIsK（断言 `!/1` + `K { 5 }`、反断言无 `ResponseAck` 泄漏）↔ builder_test.go token 表测试。

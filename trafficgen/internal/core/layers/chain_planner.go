@@ -169,6 +169,78 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 	if len(spec.ValidationErrors) > 0 {
 		return spec, fmt.Errorf("%s layer config: %s", p.name, strings.Join(spec.ValidationErrors, "; "))
 	}
+	chain, err := p.completedChain()
+	if err != nil {
+		return spec, err
+	}
+	// Megaco carrier 块先于协议级校验（修轮 ⑨ 实证：原位置在
+	// protocolValidator 之后，megaco_carrier 元数据写进 spec 时终结层
+	// validator 已经跑完——UDP MTU / TPKT 16-bit 长度域天花板因此空转）。
+	// 块内容不变：载体判定 + 会话 transport/dst_port 域 + 元数据供给。
+	// Megaco carrier + port contract（D-MEGACO-1：RFC 3525 §9/Annex D）：
+	//   - 载体：udp（D.1 一数据报一消息）与 tcp（D.2 TPKT 成帧）双合法，
+	//     TPKT/MSS 分段由生成器与传输层负责，此处不做载体互斥拒绝；仅当
+	//     会话级 transport 显式声明与链载体不符时同步拒绝（neg72 自然面）。
+	//   - 端口：text 编码下 2944（megaco/h248 默认）与 2427（mgcp 别名，
+	//     三名合一裁定收敛）为合法值；2945（BER 默认端口）配 text 声明 →
+	//     拒（neg48，锚 encoding）；其余端口显式声明 → 拒（neg74，锚 port）。
+	//   - 未显式写 → 走通用 FieldContract 补齐 2944（下块）。
+	for _, l := range chain {
+		if l.Name != "megaco" {
+			continue
+		}
+		termCfg := l.Config
+		if v, ok := termCfg["encoding"].(string); ok && v != "" && v != "text" {
+			return spec, fmt.Errorf("megaco chain: encoding %q is not produced in this version (text only; ber is a boundary declaration, not a payload — declared ber/carrier-encoding mismatch)", v)
+		}
+		carrier := ""
+		if len(chain) > 1 {
+			carrier = chain[len(chain)-2].Name
+		}
+		// 会话级 transport 与链载体不符 → 拒（链形状是载体唯一真相）；
+		// 会话级 dst_port 与链级同域（修轮 F3：会话四元组是契约字段，
+		// 唯独它不校验 = 裁定3 端口域被会话面完全旁路）。
+		for si, se := range rawMegacoSessions(termCfg) {
+			st, _ := se["transport"].(string)
+			if st != "" && (st == "udp" || st == "tcp") && carrier != "" && st != carrier {
+				return spec, fmt.Errorf("megaco chain: session transport %q does not match chain carrier %q (layers chain is the carrier truth)", st, carrier)
+			}
+			if raw, ok := se["dst_port"]; ok && raw != nil {
+				if up, ok := configUint16(raw); ok {
+					switch up {
+					case 2944, 2427:
+					case 2945:
+						return spec, fmt.Errorf("megaco chain: sessions[%d].dst_port %d is the binary (ber) default while encoding is text (2944 text / 2427 mgcp alias; encoding/port mismatch)", si, up)
+					default:
+						return spec, fmt.Errorf("megaco chain: sessions[%d].dst_port %d is not a text-encoding megaco port (2944 default, 2427 mgcp alias)", si, up)
+					}
+				}
+			}
+		}
+		if carrier == "udp" || carrier == "tcp" {
+			// 载体供 megaco validator 做 UDP MTU / TPKT 16-bit 长度域校验
+			//（生成期错误会被 Plan goroutine 吞成空流——长度类拒绝必须在
+			// Validate 同步面，见 planner sessionRenderSizes）。
+			if spec.Metadata == nil {
+				spec.Metadata = map[string]interface{}{}
+			}
+			spec.Metadata["megaco_carrier"] = carrier
+			if v, ok := chain[len(chain)-2].Config["dst_port"]; ok && v != nil {
+				if up, ok := configUint16(v); ok {
+					switch up {
+					case 2944, 2427:
+						// 合法（2944=H.248 文本默认，2427=mgcp 别名）。
+					case 2945:
+						return spec, fmt.Errorf("megaco chain: destination port %d is the binary (ber) default while encoding is text (2944 text / 2427 mgcp alias; encoding/port mismatch)", up)
+					default:
+						return spec, fmt.Errorf("megaco chain: destination port %d is not a text-encoding megaco port (2944 default, 2427 mgcp alias)", up)
+					}
+				}
+			}
+		}
+		break
+	}
+
 	// 协议级校验（波 4 起）：终结层协议包经 RegisterLayerValidator 注册
 	// 其 Validate（如 dns 包对 DNSConfig 的检查），链上未注册校验器的层
 	// 跳过。校验器只校验不默认化（默认化由 validateSpecBase 统一负责）。
@@ -176,10 +248,6 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 		if err := v(&spec); err != nil {
 			return spec, err
 		}
-	}
-	chain, err := p.completedChain()
-	if err != nil {
-		return spec, err
 	}
 	// 层值回填 spec（Task 6 修正）：用户在 tcp/udp 层显式写的 src_port/
 	// dst_port 是链形状的四元组真相，spec 侧在 Task 5 扁平判死后恒为
@@ -467,49 +535,6 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 		}
 		// 未显式写 → 以契约端口为准（FieldContract 驱动，非硬编码 case）。
 		spec.DstPort = contractPort
-		break
-	}
-	// Megaco carrier + port contract（D-MEGACO-1：RFC 3525 §9/Annex D）：
-	//   - 载体：udp（D.1 一数据报一消息）与 tcp（D.2 TPKT 成帧）双合法，
-	//     TPKT/MSS 分段由生成器与传输层负责，此处不做载体互斥拒绝；仅当
-	//     会话级 transport 显式声明与链载体不符时同步拒绝（neg72 自然面）。
-	//   - 端口：text 编码下 2944（megaco/h248 默认）与 2427（mgcp 别名，
-	//     三名合一裁定收敛）为合法值；2945（BER 默认端口）配 text 声明 →
-	//     拒（neg48，锚 encoding）；其余端口显式声明 → 拒（neg74，锚 port）。
-	//   - 未显式写 → 走通用 FieldContract 补齐 2944（下块）。
-	for _, l := range chain {
-		if l.Name != "megaco" {
-			continue
-		}
-		termCfg := l.Config
-		if v, ok := termCfg["encoding"].(string); ok && v != "" && v != "text" {
-			return spec, fmt.Errorf("megaco chain: encoding %q is not produced in this version (text only; ber is a boundary declaration, not a payload — declared ber/carrier-encoding mismatch)", v)
-		}
-		carrier := ""
-		if len(chain) > 1 {
-			carrier = chain[len(chain)-2].Name
-		}
-		// 会话级 transport 与链载体不符 → 拒（链形状是载体唯一真相）。
-		for _, se := range rawMegacoSessions(termCfg) {
-			st, _ := se["transport"].(string)
-			if st != "" && (st == "udp" || st == "tcp") && carrier != "" && st != carrier {
-				return spec, fmt.Errorf("megaco chain: session transport %q does not match chain carrier %q (layers chain is the carrier truth)", st, carrier)
-			}
-		}
-		if carrier == "udp" || carrier == "tcp" {
-			if v, ok := chain[len(chain)-2].Config["dst_port"]; ok && v != nil {
-				if up, ok := configUint16(v); ok {
-					switch up {
-					case 2944, 2427:
-						// 合法（2944=H.248 文本默认，2427=mgcp 别名）。
-					case 2945:
-						return spec, fmt.Errorf("megaco chain: destination port %d is the binary (ber) default while encoding is text (2944 text / 2427 mgcp alias; encoding/port mismatch)", up)
-					default:
-						return spec, fmt.Errorf("megaco chain: destination port %d is not a text-encoding megaco port (2944 default, 2427 mgcp alias)", up)
-					}
-				}
-			}
-		}
 		break
 	}
 	// 通用 FieldContract 端口应用（P0b-1 通用化，design §1.3/§10.3 R2）：
