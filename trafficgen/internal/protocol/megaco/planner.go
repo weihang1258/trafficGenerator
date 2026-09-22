@@ -177,6 +177,15 @@ func validateSession(cfg *core.MegacoConfig, sess core.MegacoSession, si int) er
 	requestOrder := []uint32{}            // insertion-order of request ids (for same_as_request:N)
 	observedReqIDs := map[string]uint32{} // terminationID -> last active Events RequestID（neg66 关联校验收口）
 
+	// D-MEGACO-1 复评 U1/U2：事务 id 解析走与生成器同一 resolveSession
+	// Transactions（auto/缺省逐请求计数、same_as_request 引用），状态机在
+	// 已解析 id 上判重/配对——旧版 request 分支 auto→"1" 固定归一致
+	// auto+auto 误拒、"1"+缺省（生成器落 1/1）漏网。
+	resolved, rerr := resolveSessionTransactions(sess)
+	if rerr != nil {
+		return fmt.Errorf("%s: %w", prefix, rerr)
+	}
+
 	// Walk events in order. State-machine rules per §5.2.
 	for ei, ev := range sess.Events {
 		evPrefix := fmt.Sprintf("%s.events[%d]", prefix, ei)
@@ -200,7 +209,7 @@ func validateSession(cfg *core.MegacoConfig, sess core.MegacoSession, si int) er
 			}
 			return fmt.Errorf("%s: wire fault %q injected (%s)", evPrefix, ev.WireFault, anchor)
 		}
-		for ti, tx := range ev.Transactions {
+		for ti, tx := range resolved[ei] {
 			txPrefix := fmt.Sprintf("%s.transactions[%d]", evPrefix, ti)
 			if err := validateTransaction(txPrefix, tx, role, &createdContexts, &choseRequested, &eventsPending, &confirmedTransactions, &seenTransIDs, &requestOrder, &observedReqIDs); err != nil {
 				return err
@@ -229,31 +238,22 @@ func validateTransaction(
 		if tx.Error != nil {
 			return fmt.Errorf("%s: error descriptor only valid on type=reply (message)", prefix)
 		}
-		// Remember the request's id so reply/pending can reference it.
-		// "auto" is the generator-side alias for a per-session counter
-		// starting at 1; for validator purposes we treat it as id 1 (the
-		// first auto-allocated id) so that same_as_request:0 alias on the
-		// reply side resolves correctly.
-		if tx.ID != "" {
-			idStr := tx.ID
-			if idStr == "auto" {
-				idStr = "1"
-			}
-			// D-MEGACO-1 修轮 F4：显式 transactionId 必须 parse 为 UINT32
-			//（契约 §8 ">4294967295 拒绝"）——旧版解析失败静默跳过，越界值
-			// 原样落线（probe11 实证）。
-			v, perr := strconv.ParseUint(idStr, 10, 32)
-			if perr != nil {
-				return fmt.Errorf("%s: transaction id %q is not a UINT32 decimal (1..4294967295) (%s)", prefix, tx.ID, "length")
-			}
-			// D-MEGACO-1 修轮 F9：同会话 transactionId 作用域唯一（RFC 3525
-			// §8.1.1；重复 = At-Most-Once 去重失效，锚 transaction）。
-			if (*seenTransIDs)[uint32(v)] {
-				return fmt.Errorf("%s: duplicate transaction id %d within the session scope (%s)", prefix, v, "transaction")
-			}
-			(*seenTransIDs)[uint32(v)] = true
-			*requestOrder = append(*requestOrder, uint32(v))
+		// id 已由 resolveSessionTransactions 归一为具体值（auto/缺省 = 会话
+		// 计数器，与生成器同语义），此处无条件校验：
+		// D-MEGACO-1 修轮 F4：transactionId 必须 parse 为 UINT32（契约 §8
+		// ">4294967295 拒绝"——probe11 实证越界值原样落线）。
+		v, perr := strconv.ParseUint(tx.ID, 10, 32)
+		if perr != nil {
+			return fmt.Errorf("%s: transaction id %q is not a UINT32 decimal (1..4294967295) (%s)", prefix, tx.ID, "length")
 		}
+		// D-MEGACO-1 修轮 F9（复评 U1 扩全）：同会话 transactionId 作用域
+		// 唯一（RFC 3525 §8.1.1）——判重在解析后 id 上，显式值与运行期分配
+		// 撞号同样拒绝（"1"+缺省 → 生成器落 1/1，probe 实证旧版漏网）。
+		if (*seenTransIDs)[uint32(v)] {
+			return fmt.Errorf("%s: duplicate transaction id %d within the session scope (%s)", prefix, v, "transaction")
+		}
+		(*seenTransIDs)[uint32(v)] = true
+		*requestOrder = append(*requestOrder, uint32(v))
 		// validate per-action below
 	case "reply":
 		// check transactionId resolves and matches the request.
@@ -465,8 +465,15 @@ func validateAction(
 	// reply picks one). For the test-side happy path (validator mirror) the
 	// simplest sound model is: any Add request on a numeric ContextID marks
 	// that ContextID as established for subsequent transactions.
+	errCmdSeen := false
 	for ci, cmd := range act.Commands {
 		cp := fmt.Sprintf("%s.commands[%d]", prefix, ci)
+		// D-MEGACO-1 复评 U4（command_first_error_continues 自然面）：
+		// 错误描述符终止该命令的处理——同一动作内首错后续发命令即故障
+		//（契约 §7 行；终审 F6 豁免理由被自然配置反例证伪后补守卫）。
+		if errCmdSeen {
+			return fmt.Errorf("%s: command %q follows a command carrying an error descriptor in the same action — processing stops at the first error (%s)", cp, cmd.Name, "command")
+		}
 		if !commandNames[cmd.Name] {
 			return fmt.Errorf("%s: command name %q invalid (Add|Modify|Subtract|Move|AuditValue|AuditCapability|Notify|ServiceChange)", cp, cmd.Name)
 		}
@@ -489,6 +496,9 @@ func validateAction(
 		if cmd.Descriptor != nil {
 			if err := validateDescriptor(cp, cmd, txType, observedReqIDs); err != nil {
 				return err
+			}
+			if cmd.Descriptor != nil && cmd.Descriptor.Error != nil {
+				errCmdSeen = true
 			}
 		}
 	}
@@ -591,44 +601,24 @@ func validateMidForm(where, mid string) error {
 }
 
 // sessionRenderSizes renders each of the session's messages exactly the way
-// the generator will (same transactionId resolution, same mId derivation) and
-// returns their byte lengths. D-MEGACO-1 修轮 F5/F1：长度类上界（UDP MTU、
-// TPKT 16-bit 域）必须在 Validate 同步面执法——生成期错误会被 Plan goroutine
-// 吞成空流（既有的"驱动失败 → 空流"契约），负例锚词就到不了 task error。
+// the generator will and returns their byte lengths. D-MEGACO-1 修轮 F5/F1：
+// 长度类上界（UDP MTU、TPKT 16-bit 域）必须在 Validate 同步面执法——生成期
+// 错误会被 Plan goroutine 吞成空流（既有的"驱动失败 → 空流"契约），负例锚词
+// 就到不了 task error。id 解析走与生成器同一 resolveSessionTransactions
+// （复评 U2：旧版手抄副本一字节漂移即天花板静默失效——一处解析三面共用）。
 func sessionRenderSizes(cfg *core.MegacoConfig, sess core.MegacoSession, srcIP, dstIP string) ([]int, error) {
-	ctrlSeq := uint32(0)
-	var requestIDs []uint32
-	sizes := make([]int, 0, len(sess.Events))
+	resolved, err := resolveSessionTransactions(sess)
+	if err != nil {
+		return nil, err
+	}
 	form := cfg.TokenForm
 	if form == "" {
 		form = "long"
 	}
-	for _, ev := range sess.Events {
-		txs := make([]core.MegacoTransaction, len(ev.Transactions))
-		for i, tx := range ev.Transactions {
-			switch tx.Type {
-			case "request":
-				if tx.ID == "" || tx.ID == "auto" {
-					ctrlSeq++
-					tx.ID = strconv.FormatUint(uint64(ctrlSeq), 10)
-				}
-				if v, err := strconv.ParseUint(tx.ID, 10, 32); err == nil {
-					requestIDs = append(requestIDs, uint32(v))
-				}
-			case "reply", "pending":
-				if strings.HasPrefix(tx.ID, "same_as_request:") {
-					idxStr := strings.TrimPrefix(tx.ID, "same_as_request:")
-					idx, aerr := strconv.Atoi(idxStr)
-					if aerr != nil || idx < 0 || idx >= len(requestIDs) {
-						return nil, fmt.Errorf("same_as_request:%d unresolvable", idx)
-					}
-					tx.ID = strconv.FormatUint(uint64(requestIDs[idx]), 10)
-				}
-			}
-			txs[i] = tx
-		}
+	sizes := make([]int, 0, len(sess.Events))
+	for ei, ev := range sess.Events {
 		mid := pickMid(sess, ev.Direction, srcIP, dstIP)
-		body := BuildMessageText(cfg, versionFor(cfg), mid, txs, form)
+		body := BuildMessageText(cfg, versionFor(cfg), mid, resolved[ei], form)
 		sizes = append(sizes, len(body))
 	}
 	return sizes, nil

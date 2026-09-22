@@ -669,8 +669,12 @@ func buildDefaultRegistry() {
 		Fields: map[string]FieldSchema{
 			"profile":  {Type: "string", Default: ""}, // megaco_v1_text（默认）| mgcp_alias
 			"encoding": {Type: "string", Default: ""}, // text（默认）| ber（仅声明，本期不产 BER 载荷→validator 拒）
-			// 起始行 Version 1*2DIGIT；缺席=缺省 1。显式 0 拒（修轮 F10：
-			// 契约 §6 "0 与 3 位数字拒绝"——V9 区间 [1,99] 同锚词覆盖显式 0）。
+			// 起始行 Version 1*2DIGIT；缺席=缺省 1（Default 0 = V9"未写"）。
+			// 显式 0 的实际语义 = 采用缺省版本（V9 skip-0 使 schema 面不报
+			// 范围错——复评 U3 证伪旧注释"[1,99] 覆盖显式 0"；planner 面
+			// 0 渲染为 1，线上与缺席完全同值）——契约 §6 "0 拒绝"以书面
+			// 豁免登记（D-MEGACO-1 F6 表），Min 1/Max 99 只执法显式 1..99
+			// 之外的非零值（如 100）。
 			"version":    {Type: "int", Default: 0, Min: 1, Max: 99},
 			"token_form": {Type: "string", Default: ""}, // long（默认）| abbrev
 			"whitespace": {Type: "string", Default: ""}, // "" 单空格 SEP | cr | comment | lwsp

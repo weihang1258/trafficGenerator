@@ -19,13 +19,84 @@ type MegacoGenerator struct{}
 
 func (g *MegacoGenerator) Name() string { return "megaco" }
 
+// sessionTxState is the per-session transaction-id resolution state (design
+// §6): auto/empty request ids draw a per-session counter starting at 1
+// (independent of explicit ids, per the generator's original semantics);
+// same_as_request:<i> references the i-th request's id in emission order.
+// Single resolution authority — the validator (validateSession state machine
+// + sessionRenderSizes ceilings) and the generator consume the same resolver,
+// so id checks and length ceilings see exactly the ids that hit the wire
+// （复评 U1/U2：validator 旧 auto→"1" 固定归一曾致 auto+auto 误拒、
+// "1"+缺省撞号漏网；渲染副本漂移曾使天花板执法失效——一处解析三面共用）。
+type sessionTxState struct {
+	autoSeq    uint32
+	requestIDs []uint32
+}
+
+func (st *sessionTxState) resolve(tx core.MegacoTransaction) (core.MegacoTransaction, error) {
+	switch tx.Type {
+	case "request":
+		if tx.ID == "" || tx.ID == "auto" {
+			st.autoSeq++
+			tx.ID = strconv.FormatUint(uint64(st.autoSeq), 10)
+		}
+		// Remember the request id for later same_as_request: references
+		// (non-numeric explicit ids fail ParseUint and are rejected by the
+		// validator's UINT32 check — F4).
+		if v, err := strconv.ParseUint(tx.ID, 10, 32); err == nil {
+			st.requestIDs = append(st.requestIDs, uint32(v))
+		}
+		return tx, nil
+	case "reply", "pending":
+		if strings.HasPrefix(tx.ID, "same_as_request:") {
+			idxStr := strings.TrimPrefix(tx.ID, "same_as_request:")
+			idx, err := strconv.Atoi(idxStr)
+			if err != nil {
+				return tx, fmt.Errorf("same_as_request: invalid index %q", idxStr)
+			}
+			if idx < 0 || idx >= len(st.requestIDs) {
+				return tx, fmt.Errorf("same_as_request:%d out of range (have %d requests)", idx, len(st.requestIDs))
+			}
+			tx.ID = strconv.FormatUint(uint64(st.requestIDs[idx]), 10)
+		}
+		if tx.ID == "" {
+			// MG may leave the error-reply id empty; it renders as 0
+			// (RFC 3525 §8.1.1 error reply to a missing-id request).
+			if tx.Type == "reply" {
+				tx.ID = "0"
+			} else {
+				return tx, fmt.Errorf("pending transaction missing id")
+			}
+		}
+		return tx, nil
+	}
+	return tx, nil
+}
+
+// resolveSessionTransactions resolves one session's transactions up front in
+// generator order — the validator's single entry to id resolution.
+func resolveSessionTransactions(sess core.MegacoSession) ([][]core.MegacoTransaction, error) {
+	st := &sessionTxState{}
+	out := make([][]core.MegacoTransaction, len(sess.Events))
+	for ei, ev := range sess.Events {
+		txs := make([]core.MegacoTransaction, len(ev.Transactions))
+		for i, tx := range ev.Transactions {
+			rx, err := st.resolve(tx)
+			if err != nil {
+				return nil, fmt.Errorf("events[%d].transactions[%d]: %w", ei, i, err)
+			}
+			txs[i] = rx
+		}
+		out[ei] = txs
+	}
+	return out, nil
+}
+
 // sessionRun is the per-session generation state.
 type sessionRun struct {
 	idx        int
 	sess       core.MegacoSession
-	ctrlSeq    uint32
-	ackSeq     uint32
-	requestIDs []uint32 // request transactionIds in emission order
+	st         sessionTxState
 	eventsSeen int
 	srcIP      string // flow source IP（mId 派生回退，D-MEGACO-1 修 pickMid）
 }
@@ -160,7 +231,7 @@ func emitSessionEvent(cfg *core.MegacoConfig, r *sessionRun, ev core.MegacoEvent
 	// Resolve transactionIds for this message.
 	txs := make([]core.MegacoTransaction, len(ev.Transactions))
 	for i, tx := range ev.Transactions {
-		rx, err := resolveTransactionID(tx, r)
+		rx, err := r.st.resolve(tx)
 		if err != nil {
 			return fmt.Errorf("megaco: sessions[%d].events[%d].transactions[%d]: %w", r.idx, r.eventsSeen, i, err)
 		}
@@ -222,45 +293,6 @@ func isTCPCarrier(req *layers.GenRequest) bool {
 		}
 	}
 	return false
-}
-
-// resolveTransactionID replaces "auto" / "same_as_request:<i>" with concrete
-// numeric ids. Explicit numeric strings (boundary cases) are passed through.
-func resolveTransactionID(tx core.MegacoTransaction, r *sessionRun) (core.MegacoTransaction, error) {
-	switch tx.Type {
-	case "request":
-		if tx.ID == "" || tx.ID == "auto" {
-			r.ctrlSeq++
-			tx.ID = strconv.FormatUint(uint64(r.ctrlSeq), 10)
-		}
-		// Remember the request id for later same_as_request: references.
-		if v, err := strconv.ParseUint(tx.ID, 10, 32); err == nil {
-			r.requestIDs = append(r.requestIDs, uint32(v))
-		}
-		return tx, nil
-	case "reply", "pending":
-		if strings.HasPrefix(tx.ID, "same_as_request:") {
-			idxStr := strings.TrimPrefix(tx.ID, "same_as_request:")
-			idx, err := strconv.Atoi(idxStr)
-			if err != nil {
-				return tx, fmt.Errorf("same_as_request: invalid index %q", idxStr)
-			}
-			if idx < 0 || idx >= len(r.requestIDs) {
-				return tx, fmt.Errorf("same_as_request:%d out of range (have %d requests)", idx, len(r.requestIDs))
-			}
-			tx.ID = strconv.FormatUint(uint64(r.requestIDs[idx]), 10)
-		}
-		if tx.ID == "" {
-			// MG may set id to "auto" for an error reply with id 0.
-			if tx.Type == "reply" {
-				tx.ID = "0"
-			} else {
-				return tx, fmt.Errorf("pending transaction missing id")
-			}
-		}
-		return tx, nil
-	}
-	return tx, nil
 }
 
 // pickMid picks the message's mId per direction with the role flip (design

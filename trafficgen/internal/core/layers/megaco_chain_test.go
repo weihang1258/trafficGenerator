@@ -461,6 +461,113 @@ func TestMegacoChain_NaturalFaceGuards(t *testing.T) {
 	}
 }
 
+// 红例⑯【复评 U1】：auto transactionId 逐请求递增（validator 状态机与
+// sessionRenderSizes/生成器共享同一解析——终审修轮的 auto→"1" 固定归一
+// 曾致 auto+auto 误拒、"1"+auto 撞号漏网）。
+func TestMegacoChain_AutoTransIDResolution(t *testing.T) {
+	mkev := func(dir string) map[string]interface{} {
+		return map[string]interface{}{
+			"kind": "message", "direction": dir,
+			"transactions": []interface{}{
+				map[string]interface{}{"type": "request", "id": "auto", "actions": []interface{}{
+					map[string]interface{}{"context": "-", "commands": []interface{}{
+						map[string]interface{}{"name": "AuditValue", "termination": "ROOT"}}}}},
+			},
+		}
+	}
+	raw := megacoChain(t, "udp", map[string]interface{}{
+		"sessions": []interface{}{
+			map[string]interface{}{
+				"role": "mg", "mid": "[192.0.2.70]",
+				"events": []interface{}{mkev("c2s"), mkev("c2s")},
+			},
+		},
+	})
+	p, err := layers.BuildLayersPlanner("megaco", raw)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	if err := p.Validate(megacoSpec()); err != nil {
+		t.Fatalf("auto+auto must be accepted (ids 1,2), got %v", err)
+	}
+	ch, err := p.Plan(context.Background(), megacoSpec())
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var body string
+	for pkt := range ch {
+		body += string(pkt.Payload)
+	}
+	if !strings.Contains(body, "Transaction = 1") || !strings.Contains(body, "Transaction = 2") {
+		t.Fatalf("auto ids must render 1 and 2, got %q", body)
+	}
+}
+
+// 红例⑯b【复评 U1 漏网面】：显式 "1" 之后跟缺省请求——生成器 ctrlSeq 计数
+// 与显式值无关（缺省得 1）→ 落线 1/1 真重复，validator 必须同步拒绝。
+func TestMegacoChain_ExplicitAutoCollision(t *testing.T) {
+	mk := func(id string) map[string]interface{} {
+		return map[string]interface{}{
+			"kind": "message", "direction": "c2s",
+			"transactions": []interface{}{
+				map[string]interface{}{"type": "request", "id": id, "actions": []interface{}{
+					map[string]interface{}{"context": "-", "commands": []interface{}{
+						map[string]interface{}{"name": "AuditValue", "termination": "ROOT"}}}}},
+			},
+		}
+	}
+	raw := megacoChain(t, "udp", map[string]interface{}{
+		"sessions": []interface{}{
+			map[string]interface{}{
+				"role": "mg", "mid": "[192.0.2.70]",
+				"events": []interface{}{mk("1"), mk("")},
+			},
+		},
+	})
+	p, err := layers.BuildLayersPlanner("megaco", raw)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	if err := p.Validate(megacoSpec()); err == nil || !strings.Contains(err.Error(), "transaction") {
+		t.Fatalf("explicit 1 + default (renders 1/1) must be rejected with transaction anchor, got %v", err)
+	}
+}
+
+// 红例⑰【复评 U4】：reply 动作内首命令带 Error 描述符后继命令 → 拒
+// （锚 command）——"首错续发"自此有自然面，从 F6 豁免表移入守卫表。
+func TestMegacoChain_FirstErrorContinues(t *testing.T) {
+	raw := megacoChain(t, "udp", map[string]interface{}{
+		"sessions": []interface{}{
+			map[string]interface{}{
+				"role": "mgc", "mid": "[192.0.2.70]", "peer_mid": "[198.51.100.70]",
+				"events": []interface{}{
+					map[string]interface{}{
+						"kind": "message", "direction": "c2s",
+						"transactions": []interface{}{
+							map[string]interface{}{"type": "request", "id": "1", "actions": []interface{}{
+								map[string]interface{}{"context": "1", "commands": []interface{}{
+									map[string]interface{}{"name": "Modify", "termination": "A1"}}}}}}},
+					map[string]interface{}{
+						"kind": "message", "direction": "s2c",
+						"transactions": []interface{}{
+							map[string]interface{}{"type": "reply", "id": "same_as_request:0", "actions": []interface{}{
+								map[string]interface{}{"context": "1", "commands": []interface{}{
+									map[string]interface{}{"name": "Modify", "termination": "A1", "descriptor": map[string]interface{}{
+										"error": map[string]interface{}{"code": 501, "text": "not implemented"}}},
+									map[string]interface{}{"name": "AuditValue", "termination": "A1"}}}}}}},
+				},
+			},
+		},
+	})
+	p, err := layers.BuildLayersPlanner("megaco", raw)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	if err := p.Validate(megacoSpec()); err == nil || !strings.Contains(err.Error(), "command") {
+		t.Fatalf("command after error descriptor in same reply action must be rejected with command anchor, got %v", err)
+	}
+}
+
 // 红例⑮【修轮 F8】：SDP 中的 } 必须转义为 \}（否则提前闭合 Local 块）。
 func TestMegacoChain_SDPEscape(t *testing.T) {
 	desc := map[string]interface{}{

@@ -1684,6 +1684,7 @@
         "version": {
           "type": "int",
           "default": 0,
+          "min": 1,
           "max": 99
         },
         "whitespace": {

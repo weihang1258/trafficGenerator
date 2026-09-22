@@ -154,6 +154,24 @@ func TestLayersGeneratedMatchesRegistry(t *testing.T) {
 			if fm["type"] != f.Type {
 				t.Errorf("layer %q field %q type: dump=%v registry=%v; regenerate", name, fname, fm["type"], f.Type)
 			}
+			// min/max 同步（D-MEGACO-1 修轮 U3：注册表 Min/Max 变更未重跑
+			// schemagen 曾致 megaco version 下界丢失而本测试保持绿）。
+			// JSON 数值反序列化为 float64，与注册表 int64 按数值比对。
+			cmpBound := func(key string, want int64) {
+				raw, ok := fm[key]
+				if want == 0 {
+					if ok && raw != nil {
+						t.Errorf("layer %q field %q %s: dump=%v registry=unbounded; regenerate", name, fname, key, raw)
+					}
+					return
+				}
+				v, isNum := raw.(float64)
+				if !isNum || int64(v) != want {
+					t.Errorf("layer %q field %q %s: dump=%v registry=%d; regenerate", name, fname, key, raw, want)
+				}
+			}
+			cmpBound("min", f.Min)
+			cmpBound("max", f.Max)
 		}
 	}
 }

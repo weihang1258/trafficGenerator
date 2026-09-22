@@ -3987,11 +3987,11 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 | §13 schema 同步 | registry 新增 megaco 行（七键，version Min 1/Max 99）→ schemagen/webgen 重跑提交（114→115 层） | `schemas/v1/generated/layers.generated.json` |
 | §14 真实流程 | cases 即任务 spec；MCP 建任务→引擎生成→tshark 校对；负例带锚词 task error；79/79 全量 ×4；二进制同代；pcap 落盘 `/tmp/mcp-pcaps/megaco/` | T-MEGACO 跑法口径行；门 2 三项 |
 
-### F6 逐值处置表（修轮收官；隔离终审 F6 指控"31 负例自证循环"的完整裁定——22 值自然面守卫在位，9 值书面豁免）
+### F6 逐值处置表（修轮+复评收口；隔离终审 F6 指控"31 负例自证循环"的完整裁定——23 值自然面守卫在位，8 值书面豁免）
 
 自然面守卫 = 去掉 `wire_fault` 后用自然配置可表达同一故障且 validator 同步拒绝；书面豁免 = 故障无自然配置面（builder 恒产合法线格式 / 框架规则 / 合法测试目标），注入通道是唯一入口。
 
-**守卫在位（22 值）：**
+**守卫在位（23 值）：**
 
 | wire_fault 值 | 锚 | 自然面表达 | 守卫证据 |
 |---|---|---|---|
@@ -4017,18 +4017,18 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 | carrier_invalid_port | port | dst_port 9999 | 链块端口域；红例⑥⑪ |
 | carrier_udp_mtu_exceeded | length | UDP 链 >1472 长消息 | sessionRenderSizes 天花板（修轮 F5）；红例⑨ |
 | services_address_mgcidtotry_conflict | services | SC 同带 address+mgc_id_to_try | SC 块互斥（:519-521） |
+| command_first_error_continues | command | reply 动作内首命令带 Error 描述符后继命令（复评 U4 反例） | validateAction 命令环 errCmdSeen 守卫；红例⑰ |
 
-**书面豁免（9 值，wire_fault-only）：**
+**书面豁免（8 值，wire_fault-only）：**
 
 | wire_fault 值 | 锚 | 豁免理由 |
 |---|---|---|
 | syntax_start_line | message | builder 起始行恒由 buildStartLine 渲染，无配置键可产畸形行 |
-| syntax_version_zero | version | V9 框架规则"显式 0 = schema 默认值"（complete.go u==0 skip）使显式 0 与缺席不可区分，渲染恒 1；与 §6"0 拒绝"的冲突以框架规则优先（裁定5 同源书面豁免） |
+| syntax_version_zero | version | 显式 0 的实际语义 = 采用缺省版本：V9 框架规则 `u==0` skip（complete.go:315）使 schema 面不报范围错（区间 [1,99] 不覆盖显式 0——复评 U3 证伪旧注释），planner 面 0 渲染为 1，线上与缺席完全同值、无故障可表达；契约 §6 "0 拒绝"不执法，registry 注释已按此如实改写 |
 | syntax_mid_missing | mid | 空 mid 是合法缺省派生语义（pickMid 按角色+地址派生）；"消息无 mId"无自然配置面 |
 | syntax_body_form | message | builder 恒产合法消息体结构 |
 | command_pre_registration | command | 契约 §5.2 初始状态规则：非 SC-first 会话初始即 Registered 等价态，Modify-first 合法——自然配置下不可构造（裁定5，首版自然面门误红 32 合法会话后撤除） |
 | command_modify_nonexistent | command | 终结点存在性属协议端状态，生成器无端侧状态面；对任意 termination 的 Modify 是合法流量场景（用户编排骨），拒之将断真实用法 |
-| command_first_error_continues | command | "错误响应后同事务继续"是协议端行为，请求序列配置无法自然表达 |
 | length_message_truncated | length | builder 恒产完整消息（长度域由 WrapTPKT/render 完整性保证），截断无配置面 |
 | carrier_return_address | carrier | 环回地址是合法测试目标（本工具即本机自测场景），ip 层不拒 127.0.0.1 |
 
@@ -4037,3 +4037,11 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 1. **裁定3 端口域**：`chain_planner.go` megaco 块（2944/2427 放行、2945 锚 encoding、其余锚 port，会话级同域=修轮 F3）↔ 红例⑥ TestMegacoChain_PortContract + 红例⑪ TestMegacoChain_SessionDstPortDomain ↔ 用例 megaco_neg_carrier_invalid_port（锚 `port`）。
 2. **修轮 F1/F5 长度天花板**：`planner.go` Validate 面 carrier 分支（UDP >1472 / TPKT n+4 >0xFFFF）+ sessionRenderSizes（:596）+ `chain_planner.go` megaco_carrier 元数据供给（先于 protocolValidator——修轮实证原顺序天花板空转）↔ 红例⑨ TestMegacoChain_TPKTOverflowRejected ↔ 用例 megaco_neg_carrier_udp_mtu_exceeded（锚 `length`）。
 3. **修轮 F2 缩写 K**：`builder.go` 显式 reverseTokens 表（`"TransactionResponseAck": "K"`）+ renderResponseAck 长键改传 `"TransactionResponseAck"` ↔ 红例⑩ TestMegacoChain_AbbrevAckIsK（断言 `!/1` + `K { 5 }`、反断言无 `ResponseAck` 泄漏）↔ builder_test.go token 表测试。
+
+### 复评收口（范围复评 rereview.md U1–U4，红先绿后）
+
+- **U1（HIGH，修轮新回归）**：validator request 分支 `auto→"1"` 固定归一 ↔ 生成器逐请求计数不一致——auto+auto 误拒（32b3968 接受 1/2）、`"1"`+缺省撞号漏网（生成器落 1/1）。修法：**一处解析三面共用**——`sessionTxState.resolve`（auto/缺省逐请求计数、same_as_request 引用）为唯一权威，validateSession 先 `resolveSessionTransactions` 再在已解析 id 上走状态机，sessionRenderSizes 同函数出长度，生成器 sessionRun 同函数出线。红例⑯（auto+auto 落线 1/2）+ 红例⑯b（"1"+缺省拒，锚 transaction）先红后绿。
+- **U2（MEDIUM-HIGH，同源）**：sessionRenderSizes 手抄副本一字节漂移即天花板静默失效（1472B 空流复现）。U1 的共享解析消掉 id 面副本；渲染面 pickMid/BuildMessageText 本已同函数，副本面收敛为单一调用序。
+- **U3（MEDIUM）**：registry 注释"[1,99] 同锚词覆盖显式 0"伪声明（V9 `u==0` skip 先于范围检查）+ generated 文件缺 `"min":1`（F10 后未重跑 schemagen，freshness 测试不比 min/max 故绿）。修法：注释如实改写（显式 0=缺省渲染 1，豁免叙述同步）；schemagen 重跑（diff 恰一行）；`TestLayersGeneratedMatchesRegistry` 扩 min/max 比对（JSON float64 ↔ int64 数值比较）。
+- **U4（LOW-MED）**：`command_first_error_continues` 豁免理由"无法自然表达"被反例证伪（reply 动作 Error 命令后续命令落线）。修法：validateAction 命令环 errCmdSeen 守卫（同动作首错后继命令拒，锚 command）——移入守卫表（23+8）。红例⑰先红后绿。
+- 附带观察（非裁定项，如实登记）：`TestTLS_Plan_HTTPDelegation_NoHTTPKeepsSynthAppData`（tls planner_test.go:1172，自 1659a55 起既有）随机首字节致断言约 3/8 概率翻车——与 megaco 无关，另行立项修断言（多字节非 HTTP 方法前缀判定）。
