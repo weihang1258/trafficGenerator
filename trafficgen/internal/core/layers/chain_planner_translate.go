@@ -1063,6 +1063,29 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			spec.ICMP = ic
 		}
 		return
+	case "cwmp":
+		if spec.CWMP != nil {
+			return // flat 权优守卫（smtp 同款；新建路径顶层键已被判死，纯防御）
+		}
+		// D-CWMP-1：层 config（六键）经 JSON 往返解码为 core.CWMPConfig
+		// （smtp `:2017` 同款；sessions/flows/auth 嵌套自动）。空层 config
+		// 也翻译出非 nil 零值——isHTTPRPCInner 据此选透传模式 + 生成器/
+		// validator 走 P0b 基线单会话（现状口径零改动）。
+		cfg := completedConfig(s, term.Config)
+		raw, err := json.Marshal(cfg)
+		if err != nil {
+			return
+		}
+		var sc core.CWMPConfig
+		if err := json.Unmarshal(raw, &sc); err != nil {
+			// parseSubconfigJSON 同款：unmarshal 失败（如 delay_seconds 超
+			// uint32）必须报错拒任务，绝不静默吞错回退空层（否则
+			// cwmp_neg_delay_out_of_range 类负例漏放成缺省流）。错误由
+			// ValidateSpec 的翻译期统一拦截（chain_planner.go）转发。
+			spec.ValidationErrors = append(spec.ValidationErrors, err.Error())
+			return
+		}
+		spec.CWMP = &sc
 	case "h323":
 		// D-H323-1：层 config 手工逐键映射进 spec.H323（parseH323Config
 		// 未导出不可跨包，决策 C1）。缺省镜像 parse（strategy_convert.go

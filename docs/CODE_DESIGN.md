@@ -3764,3 +3764,57 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 | 观察项 | snmp maskSNMPVolatile（chain_planner_snmp_test.go:42）硬编码 02 04 BER 掩码，request-id<2^24 时编码 02 03 掩蔽落空 → 偶发对拍红（存量 flake，snmp 文件未被本协议触碰） | 登记转交 snmp P-PIPE（序号 120）优先修 |
 
 修轮后：suite 8/8 ×2、反查 18/18、门2 四项绿（重编实录）、touched 包 -race 绿、vet 净、live 库 icmp 行 0/0 对账平。
+
+## D-CWMP-1 cwmp 配置承载迁层（#34，P-PIPE 进行中：裁定=行为面零改动+B6 注入形迁层链唯一真相）
+
+> 行为面权威=`docs/protocol-designs/64-cwmp-design.md` v2.2.2（TR-069 Issue 1 A6 Corr 1；150 例 clean 于 B6 40a479b）。本条目只管**配置承载面迁移**：顶层 `cwmp` 子映射（B6 注入形，"层 config 恒空"）→ cwmp 层 config，行为字节零改动。
+
+### P1 规范矩阵（§4 八项确认形态——行为面 B6 已定，本 P-PIPE 逐项确认符合态 + 承载面缺口）
+
+| 项 | 规范要求（B6 契约节） | 代码现状 | 缺口 |
+|---|---|---|---|
+| 1 连接模型 | HTTP/1.1 over TCP，CPE=HTTP client；acs_cr 反向会话（§1/§2） | layer_gen sessionRun role=cpe/acs_cr，DstIP/DstPort 逐会话覆盖 | 无（150 例覆盖双角色） |
+| 2 命令/消息表 | Inform/InformResponse/GetRPCMethods/Download/Upload/TransferComplete/fault/empty POST（§3.5 Annex A） | builder.go kind 全枚举；150 例 kind 全落格 | 无 |
+| 3 状态机 | 事务交替（一帧一事务侧）、cwmp:ID 请求自增/响应回显关联、Set-Cookie/Cookie 回显（§5） | sessionRun{lastWasUP,autoIDCtr,pendingReqID/Kind,cookie} | 无 |
+| 4 字段表 | SOAP 1.1 envelope+Header(id/holdTime)+HTTP 头序（§3.1–3.3） | builder.go 钉死；T 契约 §3 偏移断言 | 无 |
+| 5 错误处理 | 负例锚词表（§7） | validator validateConfig/Session/Flows；41 负例在案 | 无 |
+| 6 超时与活性 | HTTP 面无重传语义（§8 边界） | 不适用如实 | 无 |
+| 7 NAT/被动 | 不适用 | 不适用如实 | 无 |
+| 8 版本方言 | namespace cwmp-1-0/1-1/1-2（SOAP 1.2 envelope 拒）；profile 三值（https 边界明文链拒）（§1/§3.7.4） | validateConfig 双 switch；负例在案 | 无 |
+| **承载面** | §1 层链唯一真相：业务配置住层内 | 顶层 `cwmp` 子映射注入（registry"层 config 恒空"）×150 例；顶层子映射=1.11–1.13 白名单外游离字段 | **G1 迁层+判死+整形（本 P-PIPE 主体）** |
+
+三源：TR-069 标准文本（B6 契约逐条标注出处）+ 本仓 legacy 实现面（builder/layer_gen/planner）+ B6 需求契约 v1.3（150 例行为面全枚举）。商业参考 pcap：无（B6 ③子表如实声明沿用）。
+
+### 缺口清单（门1 输出，P4 逐项闭合）
+
+- G1 配置承载：顶层 `cwmp` 子映射 ×150 例 → 迁入 cwmp 层 config；CheckProtoFlat 加 cwmp presence 判死（dns/mqtt/smtp 先例）；在库 0|0（2026-09-22 实测）无存量迁移面。
+- G2 D-CWMP-1 条目缺失（§7 CODE_DESIGN 唯一入口）→ 本条目。
+- G3 T-CWMP 节缺失（TEST_CASES）→ P3 补审计注记（150 例 B6 契约回指 + 承载面新负例）。
+- G4 coverage_gate 无 check_cwmp → P3 补。
+- G5 pipe_gate presence 组错位（cwmp 现挂 http 族 "http" 键组）→ P4 移自键组。
+- G6 registry cwmp 层 Fields 缺失（层无法承载配置）→ P4 补六键 + schemagen 再生。
+
+### 裁定（P2 定稿）
+
+1. **行为字节零改动**：builder/layer_gen/planner/validator 的行为面代码零改动（150 例 pcap 基线不变=验收线）；迁移只动**配置解析路径**。
+2. **层 Fields 六键**：`profile`(string)/`namespace`(string)/`concurrent`(bool)/`sessions`(list)/`flows`(list)/`auth`(object)——CWMPConfig 顶层键同名（smtp/ftp 同款：V9 只验顶层键存在，嵌套值语义归 translate JSON 往返 + validator）。
+3. **translate case "cwmp"**：层 config → JSON 往返 → `spec.CWMP`（smtp `:2017` 同款；带 "flat 权优" 守卫镜照 smtp——在库 legacy 行若存顶层键由判死门 400/ValidationErrors 兜住，守卫纯防御）。空层 config 翻译出零值 config → 生成器/validator 走 P0b 基线单会话（现状口径，validator nil 放行 + 生成器 len==0 补基线，零改动）。
+4. **判死双门**：CheckProtoFlat 加 `cwmp` 顶层子映射 presence 判死（文案 "protocol cwmp no longer accepts a top-level cwmp sub-config (move it into the cwmp layer of a [ip,tcp,http,cwmp] layers chain)"，presence 负例豁免口径与 http 族一致）；mapToFlowSpec 在库 switch（`:368` 区）加 cwmp → 存量行启动 ValidationErrors。mapToFlowSpec case "cwmp"（`:576`）保留（smtp/dns/mqtt 先例：新建路径已被判死，存量行由 switch 兜底）。
+5. **150 例整形**：脚本化——`spec_json` 顶层 `cwmp` 值原样移入 `layers[3]["cwmp"]`（层槽恒在，现恒 `{}`）；字节面断言（packet_count/has_handshake/钉位）零变化。
+6. **新负例**：①顶层 `cwmp` 子映射+layers 并存 → 400 presence 负例（锚 `top-level cwmp sub-config`）；②cwmp 层未知字段 → V9 锚 `unknown field`；③空层 cwmp = 基线单会话正例（13.20 缺省面钉）。
+7. **gate**：pipe_gate cwmp 移自键组（presence 键="cwmp"）；coverage_gate 补 check_cwmp。
+8. **动态面**：业务键（sessions/transactions/auth 全键）静态单值——B6 未做业务动态（会话端点覆盖=静态 per-session 值非策略），声明无动态消费面；四元组走 ip/tcp 层框架策略（150 例静态直发）。cwmp:ID 自增=序号算法（layer_gen autoIDCtr，B6 §9 ID 权威），非动态策略面。
+9. **回滚**：单提交粒度摘除（registry Fields+translate case+判死+cases 整形各归一提交）。
+
+### 文件清单（P4）
+
+- Modify: `internal/core/layers/registry.go`（cwmp 层 Fields 六键）
+- Modify: `internal/core/layers/chain_planner_translate.go`（case "cwmp"）
+- Modify: `internal/core/strategy_convert.go`（CheckProtoFlat cwmp 分支 + `:368` 区在库 switch cwmp）
+- Modify: `tools/pipe_gate.sh`（presence 组移位）
+- Modify: `tools/coverage_gate.py`（check_cwmp）
+- Regenerate: schemagen 产物（layers.generated 等）
+- Reshape: `test/protocol_pcap/cases/cwmp.json`（150 例迁层 + 新增负例/缺省例）
+- Test: 链级红例（`internal/core/layers/cwmp_chain_test.go`：层 config 注入 2 包对照 / presence 判死锚 / V9 未知字段锚 / 空层基线）
+- 接口签名：`validateLayer` 零改动（validator 走 spec.CWMP）；`FlowMeta.CWMP` 零改动（translate 填充源变更）。
+

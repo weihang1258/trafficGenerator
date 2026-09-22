@@ -3878,6 +3878,23 @@ JT/T 905.2-2014 出租汽车 ISU 反推 13 例（9 正+4 负；T-8 金向量=单
 
 ARP（RFC 826）反推 12 例（4 正+8 负；链级红例 4=单测面不占号，修轮 +4 负例）：T-1 基线配对（op=1 缺省地址 2 帧：帧1 广播 ff:ff:ff:ff:ff:ff+oper 0001+tha 全零；帧2 单播+oper 0002 spa/tpa、sha/tha 角色互换）/T-2 字节全钉（帧1 28B payload 全等：htype 0001+ptype 0800+hlen 06+plen 04+oper+sha/spa/tha/tpa；ethertype 0x0806——体首=帧偏移 14，L2-only 无 IP/TCP 头）/T-3 显式地址（sender_ip=192.168.10.5/target_ip=192.168.10.1 → spa/tpa 字节钉）/T-4 单发宣告（operation=2：1 帧，ether src=target_mac/dst=sender_mac 单播，oper 0002——裁定3 legacy 广播错位勘误后语义）/T-5 负例 operation=3（V9 registry 先火锚 `out of range [1,2]`）/T-6 负例 sender_ip 格式错（锚 `invalid sender_ip`）/T-7 负例 [eth,ip,arp] 承载混入（锚 sv 同款 `must not have an ip/transport carrier`）/T-8 presence 判死（层链+顶层 arp 子映射并存，锚 `no longer accepts a top-level arp`）/T-9 负例 sender_mac 格式错（锚 `invalid sender_mac`）/T-10 负例 target_mac 格式错（锚 `invalid target_mac`）/T-11 负例 target_ip 格式错（锚 `invalid target_ip`）/T-12 静态复制拒（eth 显式标量+case 顶层 strategy_fc flows=2，锚框架层链门 `static four-tuple`——sv_vn_static_copy 同款）。单测面（不占号）：layer_gen 链级红例 4（[eth,arp] 最小链配对/op=2 单播/显式地址/validator 锚直测）。**9.52 对账：分项和 12=建例 12（T-1…12 各 1 点，修轮 +T-9…12 四负例），可复算**。存量审计：arp 无存量 cases（零文件），legacy Planner 单测（arp_test/arp_testpoints）保留为回归面；legacy op=2 广播错位=重建勘误（裁定3），无用例迁移。
 
-### T-ICMP-1…8 icmp 层链收敛（#33，D-ICMP-1 P3 清单见 CODE_DESIGN D-ICMP-1；RFC 792 三源，raw-IP [ip,icmp] 族——icmpv6 对称第 12 连）
+### T-CWMP-1…153（#34 D-CWMP-1）
+
+**三源回指：** TR-069 Issue 1 A6 Corr 1（B6 契约 `docs/protocol-designs/64-cwmp-design.md` v2.2.2 逐条标注出处）→ D-CWMP-1（承载面迁移）→ `test/protocol_pcap/cases/cwmp.json`（153 例）。
+
+**存量审计（150 例去向，9.14 口径）：** 全量保留等价迁移——行为面（SOAP envelope/HTTP 头序/事务交替/ID 关联/cookie 回显/fault/acs_cr/digest auth）由 B6 契约 §2/§4/§5 全枚举（109 正例+41 负例，负例锚词=validator 逐字）；本 P-PIPE 只迁配置承载（顶层 `cwmp` 子映射→cwmp 层 config），字节面断言（packet_count/has_handshake/terminates/钉位）零变化——每例迁移后与迁移前 pcap 同基线（suite ×2 全绿为验收线）。
+
+**新增 3 例（P4 承载面，红先绿后）：**
+- T-CWMP-151 `pres_kill`：顶层 `cwmp` 子映射+layers 并存 → 400，锚 `top-level cwmp sub-config`（presence 负例豁免口径与 http 族一致）
+- T-CWMP-152 `v9_unknown_field`：cwmp 层未知字段 → 400，锚 `unknown field`（V9 allowlist=registry 六键）
+- T-CWMP-153 `empty_baseline`：空层 `{"cwmp":{}}` → P0b 基线单会话 11 包（13.20 缺省面钉；现状口径零改动）
+
+**对账（9.52）：** 分项和 153=建例 153（150 存量等价迁移各 1 点+3 新例各 1 点），可复算。
+
+**动态面（§12）：** 业务键静态单值如实声明（D-CWMP-1 裁定8）；cwmp:ID 自增=序号算法面（autoIDCtr，非动态策略）；四元组走 ip/tcp 层框架（150 例静态直发）。
+
+**协议天花板豁免声明：** cwmp 行为面枚举=B6 契约全枚举（109+41），本 P-PIPE 不扩行为面；9.50/9.53 复合交织以 B6 五层覆盖映射（§6）为准（多会话并发+flows 流关联已在案，复合天花板已达）。
+
+## T-ICMP-1…8 icmp 层链收敛（#33，D-ICMP-1 P3 清单见 CODE_DESIGN D-ICMP-1；RFC 792 三源，raw-IP [ip,icmp] 族——icmpv6 对称第 12 连）
 
 ICMPv4（RFC 792）反推 8 例（4 正+4 负；链级红例=单测面不占号）：T-1 smoke 配对（缺省 ping 2 帧：ip.proto=1+icmp.type p1=8/p2=0+src/dst 换向）/T-2 头字节钉（8B 头整钉：type 08/code 00/校验和/id=seq=1 回退面+data "ping"；体首=帧偏移 34——eth14+ip20，raw-IP 无 L4 头）/T-3 显式 identifier/sequence/data 覆盖钉/T-4 Pattern 多轮（2×echo 步 → 4 帧 seq 1/2 递增）/T-5 负例 type=3（validator 锚 `icmp type must be 8 (Echo Request) or 0 (Echo Reply), got 3`）/T-6 负例 code=1（锚 `icmp code must be 0 for Echo, got 1`）/T-7 负例 presence 判死（层链+顶层 icmp 子映射并存，锚 `no longer accepts a top-level icmp`）/T-8 负例静态复制（ip 层显式标量+case 顶层 strategy_fc flows=2，锚框架层链门 `static four-tuple`——icmpv6_vn_static_copy 同款）。**9.52 对账：分项和 8=建例 8（T-1…8 各 1 点），可复算**。存量审计：icmp 无存量 cases（零文件）；legacy 单测（icmp_test/icmp_testpoints/f7_autoreply/filesource）保留回归面；file_source 层链不映射=C 类（flat 判死后 MCP 不可达，单测面保留）；非 Echo 型（3/5/11/12/13/14）B′ 不编排。**协议天花板豁免（修轮 L2）**：无连接 2 帧面 ping 协议，9.50/9.53 显式 N/A（T-4 多步 Pattern+自动应答=已达天花板）。

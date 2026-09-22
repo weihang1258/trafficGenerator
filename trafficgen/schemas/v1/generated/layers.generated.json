@@ -295,7 +295,31 @@
       "field_contract": {
         "tcp.dst_port": "7547"
       },
-      "fields": {}
+      "fields": {
+        "auth": {
+          "type": "object"
+        },
+        "concurrent": {
+          "type": "bool",
+          "default": false
+        },
+        "flows": {
+          "type": "list",
+          "default": []
+        },
+        "namespace": {
+          "type": "string",
+          "default": ""
+        },
+        "profile": {
+          "type": "string",
+          "default": ""
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        }
+      }
     },
     "dameng": {
       "category": "terminal",

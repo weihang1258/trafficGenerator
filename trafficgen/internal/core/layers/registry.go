@@ -505,12 +505,22 @@ func buildDefaultRegistry() {
 	})
 	// cwmp（TR-069 CPE WAN Management Protocol，64-cwmp v2.2.2）：终结层
 	// 事件已含完整 HTTP 帧（SOAP 1.1 envelope、HTTP 头序、digest 认证），
-	// http 层以透传变换器转发（identity transformer）。全部协议配置经
-	// spec.CWMP（顶层 "cwmp" 子映射）注入，层 config 恒空；7547 端口经
+	// http 层以透传变换器转发（identity transformer）。D-CWMP-1：配置迁入
+	// cwmp 层（B6 顶层 "cwmp" 子映射注入形已判死）；六键=CWMPConfig 顶层
+	// 同名（sessions/flows 列表、auth 对象——V9 只验顶层键存在，嵌套值语义
+	// 归 translate JSON 往返 + validator，smtp/ftp 同款）；7547 端口经
 	// FieldContract 供通用应用补齐。
 	r.Register(LayerSchema{Name: "cwmp", Category: CategoryTerminal,
 		DependsOn:     []string{"http"},
 		FieldContract: map[string]string{"tcp.dst_port": "7547"},
+		Fields: map[string]FieldSchema{
+			"profile":    {Type: "string", Default: ""},
+			"namespace":  {Type: "string", Default: ""},
+			"concurrent": {Type: "bool", Default: false},
+			"sessions":   {Type: "list", Default: []interface{}{}},
+			"flows":      {Type: "list", Default: []interface{}{}},
+			"auth":       {Type: "object"},
+		},
 	})
 	// stratum（比特币 Stratum v1）：终结层事件为行式 JSON（LF 边界、紧凑
 	// 形态），[tcp→stratum] 直连（ip 层由依赖补全自动插入）。协议配置经

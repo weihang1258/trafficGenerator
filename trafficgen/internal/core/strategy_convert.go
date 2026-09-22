@@ -383,6 +383,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-CWMP-1：cwmp 在库旧策略顶层 cwmp → ValidationErrors（mqtt 同款；
+	// B6 注入形退役——2026-09-22 在库实测 0|0 无存量迁移面，纯防御）。
+	if protocol == "cwmp" {
+		if v, ok := cfg["cwmp"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 
 	// D-FTP-3 §5: 扁平四键收动态对象（引擎直调路径，REST 形状层已先 400）→
 	// spec.ValidationErrors 拒绝并指路层字段，worker 预检终态 error，绝不
@@ -8214,6 +8221,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "mqtt" {
 		if v, ok := cfg["mqtt"]; ok && v != nil {
 			return "protocol mqtt no longer accepts a top-level mqtt sub-config (move it into the mqtt layer of an [ip,tcp,mqtt] layers chain)"
+		}
+	}
+	// D-CWMP-1：cwmp 顶层 cwmp 子映射 presence 判死（mqtt 先例；空 map 也
+	// 死——B6 注入形退役，配置迁 cwmp 层六键）。层链形状不触发。
+	if protocol == "cwmp" {
+		if v, ok := cfg["cwmp"]; ok && v != nil {
+			return "protocol cwmp no longer accepts a top-level cwmp sub-config (move it into the cwmp layer of a [ip,tcp,http,cwmp] layers chain)"
 		}
 	}
 	// D-SMTP-1：smtp 顶层 smtp 子映射 presence 判死（mqtt 先例；空 map 也

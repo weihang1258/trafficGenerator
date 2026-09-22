@@ -280,8 +280,15 @@ func (g *CWMPGenerator) emitTransaction(
 		if reqID == autoID {
 			reqID = nextAutoID()
 		}
+		// D-CWMP-1 P4 勘误：事务级 device_id 优先、回退会话级（会话级 nil
+		// 已在 Generate 补夹具默认——validator 校验 tx.DeviceID 与
+		// sess.DeviceID 两处，旧路径只读会话级，155 处事务级覆盖静默丢失）。
+		dev := tx.DeviceID
+		if dev == nil {
+			dev = run.sess.DeviceID
+		}
 		body := BuildEnvelope(namespace, reqID, BuildInformPayload(
-			ifaceDevice(run.sess.DeviceID),
+			ifaceDevice(dev),
 			tx.Events,
 			tx.MaxEnvelopes,
 			tx.CurrentTime,

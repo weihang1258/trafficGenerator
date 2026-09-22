@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -159,6 +160,15 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 	// 翻译必须在协议级 validator 之前：dns validator 要求 spec.DNS 非 nil，
 	// worker.go:218 的 planner.Validate(task.Spec) 先于 Plan 运行。
 	p.translateTerminalConfig(&spec)
+	// 翻译期错误统一拦截（D-CWMP-1）：translateTerminalConfig 的层 config
+	// 解码失败（如 cwmp delay_seconds 超 uint32——旧 flat 路径经
+	// parseSubconfigJSON 记 ValidationErrors 拒任务，链路径原样丢进死字段
+	// 会漏放成 P0b 缺省流）必须同步报错，worker.go:218 planner.Validate
+	// 预检与 create 校验共用本路径。今日仅 cwmp 产翻译错误，对其它协议
+	// 恒空，行为不变。
+	if len(spec.ValidationErrors) > 0 {
+		return spec, fmt.Errorf("%s layer config: %s", p.name, strings.Join(spec.ValidationErrors, "; "))
+	}
 	// 协议级校验（波 4 起）：终结层协议包经 RegisterLayerValidator 注册
 	// 其 Validate（如 dns 包对 DNSConfig 的检查），链上未注册校验器的层
 	// 跳过。校验器只校验不默认化（默认化由 validateSpecBase 统一负责）。
