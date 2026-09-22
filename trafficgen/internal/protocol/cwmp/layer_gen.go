@@ -104,6 +104,12 @@ func (g *CWMPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 			cp.DeviceID = &core.CWMPDeviceID{}
 			*cp.DeviceID = FixtureDeviceID()
 		}
+		// 修轮修3：会话 URI 缺省 "/"（CWMPSession.URI 注释承诺的缺省语义；
+		// emitFlow 对 fl.URI 同款兜底 :733——主会话侧漏兜，空请求行
+		// "POST  HTTP/1.1" 违反 RFC 7230 origin-form，真实 ACS 会 400）。
+		if cp.URI == "" {
+			cp.URI = "/"
+		}
 		runs[i] = &sessionRun{idx: i, sess: cp}
 	}
 

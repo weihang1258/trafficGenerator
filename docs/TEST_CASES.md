@@ -3891,6 +3891,12 @@ ARP（RFC 826）反推 12 例（4 正+8 负；链级红例 4=单测面不占号�
 
 **对账（9.52）：** 分项和 153=建例 153（150 存量等价迁移各 1 点+3 新例各 1 点），可复算。
 
+**修轮注记（2026-09-22 收官复审 4M+5L 处置）：**
+- M1 字段面按族抽钉：六行为族各取代表例补 `fields`/`frames` 断言（cwmp_inform_ipv4_2p=请求行/状态行/SerialNumber+方法/uri/200；cwmp_get_param_names_values/cwmp_set_parameter_values_single=SOAP 方法元素+方法/uri；cwmp_download_flow_correlation=Download 元素+副连接 GET /fw.bin+方法/uri；cwmp_connection_request_auth_challenge=WWW-Authenticate 头+GET/uri/401/200；cwmp_digest_qop_auth_known_vector=Digest Authorization 全行 120B）——全部从修后落盘 pcap 钉（9.31）；**其余 104 正例保持结构三件套，字段面按族抽样为如实登记口径**（不冒充全字段覆盖）。
+- 修轮修3（会话 URI 缺省 "/"）：全部请求行从空 target（`POST  HTTP/1.1`，RFC 7230 畸形）变为 `/`（`POST / HTTP/1.1`）——帧数/方向/事务结构零变化，110 正例结构断言全部保持。
+- M2/M3：链级红例⑥（会话回退）⑦（翻译守卫）补齐（单测面不占号）；M4：红例④加管线耦合注记。
+- L4：cwmp_neg_oui_lowercase 锚词 `value`→`not six uppercase hex digits`（validator 具体文案）。
+
 **动态面（§12）：** 业务键静态单值如实声明（D-CWMP-1 裁定8）；cwmp:ID 自增=序号算法面（autoIDCtr，非动态策略）；四元组走 ip/tcp 层框架（150 例静态直发）。
 
 **协议天花板豁免声明：** cwmp 行为面枚举=B6 契约全枚举（109+41），本 P-PIPE 不扩行为面；9.50/9.53 复合交织以 B6 五层覆盖映射（§6）为准（多会话并发+flows 流关联已在案，复合天花板已达）。

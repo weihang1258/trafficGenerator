@@ -3819,16 +3819,34 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 | §7 | 三份文档 | B6 契约（protocol-designs/64-cwmp-*）+ D-CWMP-1 + T-CWMP-1…153 |
 | §8 | 设计先行 | B6 契约 v2.2.2 先于实现（历史）；本迁移 D-CWMP-1 裁定 9 条先于 P4 落地（6912ba5 同提交粒度，如实注记） |
 | §9 | 测试三源+颗粒度 | 三源=TR-069 标准文本+D-CWMP-1+legacy 行为面；150 例 B6 契约全枚举（109 正+41 负）+3 新例；一例一行为点 |
-| §10 | 评审闭环 | 每阶段自审+收官隔离复审（子代理）+修轮定向复审；红先绿后（链级红例 5+负例 153 例中 44） |
+| §10 | 评审闭环 | 每阶段自审+收官隔离复审（子代理）+修轮定向复审；红先绿后（链级红例 8+负例 153 例中 43） |
 | §11 | 白话汇报 | 每阶段白话一句先行（P4/P5/P6 汇报口径） |
 | §12 | 动态字段 | 四元组走 ip/tcp 层框架策略；业务键静态单值如实声明（裁定8）；cwmp:ID 自增=序号算法面（layer_gen autoIDCtr，B6 §9 ID 权威） |
 | §13 | schema | registry 六键→schemagen 再生（TestLayersGeneratedMatchesRegistry 绿）；V9 只验顶层键、嵌套值语义归 translate+validator |
-| §14 | 真实流程 | suite 153/153 ×2（MCP 建任务→引擎生成→tshark 校对）；pcap 落盘 /tmp/mcp-pcaps/cwmp/；负例 44 锚词真红 |
+| §14 | 真实流程 | suite 153/153 ×2（MCP 建任务→引擎生成→tshark 校对）；pcap 落盘 /tmp/mcp-pcaps/cwmp/；负例 43 锚词真红 |
 
 ### P4 勘误块（2026-09-22，红先绿后——两处非承载面发现，处置实录）
 
 1. **事务级 device_id 死配置（行为面，B6 遗留）**：validator 校验 tx.DeviceID（planner.go validateDeviceIDRef）但发射路径只读会话级 ifaceDevice(run.sess.DeviceID)——155 处事务级 device_id 静默忽略（套件 0 体字节钉位所以 B6 全绿未被察觉）。修复：tx 优先、回退会话级（layer_gen.go inform 分支一行）；链级红例⑤ 先红后绿。**裁定1 例外声明**：本勘误使带事务级 device_id 的用例 inform 体字节改变（DeviceIdStruct 按配置上线）——帧数/方向/事务结构零变化（packet_count 断言全部保持），属"配置意图得以执行"而非行为回退；B6 契约 §6 typedef 本就定义事务级 device_id 覆盖语义（validator 同证），此处是让死配置活过来。
 2. **mss 死键删除（承载面）**：cwmp_mss_large_soap_200_params 旧顶层注入形下嵌套 `cwmp.tcp={"mss":1460}` 无任何消费者（CWMPConfig 无 Tcp 字段、全仓无 ["cwmp"]["tcp"] 读取点；mss 1460=引擎默认值）——迁入层后被 V9 硬拒，删除死键（行为零变化，packet_count 32 断言保持）。
+
+3. **会话 URI 空请求行死缺省（修轮修3，行为面，主线程自主发现）**：`BuildRequest` 写 `method+" "+uri+" HTTP/1.1"` 无 URI 兜底——CWMPSession.URI 注释承诺缺省 `/`（emitFlow 对 fl.URI 有同款兜底 layer_gen.go:733，主会话侧漏兜），实际线上请求行=`"POST  HTTP/1.1"` 空 request-target，违反 RFC 7230 origin-form（真实 ACS 必 400）。零字段钉位（M1）使其不可见。修复：Generate 会话拷贝处补缺省 `/`（layer_gen.go session copy）；链级红例⑧ RequestLineTarget；红证据=修前 pcap 字节（tshark -x f4@54 `POST  HTTP/1.1` 实录）+突变可逆（回退 fix ⑧ 必红）。裁定1 例外同①：全部请求行获得合法 target，帧数/方向/事务结构零变化。
+
+### 修轮块（2026-09-22 收官隔离复审 PASS-WITH-FINDINGS → 处置）
+
+| 级 | 发现 | 处置 |
+|---|---|---|
+| M1 | 用例断言强度不足：153 例 `fields`=0/`frames`=0，B6 §4/§5 声明的字段/hex 断言面未落地 | 六行为族各取代表例按族抽钉（inform/get/set/download/CR/digest 六例，fields=http 方法/uri/响应码，frames=请求行/状态行/SOAP 方法元素/SerialNumber/WWW-Authenticate/Digest 全行，全部从修后落盘 pcap 钉）；其余例保持结构三件套，T-CWMP 如实登记「字段面按族抽钉」口径 |
+| M2 | ValidateSpec 翻译守卫无链级红例（M4 突变：删守卫链级全绿） | 链级红例⑦ TranslateErrorGuard（uint32 溢出 delay_seconds→Validate 报 `cwmp layer config:` 前缀错误） |
+| M3 | device_id 会话回退半边无例覆盖（M5c 突变全绿） | 链级红例⑥ SessionFallbackDeviceID（tx 无 device_id→会话级值上线） |
+| M4 | 红例④与 registry 改动耦合（M3 突变以包数面貌红） | ④加注记：registry 六键存在性由红例③专断，④包数断言不重复该职责（深突变面貌误导已在注说明） |
+| L1 | 门1 §10/§14 「负例 44」实为 43（has_payload 正例口径混入） | 已改 43 |
+| L2 | 64-cwmp-testcase.md 头部计数 112+38 与实测 109+41 不符 + 状态行陈旧 | v3.1.2：头部状态/计数更新+修订记录 |
+| L3 | 64-cwmp-design.md §6 typedef 仍旧顶层形状+wire_fault 未实现键 | v2.2.3：§6 改层链目标形，wire_fault 标注「设计期注入口未实现，负例经逐事务畸形值表达」 |
+| L4 | coverage_gate device_id 行查用例 id 而泛锚 value | 用例锚词升级为 validator 具体文案 `not six uppercase hex digits`，gate 行改同锚 |
+| L5 | in-store 防御分支无红例 | 本块登记：纯防御（在库 cwmp 0 条），不设红例 |
+
+修轮后：suite 153/153 ×2（含六例新钉）、反查 20/20、门2 四项绿、race/vet 绿。
 
 ### 文件清单（P4）
 

@@ -159,9 +159,102 @@ func TestCWMPChain_TxDeviceIDEmitted(t *testing.T) {
 	}
 }
 
+// 红例⑥【修轮 M3】：device_id 会话回退半边——tx 不写 device_id 时必须落
+// 会话级值（M5c 突变实证：删回退半边五例全绿，无例覆盖）。
+func TestCWMPChain_SessionFallbackDeviceID(t *testing.T) {
+	raw := cwmpMigrateChain(t, map[string]interface{}{
+		"sessions": []interface{}{
+			map[string]interface{}{
+				"device_id": map[string]interface{}{"manufacturer": "Example", "oui": "005566", "product_class": "GW", "serial": "SN-SESS-FALLBACK"},
+				"transactions": []interface{}{
+					map[string]interface{}{"kind": "inform", "id": "1", "events": []interface{}{map[string]interface{}{"code": "2 PERIODIC"}}},
+					map[string]interface{}{"kind": "inform_response", "id": "1"},
+				},
+			},
+		},
+	})
+	p, err := layers.BuildLayersPlanner("cwmp", raw)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), cwmpMigrateSpec())
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	found := false
+	for pkt := range ch {
+		if strings.Contains(string(pkt.Payload), "SN-SESS-FALLBACK") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("session device_id fallback not emitted (tx without device_id must use session value)")
+	}
+}
+
+// 红例⑦【修轮 M2】：翻译期错误统一拦截——delay_seconds 超 uint32 必须在
+// Validate/Plan 同步报错（M4 突变实证：删守卫后链级五例全绿、用例面才红；
+// 本例给守卫专属红例，锚 `cwmp layer config:` 前缀）。
+func TestCWMPChain_TranslateErrorGuard(t *testing.T) {
+	raw := cwmpMigrateChain(t, map[string]interface{}{
+		"sessions": []interface{}{
+			map[string]interface{}{
+				"transactions": []interface{}{
+					map[string]interface{}{
+						"kind": "acs_request", "id": "2", "method": "download",
+						"command_key": "d1", "file_type": "1 Firmware Upgrade Image",
+						"url": "http://x.example/fw", "delay_seconds": 4294967296,
+					},
+				},
+			},
+		},
+	})
+	p, err := layers.BuildLayersPlanner("cwmp", raw)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	err = p.Validate(cwmpMigrateSpec())
+	if err == nil {
+		t.Fatal("uint32-overflow delay_seconds must fail Validate (translate guard)")
+	}
+	if !strings.Contains(err.Error(), "cwmp layer config:") {
+		t.Fatalf("error = %v, want `cwmp layer config:` prefix (ValidateSpec translate guard)", err)
+	}
+	if !strings.Contains(err.Error(), "uint32") {
+		t.Fatalf("error = %v, want unmarshal type error detail", err)
+	}
+}
+
+// 红例⑧【修轮修3】：空请求行死缺省——会话 URI 空（缺省语义 "/"）时请求行
+// 必须是 "POST / HTTP/1.1"（现状："POST  HTTP/1.1" 空 request-target 违反
+// RFC 7230 origin-form；emitFlow 侧有兜底 :733 主会话侧漏兜）。
+func TestCWMPChain_RequestLineTarget(t *testing.T) {
+	raw := cwmpMigrateChain(t, map[string]interface{}{})
+	p, err := layers.BuildLayersPlanner("cwmp", raw)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), cwmpMigrateSpec())
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	for pkt := range ch {
+		if pkt.Direction == "up" && len(pkt.Payload) >= 15 {
+			// P0b 基线首请求=inform POST；请求行在 TCP payload 起始。
+			head := string(pkt.Payload[:15])
+			if head == "POST  HTTP/1.1" {
+				t.Fatal("empty request-target on the wire (want `POST / HTTP/1.1`; session URI default missing)")
+			}
+		}
+	}
+}
+
 // 红例④【D-CWMP-1 裁定3/6③】：空层 {"cwmp":{}} = P0b 基线单会话 11 包
-// （3 握手 + inform/inform_response + 空 POST/204 + 4 挥手）——13.20 缺省面，
-// 现状口径零改动（validator nil 放行 + 生成器 len==0 补基线）。
+// （3 握手 + inform/inform_response + 空 POST/204 + 4 挥手）——13.20 缺省面。
+// 注（修轮 M4）：本例走全管线（translate→透传→生成器），故深突变（如删
+// registry Fields）会以「包数不对」面貌在此报红——registry 六键存在性由
+// 红例③ V9Allowlist 专断，此处包数断言不重复该职责。
 func TestCWMPChain_EmptyLayerBaseline(t *testing.T) {
 	raw := cwmpMigrateChain(t, map[string]interface{}{})
 	p, err := layers.BuildLayersPlanner("cwmp", raw)

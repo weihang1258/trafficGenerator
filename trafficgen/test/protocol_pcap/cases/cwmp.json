@@ -61,7 +61,41 @@
     "expect": {
       "packet_count": 11,
       "has_handshake": true,
-      "terminates": true
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "POST"
+        },
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "504f5354202f20485454502f312e31"
+        },
+        {
+          "packet": 4,
+          "offset": 655,
+          "hex": "3c53657269616c4e756d6265723e534e303030303030313c2f53657269616c4e756d6265723e"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "485454502f312e3120323030204f4b"
+        }
+      ]
     }
   },
   {
@@ -297,7 +331,31 @@
     "expect": {
       "packet_count": 16,
       "has_handshake": true,
-      "terminates": true
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "POST"
+        },
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 7,
+          "offset": 514,
+          "hex": "476574506172616d657465724e616d65733e"
+        },
+        {
+          "packet": 8,
+          "offset": 497,
+          "hex": "476574506172616d657465724e616d6573526573706f6e7365"
+        }
+      ]
     }
   },
   {
@@ -383,7 +441,31 @@
     "expect": {
       "packet_count": 14,
       "has_handshake": true,
-      "terminates": true
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "POST"
+        },
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 7,
+          "offset": 514,
+          "hex": "536574506172616d6574657256616c7565733e"
+        },
+        {
+          "packet": 8,
+          "offset": 497,
+          "hex": "536574506172616d6574657256616c756573526573706f6e7365"
+        }
+      ]
     }
   },
   {
@@ -599,7 +681,36 @@
     "expect": {
       "packet_count": 11,
       "has_handshake": true,
-      "terminates": true
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "401"
+        },
+        {
+          "packet": 7,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 81,
+          "hex": "5757572d41757468656e7469636174653a20446967657374"
+        }
+      ]
     }
   },
   {
@@ -2852,7 +2963,31 @@
     "expect": {
       "packet_count": 23,
       "has_handshake": true,
-      "terminates": true
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 12,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 12,
+          "field": "http.request.uri",
+          "value": "/fw.bin"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 7,
+          "offset": 515,
+          "hex": "6f776e6c6f6164"
+        },
+        {
+          "packet": 12,
+          "offset": 54,
+          "hex": "474554202f66772e62696e20485454502f312e31"
+        }
+      ]
     }
   },
   {
@@ -8542,7 +8677,14 @@
     "expect": {
       "packet_count": 11,
       "has_handshake": true,
-      "terminates": true
+      "terminates": true,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 97,
+          "hex": "417574686f72697a6174696f6e3a2044696765737420757365723d4d75666173612c7265616c6d3d686f73742c706173733d436972636c652c6e6f6e63653d6162632c6e633d30303030303030312c636e6f6e63653d30613466313133622c716f703d617574682c6d6574686f643d4745542c7572693d2f"
+        }
+      ]
     }
   },
   {
@@ -10677,7 +10819,7 @@
     "id": "cwmp_neg_oui_lowercase",
     "proto": "cwmp",
     "name": "OUI lowercase (value)",
-    "summary": "",
+    "summary": "（修轮 L4：锚词从泛词 value 升级为 validator 具体文案）",
     "spec_json": {
       "layers": [
         {
@@ -10734,7 +10876,7 @@
     },
     "expect": {
       "expect_error": true,
-      "error_contains": "value"
+      "error_contains": "not six uppercase hex digits"
     }
   },
   {

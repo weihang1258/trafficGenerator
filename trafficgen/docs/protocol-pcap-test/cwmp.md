@@ -108,7 +108,7 @@ Cases: 153 — pass 153, fail 0, error 0
 | cwmp_neg_invalid_file_type |  | pass | 0 | [pcap]() |
 | cwmp_neg_manufacturer_too_long |  | pass | 0 | [pcap]() |
 | cwmp_neg_mdownload_no_tc |  | pass | 0 | [pcap]() |
-| cwmp_neg_oui_lowercase |  | pass | 0 | [pcap]() |
+| cwmp_neg_oui_lowercase | （修轮 L4：锚词从泛词 value 升级为 validator 具体文案） | pass | 0 | [pcap]() |
 | cwmp_neg_oui_seven_chars |  | pass | 0 | [pcap]() |
 | cwmp_neg_oui_short |  | pass | 0 | [pcap]() |
 | cwmp_neg_param_key_too_long |  | pass | 0 | [pcap]() |

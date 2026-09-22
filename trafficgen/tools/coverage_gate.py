@@ -1948,7 +1948,7 @@ def check_cwmp(cases):
     for needle, name in [
         ("no longer accepts a top-level cwmp sub-config", "presence 判死锚"),
         ("unknown field", "V9 未知字段锚"),
-        ("cwmp_neg_oui_lowercase", "validator device_id 锚（oui 域）"),
+        ("not six uppercase hex digits", "validator device_id 锚（oui 域具体文案，L4 升级）"),
         ("correlation|no pending|invalid", "correlation/id 族锚"),
     ]:
         found = needle in blob
