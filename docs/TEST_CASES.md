@@ -3920,3 +3920,21 @@ ARP（RFC 826）反推 12 例（4 正+8 负；链级红例 4=单测面不占号�
 ## T-ICMP-1…8 icmp 层链收敛（#33，D-ICMP-1 P3 清单见 CODE_DESIGN D-ICMP-1；RFC 792 三源，raw-IP [ip,icmp] 族——icmpv6 对称第 12 连）
 
 ICMPv4（RFC 792）反推 8 例（4 正+4 负；链级红例=单测面不占号）：T-1 smoke 配对（缺省 ping 2 帧：ip.proto=1+icmp.type p1=8/p2=0+src/dst 换向）/T-2 头字节钉（8B 头整钉：type 08/code 00/校验和/id=seq=1 回退面+data "ping"；体首=帧偏移 34——eth14+ip20，raw-IP 无 L4 头）/T-3 显式 identifier/sequence/data 覆盖钉/T-4 Pattern 多轮（2×echo 步 → 4 帧 seq 1/2 递增）/T-5 负例 type=3（validator 锚 `icmp type must be 8 (Echo Request) or 0 (Echo Reply), got 3`）/T-6 负例 code=1（锚 `icmp code must be 0 for Echo, got 1`）/T-7 负例 presence 判死（层链+顶层 icmp 子映射并存，锚 `no longer accepts a top-level icmp`）/T-8 负例静态复制（ip 层显式标量+case 顶层 strategy_fc flows=2，锚框架层链门 `static four-tuple`——icmpv6_vn_static_copy 同款）。**9.52 对账：分项和 8=建例 8（T-1…8 各 1 点），可复算**。存量审计：icmp 无存量 cases（零文件）；legacy 单测（icmp_test/icmp_testpoints/f7_autoreply/filesource）保留回归面；file_source 层链不映射=C 类（flat 判死后 MCP 不可达，单测面保留）；非 Echo 型（3/5/11/12/13/14）B′ 不编排。**协议天花板豁免（修轮 L2）**：无连接 2 帧面 ping 协议，9.50/9.53 显式 N/A（T-4 多步 Pattern+自动应答=已达天花板）。
+
+### T-MEGACO-1…79 megaco 层链接入（#36 D-MEGACO-1；B6 契约 v1.2.0 三源，77 语义 ID + 2 事务级 error 边界）
+
+**三源回指：** RFC 3525 / ITU-T H.248.1 (03/2002) 文本编码（Annex B.2 ABNF；D.1 UDP / D.2 TPKT）→ D-MEGACO-1 → `test/protocol_pcap/cases/megaco.json`（79 例）。ID 权威 = B6 testcase §2；本节 9.52 对账 79 = 46 正 + 31 wire_fault 负 + 2 事务级 error 边界负。
+
+**存量审计（79 例去向，9.14 口径）：** B6 旧分支 79 例全量等价承载——spec_json 层链整形（顶层四元组→ip 层 src/dst；→udp/tcp 层 src_port/dst_port；顶层 megaco 子映射→megaco 层 config），expect 断言面（packet_count/fields/frames）零变化；注册前置占位 megaco_neg_unregistered 随注册移除（契约 §1）。tshark 口径校准已烘入 B6 fixture（megaco.context 字段名/ack_range 包数/mss=536 下限——aa72e36 十三修的遗产）。
+
+**P4 新增（本分支，红先绿后）：** 链级红例 8（megaco_chain_test.go：presence 判死/翻译落线/V9 七键/空层基线 2 包/TPKT 成帧/端口域/wire_fault 闭环锚/会话 transport 载体不符）——三突变实证（删 translate case→②红；neuter wire_fault 拒绝→⑦红；删 carrier 块→⑥⑧红）。白名单收 megaco 同红先绿后（negativeOnly 守卫先红→摘除→绿）。
+
+**跑法口径：** `CASE_PROTO=megaco` 79/79 ×2 全绿；MCP 真实流程（strategy create→task→engine→tshark 校验），pcap 落盘 `/tmp/mcp-pcaps/megaco/`。
+
+**对账（9.52）：** 分项和 79=建例 79（46 正各 1 点+31 负各 1 点+2 事务级 error 边界各 1 点），可复算。
+
+**动态面（§12）：** transactionId `auto`（运行期分配 UINT32 非零不重）与 `same_as_request:<i>`（配对引用）为动态语义面——断言用 nonzero/稳定 token（IA/`K{`）不固化数值（边界 carve-out 例 15/16/17/28/39/40/41 除外，被测规格点即边界值本身）；四元组走 ip/udp/tcp 层框架。
+
+**协议天花板豁免声明：** 流关联/多流显式不适用（B6 契约 §4.1——控制面协议不派生 RTP 媒体数据面，SDP 仅描述符文本）；9.50/9.53 复合=多会话隔离+并发交错+同消息双事务+长事务三方握手四维在案；BER 编码仅 profile 边界声明（负例 47/48），不产 BER 载荷。
+
+**已知 dissector 伪影（豁免在案）：** megaco_udp_ipv4_whitespace_comment_variants——tshark 3.6 megaco dissector 未实现 ABNF COMMENT → `_ws.malformed` 进 IsMalformedWhitelisted（帧字节逐字节钉死，伪影仅解析面）。

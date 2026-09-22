@@ -3923,3 +3923,47 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 - Modify: `tools/pipe_gate.sh`（kingbase 显式退役分支：无自键 presence 门+门2-2 文案）
 - Modify: `tools/coverage_gate.py`（check_kingbase）
 - 不涉 registry/schema/layers.generated 变更（无 schemagen 面；strategy.json 本就无 kingbase）。
+
+## D-MEGACO-1 megaco 层链接入（#36，RFC 3525/H.248.1 文本编码，79 例全绿）
+
+> megaco（媒体网关控制协议 Megaco/H.248 v1，RFC 3525 / ITU-T H.248.1 (03/2002) 文本编码）= 终结层接入：`[ip,udp,megaco]` 一数据报一消息 / `[ip,tcp,megaco]` RFC 1006 TPKT 成帧。行为面权威 = B6 契约 `docs/protocol-designs/70-megaco-design.md` v1.2.0 + `70-megaco-testcase.md`（77 语义 ID = 46 正 + 31 wire_fault 负），旧分支参考实现（797af86/aa72e36）作 builder 编码与用例形状借鉴。
+
+### P1 规范矩阵（§4 八项确认态）
+
+| 项 | 要求 | 现状 | 缺口 |
+|---|---|---|---|
+| 1 连接模型 | UDP（D.1）/TCP（D.2）双载体 2944；mgcp 别名 2427 | registry 双 carrier FieldContract + chain carrier/端口域块 | 无 |
+| 2 命令/消息表 | 八命令（Add/MF/S/MV/AV/AC/N/SC）+ 事务四形态 | builder 八命令域 + 四事务渲染 | 无 |
+| 3 状态机 | 注册→编程→建连→拆连；初始状态规则（非 SC 开=Registered 等价态） | planner 状态机校验（validator） | 无 |
+| 4 字段表 | 描述符族十三种（Media/LocalControl/Events/…/Error） | builder 描述符渲染全族 | 无 |
+| 5 错误处理 | 31 wire_fault 负例锚词 + 2 事务级 error 边界 | wireFaultAnchors 闭环 31 值（与契约 §7 表同序） | 无 |
+| 6 超时与活性 | 事务 Pending/IA/K 三方握手 | pending/reply/response_ack 渲染+validator | 无 |
+| 7 NAT/被动 | 不适用（控制面协议） | 如实 | 无 |
+| 8 版本方言 | Version 1*2DIGIT 起始行 + profile megaco_v1_text | builder 起始行双形 | 无 |
+| **承载面** | 层链唯一真相 | B6 顶层 `megaco` 子映射注入形 → presence 判死（G5）；79 例层链形零残留 | 无 |
+| **协议身份面** | 三名合一 | **收敛为 megaco 单准入名**（h248/mgcp 不独立注册；mgcp 别名=显式 2427 case 表达——kingbase 裁决同型：准入集只留真形态） | 无 |
+
+### 缺口清单与裁定（P2）
+
+- G1 D-MEGACO-1 条目（唯一入口）/ G2 T-MEGACO 节（79 审计）/ G3 coverage_gate check_megaco 25 项 → 全部分别落地。
+- G4 pipe_gate megaco 自键组（presence 判死执法）→ binary 门实跑绿。
+- **G5 承载面判死**：`CheckProtoFlat` megaco 分支（顶层 megaco 子映射+layers 并存即 400，锚 `no longer accepts a top-level megaco sub-config`）+ mapToFlowSpec 在库 switch（存量行启动 error；在库 0 行纯防御）。
+- **裁定1 协议身份**：三名合一收敛 megaco 单准入名（protocols.go 白名单 + 同步 negativeOnly 摘除——红先绿后：negativeOnly 守卫先红→摘除→绿）。
+- **裁定2 载体**：udp/tcp 双合法，TPKT 由生成器负责；会话 `transport` 显式声明与链载体不符 → validator 同步拒（`carrier`）。
+- **裁定3 端口域**：2944 默认（FieldContract 双 carrier 常量）；2427（mgcp 别名）合法放行；2945+BINARY/text 声明混配 → 拒（`encoding`）；其余显式端口 → 拒（`port`）。
+- **裁定4 wire_fault**：31 值闭环枚举，validator 即拒+主锚词（绝不静默放行成 0 包假成功）；B6 旧版 `Validate` 对已知 fault 放行的实现被 **aa72e36 起已改拒**，本分支沿用拒绝语义。
+- **裁定5 初始状态规则**：注册前违规（neg56）不设自然面守卫——契约 §5.2 初始状态规则明确"首事件为 MG 注册类 SC 才从 Unregistered 起步，其余初始即 Registered 等价态"，自然配置下不可构造；该故障唯一入口 = wire_fault 命令（首版 planner 曾加自然面门，压测 32 例合法会话误红后撤除）。
+- **裁定6 事务级 error**：aa72e36 边界 2 例（tx error 与 actions 并存 / tx error 在 request）+ validator 两处拒绝（锚 `both error descriptor and actions` / `only valid on type=reply`）。
+- **裁定7 注释变体伪影**：tshark 3.6 megaco dissector 不实现 ABNF COMMENT（RFC 3525 Annex B.2 合法线格式）→ `_ws.malformed` 伪影进 `IsMalformedWhitelisted`（帧字节由用例 frames 六钉逐字节断言，仅 dissector 解析面受限）。
+- **回滚**：提交次序 = 代码接入 → suite/gate → 文档；单提交粒度可摘。
+
+### 文件清单（P4）
+
+- Modify: `internal/core/protocols.go` + `protocols_test.go`（白名单收 megaco；negativeOnly 摘除）
+- Create: `internal/core/megaco.go`（Megaco* 类型）+ `internal/protocol/megaco/`（builder/planner/layer_gen/builder_test）
+- Modify: `internal/core/types.go`（FlowSpec.Megaco）、`layers/registry.go`（层行）、`layers/chain_planner.go`（carrier/端口域块）+ `chain_planner_util.go`（rawMegacoSessions）+ `chain_planner_translate.go`（case+flowMetaFor）+ `layers/generator.go`（FlowMeta.Megaco）
+- Modify: `internal/core/strategy_convert.go`（CheckProtoFlat 判死+在库 switch）、`cmd/server/main.go`（ChainPlanner 接线）
+- Test: `internal/core/layers/megaco_chain_test.go`（链级红例 8 例，三突变实测）+ `internal/pcaptest/verify.go`（伪影白名单）
+- Reshape: `test/protocol_pcap/cases/megaco.json`（B6 79 例层链整形：四元组进 ip/udp(tcp) 层、megaco 子映射进 megaco 层）
+- Regenerate: `schemas/v1/generated/layers.generated.json`（114→115）+ webgen 产物
+- Tools: `tools/pipe_gate.sh`（megaco 自键组）、`tools/coverage_gate.py`（check_megaco 25 项）
