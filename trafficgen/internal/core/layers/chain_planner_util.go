@@ -364,3 +364,20 @@ func finsTransportFromMetadata(v interface{}) (string, bool) {
 	}
 	return "", false
 }
+
+// rawMegacoSessions extracts the sessions list from a megaco terminal layer
+// config (D-MEGACO-1 carrier gate: session-level transport vs chain carrier;
+// raw user map and completed config both carry []interface{}).
+func rawMegacoSessions(termCfg map[string]interface{}) []map[string]interface{} {
+	raw, ok := termCfg["sessions"].([]interface{})
+	if !ok {
+		return nil
+	}
+	out := make([]map[string]interface{}, 0, len(raw))
+	for _, item := range raw {
+		if m, ok := item.(map[string]interface{}); ok {
+			out = append(out, m)
+		}
+	}
+	return out
+}

@@ -127,6 +127,7 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		MongoDB:    spec.MongoDB,
 		Dameng:     spec.Dameng,
 		PostgreSQL: spec.PostgreSQL,
+		Megaco:     spec.Megaco,
 		CQL:        spec.CQL,
 		LDP:        spec.LDP,
 		PCEP:       spec.PCEP,
@@ -2000,6 +2001,27 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			// validator 报错而不是静默空流。
 			spec.PostgreSQL = &core.PostgreSQLConfig{Dialect: "postgresql", WireProfile: "postgresql_v3"}
 		}
+	case "megaco":
+		if spec.Megaco != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		// D-MEGACO-1：层 config（profile/encoding/version/token_form/whitespace/
+		// sessions/wire_fault）经 JSON 往返解码为 core.MegacoConfig——json tag
+		// 覆盖全部字段（含 *int 定时器/指针 Services.Version），比逐字段 map
+		// 取值忠实。未序列化错误（非 JSON 可编码值）时置最小默认让 validator
+		// 报错，不静默空流。
+		cfg := completedConfig(s, term.Config)
+		raw, err := json.Marshal(cfg)
+		if err != nil {
+			spec.Megaco = &core.MegacoConfig{}
+			return
+		}
+		var mc core.MegacoConfig
+		if err := json.Unmarshal(raw, &mc); err != nil {
+			spec.Megaco = &core.MegacoConfig{}
+			return
+		}
+		spec.Megaco = &mc
 	case "ftp":
 		// 只在扁平路径确实携带了业务内容（sessions/banner/commands/data_channel）
 		// 时才跳过翻译。mapToFlowSpec 对协议 ftp 总会创建一个 FTPConfig

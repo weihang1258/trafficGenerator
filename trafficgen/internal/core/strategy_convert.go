@@ -390,6 +390,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-MEGACO-1：megaco 在库旧策略顶层 megaco → ValidationErrors（cwmp
+	// 同款；B6 注入形退役——在库实测 0 行无存量迁移面，纯防御）。
+	if protocol == "megaco" {
+		if v, ok := cfg["megaco"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 
 	// D-FTP-3 §5: 扁平四键收动态对象（引擎直调路径，REST 形状层已先 400）→
 	// spec.ValidationErrors 拒绝并指路层字段，worker 预检终态 error，绝不
@@ -3342,29 +3349,29 @@ func ParseJTT905ConfigFromMap(m map[string]interface{}) *JTT905Config {
 		return nil
 	}
 	cfg := &JTT905Config{
-		ISUId:                 getString(m, "isu_id"),
-		InitialSN:             uint16(getInt(m, "initial_sn")),
-		PlatformInitialSN:     uint16(getInt(m, "platform_initial_sn")),
-		BusinessLicense:       getString(m, "business_license"),
-		QualificationCode:     getString(m, "qualification_code"),
-		PlateNo:               getString(m, "plate_no"),
-		TaximeterKValue:       getString(m, "taximeter_k_value"),
-		OnDutyPowerOnTime:     getString(m, "on_duty_power_on_time"),
-		OnDutyPowerOffTime:    getString(m, "on_duty_power_off_time"),
-		OnDutyMileage:         getString(m, "on_duty_mileage"),
+		ISUId:                  getString(m, "isu_id"),
+		InitialSN:              uint16(getInt(m, "initial_sn")),
+		PlatformInitialSN:      uint16(getInt(m, "platform_initial_sn")),
+		BusinessLicense:        getString(m, "business_license"),
+		QualificationCode:      getString(m, "qualification_code"),
+		PlateNo:                getString(m, "plate_no"),
+		TaximeterKValue:        getString(m, "taximeter_k_value"),
+		OnDutyPowerOnTime:      getString(m, "on_duty_power_on_time"),
+		OnDutyPowerOffTime:     getString(m, "on_duty_power_off_time"),
+		OnDutyMileage:          getString(m, "on_duty_mileage"),
 		OnDutyOperationMileage: getString(m, "on_duty_operation_mileage"),
-		TrainNumber:           getString(m, "train_number"),
-		TimingTime:            getString(m, "timing_time"),
-		TotalAmount:           getString(m, "total_amount"),
-		CardAmount:            getString(m, "card_amount"),
-		CardCount:             getString(m, "card_count"),
-		OnDutyMileageBetween:  getString(m, "on_duty_mileage_between"),
-		TotalMileage:          getString(m, "total_mileage"),
-		TotalOperationMileage: getString(m, "total_operation_mileage"),
-		UnitPrice:             getString(m, "unit_price"),
-		TotalOperations:       uint32(getInt(m, "total_operations")),
-		SignType:              uint8(getInt(m, "sign_type")),
-		HeartbeatCount:        getInt(m, "heartbeat_count"),
+		TrainNumber:            getString(m, "train_number"),
+		TimingTime:             getString(m, "timing_time"),
+		TotalAmount:            getString(m, "total_amount"),
+		CardAmount:             getString(m, "card_amount"),
+		CardCount:              getString(m, "card_count"),
+		OnDutyMileageBetween:   getString(m, "on_duty_mileage_between"),
+		TotalMileage:           getString(m, "total_mileage"),
+		TotalOperationMileage:  getString(m, "total_operation_mileage"),
+		UnitPrice:              getString(m, "unit_price"),
+		TotalOperations:        uint32(getInt(m, "total_operations")),
+		SignType:               uint8(getInt(m, "sign_type")),
+		HeartbeatCount:         getInt(m, "heartbeat_count"),
 	}
 	if pm, ok := m["position"].(map[string]interface{}); ok {
 		cfg.Position = &JTT905Position{
@@ -8228,6 +8235,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "cwmp" {
 		if v, ok := cfg["cwmp"]; ok && v != nil {
 			return "protocol cwmp no longer accepts a top-level cwmp sub-config (move it into the cwmp layer of a [ip,tcp,http,cwmp] layers chain)"
+		}
+	}
+	// D-MEGACO-1：megaco 顶层 megaco 子映射 presence 判死（cwmp 先例；空
+	// map 也死——B6 顶层注入形退役，配置迁 megaco 层七键）。层链形状不触发。
+	if protocol == "megaco" {
+		if v, ok := cfg["megaco"]; ok && v != nil {
+			return "protocol megaco no longer accepts a top-level megaco sub-config (move it into the megaco layer of an [ip,udp,megaco] layers chain; tcp carrier = [ip,tcp,megaco] with RFC 1006 TPKT framing)"
 		}
 	}
 	// D-SMTP-1：smtp 顶层 smtp 子映射 presence 判死（mqtt 先例；空 map 也

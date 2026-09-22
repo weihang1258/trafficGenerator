@@ -1651,6 +1651,51 @@
       ],
       "fields": {}
     },
+    "megaco": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "transport_on": [
+        "udp",
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "2944",
+        "udp.dst_port": "2944"
+      },
+      "fields": {
+        "encoding": {
+          "type": "string",
+          "default": ""
+        },
+        "profile": {
+          "type": "string",
+          "default": ""
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "token_form": {
+          "type": "string",
+          "default": ""
+        },
+        "version": {
+          "type": "int",
+          "default": 0,
+          "max": 99
+        },
+        "whitespace": {
+          "type": "string",
+          "default": ""
+        },
+        "wire_fault": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
     "mms": {
       "category": "terminal",
       "depends_on": [

@@ -659,6 +659,23 @@ func buildDefaultRegistry() {
 			"wire_fault": {Type: "object"},
 		},
 	})
+	r.Register(LayerSchema{Name: "megaco", Category: CategoryTerminal,
+		DependsOn:   []string{"udp"},        // 默认 udp（RFC 3525 Annex D.1）；用户显式写 tcp 层覆盖（Annex D.2 TPKT 成帧）
+		TransportOn: []string{"udp", "tcp"}, // 双载体：udp 一数据报一消息 / tcp TPKT 定界+MSS 分段重组
+		// D-MEGACO-1：megaco（RFC 3525 / ITU-T H.248.1 文本编码）终结层六键
+		// + 双 carrier 端口契约（megaco-v1-text 2944；mgcp 别名 2427 由用户
+		// 显式写，carrier 块域校验放行，见 chain_planner.go）。
+		FieldContract: map[string]string{"udp.dst_port": "2944", "tcp.dst_port": "2944"},
+		Fields: map[string]FieldSchema{
+			"profile":    {Type: "string", Default: ""},              // megaco_v1_text（默认）| mgcp_alias
+			"encoding":   {Type: "string", Default: ""},              // text（默认）| ber（仅声明，本期不产 BER 载荷→validator 拒）
+			"version":    {Type: "int", Default: 0, Min: 0, Max: 99}, // 起始行 Version 1*2DIGIT；0=缺省取 1
+			"token_form": {Type: "string", Default: ""},              // long（默认）| abbrev
+			"whitespace": {Type: "string", Default: ""},              // "" 单空格 SEP | cr | comment | lwsp
+			"sessions":   {Type: "list", Default: []interface{}{}},
+			"wire_fault": {Type: "string", Default: ""}, // 闭环 31 值枚举（D-MEGACO-1 §7 表）；""=无故障
+		},
+	})
 	r.Register(LayerSchema{Name: "cql", Category: CategoryTerminal, DependsOn: []string{"tcp"}})
 	r.Register(LayerSchema{Name: "iec104", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "2404"},

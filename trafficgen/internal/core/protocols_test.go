@@ -22,7 +22,7 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		"ftp", "gbt32960", "goose", "gre", "grpc", "gtp", "h323", "hds",
 		"hls", "http", "http_flv", "icmp", "icmpv6", "iec104", "igmp", "ike",
 		"ike_nat_t", "imap", "isis", "jt808", "jt809", "jtt905", "l2tp",
-		"ldap", "ldp", "mcp", "mcpprotocol", "mdns", "mms", "modbus",
+		"ldap", "ldp", "mcp", "mcpprotocol", "mdns", "megaco", "mms", "modbus",
 		"mongodb", "moxa", "mpls", "mqtt", "mysql", "nfs", "ngap", "ntp",
 		"opcua", "openvpn", "ospf", "pcep", "pim", "pop3", "postgresql", "pppoe", "pptp",
 		"radius", "rdp", "redis", "replay", "rip", "rtmfp", "rtmp", "rtsp",
@@ -81,7 +81,7 @@ func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 		"kingbase",
 		"bacnet", "dcerpc", "dtls", "edp",
 		"hl7",
-		"kerberos", "megaco", "mmse", "ntlm", "ocsp",
+		"kerberos", "mmse", "ntlm", "ocsp",
 		"spnego", "sstp",
 		"xmrmining",
 	}

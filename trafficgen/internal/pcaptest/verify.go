@@ -485,6 +485,12 @@ func IsMalformedWhitelisted(caseID string, flags ...string) bool {
 		return true
 	case caseID == "tds_rpc_param_xml_json_udt", caseID == "doip_userdata_empty", caseID == "modbus-fc99-exemption":
 		return true
+	// Megaco 注释变体伪影（D-MEGACO-1，tshark 3.6 megaco dissector 未实现
+	// ABNF COMMENT——RFC 3525 Annex B.2 `COMMENT = ";" ... EOL` 是合法线格
+	// 式）：合法注释行报 malformed。帧字节由用例 frames 钉死（offset 65 起
+	// 注释字节逐字节断言），仅 dissector 解析面受限。
+	case caseID == "megaco_udp_ipv4_whitespace_comment_variants":
+		return true
 	// S7comm 错误头伪影：对"错误头+空数据"的 Ack_Data（parlg=1 参数为函数码、
 	// datlg=0、errcls/errcod 非零），packet-s7comm.c 的 Write Var 分支读不存在的
 	// 数据区 → "[Malformed Packet: S7COMM]"（设计 §9.3 S12 帧 15 已文档化）。

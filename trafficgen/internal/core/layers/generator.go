@@ -371,6 +371,7 @@ type FlowMeta struct {
 	// P0a：共享 PG v3 wire 层，kingbase 是其 dialect 变体——共享层读
 	// req.Meta.PostgreSQL 的 Events/Sessions，dialect 决定端口 5432/54321）。
 	PostgreSQL *core.PostgreSQLConfig
+	Megaco     *core.MegacoConfig // D-MEGACO-1：megaco 终结层（RFC 3525 文本编码，udp/tcp 双载体）
 	CQL        *core.CQLConfig
 	LDP        *core.LDPConfig
 	PCEP       *core.PCEPConfig

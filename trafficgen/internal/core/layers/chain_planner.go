@@ -469,6 +469,49 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 		spec.DstPort = contractPort
 		break
 	}
+	// Megaco carrier + port contract（D-MEGACO-1：RFC 3525 §9/Annex D）：
+	//   - 载体：udp（D.1 一数据报一消息）与 tcp（D.2 TPKT 成帧）双合法，
+	//     TPKT/MSS 分段由生成器与传输层负责，此处不做载体互斥拒绝；仅当
+	//     会话级 transport 显式声明与链载体不符时同步拒绝（neg72 自然面）。
+	//   - 端口：text 编码下 2944（megaco/h248 默认）与 2427（mgcp 别名，
+	//     三名合一裁定收敛）为合法值；2945（BER 默认端口）配 text 声明 →
+	//     拒（neg48，锚 encoding）；其余端口显式声明 → 拒（neg74，锚 port）。
+	//   - 未显式写 → 走通用 FieldContract 补齐 2944（下块）。
+	for _, l := range chain {
+		if l.Name != "megaco" {
+			continue
+		}
+		termCfg := l.Config
+		if v, ok := termCfg["encoding"].(string); ok && v != "" && v != "text" {
+			return spec, fmt.Errorf("megaco chain: encoding %q is not produced in this version (text only; ber is a boundary declaration, not a payload — declared ber/carrier-encoding mismatch)", v)
+		}
+		carrier := ""
+		if len(chain) > 1 {
+			carrier = chain[len(chain)-2].Name
+		}
+		// 会话级 transport 与链载体不符 → 拒（链形状是载体唯一真相）。
+		for _, se := range rawMegacoSessions(termCfg) {
+			st, _ := se["transport"].(string)
+			if st != "" && (st == "udp" || st == "tcp") && carrier != "" && st != carrier {
+				return spec, fmt.Errorf("megaco chain: session transport %q does not match chain carrier %q (layers chain is the carrier truth)", st, carrier)
+			}
+		}
+		if carrier == "udp" || carrier == "tcp" {
+			if v, ok := chain[len(chain)-2].Config["dst_port"]; ok && v != nil {
+				if up, ok := configUint16(v); ok {
+					switch up {
+					case 2944, 2427:
+						// 合法（2944=H.248 文本默认，2427=mgcp 别名）。
+					case 2945:
+						return spec, fmt.Errorf("megaco chain: destination port %d is the binary (ber) default while encoding is text (2944 text / 2427 mgcp alias; encoding/port mismatch)", up)
+					default:
+						return spec, fmt.Errorf("megaco chain: destination port %d is not a text-encoding megaco port (2944 default, 2427 mgcp alias)", up)
+					}
+				}
+			}
+		}
+		break
+	}
 	// 通用 FieldContract 端口应用（P0b-1 通用化，design §1.3/§10.3 R2）：
 	// switch 未覆盖且用户未显式写的层（amqp/bgp/dameng/drda/hds/hls/http/
 	// http_flv/iec104/mongodb/s7/thrift/tns），其目的端口由 terminal 层

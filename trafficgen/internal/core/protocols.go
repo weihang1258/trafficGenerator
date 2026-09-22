@@ -29,7 +29,7 @@ var allowedProtocols = map[string]bool{
 	"icmpv6": true, "iec104": true, "igmp": true, "ike": true, "ike_nat_t": true,
 	"imap": true, "isis": true, "jt808": true, "jt809": true, "jtt905": true,
 	"l2tp": true, "ldap": true, "ldp": true,
-	"mcp": true, "mcpprotocol": true, "mdns": true, "mms": true,
+	"mcp": true, "mcpprotocol": true, "mdns": true, "megaco": true, "mms": true,
 	"modbus": true, "mongodb": true, "moxa": true, "mpls": true,
 	"mqtt": true, "mysql": true, "nfs": true, "ngap": true,
 	"ntp": true, "opcua": true, "openvpn": true, "ospf": true, "pcep": true,
@@ -49,8 +49,8 @@ var allowedProtocols = map[string]bool{
 	// B5 消息中间件（openwire/ams）：注册 layer/planner 后准入（占位用例
 	// 同步替换为语义用例，protocols_test 哨兵同步摘除）。
 	"openwire": true,
-	"ams": true,
-	"swarm": true,
+	"ams":      true,
+	"swarm":    true,
 	"gnutella": true,
 	// B6（77-gbt）：注册 layer/planner 后准入（占位用例同步替换为 81 语义
 	// 用例，protocols_test 哨兵同步摘除）。

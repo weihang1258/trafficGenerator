@@ -72,7 +72,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dameng"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dns"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/drda"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/icmp" // 空导入：icmp 包 init 注册层生成器 + 校验器（D-ICMP-1）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/icmp"   // 空导入：icmp 包 init 注册层生成器 + 校验器（D-ICMP-1）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/icmpv6" // 空导入：icmpv6 包 init 注册层生成器 + 校验器（D-ICMPV6-1）
 	// 空导入：ike 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ike"
@@ -81,10 +81,10 @@ import (
 	// 空导入：imap 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/imap"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/jt808"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/jt809"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/jtt905"
 	"github.com/trafficgen/trafficgen/internal/protocol/jt809"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/jt809"
 	"github.com/trafficgen/trafficgen/internal/protocol/jtt905"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/jtt905"
 	// 空导入：l2tp 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ams"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/geneve"
@@ -94,6 +94,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ldp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mcp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mdns"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/megaco" // init 注册 megaco 终结层生成器+校验器（D-MEGACO-1，RFC 3525 文本编码）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mms"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/modbus"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mongodb"
@@ -502,6 +503,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("mongodb"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("dameng"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("postgresql")) // 共享 PG v3 wire 层（kingbase 作 dialect 变体，不再独立注册）
+	app.engine.RegisterPlanner(layers.NewChainPlanner("megaco"))     // D-MEGACO-1：RFC 3525 文本编码（udp/tcp 双载体，mgcp 别名 2427）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("cql"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("someip"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("stun"))
