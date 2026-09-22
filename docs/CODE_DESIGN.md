@@ -3605,7 +3605,7 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 修轮后：suite 13/13 ×2、反查 41/41、门2 四项绿（重编实录）、touched 包 -race 绿。任务书勘误：XORChecksum/Escape/BCDEncode 实住 protocol/jtcommon/jtcommon.go（非 jt808wire.go，该文件属 809 专用面），复用结论不变。
 
 
-## D-ARP-1 arp 层链收敛（#32，P1+P2 定稿 2026-09-22；裁定=L2-only 族接入+线面复用重建）
+## D-ARP-1 arp 层链收敛（#32，2026-09-22 已验收：1f61887 P4 / ef3bfb5 P5 / P6 清库+门表，裁定=L2-only 族接入+线面复用重建）
 
 ### P1 规范矩阵（§4 八项；三源=RFC 826 + 本仓 legacy 行为面 + RFC 语义反推）
 
@@ -3638,3 +3638,28 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 
 **性能（§6）：** 事件直发 channel 256（链框架）；包数=op1:2 帧/op2:1 帧（无握手挥手——L2-only）；pcap 路验收（网卡未跑如实）。
 **接口签名：** `Generator{Name/GenEvents/Generate}`；`ValidateARPSpec(spec)` validator；ARPConfig{Operation,SenderMAC,SenderIP,TargetMAC,TargetIP}。
+
+### 门 1 开工对照表（§1–§14，2026-09-22 arp P6 回填，证据=文档节/代码行/用例号）
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 顶层旧键不存在（L2-only 无端口面；顶层 arp 子映射 presence 判死=rawWrapChains "[eth,arp]"）；目标形 `{"layers":[{"eth":{"src_mac","dst_mac"}},{"arp":{"operation":1}}]}`；端口=不适用（L2-only，validateSpecBase 豁免） | SC rawWrapChains；cases/arp.json 8 例；pipe_gate 门2-1 绿 |
+| §2 策略/任务分工 | 沿框架语义不另设；在库 0 策略+0 任务（新建协议无存量，报数对账平，备份 arp-purge-20260922.db） | P6 清库记录 |
+| §3 五件套 | L2-only 单流协议写豁免：无子流派生/sessions/端口；事务序=op1 配对（request→reply）/op2 单发；时间线=帧序（门1 §3 行豁免声明） | `layer_gen.go` Generate；T-1 2 帧 |
+| §4 规范矩阵 | RFC 826 反推八项三源；op=2 广播错位勘误（legacy buildARPPacket 硬编码广播）入 D- 裁定3 | D-ARP-1 P1 矩阵 |
+| §5 有错必处理 | registry operation [1,2] V9 先火+ValidateARPSpec IP/MAC 格式锚+V-carrier 承载混入拒（complete.go 通用门） | `layer_gen.go`；T-5…7 |
+| §6 性能 | 事件直发 channel 256；包数=op1:2/op2:1（无握手挥手）；pcap 路验收（网卡未跑如实） | D- 性能行 |
+| §7 三份文档 | 设计=D-ARP-1；用例=T-ARP-1…9；cases 回指编号 | 三文档 |
+| §8 先设计后代码 | P1/P2 定稿（D- 追加随 1f61887）先于用例（ef3bfb5） | git 历史 |
+| §9 三源+整格 | RFC 826 字段序 28B 整格钉（T-2 五段全等）+T-3 显式四键 | arp.json |
+| §10 评审闭环 | 自审轮次（钉位三轮红→pcap 修正实录/legacy op=2 勘误）+隔离对抗复审=收官独立轮 | P5 记录；复审轮 |
+| §11 白话汇报 | 先一句结论再证据 | 各阶段汇报 |
+| §12 动态清单 | 四元组=不适用（L2-only 无端口；MAC 进 eth 层）；业务键 operation/地址静态单值如实注记（无动态消费面） | 门1 §12 行 |
+| §13 schema 同步 | registry 5 Fields → schemagen 重生成 113 层 | generated/layers.generated.json（1f61887） |
+| §14 真实流程 | MCP 建→引擎生成→tshark 校对；8/8 ×2；负例带锚词；钉从落盘 pcap（首轮 3 例红→重钉实录） | T-ARP-1…8；suite ×2 |
+
+**门 3 抽查三条（P6）：** ①§3——T-1 配对帧序（帧1 广播 oper 0001/帧2 单播 oper 0002 角色互换）六钉 pcap 实证；②§5——T-5 锚 `out of range [1,2]`（V9 registry 先火）与 T-7 锚 `must not have an ip/transport carrier`（V-carrier 通用门，complete.go DependsOn eth 自动获得）双拦截点可点；③§14——suite 8/8 ×2+反查 17/17+门2-3 二进制同代（重编实录）。
+
+**验收两门：** ①层链跑通=P5 绿；②旧格式移除=presence 判死+在库零行对账平。两门全过。
+
+**P6 收官结论（白话一句）：** arp 接入 L2-only 族第 4 协议（goose/sv/isis 同型），RFC 826 28B 字节面逐格钉死，op=1 配对/op=2 宣告可编排可校验（legacy op=2 广播错位勘误），8 例 ×2 全绿、反查 17/17、门2 四项绿、在库零行对账平。
