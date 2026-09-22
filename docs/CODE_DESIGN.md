@@ -3678,7 +3678,7 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 
 修轮后：suite 12/12 ×2、反查 22/22、门2 四项绿（重编实录）、touched 包 -race 绿、vet 净。
 
-## D-ICMP-1 icmp 层链收敛（#33，P1+P2 定稿 2026-09-22；裁定=raw-IP 面线面复用+icmpv6 对称重建）
+## D-ICMP-1 icmp 层链收敛（#33，2026-09-22 已验收：af02651 P4 / 1b4e440 P5 / P6 清库+门表，裁定=raw-IP 面线面复用+icmpv6 对称重建）
 
 ### P1 规范矩阵（§4 八项；三源=RFC 792 + legacy 行为面实录 + icmpv6/igmp 家族先例）
 
@@ -3724,3 +3724,28 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 | T-6 | 负例 code=1 | 锚 `icmp code must be 0 for Echo, got 1` |
 | T-7 | 负例 presence | 层链+顶层 icmp 子映射并存 → `no longer accepts a top-level icmp` |
 | T-8 | 负例静态复制 | ip 层显式标量+flows=2 → 框架层链门 `static four-tuple`（icmpv6_vn_static_copy 同款） |
+
+### 门 1 开工对照表（§1–§14，2026-09-22 icmp P6 回填，证据=文档节/代码行/用例号）
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 顶层旧键不存在（无端口面；顶层 icmp 子映射 presence 判死=rawWrapChains "[ip,icmp]" 第 24 协议）；目标形 `{"layers":[{"ip":{"src","dst"}},{"icmp":{"type":8}}]}`；端口=不适用（validateSpecBase raw-IP 豁免 :764） | SC rawWrapChains；cases/icmp.json 8 例；pipe_gate 门2-1 绿 |
+| §2 策略/任务分工 | 沿框架语义不另设；在库 0 策略+0 任务（新建协议无存量，suite 产物自清，报数对账平，备份 icmp-purge-20260922.db） | P6 清库记录 |
+| §3 五件套 | raw-IP 单流协议写豁免：无子流派生/sessions/端口/会话；事务序=单 ping Echo 对/Pattern 多轮；时间线=帧序（门1 §3 行豁免声明） | legacy Plan 两路面；T-1 2 帧/T-4 4 帧 |
+| §4 规范矩阵 | RFC 792 反推八项三源；Echo 语义收窄（非 Echo 型 B′）入 D- 裁定4/6 | D-ICMP-1 P1 矩阵 |
+| §5 有错必处理 | validator 逐步校验（type/code/pattern step 三锚）+registry V9+legacy IP 格式复用+HasLayerDynIP 豁免 | `layer_gen.go`；T-5/T-6 |
+| §6 性能 | 复用 legacy Plan（channel 256）；包数=单 ping 2/type0 单发 1/Pattern 2×#8步；pcap 路验收（网卡未跑如实） | D- 性能行 |
+| §7 三份文档 | 设计=D-ICMP-1；用例=T-ICMP-1…8；cases 回指编号 | 三文档 |
+| §8 先设计后代码 | P1/P2 定稿（D- 追加随 af02651）先于用例（1b4e440） | git 历史 |
+| §9 三源+整格 | 8B 头整格钉（T-2 五段+校验和预计算对拍）+T-3 显式四键+T-4 Pattern | icmp.json |
+| §10 评审闭环 | 自审轮次（钉位两轮红→pcap 修正实录/端口豁免第五接线点补录）+隔离对抗复审=收官独立轮 | P5 记录；复审轮 |
+| §11 白话汇报 | 先一句结论再证据 | 各阶段汇报 |
+| §12 动态清单 | 四元组=不适用（无端口；ip 层地址）；业务键 type/地址静态单值如实注记；flows>1 静态复制由框架层链门执法（T-8 证） | 门1 §12 行 |
+| §13 schema 同步 | registry 6 Fields → schemagen 重生成 114 层 | generated/layers.generated.json（af02651） |
+| §14 真实流程 | MCP 建→引擎生成→tshark 校对；8/8 ×2；负例带锚词；钉从落盘 pcap（首轮 2 例红→重钉实录） | T-ICMP-1…8；suite ×2 |
+
+**门 3 抽查三条（P6）：** ①§3——T-1 Echo 对帧序（p1 type=8/p2 type=0+src/dst 换向）pcap 实证；②§5——T-5 锚 `icmp type must be 8 (Echo Request) or 0 (Echo Reply), got 3`（validator 唯一产地 layer_gen.go）+T-8 锚 `static four-tuple`（checkLayerChainStaticCopy 层链门）双拦截点可点；③§14——suite 8/8 ×2+反查 18/18+门2-3 二进制同代（重编实录）。
+
+**验收两门：** ①层链跑通=P5 绿；②旧格式移除=presence 判死+在库零行对账平。两门全过。
+
+**P6 收官结论（白话一句）：** icmp 收官（raw-IP 族第 12 协议、icmpv6 全对称），RFC 792 Echo 面 8B 头逐格钉死（校验和预计算对拍），单 ping/Pattern 多轮可编排可校验，8 例 ×2 全绿、反查 18/18、门2 四项绿、在库零行对账平。
