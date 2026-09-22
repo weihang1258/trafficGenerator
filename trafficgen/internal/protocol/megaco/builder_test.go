@@ -88,7 +88,7 @@ func TestValidate_TxLevelError_WithActionsRejected(t *testing.T) {
 	tx := txErrReply()
 	tx.ID = "same_as_request:0"
 	tx.Actions = []core.MegacoAction{{
-		Context: "-",
+		Context:  "-",
 		Commands: []core.MegacoCommand{{Name: "ServiceChange", Termination: "ROOT"}},
 	}}
 	err := Validate(specShape(tx))
@@ -102,7 +102,7 @@ func TestValidate_TxLevelError_OnRequestRejected(t *testing.T) {
 		Type: "request", ID: "1",
 		Error: &core.MegacoError{Code: 430, Text: "Unknown TerminationID"},
 		Actions: []core.MegacoAction{{
-			Context: "-",
+			Context:  "-",
 			Commands: []core.MegacoCommand{{Name: "ServiceChange", Termination: "ROOT"}},
 		}},
 	}

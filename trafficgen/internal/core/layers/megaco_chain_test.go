@@ -461,6 +461,79 @@ func TestMegacoChain_NaturalFaceGuards(t *testing.T) {
 	}
 }
 
+// 红例⑱【复评2 F1】：O- 可选命令豁免——reply 动作内首命令带 Error 描述符后
+// 跟 O- 前缀命令合法（设计 §8 "首错停止（O- 可选命令豁免）"、§7 Error 行
+// "首错后非 O- 命令仍执行 → 拒绝"）；守卫必须读 cmd.Optional。
+func TestMegacoChain_OptionalAfterErrorAllowed(t *testing.T) {
+	raw := megacoChain(t, "udp", map[string]interface{}{
+		"sessions": []interface{}{
+			map[string]interface{}{
+				"role": "mgc", "mid": "[192.0.2.70]", "peer_mid": "[198.51.100.70]",
+				"events": []interface{}{
+					map[string]interface{}{
+						"kind": "message", "direction": "c2s",
+						"transactions": []interface{}{
+							map[string]interface{}{"type": "request", "id": "1", "actions": []interface{}{
+								map[string]interface{}{"context": "1", "commands": []interface{}{
+									map[string]interface{}{"name": "Modify", "termination": "A1"}}}}}}},
+					map[string]interface{}{
+						"kind": "message", "direction": "s2c",
+						"transactions": []interface{}{
+							map[string]interface{}{"type": "reply", "id": "same_as_request:0", "actions": []interface{}{
+								map[string]interface{}{"context": "1", "commands": []interface{}{
+									map[string]interface{}{"name": "Modify", "termination": "A1", "descriptor": map[string]interface{}{
+										"error": map[string]interface{}{"code": 501, "text": "not implemented"}}},
+									map[string]interface{}{"name": "AuditValue", "termination": "A1", "optional": true}}}}}}},
+				},
+			},
+		},
+	})
+	p, err := layers.BuildLayersPlanner("megaco", raw)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	if err := p.Validate(megacoSpec()); err != nil {
+		t.Fatalf("O- command after error descriptor must be accepted (design §8 O- exemption), got %v", err)
+	}
+	ch, err := p.Plan(context.Background(), megacoSpec())
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var body string
+	for pkt := range ch {
+		body += string(pkt.Payload)
+	}
+	if !strings.Contains(body, "O-AuditValue = A1") {
+		t.Fatalf("optional command must render O- prefix, got %q", body)
+	}
+}
+
+// 红例⑲【复评2 F5】：空 sessions 时基线流继承显式 version/token_form/
+// whitespace（{"version":2} 无会话曾静默渲染 MEGACO/1）。
+func TestMegacoChain_BaselineHonorsVersion(t *testing.T) {
+	raw := megacoChain(t, "udp", map[string]interface{}{"version": 2})
+	p, err := layers.BuildLayersPlanner("megaco", raw)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), megacoSpec())
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var body string
+	n := 0
+	for pkt := range ch {
+		n++
+		body += string(pkt.Payload)
+	}
+	if n != 2 {
+		t.Fatalf("baseline packets=%d, want 2", n)
+	}
+	if !strings.Contains(body, "MEGACO/2 [192.0.2.70]") {
+		t.Fatalf("baseline must honor explicit version 2, got %q", body)
+	}
+}
+
 // 红例⑯【复评 U1】：auto transactionId 逐请求递增（validator 状态机与
 // sessionRenderSizes/生成器共享同一解析——终审修轮的 auto→"1" 固定归一
 // 曾致 auto+auto 误拒、"1"+auto 撞号漏网）。

@@ -3974,7 +3974,7 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 |---|---|---|
 | §1 层链唯一真相 | 顶层旧键：`src_ip/dst_ip/src_port/dst_port/count` 零残留（门 2-1 脚本扫）；顶层 `megaco` 子映射 presence 判死（B6 注入形退役，kingbase 同型）；目标形状：`{"layers":[{"ip":{"src":"192.0.2.70","dst":"198.51.100.70"}},{"udp":{"src_port":40700}},{"megaco":{"profile":"megaco_v1_text","encoding":"text","version":1,"token_form":"long","whitespace":"","sessions":[{"role":"mg","mid":"[192.0.2.70]","peer_mid":"[198.51.100.70]","events":[{"kind":"message","direction":"c2s","transactions":[{"type":"request","id":"auto","actions":[{"context":"-","commands":[{"name":"ServiceChange","termination":"ROOT","descriptor":{"services":{"method":"Restart","reason":"901 Cold Boot"}}}]}]}]}]}],"wire_fault":""}}]}`（megaco 层七键全列；TCP 载体 = `[ip,tcp,megaco]`，TPKT 成帧） | `strategy_convert.go:8242` CheckProtoFlat megaco 分支（锚 `no longer accepts a top-level megaco sub-config`）；红例① TestMegacoChain_FlatPresenceRejected；门 2-1 绿 |
 | §2 策略/任务分工 | megaco 无子流派生端口；多流只走 `flow_control`；会话编排住 megaco 层 `sessions[]`，任务合跑沿框架语义 | registry.go megaco 行（无 dyn 字段）；T-MEGACO 用例面 |
-| §3 五件套 | 会话表=`sessions[]`（role/mid/peer_mid/transport/ports）；事务序列=`events[].transactions[]`（request/reply/pending/response_ack 四形态）；关联=`same_as_request:<i>` 引用 + `ack` 覆盖已确认事务 + ObservedEvents RequestID 关联（observedReqIDs）；插入位置=链终结层生成器每消息一 MessageEvent；时间线=会话内顺序回放，`concurrent:true` 按事件下标 round-robin 交错 | `layer_gen.go` sessionRun/resolveTransactionID；`planner.go:172-179` 状态机面；正例 45（concurrent） |
+| §3 五件套 | 会话表=`sessions[]`（role/mid/peer_mid/transport/ports）；事务序列=`events[].transactions[]`（request/reply/pending/response_ack 四形态）；关联=`same_as_request:<i>` 引用 + `ack` 覆盖已确认事务 + ObservedEvents RequestID 关联（observedReqIDs）；插入位置=链终结层生成器每消息一 MessageEvent；时间线=会话内顺序回放，`concurrent:true` 按事件下标 round-robin 交错 | `layer_gen.go` sessionRun/sessionTxState.resolve（复评收口后唯一解析权威）；`planner.go` validateSession 状态机面；正例 45（concurrent） |
 | §4 规范矩阵 | RFC 3525 / ITU-T H.248.1 (03/2002)：§7 命令与描述符、§8 事务、Annex B.2 文本 ABNF、Annex D.1 UDP / D.2 TPKT；B6 契约 70-megaco-design.md v1.2.1 为行为面权威 | 本条目 P1 矩阵 10 行 |
 | §5 有错必处理 | 31 wire_fault 闭环锚词 validator 即拒（绝不 0 包假成功）+ 2 事务级 error 边界（裁定6）；载体双 carrier 校验；长度类拒绝在 Validate 同步面（Plan goroutine 空流契约不吞锚词） | `planner.go` wireFaultAnchors/Validate；`chain_planner.go` megaco 块 |
 | §6 性能 | 事件流式渲染（无全量收集、无锁无 sleep）；UDP 单数据报 ≤1472 / TPKT ≤0xFFFF 天花板 Validate 面执法；边界诚实声明（无吞吐/并发目标，网卡未跑） | `planner.go` sessionRenderSizes + Validate 天花板块；T-MEGACO 跑法口径 |
@@ -3983,7 +3983,7 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 | §9 三源+整格 | 三源每条回指（RFC 行/B6 语义 ID/用例号）；wire_fault 31 值逐一单一注入；正例覆盖描述符族代表+双载体+双 token 形+空白变体 | T-MEGACO 存量审计行 |
 | §10 评审闭环 | 改→审→测→修→再审：主线程逐相位对抗自审 + 收官隔离终审（FAIL 判定→修轮 F1–F15→同审查员范围复评）；测试四问逐例过 | 本条目修轮记录；门 3 抽查 |
 | §11 白话汇报 | 先一句结论再贴证据；锚词/突变逐一实录（含证伪更正：旧"三突变"中"删 translate→②红"系伪证已废弃重测） | T-MEGACO P4 新增行 |
-| §12 动态清单 | 四元组：ip 层 src/dst + udp/tcp 层 src_port/dst_port（链级）+ 会话级 src_port/dst_port 覆盖（域校验同链级，修轮 F3）；业务动态：`transactions[].id` `auto`（会话内计数器从 1 起）/`same_as_request:<i>`（第 i 个请求 id）——序号算法 `layer_gen.go` resolveTransactionID；megaco 层七键静态无 dyn 对象 | `layer_gen.go:229-264`；`chain_planner.go` 会话 dst_port 域；红例⑫ |
+| §12 动态清单 | 四元组：ip 层 src/dst + udp/tcp 层 src_port/dst_port（链级）+ 会话级 src_port/dst_port 覆盖（域校验同链级，修轮 F3）；业务动态：`transactions[].id` `auto`（会话内计数器从 1 起）/`same_as_request:<i>`（第 i 个请求 id）——序号算法 `layer_gen.go` sessionTxState.resolve（validator 状态机/sessionRenderSizes/生成器三面共用）；megaco 层七键静态无 dyn 对象 | `layer_gen.go` sessionTxState；`chain_planner.go` 会话 dst_port 域；红例⑫ |
 | §13 schema 同步 | registry 新增 megaco 行（七键，version Min 1/Max 99）→ schemagen/webgen 重跑提交（114→115 层） | `schemas/v1/generated/layers.generated.json` |
 | §14 真实流程 | cases 即任务 spec；MCP 建任务→引擎生成→tshark 校对；负例带锚词 task error；79/79 全量 ×4；二进制同代；pcap 落盘 `/tmp/mcp-pcaps/megaco/` | T-MEGACO 跑法口径行；门 2 三项 |
 
@@ -4044,4 +4044,16 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 - **U2（MEDIUM-HIGH，同源）**：sessionRenderSizes 手抄副本一字节漂移即天花板静默失效（1472B 空流复现）。U1 的共享解析消掉 id 面副本；渲染面 pickMid/BuildMessageText 本已同函数，副本面收敛为单一调用序。
 - **U3（MEDIUM）**：registry 注释"[1,99] 同锚词覆盖显式 0"伪声明（V9 `u==0` skip 先于范围检查）+ generated 文件缺 `"min":1`（F10 后未重跑 schemagen，freshness 测试不比 min/max 故绿）。修法：注释如实改写（显式 0=缺省渲染 1，豁免叙述同步）；schemagen 重跑（diff 恰一行）；`TestLayersGeneratedMatchesRegistry` 扩 min/max 比对（JSON float64 ↔ int64 数值比较）。
 - **U4（LOW-MED）**：`command_first_error_continues` 豁免理由"无法自然表达"被反例证伪（reply 动作 Error 命令后续命令落线）。修法：validateAction 命令环 errCmdSeen 守卫（同动作首错后继命令拒，锚 command）——移入守卫表（23+8）。红例⑰先红后绿。
+### 复评收口轮 2（第三轮范围复评 rereview2.md：PASS-WITH-FINDINGS，F1–F6）
+
+U1/U2/U3 闭合经独立复现确认（四行矩阵/1472 边界逐字节/cmpBound 双向突变均真）。F1–F6 处置（红先绿后或突变实证）：
+
+- **F1（中）**：U4 守卫不读 `cmd.Optional`——O- 命令跟在错误命令后被误拒，与设计 §8"首错停止（O- 可选命令豁免）"冲突。修法：`errCmdSeen && !cmd.Optional`；红例⑱ TestMegacoChain_OptionalAfterErrorAllowed（O- 放行 + 落线 `O-AuditValue = A1`）先红后绿。
+- **F2（低，潜伏）**：BuildMessageText 双调用点漂移隐患——parity 守卫落地：`internal/protocol/megaco/parity_test.go` TestRenderParityWithGenerator（四形状 × 双载体，sizes ↔ 实发字节逐字节），生成器侧 1 字节漂移突变实测红（1301 vs 1296+4）。
+- **F3（低）**：pending 空 id 错误补 `(transaction)` 锚词。
+- **F4（低）**：freshness 测试 cmpDefault 落地（dump 缺失 ⇔ registry nil；在场 ⇔ 相等，数值 float64 归一 + map 长度比对）——registry default 0→1 突变实测红（dump=0 registry=1）。
+- **F5（低，既有）**：空 sessions 基线流继承显式 version/token_form/whitespace（defaultFlow(from)）——`{"version":2}` 无会话渲染 MEGACO/2；红例⑲先红后绿。
+- **F6（低，文档）**：CODE_DESIGN 两处 `resolveTransactionID` 存量名更新为 sessionTxState.resolve；设计 §7 neg50 行注记豁免（自然面不执法，仅注入通道）。
+- **附带观察登记**：tls `planner_test.go:1172` 随机首字节 flake（自 1659a55 起既有）另行立项修断言。
+
 - 附带观察（非裁定项，如实登记）：`TestTLS_Plan_HTTPDelegation_NoHTTPKeepsSynthAppData`（tls planner_test.go:1172，自 1659a55 起既有）随机首字节致断言约 3/8 概率翻车——与 megaco 无关，另行立项修断言（多字节非 HTTP 方法前缀判定）。

@@ -65,7 +65,7 @@ func (st *sessionTxState) resolve(tx core.MegacoTransaction) (core.MegacoTransac
 			if tx.Type == "reply" {
 				tx.ID = "0"
 			} else {
-				return tx, fmt.Errorf("pending transaction missing id")
+				return tx, fmt.Errorf("pending transaction missing id (%s)", "transaction")
 			}
 		}
 		return tx, nil
@@ -103,8 +103,8 @@ type sessionRun struct {
 
 // empty-config default flow (P0b baseline): one MG→MGC SC(Restart) registration
 // pair on UDP/2944. The minimal legal Megaco message for both sides.
-func defaultFlow() *core.MegacoConfig {
-	return &core.MegacoConfig{
+func defaultFlow(from *core.MegacoConfig) *core.MegacoConfig {
+	base := &core.MegacoConfig{
 		Profile:   "megaco_v1_text",
 		Encoding:  "text",
 		Version:   1,
@@ -148,6 +148,18 @@ func defaultFlow() *core.MegacoConfig {
 			},
 		}},
 	}
+	if from != nil {
+		if from.Version != 0 {
+			base.Version = from.Version
+		}
+		if from.TokenForm != "" {
+			base.TokenForm = from.TokenForm
+		}
+		if from.Whitespace != "" {
+			base.Whitespace = from.Whitespace
+		}
+	}
+	return base
 }
 
 func (g *MegacoGenerator) Generate(ctx context.Context, req *layers.GenRequest) error {
@@ -156,7 +168,10 @@ func (g *MegacoGenerator) Generate(ctx context.Context, req *layers.GenRequest) 
 	}
 	cfg := req.Meta.Megaco
 	if cfg == nil || len(cfg.Sessions) == 0 {
-		cfg = defaultFlow()
+		// P0b 基线流继承显式 version/token_form/whitespace（复评2 F5：
+		// {"version":2} 无会话曾静默渲染 MEGACO/1——显式键是用户意图，
+		// 基线不是"忽略配置"而是"缺省编排"）。
+		cfg = defaultFlow(cfg)
 	}
 	form := cfg.TokenForm
 	if form == "" {

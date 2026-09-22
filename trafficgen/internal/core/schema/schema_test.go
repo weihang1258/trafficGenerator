@@ -2,6 +2,7 @@ package schema
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/trafficgen/trafficgen/internal/core/layers"
@@ -172,6 +173,70 @@ func TestLayersGeneratedMatchesRegistry(t *testing.T) {
 			}
 			cmpBound("min", f.Min)
 			cmpBound("max", f.Max)
+			// default 同步（复评2 F4：registry Default 变更未重跑曾静默绿）。
+			// schemagen 的 omitempty 只省略 nil interface：dump 缺失 ⇔ 注册表 Default
+			// 为 nil；dump 在场 ⇔ 注册表 Default 非空且值相等（数值经 float64 归一）。
+			cmpDefault := func() {
+				raw, has := fm["default"]
+				if !has || raw == nil {
+					if f.Default != nil {
+						t.Errorf("layer %q field %q default: dump absent, registry=%v; regenerate", name, fname, f.Default)
+					}
+					return
+				}
+				if f.Default == nil {
+					t.Errorf("layer %q field %q default: dump=%v, registry nil; regenerate", name, fname, raw)
+					return
+				}
+				switch w := f.Default.(type) {
+				case string:
+					if raw != w {
+						t.Errorf("layer %q field %q default: dump=%v registry=%q; regenerate", name, fname, raw, w)
+					}
+				case bool:
+					if raw != w {
+						t.Errorf("layer %q field %q default: dump=%v registry=%v; regenerate", name, fname, raw, w)
+					}
+				case []interface{}:
+					rlist, ok := raw.([]interface{})
+					if !ok || len(rlist) != len(w) {
+						t.Errorf("layer %q field %q default: dump=%v registry=%v; regenerate", name, fname, raw, w)
+					}
+				default:
+					// map 缺省（http headers 族）：比长度即可（dump 经 JSON
+					// 泛型化为 map[string]interface{}）。
+					rv := reflect.ValueOf(f.Default)
+					if rm, rmok := raw.(map[string]interface{}); rv.IsValid() && rv.Kind() == reflect.Map && rmok {
+						if rv.Len() != len(rm) {
+							t.Errorf("layer %q field %q default: dump=%v registry=%v; regenerate", name, fname, raw, f.Default)
+						}
+						return
+					}
+					rn, rok := raw.(float64)
+					var wn float64
+					wok := false
+					switch v := f.Default.(type) {
+					case int:
+						wn, wok = float64(v), true
+					case int32:
+						wn, wok = float64(v), true
+					case uint32:
+						wn, wok = float64(v), true
+					case int64:
+						wn, wok = float64(v), true
+					case uint8:
+						wn, wok = float64(v), true
+					case uint16:
+						wn, wok = float64(v), true
+					case float64:
+						wn, wok = v, true
+					}
+					if !rok || !wok || rn != wn {
+						t.Errorf("layer %q field %q default: dump=%v registry=%v; regenerate", name, fname, raw, f.Default)
+					}
+				}
+			}
+			cmpDefault()
 		}
 	}
 }

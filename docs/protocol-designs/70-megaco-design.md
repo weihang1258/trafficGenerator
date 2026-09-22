@@ -370,7 +370,7 @@ megaco.error  megaco.error_code  megaco.error_string
 | `megaco_neg_encoding_text_as_ber` | 配置/编码错 | `encoding=ber` 声明而载荷为文本字节 | `encoding` | ber/text | 设计§1/§3.8 |
 | `megaco_neg_encoding_port_mismatch` | 配置/编码错 | text 编码声明配 2945（BER 默认端口） | `encoding` | port | 设计§2 |
 | `megaco_neg_syntax_start_line` | 线格式错 | 起始行 MegacopToken 缺失/拼错（非 `MEGACO`/`!`） | `message` | syntax | RFC 3525 Annex B |
-| `megaco_neg_syntax_version_zero` | 线格式错 | 起始行版本为 `0` | `version` | message | 设计§3.1 |
+| `megaco_neg_syntax_version_zero` | 线格式错 | 起始行版本为 `0`（自然面豁免：显式 0=缺省渲染 1、线上无差异，仅注入通道表达，见 §6 version 行 v1.2.2） | `version` | message | 设计§3.1 |
 | `megaco_neg_syntax_version_three_digits` | 线格式错 | 起始行版本 3 位数字（Version=1*2DIGIT 越界） | `version` | message | RFC 3525 Annex B |
 | `megaco_neg_syntax_mid_missing` | 线格式错 | mId 缺失（起始行后直接 messageBody） | `mid` | message | 设计§3.1 |
 | `megaco_neg_syntax_mid_invalid` | 线格式错 | mId 非法形式（四形态之外） | `mid` | message | 设计§3.1 |

@@ -471,8 +471,11 @@ func validateAction(
 		// D-MEGACO-1 复评 U4（command_first_error_continues 自然面）：
 		// 错误描述符终止该命令的处理——同一动作内首错后续发命令即故障
 		//（契约 §7 行；终审 F6 豁免理由被自然配置反例证伪后补守卫）。
-		if errCmdSeen {
-			return fmt.Errorf("%s: command %q follows a command carrying an error descriptor in the same action — processing stops at the first error (%s)", cp, cmd.Name, "command")
+		// O- 豁免（设计 §8 "首错停止（O- 可选命令豁免）"、§7 Error 行
+		// "首错后非 O- 命令仍执行 → 拒绝"——复评2 F1：守卫必须读
+		// cmd.Optional，O- 前缀命令跟在错误命令后是发送方的合法标记法）。
+		if errCmdSeen && !cmd.Optional {
+			return fmt.Errorf("%s: command %q follows a command carrying an error descriptor in the same action without O- optional marking — processing stops at the first error (%s)", cp, cmd.Name, "command")
 		}
 		if !commandNames[cmd.Name] {
 			return fmt.Errorf("%s: command name %q invalid (Add|Modify|Subtract|Move|AuditValue|AuditCapability|Notify|ServiceChange)", cp, cmd.Name)
