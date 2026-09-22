@@ -3862,3 +3862,57 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 - Test: 链级红例（`internal/core/layers/cwmp_chain_test.go`：层 config 注入 2 包对照 / presence 判死锚 / V9 未知字段锚 / 空层基线）
 - 接口签名：`validateLayer` 零改动（validator 走 spec.CWMP）；`FlowMeta.CWMP` 零改动（translate 填充源变更）。
 
+## D-KINGBASE-1 kingbase 协议身份退役·收敛 postgresql dialect（#35，P-PIPE 进行中：裁定=身份退役+死遗留删除+dialect 面确认）
+
+> **P1/P2 期间裁定升级（2026-09-22）**：kingbase 作为协议身份**退役**——唯一合法形态 = postgresql 层 `dialect: "kingbase"`（执行序表"不独立接线"+ 18-layer-config-design.md §2.2/§4.3/§7 F4 收敛裁定的完成式）。依据三实：①15 例 cases 全部 `proto: "postgresql"`（`CASE_PROTO=kingbase` 装载 0 例）②`protocol: "kingbase"` 策略可建但执行期撞 V10（protocol≠最外层非脚手架层 postgresql → `does not match outermost layer`，红例实证）＝**可建不可跑陷阱** ③strategy.json 枚举本就无 kingbase（schema 面早已不认）。退役 = 补上白名单这最后一块，使"不可跑"变成"不可建"（前置 400），消灭陷阱。
+> 行为面权威 = 共享 PG v3 wire（postgresql 层 + pgwire）+ dialect 契约（54321/profile 域）+ 15 例。本条目 = 身份退役 + 死遗留删除 + dialect 面确认。
+
+### P1 规范矩阵（§4 八项——dialect 面逐项确认符合态；协议身份面=退役裁定）
+
+| 项 | 要求 | 现状 | 缺口 |
+|---|---|---|---|
+| 1 连接模型 | TCP；端口 54321（金仓默认，区别 pg 5432） | CP:457 dialect 分支+RG FieldContract dialect 映射（registry.go:1667） | 无 |
+| 2 命令/消息表 | PG v3 消息族共享（startup/query/password/…） | 共享 pgwire；wire_profile 域（pg validate.go:17-19，含 kingbase_es_v8_pg_compatible/kingbase_native_pending） | 无 |
+| 3 状态机 | c2s 需 ready 门 | pgSessionState（pg validate.go） | 无 |
+| 4 字段表 | 共享 PG v3 编码 | pgwire 共享（dialect 对字节构造无感——pg layer_gen.go 注释） | 无 |
+| 5 错误处理 | 变体负例锚词 | 6 负例全具体锚（tcp/54321/profile/state/length/limit） | 无 |
+| 6 超时与活性 | 不适用（数据库请求-响应面） | 如实 | 无 |
+| 7 NAT/被动 | 不适用 | 如实 | 无 |
+| 8 版本方言 | dialect 双值+profile 域 | validator 双 switch（validate.go:38/47 特判 kingbase_native_pending） | 无 |
+| **承载面** | 层链唯一真相 | **已合规**：15 例全层链形+dialect 键，顶层零残留（与 cwmp 相反，无迁移面） | 无 |
+| **协议身份面** | 准入白名单=唯一权威 | **退役前现状：白名单仍收 kingbase → 可建不可跑陷阱** | G5（退役） |
+
+三源：PostgreSQL v3 协议规范（共享层，P0a postgresql 范本已核）+ 人大金仓 KingbaseES PG 兼容行为面（15 例+wire_profile 域）+ 本仓 dialect 收敛设计（18-layer-config-design.md）。
+
+### 缺口清单（门1 输出，P4 逐项闭合；G5 原判死补门方案被退役裁定取代）
+
+- G1 D-KINGBASE-1 条目（§7 唯一入口）→ 本条目。
+- G2 T-KINGBASE 节 → P3 补 15 例审计注记（含 proto=postgresql 跑法口径）。
+- G3 coverage_gate check_kingbase 缺 → P4 补（退役面+dialect 承载面双检）。
+- G4 pipe_gate kingbase 自键组缺 → P4 补（kingbase.json 顶层残留=仅 layers）。
+- **G5（裁定升级）协议身份退役**：`protocols.go` 白名单摘除 kingbase + `protocols_test.go` want 表同步 + kingbase 入 negativeOnly 拒绝清单（must remain rejected）。效果：`protocol: "kingbase"` create → 400 `invalid or missing protocol`（semantic.go:120 首拦）；在库旧行启动 `invalid protocol`（convert.go:111）。**原判死补门方案（CheckProtoFlat 加 kingbase 顶层子映射 presence 分支）作废**——protocol=kingbase 在白名单即死，CheckProtoFlat(kingbase,…) 创建路径不可达；**残留洞如实登记**：已准入协议（如 postgresql）配置里游离顶层 `kingbase` 键现状被静默忽略——此为 config 级 unknown-key 白名单缺失的**框架面缺口**（strategy.json config 无 additionalProperties:false），不属本协议可修范围，且按 1.11-1.13 口径禁加"kingbase 单键黑名单分支"（漏点照样红）；立项框架级补口（⬜ 登记）。
+- G6 死遗留面删除：`internal/protocol/kingbase` 包整删（builder/planner/layer_gen/kingbase_test，1838 行）+ `FlowSpec.KingBase`（types.go:1727）+ `KingBaseConfig/KingBaseSession/KingBaseEvent`（types.go:1291-1313）+ `FlowMeta.KingBase`（generator.go:370）+ translate `KingBase:` 行（chain_planner_translate.go:129）+ main.go:88 空导入。依据：①spec.KingBase 零写入点（case "kingbase" 已收敛，translate 无 case）②注册的 "kingbase" 层无 registry 行=链不可达（V9 unknown layer 即拒）③行为覆盖已由 pg 包测试+layers 链级测试（postgresql_kingbase_test.go）+15 例承载 ④删除即退役裁定的实体化。
+- kingbase_chain_test.go（早前 P4 草稿 2 例）随裁定作废删除：①presence 红例依赖 CheckProtoFlat 分支=方案作废；②dialect 端口契约红例与 postgresql_kingbase_test.go 既有覆盖重复。退役守卫改住 core 包 protocols_test.go（negativeOnly 清单+want 表双点）。
+
+### 裁定（P2 定稿）
+
+1. **协议身份退役（G5）**：白名单摘除；kingbase 进 negativeOnly 拒绝清单；测试先行（want 表+negativeOnly 先改 → 红 → 摘白名单 → 绿）。
+2. **死遗留删除（G6）**：整包+死 Meta/types/translate 行/空导入；预期编译期暴露全部引用点；删除后 "kingbase" 层名行为不变（无 registry 行=unknown layer，现状即如此）。
+3. **dialect 面零改动**：postgresql 层 dialect=kingbase 行为不动，15 例 pcap 基线不变=验收线；suite 经 `CASE_PROTO=postgresql` 跑（postgresql.json+kingbase.json 同载，cases 自带 proto=postgresql）。
+4. **gate（G3/G4）**：pipe_gate 加 kingbase 自键组（门2-1 对 kingbase.json 生效）；coverage_gate 加 check_kingbase（退役面：白名单无 kingbase/包不存在/negativeOnly 在列；dialect 面：FieldContract 54321/translate 无 KingBase/types 无 KingBase*/15 例 proto=postgresql/顶层残留零）。
+5. **动态面**：业务键（events 数组）静态单值如实声明；四元组走 ip/tcp 层框架；端口=per-dialect 契约（非动态策略面）。
+6. **回滚**：单提交粒度摘除（退役+删除 / gate / 文档 各归一提交）。
+
+### 文件清单（P4）
+
+- Modify: `internal/core/protocols.go`（白名单摘 kingbase）
+- Modify: `internal/core/protocols_test.go`（want 表摘 + negativeOnly 收）
+- Delete: `internal/protocol/kingbase/`（整包）
+- Delete: `internal/core/layers/kingbase_chain_test.go`（裁定作废）
+- Modify: `internal/core/types.go`（删 KingBaseConfig/KingBaseSession/KingBaseEvent/FlowSpec.KingBase）
+- Modify: `internal/core/layers/generator.go`（删 FlowMeta.KingBase）
+- Modify: `internal/core/layers/chain_planner_translate.go`（删 KingBase 行）
+- Modify: `cmd/server/main.go`（删 kingbase 空导入）
+- Modify: `tools/pipe_gate.sh`（kingbase 自键组）
+- Modify: `tools/coverage_gate.py`（check_kingbase）
+- 不涉 registry/schema/layers.generated 变更（无 schemagen 面；strategy.json 本就无 kingbase）。

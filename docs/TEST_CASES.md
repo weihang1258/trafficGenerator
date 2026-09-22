@@ -3878,7 +3878,23 @@ JT/T 905.2-2014 出租汽车 ISU 反推 13 例（9 正+4 负；T-8 金向量=单
 
 ARP（RFC 826）反推 12 例（4 正+8 负；链级红例 4=单测面不占号，修轮 +4 负例）：T-1 基线配对（op=1 缺省地址 2 帧：帧1 广播 ff:ff:ff:ff:ff:ff+oper 0001+tha 全零；帧2 单播+oper 0002 spa/tpa、sha/tha 角色互换）/T-2 字节全钉（帧1 28B payload 全等：htype 0001+ptype 0800+hlen 06+plen 04+oper+sha/spa/tha/tpa；ethertype 0x0806——体首=帧偏移 14，L2-only 无 IP/TCP 头）/T-3 显式地址（sender_ip=192.168.10.5/target_ip=192.168.10.1 → spa/tpa 字节钉）/T-4 单发宣告（operation=2：1 帧，ether src=target_mac/dst=sender_mac 单播，oper 0002——裁定3 legacy 广播错位勘误后语义）/T-5 负例 operation=3（V9 registry 先火锚 `out of range [1,2]`）/T-6 负例 sender_ip 格式错（锚 `invalid sender_ip`）/T-7 负例 [eth,ip,arp] 承载混入（锚 sv 同款 `must not have an ip/transport carrier`）/T-8 presence 判死（层链+顶层 arp 子映射并存，锚 `no longer accepts a top-level arp`）/T-9 负例 sender_mac 格式错（锚 `invalid sender_mac`）/T-10 负例 target_mac 格式错（锚 `invalid target_mac`）/T-11 负例 target_ip 格式错（锚 `invalid target_ip`）/T-12 静态复制拒（eth 显式标量+case 顶层 strategy_fc flows=2，锚框架层链门 `static four-tuple`——sv_vn_static_copy 同款）。单测面（不占号）：layer_gen 链级红例 4（[eth,arp] 最小链配对/op=2 单播/显式地址/validator 锚直测）。**9.52 对账：分项和 12=建例 12（T-1…12 各 1 点，修轮 +T-9…12 四负例），可复算**。存量审计：arp 无存量 cases（零文件），legacy Planner 单测（arp_test/arp_testpoints）保留为回归面；legacy op=2 广播错位=重建勘误（裁定3），无用例迁移。
 
-### T-CWMP-1…153（#34 D-CWMP-1）
+### T-KINGBASE-1…15（#35 D-KINGBASE-1，协议身份退役口径）
+
+**三源回指：** PostgreSQL v3 规范（共享 wire 层）+ 人大金仓 KingbaseES PG 兼容行为面（dialect 变体）→ D-KINGBASE-1（身份退役+死遗留删除+dialect 面确认）→ `test/protocol_pcap/cases/kingbase.json`（15 例）。
+
+**跑法口径（退役裁定）：** 15 例全部 `proto: "postgresql"`（kingbase 协议身份已退役，唯一形态 = postgresql 层 `dialect: "kingbase"`）——suite 经 `CASE_PROTO=postgresql` 装载（postgresql.json + kingbase.json 同载）；`CASE_PROTO=kingbase` 装载 0 例（P1 实证，即裁定依据①）。
+
+**存量审计（15 例去向，9.14 口径）：** 全量保留——15 例已全部是层链形（`{"postgresql":{"dialect":"kingbase",...}}`，端口契约 54321），无扁平/顶层残留（与 cwmp 相反，本协议无迁移面）；6 负例锚词全具体（kingbase_neg_udp=tcp / neg_port=54321 / neg_profile=profile / neg_state=state / neg_truncated=length / neg_oversize=limit）。行为覆盖三载：pg 包测试+layers 链级测试（postgresql_kingbase_test.go：dialect 契约/端口驱动/负 UDP 载体/负端口/负 wire_fault）+本 15 例真实流程。
+
+**退役面测试（不占号，红先绿后）：** `protocols_test.go` 双点——want 表摘 kingbase（TestAllowedProtocolsStable 红先）+ negativeOnly 清单收 kingbase（TestNegativeOnlyPlaceholdersRejected：must remain rejected）；`kingbase_chain_test.go`（早前草稿 2 例）随裁定作废删除（presence 红例依赖的 CheckProtoFlat 分支方案作废；端口契约与 postgresql_kingbase_test.go 重复）。
+
+**对账（9.52）：** 分项和 15=建例 15（存量各 1 点；原计划 kingbase_pres_kill 新例随退役裁定作废——protocol=kingbase 在白名单即 400，presence 分支不可达），可复算。
+
+**动态面（§12）：** 业务键（events 数组）静态单值如实声明；四元组走 ip/tcp 层框架；端口=per-dialect 契约（54321），非动态策略面。
+
+**协议天花板豁免声明：** kingbase=pg dialect 变体，行为面=共享 PG v3 全枚举的子集（15 例清单即需求面）；9.50/9.53 复合交织以多会话事件序列为准（如无则如实登记子集边界）。
+
+## T-CWMP-1…153（#34 D-CWMP-1）
 
 **三源回指：** TR-069 Issue 1 A6 Corr 1（B6 契约 `docs/protocol-designs/64-cwmp-design.md` v2.2.2 逐条标注出处）→ D-CWMP-1（承载面迁移）→ `test/protocol_pcap/cases/cwmp.json`（153 例）。
 
