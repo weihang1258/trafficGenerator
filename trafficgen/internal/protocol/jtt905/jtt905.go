@@ -398,7 +398,6 @@ func checkTime12(key, v, layout string) error {
 	return nil
 }
 
-
 // MsgTextDownRef 是 isu_general_response 未给 reply_msg_id 时的缺省应答
 // 对象（0x8300 文本下发——在库 probe 面最近似的中心下行命令）。
 const MsgTextDownRef = 0x8300

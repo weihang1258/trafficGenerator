@@ -1840,6 +1840,7 @@ def check_jtt905(cases):
         ("t11_neg_plate_7ascii", "T-11 plate 7 ASCII 拒"),
         ("t12_neg_result_3", "T-12 result=3 拒"),
         ("t13_neg_bcd_digits", "T-13 BCD 位数拒"),
+        ("t14_result_enum", "T-14 Result 枚举正例"),
     ]:
         hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
         rows.append((name, hit is not None, hit or "无用例"))
