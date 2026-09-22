@@ -51,12 +51,12 @@ func TestMPLSChain_LayerFieldsAccepted(t *testing.T) {
 			map[string]interface{}{"label": 100, "tc": 0, "ttl": 64},
 			map[string]interface{}{"label": 200, "s": true},
 		},
-		"multicast":    false,
-		"inner_proto":  17,
-		"src_port":     12345,
-		"dst_port":     80,
-		"frames":       1,
-		"direction":    "up",
+		"multicast":     false,
+		"inner_proto":   17,
+		"src_port":      12345,
+		"dst_port":      80,
+		"frames":        1,
+		"direction":     "up",
 		"inner_payload": "abc",
 	})
 	if _, err := layers.ValidateLayers(raw, "mpls"); err != nil {
@@ -109,10 +109,10 @@ func TestMPLSChain_PresenceFilled(t *testing.T) {
 	p := layers.NewChainPlannerFromChain("mpls", []layers.Layer{
 		{Name: "ip", Config: map[string]interface{}{"src": "10.0.0.1", "dst": "20.0.0.1"}},
 		{Name: "mpls", Config: map[string]interface{}{
-			"labels":     []interface{}{map[string]interface{}{"label": 1, "tc": 5, "ttl": 63}},
-			"multicast":  true,
-			"frames":     3,
-			"direction":  "down",
+			"labels":      []interface{}{map[string]interface{}{"label": 1, "tc": 5, "ttl": 63}},
+			"multicast":   true,
+			"frames":      3,
+			"direction":   "down",
 			"inner_proto": 6,
 		}},
 	})

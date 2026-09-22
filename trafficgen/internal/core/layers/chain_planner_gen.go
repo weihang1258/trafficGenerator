@@ -21,7 +21,6 @@ import (
 // Per-package conventions: type names (ChainPlanner, FlowMeta, etc.)
 // are package-local; only file boundaries change.
 
-
 // generators implemented can appear in a driven chain (P2a 波 1: ip + tcp;
 // 波 2 方案 A: + http，由 protocol/http 包提供生成器；波 4: + dns/ntp/snmp/
 // syslog，由各自协议包经 RegisterLayerGenerator 反向注册)。

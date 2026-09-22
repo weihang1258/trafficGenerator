@@ -682,6 +682,23 @@ func buildDefaultRegistry() {
 			"wire_fault": {Type: "string", Default: ""}, // 闭环 31 值枚举（D-MEGACO-1 §7 表）；""=无故障
 		},
 	})
+	r.Register(LayerSchema{Name: "hl7", Category: CategoryTerminal,
+		DependsOn:   []string{"tcp"}, // TCP-only 载体（D-HL7-1 裁定2，MLLP over 字节流）
+		TransportOn: []string{"tcp"}, // 单载体：udp/缺 tcp 链块即拒
+		// D-HL7-1：hl7（HL7 v2.x MLLP）终结层八键 + 端口契约（IANA hl7
+		// 2575；显式非默认端口合法，裁定3）。
+		FieldContract: map[string]string{"tcp.dst_port": "2575"},
+		Fields: map[string]FieldSchema{
+			"profile":         {Type: "string", Default: ""},  // mllp（唯一；缺省）
+			"version":         {Type: "string", Default: ""},  // 2.3/2.4/2.5（缺省）/2.8
+			"field_separator": {Type: "string", Default: ""},  // 1 字符（缺省 "|"）
+			"encoding_chars":  {Type: "string", Default: ""},  // 恰 4 字符（缺省 "^~\&"）
+			"ack_mode":        {Type: "string", Default: ""},  // auto（缺省）/null/AA/AE/AR
+			"concurrent":      {Type: "bool", Default: false}, // 双会话交错回放
+			"sessions":        {Type: "list", Default: []interface{}{}},
+			"wire_fault":      {Type: "string", Default: ""}, // 闭环 33 值枚举（D-HL7-1 §7 表）；""=无故障
+		},
+	})
 	r.Register(LayerSchema{Name: "cql", Category: CategoryTerminal, DependsOn: []string{"tcp"}})
 	r.Register(LayerSchema{Name: "iec104", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "2404"},

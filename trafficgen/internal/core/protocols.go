@@ -25,6 +25,7 @@ var allowedProtocols = map[string]bool{
 	"doip": true, "drda": true, "enip": true, "fins": true,
 	"ftp": true, "gbt32960": true, "goose": true, "gre": true,
 	"grpc": true, "gtp": true, "h323": true, "hds": true,
+	"hl7": true,
 	"hls": true, "http": true, "http_flv": true, "icmp": true,
 	"icmpv6": true, "iec104": true, "igmp": true, "ike": true, "ike_nat_t": true,
 	"imap": true, "isis": true, "jt808": true, "jt809": true, "jtt905": true,

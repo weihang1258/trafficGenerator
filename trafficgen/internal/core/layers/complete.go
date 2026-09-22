@@ -116,19 +116,22 @@ func (r *Registry) completeDeps(out []Layer) ([]Layer, bool, error) {
 // CompleteChain 自动补全层链（§7.3 两趟式，方向按 §12 示例修正）：
 //
 // 第一趟：硬依赖（depends_on）— 每层更外层方向缺的依赖自动插入到该层外侧，
-//  迭代直到稳定（新插入层自己的依赖也会被补，如 http 补的 tcp 又缺 ip）。
-//  依赖层在外侧：http 需要 tcp 包它 → tcp 在 http 外面 [ip → tcp → http]。
+//
+//	迭代直到稳定（新插入层自己的依赖也会被补，如 http 补的 tcp 又缺 ip）。
+//	依赖层在外侧：http 需要 tcp 包它 → tcp 在 http 外面 [ip → tcp → http]。
+//
 // 第二趟：内层起点（inner_required）— 隧道层的直接内层邻居不满足起点要求时补。
 // 第三趟：补全回看 — inner_required 插入把内层整体推后一格，被推后层自身的
-//   depends_on 需要再补一轮（HIGH-1 修复，否则含隧道层链可能 V8 拒绝）。
+//
+//	depends_on 需要再补一轮（HIGH-1 修复，否则含隧道层链可能 V8 拒绝）。
 //
 // 关键正确性保证（§7.5 等价性不变量）：
-//   1. 每层的全部 depends_on 都在该层更外层方向出现
-//   2. 隧道层的直接内层邻居 ∈ inner_required
-//   3. 传输层全链唯一（tcp/udp 不重复）
-//   4. 终结层全链唯一
-//   5. 末层是终结层、传输层/隧道层不在末层
-//   6. 二层层（eth/vlan/mpls）只能出现在链最外（开头连续段）
+//  1. 每层的全部 depends_on 都在该层更外层方向出现
+//  2. 隧道层的直接内层邻居 ∈ inner_required
+//  3. 传输层全链唯一（tcp/udp 不重复）
+//  4. 终结层全链唯一
+//  5. 末层是终结层、传输层/隧道层不在末层
+//  6. 二层层（eth/vlan/mpls）只能出现在链最外（开头连续段）
 //
 // 返回补全后的新链；原链不变。
 func (r *Registry) CompleteChain(chain []Layer) ([]Layer, error) {
@@ -433,6 +436,21 @@ func (r *Registry) validateChain(chain []Layer) error {
 	// 报错带传输层名（如 udp→tcp duplicate 含 "tcp"），供 postgresql 的
 	// UDP 载体负例（kingbase_neg_udp）断言 error_contains "tcp"。
 	if transportCount > 1 {
+		// D-HL7-1 裁定2：tcp-only 终结层（TransportOn=[tcp]，如 hl7）+
+		// 用户显式 udp 载体 → 这是载体契约冲突而非普通重复——DependsOn
+		// 自动补的 tcp 与用户 udp 相撞，报锚词 carrier 的专用错误（否则
+		// 锚词到不了负例）。
+		if len(chain) > 0 {
+			last := chain[len(chain)-1]
+			ls, lok := r.Get(last.Name)
+			if lok && len(ls.TransportOn) == 1 && ls.TransportOn[0] == "tcp" {
+				for _, l := range chain {
+					if l.Name == "udp" {
+						return errf("%s chain: udp carrier is not supported — %s rides tcp only (carrier)", last.Name, last.Name)
+					}
+				}
+			}
+		}
 		return errf("layers: transport layer duplicated (%d transport layers: %s)", transportCount, strings.Join(transportNames(chain), ", "))
 	}
 

@@ -128,6 +128,7 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		Dameng:     spec.Dameng,
 		PostgreSQL: spec.PostgreSQL,
 		Megaco:     spec.Megaco,
+		HL7:        spec.HL7,
 		CQL:        spec.CQL,
 		LDP:        spec.LDP,
 		PCEP:       spec.PCEP,
@@ -2022,6 +2023,24 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.Megaco = &mc
+	case "hl7":
+		if spec.HL7 != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		// D-HL7-1：层 config 八键经 JSON 往返解码为 core.HL7Config（同
+		// megaco 先例——json tag 忠实全字段；解码失败置空让 validator 报错）。
+		cfg := completedConfig(s, term.Config)
+		raw, err := json.Marshal(cfg)
+		if err != nil {
+			spec.HL7 = &core.HL7Config{}
+			return
+		}
+		var hc core.HL7Config
+		if err := json.Unmarshal(raw, &hc); err != nil {
+			spec.HL7 = &core.HL7Config{}
+			return
+		}
+		spec.HL7 = &hc
 	case "ftp":
 		// 只在扁平路径确实携带了业务内容（sessions/banner/commands/data_channel）
 		// 时才跳过翻译。mapToFlowSpec 对协议 ftp 总会创建一个 FTPConfig

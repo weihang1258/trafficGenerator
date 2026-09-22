@@ -137,8 +137,8 @@ func TestChainPlanner_DNS_MultiQuestion(t *testing.T) {
 	spec := dnsSpec()
 	spec.DNS = &core.DNSConfig{
 		Questions: []core.DNSQuestion{
-			{Name: "example.com", Type: 1},   // A, class defaults IN
-			{Name: "example.com", Type: 28},  // AAAA
+			{Name: "example.com", Type: 1},  // A, class defaults IN
+			{Name: "example.com", Type: 28}, // AAAA
 			{Name: "www.example.com", Type: 1},
 		},
 		IsResponse: true,

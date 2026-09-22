@@ -16,15 +16,15 @@ import (
 
 // caseFile is one entry from the postgresql.json / kingbase.json case suites.
 type caseFile struct {
-	ID      string          `json:"id"`
-	Proto   string          `json:"proto"`
+	ID       string          `json:"id"`
+	Proto    string          `json:"proto"`
 	SpecJSON json.RawMessage `json:"spec_json"`
-	Expect  struct {
-		PacketCount   int  `json:"packet_count"`
-		HasHandshake  bool `json:"has_handshake"`
-		Terminates    bool `json:"terminates"`
-		HasPayload    bool `json:"has_payload"`
-		ExpectError   bool `json:"expect_error"`
+	Expect   struct {
+		PacketCount   int    `json:"packet_count"`
+		HasHandshake  bool   `json:"has_handshake"`
+		Terminates    bool   `json:"terminates"`
+		HasPayload    bool   `json:"has_payload"`
+		ExpectError   bool   `json:"expect_error"`
 		ErrorContains string `json:"error_contains"`
 	} `json:"expect"`
 }

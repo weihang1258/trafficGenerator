@@ -195,6 +195,7 @@ func TestChainPlanner_RIP_UnicastDstMACNotMasked(t *testing.T) {
 	}
 	assertRIPIdentical(t, chain[0], legacy[0], 0)
 }
+
 // 255.255.255.255 + ff:ff:ff:ff:ff:ff MAC + TTL=1, byte-identical to legacy
 // (legacy TestTPOS1 同款：v1 即使 multicast=false 也广播)。
 func TestChainPlanner_RIP_V1Broadcast(t *testing.T) {

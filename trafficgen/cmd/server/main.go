@@ -89,12 +89,13 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ams"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/geneve"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/gnutella"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/hl7" // init 注册 hl7 终结层生成器+校验器（D-HL7-1，HL7 v2.x MLLP/TCP-2575） // init 注册 megaco 终结层生成器+校验器（D-MEGACO-1，RFC 3525 文本编码）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/l2tp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ldap" // 空导入：ldap 包 init 注册层生成器 + 校验器（D-LDAP-1）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ldp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mcp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mdns"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/megaco" // init 注册 megaco 终结层生成器+校验器（D-MEGACO-1，RFC 3525 文本编码）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/megaco"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mms"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/modbus"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mongodb"
@@ -503,7 +504,8 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("mongodb"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("dameng"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("postgresql")) // 共享 PG v3 wire 层（kingbase 作 dialect 变体，不再独立注册）
-	app.engine.RegisterPlanner(layers.NewChainPlanner("megaco"))     // D-MEGACO-1：RFC 3525 文本编码（udp/tcp 双载体，mgcp 别名 2427）
+	app.engine.RegisterPlanner(layers.NewChainPlanner("megaco"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("hl7")) // D-HL7-1：HL7 v2.x MLLP（TCP/2575 单载体）     // D-MEGACO-1：RFC 3525 文本编码（udp/tcp 双载体，mgcp 别名 2427）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("cql"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("someip"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("stun"))

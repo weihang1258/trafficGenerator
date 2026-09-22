@@ -372,6 +372,7 @@ type FlowMeta struct {
 	// req.Meta.PostgreSQL 的 Events/Sessions，dialect 决定端口 5432/54321）。
 	PostgreSQL *core.PostgreSQLConfig
 	Megaco     *core.MegacoConfig // D-MEGACO-1：megaco 终结层（RFC 3525 文本编码，udp/tcp 双载体）
+	HL7        *core.HL7Config    // D-HL7-1：hl7 终结层（HL7 v2.x MLLP，TCP/2575 单载体）
 	CQL        *core.CQLConfig
 	LDP        *core.LDPConfig
 	PCEP       *core.PCEPConfig

@@ -81,4 +81,3 @@ func TestChainPlannerRedisNilConfigDefaultFlow(t *testing.T) {
 		t.Fatalf("nil config: got %d data segments, want >=2 (default PING + PONG)", psh)
 	}
 }
-

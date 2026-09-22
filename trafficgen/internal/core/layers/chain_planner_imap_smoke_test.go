@@ -77,8 +77,8 @@ func TestChainPlannerIMAPLiteral(t *testing.T) {
 		IMAP: &core.IMAPConfig{
 			Commands: []core.IMAPCommand{
 				{
-					Cmd:       "FETCH 1 BODY[]",
-					Responses: []string{"* 1 FETCH (BODY[] {5})"},
+					Cmd:         "FETCH 1 BODY[]",
+					Responses:   []string{"* 1 FETCH (BODY[] {5})"},
 					LiteralBody: "hello",
 				},
 			},

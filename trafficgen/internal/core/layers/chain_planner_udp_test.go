@@ -319,6 +319,7 @@ func TestChainPlanner_UDP_EventDriven_EmptyEvents(t *testing.T) {
 		t.Errorf("got %d packets from empty event stream, want 0", n)
 	}
 }
+
 // ---- review 回归：L3 事件模式 + DisableChecksum 组合 ----
 // 事件模式下 meta() 恒写 udp_disable_checksum 键：false 也是显式键
 // （legacy 语义），不能只写 true。事件流经 udp 层产包时必须带上该键。

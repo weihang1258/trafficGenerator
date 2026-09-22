@@ -103,7 +103,7 @@ func TestICMPv6Chain_PatternStepDefaultsMirrorParse(t *testing.T) {
 		{Name: "ip", Config: map[string]interface{}{"src": "2001:db8::1", "dst": "2001:db8::2"}},
 		{Name: "icmpv6", Config: map[string]interface{}{
 			"pattern": []interface{}{
-				map[string]interface{}{}, // 全缺省：type 128 / code 0 / seq 1 / data "ping"
+				map[string]interface{}{},                               // 全缺省：type 128 / code 0 / seq 1 / data "ping"
 				map[string]interface{}{"sequence": 0, "data": "probe"}, // 显式 0 也自动补序 → 2
 			},
 		}},

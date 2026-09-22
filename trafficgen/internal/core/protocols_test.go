@@ -20,7 +20,7 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		"a2a", "amqp", "arp", "bgp", "cflow", "coap", "cql", "dameng",
 		"dhcp", "dhcpv6", "dnp3", "dns", "doip", "drda", "enip", "fins",
 		"ftp", "gbt32960", "goose", "gre", "grpc", "gtp", "h323", "hds",
-		"hls", "http", "http_flv", "icmp", "icmpv6", "iec104", "igmp", "ike",
+		"hl7", "hls", "http", "http_flv", "icmp", "icmpv6", "iec104", "igmp", "ike",
 		"ike_nat_t", "imap", "isis", "jt808", "jt809", "jtt905", "l2tp",
 		"ldap", "ldp", "mcp", "mcpprotocol", "mdns", "megaco", "mms", "modbus",
 		"mongodb", "moxa", "mpls", "mqtt", "mysql", "nfs", "ngap", "ntp",
@@ -80,7 +80,6 @@ func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 		// dialect=kingbase）——must remain rejected，防复活。
 		"kingbase",
 		"bacnet", "dcerpc", "dtls", "edp",
-		"hl7",
 		"kerberos", "mmse", "ntlm", "ocsp",
 		"spnego", "sstp",
 		"xmrmining",

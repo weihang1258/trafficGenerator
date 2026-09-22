@@ -3,6 +3,7 @@ package layers
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/trafficgen/trafficgen/internal/core"
@@ -20,6 +21,29 @@ import (
 // protocol-name planners. The protocol arg is the strategy's protocol field;
 // when empty it is inferred from the chain (matching ValidateLayers).
 func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.ProtocolPlanner, error) {
+	// D-HL7-1 裁定2：tcp-only 载体在 ValidateLayers（含链补全）之前即拦
+	// ——hl7 DependsOn tcp 会自动补 tcp 层，用户显式 udp 载体会先触发通用
+	// "transport layer duplicated"（锚词到不了 carrier）。
+	if protocol == "hl7" {
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			for _, item := range probe {
+				if _, ok := item["udp"]; ok {
+					return nil, fmt.Errorf("hl7 chain: udp carrier is not supported — hl7 rides tcp only (MLLP over a byte stream) (carrier)")
+				}
+				if rawIP, ok := item["ip"]; ok && len(rawIP) > 0 {
+					var ipcfg map[string]interface{}
+					if err := json.Unmarshal(rawIP, &ipcfg); err == nil {
+						src, _ := ipcfg["src"].(string)
+						dst, _ := ipcfg["dst"].(string)
+						if src != "" && dst != "" && strings.Contains(src, ":") != strings.Contains(dst, ":") {
+							return nil, fmt.Errorf("hl7 chain: mixed address family in ip layer (src %q / dst %q) — src and dst must be the same family (address)", src, dst)
+						}
+					}
+				}
+			}
+		}
+	}
 	effective, err := ValidateLayers(layersJSON, protocol)
 	if err != nil {
 		return nil, err
@@ -207,7 +231,7 @@ func checkTLSCertDynObjects(i int, cert map[string]interface{}) (map[string]inte
 
 // stripMQTTMessagesDyn 下钻 mqtt messages[] 数组（D-MQTT-1）：每 item 的
 // topic/payload 键若为动态对象（有 strategy 键）→ string 面形状门
-//（CheckLayerDynShape "mqtt","topic"/"payload"，client_id 直键走
+// （CheckLayerDynShape "mqtt","topic"/"payload"，client_id 直键走
 // checkLayerDynObjects 通用 allowlist 门）；通过后从 item 剥离（V9 只见
 // 标量），形状坏 → 错误（create 期 400）。item 浅拷贝替换——原对象不动。
 // 无动态对象时返回的 slice 含相同的 item 引用（调用方直通）。

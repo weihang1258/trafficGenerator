@@ -1809,6 +1809,7 @@ type FlowSpec struct {
 	MDNS        *MDNSConfig        `json:"mdns,omitempty"`
 	MySQL       *MySQLConfig       `json:"mysql,omitempty"`
 	Megaco      *MegacoConfig      `json:"megaco,omitempty"`
+	HL7         *HL7Config         `json:"hl7,omitempty"`
 	NTP         *NTPConfig         `json:"ntp,omitempty"`
 	OpenVPN     *OpenVPNConfig     `json:"openvpn,omitempty"`
 	PostgreSQL  *PostgreSQLConfig  `json:"postgresql,omitempty"`

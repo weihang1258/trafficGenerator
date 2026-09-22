@@ -147,6 +147,19 @@ func (p *ChainPlanner) Validate(spec core.FlowSpec) error {
 // 各 planner 在 Plan 时同款默认)——调用方（Plan）用默认化后的 spec 驱动链，
 // 保证层 config / 包序列 / flowID 三者端口一致。
 func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
+	// D-HL7-1 裁定2：udp 载体在链补全/基础校验前即拦（hl7 DependsOn tcp
+	// 会自动补 tcp，用户显式 udp 层会先触发通用 transport-dup 错，锚词
+	// 到不了 carrier——suite 服务端路径实证）。p.chain 是补全前由
+	// BuildLayersPlanner 传入的链；服务端 create 路径 ChainPlanner 持
+	// 原始链时同拦。这里读 p.chain（补全前）+ completedChain 双面口径
+	// 以原始层为准。
+	if p.name == "hl7" {
+		for _, l := range p.chain {
+			if l.Name == "udp" {
+				return spec, fmt.Errorf("hl7 chain: udp carrier is not supported — hl7 rides tcp only (MLLP over a byte stream) (carrier)")
+			}
+		}
+	}
 	if err := validateSpecBase(p.name, &spec); err != nil {
 		return spec, err
 	}
@@ -239,6 +252,50 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 			}
 		}
 		break
+	}
+	// HL7 carrier + port + address-family contract（D-HL7-1：裁定2/3，契约
+	// §2/§6）：先于 protocolValidator 执行（megaco_carrier 执行序教训——
+	// 终结 validator 依赖链面判定时，块必须已跑完）。
+	//   - 载体：TCP-only（裁定2）——链末第二层非 tcp 即拒：udp → 锚 carrier
+	//     （neg carrier_udp），其余（如 hl7 直连 ip）→ 锚 layer（neg
+	//     carrier_no_tcp）。
+	//   - 地址族：[ipv6] 层配 IPv4 字面量（或 [ip] 层配 v6 字面量）→ 拒
+	//     （锚 address，neg address_family_mixed，C-11）。
+	//   - 端口：2575 缺省由 FieldContract 补齐；tcp 层显式 dst_port 数值
+	//     本身合法（裁定3/D-2），唯 0 与不可解析值拒（锚 port，neg
+	//     port_invalid）。
+	hl7Present := false
+	for _, l := range chain {
+		if l.Name == "hl7" {
+			hl7Present = true
+			break
+		}
+	}
+	if hl7Present {
+		carrier := ""
+		if len(chain) > 1 {
+			carrier = chain[len(chain)-2].Name
+		}
+		switch carrier {
+		case "tcp":
+			// 合法载体。
+		case "udp":
+			return spec, fmt.Errorf("hl7 chain: udp carrier is not supported — hl7 rides tcp only (MLLP over a byte stream) (carrier)")
+		case "":
+			return spec, fmt.Errorf("hl7 chain: hl7 requires a tcp carrier layer beneath it (layer)")
+		default:
+			return spec, fmt.Errorf("hl7 chain: carrier %q is not supported — hl7 rides tcp only (layer)", carrier)
+		}
+		// 地址族一致性（neg address_family_mixed）住在 BuildLayersPlanner
+		// 预检（validate_layers.go）——通用 same-version 检查在其后，锚词
+		// 才到得了 address；本块不再重复实现（一处一面）。
+		// tcp 层显式端口：0 与不可解析值拒（neg port_invalid）。
+		tcpCfg := chain[len(chain)-2].Config
+		if raw, ok := tcpCfg["dst_port"]; ok && raw != nil {
+			if up, ok2 := configUint16(raw); !ok2 || up == 0 {
+				return spec, fmt.Errorf("hl7 chain: destination port %v is not a valid tcp port (1..65535) (port)", raw)
+			}
+		}
 	}
 
 	// 协议级校验（波 4 起）：终结层协议包经 RegisterLayerValidator 注册

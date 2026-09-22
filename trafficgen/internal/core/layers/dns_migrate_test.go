@@ -32,7 +32,7 @@ func dnsMigrateSpec() core.FlowSpec {
 }
 
 // 红例1【D-DNS-1 §5】：顶层 dns 子映射 presence 判死——空 map 也死
-//（http 族 9 协议先例）。现状：放行。
+// （http 族 9 协议先例）。现状：放行。
 func TestDNSChain_FlatPresenceRejected(t *testing.T) {
 	// 顶层 dns 子映射走 CheckProtoFlat 执法（与 schema 层同口径，共用一函数）。
 	cfg := map[string]interface{}{

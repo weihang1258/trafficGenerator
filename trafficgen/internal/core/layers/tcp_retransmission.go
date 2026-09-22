@@ -16,19 +16,19 @@ import (
 //
 // State diagram (all states terminal via the OPEN sink):
 //
-//	OPEN ─┬─ OnDupACK  → FAST_RECOVERY (3 dup-ACKs → RFC 5681 §3.2)
-//	      │                  │
-//	      │                  └─ OnACK     → OPEN (recovery ack)
-//	      │
-//	      ├─ OnRTO     → RTO_RECOVERY (RFC 6298 §5 retransmit)
-//	      │                  │
-//	      │                  └─ OnRTO  → RTO_RECOVERY (backoff exponential)
-//	      │
-//	      └─ OnChallengeACK → CHALLENGE_PENDING (RFC 5961 §3.2)
-//	                            │
-//	                            ├─ OnReplyMatch     → OPEN
-//                            └─ OnReplyMismatch  → CHALLENGE_REPLIED
-//                                                   → reply with RST
+//		OPEN ─┬─ OnDupACK  → FAST_RECOVERY (3 dup-ACKs → RFC 5681 §3.2)
+//		      │                  │
+//		      │                  └─ OnACK     → OPEN (recovery ack)
+//		      │
+//		      ├─ OnRTO     → RTO_RECOVERY (RFC 6298 §5 retransmit)
+//		      │                  │
+//		      │                  └─ OnRTO  → RTO_RECOVERY (backoff exponential)
+//		      │
+//		      └─ OnChallengeACK → CHALLENGE_PENDING (RFC 5961 §3.2)
+//		                            │
+//		                            ├─ OnReplyMatch     → OPEN
+//	                           └─ OnReplyMismatch  → CHALLENGE_REPLIED
+//	                                                  → reply with RST
 //
 // Why the state machine is in layers/ rather than internal/protocol/tcp:
 // the protocol/tcp package implements the legacy TCPGenerator that drives
@@ -75,7 +75,7 @@ type TCPRetransmissionStateMachine struct {
 	// rtt is the smoothed round-trip time (平滑 RTT，RFC 6298 §2.2)。
 	// rttvar is the RTT variance. First sample initializes both; subsequent
 	// samples apply EWMA (alpha=1/8, beta=1/4 per RFC 6298).
-	rtt   time.Duration
+	rtt    time.Duration
 	rttvar time.Duration
 
 	// rto is the retransmission timeout (重传超时，RFC 6298 §2.3)。
@@ -169,13 +169,13 @@ type TCPRetransmissionConfig struct {
 }
 
 const (
-	defaultMSS                = uint32(1460) // matches DefaultMSS in generator.go
+	defaultMSS                 = uint32(1460) // matches DefaultMSS in generator.go
 	defaultInitialCwndSegments = uint32(10)   // RFC 6928 §2
 	defaultInitialSsthresh     = uint32(65535)
-	defaultInitialRTO         = 1 * time.Second // RFC 6298 §2.1
-	defaultFastRetransmit      = 3              // RFC 5681 §3.2
-	defaultRTOBackoffCap      = 8              // ≈ RFC 6298 §5.5 / Linux behavior
-	defaultRTOMax             = 60 * time.Second
+	defaultInitialRTO          = 1 * time.Second // RFC 6298 §2.1
+	defaultFastRetransmit      = 3               // RFC 5681 §3.2
+	defaultRTOBackoffCap       = 8               // ≈ RFC 6298 §5.5 / Linux behavior
+	defaultRTOMax              = 60 * time.Second
 )
 
 // NewTCPRetransmissionStateMachine builds a SM with the given config. A
@@ -463,10 +463,10 @@ func (sm *TCPRetransmissionStateMachine) OnRTO(now time.Time) {
 //
 // After OnChallengeACK, the transport layer should:
 //
-//	- NOT honor the RST.
-//	- Send a Challenge ACK (an ACK with the current sndNxt) per RFC 5961 §3.2.
-//	- Wait for OnReplyMatch (the peer's next ACK confirms the data) or
-//	  OnReplyMismatch (refutes; then send a real RST via OnReplyMismatch).
+//   - NOT honor the RST.
+//   - Send a Challenge ACK (an ACK with the current sndNxt) per RFC 5961 §3.2.
+//   - Wait for OnReplyMatch (the peer's next ACK confirms the data) or
+//     OnReplyMismatch (refutes; then send a real RST via OnReplyMismatch).
 func (sm *TCPRetransmissionStateMachine) OnChallengeACK(dataSeq uint32) {
 	sm.challengeData = dataSeq
 	sm.state = TCPStateChallengePending

@@ -153,8 +153,9 @@ func parseClientHelloExtensions(body []byte) (map[uint16][]byte, error) {
 	if len(body) < 2+32+1+2+1 {
 		return nil, fmt.Errorf("ClientHello too short: %d", len(body))
 	}
-	p := 2 + 32          // version + random
-	sidLen := int(body[p]); p++
+	p := 2 + 32 // version + random
+	sidLen := int(body[p])
+	p++
 	if p+sidLen > len(body) {
 		return nil, fmt.Errorf("session_id length %d overflows body %d", sidLen, len(body))
 	}
@@ -162,7 +163,8 @@ func parseClientHelloExtensions(body []byte) (map[uint16][]byte, error) {
 	if p+2 > len(body) {
 		return nil, fmt.Errorf("cipher_suites length missing at %d", p)
 	}
-	csLen := int(body[p])<<8 | int(body[p+1]); p += 2
+	csLen := int(body[p])<<8 | int(body[p+1])
+	p += 2
 	if p+csLen > len(body) {
 		return nil, fmt.Errorf("cipher_suites length %d overflows body %d", csLen, len(body))
 	}
@@ -170,7 +172,8 @@ func parseClientHelloExtensions(body []byte) (map[uint16][]byte, error) {
 	if p+1 > len(body) {
 		return nil, fmt.Errorf("compression length missing at %d", p)
 	}
-	compLen := int(body[p]); p++
+	compLen := int(body[p])
+	p++
 	if p+compLen > len(body) {
 		return nil, fmt.Errorf("compression length %d overflows body %d", compLen, len(body))
 	}
@@ -178,7 +181,8 @@ func parseClientHelloExtensions(body []byte) (map[uint16][]byte, error) {
 	if p+2 > len(body) {
 		return nil, fmt.Errorf("extensions block missing at %d", p)
 	}
-	extLen := int(body[p])<<8 | int(body[p+1]); p += 2
+	extLen := int(body[p])<<8 | int(body[p+1])
+	p += 2
 	if p+extLen > len(body) {
 		return nil, fmt.Errorf("extensions length %d overflows body %d", extLen, len(body))
 	}
@@ -578,7 +582,6 @@ func TestT13_TLSSNITooLongRejected(t *testing.T) {
 		t.Error("Plan accepted ALPN protocol name longer than 255 bytes, want sync rejection")
 	}
 }
-
 
 // tls1.2 与 role=server 在层链未实现，必须**同步拒绝**（Plan 报错而非
 // 静默空流；drive 的运行时错误按既有契约吞掉，结构性不支持必须前置）。

@@ -89,7 +89,7 @@ func TestChainPlannerMySQLBypassAuth(t *testing.T) {
 		SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12347,
 		MySQL: &core.MySQLConfig{
 			ServerBypassAuth: true,
-			Commands: []core.MySQLCommand{{Opcode: 0x0e, Body: "SHOW DATABASES"}},
+			Commands:         []core.MySQLCommand{{Opcode: 0x0e, Body: "SHOW DATABASES"}},
 		},
 	}
 	ch, err := layers.NewChainPlanner("mysql").Plan(context.Background(), spec)

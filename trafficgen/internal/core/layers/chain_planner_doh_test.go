@@ -12,7 +12,7 @@ import (
 
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/core/layers"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/doh" // 终结层生成器注册
+	_ "github.com/trafficgen/trafficgen/internal/protocol/doh"  // 终结层生成器注册
 	_ "github.com/trafficgen/trafficgen/internal/protocol/http" // 载体层生成器注册
 )
 

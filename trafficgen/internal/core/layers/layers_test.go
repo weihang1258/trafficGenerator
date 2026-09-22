@@ -409,12 +409,12 @@ func TestValidateLayerConfig_OutOfRange(t *testing.T) {
 		name string
 		cfg  map[string]interface{}
 	}{
-		{"tcp", map[string]interface{}{"mss": 500}},                 // min 536（RFC 879）
-		{"tcp", map[string]interface{}{"dst_port": 70000}},          // max 65535
-		{"vlan", map[string]interface{}{"id": 4096}},                // max 4095
-		{"ip", map[string]interface{}{"ttl": 256}},                  // max 255
-		{"ip", map[string]interface{}{"dscp": 64}},                  // max 63
-		{"vlan", map[string]interface{}{"priority": 8}},             // max 7
+		{"tcp", map[string]interface{}{"mss": 500}},        // min 536（RFC 879）
+		{"tcp", map[string]interface{}{"dst_port": 70000}}, // max 65535
+		{"vlan", map[string]interface{}{"id": 4096}},       // max 4095
+		{"ip", map[string]interface{}{"ttl": 256}},         // max 255
+		{"ip", map[string]interface{}{"dscp": 64}},         // max 63
+		{"vlan", map[string]interface{}{"priority": 8}},    // max 7
 	}
 	for _, tc := range cases {
 		err := r.ValidateLayerConfig(Layer{Name: tc.name, Config: tc.cfg})

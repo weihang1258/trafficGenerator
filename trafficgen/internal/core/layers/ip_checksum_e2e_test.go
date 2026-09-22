@@ -72,11 +72,12 @@ func TestIPCksumComputer_ComputeIPv4HdrChecksum_RoundTrip(t *testing.T) {
 // the raw 32-bit sum; the one's-complement fold is applied later.
 //
 // Step 1: raw 32-bit sum of four 16-bit components.
-//   0xc0a8 + 0x0101 = 0xc1a9   (src 192.168.1.1)
-//   0xc0a8 + 0x0102 = 0xc1aa   (dst 192.168.1.2)
-//   0x0000 + 0x0006 = 0x0006   (zero + proto=6)
-//   0x0000 + 0x0014 = 0x0014   (length=20)
-//   Total: 0xc1a9 + 0xc1aa + 0x0006 + 0x0014 = 0x1836d
+//
+//	0xc0a8 + 0x0101 = 0xc1a9   (src 192.168.1.1)
+//	0xc0a8 + 0x0102 = 0xc1aa   (dst 192.168.1.2)
+//	0x0000 + 0x0006 = 0x0006   (zero + proto=6)
+//	0x0000 + 0x0014 = 0x0014   (length=20)
+//	Total: 0xc1a9 + 0xc1aa + 0x0006 + 0x0014 = 0x1836d
 func TestIPCksumComputer_ComputeIPv4PseudoHdrSum(t *testing.T) {
 	c := layers.NewIPCksumComputer()
 	src := net.ParseIP("192.168.1.1")

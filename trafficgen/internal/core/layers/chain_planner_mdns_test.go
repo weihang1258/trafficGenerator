@@ -147,8 +147,8 @@ func TestChainPlanner_MDNS_Probe(t *testing.T) {
 			{Name: "MyServer._http._tcp.local", Type: mdns.TypeSRV, Class: 0x8001},
 			{Name: "MyServer._http._tcp.local", Type: mdns.TypeTXT, Class: 0x8001},
 		},
-		ProbingRepeat:   3,
-		ProbingInterval: 250,
+		ProbingRepeat:    3,
+		ProbingInterval:  250,
 		ProbingJitterMax: 0, // deterministic
 	}
 	start := time.Now()
@@ -181,9 +181,9 @@ func TestChainPlanner_MDNS_Probe(t *testing.T) {
 func TestChainPlanner_MDNS_Announce(t *testing.T) {
 	spec := mdnsSpec()
 	spec.MDNS = &core.MDNSConfig{
-		Mode:             "announce",
-		Answers:          mdnsAnswers(),
-		AnnouncingRepeat: 2,
+		Mode:               "announce",
+		Answers:            mdnsAnswers(),
+		AnnouncingRepeat:   2,
 		AnnouncingInterval: 0, // no sleep (fast test)
 	}
 	chain := collectPlanner(t, layers.NewChainPlanner("mdns"), spec)

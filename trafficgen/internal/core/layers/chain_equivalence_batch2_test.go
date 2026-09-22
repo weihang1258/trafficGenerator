@@ -298,8 +298,8 @@ func TestChainEquivalence_Batch2(t *testing.T) {
 				// 显式 dst_port 4500：避免 universal-default 兜底分歧
 				//（链路默认 4500，legacy spec.DstPort=80 直传，端口默认
 				// 行为由 flat_dstport_default_test.go 锁定）。
-				"dst_port":    float64(4500),
-				"tcp":         map[string]interface{}{"initial_seq": float64(1000)},
+				"dst_port":  float64(4500),
+				"tcp":       map[string]interface{}{"initial_seq": float64(1000)},
 				"ike_nat_t": map[string]interface{}{},
 			},
 			legacyPlan: ikeNatTPlan,

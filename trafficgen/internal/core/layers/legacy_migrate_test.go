@@ -7,15 +7,15 @@ import (
 
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/core/layers"
+	"github.com/trafficgen/trafficgen/internal/protocol/a2a"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dnp3"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/doip"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/enip"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/gbt32960"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mqtt"
+	"github.com/trafficgen/trafficgen/internal/protocol/nfs"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/smb"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/socks5"
-	"github.com/trafficgen/trafficgen/internal/protocol/a2a"
-	"github.com/trafficgen/trafficgen/internal/protocol/nfs"
 	"github.com/trafficgen/trafficgen/internal/protocol/tds"
 )
 
@@ -185,17 +185,17 @@ func a2aMinimalSpec() core.FlowSpec {
 		BaseURL: "https://agent.example.com/a2a",
 		AgentCard: &a2a.A2AAgentCard{
 			Name: "test", Description: "d", URL: "u", Version: "1.0",
-			ProtocolVersion: "0.3.0",
-			Capabilities:      &a2a.A2AAgentCapabilities{},
-			Skills:            []a2a.A2AAgentSkill{{ID: "s1", Name: "test", Description: "d", Tags: []string{"test"}}},
+			ProtocolVersion:    "0.3.0",
+			Capabilities:       &a2a.A2AAgentCapabilities{},
+			Skills:             []a2a.A2AAgentSkill{{ID: "s1", Name: "test", Description: "d", Tags: []string{"test"}}},
 			DefaultInputModes:  []string{"text"},
 			DefaultOutputModes: []string{"text"},
 		},
 		Tasks: []a2a.A2ATask{{
 			Method: a2a.MethodMessageSend,
 			Message: a2a.A2AMessage{
-				Role: "user",
-				Parts: []a2a.A2APart{{Kind: "text", Text: "hello"}},
+				Role:      "user",
+				Parts:     []a2a.A2APart{{Kind: "text", Text: "hello"}},
 				MessageID: "m-001",
 				Kind:      a2a.DefaultMessageKind,
 			},

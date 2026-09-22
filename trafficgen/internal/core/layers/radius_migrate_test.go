@@ -55,7 +55,7 @@ func TestRadiusChain_LayerFieldsAccepted(t *testing.T) {
 			map[string]interface{}{"type": 1, "value": "user"},
 			map[string]interface{}{"type": 8, "format": "ipv4", "value": "10.0.0.1"},
 		},
-		"response_code":      2,
+		"response_code": 2,
 		"response_attributes": []interface{}{
 			map[string]interface{}{"type": 26, "vendor_id": 9, "value": "vs"},
 		},

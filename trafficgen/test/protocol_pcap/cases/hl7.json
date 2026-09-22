@@ -1,28 +1,7364 @@
 [
-  {
-    "id": "hl7_neg_unregistered",
-    "proto": "hl7",
-    "summary": "HL7 layer is not registered yet; reject at layer validation",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "hl7": {}
-        }
-      ],
-      "src_ip": "192.0.2.68",
-      "dst_ip": "198.51.100.68",
+ {
+  "id": "hl7_adt_a01_ipv4",
+  "proto": "hl7",
+  "summary": "ADT^A01 baseline: MSH/EVN/PID/PV1 + auto ACK",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
       "src_port": 42680,
       "dst_port": 2575
+     }
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "unknown layer",
-      "notes": [
-        "Design-only gate: hl7 is not registered in the layer registry; this placeholder is not part of the 25 semantic IDs. A future registration must remove it and add the 18 positive and 7 negative semantic cases in testcase order."
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
       ]
+     }
     }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "ADT"
+    },
+    {
+     "packet": 5,
+     "field": "hl7.message.type",
+     "value": "ACK"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "0B",
+     "offset": 54
+    },
+    {
+     "packet": 5,
+     "hex": "0B",
+     "offset": 54
+    },
+    {
+     "packet": 4,
+     "hex": "4D 53 48 7C",
+     "offset": 55
+    },
+    {
+     "packet": 4,
+     "hex": "45 56 4E 7C",
+     "offset": 124
+    },
+    {
+     "packet": 4,
+     "hex": "50 49 44 7C",
+     "offset": 148
+    },
+    {
+     "packet": 4,
+     "hex": "50 56 31 7C",
+     "offset": 196
+    },
+    {
+     "packet": 5,
+     "hex": "4D 53 41 7C 41 41 7C",
+     "offset": 120
+    }
+   ]
   }
+ },
+ {
+  "id": "hl7_adt_a02_transfer",
+  "proto": "hl7",
+  "summary": "ADT^A02 transfer: EVN-1=A02, PV1-3 update",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A02^ADT_A02",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A02",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^2^BED9"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "ADT"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_adt_a03_discharge",
+  "proto": "hl7",
+  "summary": "ADT^A03 discharge: EVN-1=A03, PV1-45/PV1-36 present",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A03^ADT_A03",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A03",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "20260901120000",
+             "01"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "ADT"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_oru_r01_results",
+  "proto": "hl7",
+  "summary": "ORU^R01: OBR + multiple OBX, ascending set IDs",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "OBR",
+            "fields": [
+             "1",
+             "",
+             "ORD-1001&HIS",
+             "",
+             "GLU^Glucose"
+            ]
+           },
+           {
+            "name": "OBX",
+            "fields": [
+             "1",
+             "NM",
+             "GLU^Glucose^L",
+             "95",
+             "mg/dL",
+             "70-110",
+             "F"
+            ]
+           },
+           {
+            "name": "OBX",
+            "fields": [
+             "2",
+             "ST",
+             "HEMO^Hemoglobin^L",
+             "14.2",
+             "g/dL",
+             "12-16",
+             "F"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "ORU"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_siu_s12_appointment",
+  "proto": "hl7",
+  "summary": "SIU^S12: SCH/AIS segments",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "SIU^S12^SIU_S12",
+          "segments": [
+           {
+            "name": "SCH",
+            "fields": [
+             "1",
+             "",
+             "",
+             "SURGERY",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "20260901083045",
+             "20260901100000"
+            ]
+           },
+           {
+            "name": "AIS",
+            "fields": [
+             "1",
+             "A",
+             "MRI^MRI&ISO"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "SIU"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_ack_success_association",
+  "proto": "hl7",
+  "summary": "ACK AA association: MSA-2 = request MSH-10",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "hl7.message.type",
+     "value": "ACK"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "4D 53 41 7C 41 41 7C",
+     "offset": 120
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_nak_error_segment",
+  "proto": "hl7",
+  "summary": "NAK AE + ERR segment: legal negative acknowledgement",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "ack": "AE",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "4D 53 41 7C 41 45 7C",
+     "offset": 120
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_ack_ar_reject",
+  "proto": "hl7",
+  "summary": "NAK AR reject: second negative ACK form",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "ack": "AR",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "4D 53 41 7C 41 52 7C",
+     "offset": 120
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_mllp_frame_bytes",
+  "proto": "hl7",
+  "summary": "MLLP frame: SOB 0x0B, EOB 0x1C 0x0D, segment CR=0x0D",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "0B",
+     "offset": 54
+    },
+    {
+     "packet": 4,
+     "hex": "1C 0D",
+     "offset": 218
+    },
+    {
+     "packet": 5,
+     "hex": "0B",
+     "offset": 54
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_component_subcomponent",
+  "proto": "hl7",
+  "summary": "Component ^ and subcomponent & (PID-5 XPN, OBR-2 EI)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A"
+            ]
+           },
+           {
+            "name": "OBR",
+            "fields": [
+             "1",
+             "ORD-1001&HIS",
+             "",
+             "GLU^Glucose"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "44 4F 45 5E 4A 4F 48 4E 5E 41",
+     "offset": 149
+    },
+    {
+     "packet": 4,
+     "hex": "4F 52 44 2D 31 30 30 31 26 48 49 53",
+     "offset": 166
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_field_repetition",
+  "proto": "hl7",
+  "summary": "Field repetition ~: PID-3 multi-identifier",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT1^^^HOSP^MR~PAT2^^^HOSP^MR2"
+            ]
+           },
+           {
+            "name": "EVN",
+            "fields": [
+             "A01"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "7E",
+     "offset": 60
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_pid3_cx_components",
+  "proto": "hl7",
+  "summary": "PID-3 CX five-component: ID^^^HOSP^MR",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "ID^^^HOSP^MR"
+            ]
+           },
+           {
+            "name": "EVN",
+            "fields": [
+             "A01"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_escape_f",
+  "proto": "hl7",
+  "summary": "Escape \\F\\: literal field separator",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "OBX",
+            "fields": [
+             "1",
+             "ST",
+             "GLU^Glucose^L",
+             "value\\F\\with|pipe"
+            ]
+           },
+           {
+            "name": "OBR",
+            "fields": [
+             "1"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "5C 46 5C",
+     "offset": 152
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_escape_s",
+  "proto": "hl7",
+  "summary": "Escape \\S\\: literal component separator",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "OBX",
+            "fields": [
+             "1",
+             "ST",
+             "GLU^Glucose^L",
+             "value\\S\\with^caret"
+            ]
+           },
+           {
+            "name": "OBR",
+            "fields": [
+             "1"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "5C 53 5C",
+     "offset": 152
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_escape_r",
+  "proto": "hl7",
+  "summary": "Escape \\R\\: literal repetition separator",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "OBX",
+            "fields": [
+             "1",
+             "ST",
+             "GLU^Glucose^L",
+             "value\\R\\with~tilde"
+            ]
+           },
+           {
+            "name": "OBR",
+            "fields": [
+             "1"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "5C 52 5C",
+     "offset": 152
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_escape_e",
+  "proto": "hl7",
+  "summary": "Escape \\E\\: literal escape character",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "OBX",
+            "fields": [
+             "1",
+             "ST",
+             "GLU^Glucose^L",
+             "value\\E\\with\\back"
+            ]
+           },
+           {
+            "name": "OBR",
+            "fields": [
+             "1"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "5C 45 5C",
+     "offset": 152
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_escape_t",
+  "proto": "hl7",
+  "summary": "Escape \\T\\: literal subcomponent separator",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "OBX",
+            "fields": [
+             "1",
+             "ST",
+             "GLU^Glucose^L",
+             "value\\T\\with&amp"
+            ]
+           },
+           {
+            "name": "OBR",
+            "fields": [
+             "1"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "5C 54 5C",
+     "offset": 152
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_escape_h_n",
+  "proto": "hl7",
+  "summary": "Escape \\H\\ / \\N\\: highlight begin / resume paired",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "OBX",
+            "fields": [
+             "1",
+             "ST",
+             "GLU^Glucose^L",
+             "\\H\\highlighted\\N\\normal"
+            ]
+           },
+           {
+            "name": "OBR",
+            "fields": [
+             "1"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "5C 48 5C",
+     "offset": 147
+    },
+    {
+     "packet": 4,
+     "hex": "5C 4E 5C",
+     "offset": 161
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_escape_hex",
+  "proto": "hl7",
+  "summary": "Escape \\Xdd\\: single hex byte",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "OBX",
+            "fields": [
+             "1",
+             "ST",
+             "GLU^Glucose^L",
+             "value\\X0D\\injection"
+            ]
+           },
+           {
+            "name": "OBR",
+            "fields": [
+             "1"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "5C 58 30 44 5C",
+     "offset": 152
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_escape_hex_multibyte",
+  "proto": "hl7",
+  "summary": "Escape \\Xdddd\\: multi-byte hex variant",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "OBX",
+            "fields": [
+             "1",
+             "ST",
+             "GLU^Glucose^L",
+             "value\\X0D0A\\crlf"
+            ]
+           },
+           {
+            "name": "OBR",
+            "fields": [
+             "1"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "5C 58 30 44 30 41 5C",
+     "offset": 152
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_multi_transaction_long_connection",
+  "proto": "hl7",
+  "summary": "Multi-transaction long connection: 3 msg+ACK on one stream",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         },
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "OBR",
+            "fields": [
+             "1",
+             "",
+             "ORD-1001&HIS",
+             "",
+             "GLU^Glucose"
+            ]
+           },
+           {
+            "name": "OBX",
+            "fields": [
+             "1",
+             "NM",
+             "GLU^Glucose^L",
+             "95",
+             "mg/dL",
+             "70-110",
+             "F"
+            ]
+           }
+          ]
+         },
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "SIU^S12^SIU_S12",
+          "segments": [
+           {
+            "name": "SCH",
+            "fields": [
+             "1",
+             "",
+             "",
+             "SURGERY",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "20260901083045",
+             "20260901100000"
+            ]
+           },
+           {
+            "name": "AIS",
+            "fields": [
+             "1"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "ADT"
+    },
+    {
+     "packet": 6,
+     "field": "hl7.message.type",
+     "value": "ORU"
+    },
+    {
+     "packet": 8,
+     "field": "hl7.message.type",
+     "value": "SIU"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_tcp_mss_reassembly",
+  "proto": "hl7",
+  "summary": "TCP MSS reassembly: long ORU spans 2 segments",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "OBR",
+            "fields": [
+             "1",
+             "",
+             "ORD-1001&HIS",
+             "",
+             "GLU^Glucose"
+            ]
+           },
+           {
+            "name": "OBX",
+            "fields": [
+             "1",
+             "NM",
+             "GLU^Glucose^L",
+             "95",
+             "mg/dL",
+             "70-110",
+             "F"
+            ]
+           },
+           {
+            "name": "OBX",
+            "fields": [
+             "2",
+             "ST",
+             "HEMO^Hemoglobin^L",
+             "14.2",
+             "g/dL",
+             "12-16",
+             "F"
+            ]
+           }
+          ]
+         },
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "ack": "null",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 10,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 6,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_ipv6_transport",
+  "proto": "hl7",
+  "summary": "IPv6/TCP/2575 baseline",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "2001:db8::68",
+      "dst": "2001:db8:bb::68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "ipv6.nxt",
+     "value": "6"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "0B",
+     "offset": 74
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_ipv6_multi_transaction",
+  "proto": "hl7",
+  "summary": "IPv6 multi-transaction (2 events on one stream)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "2001:db8::68",
+      "dst": "2001:db8:bb::68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ],
+          "ack": "auto"
+         },
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "OBR",
+            "fields": [
+             "1"
+            ]
+           }
+          ],
+          "ack": "auto"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 11,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "ipv6.nxt",
+     "value": "6"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 6,
+     "field": "ipv6.nxt",
+     "value": "6"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_multi_session_isolation",
+  "proto": "hl7",
+  "summary": "Multi-session isolation: 2 sessions, control_id distinct",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "src_port": 42680,
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "src_port": 42681,
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "OBR",
+            "fields": [
+             "1"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 18,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "tcp.srcport",
+     "value": "42680"
+    },
+    {
+     "packet": 10,
+     "field": "tcp.srcport",
+     "value": "42681"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_concurrent_sessions",
+  "proto": "hl7",
+  "summary": "Concurrent sessions: round-robin event replay",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "concurrent": true,
+      "sessions": [
+       {
+        "src_port": 42680,
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "src_port": 42681,
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "OBR",
+            "fields": [
+             "1"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 18,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "tcp.srcport",
+     "value": "42680"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_port_nondefault",
+  "proto": "hl7",
+  "summary": "Non-default port 2675: planner must not silently rewrite",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2675
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2675"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_version_profiles",
+  "proto": "hl7",
+  "summary": "MSH-12 version values 2.5/2.8 + MSH-11 P/T",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "version": "2.5",
+          "processing_id": "P",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         },
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "version": "2.8",
+          "processing_id": "T",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 11,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "ADT"
+    },
+    {
+     "packet": 6,
+     "field": "hl7.message.type",
+     "value": "ADT"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_processing_id_d",
+  "proto": "hl7",
+  "summary": "MSH-11=D: Table 0103 Debugging value",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "processing_id": "D",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "ADT"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_ack_code_domain",
+  "proto": "hl7",
+  "summary": "MSA-1 value domain AA/AE/AR",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "ack": "AA",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         },
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "ack": "AE",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         },
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "ack": "AR",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "4D 53 41 7C 41 41 7C",
+     "offset": 120
+    },
+    {
+     "packet": 7,
+     "hex": "4D 53 41 7C 41 45 7C",
+     "offset": 120
+    },
+    {
+     "packet": 9,
+     "hex": "4D 53 41 7C 41 52 7C",
+     "offset": 120
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_ack_disabled",
+  "proto": "hl7",
+  "summary": "ack_mode=null: no ACK frame",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "ack_mode": "null",
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_ack_override_null",
+  "proto": "hl7",
+  "summary": "Event-level ack=null overrides session-level auto",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         },
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "ack": "null",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         },
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 12,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "4D 53 41 7C 41 41 7C",
+     "offset": 120
+    },
+    {
+     "packet": 8,
+     "hex": "4D 53 41 7C 41 41 7C",
+     "offset": 120
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_s2c_receiver_role",
+  "proto": "hl7",
+  "summary": "s2c direction with role=receiver",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "role": "receiver",
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "s2c",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_ack_rule_separators",
+  "proto": "hl7",
+  "summary": "ACK derived MSH-1/MSH-2 identical to request",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "hl7.message.type",
+     "value": "ACK"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_ack_rule_swap",
+  "proto": "hl7",
+  "summary": "ACK derived MSH-3/4 swaps with MSH-5/6 (4-slot diff)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "hl7.message.type",
+     "value": "ACK"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_ack_rule_new_ts",
+  "proto": "hl7",
+  "summary": "ACK MSH-7: new 14-digit UTC timestamp (nonzero)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "hl7.message.type",
+     "value": "ACK"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_ack_trigger_oru",
+  "proto": "hl7",
+  "summary": "ACK trigger echo: ORU^R01 -> ACK^R01^ACK",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "OBR",
+            "fields": [
+             "1"
+            ]
+           },
+           {
+            "name": "OBX",
+            "fields": [
+             "1",
+             "NM",
+             "GLU^Glucose^L",
+             "95",
+             "mg/dL",
+             "70-110",
+             "F"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "hl7.message.type",
+     "value": "ACK"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_ack_minimal_form",
+  "proto": "hl7",
+  "summary": "ACK minimal form: MSH+MSA only",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "4D 53 41 7C 41 41 7C",
+     "offset": 120
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_msh_app_fac_fields",
+  "proto": "hl7",
+  "summary": "MSH-3..6 four slots present: app/fac sender/receiver",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "4D 53 48 7C",
+     "offset": 55
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_msh7_ts_format",
+  "proto": "hl7",
+  "summary": "MSH-7 timestamp: 14-digit UTC, fixed-width",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "ADT"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_msh9_structure",
+  "proto": "hl7",
+  "summary": "MSH-9 three-component structure code^event^structure",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "ADT"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "41 44 54 5E 41 30 31 5E 41 44 54 5F 41 30 31",
+     "offset": 94
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_msh8_populated",
+  "proto": "hl7",
+  "summary": "MSH-8 populated: non-empty security field",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "msh8_security": "CONF-01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "ADT"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_msh8_empty_slot",
+  "proto": "hl7",
+  "summary": "Empty slot rendering: MSH-8/PID-2 empty, not collapsed",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "ADT"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_msh15_16_empty",
+  "proto": "hl7",
+  "summary": "MSH-15/16 empty: trailing empty slots trimmed",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "ADT"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_evn2_time_format",
+  "proto": "hl7",
+  "summary": "EVN-2 14-digit timestamp (same as MSH-7)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "45 56 4E 7C",
+     "offset": 124
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_set_id_fields",
+  "proto": "hl7",
+  "summary": "Set ID fields: PID-1/PV1-1 = 1",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "50 49 44 7C 31 7C",
+     "offset": 148
+    },
+    {
+     "packet": 4,
+     "hex": "50 56 31 7C 31 7C",
+     "offset": 196
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_z_segment_passthrough",
+  "proto": "hl7",
+  "summary": "Z segment passthrough with allow_z_segments flag",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "allow_z_segments": true,
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR"
+            ]
+           },
+           {
+            "name": "ZBE",
+            "fields": [
+             "custom",
+             "data"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "5A 42 45 7C",
+     "offset": 172
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_custom_field_separator",
+  "proto": "hl7",
+  "summary": "Custom field_separator '#' reflected in MSH-1",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "field_separator": "#",
+          "encoding_chars": "#~\\&",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "ADT"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_custom_encoding_chars",
+  "proto": "hl7",
+  "summary": "Custom encoding_chars '@~\\!' reflected in MSH-2",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "encoding_chars": "@~\\!",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "ADT"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_pv1_class_outpatient",
+  "proto": "hl7",
+  "summary": "PV1-2=O outpatient class",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "O",
+             "WARD^OPD^B201"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "50 56 31 7C 31 7C 4F 7C",
+     "offset": 196
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_pv1_class_emergency",
+  "proto": "hl7",
+  "summary": "PV1-2=E emergency class",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "E",
+             "WARD^ER^B301"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "50 56 31 7C 31 7C 45 7C",
+     "offset": 196
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_obx_valuetype_ce",
+  "proto": "hl7",
+  "summary": "OBX-2=CE coded value type",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "OBR",
+            "fields": [
+             "1"
+            ]
+           },
+           {
+            "name": "OBX",
+            "fields": [
+             "1",
+             "CE",
+             "GLU^Glucose^L",
+             "E11^Impaired^I10",
+             "",
+             "",
+             "F"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "4F 42 58 7C 31 7C 43 45 7C",
+     "offset": 130
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_result_status_pending",
+  "proto": "hl7",
+  "summary": "Result status P=Pending: OBR-25=P, OBX-11=P",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "OBR",
+            "fields": [
+             "1",
+             "",
+             "",
+             "",
+             "GLU^Glucose",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "P"
+            ]
+           },
+           {
+            "name": "OBX",
+            "fields": [
+             "1",
+             "NM",
+             "GLU^Glucose^L",
+             "95",
+             "mg/dL",
+             "70-110",
+             "P"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "4F 42 58 7C 31 7C",
+     "offset": 166
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_result_status_corrected",
+  "proto": "hl7",
+  "summary": "Result status C=Corrected: OBR-25=C, OBX-11=C",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ORU^R01^ORU_R01",
+          "segments": [
+           {
+            "name": "OBR",
+            "fields": [
+             "1",
+             "",
+             "",
+             "",
+             "GLU^Glucose",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "",
+             "C"
+            ]
+           },
+           {
+            "name": "OBX",
+            "fields": [
+             "1",
+             "NM",
+             "GLU^Glucose^L",
+             "95",
+             "mg/dL",
+             "70-110",
+             "C"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "4F 42 58 7C 31 7C",
+     "offset": 166
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_boundary_msh9_len15",
+  "proto": "hl7",
+  "summary": "MSH-9 15 chars upper-bound",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "ADT"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_boundary_msh10_msa2_len20",
+  "proto": "hl7",
+  "summary": "MSH-10/MSA-2 20 chars upper-bound",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "control_id": "CID20260901083045AAB",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "4D 53 41 7C 41 41 7C 43 49 44 32 30",
+     "offset": 120
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_boundary_msh12_len60",
+  "proto": "hl7",
+  "summary": "MSH-12 60 chars upper-bound",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "version": "2.5.0-patched-2026-08-31-revision-1234567890",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "ADT"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_boundary_msh7_ts_max",
+  "proto": "hl7",
+  "summary": "MSH-7 longest legal TS (24 chars)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "timestamp": "20260901083045.1234+0800",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045.1234+0800",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "ADT"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "hl7_msa3_text",
+  "proto": "hl7",
+  "summary": "MSA-3 text message optional",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "ack": "AA",
+          "msa3_text": "OK",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "4D 53 41 7C 41 41 7C",
+     "offset": 120
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_err_fields",
+  "proto": "hl7",
+  "summary": "ERR segment fields: position/code/severity/local",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "ack": "AE",
+          "err_segments": [
+           {
+            "name": "ERR",
+            "fields": [
+             "",
+             "PID^1^1^1",
+             "100",
+             "E",
+             "APP001^Custom^L"
+            ]
+           }
+          ],
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I",
+             "WARD^ICU^B101"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "45 52 52 7C",
+     "offset": 136
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_mllp_multi_frame_burst",
+  "proto": "hl7",
+  "summary": "3 MLLP frames burst in one TCP segment (all ack=null)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "ack_mode": "null",
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "ack": "null",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         },
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A02^ADT_A02",
+          "ack": "null",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A02",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         },
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A03^ADT_A03",
+          "ack": "null",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A03",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR",
+             "",
+             "DOE^JOHN^A",
+             "",
+             "19800101",
+             "M"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "0B",
+     "offset": 54
+    },
+    {
+     "packet": 4,
+     "hex": "1C 0D",
+     "offset": 204
+    },
+    {
+     "packet": 4,
+     "hex": "1C 0D",
+     "offset": 356
+    },
+    {
+     "packet": 4,
+     "hex": "1C 0D",
+     "offset": 508
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_control_id_inc_strategy",
+  "proto": "hl7",
+  "summary": "control_id inc strategy: 1000/1001/1002 across messages",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "control_id": "1000",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         },
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "control_id": "1001",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         },
+         {
+          "kind": "msg",
+          "direction": "c2s",
+          "message_type": "ADT^A01^ADT_A01",
+          "control_id": "1002",
+          "segments": [
+           {
+            "name": "EVN",
+            "fields": [
+             "A01",
+             "20260901083045",
+             ""
+            ]
+           },
+           {
+            "name": "PID",
+            "fields": [
+             "1",
+             "",
+             "PAT001^^^HOSP^MR"
+            ]
+           },
+           {
+            "name": "PV1",
+            "fields": [
+             "1",
+             "I"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "7C 31 30 30 30 7C",
+     "offset": 109
+    },
+    {
+     "packet": 6,
+     "hex": "7C 31 30 30 31 7C",
+     "offset": 109
+    },
+    {
+     "packet": 8,
+     "hex": "7C 31 30 30 32 7C",
+     "offset": 109
+    }
+   ]
+  }
+ },
+ {
+  "id": "hl7_neg_framing_sob_missing",
+  "proto": "hl7",
+  "summary": "Framing SOB missing: payload starts with MSH|",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "framing_sob_missing"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "mllp"
+  }
+ },
+ {
+  "id": "hl7_neg_framing_eob_missing",
+  "proto": "hl7",
+  "summary": "Framing EOB missing: truncated frame",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "framing_eob_missing"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "mllp"
+  }
+ },
+ {
+  "id": "hl7_neg_framing_eob_malformed",
+  "proto": "hl7",
+  "summary": "Framing EOB malformed: 0x1c without 0x0d",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "framing_eob_malformed"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "mllp"
+  }
+ },
+ {
+  "id": "hl7_neg_framing_control_byte",
+  "proto": "hl7",
+  "summary": "Framing: unescaped 0x1c in payload closes EOB early",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "framing_control_byte"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "mllp"
+  }
+ },
+ {
+  "id": "hl7_neg_segment_first_not_msh",
+  "proto": "hl7",
+  "summary": "Segment: first segment is not MSH",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "segment_first_not_msh"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "segment"
+  }
+ },
+ {
+  "id": "hl7_neg_segment_no_cr",
+  "proto": "hl7",
+  "summary": "Segment: missing trailing CR",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "segment_no_cr"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "segment"
+  }
+ },
+ {
+  "id": "hl7_neg_segment_after_eob",
+  "proto": "hl7",
+  "summary": "Segment: extra segment after EOB",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "segment_after_eob"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "segment"
+  }
+ },
+ {
+  "id": "hl7_neg_segment_name_invalid",
+  "proto": "hl7",
+  "summary": "Segment: invalid segment name (not 3 chars)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "segment_name_invalid"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "segment"
+  }
+ },
+ {
+  "id": "hl7_neg_msh1_invalid",
+  "proto": "hl7",
+  "summary": "MSH-1: missing or wrong length (!=1 char)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "msh1_invalid"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "separator"
+  }
+ },
+ {
+  "id": "hl7_neg_msh2_invalid",
+  "proto": "hl7",
+  "summary": "MSH-2: encoding chars length !=4",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "msh2_invalid"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "separator"
+  }
+ },
+ {
+  "id": "hl7_neg_separator_mismatch",
+  "proto": "hl7",
+  "summary": "Separator: body delimiter differs from MSH-2 declaration",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "separator_mismatch"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "separator"
+  }
+ },
+ {
+  "id": "hl7_neg_escape_invalid",
+  "proto": "hl7",
+  "summary": "Escape: invalid \\X hex (unpaired digits)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "escape_invalid"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "escape"
+  }
+ },
+ {
+  "id": "hl7_neg_msh9_missing",
+  "proto": "hl7",
+  "summary": "MSH-9 missing",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "msh9_missing"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "msh"
+  }
+ },
+ {
+  "id": "hl7_neg_msh10_missing",
+  "proto": "hl7",
+  "summary": "MSH-10 missing",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "msh10_missing"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "msh"
+  }
+ },
+ {
+  "id": "hl7_neg_msh11_missing",
+  "proto": "hl7",
+  "summary": "MSH-11 missing",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "msh11_missing"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "msh"
+  }
+ },
+ {
+  "id": "hl7_neg_msh12_missing",
+  "proto": "hl7",
+  "summary": "MSH-12 missing",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "msh12_missing"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "msh"
+  }
+ },
+ {
+  "id": "hl7_neg_msh9_domain",
+  "proto": "hl7",
+  "summary": "MSH-9 message code/trigger outside value domain",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "msh9_domain"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "msh"
+  }
+ },
+ {
+  "id": "hl7_neg_ack_msa2_mismatch",
+  "proto": "hl7",
+  "summary": "Derived ACK MSA-2 != request MSH-10",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "ack_msa2_mismatch"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "ack"
+  }
+ },
+ {
+  "id": "hl7_neg_ack_no_msh9",
+  "proto": "hl7",
+  "summary": "ACK missing MSH-9=ACK",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "ack_no_msh9"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "ack"
+  }
+ },
+ {
+  "id": "hl7_neg_ack_no_msa",
+  "proto": "hl7",
+  "summary": "ACK missing MSA segment",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "ack_no_msa"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "ack"
+  }
+ },
+ {
+  "id": "hl7_neg_ack_code_invalid",
+  "proto": "hl7",
+  "summary": "MSA-1 ack code not in {AA,AE,AR} (e.g. XX)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "ack_code_invalid"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "ack"
+  }
+ },
+ {
+  "id": "hl7_neg_carrier_udp",
+  "proto": "hl7",
+  "summary": "carrier udp: udp carrier layer (natural face — hl7 rides tcp only)",
+  "spec_json": {
+   "layers": [
+    {
+     "udp": {
+      "src_port": 42680
+     }
+    },
+    {
+     "hl7": {}
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "carrier"
+  }
+ },
+ {
+  "id": "hl7_neg_carrier_no_tcp",
+  "proto": "hl7",
+  "summary": "Missing TCP layer: hl7 directly on ip",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "carrier_no_tcp"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "layer"
+  }
+ },
+ {
+  "id": "hl7_neg_port_invalid",
+  "proto": "hl7",
+  "summary": "Invalid port (0 or 65536)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 70000
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "port_invalid"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "port"
+  }
+ },
+ {
+  "id": "hl7_neg_len_msh9",
+  "proto": "hl7",
+  "summary": "MSH-9 >15 chars",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "len_msh9"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "length"
+  }
+ },
+ {
+  "id": "hl7_neg_len_msh10",
+  "proto": "hl7",
+  "summary": "MSH-10 >20 chars",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "len_msh10"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "length"
+  }
+ },
+ {
+  "id": "hl7_neg_len_msh12",
+  "proto": "hl7",
+  "summary": "MSH-12 >60 chars",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "len_msh12"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "length"
+  }
+ },
+ {
+  "id": "hl7_neg_len_msh7",
+  "proto": "hl7",
+  "summary": "MSH-7 >26 chars (textual upper bound)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "len_msh7"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "length"
+  }
+ },
+ {
+  "id": "hl7_neg_len_msa2",
+  "proto": "hl7",
+  "summary": "MSA-2 >20 chars",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "len_msa2"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "length"
+  }
+ },
+ {
+  "id": "hl7_neg_event_mismatch",
+  "proto": "hl7",
+  "summary": "EVN-1 vs MSH-9 trigger event mismatch",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "event_mismatch"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "event"
+  }
+ },
+ {
+  "id": "hl7_neg_address_family_mixed",
+  "proto": "hl7",
+  "summary": "Address family mixed: ipv6 layer with v4 literal",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "2001:db8::68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "address_family_mixed"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "address"
+  }
+ },
+ {
+  "id": "hl7_neg_required_segment_missing",
+  "proto": "hl7",
+  "summary": "ADT^A01 missing required business segment (PID)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "required_segment_missing"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "segment"
+  }
+ },
+ {
+  "id": "hl7_neg_z_segment_unconfigured",
+  "proto": "hl7",
+  "summary": "Z segment not explicitly allowed",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.68",
+      "dst": "198.51.100.68"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 42680,
+      "dst_port": 2575
+     }
+    },
+    {
+     "hl7": {
+      "wire_fault": "z_segment_unconfigured"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "z"
+  }
+ }
 ]

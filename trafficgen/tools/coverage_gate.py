@@ -824,7 +824,8 @@ def check_sip(cases):
 
     return rows
 
-CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
+CHECKS = {
+    "smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
 
 # --------------------------------------------------------------------------
@@ -2136,6 +2137,84 @@ def check_megaco(cases):
     rows.append(("负例锚词覆盖十族", anchors <= got, sorted(got)))
     return rows
 
+def check_hl7(cases):
+    """D-HL7-1 P6 反查表（95 例=62 正+33 wire_fault 负，HL7 v2.x MLLP/TCP-2575。
+    返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 hl7", '"hl7": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 hl7（已准入）", '"hl7"' not in pt[i_neg:i_neg + 400], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case hl7", 'case "hl7":' in tr, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.HL7", "HL7        *core.HL7Config" in gen, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry hl7 行+tcp 2575 契约", '"tcp.dst_port": "2575"' in rg, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain 载体/地址族/端口块", "HL7 carrier + port + address-family contract" in cp, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    rows.append(("udp 载体预检（锚 carrier）", "hl7 rides tcp only" in vl, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go ChainPlanner(hl7) 接线", 'NewChainPlanner("hl7")' in mn, "在案"))
+
+    # 2. 行为面（validator 关键件：33 值锚词表 + 自然守卫集）。
+    pl = (tg / "internal" / "protocol" / "hl7" / "planner.go").read_text()
+    import re as _re
+    _i = pl.index("wireFaultAnchors")
+    _seg = pl[_i:pl.index("\n}", _i)]
+    _n = len(_re.findall(r'"([a-z_0-9]+)":', _seg))
+    rows.append(("wire_fault 闭环 33 值锚词表（契约枚举名）", _n == 33, f"{_n} 值"))
+    for guard, name in [
+        ("requiredSegmentsByStructure", "D-6 必需段集"),
+        ("knownMessageCodes", "MSH-9 值域"),
+        ("invalidHexEscape", "escape_invalid 自然面"),
+        ("duplicate control id", "控制 ID 会话内判重"),
+        ("EVN-1", "EVN-1↔MSH-9 一致性"),
+    ]:
+        rows.append((f"自然守卫：{name}", guard in pl, "在案"))
+    lg = (tg / "internal" / "protocol" / "hl7" / "layer_gen.go").read_text()
+    rows.append(("MLLP 成帧 0x0B/0x1C 0x0D", "0x0B" in lg and "0x1C" in lg, "在案"))
+    rows.append(("多帧粘连回放", "emitSessionEventsCoalesced" in lg, "在案"))
+
+    # 3. 用例面（62 正 + 33 负；proto=hl7；顶层仅 layers）。
+    pos = [c for c in cases if "packet_count" in (c.get("expect") or {})]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("95 例对账（62 正+33 负）", len(pos) == 62 and len(neg) == 33 and len(cases) == 95,
+                 f"{len(pos)}+{len(neg)}={len(cases)}"))
+    bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "hl7"]
+    rows.append(("proto 全=hl7（单准入名）", not bad_proto, bad_proto or "全 hl7"))
+    leaked = sorted({k for c in cases for k in (c.get("spec_json", {}) or {}) if k != "layers"})
+    rows.append(("顶层残留为零（仅 layers）", not leaked, leaked or "零残留"))
+    # 载体面：无 udp 层（TCP-only）——唯一例外 = carrier_udp 负例（udp 层
+    # 即契约指定的故障输入本身，自然面负例）。
+    udp_cases = [c.get("id") for c in cases
+                 if any(isinstance(l2, dict) and "udp" in l2 for l2 in (c["spec_json"].get("layers") or []))]
+    rows.append(("udp 层仅存在于 carrier_udp 自然面负例", udp_cases in ([], ["hl7_neg_carrier_udp"]), udp_cases or "零 udp"))
+    for kw, name in [
+        ("hl7_adt_a01_ipv4", "T-1 ADT^A01 基线"),
+        ("hl7_tcp_mss_reassembly", "T-22 跨段重组"),
+        ("hl7_ipv6_transport", "T-23 IPv6 承载"),
+        ("hl7_concurrent_sessions", "T-26 并发会话"),
+        ("hl7_port_nondefault", "T-27 非默认端口"),
+        ("hl7_neg_framing_sob_missing", "T-63 SOB 缺失负例"),
+        ("hl7_neg_ack_msa2_mismatch", "T-80 MSA-2 配对负例"),
+        ("hl7_neg_required_segment_missing", "T-94 必需段集负例"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 4. 锚词面（八族主锚词在负例 expect 中）。
+    anchors = {"mllp", "msh", "separator", "escape", "ack", "carrier", "port", "length",
+               "event", "address", "segment", "z", "layer"}
+    got = {(c.get("expect") or {}).get("error_contains") for c in neg}
+    rows.append(("负例锚词覆盖十三族", anchors <= got, sorted(got)))
+    return rows
+
 def check_arp(cases):
     """D-ARP-1 P6 反查表（T-ARP-1…12，9.52 对账 分项和 12=建例 12。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -2288,7 +2367,7 @@ def check_vnc(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7}
 
 
 def main(argv):

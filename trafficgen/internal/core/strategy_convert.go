@@ -397,6 +397,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-HL7-1：hl7 在库旧策略顶层 hl7 → ValidationErrors（megaco 同款；
+	// 在库 0 行纯防御）。
+	if protocol == "hl7" {
+		if v, ok := cfg["hl7"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 
 	// D-FTP-3 §5: 扁平四键收动态对象（引擎直调路径，REST 形状层已先 400）→
 	// spec.ValidationErrors 拒绝并指路层字段，worker 预检终态 error，绝不
@@ -8242,6 +8249,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "megaco" {
 		if v, ok := cfg["megaco"]; ok && v != nil {
 			return "protocol megaco no longer accepts a top-level megaco sub-config (move it into the megaco layer of an [ip,udp,megaco] layers chain; tcp carrier = [ip,tcp,megaco] with RFC 1006 TPKT framing)"
+		}
+	}
+	// D-HL7-1：hl7 顶层 hl7 子映射 presence 判死（megaco 先例；空 map 也
+	// 死——B6 扁平注入形退役，配置迁 hl7 层八键）。层链形状不触发。
+	if protocol == "hl7" {
+		if v, ok := cfg["hl7"]; ok && v != nil {
+			return "protocol hl7 no longer accepts a top-level hl7 sub-config (move it into the hl7 layer of an [ip,tcp,hl7] layers chain; MLLP framing lives in the hl7 layer)"
 		}
 	}
 	// D-SMTP-1：smtp 顶层 smtp 子映射 presence 判死（mqtt 先例；空 map 也

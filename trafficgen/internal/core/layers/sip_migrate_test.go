@@ -129,10 +129,10 @@ func TestSIPChain_PresenceFilled(t *testing.T) {
 			"dialog": []interface{}{
 				map[string]interface{}{
 					"method": "INVITE", "uri": "sip:callee@20.0.0.1",
-					"headers":     []interface{}{"Call-ID: fixed@host", "CSeq: 7 INVITE"},
-					"body":        "v=0\r\n",
-					"direction":   "up",
-					"emit_media":  true,
+					"headers":    []interface{}{"Call-ID: fixed@host", "CSeq: 7 INVITE"},
+					"body":       "v=0\r\n",
+					"direction":  "up",
+					"emit_media": true,
 				},
 			},
 			"media": map[string]interface{}{

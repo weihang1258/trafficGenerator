@@ -26,7 +26,7 @@ func flowMetaFor(spec core.FlowSpec) FlowMeta {
 	return FlowMeta{
 		SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC,
 		SV: spec.SV, GOOSE: spec.GOOSE, ARP: spec.ARP, ISIS: spec.ISIS, ICMPv6: spec.ICMPv6, ICMP: spec.ICMP, H323: spec.H323, MPLS: spec.MPLS, NGAP: spec.NGAP, Telnet: spec.Telnet, SIP: spec.SIP, Radius: spec.Radius,
-		FlowIndex: spec.FlowIndex,
+		FlowIndex:   spec.FlowIndex,
 		CksumEngine: NewIPCksumComputer(),
 	}
 }
