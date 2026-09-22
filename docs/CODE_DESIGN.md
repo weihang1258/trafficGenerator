@@ -3825,6 +3825,11 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 | §13 | schema | registry 六键→schemagen 再生（TestLayersGeneratedMatchesRegistry 绿）；V9 只验顶层键、嵌套值语义归 translate+validator |
 | §14 | 真实流程 | suite 153/153 ×2（MCP 建任务→引擎生成→tshark 校对）；pcap 落盘 /tmp/mcp-pcaps/cwmp/；负例 44 锚词真红 |
 
+### P4 勘误块（2026-09-22，红先绿后——两处非承载面发现，处置实录）
+
+1. **事务级 device_id 死配置（行为面，B6 遗留）**：validator 校验 tx.DeviceID（planner.go validateDeviceIDRef）但发射路径只读会话级 ifaceDevice(run.sess.DeviceID)——155 处事务级 device_id 静默忽略（套件 0 体字节钉位所以 B6 全绿未被察觉）。修复：tx 优先、回退会话级（layer_gen.go inform 分支一行）；链级红例⑤ 先红后绿。**裁定1 例外声明**：本勘误使带事务级 device_id 的用例 inform 体字节改变（DeviceIdStruct 按配置上线）——帧数/方向/事务结构零变化（packet_count 断言全部保持），属"配置意图得以执行"而非行为回退；B6 契约 §6 typedef 本就定义事务级 device_id 覆盖语义（validator 同证），此处是让死配置活过来。
+2. **mss 死键删除（承载面）**：cwmp_mss_large_soap_200_params 旧顶层注入形下嵌套 `cwmp.tcp={"mss":1460}` 无任何消费者（CWMPConfig 无 Tcp 字段、全仓无 ["cwmp"]["tcp"] 读取点；mss 1460=引擎默认值）——迁入层后被 V9 硬拒，删除死键（行为零变化，packet_count 32 断言保持）。
+
 ### 文件清单（P4）
 
 - Modify: `internal/core/layers/registry.go`（cwmp 层 Fields 六键）
