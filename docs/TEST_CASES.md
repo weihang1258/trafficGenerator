@@ -3938,3 +3938,14 @@ ICMPv4（RFC 792）反推 8 例（4 正+4 负；链级红例=单测面不占号�
 **协议天花板豁免声明：** 流关联/多流显式不适用（B6 契约 §4.1——控制面协议不派生 RTP 媒体数据面，SDP 仅描述符文本）；9.50/9.53 复合=多会话隔离+并发交错+同消息双事务+长事务三方握手四维在案；BER 编码仅 profile 边界声明（负例 47/48），不产 BER 载荷。
 
 **已知 dissector 伪影（豁免在案）：** megaco_udp_ipv4_whitespace_comment_variants——tshark 3.6 megaco dissector 未实现 ABNF COMMENT → `_ws.malformed` 进 IsMalformedWhitelisted（帧字节逐字节钉死，伪影仅解析面）。
+
+
+## T-HL7-1…95 hl7 层链接入（#37 D-HL7-1，HL7 v2.x MLLP/TCP-2575，95 例）
+
+**三源回指：** HL7 v2.x 官方标准（HL7.org v2.5/v2.8 公开文档，Chapter 2 语法/3 MSH/6 SIU/7 ORU/13 AMRM 口径）+ MLLP 实施指南 → D-HL7-1 → `test/protocol_pcap/cases/hl7.json`（95 例）。ID 权威 = `68-hl7-testcase.md` §2 原子索引（62 正 + 33 负，rr-hl7 clean 关单基线）；本节 9.52 对账 95 = 62 + 33。
+
+**存量审计（95 例去向，9.14 口径）：** B6 旧分支 95 例全量等价承载——spec_json 层链整形（顶层四元组 → ip 层 src/dst + tcp 层 src_port/dst_port；顶层 hl7 子映射 → hl7 层 config 八键；会话四元组随 sessions[] 迁移），expect 断言面（packet_count/fields/frames/error_contains）零变化；注册前置占位 hl7_neg_unregistered 随注册移除（契约 §1）。B6 wire_fault 枚举名（mllp_* 等）按 v2.1.1 契约改名（framing_*/segment_*/carrier_no_tcp），用例 fault 值随契约。
+
+**P4 新增（本分支，红先绿后——megaco 21 例先例同构）：** 链级红例计划（hl7_chain_test.go）：①顶层 hl7 子映射 presence 判死；②层 config 翻译落线（钉非缺省可辨识值——sending_app/自定义分隔符，防 defaultFlow 伪证 megaco F7 教训）；③registry 八键 V9 allowlist；④空层基线（P0b：单会话 ADT^A01+ACK 9 包，含 3 握手 + REQ+ACK 两帧 + 4 挥手）；⑤MLLP 帧字节钉（0x0B 起 / 0x1C 0x0D 止）；⑥载体双拒（udp→carrier、缺 tcp→layer）；⑦wire_fault 33 值闭环锚词（六族逐值）；⑧ack 配对（MSA-2=请求 MSH-10；错配拒锚）；⑨必需段集（裁定7 三型）；⑩EVN-1↔MSH-9 一致性；⑪Z 段显式放行/未声明拒；⑫parity 守卫（sessionRenderSizes↔生成器逐字节，megaco F2 教训前置）；⑬控制 ID 会话内唯一判重 + 跨会话独立；⑭地址族一致（ipv6 层配 v4 字面量拒）。六族守卫/豁免逐值裁定表随 P4 落码（megaco F6 处置表同构，P4 时逐值落码不收官补）。
+
+**跑法口径：** `CASE_PROTO=hl7` 95/95 ×2 全绿；MCP 真实流程（strategy create→task→engine→tshark 校验），pcap 落盘 `/tmp/mcp-pcaps/hl7/`；tshark hl7 dissector 绑 tcp.port 2575，非默认端口例（#27）断言带 `-d tcp.port==2675,hl7` DecodeAs 或全 frames hex（实测 D-4）。

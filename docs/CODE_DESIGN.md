@@ -4065,3 +4065,65 @@ F1/F3/F4/F5/F6 五项闭合经独立复现确认（12 面探针/双向突变/8 �
 - **附带观察登记**：tls `planner_test.go:1172` 随机首字节 flake（自 1659a55 起既有）另行立项修断言。
 
 
+## D-HL7-1 hl7 层链接入（#37，HL7 v2.x MLLP over TCP/2575，95 例）
+
+> hl7（医疗信息交换 HL7 v2.x，MLLP 最小下层协议封装，TCP 字节流载体）= 终结层接入：`[tcp,hl7]`（引擎补 ip；显式地址族 `[ip,tcp,hl7]`/`[ipv6,tcp,hl7]`）。行为面权威 = `docs/protocol-designs/68-hl7-design.md` v2.1.1（rr-hl7 clean 关单）+ `68-hl7-testcase.md`（95 语义 ID = 62 正 + 33 负）。B6 参考实现（33d76ab）作 builder 编码与用例形状借鉴，**其 wire_fault 枚举名系 v2.1 改名前旧值（mllp_*→framing_*/segment_*、carrier_tcp_missing→carrier_no_tcp 等），一律以契约 §6/§7 表为准，不搬代码**。
+
+### P1 规范矩阵（§4 八项确认态）
+
+| 项 | 要求 | 现状 | 缺口 |
+|---|---|---|---|
+| 1 连接模型 | TCP-only / 2575（IANA hl7）；MLLP 帧长连接多消息 | registry 行 FieldContract tcp.dst_port=2575；carrier 块拒 udp/缺 tcp | 无 |
+| 2 命令/消息表 | 消息类型 ADT^A01/A02/A03、ORU^R01、SIU^S12、ACK/NAK（MSA 段）；段=MSH 必首 + EVN/PID/PV1/OBR/OBX/SCH/AIS/ERR + 显式 Z 段 | B6 builder 段族渲染；契约 §3.4/§3.5 | 无 |
+| 3 状态机 | 消息→ACK 配对（原确认模式单级，MSA-1∈AA/AE/AR）；MSH-10↔MSA-2 关联；会话状态机契约 §5.3 | planner 配对校验 | 无 |
+| 4 字段表 | MSH-1…12 表（契约 §3.4）；分隔符四件套 `\|^~&`；转义序列族 | builder 编码 | 无 |
+| 5 错误处理 | 33 wire_fault 闭环锚词 + MLLP 帧/段/MSH/ack/载体/长度六族 | wireFaultAnchors 33 值（契约 §7 同序） | 无 |
+| 6 超时与活性 | NA（MLLP 无事务超时语义；RST 不产生声明） | 如实 | 无 |
+| 7 NAT/被动 | 不适用 | 如实 | 无 |
+| 8 版本方言 | Version 2.3/2.4/2.5/2.8（缺省 2.5）；MSH-12 落线 | version 声明校验 | 无 |
+| **承载面** | 层链唯一真相 | B6 扁平四元组+顶层 hl7 子映射 → presence 判死（kingbase/megaco 同型） | 无 |
+| **动态值面** | MSH-10 控制 ID/MSH-7 时间/PID-3 患者标识 = 策略对象（§12），断言 presence/nonzero/distinct | §6 control_id/timestamp/patient_id 策略对象 | 无 |
+
+### 门 1 开工对照表（§1–§14，三道硬门之门 1——megaco 教训：门表 P2 先行，不收官回填；证据=文档节/代码行/用例号）
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 顶层旧键零残留；顶层 hl7 子映射 presence 判死。目标形状：`{"layers":[{"ip":{"src":"192.0.2.68","dst":"198.51.100.68"}},{"tcp":{"src_port":42680}},{"hl7":{"profile":"mllp","version":"2.8","field_separator":"|","encoding_chars":"^~\\&","ack_mode":"auto","concurrent":false,"sessions":[{"name":"his-admit-1","src_port":42680,"dst_port":2575,"role":"sender","sending_app":"HIS","sending_fac":"GH","receiving_app":"LIS","receiving_fac":"GH","processing_id":"P","control_id":{"strategy":"inc","range":[1000,9999],"step":1},"events":[{"kind":"msg","direction":"c2s","message_type":"ADT^A01^ADT_A01","segments":[{"name":"EVN","fields":[["A01"],["@ts"]]}],"ack":"auto"}]}],"wire_fault":""}}]}`（hl7 层八键全列） | `CheckProtoFlat` hl7 分支（P4 落码）；门 2-1 脚本 |
+| §2 策略/任务分工 | hl7 无子流派生端口；多流走 `flow_control`；会话编排住 hl7 层 `sessions[]` | registry 行；T-HL7 用例面 |
+| §3 五件套 | 会话表=`sessions[]`（name/四元组覆盖/role/app-fac 四件/processing_id/动态策略对象）；事务序列=`events[]`（msg→ack 配对，`ack`: auto/null/码）；关联=MSH-10 控制ID ↔ MSA-2 回显（`ack_msa2_mismatch` 负例锚）；插入位置=链终结层每 MLLP 帧一 MessageEvent（REQ 0x0B..0x1C0D → ACK）；时间线=会话内序贯 REQ→ACK，`concurrent:true` 双会话按事件下标交错 | 契约 §5.1-§5.4；B6 layer_gen 会话循环（借鉴） |
+| §4 规范矩阵 | 上表 10 行（HL7 v2.5/v2.8 Chapter 2/6/13 + MLLP 实施指南 + IANA 2575） | 本条目 P1 矩阵 |
+| §5 有错必处理 | 33 wire_fault 闭环锚词 validator 即拒（六族：framing/segment/msh/ack/carrier/len）+ 载体双拒（udp→`carrier`、缺 tcp→`layer`）；动态值断言 presence/distinct | 契约 §7 表 33 行；T-HL7 |
+| §6 性能 | 事件流式渲染；消息长度公式可计算（契约 §3.6）；边界诚实声明（无吞吐目标，网卡未跑） | 契约 §3.6；T-HL7 跑法口径 |
+| §7 三份文档 | 设计=68-hl7 v2.1.1 + 本条目；用例=T-HL7（95 审计）；cases 回指语义 ID | T-HL7 三源回指 |
+| §8 先设计后代码 | 本条目（矩阵+门1+裁定）定稿后开工 P4 | 本条目 |
+| §9 三源+整格 | 三源回指（HL7 章节/契约语义 ID/用例号）；wire_fault 33 值逐值单一注入；正交=消息类型×ack 模式×地址族×分隔符变体 | T-HL7 存量审计行 |
+| §10 评审闭环 | 改→审→测→修→再审；主线程相位自审 + 收官隔离终审（megaco 五轮链同流程）；测试四问 | T-HL7；门 3 抽查 |
+| §11 白话汇报 | 先一句结论；锚词/突变实录 | 每次汇报 |
+| §12 动态清单 | 四元组：ip 层 src/dst + tcp 层 src_port/dst_port + 会话级覆盖；业务动态：`control_id`（MSH-10 inc/rand 策略对象）、`timestamp`（MSH-7 epoch→UTC 定宽 14 位）、`patient_id`（PID-3）——序号算法=P4 落码处（策略对象经框架 dyn 解析，序号=会话内事件序）；断言 presence/nonzero/distinct_values/same_as_packet | 契约 §6 动态对象；§12 表 |
+| §13 schema 同步 | registry 新增 hl7 行 → schemagen 重跑提交（115→116）+ freshness 五面比对（megaco 先例） | `layers.generated.json` |
+| §14 真实流程 | cases 即任务 spec；MCP 建任务→引擎→tshark（hl7 dissector 绑 2575；非默认端口 `-d` DecodeAs）；负例带锚词 task error；全量绿；pcap 落盘 | 契约 §2/§3.9；门 2 |
+
+### 缺口清单与裁定（P2）
+
+- G1 本条目（唯一入口）/ G2 T-HL7 节（95 审计）/ G3 coverage_gate check_hl7 → P4-P6 落地。
+- G4 pipe_gate hl7 自键组（presence 判死执法）→ P5 实跑。
+- **G5 承载面判死**：CheckProtoFlat hl7 分支（顶层 hl7 子映射+layers 并存即 400）+ mapToFlowSpec 在库 switch（在库 0 行纯防御）。
+- **裁定1 协议身份**：hl7 单准入名（无别名族）；白名单收 hl7 + negativeOnly 摘除（红先绿后）。
+- **裁定2 载体**：TCP-only——链末第二层非 tcp 即拒（udp→`carrier`、缺 tcp→`layer`）；TCP 分段边界≠消息边界（MLLP 起止块定帧），生成器每帧一事件、分段归 tcp。
+- **裁定3 端口**：2575 缺省（FieldContract 常量）；显式非默认端口合法（`hl7_port_nondefault` 正例落点，断言带 `-d` DecodeAs 提示或 frames hex——实测非 2575 tshark 不自动按 hl7 解码）；无"非 2575 且未显式配置"形态（D-2 不可达输入已删）。会话级端口覆盖同语义。
+- **裁定4 wire_fault**：33 值闭环枚举（契约 §6/§7 同序，**枚举名以契约为准**），validator 即拒+主锚词；六族自然面守卫与书面豁免逐值裁定挂 F6 式处置表（megaco 先例——守卫与豁免在 P4 实现时逐值落码，不收官补）。
+- **裁定5 确认模式**：原确认模式单级 ACK（MSA-1∈AA/AE/AR）；增强模式（MSH-15/16 两级确认）显式不展开；ack 配置三级回退 事件级>会话级>配置级，`null`=无响应。
+- **裁定6 Z 段**：显式声明（events.segments 配置）即透传放行；未声明的 Z 段拒绝（`z_segment_unconfigured`）。
+- **裁定7 必需段集**：ADT^A01/A02/A03 必需 EVN+PID+PV1、ORU^R01 必需 OBR、SIU^S12 必需 SCH+AIS，缺失拒（`required_segment_missing`）；EVN-1 与 MSH-9 触发事件一致（`event_mismatch`）。
+- **裁定8 动态值**：control_id/timestamp/patient_id 策略对象（§12 面）——B6 用 `parseSubconfigJSON` 策略对象直挂；层链路径经 translate 进 spec.HL7，动态解析沿框架 dyn 面；控制 ID 会话内唯一（validator 判重）。
+- **裁定9 megaco 教训前置**：①id/序号类解析一处一面共用（hl7 面=控制 ID 分配器 validator/生成器同源）；②长度类拒绝住 Validate 同步面（消息长度公式 §3.6 可复算→validator 同步面算长度）；③红例断言钉非缺省可辨识值；④schemagen 重跑 + freshness 五面比对随 registry 变更强制。
+- **回滚**：提交次序=代码接入→suite/gate→文档；单提交粒度可摘。
+
+### 文件清单（P4）
+
+- Create: `internal/core/hl7.go`（HL7* 类型，B6 契约对齐）+ `internal/protocol/hl7/`（builder/planner/layer_gen，B6 借鉴重写：裁定9 四前置内建）
+- Modify: `internal/core/types.go`（FlowSpec.HL7）、`layers/registry.go`（hl7 行，七→八键）、`layers/chain_planner.go`（carrier/port 块）、`layers/chain_planner_translate.go`（case+flowMetaFor）、`layers/generator.go`（FlowMeta.HL7）、`internal/core/strategy_convert.go`（判死+在库 switch）、`internal/core/protocols.go`+`protocols_test.go`（白名单）、`cmd/server/main.go`（接线）
+- Test: `internal/core/layers/hl7_chain_test.go`（链级红例，megaco 21 例先例同构 + parity/边界/非缺省钉值前置）
+- Reshape: `test/protocol_pcap/cases/hl7.json`（B6 95 例层链整形：四元组进 ip/tcp 层、hl7 子映射进 hl7 层、占位例移除）
+- Regenerate: `schemas/v1/generated/layers.generated.json`（115→116）+ webgen
+- Tools: `tools/pipe_gate.sh`（hl7 自键组）、`tools/coverage_gate.py`（check_hl7）
