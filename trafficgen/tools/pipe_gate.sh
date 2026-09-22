@@ -5,9 +5,10 @@
 # 返回：全绿 exit 0，任一红 exit 1 并打印原因。
 set -u
 PROTO="${1:?用法: pipe_gate.sh <proto> [server-binary]}"
-# 二进制路径：位置参数 2 > 环境变量 TG_SERVER_BIN > 旧缺省（http 时代遗
-# 留——逐协议推进时每轮显式传 /tmp/tg-sv-p4-server，漏传会误报门2-3 红）。
-SERVER_BIN="${2:-${TG_SERVER_BIN:-/tmp/tg-http-p5-server}}"
+# 二进制路径：位置参数 2 > 环境变量 TG_SERVER_BIN > 缺省 /tmp/tg-sv-p4-server
+# （修轮残项2：原缺省 /tmp/tg-http-p5-server 是 http 时代遗留陈旧二进制，
+# 不带参调用即假红门2-3——收官复验实证 EXIT=1）。
+SERVER_BIN="${2:-${TG_SERVER_BIN:-/tmp/tg-sv-p4-server}}"
 CASES="trafficgen/test/protocol_pcap/cases/${PROTO}.json"
 
 fail=0

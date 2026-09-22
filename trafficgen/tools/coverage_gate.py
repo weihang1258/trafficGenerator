@@ -2027,14 +2027,38 @@ def check_kingbase(cases):
     rows.append(("neg_udp 承载锚（error_contains=tcp）", ok, ev))
     ok, ev = _err_anchor("neg_state", "state")
     rows.append(("neg_state 状态机锚（error_contains=state）", ok, ev))
-    # 收官复审 NOTE：锚词三项是在 cases 全 blob 搜词，error_contains 自身即
-    # 含这些词——加"负例层配置非空"守卫，防"配置被清空仍全绿"的自满足面
-    # （真跑真红由 suite 门2-2 兜）。
-    empty_cfg = [c.get("id", "?") for c in cases
-                 if "neg_" in c.get("id", "")
-                 and next((m for cid, m in lays if cid == c.get("id") and "neg_" in cid), None) is not None
-                 and not next((m for cid, m in lays if cid == c.get("id") and "neg_" in cid), {}).get("events")]
-    rows.append(("负例层配置非空（防锚词自满足）", not empty_cfg, empty_cfg or "非空"))
+
+    # 修轮复验残项3：负例触发源守卫（防"配置被清空仍全绿"的自满足面——
+    # 真跑真红由 suite 门2-2 兜，此处静态保证每负例的触发源键在位）。
+    # 每负例逐例直读（不经 lays 首个 pg 子映射，修 M1 漏检），触发源映射：
+    #   neg_udp=存在 udp 载体 / neg_port=tcp.dst_port 显式 / neg_profile=
+    #   wire_profile=unknown_profile / neg_state=events 含 query（before-ready
+    #   触发）/ neg_truncated·neg_oversize=wire_fault 在；且 events 每条
+    #   非空 dict（修 M2 空壳漏检）。
+    def _neg_case(c):
+        sj = c.get("spec_json", {}) or {}
+        pg = next((l["postgresql"] for l in sj.get("layers") or [] if isinstance(l, dict) and isinstance(l.get("postgresql"), dict)), None)
+        tcp = next((l["tcp"] for l in sj.get("layers") or [] if isinstance(l, dict) and isinstance(l.get("tcp"), dict)), None)
+        has_udp = any(isinstance(l, dict) and "udp" in l for l in sj.get("layers") or [])
+        return pg, tcp, has_udp
+    triggers = {
+        "neg_udp":       lambda pg, tcp, hu: hu,
+        "neg_port":      lambda pg, tcp, hu: bool(tcp and tcp.get("dst_port")),
+        "neg_profile":   lambda pg, tcp, hu: bool(pg and pg.get("wire_profile") == "unknown_profile"),
+        "neg_state":     lambda pg, tcp, hu: bool(pg and any(isinstance(e, dict) and e.get("kind") == "query" for e in pg.get("events") or [])),
+        "neg_truncated": lambda pg, tcp, hu: bool(pg and pg.get("wire_fault")),
+        "neg_oversize":  lambda pg, tcp, hu: bool(pg and pg.get("wire_fault")),
+    }
+    for kwid, fn in triggers.items():
+        c = next((c for c in cases if kwid in c.get("id", "")), None)
+        if c is None:
+            rows.append((f"触发源在位：{kwid}", False, "无用例"))
+            continue
+        pg, tcp, hu = _neg_case(c)
+        okk = fn(pg, tcp, hu)
+        evs = (pg or {}).get("events") or []
+        shell = not evs or any(not isinstance(e, dict) or not e for e in evs)
+        rows.append((f"触发源在位：{kwid}", okk and not shell, "在位" if okk and not shell else "触发源缺失或空壳"))
 
     # 4. 顶层残留为零（退役口径：kingbase.json 只允许 layers）。
     leaked = sorted({k for c in cases for k in (c.get("spec_json", {}) or {}) if k != "layers"})
