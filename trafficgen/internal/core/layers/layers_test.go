@@ -361,9 +361,12 @@ func TestTransportOn_ImplicitDefault(t *testing.T) {
 }
 
 func TestTransportOn_HTTPRejectsUDP(t *testing.T) {
-	// http 只支持 tcp；用户写 udp + http → 传输层唯一冲突 → 报错（http 不走 udp）。
+	// http 只支持 tcp；用户写 udp + http → 载体契约冲突 → 报协议名+锚词
+	//（D-HL7-1 裁定2 同款：DependsOn 自动补 tcp 与用户 udp 相撞时，报
+	// "udp carrier is not supported" 而非通用 dup——消息含层名与 carrier 锚词，
+	// 行为仍为拒绝）。
 	mustError(t, DefaultRegistry(), []Layer{{Name: "udp"}, {Name: "http"}},
-		"transport layer duplicated")
+		"http chain: udp carrier is not supported")
 }
 
 func TestTransportOn_ExplicitTwoTransportsRejected(t *testing.T) {

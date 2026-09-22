@@ -443,7 +443,15 @@ func (r *Registry) validateChain(chain []Layer) error {
 		if len(chain) > 0 {
 			last := chain[len(chain)-1]
 			ls, lok := r.Get(last.Name)
-			if lok && len(ls.TransportOn) == 1 && ls.TransportOn[0] == "tcp" {
+			// tcp-only 判定：显式 TransportOn=[tcp]，或未声明 TransportOn
+			// 时 DependsOn 缺省 tcp 且不收 udp（http/mqtt/smtp 族形态）。
+			tcpOnly := lok && func() bool {
+				if len(ls.TransportOn) > 0 {
+					return len(ls.TransportOn) == 1 && ls.TransportOn[0] == "tcp"
+				}
+				return contains(ls.DependsOn, "tcp") && !contains(ls.DependsOn, "udp")
+			}()
+			if lok && tcpOnly {
 				for _, l := range chain {
 					if l.Name == "udp" {
 						return errf("%s chain: udp carrier is not supported — %s rides tcp only (carrier)", last.Name, last.Name)
