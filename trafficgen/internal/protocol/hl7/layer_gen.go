@@ -22,10 +22,13 @@ type HL7Generator struct{}
 
 func (g *HL7Generator) Name() string { return "hl7" }
 
-// sessionRun is the per-session generation state.
+// sessionRun is the per-session generation state. dyn is the shared
+// resolution authority (dynamic.go) — the same newDynState/resolve the
+// validator used, so the wire sequence matches the validated dedup set.
 type sessionRun struct {
 	idx     int
 	sess    core.HL7Session
+	dyn     *dynState
 	ctrlSeq int64
 	ackSeq  int64
 }
@@ -74,7 +77,12 @@ func (g *HL7Generator) Generate(ctx context.Context, req *layers.GenRequest) err
 	// 硬编码压过链级 2675）。事件 DstPort=0 → tcp 层走链级默认。
 	runs := make([]*sessionRun, len(sessions))
 	for i := range sessions {
-		runs[i] = &sessionRun{idx: i, sess: sessions[i]}
+		s := sessions[i]
+		dyn, err := newDynState(&s, fmt.Sprintf("hl7: session[%d]", i))
+		if err != nil {
+			return err // validator caught it first; belt for direct Gen calls
+		}
+		runs[i] = &sessionRun{idx: i, sess: s, dyn: dyn}
 	}
 
 	emit := func(ev layers.MessageEvent) error {
@@ -148,7 +156,7 @@ func emitSessionEventsCoalesced(cfg *core.HL7Config, r *sessionRun, dstIP string
 		return nil
 	}
 	for _, ev := range sess.Events {
-		frame, dirUp, wantsAck, ctrlID := renderEvent(cfg, sess, r, ev)
+		frame, dirUp, wantsAck, ctrlID, subs := renderEvent(cfg, sess, r, ev)
 		if !wantsAck && haveRun && runUp == dirUp {
 			run = append(run, frame...) // coalesce into the pending segment
 		} else {
@@ -162,7 +170,7 @@ func emitSessionEventsCoalesced(cfg *core.HL7Config, r *sessionRun, dstIP string
 			if err := flush(); err != nil {
 				return err
 			}
-			ackFrame := renderACK(cfg, sess, r, ev, ctrlID)
+			ackFrame := renderACK(cfg, sess, r, ev, ctrlID, subs)
 			if err := emit(layers.MessageEvent{
 				Up:      !dirUp,
 				Bytes:   ackFrame,
@@ -192,17 +200,28 @@ func resolveAckSpec(cfg *core.HL7Config, sess core.HL7Session, ev core.HL7Event)
 	return "auto"
 }
 
+// renderCtx carries one event's render environment: separators, the
+// declared encoding chars (终审 F4：组件/子组件连接用 ec[0]/ec[3]，不硬编码
+// "^"——自定义 encoding_chars 下正文与 MSH-2 声明必须同源)，和占位符替换表
+// （终审 F11：契约 §6 @ts/@pid/@cid/@name）。
+type renderCtx struct {
+	fs, ec string
+	subs   map[string]string
+}
+
 // renderEvent builds one event's request frame; returns (frame, direction-is-up,
-// wants-ack, resolved-MSH-10). The ack spec may be "auto"/"null"/a code, or the
-// JSON object form {"code":"AE","err_segments":[...]} (设计 §6 ack 键).
-func renderEvent(cfg *core.HL7Config, sess core.HL7Session, r *sessionRun, ev core.HL7Event) (frame []byte, up, wantsAck bool, ctrlID string) {
+// wants-ack, resolved-MSH-10, placeholder subs). The ack spec may be
+// "auto"/"null"/a code, or the JSON object form {"code":"AE","err_segments":[...]}
+// (设计 §6 ack 键).
+func renderEvent(cfg *core.HL7Config, sess core.HL7Session, r *sessionRun, ev core.HL7Event) (frame []byte, up, wantsAck bool, ctrlID string, subs map[string]string) {
 	fs, ec, version, processingID := resolveSeparators(cfg, sess, ev)
-	ctrlID = resolveControlID(r, ev)
-	segments := buildSegments(cfg, sess, ev, ctrlID, fs, ec, version, processingID)
+	ts, ctrlID, pid := r.dyn.resolve(&ev, time.Now().UTC().Format("20060102150405"))
+	ctx := renderCtx{fs: fs, ec: ec, subs: r.dyn.placeholders(ts, ctrlID, pid)}
+	segments := buildSegments(cfg, sess, ev, ctx, version, processingID, ts)
 	frame = buildMLLPFrame(segments)
 	up = ev.Direction != "s2c"
 	wantsAck = resolveAckSpec(cfg, sess, ev) != "null"
-	return frame, up, wantsAck, ctrlID
+	return frame, up, wantsAck, ctrlID, ctx.subs
 }
 
 // renderACK builds the derived ACK frame for one event (设计 §5.2 逐条：
@@ -210,17 +229,23 @@ func renderEvent(cfg *core.HL7Config, sess core.HL7Session, r *sessionRun, ev co
 // 会话内递增的新 MSH-10、MSH-11/12 同请求、MSA-1=确认码、MSA-2=请求 MSH-10、
 // MSA-3=可选文本、配置 err_segments 追加)。reqCtrlID 是请求帧实际使用的
 // MSH-10（由 renderEvent 解析——在此重算会二次推进自增序号）。
-func renderACK(cfg *core.HL7Config, sess core.HL7Session, r *sessionRun, ev core.HL7Event, reqCtrlID string) []byte {
+func renderACK(cfg *core.HL7Config, sess core.HL7Session, r *sessionRun, ev core.HL7Event, reqCtrlID string, subs map[string]string) []byte {
 	fs, ec, version, processingID := resolveSeparators(cfg, sess, ev)
 	ackSpec := resolveAckSpec(cfg, sess, ev)
-	ackCode, _ := parseAckSpec(ackSpec)
+	// 终审 F5：ack 字符串/对象形里的 err_segments 与事件级 ErrSegments
+	// 合流——此前 parseAckSpec 第二返回值被静默弃置。
+	ackCode, ackErrSegs := parseAckSpec(ackSpec)
 	if ackCode == "" || ackCode == "auto" {
 		ackCode = "AA"
 	}
 	ackCtrlID := nextAckID(r)
-	ackSegments := buildACKSegments(cfg, sess, ev, reqCtrlID, ackCtrlID, ackCode, fs, ec, version, processingID)
+	ctx := renderCtx{fs: fs, ec: ec, subs: subs}
+	ackSegments := buildACKSegments(cfg, sess, ev, reqCtrlID, ackCtrlID, ackCode, ctx, version, processingID)
+	for _, seg := range ackErrSegs {
+		ackSegments = append(ackSegments, buildSegment(ctx, seg))
+	}
 	for _, seg := range ev.ErrSegments {
-		ackSegments = append(ackSegments, buildSegment(fs, seg))
+		ackSegments = append(ackSegments, buildSegment(ctx, seg))
 	}
 	return buildMLLPFrame(ackSegments)
 }
@@ -274,20 +299,11 @@ func resolveSeparators(cfg *core.HL7Config, sess core.HL7Session, ev core.HL7Eve
 	return fs, ec, version, processingID
 }
 
-// resolveControlID returns the event's MSH-10 (explicit pin or the session's
-// MSG%04d increment).
-func resolveControlID(r *sessionRun, ev core.HL7Event) string {
-	if ev.ControlID != "" {
-		return ev.ControlID
-	}
-	return nextCtrlID(r)
-}
-
 // emitSessionEvent renders one HL7 transaction: the MLLP-framed request
 // (up) and the auto-derived ACK frame (down). Kept for the concurrent path
 // where events are emitted one by one (no coalescing across sessions).
 func emitSessionEvent(cfg *core.HL7Config, r *sessionRun, ev core.HL7Event, dstIP string, emit func(layers.MessageEvent) error) error {
-	frame, up, wantsAck, ctrlID := renderEvent(cfg, r.sess, r, ev)
+	frame, up, wantsAck, ctrlID, subs := renderEvent(cfg, r.sess, r, ev)
 	if err := emit(layers.MessageEvent{
 		Up:      up,
 		Bytes:   frame,
@@ -300,7 +316,7 @@ func emitSessionEvent(cfg *core.HL7Config, r *sessionRun, ev core.HL7Event, dstI
 	if !wantsAck {
 		return nil
 	}
-	ackFrame := renderACK(cfg, r.sess, r, ev, ctrlID)
+	ackFrame := renderACK(cfg, r.sess, r, ev, ctrlID, subs)
 	return emit(layers.MessageEvent{
 		Up:      !up,
 		Bytes:   ackFrame,
@@ -330,27 +346,24 @@ func nextAckID(r *sessionRun) string {
 	return id
 }
 
-func buildSegments(cfg *core.HL7Config, sess core.HL7Session, ev core.HL7Event, ctrlID, fs, ec, version, processingID string) []string {
+func buildSegments(cfg *core.HL7Config, sess core.HL7Session, ev core.HL7Event, ctx renderCtx, version, processingID, ts string) []string {
 	msgType := ev.MessageType
 	if msgType == "" {
 		msgType = "ADT^A01^ADT_A01"
 	}
+	ctrlID := ctx.subs["@cid"]
 
 	var segs []string
-	segs = append(segs, buildMSHSegment(cfg, sess, ev, msgType, ctrlID, fs, ec, version, processingID))
+	segs = append(segs, buildMSHSegment(cfg, sess, ev, msgType, ctrlID, ctx.fs, ctx.ec, version, processingID, ts))
 
 	for _, s := range ev.Segments {
-		segs = append(segs, buildSegment(fs, s))
+		segs = append(segs, buildSegment(ctx, s))
 	}
 
 	return segs
 }
 
-func buildMSHSegment(cfg *core.HL7Config, sess core.HL7Session, ev core.HL7Event, msgType, ctrlID, fs, ec, version, processingID string) string {
-	ts := ev.Timestamp
-	if ts == "" {
-		ts = time.Now().UTC().Format("20060102150405")
-	}
+func buildMSHSegment(cfg *core.HL7Config, sess core.HL7Session, ev core.HL7Event, msgType, ctrlID, fs, ec, version, processingID, ts string) string {
 	sendingApp := sess.SendingApp
 	sendingFac := sess.SendingFac
 	receivingApp := sess.ReceivingApp
@@ -385,7 +398,7 @@ func buildMSHSegment(cfg *core.HL7Config, sess core.HL7Session, ev core.HL7Event
 	return strings.Join(fields, fs) + "\r"
 }
 
-func buildACKSegments(cfg *core.HL7Config, sess core.HL7Session, ev core.HL7Event, reqCtrlID, ackCtrlID, ackCode, fs, ec, version, processingID string) []string {
+func buildACKSegments(cfg *core.HL7Config, sess core.HL7Session, ev core.HL7Event, reqCtrlID, ackCtrlID, ackCode string, ctx renderCtx, version, processingID string) []string {
 	triggerEvent := "A01"
 	if ev.MessageType != "" {
 		parts := strings.Split(ev.MessageType, "^")
@@ -402,10 +415,11 @@ func buildACKSegments(cfg *core.HL7Config, sess core.HL7Session, ev core.HL7Even
 	ackSess.ReceivingApp = strOr(sess.SendingApp, defaultMSH.sendingApp)
 	ackSess.ReceivingFac = strOr(sess.SendingFac, defaultMSH.sendingFac)
 
-	msh := buildMSHSegment(cfg, ackSess, core.HL7Event{}, ackMsgType, ackCtrlID, fs, ec, version, processingID)
+	// §5.2：ACK MSH-7 取新运行期 ts（不用请求时间戳）。
+	msh := buildMSHSegment(cfg, ackSess, core.HL7Event{}, ackMsgType, ackCtrlID, ctx.fs, ctx.ec, version, processingID, time.Now().UTC().Format("20060102150405"))
 	// MSA-3（可选文本）必须在段内 CR 之前——段终止符之后追加会拆出
 	// 非法空段（review 捕获：曾产出 "MSA|AE|MSG0001|\r|OK"）。
-	msa := "MSA" + fs + ackCode + fs + reqCtrlID + fs + ev.MSA3Text + "\r"
+	msa := "MSA" + ctx.fs + ackCode + ctx.fs + reqCtrlID + ctx.fs + ev.MSA3Text + "\r"
 
 	return []string{msh, msa}
 }
@@ -417,30 +431,53 @@ func strOr(v, fallback string) string {
 	return fallback
 }
 
-func buildSegment(fs string, seg core.HL7Segment) string {
+func buildSegment(ctx renderCtx, seg core.HL7Segment) string {
 	var fieldStrs []string
 	for _, f := range seg.Fields {
-		fieldStrs = append(fieldStrs, renderFieldValue(f, fs))
+		fieldStrs = append(fieldStrs, renderFieldValue(ctx, f, 0))
 	}
-	return seg.Name + fs + strings.Join(fieldStrs, fs) + "\r"
+	return seg.Name + ctx.fs + strings.Join(fieldStrs, ctx.fs) + "\r"
 }
 
-func renderFieldValue(val interface{}, fs string) string {
+// renderFieldValue renders one field value. depth-0 arrays are components
+// (joined with the DECLARED ec[0] — 终审 F4：此前硬编码 "^" 与 MSH-2 声明
+// 失配)，deeper arrays are subcomponents (ec[3]). String values go through
+// placeholder substitution (契约 §6：@ts/@pid/@cid/@name 策略替换).
+func renderFieldValue(ctx renderCtx, val interface{}, depth int) string {
 	if val == nil {
 		return ""
 	}
 	switch v := val.(type) {
 	case string:
-		return v
+		return substitutePlaceholders(ctx, v)
 	case []interface{}:
+		sep := "^" // fallback when ec is not the declared 4-char form
+		if len(ctx.ec) == 4 {
+			if depth == 0 {
+				sep = ctx.ec[0:1]
+			} else {
+				sep = ctx.ec[3:4]
+			}
+		}
 		var parts []string
 		for _, p := range v {
-			parts = append(parts, renderFieldValue(p, fs))
+			parts = append(parts, renderFieldValue(ctx, p, depth+1))
 		}
-		return strings.Join(parts, "^")
+		return strings.Join(parts, sep)
 	default:
-		return fmt.Sprintf("%v", v)
+		return substitutePlaceholders(ctx, fmt.Sprintf("%v", v))
 	}
+}
+
+// substitutePlaceholders applies the event's substitution table (contract §6).
+func substitutePlaceholders(ctx renderCtx, s string) string {
+	if len(ctx.subs) == 0 || !strings.Contains(s, "@") {
+		return s
+	}
+	for k, v := range ctx.subs {
+		s = strings.ReplaceAll(s, k, v)
+	}
+	return s
 }
 
 func buildMLLPFrame(segments []string) []byte {

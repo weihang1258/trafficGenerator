@@ -938,6 +938,11 @@
      "packet": 5,
      "field": "tcp.len",
      "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "value": "84"
     }
    ],
    "frames": [
@@ -955,6 +960,11 @@
      "packet": 5,
      "hex": "0B",
      "offset": 54
+    },
+    {
+     "packet": 5,
+     "hex": "1C 0D",
+     "offset": 136
     }
    ]
   }
@@ -2046,7 +2056,7 @@
  {
   "id": "hl7_tcp_mss_reassembly",
   "proto": "hl7",
-  "summary": "TCP MSS reassembly: long ORU spans 2 segments",
+  "summary": "TCP reassembly: ORU + ADT MLLP frames across 2 data segments (one frame per segment, same tcp.stream)",
   "spec_json": {
    "layers": [
     {
@@ -2179,9 +2189,40 @@
      "packet": 6,
      "field": "tcp.len",
      "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "tcp.stream",
+     "value": "0"
+    },
+    {
+     "packet": 6,
+     "field": "tcp.stream",
+     "value": "0"
     }
    ],
-   "frames": []
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "0B",
+     "offset": 54
+    },
+    {
+     "packet": 4,
+     "hex": "1C 0D",
+     "offset": 243
+    },
+    {
+     "packet": 6,
+     "hex": "0B",
+     "offset": 54
+    },
+    {
+     "packet": 6,
+     "hex": "1C 0D",
+     "offset": 204
+    }
+   ]
   }
  },
  {
@@ -2706,10 +2747,34 @@
      "packet": 5,
      "field": "tcp.len",
      "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "hl7.message.type",
+     "value": "ADT"
     }
    ],
-   "frames": []
-  }
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "0B",
+     "offset": 54
+    },
+    {
+     "packet": 4,
+     "hex": "1C 0D",
+     "offset": 218
+    },
+    {
+     "packet": 5,
+     "hex": "0B",
+     "offset": 54
+    }
+   ]
+  },
+  "decode_as": [
+   "tcp.port==2675,hl7"
+  ]
  },
  {
   "id": "hl7_version_profiles",
@@ -3414,8 +3479,28 @@
    "fields": [
     {
      "packet": 4,
+     "field": "tcp.srcport",
+     "value": "2575"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "42680"
+    },
+    {
+     "packet": 4,
      "field": "tcp.len",
      "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.srcport",
+     "value": "42680"
+    },
+    {
+     "packet": 5,
+     "field": "tcp.dstport",
+     "value": "2575"
     },
     {
      "packet": 5,
@@ -4864,7 +4949,7 @@
  {
   "id": "hl7_custom_encoding_chars",
   "proto": "hl7",
-  "summary": "Custom encoding_chars '@~\\!' reflected in MSH-2",
+  "summary": "Custom encoding_chars '@~\\!': MSH-2 slot + component join via declared ec[0]",
   "spec_json": {
    "layers": [
     {
@@ -4903,7 +4988,11 @@
             "fields": [
              "1",
              "",
-             "PAT001^^^HOSP^MR",
+             [
+              "PAT001",
+              "HOSP",
+              "MR"
+             ],
              "",
              "DOE^JOHN^A",
              "",
@@ -4954,7 +5043,23 @@
      "value": "ADT"
     }
    ],
-   "frames": []
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "40 7E 5C 21",
+     "offset": 59
+    },
+    {
+     "packet": 4,
+     "hex": "40",
+     "offset": 161
+    },
+    {
+     "packet": 4,
+     "hex": "1C 0D",
+     "offset": 216
+    }
+   ]
   }
  },
  {
@@ -6244,7 +6349,6 @@
           "kind": "msg",
           "direction": "c2s",
           "message_type": "ADT^A01^ADT_A01",
-          "control_id": "1000",
           "segments": [
            {
             "name": "EVN",
@@ -6275,7 +6379,6 @@
           "kind": "msg",
           "direction": "c2s",
           "message_type": "ADT^A01^ADT_A01",
-          "control_id": "1001",
           "segments": [
            {
             "name": "EVN",
@@ -6306,7 +6409,6 @@
           "kind": "msg",
           "direction": "c2s",
           "message_type": "ADT^A01^ADT_A01",
-          "control_id": "1002",
           "segments": [
            {
             "name": "EVN",
@@ -6333,7 +6435,15 @@
            }
           ]
          }
-        ]
+        ],
+        "control_id": {
+         "strategy": "inc",
+         "range": [
+          1000,
+          1099
+         ],
+         "step": 1
+        }
        }
       ]
      }
@@ -6527,7 +6637,7 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "segment"
+   "error_contains": "msh"
   }
  },
  {

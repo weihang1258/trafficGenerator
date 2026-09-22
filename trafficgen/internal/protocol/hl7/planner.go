@@ -26,13 +26,13 @@ var wireFaultAnchors = map[string]string{
 	"framing_eob_malformed": "mllp",
 	"framing_control_byte":  "mllp",
 	// segment structure
-	"segment_first_not_msh":    "msh",
-	"segment_no_cr":            "segment",
-	"segment_after_eob":        "segment",
-	"segment_name_invalid":     "segment",
+	"segment_first_not_msh": "msh",
+	"segment_no_cr":         "segment",
+	"segment_after_eob":     "segment",
+	"segment_name_invalid":  "segment",
 	// separator / field
-	"msh1_invalid":     "separator",
-	"msh2_invalid":     "separator",
+	"msh1_invalid":       "separator",
+	"msh2_invalid":       "separator",
 	"separator_mismatch": "separator",
 	"escape_invalid":     "escape",
 	// msh required
@@ -47,9 +47,9 @@ var wireFaultAnchors = map[string]string{
 	"ack_no_msa":        "ack",
 	"ack_code_invalid":  "ack",
 	// carrier
-	"carrier_udp":     "carrier",
-	"carrier_no_tcp":  "layer",
-	"port_invalid":    "port",
+	"carrier_udp":    "carrier",
+	"carrier_no_tcp": "layer",
+	"port_invalid":   "port",
 	// length
 	"len_msh9":  "length",
 	"len_msh10": "length",
@@ -57,10 +57,10 @@ var wireFaultAnchors = map[string]string{
 	"len_msh7":  "length",
 	"len_msa2":  "length",
 	// semantic
-	"event_mismatch":          "event",
-	"address_family_mixed":    "address",
+	"event_mismatch":           "event",
+	"address_family_mixed":     "address",
 	"required_segment_missing": "segment",
-	"z_segment_unconfigured":  "z",
+	"z_segment_unconfigured":   "z",
 }
 
 // knownSegmentNames is the contract §6 段表白名单（∪ 显式 Z 段）。
@@ -151,32 +151,43 @@ func validateSession(cfg *core.HL7Config, sess core.HL7Session, si int) error {
 	if sess.AckMode != "" && sess.AckMode != "auto" && sess.AckMode != "null" && !isValidAckCodeOrObject(sess.AckMode) {
 		return fmt.Errorf("hl7: session[%d] ack_mode %q invalid (auto/null/AA/AE/AR) (ack)", si, sess.AckMode)
 	}
-	// D-HL7-1 裁定9①：控制 ID 分配与生成器同语义（显式钉值优先，否则
-	// MSG%04d 会话内递增）——判重在解析后集合上，显式与运行期分配撞号
-	// 同样拒绝（megaco U1 教训前置）。
+	// 契约 §6 动态值：会话级策略对象解析（未知 strategy/坏 range 即拒——
+	// 静默忽略未知键即 F11 级故障面）。
+	where := fmt.Sprintf("hl7: session[%d]", si)
+	st, err := newDynState(&sess, where)
+	if err != nil {
+		return err
+	}
+	// D-HL7-1 裁定9①：控制 ID 判重在解析后集合上——显式钉值、会话级
+	// 策略值与 MSG%04d 运行期分配同一空间（megaco U1 教训前置；resolve
+	// 为唯一解析权威，与生成器逐事件同序同值）。
 	seenCtrl := map[string]bool{}
-	ctrlSeq := 0
 	for ei := range sess.Events {
-		ev := &sess.Events[ei]
-		id := ev.ControlID
-		if id == "" {
-			ctrlSeq++
-			id = fmt.Sprintf("MSG%04d", ctrlSeq)
+		_, ctrlID, _ := st.resolve(&sess.Events[ei], "")
+		if len(ctrlID) > 20 {
+			return fmt.Errorf("%s event[%d] resolved control id %q exceeds 20-char MSH-10 bound (length)", where, ei, ctrlID)
 		}
-		if seenCtrl[id] {
-			return fmt.Errorf("hl7: session[%d].event[%d] duplicate control id %q within the session scope (msh)", si, ei, id)
+		if seenCtrl[ctrlID] {
+			return fmt.Errorf("%s event[%d] duplicate control id %q within the session scope (msh)", where, ei, ctrlID)
 		}
-		seenCtrl[id] = true
+		seenCtrl[ctrlID] = true
+	}
+	// framing_control_byte 自然面（终审 F3）：会话级 MSH 承载字段同扫
+	//（sending/receiving app/fac 上线入 MSH-3..6；Name 经 @name 可落线）。
+	for _, s := range []string{sess.SendingApp, sess.SendingFac, sess.ReceivingApp, sess.ReceivingFac, sess.Name} {
+		if strings.ContainsAny(s, "\x0b\x1c") {
+			return fmt.Errorf("%s carries an unescaped MLLP control byte in an MSH-bound field (escape or remove it) (mllp)", where)
+		}
 	}
 	for ei := range sess.Events {
-		if err := validateEvent(cfg, sess, &sess.Events[ei], si, ei); err != nil {
+		if err := validateEvent(cfg, sess, st, &sess.Events[ei], si, ei); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateEvent(cfg *core.HL7Config, sess core.HL7Session, ev *core.HL7Event, si, ei int) error {
+func validateEvent(cfg *core.HL7Config, sess core.HL7Session, st *dynState, ev *core.HL7Event, si, ei int) error {
 	where := fmt.Sprintf("hl7: session[%d].event[%d]", si, ei)
 	// direction check
 	if ev.Direction != "" && ev.Direction != "c2s" && ev.Direction != "s2c" {
@@ -185,6 +196,14 @@ func validateEvent(cfg *core.HL7Config, sess core.HL7Session, ev *core.HL7Event,
 	// kind check
 	if ev.Kind != "" && ev.Kind != "msg" {
 		return fmt.Errorf("%s kind %q invalid (msg)", where, ev.Kind)
+	}
+	// framing_control_byte 自然面（终审 F3）：事件级 MSH 承载键全扫
+	//（message_type/control_id/timestamp/msh8_security/msa3_text——此前
+	// 只扫 segments 字段，MSH-10 槽位 0x0B 实证落线）。
+	for i, s := range []string{ev.MessageType, ev.ControlID, ev.Timestamp, ev.MSH8Security, ev.MSA3Text} {
+		if strings.ContainsAny(s, "\x0b\x1c") {
+			return fmt.Errorf("%s MSH-bound field[%d] carries an unescaped MLLP control byte (escape or remove it) (mllp)", where, i)
+		}
 	}
 	// msh9_missing 自然面：message_type 必填（builder 由它渲染 MSH-9；
 	// 空值 = MSH-9 缺失故障的自然表达）。
@@ -224,32 +243,28 @@ func validateEvent(cfg *core.HL7Config, sess core.HL7Session, ev *core.HL7Event,
 	}
 	// segment checks
 	eventParts := strings.Split(ev.MessageType, "^")
-	for sgi, seg := range ev.Segments {
-		// segment_name_invalid 自然面：3 字符大写 ∧ ∈ 段表白名单 ∪ 显式 Z 段
-		//（D-3：Z 段未配 allow 标志即拒）。
-		if len(seg.Name) != 3 {
-			return fmt.Errorf("%s segment[%d] name %q invalid (must be 3 chars) (segment)", where, sgi, seg.Name)
+	for sgi := range ev.Segments {
+		if err := validateSegCommon(st, ev, &ev.Segments[sgi], where, sgi); err != nil {
+			return err
 		}
-		if !knownSegmentNames[seg.Name] && seg.Name != "MSH" {
-			if seg.Name[0] == 'Z' {
-				if !ev.AllowZSegments && !sess.AllowZSegments {
-					return fmt.Errorf("%s segment[%d] Z segment %q present but allow_z_segments is not set (z)", where, sgi, seg.Name)
-				}
-			} else {
-				return fmt.Errorf("%s segment[%d] name %q is not in the known segment table (segment)", where, sgi, seg.Name)
-			}
+	}
+	// 终审 F2：err_segments 过同一段门（段名表/Z 门/控制字节/转义/占位符）
+	// + len_msa2 自然面守卫（err_segments MSA-2 >20 即拒——处置表该值由
+	// 豁免行改判自然面守卫行：派生 MSA 传递论证只覆盖派生面，不覆盖此
+	// 自然面）。校验对象 = 实际渲染的两个来源：resolve 后 ack spec 内嵌
+	// err_segments（对象/字符串形，经 UnmarshalJSON 收敛为规范串）+ 事件级
+	// 结构体 ErrSegments。resolveAckSpec 与生成器同函数同优先级。
+	_, ackErrSegs := parseAckSpec(resolveAckSpec(cfg, sess, *ev))
+	errSegs := make([]core.HL7Segment, 0, len(ackErrSegs)+len(ev.ErrSegments))
+	errSegs = append(errSegs, ackErrSegs...)
+	errSegs = append(errSegs, ev.ErrSegments...)
+	for sgi := range errSegs {
+		if err := validateSegCommon(st, ev, &errSegs[sgi], where, sgi); err != nil {
+			return err
 		}
-		// framing_control_byte 自然面：字段值携带未转义控制字节 0x0B/0x1C
-		//（§3.3 正文控制字节必须转义——字符串字段直查字节）。
-		for fi, f := range seg.Fields {
-			if sv, ok := f.(string); ok && strings.ContainsAny(sv, "\x0b\x1c") {
-				return fmt.Errorf("%s segment[%d].field[%d] carries an unescaped MLLP control byte (escape or remove it) (mllp)", where, sgi, fi)
-			}
-			// escape_invalid 自然面：\X 序列十六进制须成对（§3.3）。
-			if sv, ok := f.(string); ok {
-				if bad := invalidHexEscape(sv); bad != "" {
-					return fmt.Errorf("%s segment[%d].field[%d] invalid escape sequence %q (\\X hex must come in pairs) (escape)", where, sgi, fi, bad)
-				}
+		if seg := errSegs[sgi]; seg.Name == "MSA" && len(seg.Fields) > 1 {
+			if sv, ok := seg.Fields[1].(string); ok && len(sv) > 20 {
+				return fmt.Errorf("%s err_segments[%d] MSA-2 length %d exceeds 20-char MSA-2 bound (length)", where, sgi, len(sv))
 			}
 		}
 	}
@@ -277,6 +292,49 @@ func validateEvent(cfg *core.HL7Config, sess core.HL7Session, ev *core.HL7Event,
 					return fmt.Errorf("%s structure %s requires segment %s which is missing (segment)", where, eventParts[2], name)
 				}
 			}
+		}
+	}
+	return nil
+}
+
+// validateSegCommon is the shared per-segment gate (终审 F2：请求段与
+// err_segments 一处一面)——MSH 拒（终审 F7：MSH 由 message_type/会话字段
+// 自动前置，用户自携即双渲染）、段名表/Z 门、控制字节、非法转义、占位符。
+func validateSegCommon(st *dynState, ev *core.HL7Event, seg *core.HL7Segment, where string, sgi int) error {
+	if seg.Name == "MSH" {
+		return fmt.Errorf("%s segment[%d] carries user-provided MSH — MSH is auto-prepended from message_type and session fields (msh)", where, sgi)
+	}
+	// segment_name_invalid 自然面：3 字符 ∧ ∈ 段表白名单 ∪ 显式 Z 段
+	//（D-3：Z 段未配 allow 标志即拒）。
+	if len(seg.Name) != 3 {
+		return fmt.Errorf("%s segment[%d] name %q invalid (must be 3 chars) (segment)", where, sgi, seg.Name)
+	}
+	if !knownSegmentNames[seg.Name] {
+		if seg.Name[0] == 'Z' {
+			if !ev.AllowZSegments && !st.sess.AllowZSegments {
+				return fmt.Errorf("%s segment[%d] Z segment %q present but allow_z_segments is not set (z)", where, sgi, seg.Name)
+			}
+		} else {
+			return fmt.Errorf("%s segment[%d] name %q is not in the known segment table (segment)", where, sgi, seg.Name)
+		}
+	}
+	for fi, f := range seg.Fields {
+		sv, ok := f.(string)
+		if !ok {
+			continue
+		}
+		// framing_control_byte 自然面：字段值携带未转义控制字节 0x0B/0x1C
+		//（§3.3 正文控制字节必须转义——字符串字段直查字节）。
+		if strings.ContainsAny(sv, "\x0b\x1c") {
+			return fmt.Errorf("%s segment[%d].field[%d] carries an unescaped MLLP control byte (escape or remove it) (mllp)", where, sgi, fi)
+		}
+		// escape_invalid 自然面：\X 序列十六进制须成对（§3.3）。
+		if bad := invalidHexEscape(sv); bad != "" {
+			return fmt.Errorf("%s segment[%d].field[%d] invalid escape sequence %q (\\X hex must come in pairs) (escape)", where, sgi, fi, bad)
+		}
+		// 契约 §6 占位符门（终审 F11）：未知占位/未备资源占位即拒。
+		if err := st.scanPlaceholders(where, sgi, fi, sv); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -325,8 +383,10 @@ func min(a, b int) int {
 // and the MSH-9 code domain (msh9_domain 自然面：XYZ 等未知码拒).
 func validateMessageType(msgType string) error {
 	parts := strings.Split(msgType, "^")
-	if len(parts) < 2 {
-		return fmt.Errorf("message_type %q must be code^event^structure (msh)", msgType)
+	// 契约 §6 Validate 行："消息类型 3 组件合法（§3.4）"——三组件全非空
+	//（2 组件 + 无 required_segment 结构键 = 裸 MSH 消息，终审 F6 探针实证）。
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
+		return fmt.Errorf("message_type %q must be 3-component code^event^structure (msh)", msgType)
 	}
 	code := parts[0]
 	if len(code) != 3 {

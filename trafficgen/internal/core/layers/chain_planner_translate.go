@@ -2028,16 +2028,20 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略
 		}
 		// D-HL7-1：层 config 八键经 JSON 往返解码为 core.HL7Config（同
-		// megaco 先例——json tag 忠实全字段；解码失败置空让 validator 报错）。
+		// megaco 先例——json tag 忠实全字段）。解码失败（畸形值/类型不符，
+		// 含 ack 对象形 coerce 失败）计入 ValidationErrors 走任务错误——
+		// 置空配置会被 validator 直通成默认流（终审 F1 的假成功面）。
 		cfg := completedConfig(s, term.Config)
 		raw, err := json.Marshal(cfg)
 		if err != nil {
-			spec.HL7 = &core.HL7Config{}
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("hl7 layer config encode: %v", err))
 			return
 		}
 		var hc core.HL7Config
 		if err := json.Unmarshal(raw, &hc); err != nil {
-			spec.HL7 = &core.HL7Config{}
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("hl7 layer config decode: %v", err))
 			return
 		}
 		spec.HL7 = &hc

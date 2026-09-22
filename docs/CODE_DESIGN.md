@@ -4099,7 +4099,7 @@ F1/F3/F4/F5/F6 五项闭合经独立复现确认（12 面探针/双向突变/8 �
 | §9 三源+整格 | 三源回指（HL7 章节/契约语义 ID/用例号）；wire_fault 33 值逐值单一注入；正交=消息类型×ack 模式×地址族×分隔符变体 | T-HL7 存量审计行 |
 | §10 评审闭环 | 改→审→测→修→再审；主线程相位自审 + 收官隔离终审（megaco 五轮链同流程）；测试四问 | T-HL7；门 3 抽查 |
 | §11 白话汇报 | 先一句结论；锚词/突变实录 | 每次汇报 |
-| §12 动态清单 | 四元组：ip 层 src/dst + tcp 层 src_port/dst_port + 会话级覆盖；业务动态：`control_id`（MSH-10 inc/rand 策略对象）、`timestamp`（MSH-7 epoch→UTC 定宽 14 位）、`patient_id`（PID-3）——序号算法=P4 落码处（策略对象经框架 dyn 解析，序号=会话内事件序）；断言 presence/nonzero/distinct_values/same_as_packet | 契约 §6 动态对象；§12 表 |
+| §12 动态清单 | 四元组：ip 层 src/dst + tcp 层 src_port/dst_port + 会话级覆盖；业务动态：`control_id`（MSH-10 inc/rand 策略对象）、`timestamp`（MSH-7 策略值定宽渲染）、`patient_id`（PID-3 @pid）——序号算法=protocol/hl7/dynamic.go newDynState/resolve（validator 判重与生成器渲染唯一解析权威，会话内事件序；终审 F11 落地，修轮红例⑫）；断言 presence/nonzero/distinct | 契约 §6 动态对象；§12 表；dynamic.go；用例 hl7_control_id_inc_strategy（真策略形） |
 | §13 schema 同步 | registry 新增 hl7 行 → schemagen 重跑提交（115→116）+ freshness 五面比对（megaco 先例） | `layers.generated.json` |
 | §14 真实流程 | cases 即任务 spec；MCP 建任务→引擎→tshark（hl7 dissector 绑 2575；非默认端口 `-d` DecodeAs）；负例带锚词 task error；全量绿；pcap 落盘 | 契约 §2/§3.9；门 2 |
 
@@ -4115,7 +4115,7 @@ F1/F3/F4/F5/F6 五项闭合经独立复现确认（12 面探针/双向突变/8 �
 - **裁定5 确认模式**：原确认模式单级 ACK（MSA-1∈AA/AE/AR）；增强模式（MSH-15/16 两级确认）显式不展开；ack 配置三级回退 事件级>会话级>配置级，`null`=无响应。
 - **裁定6 Z 段**：显式声明（events.segments 配置）即透传放行；未声明的 Z 段拒绝（`z_segment_unconfigured`）。
 - **裁定7 必需段集**：ADT^A01/A02/A03 必需 EVN+PID+PV1、ORU^R01 必需 OBR、SIU^S12 必需 SCH+AIS，缺失拒（`required_segment_missing`）；EVN-1 与 MSH-9 触发事件一致（`event_mismatch`）。
-- **裁定8 动态值**：control_id/timestamp/patient_id 策略对象（§12 面）——B6 用 `parseSubconfigJSON` 策略对象直挂；层链路径经 translate 进 spec.HL7，动态解析沿框架 dyn 面；控制 ID 会话内唯一（validator 判重）。
+- **裁定8 动态值**：control_id/timestamp/patient_id 策略对象（§12 面）——层链路径 HL7Session.ControlID/Timestamp/PatientID（RawMessage）经 protocol/hl7/dynamic.go 解析（inc 区间回绕、rand 定种子），validator 判重与生成器渲染同源 resolve；@ts/@pid/@cid/@name 占位符经 renderCtx.subs 替换，未知 strategy/未知占位/未备资源占位即拒（终审 F11 落地；B6 parseSubconfigJSON 思路仅参考）。
 - **裁定9 megaco 教训前置**：①id/序号类解析一处一面共用（hl7 面=控制 ID 分配器 validator/生成器同源）；②长度类拒绝住 Validate 同步面（消息长度公式 §3.6 可复算→validator 同步面算长度）；③红例断言钉非缺省可辨识值；④schemagen 重跑 + freshness 五面比对随 registry 变更强制。
 - **回滚**：提交次序=代码接入→suite/gate→文档；单提交粒度可摘。
 
@@ -4145,7 +4145,7 @@ F1/F3/F4/F5/F6 五项闭合经独立复现确认（12 面探针/双向突变/8 �
 | len_msh10 | length | control_id 显式钉值 >20 | validateEvent 上界 |
 | len_msh12 | length | 事件级 version >60 | validateEvent 上界 |
 | len_msh7 | length | timestamp 钉值 >26 | validateEvent 上界 |
-| len_msa2 | length | （传递守卫：MSA-2 回显 MSH-10，>20 蕴含 MSH-10 越界已拒） | len_msh10 守卫传递 |
+| len_msa2 | length | err_segments 中 MSA 段 MSA-2 >20（终审 F2：传递论证被 err_segments 自然面证伪，补真实守卫） | validateEvent errSegs 门；修轮红例⑦ |
 | ack_code_invalid | ack | ack/ack_mode 码 ∉ {AA,AE,AR} | isValidAckCodeOrObject |
 | carrier_udp | carrier | 层链含 udp 层（契约 §7 指定故障输入=udp 载体链本身） | complete.go 补全面 + BuildLayersPlanner/ValidateSpec 预检；cases 即自然面负例 |
 | port_invalid | port | tcp 层显式 dst_port=0 或不可解析（65536） | chain 块 |
@@ -4154,7 +4154,7 @@ F1/F3/F4/F5/F6 五项闭合经独立复现确认（12 面探针/双向突变/8 �
 | event_mismatch | event | EVN-1 ≠ MSH-9 触发事件 | validateEvent；红例⑩ |
 | z_segment_unconfigured | z | Z 段存在且无 allow_z_segments | validateEvent；红例⑪ |
 | segment_name_invalid | segment | 段名非 3 字符 ∉ 段表白名单 ∪ 显式 Z 段 | validateEvent |
-| framing_control_byte | mllp | 字段值携带未转义 0x0B/0x1C | validateEvent 字节扫描 |
+| framing_control_byte | mllp | 字段值/MSH 承载键（message_type/control_id/timestamp/msh8_security/msa3_text/会话 app-fac/Name）携带未转义 0x0B/0x1C（终审 F3：扫描提到事件级+会话级） | validateSegCommon + validateEvent/Session 全键扫描；修轮红例⑧ |
 | （控制 ID 会话内判重——megaco U1 前置，非 33 值映射行） | msh | 显式钉值与运行期分配撞号 | validateSession seenCtrl；红例⑫ |
 
 **书面豁免（13 值，wire_fault-only）：**
@@ -4167,7 +4167,7 @@ F1/F3/F4/F5/F6 五项闭合经独立复现确认（12 面探针/双向突变/8 �
 | segment_first_not_msh | msh | builder 由 message_type 自动前置 MSH——"首段非 MSH"不可构造 |
 | segment_no_cr | segment | buildSegment 恒补 CR 终止 |
 | segment_after_eob | segment | 帧闭合由 buildMLLPFrame 单点负责，EOB 后无追加路径 |
-| separator_mismatch | separator | 正文与 MSH-2 同源于 resolveSeparators，配置面不可拆 |
+| separator_mismatch | separator | 正文与 MSH-2 同源于 resolveSeparators；组件/子组件连接亦取声明 ec[0]/ec[3]（终审 F4 修复后组件维度同源成立） |
 | msh10_missing | msh | 控制 ID 显式钉值或 MSG%04d 自动分配，恒非空 |
 | msh11_missing | msh | processing_id 缺省 P，恒非空 |
 | msh12_missing | msh | version 缺省 2.5，恒非空 |
@@ -4183,3 +4183,21 @@ F1/F3/F4/F5/F6 五项闭合经独立复现确认（12 面探针/双向突变/8 �
 1. **裁定2 载体双拒**：complete.go 补全面 tcp-only 分支（锚 carrier）+ validate_layers.go 预检 ↔ 红例⑥ TestHL7Chain_CarrierContract ↔ 用例 hl7_neg_carrier_udp（自然面：层链 [udp,hl7] 即故障输入）。
 2. **裁定7 必需段集 + 一致性**：planner.go requiredSegmentsByStructure + EVN-1↔MSH-9 守卫 ↔ 红例⑨⑩ ↔ 用例 hl7_neg_required_segment_missing / hl7_neg_event_mismatch（锚 segment/event）。
 3. **裁定5 ack 配对**：builder buildACKSegments（MSA-2=请求 MSH-10）+ planner isValidAckCodeOrObject ↔ 红例⑧ TestHL7Chain_AckPairing（线面 MSA-2 回显断言）↔ 用例 hl7_neg_ack_msa2_mismatch（锚 ack）。
+
+### 终审与修轮（隔离终审 PASS-WITH-FINDINGS → 修轮收口，2026-09-23）
+
+隔离终审（fresh-context，/tmp/hl7-final/review.md）：主体面全数复核为真（33 值闭环、95 例、线格式字节级、ACK 派生、门禁数字），列 F1-F11。修轮逐项处置：
+
+- **F1 [HIGH] ack/ack_mode 对象形静默丢弃**：落实现——core.HL7Config/HL7Session/HL7Event 自定义 UnmarshalJSON 经 coerceAckJSON 收敛对象形为规范串（parseAckSpec 消费面不变）；translate 解码失败计入 spec.ValidationErrors（不再置空配置直通默认流假成功）。红例⑮（对象形整配置落线 + ERR 段渲染）。
+- **F2 err_segments 绕过校验**：validateSegCommon 一处一面（请求段与 err_segments 同门：段名表/Z 门/控制字节/转义/占位符）；校验对象=resolve 后 ack spec 内嵌 err_segments（resolveAckSpec 与生成器同函数同优先级）∪ 事件级 ErrSegments；len_msa2 补真实守卫（err_segments MSA-2>20 拒），处置表由"传递守卫"改判自然面守卫行。红例⑦。
+- **F3 控制字节扫描不完整**：扫描提到事件级（message_type/control_id/timestamp/msh8_security/msa3_text）+ 会话级（app/fac 四件 + Name——@name 可落线）。红例⑧。
+- **F4 组件连接符硬编码 "^"**：renderFieldValue 按 depth 取声明 ec[0]/ec[3]；separator_mismatch 豁免行组件维度同源成立；#49 PID-3 转组件数组 + 钉 MSH-2 槽 40 7E 5C 21@59 与组件分隔字节 40@161。红例⑨。
+- **F5 ack 串内 err_segments 被弃**：renderACK 合流 parseAckSpec 第二返回值与 ev.ErrSegments。红例⑥。
+- **F6 两组件 message_type 放行**：validateMessageType 收紧为 3 组件全非空（契约 §6 Validate 行）。红例⑩（95 例零 2 组件，收紧不破例）。
+- **F7 用户自携 MSH 双渲染**：validateSegCommon 首门拒（MSH 由 message_type/会话字段自动前置）。红例⑪（95 例零用户 MSH）。
+- **F8 builder.go 859 行死代码**：全仓零引用核实后删除（EscapeHL7 语义与契约相反，复用即违约）。
+- **F9 用例断言补钉**：#27 decode_as `-d tcp.port==2675,hl7`+帧钉+hl7.message.type；#22 双帧 SOB/EOB 钉（54/243、54/204）+tcp.stream 同流断言；#33 方向对调断言（该例命题本身）；#49 MSH-2 槽+组件分隔字节钉；#9 ACK 帧 EOB@136+tcp.len=84；#67 error_contains 改主锚 msh。
+- **F10 core/hl7.go 注释旧枚举名**：改契约现名（framing_*/carrier_no_tcp）。
+- **F11 [MED] §6 动态值机制未实现**：落实现——HL7Session 增 Name/control_id/timestamp/patient_id（RawMessage）；protocol/hl7/dynamic.go 唯一解析权威（newDynState/resolve，validator 判重与生成器渲染同源——megaco U1/U2 教训）；inc 区间回绕、rand 定种子确定序；@ts/@pid/@cid/@name 占位符 renderCtx.subs 替换；未知 strategy/坏 range/未知占位/@pid 无策略/@name 无会话名即拒；裁定8/门1 §12 声明与实现对齐；#62 转真策略形（control_id {inc,[1000,1099],1}，|1000|/|1001|/|1002| 钉值不变）。红例⑫⑬。
+
+修轮验证：链例 23 绿（14 原 + 9 新）；suite 95/95 ×2（修轮二进制重编重启后）；pipe_gate 静态四项绿；coverage_gate 29/29；-race（core/layers/schema/megaco）净；schemagen 重跑零漂移；在库清空回基线 4411/993（hl7 残留 0，删前 248/52 报数、备份 bak-hl7fix）。修轮提交后回注隔离复审同代理核验（round 2）。

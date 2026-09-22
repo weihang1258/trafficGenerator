@@ -24,7 +24,7 @@ Cases: 95 — pass 95, fail 0, error 0
 | hl7_component_subcomponent | Component ^ and subcomponent & (PID-5 XPN, OBR-2 EI) | pass | 9 | [pcap](hl7/hl7_component_subcomponent.pcap) |
 | hl7_concurrent_sessions | Concurrent sessions: round-robin event replay | pass | 18 | [pcap](hl7/hl7_concurrent_sessions.pcap) |
 | hl7_control_id_inc_strategy | control_id inc strategy: 1000/1001/1002 across messages | pass | 13 | [pcap](hl7/hl7_control_id_inc_strategy.pcap) |
-| hl7_custom_encoding_chars | Custom encoding_chars '@~\!' reflected in MSH-2 | pass | 9 | [pcap](hl7/hl7_custom_encoding_chars.pcap) |
+| hl7_custom_encoding_chars | Custom encoding_chars '@~\!': MSH-2 slot + component join via declared ec[0] | pass | 9 | [pcap](hl7/hl7_custom_encoding_chars.pcap) |
 | hl7_custom_field_separator | Custom field_separator '#' reflected in MSH-1 | pass | 9 | [pcap](hl7/hl7_custom_field_separator.pcap) |
 | hl7_err_fields | ERR segment fields: position/code/severity/local | pass | 9 | [pcap](hl7/hl7_err_fields.pcap) |
 | hl7_escape_e | Escape \E\: literal escape character | pass | 9 | [pcap](hl7/hl7_escape_e.pcap) |
@@ -96,6 +96,6 @@ Cases: 95 — pass 95, fail 0, error 0
 | hl7_s2c_receiver_role | s2c direction with role=receiver | pass | 9 | [pcap](hl7/hl7_s2c_receiver_role.pcap) |
 | hl7_set_id_fields | Set ID fields: PID-1/PV1-1 = 1 | pass | 9 | [pcap](hl7/hl7_set_id_fields.pcap) |
 | hl7_siu_s12_appointment | SIU^S12: SCH/AIS segments | pass | 9 | [pcap](hl7/hl7_siu_s12_appointment.pcap) |
-| hl7_tcp_mss_reassembly | TCP MSS reassembly: long ORU spans 2 segments | pass | 10 | [pcap](hl7/hl7_tcp_mss_reassembly.pcap) |
+| hl7_tcp_mss_reassembly | TCP reassembly: ORU + ADT MLLP frames across 2 data segments (one frame per segment, same tcp.stream) | pass | 10 | [pcap](hl7/hl7_tcp_mss_reassembly.pcap) |
 | hl7_version_profiles | MSH-12 version values 2.5/2.8 + MSH-11 P/T | pass | 11 | [pcap](hl7/hl7_version_profiles.pcap) |
 | hl7_z_segment_passthrough | Z segment passthrough with allow_z_segments flag | pass | 9 | [pcap](hl7/hl7_z_segment_passthrough.pcap) |

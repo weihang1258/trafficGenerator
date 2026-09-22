@@ -511,3 +511,383 @@ func TestHL7Chain_NaturalFaceGuards(t *testing.T) {
 		t.Fatalf("malformed \\X escape must be rejected with escape anchor, got %v", err)
 	}
 }
+
+// ---- 修轮（终审 F1-F11）红例：先红后绿 ----
+
+// 红例⑮【终审 F1 HIGH】：ack 对象形（契约 §5.2/§6 认可形状）必须翻译落线
+// ——不得整配置静默丢弃回退默认流（探针实证的假成功面）。
+func TestHL7Chain_AckObjectFormTranslates(t *testing.T) {
+	raw := hl7Chain(t, map[string]interface{}{
+		"sessions": []interface{}{
+			map[string]interface{}{
+				"role": "sender", "sending_app": "MARKERACK1", "sending_fac": "GH",
+				"receiving_app": "RIS", "receiving_fac": "GH",
+				"events": []interface{}{
+					map[string]interface{}{
+						"kind": "msg", "direction": "c2s", "message_type": "ADT^A01^ADT_A01",
+						"segments": []interface{}{
+							map[string]interface{}{"name": "EVN", "fields": []interface{}{"A01"}},
+							map[string]interface{}{"name": "PID", "fields": []interface{}{"1"}},
+							map[string]interface{}{"name": "PV1", "fields": []interface{}{"1", "I"}},
+						},
+						"ack": map[string]interface{}{
+							"code":         "AE",
+							"err_segments": []interface{}{map[string]interface{}{"name": "ERR", "fields": []interface{}{"207"}}},
+						},
+					},
+				},
+			},
+		},
+	})
+	p, err := layers.BuildLayersPlanner("hl7", raw)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	if err := p.Validate(hl7Spec()); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), hl7Spec())
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var body string
+	for pkt := range ch {
+		body += string(pkt.Payload)
+	}
+	if !strings.Contains(body, "MARKERACK1") {
+		t.Fatalf("session config silently dropped (ack object form must translate, not fall back to default stream): %q", body[:min(200, len(body))])
+	}
+	if !strings.Contains(body, "MSA|AE") || !strings.Contains(body, "ERR|207") {
+		t.Fatalf("ack object {code,err_segments} must render MSA|AE + ERR segment: %q", body)
+	}
+}
+
+// 红例⑯【终审 F5】：ack 字符串对象形里的 err_segments 必须落线（此前被
+// parseAckSpec 第二返回值静默丢弃）。
+func TestHL7Chain_AckStringErrSegmentsRender(t *testing.T) {
+	raw := hl7Chain(t, map[string]interface{}{
+		"sessions": []interface{}{
+			map[string]interface{}{
+				"role": "sender", "sending_app": "MARKERACK2",
+				"events": []interface{}{
+					map[string]interface{}{
+						"kind": "msg", "direction": "c2s", "message_type": "ADT^A01^ADT_A01",
+						"segments": []interface{}{
+							map[string]interface{}{"name": "EVN", "fields": []interface{}{"A01"}},
+							map[string]interface{}{"name": "PID", "fields": []interface{}{"1"}},
+							map[string]interface{}{"name": "PV1", "fields": []interface{}{"1", "I"}},
+						},
+						"ack": `{"code":"AE","err_segments":[{"name":"ERR","fields":["208"]}]}`,
+					},
+				},
+			},
+		},
+	})
+	p, err := layers.BuildLayersPlanner("hl7", raw)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), hl7Spec())
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var body string
+	for pkt := range ch {
+		body += string(pkt.Payload)
+	}
+	if !strings.Contains(body, "ERR|208") {
+		t.Fatalf("ack string-form err_segments must render ERR segment on the wire: %q", body)
+	}
+}
+
+// 红例⑰【终审 F2】：err_segments 过同一段门——超长 MSA-2（len_msa2 自然面）
+// 与非法段名（segment_name_invalid 自然面）均拒。
+func TestHL7Chain_ErrSegmentsValidated(t *testing.T) {
+	mkev := func(errSegs []interface{}) map[string]interface{} {
+		return map[string]interface{}{
+			"kind": "msg", "direction": "c2s", "message_type": "ADT^A01^ADT_A01",
+			"segments": []interface{}{
+				map[string]interface{}{"name": "EVN", "fields": []interface{}{"A01"}},
+				map[string]interface{}{"name": "PID", "fields": []interface{}{"1"}},
+				map[string]interface{}{"name": "PV1", "fields": []interface{}{"1", "I"}},
+			},
+			"ack": map[string]interface{}{"code": "AE", "err_segments": errSegs},
+		}
+	}
+	raw := hl7Chain(t, map[string]interface{}{
+		"sessions": []interface{}{map[string]interface{}{"role": "sender", "events": []interface{}{
+			mkev([]interface{}{map[string]interface{}{"name": "MSA", "fields": []interface{}{"AE", "MSA2_OVER_TWENTY_CHARS_XX"}}}),
+		}}},
+	})
+	p, err := layers.BuildLayersPlanner("hl7", raw)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	if err := p.Validate(hl7Spec()); err == nil || !strings.Contains(err.Error(), "length") {
+		t.Fatalf("err_segments MSA-2 >20 must be rejected with length anchor, got %v", err)
+	}
+	raw2 := hl7Chain(t, map[string]interface{}{
+		"sessions": []interface{}{map[string]interface{}{"role": "sender", "events": []interface{}{
+			mkev([]interface{}{map[string]interface{}{"name": "AB", "fields": []interface{}{"x"}}}),
+		}}},
+	})
+	p2, err := layers.BuildLayersPlanner("hl7", raw2)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	if err := p2.Validate(hl7Spec()); err == nil || !strings.Contains(err.Error(), "segment") {
+		t.Fatalf("err_segments 2-char name must be rejected with segment anchor, got %v", err)
+	}
+}
+
+// 红例⑱【终审 F3】：控制字节扫描提到事件级 MSH 承载键——control_id 带
+// 0x0B 即拒（此前只扫 segments 字段）。
+func TestHL7Chain_ControlByteScanEventLevel(t *testing.T) {
+	mkev := func() map[string]interface{} {
+		return map[string]interface{}{
+			"kind": "msg", "direction": "c2s", "message_type": "ADT^A01^ADT_A01",
+			"control_id": "A\x0bB",
+			"segments": []interface{}{
+				map[string]interface{}{"name": "EVN", "fields": []interface{}{"A01"}},
+				map[string]interface{}{"name": "PID", "fields": []interface{}{"1"}},
+				map[string]interface{}{"name": "PV1", "fields": []interface{}{"1", "I"}},
+			},
+			"ack": "auto",
+		}
+	}
+	raw := hl7Chain(t, map[string]interface{}{
+		"sessions": []interface{}{map[string]interface{}{"role": "sender", "events": []interface{}{mkev()}}},
+	})
+	p, err := layers.BuildLayersPlanner("hl7", raw)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	if err := p.Validate(hl7Spec()); err == nil || !strings.Contains(err.Error(), "mllp") {
+		t.Fatalf("control byte in control_id must be rejected with mllp anchor, got %v", err)
+	}
+}
+
+// 红例⑲【终审 F4】：组件连接符取自 encoding_chars 声明——自定义 ec 下
+// 组件数组用 ec[0] 连接（此前硬编码 "^" 与 MSH-2 声明失配）。
+func TestHL7Chain_ComponentSeparatorFromEncoding(t *testing.T) {
+	raw := hl7Chain(t, map[string]interface{}{
+		"encoding_chars": "@~\\&",
+		"sessions": []interface{}{
+			map[string]interface{}{
+				"role": "sender", "sending_app": "MARKEREC1",
+				"events": []interface{}{
+					map[string]interface{}{
+						"kind": "msg", "direction": "c2s", "message_type": "ADT^A01^ADT_A01",
+						"segments": []interface{}{
+							map[string]interface{}{"name": "EVN", "fields": []interface{}{"A01"}},
+							map[string]interface{}{"name": "PID", "fields": []interface{}{"1", "", []interface{}{"PAT1", "HOSP", "MR"}}},
+							map[string]interface{}{"name": "PV1", "fields": []interface{}{"1", "I"}},
+						},
+						"ack": "auto",
+					},
+				},
+			},
+		},
+	})
+	p, err := layers.BuildLayersPlanner("hl7", raw)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), hl7Spec())
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var body string
+	for pkt := range ch {
+		body += string(pkt.Payload)
+	}
+	if !strings.Contains(body, "PAT1@HOSP@MR") {
+		t.Fatalf("component array must join with declared ec[0]='@' (got body): %q", body)
+	}
+	if strings.Contains(body, "PAT1^HOSP") {
+		t.Fatalf("component join must not use hardcoded ^ under custom encoding_chars: %q", body)
+	}
+}
+
+// 红例⑳【终审 F6】：两组件 message_type 拒——契约 §6 "消息类型 3 组件
+// 合法（§3.4）"，2 组件 + 无必需段 = 裸 MSH 消息（探针实证放行）。
+func TestHL7Chain_MessageTypeThreeComponents(t *testing.T) {
+	raw := hl7Chain(t, map[string]interface{}{
+		"sessions": []interface{}{map[string]interface{}{"role": "sender", "events": []interface{}{
+			map[string]interface{}{
+				"kind": "msg", "direction": "c2s", "message_type": "ADT^A01",
+				"segments": []interface{}{
+					map[string]interface{}{"name": "EVN", "fields": []interface{}{"A01"}},
+					map[string]interface{}{"name": "PID", "fields": []interface{}{"1"}},
+					map[string]interface{}{"name": "PV1", "fields": []interface{}{"1", "I"}},
+				},
+				"ack": "auto",
+			},
+		}}},
+	})
+	p, err := layers.BuildLayersPlanner("hl7", raw)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	if err := p.Validate(hl7Spec()); err == nil || !strings.Contains(err.Error(), "msh") {
+		t.Fatalf("2-component message_type must be rejected with msh anchor, got %v", err)
+	}
+}
+
+// 红例㉑【终审 F7】：用户自携 MSH 段拒——MSH 由 message_type/会话字段
+// 自动前置，用户 MSH 即双渲染（探针实证静默双渲染）。
+func TestHL7Chain_UserMSHRejected(t *testing.T) {
+	raw := hl7Chain(t, map[string]interface{}{
+		"sessions": []interface{}{map[string]interface{}{"role": "sender", "events": []interface{}{
+			map[string]interface{}{
+				"kind": "msg", "direction": "c2s", "message_type": "ADT^A01^ADT_A01",
+				"segments": []interface{}{
+					map[string]interface{}{"name": "MSH", "fields": []interface{}{"HIS", "GH"}},
+					map[string]interface{}{"name": "EVN", "fields": []interface{}{"A01"}},
+					map[string]interface{}{"name": "PID", "fields": []interface{}{"1"}},
+					map[string]interface{}{"name": "PV1", "fields": []interface{}{"1", "I"}},
+				},
+				"ack": "auto",
+			},
+		}}},
+	})
+	p, err := layers.BuildLayersPlanner("hl7", raw)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	if err := p.Validate(hl7Spec()); err == nil || !strings.Contains(err.Error(), "msh") {
+		t.Fatalf("user-provided MSH segment must be rejected with msh anchor, got %v", err)
+	}
+}
+
+// 红例㉒【终审 F11】：会话级策略对象 + @ts/@pid 占位符落线——inc 控制 ID
+// 逐事件递增（testcase #62 语义）、占位符策略替换不得原样落字面。
+func TestHL7Chain_DynamicStrategyRenders(t *testing.T) {
+	raw := hl7Chain(t, map[string]interface{}{
+		"sessions": []interface{}{
+			map[string]interface{}{
+				"role": "sender", "sending_app": "MARKERDYN1", "name": "dyn-sess",
+				"control_id": map[string]interface{}{"strategy": "inc", "range": []interface{}{1000, 1099}, "step": 1},
+				"timestamp":  map[string]interface{}{"strategy": "rand", "range": []interface{}{1725081600, 1725085200}, "seed": 68},
+				"patient_id": map[string]interface{}{"strategy": "inc", "range": []interface{}{100000, 999999}, "step": 1},
+				"events": []interface{}{
+					map[string]interface{}{
+						"kind": "msg", "direction": "c2s", "message_type": "ADT^A01^ADT_A01",
+						"segments": []interface{}{
+							map[string]interface{}{"name": "EVN", "fields": []interface{}{"A01", "@ts"}},
+							map[string]interface{}{"name": "PID", "fields": []interface{}{"1", "", "@pid^^^HOSP^MR"}},
+							map[string]interface{}{"name": "PV1", "fields": []interface{}{"1", "I"}},
+						},
+						"ack": "auto",
+					},
+					map[string]interface{}{
+						"kind": "msg", "direction": "c2s", "message_type": "ORU^R01^ORU_R01",
+						"segments": []interface{}{
+							map[string]interface{}{"name": "OBR", "fields": []interface{}{"1"}},
+						},
+						"ack": "auto",
+					},
+				},
+			},
+		},
+	})
+	p, err := layers.BuildLayersPlanner("hl7", raw)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	if err := p.Validate(hl7Spec()); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), hl7Spec())
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var ctrlIDs []string
+	var body string
+	for pkt := range ch {
+		s := string(pkt.Payload)
+		body += s
+		for _, line := range strings.Split(s, "\r") {
+			line = strings.TrimPrefix(line, "\v")
+			if strings.HasPrefix(line, "MSH|") {
+				f := strings.Split(line, "|")
+				// 只收请求帧 MSH-10（派生 ACK 的 ACK%04d 独立空间）。
+				if len(f) > 9 && len(f) > 8 && !strings.HasPrefix(f[8], "ACK^") {
+					ctrlIDs = append(ctrlIDs, f[9])
+				}
+			}
+		}
+	}
+	if len(ctrlIDs) < 2 || ctrlIDs[0] != "1000" || ctrlIDs[1] != "1001" {
+		t.Fatalf("inc control_id strategy must render 1000,1001 (got %v, body %.200q)", ctrlIDs, body)
+	}
+	if strings.Contains(body, "@ts") || strings.Contains(body, "@pid") {
+		t.Fatalf("placeholders must be substituted, not land literally: %q", body)
+	}
+	if !strings.Contains(body, "100000^^^HOSP^MR") {
+		t.Fatalf("@pid must substitute first patient_id strategy value: %q", body)
+	}
+	if !strings.Contains(body, "MARKERDYN1") {
+		t.Fatalf("session config dropped: %q", body)
+	}
+}
+
+// 红例㉓【终审 F11】：动态配置面拒——未知 strategy / 未知占位符 /
+// 未备资源的 @pid/@name 均拒（静默字面量 = F11 级故障面）。
+func TestHL7Chain_DynamicValidation(t *testing.T) {
+	mk := func(sessExtra map[string]interface{}, fields []interface{}) []byte {
+		sess := map[string]interface{}{
+			"role": "sender",
+			"events": []interface{}{
+				map[string]interface{}{
+					"kind": "msg", "direction": "c2s", "message_type": "ADT^A01^ADT_A01",
+					"segments": []interface{}{
+						map[string]interface{}{"name": "EVN", "fields": []interface{}{"A01"}},
+						map[string]interface{}{"name": "PID", "fields": fields},
+						map[string]interface{}{"name": "PV1", "fields": []interface{}{"1", "I"}},
+					},
+					"ack": "auto",
+				},
+			},
+		}
+		for k, v := range sessExtra {
+			sess[k] = v
+		}
+		raw, _ := json.Marshal(hl7Chain(t, map[string]interface{}{"sessions": []interface{}{sess}}))
+		return raw
+	}
+	// 未知 strategy。
+	p, err := layers.BuildLayersPlanner("hl7", mk(map[string]interface{}{
+		"control_id": map[string]interface{}{"strategy": "uuid"},
+	}, []interface{}{"1"}))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	if err := p.Validate(hl7Spec()); err == nil || !strings.Contains(err.Error(), "strategy") {
+		t.Fatalf("unknown strategy must be rejected, got %v", err)
+	}
+	// 未知占位符。
+	p2, err := layers.BuildLayersPlanner("hl7", mk(nil, []interface{}{"@nope"}))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	if err := p2.Validate(hl7Spec()); err == nil || !strings.Contains(err.Error(), "placeholder") {
+		t.Fatalf("unknown placeholder must be rejected, got %v", err)
+	}
+	// @pid 无会话级 patient_id 策略。
+	p3, err := layers.BuildLayersPlanner("hl7", mk(nil, []interface{}{"@pid"}))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	if err := p3.Validate(hl7Spec()); err == nil || !strings.Contains(err.Error(), "@pid") {
+		t.Fatalf("@pid without patient_id strategy must be rejected, got %v", err)
+	}
+	// @name 无会话名。
+	p4, err := layers.BuildLayersPlanner("hl7", mk(nil, []interface{}{"@name"}))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	if err := p4.Validate(hl7Spec()); err == nil || !strings.Contains(err.Error(), "@name") {
+		t.Fatalf("@name without session name must be rejected, got %v", err)
+	}
+}
