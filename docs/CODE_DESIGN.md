@@ -3505,7 +3505,7 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 
 **P6 收官结论（白话一句）：** jt809 线层重建后信封/头/体/校验/转义全对齐 JT/T 809-2019 权威实现（金向量逐字节），16 型链路管理族双 TCP 真子流可编排可校验，13 例 ×2 全绿、反查 30/30、门 2 四项绿、在库清零对账平。
 
-## D-JTT905-1 jtt905 层链收敛（#31，P1+P2 定稿 2026-09-22；裁定=体面重建+线面复用）
+## D-JTT905-1 jtt905 层链收敛（#31，2026-09-22 已验收：fb7f923 P4 / de31eb7 P5 / P6 清库+门表，裁定=体面重建+线面复用）
 
 ### P1 规范矩阵（JT/T 905.2-2014 反推，三源：SmallChi/JT905 源码+README 金向量（独立核算过）+标准目录结构；在库需求面=2 probe 策略（flat 80 端口，msg_id 0x0001）+9 任务）
 
@@ -3563,3 +3563,29 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 | T-11 | 负例 plate 7 ASCII | 锚词 `PlateNo length 7 > 6` |
 | T-12 | 负例 result=3 | 锚词 `Result 3 > 2` |
 | T-13 | 负例 uptime 位数错 | 锚词 `Uptime`（BCD 位数锚） |
+
+### 门 1 开工对照表（§1–§14，2026-09-22 jtt905 P6 回填，证据=文档节/代码行/用例号）
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 顶层旧键不存在（probe 面 dst_port=80 即被 case "jtt905" 10700 先补取代——probe 已清库）；顶层 jtt905 子映射 presence 判死=rawWrapChains 第 11 协议；目标形 `{"layers":[{"ip":{"src","dst"}},{"jtt905":{"isu_id":"103456789012","procedures":[…]}}]}`；端口=10700 内部缺省+mapToFlowSpec case 先补 | SC rawWrapChains+case；cases/jtt905.json 12 例；pipe_gate 门2-1 绿 |
+| §2 策略/任务分工 | 沿框架语义不另设；在库 2 probe 策略+9 任务清库对账（694→692/240491→240482，备份 jtt905-purge-20260922.db） | P6 清库记录 |
+| §3 五件套 | 单流协议写豁免+内层委托：无子流派生/sessions；事务序=procedures 顺序（签到→应答→心跳→应答→签退→应答）；时间线=顺序（门1 §3 行五件齐全） | `jtt905.go` PlanWithConfig；T-1 12 帧全序 |
+| §4 规范矩阵 | JT/T 905.2-2014 反推八项三源；jt809 裁定2 预设勘误（线面属 808 族）入 D- P1 表 | D-JTT905-1 P1 矩阵 |
+| §5 有错必处理 | ValidateConfig 全锚（isu/plate/license/qual/result/BCD 位数族）+ParseFrame 负路径（XOR/DataLength 自洽/定界）+Plan 硬错 | `jtt905.go`；`parser.go`；T-10…13；TestParseFrame_Negative |
+| §6 性能 | channel 256 流式；包数=3+(1+Σresp)+3；pcap 路验收（网卡未跑如实） | D- 性能行 |
+| §7 三份文档 | 设计=D-JTT905-1；用例=T-JTT905-1…13；cases 回指编号 | 三文档 |
+| §8 先设计后代码 | P2 定稿（D- 追加随 fb7f923）先于用例（de31eb7） | git 历史 |
+| §9 三源+整格 | 金向量单测（外部权威 0x0200 例）+T-2/T-3/T-5 全格钉 | jtt905_test 金向量锚 |
+| §10 评审闭环 | 自审轮次：builder/parser/jtt905 重建后全量自查（result 校验域错/DataLength 负例补 XOR 面两处即改）+隔离对抗复审=收官独立轮 | P4 记录；复审轮 |
+| §11 白话汇报 | 先一句结论再证据 | 各阶段汇报 |
+| §12 动态清单 | 四元组=框架白名单；双流水号（ISU/中心）=InitialSN/PlatformInitialSN 起点；业务键静态单值如实注记（无动态消费面） | 门1 §12 行；`jtt905.go` 双计数器 |
+| §13 schema 同步 | registry 25 Fields → schemagen 重生成 112 层 | generated/layers.generated.json（fb7f923） |
+| §14 真实流程 | MCP 建→引擎生成→tshark 校对；12/12 ×2；负例带锚词；钉从落盘 pcap | T-JTT905-1…13；suite ×2 |
+
+**门 3 抽查三条（P6）：** ①§3——T-1 自动会话 MsgId 序 0B03/8001/0002/8001/0B04/8001 六钉（pcap 实证）；②§12——双流水号 `jtt905.go` isuSN/centerSN 分行可点+T-4 platform_initial_sn=60→应答 SN 0x3c 钉；③§14——suite 12/12 ×2+反查 41/41+门2-3 二进制同代。
+
+**验收两门：** ①层链跑通=P5 绿；②旧格式移除=presence 判死+probe 清库。两门全过。
+
+**P6 收官结论（白话一句）：** jtt905 体面重建后 MsgId/体形/头语义全对齐 JT/T 905.2-2014 权威实现（金向量逐字节），5 型会话可编排可校验，12 例 ×2 全绿、反查 41/41、门2 四项绿、在库清零对账平。
+
