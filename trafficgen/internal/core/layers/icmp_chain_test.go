@@ -117,3 +117,69 @@ func TestICMPChain_ValidatorAnchors(t *testing.T) {
 		}
 	}
 }
+
+// 红⑤【修轮 M2a】：HasLayerDynIP 豁免分支（layer_gen.go validateLayer）——
+// ip 层动态对象时 validator 跳过 legacy 静态校验、Echo 对照发 2 包
+// （icmpv6_migrate_test.go TestICMPv6Chain_DynamicIPFamilyExempt 同款）。
+func TestICMPChain_DynamicIPExempt(t *testing.T) {
+	p := layers.NewChainPlannerFromChain("icmp", []layers.Layer{
+		{Name: "ip", Config: map[string]interface{}{
+			"src": map[string]interface{}{"type": "range", "start": "10.0.0.1", "end": "10.0.0.3"},
+			"dst": "20.0.0.1",
+		}},
+		{Name: "icmp", Config: map[string]interface{}{}},
+	})
+	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "20.0.0.1", HasLayerDynIP: true}
+	if err := p.Validate(spec); err != nil {
+		t.Fatalf("dynamic-ip exemption must pass Validate: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	n := 0
+	for range ch {
+		n++
+	}
+	if n != 2 {
+		t.Fatalf("packets=%d want 2 (Echo pair under dynamic ip)", n)
+	}
+}
+
+// 红⑥【修轮 M2b】：translate pattern step sequence==0（含显式 0）自动补
+// index+1 分支（chain_planner_translate.go——legacy parseICMPPattern 镜像）。
+func TestICMPChain_PatternSeqAutoFill(t *testing.T) {
+	p := layers.NewChainPlannerFromChain("icmp", []layers.Layer{
+		{Name: "ip", Config: map[string]interface{}{"src": "10.0.0.1", "dst": "20.0.0.1"}},
+		{Name: "icmp", Config: map[string]interface{}{
+			"pattern": []interface{}{
+				map[string]interface{}{"type": 8, "sequence": 0, "data": "aa"},
+				map[string]interface{}{"type": 8, "data": "bb"},
+			},
+		}},
+	})
+	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "20.0.0.1"}
+	if err := p.Validate(spec); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var seqs []uint16
+	n := 0
+	for pkt := range ch {
+		n++
+		// Generator 防双换强制全包 Direction="up"——按 type 字节（payload[0]==8）
+		// 区分 request，reply 不重复计入。
+		if len(pkt.Payload) >= 8 && pkt.Payload[0] == 8 {
+			seqs = append(seqs, uint16(pkt.Payload[6])<<8|uint16(pkt.Payload[7]))
+		}
+	}
+	if n != 4 {
+		t.Fatalf("packets=%d want 4 (2 echo steps + 2 auto-replies)", n)
+	}
+	if len(seqs) != 2 || seqs[0] != 1 || seqs[1] != 2 {
+		t.Fatalf("auto-filled seqs=%v want [1 2] (index+1)", seqs)
+	}
+}

@@ -3746,6 +3746,21 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 
 **门 3 抽查三条（P6）：** ①§3——T-1 Echo 对帧序（p1 type=8/p2 type=0+src/dst 换向）pcap 实证；②§5——T-5 锚 `icmp type must be 8 (Echo Request) or 0 (Echo Reply), got 3`（validator 唯一产地 layer_gen.go）+T-8 锚 `static four-tuple`（checkLayerChainStaticCopy 层链门）双拦截点可点；③§14——suite 8/8 ×2+反查 18/18+门2-3 二进制同代（重编实录）。
 
+**协议天花板豁免声明（修轮 L2 补记）：** icmp 为无连接 2 帧面 ping 协议（单 ping/Pattern 多轮即全部编排面），复合大场景交织维度天花板=多事务+自动应答（T-4 已达）——9.50 三类下限/9.53 抽最复杂例对 icmp 显式 N/A（goose/sv/igmp 无会话族同型，非偷懒豁免）。
+
 **验收两门：** ①层链跑通=P5 绿；②旧格式移除=presence 判死+在库零行对账平。两门全过。
 
 **P6 收官结论（白话一句）：** icmp 收官（raw-IP 族第 12 协议、icmpv6 全对称），RFC 792 Echo 面 8B 头逐格钉死（校验和预计算对拍），单 ping/Pattern 多轮可编排可校验，8 例 ×2 全绿、反查 18/18、门2 四项绿、在库零行对账平。
+
+### 修轮块（2026-09-22 收官隔离复审 PASS-WITH-FINDINGS → 处置）
+
+| 级 | 发现 | 处置 |
+|---|---|---|
+| M1 | P6 清库对账打在过期库上——live 库（服务端 cwd 相对路径 /tmp/tg-sv-p5/data/trafficgen.db，独立谱系 996 策略/4435 任务）含 icmp 套件产物 3 策略+24 任务，repo 根 187MB 库为 9-19 冻结旧谱系；"suite 产物自清"实测不成立（tools_testdrive.go:205-211 清理尽力而为） | **live 库补做清账**：报数 3 策略+24 任务 → 备份 /tmp/tg-sv-p5/data/trafficgen-icmp-purge-20260922.db → DELETE → 对账 0/0（总量 993/4411）；repo 根旧备份 trafficgen-icmp-purge-20260922.db 标记废弃（9-19 冻结快照，勿再用作对账证据）。**纪律增补：P6 清库对账必须打在 live 库（服务端 cwd 相对 DB 路径）** |
+| M2 | 两个新增分支零 icmp 专属覆盖：HasLayerDynIP 豁免（layer_gen.go validateLayer）+translate pattern step seq==0 自动补 index+1 | 链级红例⑤⑥补齐（TestICMPChain_DynamicIPExempt 动态 ip 豁免 2 包/TestICMPChain_PatternSeqAutoFill 显式 0+缺省 → seq 1/2） |
+| L1 | 门2-3 在提交时点实红（gofmt 三文件晚于二进制 15:12）——纯格式零语义，复审已按 HEAD 重编闭环 | 修轮重编重启再跑（本块实录）；纪律：提交前 gofmt -l 全 touched 目录 |
+| L2 | 9.50/9.53 复合大场景下限未达标且未显式声明天花板豁免 | 门3 表后补显式 N/A 声明（无连接 2 帧面天花板，无会话族同型），不补例 |
+| L3 | CORE_MEMORY 13.6 计数过期（113→114 层） | 用户维护文档只报不改——已向用户报告 |
+| 观察项 | snmp maskSNMPVolatile（chain_planner_snmp_test.go:42）硬编码 02 04 BER 掩码，request-id<2^24 时编码 02 03 掩蔽落空 → 偶发对拍红（存量 flake，snmp 文件未被本协议触碰） | 登记转交 snmp P-PIPE（序号 120）优先修 |
+
+修轮后：suite 8/8 ×2、反查 18/18、门2 四项绿（重编实录）、touched 包 -race 绿、vet 净、live 库 icmp 行 0/0 对账平。
