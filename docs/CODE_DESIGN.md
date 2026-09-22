@@ -3631,7 +3631,7 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 | 3 | **编排**：operation=1（缺省 0→1）→自动配对 request(up, 广播, tha 全零)+reply(down, 单播, 角色互换)；operation=2→单发 reply(down)（对端宣告形：sha=target_mac/spa=target_ip/tha=sender_mac/tpa=sender_ip/ether 单播）。**勘误**：legacy op=2 仍发"请求形广播帧"（buildARPPacket 硬编码广播+可变 oper）字节错位——重建修正 | RFC 826 语义；legacy 缺陷实录 |
 | 4 | **校验双层**：registry operation uint16 [1,2]（V9 create-time 先火，锚 `out of range [1,2]`）；validator 拒 sender_ip/target_ip 格式错（锚 `invalid sender_ip`/`invalid target_ip`）+ IP/传输承载混入（锚 sv 同款 `must not have an ip/transport carrier`）；空层 {} 合法（零值→生成器缺省） | sv_neg_appid/sv_neg_ip_carrier 先例；P0b |
 | 5 | **五件套（L2-only 族变体，非 raw IP 链）**：validateSpecBase :613 L2-only 豁免+=arp；validateBaseDstPortHandled+=arp；:1056 发射分支+=arp（EtherTypeARP）；flowMetaFor+=ARP；translateTerminalConfig case "arp" 手工映射（goose 同款）；FlowMeta+=ARP 字段；isL2OnlyProtocol+=arp（mapToFlowSpec 不填伪四元组）；rawWrapChains+="arp": "[eth,arp]"（presence 判死）；main.go 翻转（:538 legacy→NewChainPlanner，非空导入→空白）；registry 5 Fields→schemagen 113 层；pipe_gate/coverage_gate 接入 | goose/sv/isis 全套先例 |
-| 6 | **B′ 账本**：RARP/InARP（oper 3/4/8/9）不实现；gratuitous ARP（spa=tpa 自宣告）不单列（oper=2 形可承载同等语义）；代理 ARP 不实现；IPv4 单一协议面（ptype 恒 0x0800）；无动态消费面——静态复制拒绝由框架通用门执法（checkStaticCopy，T-12 证，修轮 M2 补记） | 如实登记 |
+| 6 | **B′ 账本**：RARP/InARP（oper 3/4/8/9）不实现；gratuitous ARP（spa=tpa 自宣告）不单列（oper=2 形可承载同等语义）；代理 ARP 不实现；IPv4 单一协议面（ptype 恒 0x0800）；无动态消费面——静态复制拒绝由框架层链门执法（checkLayerChainStaticCopy semantic.go:198，T-12 证，修轮 M2 补记） | 如实登记 |
 | 7 | **回滚**：单提交粒度，摘除即回 | 家族口径 |
 
 **文件清单：** core/types.go（ARPConfig +SenderMAC/SenderIP）+core/layers/{registry.go,chain_planner.go（:509/:613/:1056）,chain_planner_chain.go（flowMetaFor）,chain_planner_translate.go（case "arp"）,generator.go（FlowMeta.ARP）}+protocol/arp/{layer_gen.go 新,arp.go Planner 保留}+core/layers/arp_chain_test.go 链级红例 4 例（L1 勘误：原列 layer_gen_test.go 路径不实）+strategy_convert.go（isL2OnlyProtocol+rawWrapChains）+cmd/server/main.go 翻转+cases/arp.json 新+tools/{coverage_gate.py,pipe_gate.sh}+schemagen。
@@ -3654,7 +3654,7 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 | §9 三源+整格 | RFC 826 字段序 28B 整格钉（T-2 五段全等）+T-3 显式四键 | arp.json |
 | §10 评审闭环 | 自审轮次（钉位三轮红→pcap 修正实录/legacy op=2 勘误）+隔离对抗复审=收官独立轮 | P5 记录；复审轮 |
 | §11 白话汇报 | 先一句结论再证据 | 各阶段汇报 |
-| §12 动态清单 | 四元组=不适用（L2-only 无端口；MAC 进 eth 层）；业务键 operation/地址静态单值如实注记（无动态消费面）；flows>1 静态复制由框架通用门执法（checkStaticCopy，T-12 证） | 门1 §12 行 |
+| §12 动态清单 | 四元组=不适用（L2-only 无端口；MAC 进 eth 层）；业务键 operation/地址静态单值如实注记（无动态消费面）；flows>1 静态复制由框架层链门执法（checkLayerChainStaticCopy，T-12 证） | 门1 §12 行 |
 | §13 schema 同步 | registry 5 Fields → schemagen 重生成 113 层 | generated/layers.generated.json（1f61887） |
 | §14 真实流程 | MCP 建→引擎生成→tshark 校对；8/8 ×2；负例带锚词；钉从落盘 pcap（首轮 3 例红→重钉实录） | T-ARP-1…8；suite ×2 |
 
@@ -3669,7 +3669,7 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 | 级 | 发现 | 处置 |
 |---|---|---|
 | M1 | 错误处理矩阵行5 的 MAC 半面（invalid sender_mac/target_mac）与 target_ip 无任何测试覆盖 | T-9/T-10/T-11 三负例补齐（validator 锚逐字）；反查 +3 |
-| M2 | 静态复制拒绝例缺（12.9/12.15 面）且未入 B′ 账本 | T-12 补齐（eth 显式标量+flows=2 → 框架 checkStaticCopy 锚 "static four-tuple"，sv_vn_static_copy 同款）；裁定6 补记 |
+| M2 | 静态复制拒绝例缺（12.9/12.15 面）且未入 B′ 账本 | T-12 补齐（eth 显式标量+flows=2 → 框架层链门锚 "static four-tuple"，sv_vn_static_copy 同款）；裁定6 补记。执法面勘误（定向复验修正）：checkLayerChainStaticCopy（semantic.go:198，:142 调用，eth 层扫 MAC）非 flat 兄弟 checkStaticCopy（:135） |
 | L1 | 文件清单 layer_gen_test.go 路径不实（实为 core/layers/arp_chain_test.go） | 清单勘误（本块同批） |
 | L2 | tools_integration_test.go 两处陈旧注释（arp.NewPlanner） | 两处改为 layers.NewChainPlanner("arp") |
 | L3 | FlowID 不设（goose 实设 FlowID——"goose 同款"表述不准）；下游仅日志/透传面，pcap 字节与任务语义不受影响 | 如实注记（本行即登记）；不补 FlowID（无消费面，YAGNI） |
