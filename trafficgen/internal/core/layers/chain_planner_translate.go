@@ -133,16 +133,19 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		MMSE:       spec.MMSE,
 		EDP:        spec.EDP,
 		XMR:        spec.XMR,
-		CQL:        spec.CQL,
-		LDP:        spec.LDP,
-		PCEP:       spec.PCEP,
-		CFlow:      spec.CFlow,
-		AMQP:       spec.AMQP,
-		RTMFP:      spec.RTMFP,
-		IGMP:       spec.IGMP,
-		OSPF:       spec.OSPF,
-		PIM:        spec.PIM,
-		ISIS:       spec.ISIS,
+		// D-BACNET-1：bacnet 终结层同款（sessions[]/events[] 配置经 Meta
+		// 直传 bacnet 生成器；每事件一 UDP 数据报；自动应答按 respond 展开）。
+		BACNET: spec.BACNET,
+		CQL:    spec.CQL,
+		LDP:    spec.LDP,
+		PCEP:   spec.PCEP,
+		CFlow:  spec.CFlow,
+		AMQP:   spec.AMQP,
+		RTMFP:  spec.RTMFP,
+		IGMP:   spec.IGMP,
+		OSPF:   spec.OSPF,
+		PIM:    spec.PIM,
+		ISIS:   spec.ISIS,
 		// GBT 同款（B6）：sessions[]/events[] 配置经 Meta 直传 gbt 终结层
 		// 生成器（每事件一笔事务一侧的完整 HTTP 帧字节；http 层透传转发）。
 		GBT: spec.GBT,
@@ -2125,6 +2128,31 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.XMR = &xc
+	case "bacnet":
+		if spec.BACNET != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		// D-BACNET-1：层 config（profile/concurrent/sessions/wire_fault）经
+		// JSON 往返解码为 core.BACNETConfig。裁定：未知键严格拒（Disallow-
+		// UnknownFields——config/session/event 三级，事件级由 BACNETEvent
+		// UnmarshalJSON 自带严格性）。解码失败一律计 ValidationErrors 走
+		// 任务错误——置空配置会被 validator 直通成默认流假成功（edp 同款）。
+		cfg := completedConfig(s, term.Config)
+		raw, err := json.Marshal(cfg)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("bacnet layer config encode: %v", err))
+			return
+		}
+		var bc core.BACNETConfig
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&bc); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("bacnet layer config decode: %v", err))
+			return
+		}
+		spec.BACNET = &bc
 	case "ftp":
 		// 只在扁平路径确实携带了业务内容（sessions/banner/commands/data_channel）
 		// 时才跳过翻译。mapToFlowSpec 对协议 ftp 总会创建一个 FTPConfig

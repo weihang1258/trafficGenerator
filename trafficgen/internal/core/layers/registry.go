@@ -736,6 +736,17 @@ func buildDefaultRegistry() {
 			"wire_fault": {Type: "string", Default: ""}, // 39 值枚举（D-XMR-1 §7 表）；""=无故障
 		},
 	})
+	r.Register(LayerSchema{Name: "bacnet", Category: CategoryTerminal,
+		DependsOn:     []string{"udp"},
+		TransportOn:   []string{"udp"}, // BACnet/IP 仅 UDP 载体（Annex J）——transport-dup 检查据此报 carrier 锚词
+		FieldContract: map[string]string{"udp.dst_port": "47808"}, // BACnet/IP Annex J 标准端口（tshark 自动解码依赖）
+		Fields: map[string]FieldSchema{
+			"profile":    {Type: "string", Default: ""},  // bacnet_ip_v1 主档（informational）
+			"concurrent": {Type: "bool", Default: false}, // 多客户端交错回放（v2.1 C-1）
+			"sessions":   {Type: "list", Default: []interface{}{}},
+			"wire_fault": {Type: "string", Default: ""}, // 42 值枚举（D-BACNET-1 §7 表）；""=无故障
+		},
+	})
 	r.Register(LayerSchema{Name: "cql", Category: CategoryTerminal, DependsOn: []string{"tcp"}})
 	r.Register(LayerSchema{Name: "iec104", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "2404"},

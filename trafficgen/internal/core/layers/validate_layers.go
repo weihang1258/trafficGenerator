@@ -84,6 +84,33 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 			}
 		}
 	}
+	if protocol == "bacnet" {
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			hasUDP := false
+			for _, item := range probe {
+				if _, ok := item["tcp"]; ok {
+					return nil, fmt.Errorf("bacnet chain: tcp carrier is not supported — BACnet/IP rides udp only (Annex J virtual link layer) (carrier)")
+				}
+				if _, ok := item["udp"]; ok {
+					hasUDP = true
+				}
+				if rawIP, ok := item["ip"]; ok && len(rawIP) > 0 {
+					var ipcfg map[string]interface{}
+					if err := json.Unmarshal(rawIP, &ipcfg); err == nil {
+						src, _ := ipcfg["src"].(string)
+						dst, _ := ipcfg["dst"].(string)
+						if src != "" && dst != "" && strings.Contains(src, ":") != strings.Contains(dst, ":") {
+							return nil, fmt.Errorf("bacnet chain: mixed address family in ip layer (src %q / dst %q) — src and dst must be the same family (family)", src, dst)
+						}
+					}
+				}
+			}
+			if !hasUDP {
+				return nil, fmt.Errorf("bacnet chain: missing udp carrier — BACnet/IP requires an [ip,udp,bacnet] chain (carrier)")
+			}
+		}
+	}
 	effective, err := ValidateLayers(layersJSON, protocol)
 	if err != nil {
 		return nil, err

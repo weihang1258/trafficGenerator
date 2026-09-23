@@ -92,6 +92,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/hl7" // init 注册 hl7 终结层生成器+校验器（D-HL7-1，HL7 v2.x MLLP/TCP-2575） // init 注册 megaco 终结层生成器+校验器（D-MEGACO-1，RFC 3525 文本编码）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/edp" // init 注册 edp 终结层生成器+校验器（D-EDP-1，OneNET EDP/TCP-4472）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/xmrmining" // init 注册 xmrmining 终结层生成器+校验器（D-XMR-1，Monero stratum/TCP-18081）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/bacnet" // init 注册 bacnet 终结层生成器+校验器（D-BACNET-1，BACnet/IP Annex J/UDP-47808）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/l2tp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ldap" // 空导入：ldap 包 init 注册层生成器 + 校验器（D-LDAP-1）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ldp"
@@ -512,6 +513,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("mmse")) // D-MMSE-1：WAP-209 MMSEncapsulation（http 族第 5 协议，TCP/80） // D-HL7-1：HL7 v2.x MLLP（TCP/2575 单载体）     // D-MEGACO-1：RFC 3525 文本编码（udp/tcp 双载体，mgcp 别名 2427）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("edp"))  // D-EDP-1：OneNET Enhanced Device Protocol（TCP/4472 单载体）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("xmrmining")) // D-XMR-1：Monero stratum 行式 JSON（TCP/18081 单载体）
+	app.engine.RegisterPlanner(layers.NewChainPlanner("bacnet")) // D-BACNET-1：BACnet/IP Annex J（UDP/47808 单载体）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("cql"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("someip"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("stun"))

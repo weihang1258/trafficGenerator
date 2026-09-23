@@ -946,6 +946,124 @@ def check_edp(cases):
     return rows
 
 
+def check_bacnet(cases):
+    """D-BACNET-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 bacnet", '"bacnet": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 bacnet（已准入）", '"bacnet"' not in pt[i_neg:i_neg + 400], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case bacnet（严格解码）", 'case "bacnet":' in tr and "DisallowUnknownFields" in tr, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.BACNET", "BACNET     *core.BACNETConfig" in gen, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry bacnet 行 + udp 47808 契约", '"udp.dst_port": "47808"' in rg, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    rows.append(("udp 载体预检（缺 udp/tcp 载体/混合族）", "missing udp carrier" in vl and "rides udp only" in vl, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go ChainPlanner(bacnet) 接线", 'NewChainPlanner("bacnet")' in mn, "在案"))
+
+    # 2. 行为面（validator/builder 关键件）。
+    pl = (tg / "internal" / "protocol" / "bacnet" / "planner.go").read_text()
+    import re as _re
+    _i = pl.index("wireFaultAnchors = map[string]string{")
+    _seg = pl[_i:pl.index("\n}", _i)]
+    _n = len(_re.findall(r'"[a-z0-9_]+":', _seg))
+    rows.append(("wire_fault 闭环 42 值锚词表", _n == 42, f"{_n} 值"))
+    for guard, name in [
+        ("matches no open transaction", "invoke_mismatch 自然面（应答 invoke 配对）"),
+        ("no open confirmed request", "state_ack_no_request 自然面（响应前置请求）"),
+        ("overflows the 10-bit field", "对象类型 10 位溢出"),
+        ("overflows the 22-bit field", "对象实例 22 位溢出"),
+        ("vendor-private", "属性 ID >511 厂商私有"),
+        ("array index", "数组下标负值"),
+        ("priority", "优先级 1-16 值域"),
+        ("validErrorClass", "error-class 组合值域"),
+        ("reused while transaction open", "invoke_reuse（TSM 不重用）"),
+        ("SLEN=0 is illegal", "SLEN=0 非法（npdu_src_len_zero 自然面）"),
+        ("window size 1-255", "window 值域 1-255"),
+        ("not one of 50/128/206/480/1024/1476", "max-APDU 六档值域"),
+    ]:
+        rows.append((f"关键件：{name}", guard in pl, "在案"))
+    bl = (tg / "internal" / "protocol" / "bacnet" / "builder.go").read_text()
+    for prim, name in [
+        ("func wrapBVLC", "BVLC 0x0A/0x0B 封装（单播/定向广播——正例 3）"),
+        ("func buildNPDU", "NPDU 装配（hop 紧随 DADR——裁定勘误在案）"),
+        ("func segmentFrames", "分段拆分（值边界分割——正例 29/30 实测）"),
+        ("func renderBVLC", "BBMD 管理帧族（规则⑤⑥）"),
+        ("func renderRespond", "自动应答（规则②③ simple/complex/error）"),
+        ("func effectiveIAM", "I-Am 身份单解析权威（规则①）"),
+        ("func pendingInvoke", "Invoke 配对单解析权威"),
+        ("invokeWalker", "invokeWalker 缺省递增（正例 35 序列 1,2）"),
+    ]:
+        rows.append((f"builder：{name}", prim in bl, "在案"))
+    rows.append(("事件级严格解码（BACNETEvent UnmarshalJSON DisallowUnknownFields）",
+                 "dec.DisallowUnknownFields()" in (tg / "internal" / "core" / "bacnet.go").read_text(), "在案"))
+    rows.append(("NPDU hop 勘误登记（135-2016 §6.2.2：hop 紧随 DADR）", "勘误" in bl or "勘误" in pl, "在案"))
+
+    # 3. 用例面（55 正 + 42 负；proto=bacnet；顶层仅 layers）。
+    pos = [c for c in cases if "packet_count" in (c.get("expect") or {})]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("97 例对账（55 正+42 负）", len(pos) == 55 and len(neg) == 42 and len(cases) == 97,
+                 f"{len(pos)}+{len(neg)}={len(cases)}"))
+    bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "bacnet"]
+    rows.append(("proto 全=bacnet（单准入名）", not bad_proto, bad_proto or "全 bacnet"))
+    leaked = sorted({k for c in cases for k in (c.get("spec_json", {}) or {}) if k != "layers"})
+    rows.append(("顶层残留为零（仅 layers）", not leaked, leaked or "零残留"))
+    for kw, name in [
+        ("bacnet_bvlc_unicast_baseline", "① 单播基线（§4 帧 hex 同构）"),
+        ("bacnet_min_frame", "② 8B 最小帧"),
+        ("bacnet_bvlc_broadcast", "③ 定向广播 0x0b"),
+        ("bacnet_bvlc_forwarded", "④ Forwarded-NPDU"),
+        ("bacnet_bvlc_register_foreign", "⑤ RFD TTL 600/0"),
+        ("bacnet_bvlc_result_nak", "⑥ BVLC-Result NAK"),
+        ("bacnet_bvlc_write_bdt", "⑦ Write-BDT"),
+        ("bacnet_npdu_router_discovery", "⑧ 路由发现 NLM 对"),
+        ("bacnet_read_property", "⑨ RP→ComplexACK Real"),
+        ("bacnet_segmented_request", "⑩ 分段请求+SegmentACK"),
+        ("bacnet_segmented_complex_ack", "⑪ 分段应答（SRV=0）"),
+        ("bacnet_i_am_capabilities", "⑫ I-Am 能力变体"),
+        ("bacnet_app_tag_encoding", "⑬ 应用标签枚举"),
+        ("bacnet_multi_transaction", "⑭ 单客户端多事务"),
+        ("bacnet_ipv6", "⑮ IPv6"),
+        ("bacnet_multi_session", "⑯ 多会话按序"),
+        ("bacnet_concurrent_sessions", "⑰ 并发交错"),
+        ("bacnet_port_nondefault", "⑱ 非默认端口 47809（DecodeAs）"),
+        ("bacnet_neg_bvlc_type", "负例 bvlc_type"),
+        ("bacnet_neg_invoke_mismatch", "负例 invoke_mismatch"),
+        ("bacnet_neg_carrier_tcp", "负例 carrier_tcp"),
+        ("bacnet_neg_prop_fake_success", "占位注记（bacnet 无此值——应为缺）"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        if "占位" in name:
+            rows.append((name, hit is None, "无（正确）"))
+        else:
+            rows.append((name, hit is not None, hit or "无用例"))
+
+    # 4. 锚词面（42 负例 error_contains 与 planner 锚词表值集一致）。
+    anchors = set()
+    for m in _re.finditer(r'"[a-z0-9_]+":\s*"([a-z_]+)"', pl[pl.index("wireFaultAnchors"):pl.index("// Planner is")]):
+        anchors.add(m.group(1))
+    bad_anchor = []
+    for c in neg:
+        ec = (c.get("expect") or {}).get("error_contains", "")
+        if ec not in anchors:
+            bad_anchor.append(f"{c.get('id', '?')}:{ec}")
+    rows.append(("42 负例锚词 ∈ planner 锚词表值集", not bad_anchor, bad_anchor or "全部在集"))
+    wf_in_cfg = [c.get("id") for c in neg
+                 if any((l.get("bacnet") or {}).get("wire_fault")
+                        for l in (c.get("spec_json", {}).get("layers") or []) if isinstance(l, dict))]
+    rows.append(("wire_fault 注入负例（42 值枚举通道）", len(wf_in_cfg) >= 39,
+                 f"{len(wf_in_cfg)} 例注入（载体形状 3 例由链形预检拒绝）"))
+
+    return rows
+
+
 CHECKS = {
     "smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
@@ -2684,7 +2802,7 @@ def check_xmrmining(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet}
 
 
 def main(argv):

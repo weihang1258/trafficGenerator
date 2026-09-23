@@ -458,6 +458,16 @@ func (r *Registry) validateChain(chain []Layer) error {
 					}
 				}
 			}
+			// D-BACNET-1：udp-only 终结层（TransportOn=[udp]，如 bacnet）+
+			// 用户显式 tcp 载体 → 载体契约冲突，报锚词 carrier（tcpOnly 同构）。
+			udpOnly := lok && len(ls.TransportOn) == 1 && ls.TransportOn[0] == "udp"
+			if lok && udpOnly {
+				for _, l := range chain {
+					if l.Name == "tcp" {
+						return errf("%s chain: tcp carrier is not supported — %s rides udp only (carrier)", last.Name, last.Name)
+					}
+				}
+			}
 		}
 		return errf("layers: transport layer duplicated (%d transport layers: %s)", transportCount, strings.Join(transportNames(chain), ", "))
 	}

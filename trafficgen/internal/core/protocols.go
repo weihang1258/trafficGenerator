@@ -21,6 +21,7 @@ package core
 var allowedProtocols = map[string]bool{
 	"a2a": true, "amqp": true, "arp": true, "bgp": true,
 	"cflow": true, "coap": true, "cql": true, "dameng": true,
+	"bacnet": true,
 	"dhcp": true, "dhcpv6": true, "dnp3": true, "dns": true,
 	"doip": true, "drda": true, "edp": true, "enip": true, "fins": true, "xmrmining": true,
 	"ftp": true, "gbt32960": true, "goose": true, "gre": true,

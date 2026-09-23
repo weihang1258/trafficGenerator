@@ -86,6 +86,33 @@
         }
       }
     },
+    "bacnet": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "field_contract": {
+        "udp.dst_port": "47808"
+      },
+      "fields": {
+        "concurrent": {
+          "type": "bool",
+          "default": false
+        },
+        "profile": {
+          "type": "string",
+          "default": ""
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "wire_fault": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
     "bgp": {
       "category": "terminal",
       "depends_on": [

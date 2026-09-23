@@ -751,6 +751,17 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// XMR defaults to fixture port 18081 (裁定2：daemon RPC 端口假设；
 		// 非默认端口显式声明合法). Only override when unset.
 		setDefaultDstPort(&spec, cfg, 18081)
+	case "bacnet":
+		// BACnet/IP (Annex J): UDP-only family. Config is carried in the
+		// bacnet layer sub-map; top-level bacnet key is rejected by
+		// CheckProtoFlat. Struct-tag 解析（事件级严格解码由 BACNETEvent
+		// UnmarshalJSON 提供）.
+		if sub, ok := cfg["bacnet"].(map[string]interface{}); ok {
+			parseSubconfigJSON[*BACNETConfig](&spec, sub, "bacnet", &spec.BACNET)
+		}
+		// BACnet defaults to Annex J standard port 47808 (tshark 自动解码
+		// 依赖；非默认端口显式声明合法——正例 46). Only override when unset.
+		setDefaultDstPort(&spec, cfg, 47808)
 	case "sip":
 		if sub, ok := cfg["sip"].(map[string]interface{}); ok {
 			spec.SIP = &SIPConfig{
@@ -8305,6 +8316,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "xmrmining" {
 		if v, ok := cfg["xmrmining"]; ok && v != nil {
 			return "protocol xmrmining no longer accepts a top-level xmrmining sub-config (move it into the xmrmining layer of an [ip,tcp,xmrmining] layers chain; Monero stratum framing lives in the xmrmining layer)"
+		}
+	}
+	// D-BACNET-1：bacnet 顶层 bacnet 子映射 presence 判死（xmrmining 先例；
+	// 空 map 也死——B6 扁平注入形退役，配置迁 bacnet 层键）。层链形状不触发。
+	if protocol == "bacnet" {
+		if v, ok := cfg["bacnet"]; ok && v != nil {
+			return "protocol bacnet no longer accepts a top-level bacnet sub-config (move it into the bacnet layer of an [ip,udp,bacnet] layers chain; BACnet/IP Annex J framing lives in the bacnet layer)"
 		}
 	}
 	// D-SMTP-1：smtp 顶层 smtp 子映射 presence 判死（mqtt 先例；空 map 也
