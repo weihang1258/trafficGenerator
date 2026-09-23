@@ -4599,10 +4599,14 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 
 - 终审（fresh-context 隔离 subagent，只读：读码/跑测/tshark 实证）：**主体通过，5 finding（1 MAJOR + 4 MINOR）**；A-G 七项覆盖声明中 G 因 MAJOR 扣 1，余全 PASS。
 - 修轮（全部修复，红先绿后）：
-  - **F1（MAJOR）正例 32 应用标签枚举缩水**：合同行"13 种全枚举"实况仅 3 种且未登记——扩为标签 0-12 逐一（null/boolean/unsigned/int/real/double/octet_string/char_string/bit_string/enumerated/date/time/object_id），int 负值 -7 与 double/octet/bit/date/time/objectID 首获线上历练；pkt2 断言走 frames 整帧字节钉（122B 逐字节）——wireshark bacapp RPM propertyValue dissector 对逐值 13 标签序列解析失真（LVT8 直存 double/LVT5 扩展 bit_string/date/time），fields 断言按 9.27/C 类注记边界，字节钉比 fields 更强。
+  - **F1（MAJOR）正例 32 应用标签枚举缩水**：合同行"13 种全枚举"实况仅 3 种且未登记——扩为标签 0-12 逐一（null/boolean/unsigned/int/real/double/octet_string/char_string/bit_string/enumerated/date/time/object_id），int 负值 -7 与 double/octet/bit/date/time/objectID 首获线上历练；pkt2 初版走 frames 整帧字节钉（122B 逐字节）——当时误诊 tshark 解析失真为 dissector 缺陷，复评 R-1 证伪并根因修复（见下），修后 fields 逐帧精确钉 + 整帧字节钉双通道并用。
   - **F2（MINOR）signedBytes 最短式**：负数恒产 8B 补码违 §3.4——重写为 1B[-128,127]/2B[-32768,32767]/4B 其余 int32 域（bacnet-stack encode_bacnet_signed 同型）；配套 planner 新增值域自然守卫 `validateBACNETValue`（int 越出符号 4 八位组域拒、unsigned/enumerated 越出无符号 4 八位组域拒——"渲染错误=空流"契约要求守卫住同步校验器，锚词 tag）。
   - **F3（MINOR）raw_npdu vendor NLM**：mt ≥ 0x80 契约声明不产生（D-3⑤）但无守卫——planner raw_npdu 分支补一行拒（锚词 control）。
   - **F4（MINOR）time 键名 century**：第 4 字节实为厘秒——builder+core 注释改 `hundredths`（无 fixture 历练，无兼容面）。
   - **F5（MINOR）记录卫生**：P5"pcap 97 个"实为 96 文件（neg_carrier_tcp 创建面拒无产物，已改本节清点行）；P4 ④ 正例 55 钉值已被 P5 终态取代（已加追溯注记）。
 - 修轮后回归：casegen 自证绿、链级红例绿、bacnet 包 -race 绿、suite **97/97 ×2** 全绿（修轮后复跑）、二进制重编同代。
-- 复评：同 agent scoped re-review 修复 diff，通过后关单。
+- **误诊撤回（P6 复评定案）**：P4/P5 期登记的"wireshark LVT 直存 CharacterString 缺陷"与"RPM dissector 解析失真"两项均系误诊——真因是 builder putLength 对 ≤4 内容多附长度八位组（tshark 对非法字节按直存语义解到移位内容，行为正确）。putLength 根因修复后：fixture 回归 obj/中 短串直存（LVT3/LVT4 直存路径获线上覆盖，char_string 编码三档全枚举），tshark 全场景干净解码。
+- 复评（同 agent scoped re-review）：**R-1（MAJOR）+ R-2（MINOR）**——F2/F3/F4/F5 修结，但复评实证双轮修轮引入/暴露的深层面：
+  - **R-1 double 非法标签字节**：appTag double 支路 `putTag(LVT=8)` 溢出进 class 位产出非法 `0x58`（内容 >4B 必须 LVT=5+1B 长度）——修轮时误诊为"wireshark RPM dissector 解析失真"，复评证伪（钉=坏字节自洽）。根因修复直达底层：`putLength` 对 n ≤ 4 改 no-op（直存时标签字节已含长度，再附长度八位组即非法多一字节——octet_string/bit_string/char_string/ctxCharString 四支 ≤4 内容路径全部中招，修一处根修四支）；double 支路改 LVT5+长度。修后 tshark 全帧干净解码：`application_tag_number` 渲染完整 `0,1,…,12`、double=3.14——fields 断言恢复为逐帧精确钉 + 122→120B 整帧字节钉双通道。
+  - **R-2 值域守卫接入面**：validateBACNETValue 只接了 respond 侧——补齐 write_property 请求值与 cov_notification CovValues 两处调用点。
+  - 复评回归：casegen 自证绿、红例绿、-race 绿、suite 97/97（修后两轮）、门2 静态四项全绿、二进制同代。**关单。**

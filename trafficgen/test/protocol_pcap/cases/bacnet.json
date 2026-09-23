@@ -2720,6 +2720,26 @@
   "expect": {
    "fields": [
     {
+     "field": "bacapp.application_tag_number",
+     "packet": 2,
+     "value": "0,1,2,3,4,5,6,7,8,9,10,11,12"
+    },
+    {
+     "field": "bacapp.present_value.uint",
+     "packet": 2,
+     "value": "42"
+    },
+    {
+     "field": "bacapp.present_value.real",
+     "packet": 2,
+     "value": "22.5"
+    },
+    {
+     "field": "bacapp.present_value.double",
+     "packet": 2,
+     "value": "3.14"
+    },
+    {
      "field": "bacapp.present_value.boolean",
      "packet": 4,
      "value": "0"
@@ -2727,7 +2747,7 @@
    ],
    "frames": [
     {
-     "hex": "810A007A010030010E0C000000011E29554E004F29554E114F29554E212A4F29554E31F94F29554E4441B400004F29554E5840091EB851EB851F4F29554E6404DEADBEEF4F29554E7505006F626A734F29554E820205704F29554E91054F29554EA47E0918044F29554EB40C1E2D324F29554EC4020000054F1F",
+     "hex": "810A0079010030010E0C000000011E29554E004F29554E114F29554E212A4F29554E31F94F29554E4441B400004F29554E550840091EB851EB851F4F29554E64DEADBEEF4F29554E7505006F626A734F29554E8205704F29554E91054F29554EA47E0918044F29554EB40C1E2D324F29554EC4020000054F1F",
      "offset": 42,
      "packet": 2
     },
@@ -4000,7 +4020,7 @@
                "property": 77,
                "value": {
                 "type": "char_string",
-                "value": "objs"
+                "value": "obj"
                }
               }
              ]
@@ -4020,7 +4040,7 @@
                "property": 77,
                "value": {
                 "type": "char_string",
-                "value": "objs"
+                "value": "obj"
                }
               }
              ]
@@ -4070,7 +4090,7 @@
     {
      "field": "bacapp.object_name",
      "packet": 2,
-     "value": "objs,objs"
+     "value": "obj,obj"
     }
    ],
    "frames": [
@@ -4448,7 +4468,7 @@
  {
   "id": "bacnet_charstring_ucs2",
   "proto": "bacnet",
-  "summary": "charset 4（UCS-2）CharacterString：7505 04 4e2d6587",
+  "summary": "charset 4（UCS-2）CharacterString：7303 直存（putLength 修复后合法）04 4e2d",
   "spec_json": {
    "layers": [
     {
@@ -4477,7 +4497,7 @@
            "value": {
             "charset": 4,
             "type": "char_string",
-            "value": "中文"
+            "value": "中"
            }
           }
          }
@@ -4498,12 +4518,12 @@
     {
      "field": "bacapp.object_name",
      "packet": 2,
-     "value": "中文"
+     "value": "中"
     }
    ],
    "frames": [
     {
-     "hex": "810A0019010030090C0C00000000194D3E7505044E2D65873F",
+     "hex": "810A0016010030090C0C00000000194D3E73044E2D3F",
      "offset": 42,
      "packet": 2
     }

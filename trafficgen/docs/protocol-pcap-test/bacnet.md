@@ -17,7 +17,7 @@ Cases: 97 — pass 97, fail 0, error 0
 | bacnet_bvlc_result_nak | RFD→Result 0x0030（Register-FD NAK 合法错误路径） | pass | 2 | [pcap](bacnet/bacnet_bvlc_result_nak.pcap) |
 | bacnet_bvlc_unicast_baseline | Who-Is(0-100)→I-Am 单播基线：BVLC 0x0a/len12、I-Am u16 宽度 22 000f、厂商 15 | pass | 2 | [pcap](bacnet/bacnet_bvlc_unicast_baseline.pcap) |
 | bacnet_bvlc_write_bdt | Write-BDT 单表项（192.0.2.88:47808 掩码 /24）→ Result | pass | 2 | [pcap](bacnet/bacnet_bvlc_write_bdt.pcap) |
-| bacnet_charstring_ucs2 | charset 4（UCS-2）CharacterString：7505 04 4e2d6587 | pass | 2 | [pcap](bacnet/bacnet_charstring_ucs2.pcap) |
+| bacnet_charstring_ucs2 | charset 4（UCS-2）CharacterString：7303 直存（putLength 修复后合法）04 4e2d | pass | 2 | [pcap](bacnet/bacnet_charstring_ucs2.pcap) |
 | bacnet_concurrent_sessions | concurrent 双客户端交错（up 帧源 IP 交替，各自事务配对完整） | pass | 4 | [pcap](bacnet/bacnet_concurrent_sessions.pcap) |
 | bacnet_confirmed_request_sa | Confirmed-REQ 首字节 SA bit1=1（02）客户端声明接受分段响应 | pass | 2 | [pcap](bacnet/bacnet_confirmed_request_sa.pcap) |
 | bacnet_cov_notification | UnconfirmedCOVNotification 单帧（开[4] ctx0 属性+开[2] Real 24.0 闭[2] 闭[4]） | pass | 1 | [pcap](bacnet/bacnet_cov_notification.pcap) |

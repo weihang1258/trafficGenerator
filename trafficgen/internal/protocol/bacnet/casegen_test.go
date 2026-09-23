@@ -166,7 +166,7 @@ func rpmMultiObjectLayers() []interface{} {
 		return map[string]interface{}{"object_type": ot, "instance": inst,
 			"props": []interface{}{
 				map[string]interface{}{"property": 85, "value": map[string]interface{}{"type": "real", "value": 22.5}},
-				map[string]interface{}{"property": 77, "value": map[string]interface{}{"type": "char_string", "value": "objs"}}}}
+				map[string]interface{}{"property": 77, "value": map[string]interface{}{"type": "char_string", "value": "obj"}}}}
 	}
 	evMap := map[string]interface{}{
 		"kind": "rpm", "invoke_id": 1,
@@ -728,14 +728,14 @@ func TestGenerateBACNETCases(t *testing.T) {
 					"value": map[string]interface{}{"type": "boolean", "value": false}}}),
 		)}}), 4,
 		[]fld{
-			// 断言边界（9.27/C 类注记）：wireshark bacapp RPM propertyValue
-			// dissector 对逐值递进的 13 标签序列（LVT8 直存 double/LVT5 扩展
-			// bit_string/date/time）解析失真——pkt2 断言走 frames 整帧字节钉
-			// （比 fields 更强），pkt4 走 fields。
+			{2, "bacapp.application_tag_number", "0,1,2,3,4,5,6,7,8,9,10,11,12", 0, nil, nil},
+			{2, "bacapp.present_value.uint", "42", 0, nil, nil},
+			{2, "bacapp.present_value.real", "22.5", 0, nil, nil},
+			{2, "bacapp.present_value.double", "3.14", 0, nil, nil},
 			{4, "bacapp.present_value.boolean", "0", 0, nil, nil},
 		},
 		[]fr{
-			{2, 42, "810A007A010030010E0C000000011E29554E004F29554E114F29554E212A4F29554E31F94F29554E4441B400004F29554E5840091EB851EB851F4F29554E6404DEADBEEF4F29554E7505006F626A734F29554E820205704F29554E91054F29554EA47E0918044F29554EB40C1E2D324F29554EC4020000054F1F"},
+			{2, 42, "810A0079010030010E0C000000011E29554E004F29554E114F29554E212A4F29554E31F94F29554E4441B400004F29554E550840091EB851EB851F4F29554E64DEADBEEF4F29554E7505006F626A734F29554E8205704F29554E91054F29554EA47E0918044F29554EB40C1E2D324F29554EC4020000054F1F"},
 			{4, 42, "810A0013010030020C0C0000000019553E103F"},
 		},
 		cliA, srv)
@@ -979,7 +979,7 @@ func TestGenerateBACNETCases(t *testing.T) {
 			{2, "bacapp.objectType", "0,8", 0, nil, nil},
 			{2, "bacapp.instance_number", "1,5", 0, nil, nil},
 			{2, "bacapp.property_identifier", "85,77,85,77", 0, nil, nil},
-			{2, "bacapp.object_name", "objs,objs", 0, nil, nil},
+			{2, "bacapp.object_name", "obj,obj", 0, nil, nil},
 		},
 		[]fr{{1, 42, "810A002001040005010E0C000000011E0955094D1F0C020000051E0955094D1F"}},
 		cliA, srv)
@@ -1051,17 +1051,17 @@ func TestGenerateBACNETCases(t *testing.T) {
 		cliA, srv)
 
 	// —— 55 UCS-2 ——
-	add("bacnet_charstring_ucs2", "charset 4（UCS-2）CharacterString：7505 04 4e2d6587",
+	add("bacnet_charstring_ucs2", "charset 4（UCS-2）CharacterString：7303 直存（putLength 修复后合法）04 4e2d",
 		chain(map[string]interface{}{"sessions": []interface{}{sess(
 			ev(map[string]interface{}{"kind": "read_property", "invoke_id": 9, "property": 77,
 				"respond": map[string]interface{}{"ack": "complex",
-					"value": map[string]interface{}{"type": "char_string", "charset": 4, "value": "中文"}}}),
+					"value": map[string]interface{}{"type": "char_string", "charset": 4, "value": "中"}}}),
 		)}}), 2,
 		[]fld{
 			{2, "bacapp.string_character_set", "4", 0, nil, nil},
-			{2, "bacapp.object_name", "中文", 0, nil, nil},
+			{2, "bacapp.object_name", "中", 0, nil, nil},
 		},
-		[]fr{{2, 42, "810A0019010030090C0C00000000194D3E7505044E2D65873F"}},
+		[]fr{{2, 42, "810A0016010030090C0C00000000194D3E73044E2D3F"}},
 		cliA, srv)
 
 	// —— 负例 56-97（wire_fault 注入口 + 主锚词；载体内形状负例按 §5）——

@@ -75,8 +75,13 @@ func boolByte(v bool) byte {
 }
 
 // putLength extends an LVT=5 tag with the extended-length marker（三档：
-// ≤4 直存由 lvtFor 处理；5-253 → 1B；≤65535 → 254+2B BE）.
+// ≤4 直存由 lvtFor 处理——本函数对 n ≤ 4 为 no-op（直存时标签字节已含长度，
+// 再附长度八位组即非法多一字节——复评 R-1 同根：octet/bit/char ≤4 内容三支
+// 全中）；5-253 → 1B；≤65535 → 254+2B BE）.
 func putLength(b []byte, n int) []byte {
+	if n <= 4 {
+		return b
+	}
 	switch {
 	case n <= 253:
 		return append(b, byte(n))
@@ -164,7 +169,10 @@ func appTag(b []byte, v *core.BACNETValue) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		b = putTag(b, 5, false, 8)
+		// §3.4：内容 >4 八位组必须 LVT=5 + 1B 长度（putTag LVT=8 会溢出
+		// 进 class 位产出非法 0x58——复评 R-1）。
+		b = putTag(b, 5, false, 5)
+		b = putLength(b, 8)
 		return binary.BigEndian.AppendUint64(b, math.Float64bits(f)), nil
 	case "octet_string":
 		c, err := hexOf(v.Value)

@@ -169,6 +169,11 @@ func validateSession(sess *core.BACNETSession, si int) error {
 			if ev.Priority != nil && (*ev.Priority < 1 || *ev.Priority > 16) {
 				return fmt.Errorf("%s: priority %d out of range 1-16 (priority)", ep, *ev.Priority)
 			}
+			if ev.Value != nil {
+				if err := validateBACNETValue(ep+".value", ev.Value); err != nil {
+					return err
+				}
+			}
 			// SEG=0 却声明 window（segment_extra_fields 自然面）。
 			if ev.WindowSize > 0 {
 				return fmt.Errorf("%s: window_size declared on unsegmented request (segment)", ep)
@@ -258,6 +263,9 @@ func validateSession(sess *core.BACNETSession, si int) error {
 			for ci, cv := range ev.CovValues {
 				if cv.Value == nil {
 					return fmt.Errorf("%s.cov_values[%d]: value required", ep, ci)
+				}
+				if err := validateBACNETValue(fmt.Sprintf("%s.cov_values[%d]", ep, ci), cv.Value); err != nil {
+					return err
 				}
 			}
 		case "error":
