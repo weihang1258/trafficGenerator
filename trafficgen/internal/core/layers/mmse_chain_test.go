@@ -14,7 +14,8 @@ package layers_test
 // 唯一权威硬证明（auto 计数器线上序列 vs 独立复算全等——megaco/hl7
 // round-2 同法）；⑯carrier_content_type；⑰carrier_port；⑱TID 32B/33B
 // 边界；⑲body_on_bodyless；⑳concurrent 双会话；㉑Content-Length parity；
-// ㉒GET URI 自动派生③。
+// ㉓PDU 字段集越表头拒；
+// ㉒GET URI 自动派生③；㉓越表头即拒（表 1–7 字段集）。
 
 import (
 	"context"
@@ -672,6 +673,24 @@ func TestMMSEChain_ContentLengthParity(t *testing.T) {
 	raw := mmseChain(t, mmseConf(mmseSession("ua", []map[string]interface{}{ev}, nil)))
 	if err := validateRaw(t, raw); err == nil || !strings.Contains(err.Error(), "length") {
 		t.Fatalf("Content-Length override mismatch must reject with anchor `length`, got %v", err)
+	}
+}
+
+// 红例㉓【D-MMSE-1 §3.5 表 1–7】：越表头即拒（send-conf 带 priority、
+// send-req 带 response_status）——字段集按 PDU 类型固定，不静默落线。
+func TestMMSEChain_PDUFieldAllowance(t *testing.T) {
+	conf := mmseSendConf("AL-1", "M-AL")
+	conf["priority"] = "high"
+	if err := validateRaw(t, mmseChain(t, mmseConf(mmseSession("ua", []map[string]interface{}{
+		mmseSendReq("AL-1"), conf,
+	}, nil)))); err == nil || !strings.Contains(err.Error(), "not permitted") {
+		t.Fatalf("priority on send-conf must reject (Table 2 has no Priority), got %v", err)
+	}
+	req := mmseSendReq("AL-2")
+	req["response_status"] = "ok"
+	if err := validateRaw(t, mmseChain(t, mmseConf(mmseSession("ua", []map[string]interface{}{req}, nil)))); err == nil ||
+		!strings.Contains(err.Error(), "not permitted") {
+		t.Fatalf("response_status on send-req must reject (Table 1 has no Response-Status), got %v", err)
 	}
 }
 

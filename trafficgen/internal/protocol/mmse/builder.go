@@ -333,6 +333,32 @@ func buildMultipartBody(c *core.MMSEContent) ([]byte, error) {
 	return body, nil
 }
 
+// pduFieldAllowance lists the header field codes each PDU type may carry on
+// the wire（契约 §3.5 表 1–7——越表头 validator 显式拒，builder 侧同表
+// 兜底不渲染）。首三头（8C/98/8D）与 Content-Type（84 收尾）不在此列。
+var pduFieldAllowance = map[byte]map[byte]bool{
+	pduSendReq: {
+		fDate: true, fFrom: true, fTo: true, fCc: true, fBcc: true, fSubject: true,
+		fMessageClass: true, fExpiry: true, fDeliveryTime: true, fPriority: true,
+		fSenderVisibility: true, fDeliveryReport: true, fReadReply: true,
+	},
+	pduSendConf: {
+		fResponseStatus: true, fResponseText: true, fMessageID: true,
+	},
+	pduNotifInd: {
+		fFrom: true, fSubject: true, fMessageClass: true, fMessageSize: true,
+		fExpiry: true, fContentLocation: true,
+	},
+	pduNotifyRespInd: {fStatus: true, fReportAllowed: true},
+	pduRetrieveConf: {
+		fDate: true, fMessageID: true, fFrom: true, fTo: true, fCc: true, fSubject: true,
+		fMessageClass: true, fPriority: true, fDeliveryReport: true, fReadReply: true,
+	},
+	pduAckInd:      {fReportAllowed: true},
+	pduDeliveryInd: {fMessageID: true, fTo: true, fDate: true, fStatus: true},
+	pduReadRecInd:  {fMessageID: true, fReadStatus: true},
+}
+
 // buildPDU renders one MMS PDU（契约 §3.2 顺序规则：首三头 8C/98/8D 固定，
 // Content-Type 恒最后；delivery-ind 无 Transaction-ID——第三字节即版本
 // 字段码）。binding carries the resolved TID/MsgID（sessionTx 权威，planner）。
@@ -375,7 +401,9 @@ func buildPDU(cfg *core.MMSEConfig, ev *core.MMSEEvent, tx *txBinding) ([]byte, 
 		b = append(b, fSubject)
 		b = appendEncodedStringValue(b, ev.Subject.Text, ev.Subject.Charset)
 	}
-	if ev.MessageID != "" {
+	// Message-ID 以解析值为准（tx.MsgID）——配置键在无分配语义的 kind 上
+	// 被 sessionTx 忽略（避免渲染空头）。渲染面另受 pduFieldAllowance 表约束。
+	if tx.MsgID != "" {
 		b = appendTextString(append(b, fMessageID), tx.MsgID)
 	}
 	if ev.MessageClass != "" {

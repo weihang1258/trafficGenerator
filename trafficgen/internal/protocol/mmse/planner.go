@@ -407,6 +407,17 @@ func validateEvent(cfg *core.MMSEConfig, sess *core.MMSESession, ev *core.MMSEEv
 		return fmt.Errorf("%s: body declared on a bodyless PDU — message body is only defined for send-req/retrieve-conf (body)", where)
 	}
 
+	// 越表头拒（契约 §3.5 表 1–7：每 PDU 的字段集固定——send-req 才有
+	// Priority、send-conf 才有 Response-Status 等；配置声明越表头即显式
+	// 拒，不静默丢键、不静默落线）。
+	if b.PDUType != 0 {
+		for _, f := range eventFieldCodes(ev) {
+			if !pduFieldAllowance[b.PDUType][f] {
+				return fmt.Errorf("%s: header field code 0x%02x is not permitted on this PDU type (Table 1-7 field sets)", where, f)
+			}
+		}
+	}
+
 	// 值域（value_* 守卫）。
 	if ev.MessageClass != "" && enumClass[ev.MessageClass] == 0 {
 		return fmt.Errorf("%s: message-class %q is outside the value domain (message-class)", where, ev.MessageClass)
@@ -508,6 +519,76 @@ func validateEvent(cfg *core.MMSEConfig, sess *core.MMSESession, ev *core.MMSEEv
 		}
 	}
 	return nil
+}
+
+// eventFieldCodes lists the optional/mandatory header codes an event declares
+//（与 buildPDU 渲染序一致；首三头与 Content-Type 恒定不入列）。
+func eventFieldCodes(ev *core.MMSEEvent) []byte {
+	var codes []byte
+	if ev.Date != nil {
+		codes = append(codes, fDate)
+	}
+	if ev.From != nil {
+		codes = append(codes, fFrom)
+	}
+	if len(ev.To) > 0 {
+		codes = append(codes, fTo)
+	}
+	if len(ev.Cc) > 0 {
+		codes = append(codes, fCc)
+	}
+	if len(ev.Bcc) > 0 {
+		codes = append(codes, fBcc)
+	}
+	if ev.Subject != nil {
+		codes = append(codes, fSubject)
+	}
+	if ev.MessageID != "" {
+		codes = append(codes, fMessageID)
+	}
+	if ev.MessageClass != "" {
+		codes = append(codes, fMessageClass)
+	}
+	if ev.Expiry != nil {
+		codes = append(codes, fExpiry)
+	}
+	if ev.DeliveryTime != nil {
+		codes = append(codes, fDeliveryTime)
+	}
+	if ev.Priority != "" {
+		codes = append(codes, fPriority)
+	}
+	if ev.SenderVisibility != "" {
+		codes = append(codes, fSenderVisibility)
+	}
+	if ev.DeliveryReport != nil {
+		codes = append(codes, fDeliveryReport)
+	}
+	if ev.ReadReply != nil {
+		codes = append(codes, fReadReply)
+	}
+	if ev.ReportAllowed != nil {
+		codes = append(codes, fReportAllowed)
+	}
+	if ev.ResponseStatus != "" {
+		codes = append(codes, fResponseStatus)
+	}
+	if ev.ResponseText != "" {
+		codes = append(codes, fResponseText)
+	}
+	if ev.MessageSize != nil {
+		codes = append(codes, fMessageSize)
+	}
+	if ev.ContentLocation != "" {
+		codes = append(codes, fContentLocation)
+	}
+	if ev.Status != "" {
+		codes = append(codes, fStatus)
+	}
+	if ev.ReadStatus != "" {
+		codes = append(codes, fReadStatus)
+	}
+	return codes
 }
 
 // sessHasRequestBefore reports whether the session declared any request-side
