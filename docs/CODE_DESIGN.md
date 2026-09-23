@@ -4509,3 +4509,72 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
   - **M2[M]** 处置表 26+13 归类失实据实勘误为 **21+18**（params_missing 四值=缺省合法形态归仅注入；carrier_missing_tcp=预检不盖缺 tcp 归仅注入——探针实证，edp 同状书面豁免通道）。
   - **L1[N]** 验收执行器点名：P5 ×2 全量绿=MCP 套件（终结层族 edp/mmse 同状，离线 layer_chain_suite 执行器不覆盖终结层系先例非回归）；L2[N] T-XMR 存量审计措辞校正（内容自 B6 提交搬运重排）。
 - **修轮后验证**：链级红例 20（①-⑳）全绿；suite 64/64 ×2（新二进制同代）；coverage_gate 47/47；pipe_gate 静态四项绿；-race/vet/gofmt 净。
+
+## D-BACNET-1 bacnet 层链接入（#41，BACnet/IP（BVLC 0x81，Annex J）UDP 明文/47808，97 例）
+
+> 契约权威：`docs/protocol-designs/65-bacnet-design.md` v2.1.0 + `65-bacnet-testcase.md`（97 例=55 正+42 负；v1.3 重审 rr-bacnet 181 点 5C+3D+2N 修复完成、标注"待 rr-bacnet 复验"——本 P-PIPE 隔离终审的独立重编码对账兼作该复验证据，D- 执行记录回填）。三源=①ASHRAE 135（条款号经参考实现注释印证，不臆造）②bacnet-stack（BTL 参考栈，线格式逐函数权威）③本机 tshark 3.6.14 实证。**端序总表：全协议统一大端（含 Real/Double——勘误任务简报"Real 小端"）**。
+
+### P1 规范矩阵（§4 八项确认态）
+
+| # | 要求（规范要求） | 业务场景 | 代码现状 | 缺口 |
+|---|---|---|---|---|
+| 1 | 连接模型：BACnet/IP（BVLC Type 0x81）UDP 明文 47808，无连接无握手挥手，数据报边界=报文边界；Type 0x81 首字节在 IPv4 offset 42/IPv6 62 | BAS 上线扫描/轮询 | 无任何接线（registry/protocols/protocol 包/main.go 全空；占位 1 例） | 全量新建（本波首个 UDP 终结层——megaco UDP 判例同族） |
+| 2 | 消息表：BVLC 12 功能（Secure-BVLL 0x0C 边界）+ NPDU（控制八位组逐位/路由字段/NLM 一对）+ APDU 八种 PDU + 10 服务子集 + Error/Reject/Abort | 发现/轮询/控制/订阅/BBMD/路由/管理/失败路径十场景 | 无 | builder 分层组帧（BVLC→NPDU→APDU→标签化参数） |
+| 3 | 状态机：Idle/Active/SegmentRx/Subscribed 四态；Invoke ID 0–255 配对回显、未完成不复用；分段 seq 0 起单调、window 1–255 | 确定性回放 + 非法序列拒绝 | 无 | validator 状态机走查（3 负例） |
+| 4 | 字段表：13 应用标签全枚举+LVT 三档长度+开闭标签配对+无符号/枚举最短式策略+对象 ID 10/22 位复合+max-segs/max-APDU 编码档 | 行长公式 §3.7 逐报文可复算（最小帧 8B UDP payload） | 无 | Go struct 序=线序+值域守卫 |
+| 5 | 错误处理：42 wire_fault 原子拆分（线格式 19/长度 3/值域 9/关联 3/载体 5/状态机 3），主锚词钉死 | 拒绝传播为 task error | 无 | 处置表下表（初版分类，P4 落码据实勘误——edp F6/xmrmining M2 先例） |
+| 6 | 超时与活性：UDP 无连接——无握手/挥手/RST/保活/重连；异常中断=Abort；TSM 重传由 events[] 显式编排 | — | 无 | 如实不适用声明（N-2） |
+| 7 | NAT/被动：不适用（UDP 无连接对等） | — | — | 如实 |
+| 8 | 版本方言：NPDU Version 恒 0x01；BVLL Type 恒 0x81（0x82 BACnet/IPv6 边界不实现）；charset 0/4 两档（55 升格例） | — | 无 | 无版本矩阵（如实） |
+| 9 | 关联：Invoke ID 确认事务配对回显（ACK/Error/Reject/Abort/SegmentACK）；无 Invoke 事务按时序（Who-Is→I-Am/Who-Has→I-Have）；BBMD 管理按功能+方向配对 | 多事务 invoke 递增不重用 | 无 | validator 关联校验 |
+| 10 | 承载/并发：udp-only 载体（TCP 拒）；多会话按序展开（源 IP 区分四元组，源端口恒 47808 保 tshark 解码）；concurrent 翻案 C-1（megaco#45 UDP 判例）；非默认端口显式声明合法（47809+DecodeAs，正例 46）；流关联显式不适用（Annex J 无副连接） | 多设备并发接入 | 无 | isBACNETChain concurrent 钩 |
+
+### 门 1 开工对照表（§1–§14）
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 目标形状：`{"layers":[{"ip":{"src":"192.0.2.66","dst":"198.51.100.66"}},{"udp":{"src_port":47808,"dst_port":47808}},{"bacnet":{"sessions":[{"src_ip":"192.0.2.66","src_port":47808,"events":[{"kind":"who_is","low":0,"high":100,"respond_i_am":true},{"kind":"read_property","invoke_id":1,"object_type":"analog-input","instance":1,"property":"present-value","respond":{"ack":"complex","value":{"type":"real","value":22.5}}}]}],"wire_fault":""}}]}`——顶层旧四元组/count 零残留；顶层 bacnet 子映射 presence 判死；端口住 udp 层（47808=tshark 解码硬约束；非默认显式声明合法） | CheckProtoFlat bacnet 分支（P4）；契约 §6 |
+| §2 策略/任务 | 框架语义未动；多流走 strategy_fc | 契约 §1 |
+| §3 五件套 | 会话表=sessions[]（源 IP/端口+events+concurrent）；事务序列=events[]（kind 24 种：发现/读写/订阅/管理/BBMD/NPDU 变体/raw_npdu）；关联=Invoke ID 配对（确认事务）+时序配对（发现/BBMD 管理）两档；插入位置=终结层每事件一数据报（自动派生 7 条按 §5 规则①-⑦插入）；时间线=UDP 无连接首包即业务、invoke 递增不重用、多会话整块展开（第二会话起点=前会话总包+1）或 concurrent 交错 | 契约 §4/§5 |
+| §4 查规范 | ASHRAE 135（条款号经印证）+bacnet-stack 逐函数+tshark 实测三层——P1 矩阵 10 行；v2.1.0 重审 5C+3D+2N 修复在案 | 契约 §0 |
+| §5 依赖与错误 | DependsOn ["udp"]；42 锚词闭环（处置表下表） | 契约 §7 |
+| §6 性能 | 数据报流式渲染零全量收集；1024B 大字符串扩展长度档单帧内；长度公式 §3.7 全可复算；pcap 路实测（网卡路如实未跑） | 契约 §8 |
+| §7 三份文档 | 65-bacnet-{design,testcase}.md v2.1.0（行为面权威）+ D-BACNET-1（本条目）+ T-BACNET（TEST_CASES）+ generated schema | 契约修订记录 |
+| §8 设计先行 | 本条目（P1-P3）先于 P4 实现，独立提交 | 提交序 |
+| §9 测试三源 | 三源=ASHRAE 135 条款+D-BACNET-1+bacnet-stack/现网；97=55+42 对账；一行一注入原子原则 | T-BACNET |
+| §10 评审闭环 | 每阶段对抗自审+收官隔离复审+修轮；红先绿后 | P6 链 |
+| §11 白话 | 每阶段白话一句先行 | 汇报 |
+| §12 动态清单 | 四元组=ip/udp 层+会话级 src 覆盖（源 IP 区分会话，源端口恒 47808）；业务字段（object/instance/property/value 13 标签/priority/invoke_id/ttl/lifetime/process_id/values 表）fixture 钉死，无策略动态消费面（声明式回放，mmse/edp/xmrmining 同判）；自动派生 7 条按 §5 显式规则；invoke 递增算法收单解析权威（xmrmining idWalker 先例） | 契约 §3/§5/§6 |
+| §13 schema 派生 | registry bacnet 行（Fields/FieldContract udp.dst_port=47808/DependsOn ["udp"]）→ schemagen 重跑 | 契约 §6 |
+| §14 真实流程 | suite 经 MCP 建任务→引擎生成→tshark `bvlc.*`/`bacnet.*`/`bacapp.*` fields（47808 端口自动解码硬约束）+ frames offset 42/62 双通道；`bvlc.length` 是 dissector 计算值非线上原值——线上 Length 走 frames hex（契约 §3.1 注记）；先跑后钉 | 用例 §1 |
+
+### 裁定
+
+1. **裁定1 udp-only 载体**：BVLC 0x81 over UDP 47808（Annex J）；TCP 载体拒（负例 91）；缺 udp 直连系书面豁免注入通道（edp/xmrmining 同款——DependsOn 不作链拒绝，探针先例×2）。
+2. **裁定2 端口**：47808 fixture（tshark 自动解码硬约束）；47809 显式声明合法通道（正例 46+DecodeAs 口径）；未声明非默认拒（负例 92）；多会话源 IP 区分、源端口恒 47808。
+3. **裁定3 端序全大端**：含 Real/Double（bacnet-stack encode_bacnet_real 字节反转源码+pcap 实测双证——勘误简报"Real 小端"）；无符号/枚举最短式策略（≤4B 直存 LVT，扩展式合法但不产生）。
+4. **裁定4 自动派生七规则**（契约 §5①-⑦）：who_is→I-Am、confirmed 请求→SimpleACK/ComplexACK（respond 子对象驱动）、respond:error/reject/abort 替代 ACK、分段→SegmentACK、BBMD 管理→BVLC-Result（Distribute-Broadcast 成功静默不补——Annex J 语义）、read_bdt/fdt→表项 Ack、router_discovery→I-Am-Router-To-Network。
+5. **裁定5 服务子集钉死**：Unconfirmed 5（I-Am/I-Have/UnconfirmedCOVNotification/Who-Has/Who-Is）+Confirmed 5（SubscribeCOV/ReadProperty/ReadPropertyMultiple/WriteProperty/DeviceCommunicationControl）；其余服务/NLM/Vendor NLM/扩展标签 0xF/DLEN∉{0,6} 不产生（负例值域校验兜底）。
+6. **裁定6 NPDU 控制八位组逐位语义**（bit7 网络层消息/bit5 目的说明符/bit3 源说明符/bit2 期望回复/bit1-0 优先级；保留位恒 0）；Hop Count 仅随 DNET；SLEN=0 非法；DLEN 合法域 {0,6}。
+7. **裁定7 分段**：SEG=1 时 seq 0 起单调递增、MOR 末段标记、Proposed Window 1–255、SegmentACK 逐窗回；请求/应答双向各自分段；段完整头部字段首段后各段重复（ComplexACK 分段无 max-segs 字节）；分段单位=APDU 非 UDP 报文。
+8. **裁定8 关联三族**：Invoke ID 配对回显（0–255 全域、未完成不复用、0/255 边界正例）；无 Invoke 时序配对（Who-Is→I-Am）；BBMD 管理功能+方向配对。invoke 递增缺省派生收单解析权威（xmrmining H1 先例——validator 查 effective 值）。
+9. **裁定9 concurrent 翻案沿用**：`concurrent: true` 交错（正例 47，判例链 megaco#45 UDP 同族）；流关联显式不适用（Annex J 无副连接）。
+10. **裁定10 tshark 断言口径**：47808 端口自动解码为硬约束；`bvlc.length` 字段系 dissector 计算值非线上原值——线上 Length 断言走 frames offset 44-45 hex；APDU 断言以 `bacapp.*` + frames 变长偏移表达。
+
+### wire_fault 逐值处置表（42 值初版分类；P4 落码据实勘误——edp 修轮 F6/xmrmining 终审 M2 先例）
+
+- **拟定自然面守卫**（配置面可表达且 validator 拟真拒）：service_confirmed_unimplemented/service_unconfirmed_invalid（服务选择码白名单）；object_type_overflow/object_instance_overflow/object_iam_not_device（对象 ID 值域+I-Am 类型约束）；property_id_vendor/property_index_negative（属性值域）；priority_range（1–16）；error_class_range（0–7/64+ 值域）；segment_window_zero（window 1–255）；segment_sequence_skip（seq 单调）；invoke_reuse（会话内 effective 唯一）；state_ack_no_request/state_iam_no_whois/state_cov_no_subscribe（状态机走查三态）；carrier_tcp（udp-only 预检）；address_family_mismatch（混合地址族预检）——计 19。
+- **拟定仅注入/结构不可达**（builder 恒渲染正确字节或配置面不可表达）：bvlc_type/bvlc_function/bvlc_secure/bvlc_length_min/bvlc_length_mismatch/bvlc_length_forwarded（组帧恒正确）；npdu_version/npdu_reserved_bits/npdu_no_message_type（组帧恒正确）；apdu_type_invalid/apdu_header_confirmed/apdu_header_simpleack（组帧恒正确）；tag_lvt_mismatch/tag_open_unmatched/tag_boolean_lvt/tag_context_number（标签编码器恒合法）；npdu_dest_missing/npdu_src_len_zero（raw_npdu 注入口表达）；npdu_dlen_invalid（DLEN 由 dadr 长度派生——若 config 可表达非法 dadr 长度则转自然，P4 定）；invoke_mismatch（自动派生恒回显）；segment_extra_fields/segment_missing_fields（SEG 标志与字段由同一事件派生恒一致）；carrier_layer_missing/carrier_port_undeclared/address_family_derived（DependsOn 不作链拒绝/配置面不可判定——书面豁免注入通道）——计 23。
+- 19+23=42 可复算；**P4 落码后逐值对照实况勘误**（xmrmining M2 教训：分类必须对着代码真行为，不对着意图）。
+
+### 文件清单（P4）
+
+- Create: `internal/core/bacnet.go`（BACNET* 类型 + 42 wire_fault 常量）+ `internal/protocol/bacnet/`（builder BVLC/NPDU/APDU/标签三层组帧+自动派生/planner 状态机+关联+42 锚词/layer_gen）
+- Modify: `internal/core/types.go`（FlowSpec.BACNET）、`layers/registry.go`（bacnet 行，119→120）、`layers/validate_layers.go`（udp-only 预检）、`layers/chain_planner_chain.go`（isBACNETChain concurrent 钩）、`layers/chain_planner_util.go`（谓词）、`layers/chain_planner_translate.go`（case bacnet）、`layers/generator.go`（FlowMeta.BACNET）、`internal/core/strategy_convert.go`（判死+parse+47808）、`internal/core/protocols.go`+`protocols_test.go`（白名单进出）、`cmd/server/main.go`（接线）
+- Test: `internal/core/layers/bacnet_chain_test.go`（链级红例，数量按 P3 清单定）
+- Reshape: `test/protocol_pcap/cases/bacnet.json`（占位移除+占位期陈旧 notes 修正，97 例=55 正+42 负按 §2 权威序）
+- Regenerate: `schemas/v1/generated/layers.generated.json`（119→120）+ webgen
+
+### 执行记录（P4-P6 逐段回填）
+
+- P4/P5/P6 未开工（本条目 P1-P3 定稿即提交）。

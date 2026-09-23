@@ -3999,3 +3999,13 @@ ICMPv4（RFC 792）反推 8 例（4 正+4 负；链级红例=单测面不占号�
 **P5 已执行（2026-09-23）：** 64/64 ×2 全绿（**round-1 即全绿零校准**——B6 用例期望与本引擎字节级一致，先跑后钉纪律下钉位成立）；链级红例 17（①-⑰）独立全绿（红例④⑮ 先红后绿抓真 bug：validator 未登记 login 初始 job 的语义分叉、XMREvent 自定义 UnmarshalJSON 绕过严格解码）；coverage_gate check_xmrmining 47/47（新建）；pipe_gate 静态四项绿；-race 净；sibling 回归 edp 89/89；清库 xmrmining 行 25+100→0/0（备份留存）。用例 reshape 注记：B6 64 例系混用形（顶层四元组+顶层 xmrmining 并存），已重排纯层链形 [ip,tcp,xmrmining]（B6 原 layers 内空 xmrmining 层与 config 合并去重）。
 
 **P6 修轮（终审 H1+H2+M1+M2 处置，2026-09-24）：** H1 请求 id 迭代（idWalker 单解析权威）——nonce_boundary/lifecycle 五处 field 期望按契约忠实字节校准（旧钉=违契约的 id 复用字节；lifecycle 恢复 §4#23 1→2→3 递增）；H2 keepalived 会话等值守卫 + 会话引用继承；M1 getjob 响应 job 登记；M2 处置表 21+18 据实勘误。验收执行器=MCP 套件（终结层族 edp/mmse 同状，离线执行器不覆盖系先例）。终验：红例 20（①-⑳）全绿 + 64/64 ×2（新二进制）+ coverage 47/47 + race 净。
+
+## T-BACNET-1…97 bacnet 层链接入（#41 D-BACNET-1，BACnet/IP（BVLC 0x81）/UDP 47808，97 例）
+
+**三源回指：** ANSI/ASHRAE 135（Clause 6/18/20/21/23/Annex J；条款号经参考实现注释印证，不臆造）+ bacnet-stack（BTL 参考栈，线格式逐函数权威：bvlc.h/bvlc.c/npdu.c/h_apdu.c/bacdcode.c/bacreal.c/whois.c/iam.c/rp.c/wp.c/rpm.c/cov.c/dcc.c）→ D-BACNET-1 → `test/protocol_pcap/cases/bacnet.json`（97 例）。ID 权威 = `65-bacnet-testcase.md` §2（55 正 + 42 负，D-1 megaco 判例）；本节对账 97 = 55 + 42。
+
+**存量审计（占位 1 例去向，9.14 口径）：** `bacnet_neg_unregistered` 注册前置占位随注册移除（契约 §1，同步修正占位期陈旧 notes——"20 条/14+6"旧稿统计）；无存量语义用例（97 例按契约 §9 簇级图景+用例 §2 逐 ID 新建）。
+
+**测试点清单先行（P3）：** ①BVLC/BBMD 族：单播基线/最小帧 8B（Who-Is 无限制）/定向广播/Forwarded/RFD TTL 三点/Result 成功与 NAK/BDT-FDT 读写删与多表项/Distribute 静默成功/厂商 ID 满值；②NPDU 族：DNET 路由目的/SNET 路由来源/NLM 一对/网络优先级 4 值/SA bit/全局广播 DNET 0xFFFF；③服务族：RP 含数组下标/RPM 单双对象/WP 优先级四态/Who-Has 按名按 ID 与范围对/COV 订阅三形态+通知/DCC 主形态与三变体/Error/Reject/Abort；④分段与事务族：分段请求应答+SegmentACK/invoke 边界 0/255 与相邻 1/254/多事务递增/window 1/255；⑤编码与值域族：I-Am 分段能力 0-2/13 应用标签全枚举+Boolean 双值/对象边界四点/1024B 扩展长度档/UCS-2 字符集；⑥载体与会话族：IPv6 同字节 offset 62/多会话按序展开/非默认端口 47809+DecodeAs/并发交错；⑦负例 42：一行一注入逐行锚词（§7 主锚词钉死——BVLC 6/NPDU 6/APDU 3/服务 2/标签 4/值域 9/关联 3/载体 5/状态机 3）。
+
+**断言通道纪律（§7-3）：** fields 用 `bvlc.*`/`bacnet.*`/`bacapp.*`/`udp.*`/`ipv6.*`/`frame.*`——47808 端口为 tshark 自动解码硬约束（47809 例须 `-d` DecodeAs 口径注记）；**`bvlc.length` 是 dissector 计算值非线上原值——线上 Length 断言走 frames offset 44-45 的 2 字节 hex**；APDU 起点随 NPDU 变长（无固定偏移），frames 变长偏移表达；分段用 tshark 重组字段（`bacapp.fragment.count`/`bacapp.reassembled.length`）。
