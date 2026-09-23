@@ -1,7 +1,7 @@
 # BACnet（楼宇自动化控制网络数据通信协议，Building Automation and Control Network / ASHRAE 135）设计契约
 
-> 版本：v2.1.0（设计阶段）
-> 日期：2026-09-01
+> 版本：v2.1.1（实现对勘，2026-09-24；P4/P5 实测 8 点勘误+处置表 15+27+wireshark 缺陷注记见 §10 修订记录）
+> 日期：2026-09-24
 > 状态：按《协议设计文档与用例文档需求文档 v1.3》完成行为面全枚举重审修复轮（审查员 rr-bacnet：行为面 181 点，✓123/半23/✗35；confirmed findings 10 条（5C+3D+2N）+1 拍板项按判例升格），本版 v2.1.0 为修复轮产物：语义 ID 53 → **97（55 正 + 42 负）**，待 rr-bacnet 复验；v1.1 流程的 14 项审查修复（v2.0.1）记录见 §10 修订记录。
 > 配套文件：`docs/protocol-designs/65-bacnet-testcase.md`、`trafficgen/test/protocol_pcap/cases/bacnet.json`（当前 JSON 仅含注册前置占位，本版不写文件、不改代码）
 > 规范基线与证据等级（逐项标注出处）：
@@ -384,6 +384,8 @@ APDU 长度公式：Confirmed-REQ `3 + (SEG?2:0) + 1 + len(请求)`；Unconfirme
 完成定义：注册 `udp→bacnet` 层链；实现 §3 全部线格式（BVLC 12 功能、NPDU 路由/NLM、8 种 APDU、13 种标签、10 服务、双向分段）与 §5 状态机（Invoke ID 唯一性、分段重组、自动派生 7 条）；55 个正例断言（fields + frames + 重组）与 42 个负例错误传播全部完成；**注册替换占位时同步修正 `bacnet.json` 占位期陈旧 notes（"20 条/14+6"旧稿统计）为用例文档 §2 各行覆盖描述（用例文档 §7 第 8 条登记项，占位期不改 JSON）**；未注册阶段只接受 `unknown layer` 占位。BACnet/SC、Secure-BVLL、MS/TP、BACnet/IPv6 BVLL(0x82) 仍仅在明确实现后才可增加对应断言。
 
 ## 10. 修订记录
+
+- v2.1.1（2026-09-24，P-PIPE #41 P4/P5 实测对勘——D-BACNET-1 执行记录同步）：本版仅登记实现/实测对契约的 8 点勘误与缺陷注记，正文不改写（行为面语义 ID 97 不变，以用例文件 `bacnet.json` frameAsserts 实测字节为钉）。①Hop Count 位置在 DADR 块之后（135-2016 §6.2.2；本契约表序笔误）；②正例 13 NPDU 总长实测 0x1e（契约 0x1c 算术误）；③正例 41 type-1023 复合对象码 = 0xFFC00001（1023<<22；契约 0x3FC00001 算术误）；④正例 55 短串 LVT3 直存 `73 03`（契约 `75 03` 违反自身 §3.4 最短式规则）；⑤正例 12 BVLC len 0x12、⑥正例 30 len 0x13、⑦正例 32 4 帧重整（T-BACNET 注记）、⑧正例 52 补 SA 位——均 frameAsserts 生成时自证。处置表实况 **15 自然守卫 + 27 仅注入 = 42**（state_iam_no_whois/state_cov_no_subscribe 转仅注入——正例 31/23 钉独立事件合法）。**wireshark 缺陷注记（tshark 3.6.14）**：bacapp dissector 对 LVT 直存（内容 ≤4 八位组）CharacterString 解码失败（WP 面静默空、RPM 属性值面 Malformed 异常）；该编码系 135 确定性短式合法形态，用例 fixture 取 ≥5 八位组规避，实现不妥协。**tshark 渲染口径**：`bvlc.function`/`bvlc.result`/`bacnet.control`/`bacnet.mesgtyp` 十六进制串、`bacapp.max_adpu_size` 原始码值、多出现字段按帧逗号并集、property 77 值渲染 `bacapp.object_name`、subscribeCOV processId 无专用字段、`has_payload`（frame.len>80）不适用 bacnet 短帧。
 
 - v2.1.0（2026-09-01，v1.3 行为面全枚举重审修复轮）：rr-bacnet 181 点重审（✓123/半23/✗35；5C+3D+2N confirmed +1 拍板项）后重出：语义 ID 53 → **97（55 正 + 42 负）**。关键修复：**C-1**（CRITICAL）并发会话翻案纳入（§1/§4/§5/§6 + 正例 47 `bacnet_concurrent_sessions`，判例 megaco#45 同为 UDP）；**C-2**（CRITICAL）pcap/NIC 双输出同一契约声明（§1）；**C-3**（CRITICAL）负例逐故障输入原子拆分 15→42 行（一行一例单一注入、主锚词钉死单一字面值），§7 表整表重排、§6 `wire_fault` 枚举 42 值三方同序；**C-4** 边界相邻值正例簇（39-45，§8 相邻值声明）；**C-5** 非默认端口正例（46，§8 端口行改"显式声明即合法"+DecodeAs 口径）；**D-1**（megaco 判例）§9 固化契约废除——ID 权威改用例文档 §2，设计 §9 改簇级覆盖图景；**D-2** 五处声明形态补例（Who-Has 范围对 48、RPM 双对象 49、DCC 三变体 50、COV issue-confirmed=false 51、Boolean FALSE 并入 32 帧 3）；**D-3** 值域缺口：SA bit 例（52）+ §3.3 引用、全局广播 DNET 0xFFFF 例（53）+ §3.2 同形不同义声明、BDT/FDT 多表项例（54）、error-class 越域负例（83）、扩展标签 0xF/DLEN∉{0,6}/Vendor NLM≥0x80 不产生声明（§3.2/§8）、码族与 max-APDU 档位代表值策略（§8⑤）；**N-1** 用例 §3 IPv6 fixture 地址端口分离；**N-2** UDP 无连接 FIN/RST/保活/重连不适用与 TSM 重传 events[] 编排口径（§5/§8）；**N-3**（拍板按判例升格）charset 4（55）与优先级 1/16（42）升格正例。既有决策未改：三名合一不涉及、端序大端、无符号最短式、代表值策略框架、流关联不适用保留。
 

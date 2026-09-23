@@ -4512,7 +4512,7 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 
 ## D-BACNET-1 bacnet 层链接入（#41，BACnet/IP（BVLC 0x81，Annex J）UDP 明文/47808，97 例）
 
-> 契约权威：`docs/protocol-designs/65-bacnet-design.md` v2.1.0 + `65-bacnet-testcase.md`（97 例=55 正+42 负；v1.3 重审 rr-bacnet 181 点 5C+3D+2N 修复完成、标注"待 rr-bacnet 复验"——本 P-PIPE 隔离终审的独立重编码对账兼作该复验证据，D- 执行记录回填）。三源=①ASHRAE 135（条款号经参考实现注释印证，不臆造）②bacnet-stack（BTL 参考栈，线格式逐函数权威）③本机 tshark 3.6.14 实证。**端序总表：全协议统一大端（含 Real/Double——勘误任务简报"Real 小端"）**。
+> 契约权威：`docs/protocol-designs/65-bacnet-design.md` v2.1.1（实现对勘版）+ `65-bacnet-testcase.md`（97 例=55 正+42 负；v1.3 重审 rr-bacnet 181 点 5C+3D+2N 修复完成、标注"待 rr-bacnet 复验"——本 P-PIPE 隔离终审的独立重编码对账兼作该复验证据，D- 执行记录回填）。三源=①ASHRAE 135（条款号经参考实现注释印证，不臆造）②bacnet-stack（BTL 参考栈，线格式逐函数权威）③本机 tshark 3.6.14 实证。**端序总表：全协议统一大端（含 Real/Double——勘误任务简报"Real 小端"）**。
 
 ### P1 规范矩阵（§4 八项确认态）
 
