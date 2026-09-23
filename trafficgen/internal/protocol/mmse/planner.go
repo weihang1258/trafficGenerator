@@ -522,7 +522,7 @@ func validateEvent(cfg *core.MMSEConfig, sess *core.MMSESession, ev *core.MMSEEv
 }
 
 // eventFieldCodes lists the optional/mandatory header codes an event declares
-//（与 buildPDU 渲染序一致；首三头与 Content-Type 恒定不入列）。
+// （与 buildPDU 渲染序一致；首三头与 Content-Type 恒定不入列）。
 func eventFieldCodes(ev *core.MMSEEvent) []byte {
 	var codes []byte
 	if ev.Date != nil {

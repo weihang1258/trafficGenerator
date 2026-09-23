@@ -1,8 +1,8 @@
 // Package mmse generator: 会话编排回放（D-MMSE-1，契约 §5 声明式回放——
 // 配置是剧本、引擎是回放者）。逐事件产出完整 HTTP 帧 MessageEvent（请求行/
 // 状态行/Host/Content-Type/Content-Length + PDU 体），http 层透传转发
-//（cwmp/doh/onvif 同款），tcp 层管分段/握手/挥手。顺序模式逐会话整块回放
-//（第二会话握手包号 = 前会话总包数 + 1）；concurrent 模式按事件下标
+// （cwmp/doh/onvif 同款），tcp 层管分段/握手/挥手。顺序模式逐会话整块回放
+// （第二会话握手包号 = 前会话总包数 + 1）；concurrent 模式按事件下标
 // round-robin 交错（C-1）。TID/MsgID 绑定经 buildTxBindings 预计算（与
 // validator 同函数同序，裁定5）。
 package mmse
@@ -51,8 +51,8 @@ func (g *MMSEGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 			Role: "ua",
 			Events: []core.MMSEEvent{
 				{Kind: "send_req", TransactionID: "auto", Date: int64Ptr(1725000000),
-					From: &core.MMSEFrom{Address: "+8613800138000/TYPE=PLMN"},
-					To:   []string{"+8613911223344/TYPE=PLMN"},
+					From:           &core.MMSEFrom{Address: "+8613800138000/TYPE=PLMN"},
+					To:             []string{"+8613911223344/TYPE=PLMN"},
 					DeliveryReport: &yes},
 				{Kind: "send_conf", TransactionID: "auto", ResponseStatus: "ok", MessageID: "auto"},
 			},
@@ -156,7 +156,7 @@ func (g *MMSEGenerator) renderEvent(r *sessRun, ei int, cfg *core.MMSEConfig, em
 }
 
 // setEventEndpoint stamps the event with the session's connection endpoints
-//（srcPort=0 回退链层 cfg 值；SrcIP 非空即覆盖——MessageEvent.SrcIP 无标记
+// （srcPort=0 回退链层 cfg 值；SrcIP 非空即覆盖——MessageEvent.SrcIP 无标记
 // 契约「空串 = 链层默认」；DstIP 覆盖须伴 OverrideDstIP——down 方向跳过
 // 交换，mmsc 回放方向四元组是绝对的）。
 func setEventEndpoint(ev *layers.MessageEvent, r *sessRun) {
