@@ -381,7 +381,7 @@ func TestMMSEChain_WireFaultClosedEnum(t *testing.T) {
 }
 
 // 红例⑧【D-MMSE-1 裁定5】：TID 配对——显式错配拒（锚 transaction）+ auto
-// 配对落线同值（请求 T0001 → 响应同值；契约 §5 取材）。
+// 配对落线同值（请求 MMSE-N-0001 → 响应同值；契约 §5 取材，B6 夹具同款）。
 func TestMMSEChain_TIDPairing(t *testing.T) {
 	mism := mmseChain(t, mmseConf(mmseSession("ua", []map[string]interface{}{
 		mmseSendReq("TID-REQ-1"),
@@ -397,9 +397,9 @@ func TestMMSEChain_TIDPairing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("plan: %v", err)
 	}
-	mustContain(t, body, "T0001", "M0001")
-	if strings.Count(body, "T0001") < 2 {
-		t.Fatalf("auto TID T0001 must ride both request and response (same_as), wire: %q", body[:min(300, len(body))])
+	mustContain(t, body, "MMSE-N-0001", "mmsc-msg-1")
+	if strings.Count(body, "MMSE-N-0001") < 2 {
+		t.Fatalf("auto TID MMSE-N-0001 must ride both request and response (same_as), wire: %q", body[:min(300, len(body))])
 	}
 }
 
@@ -573,8 +573,9 @@ func TestMMSEChain_UnknownKeysRejected(t *testing.T) {
 }
 
 // 红例⑮【D-MMSE-1 裁定5 megaco/hl7 round-2 同法】：sessionTx 唯一解析权威
-// ——两会话 auto 计数器各自 T0001/T0002 + M0001/M0002 落线（每会话独立
-// 计数、配对面同值；validator 判重面与生成器渲染同源）。
+// ——auto 计数器 config 全局（跨会话唯一，B6 mmseGenState 同款）：会话 1 落
+// MMSE-N-0001、会话 2 落 MMSE-N-0002（各自请求+配对响应同值）；MsgID
+// mmsc-msg-1/mmsc-msg-2 随序分配（validator 判重面与生成器渲染同源）。
 func TestMMSEChain_TxAuthorityParity(t *testing.T) {
 	body, err := planWire(t, mmseChain(t, mmseConf(
 		mmseSession("ua", []map[string]interface{}{
@@ -587,14 +588,11 @@ func TestMMSEChain_TxAuthorityParity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("plan: %v", err)
 	}
-	// 独立复算：计数器**每会话独立**（sessTx per session，hl7 dynState 同
-	// 款）——两会话各产出 T0001×2（请求+配对响应）与 M0001×1。
-	mustContain(t, body, "T0001", "M0001")
-	if strings.Count(body, "T0001") < 4 {
-		t.Fatalf("each session's counter must emit T0001 on request+response (4 total)\nwire: %q", body[:min(400, len(body))])
-	}
-	if strings.Count(body, "M0001") < 2 {
-		t.Fatalf("each session's send-conf must carry its own M0001 (2 total)\nwire: %q", body[:min(400, len(body))])
+	// 独立复算：计数器 config 全局递增——会话 1 请求+响应同落 MMSE-N-0001
+	//（×2），会话 2 落 MMSE-N-0002（×2）；MsgID mmsc-msg-1/2 各一次。
+	mustContain(t, body, "MMSE-N-0001", "MMSE-N-0002", "mmsc-msg-1", "mmsc-msg-2")
+	if strings.Count(body, "MMSE-N-0001") < 2 || strings.Count(body, "MMSE-N-0002") < 2 {
+		t.Fatalf("each auto transaction must ride request+response with the same config-scoped TID (2× MMSE-N-0001 + 2× MMSE-N-0002)\nwire: %q", body[:min(400, len(body))])
 	}
 }
 

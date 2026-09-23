@@ -26,14 +26,15 @@ type txBinding struct {
 	pairTID         string // 配对对手 TID（send_conf/notifyresp/retrieve_conf/ack）
 	orphanResp      bool   // 响应侧事件无配对对手
 	tidMismatch     bool   // 显式 TID 与配对对手不一致
+	tidOutOfRange   bool   // same_as_notification 引用越界
 	msgidOutOfRange bool   // same_as_send_conf 引用越界
 	msgidUnsourced  bool   // delivery/read-rec 显式 msgid 解析不到任何 send-conf
 }
 
-// sessTx is one session's allocation/pairing state（会话内推进——concurrent
-// 交错不改变各会话内部事件序，绑定值与会话逐块回放完全一致）。
+// sessTx is one session's pairing state（会话内配对推进——concurrent
+// 交错不改变各会话内部事件序，绑定值与会话逐块回放完全一致；auto
+// 计数器在 txState——跨会话全局唯一，B6 夹具同款）。
 type sessTx struct {
-	tidSeq, msgidSeq   int
 	pendingReqTID      string // send_req 待配对
 	pendingNotifTID    string // notification_ind 待配对
 	pendingRetrieveTID string // retrieve 待配对（retrieve_conf 与 ack 共用）
@@ -41,12 +42,14 @@ type sessTx struct {
 
 // txState is the global correlation authority（walk 序：会话序 × 事件序）。
 type txState struct {
-	cfg             *core.MMSEConfig
-	sess            []*sessTx
-	sendConfMsgIDs  []string // 0 基序数 → send_conf 已分配 MsgID（跨会话回指注册表）
-	lastNotifTID    string   // 全局最近通知 TID（立即取回复用，§6.3）
-	lastNotifLoc    string   // 全局最近通知 Content-Location（GET URI 派生源）
-	lastRetrieveTID string
+	cfg              *core.MMSEConfig
+	sess             []*sessTx
+	tidSeq, msgidSeq int      // auto 计数器——config 全局（跨会话唯一，B6 同款）
+	sendConfMsgIDs   []string // 0 基序数 → send_conf 已分配 MsgID（跨会话回指注册表）
+	notifTIDs        []string // 0 基序数 → notification_ind 已分配 TID（same_as_notification 回指）
+	lastNotifTID     string   // 全局最近通知 TID（立即取回/notifyresp 跨会话回退，§6.3）
+	lastNotifLoc     string   // 全局最近通知 Content-Location（GET URI 派生源）
+	lastRetrieveTID  string   // 全局最近取回 TID（跨会话 ack 配对回退）
 }
 
 func newTxState(cfg *core.MMSEConfig) *txState {
@@ -58,9 +61,10 @@ func newTxState(cfg *core.MMSEConfig) *txState {
 }
 
 // autoTID/autoMsgID render the deterministic auto forms（契约 §5 确定性——
-// 无墙钟；validator 判重/关联与生成器渲染同源即此函数）。
-func autoTID(n int) string   { return fmt.Sprintf("T%04d", n) }
-func autoMsgID(n int) string { return fmt.Sprintf("M%04d", n) }
+// 无墙钟；validator 判重/关联与生成器渲染同源即此函数。格式 B6 夹具同款：
+// TID "MMSE-N-0001"、MsgID "mmsc-msg-1"，计数器 config 全局跨会话唯一）。
+func autoTID(n int) string   { return fmt.Sprintf("MMSE-N-%04d", n) }
+func autoMsgID(n int) string { return fmt.Sprintf("mmsc-msg-%d", n) }
 
 // resolveOne advances the state for one event and returns its binding.
 // 调用方必须按（会话序 × 事件序）遍历——绑定值由遍历序唯一决定。
@@ -89,46 +93,82 @@ func (st *txState) resolveOne(si int, ev *core.MMSEEvent) (*txBinding, error) {
 		}
 		s.pendingReqTID = ""
 	case "notifyresp_ind":
+		ref, isAlias, aliasOK := resolveNotifAlias(st, ev.TransactionID)
 		exp := s.pendingNotifTID
+		if exp == "" {
+			exp = st.lastNotifTID // 跨会话回退（通知会话→notifyresp 会话，§6 用例形状）
+		}
 		b.pairTID = exp
 		b.orphanResp = exp == ""
-		if isExplicitID(ev.TransactionID) {
+		switch {
+		case isAlias:
+			if !aliasOK {
+				b.tidOutOfRange = true // 引用越界：无此通知序数
+			} else {
+				b.TID = ref // 别名自证配对——引用目标即通知本体
+			}
+		case isExplicitID(ev.TransactionID):
 			b.TID = ev.TransactionID
 			b.tidMismatch = exp != "" && ev.TransactionID != exp
-		} else {
+		default:
 			b.TID = exp
 		}
 		s.pendingNotifTID = ""
 	case "retrieve_conf":
+		ref, isAlias, aliasOK := resolveNotifAlias(st, ev.TransactionID)
 		exp := s.pendingRetrieveTID
 		b.pairTID = exp
 		b.orphanResp = exp == ""
-		if isExplicitID(ev.TransactionID) {
+		switch {
+		case isAlias:
+			if !aliasOK {
+				b.tidOutOfRange = true
+			} else {
+				b.TID = ref
+			}
+		case isExplicitID(ev.TransactionID):
 			b.TID = ev.TransactionID
 			b.tidMismatch = exp != "" && ev.TransactionID != exp
-		} else {
+		default:
 			b.TID = exp
 		}
 	case "acknowledge_ind":
+		ref, isAlias, aliasOK := resolveNotifAlias(st, ev.TransactionID)
 		exp := s.pendingRetrieveTID
+		if exp == "" {
+			exp = st.lastRetrieveTID // 跨会话回退（取回会话→确认会话，§6 用例形状）
+		}
 		b.pairTID = exp
 		b.orphanResp = exp == ""
-		if isExplicitID(ev.TransactionID) {
+		switch {
+		case isAlias:
+			if !aliasOK {
+				b.tidOutOfRange = true
+			} else {
+				b.TID = ref
+			}
+		case isExplicitID(ev.TransactionID):
 			b.TID = ev.TransactionID
 			b.tidMismatch = exp != "" && ev.TransactionID != exp
-		} else {
+		default:
 			b.TID = exp
 		}
 	case "retrieve":
-		if isExplicitID(ev.TransactionID) {
+		if ref, isAlias, aliasOK := resolveNotifAlias(st, ev.TransactionID); isAlias {
+			if !aliasOK {
+				b.tidOutOfRange = true
+			} else {
+				b.TID = ref
+			}
+		} else if isExplicitID(ev.TransactionID) {
 			b.TID = ev.TransactionID
 		} else if s.pendingNotifTID != "" {
 			b.TID = s.pendingNotifTID // 立即取回复用本会话通知 TID（§6.3）
 		} else if st.lastNotifTID != "" {
 			b.TID = st.lastNotifTID // 跨会话立即取回（用例 #5：通知会话→取回会话）
 		} else {
-			s.tidSeq++
-			b.TID = autoTID(s.tidSeq)
+			st.tidSeq++
+			b.TID = autoTID(st.tidSeq)
 		}
 		s.pendingRetrieveTID = b.TID
 		st.lastRetrieveTID = b.TID
@@ -149,12 +189,13 @@ func (st *txState) resolveOne(si int, ev *core.MMSEEvent) (*txBinding, error) {
 		if isExplicitID(ev.TransactionID) {
 			b.TID = ev.TransactionID
 		} else {
-			s.tidSeq++
-			b.TID = autoTID(s.tidSeq)
+			st.tidSeq++
+			b.TID = autoTID(st.tidSeq)
 		}
 		if ev.Kind == "notification_ind" {
 			s.pendingNotifTID = b.TID
 			st.lastNotifTID = b.TID
+			st.notifTIDs = append(st.notifTIDs, b.TID) // same_as_notification 回指注册表
 			st.lastNotifLoc = ev.ContentLocation
 		} else {
 			s.pendingReqTID = b.TID
@@ -166,16 +207,16 @@ func (st *txState) resolveOne(si int, ev *core.MMSEEvent) (*txBinding, error) {
 		if isExplicitID(ev.MessageID) && !strings.HasPrefix(ev.MessageID, "same_as_send_conf:") {
 			b.MsgID = ev.MessageID
 		} else if ev.MessageID != "" { // "auto" 或引用形都按分配处理
-			s.msgidSeq++
-			b.MsgID = autoMsgID(s.msgidSeq)
+			st.msgidSeq++
+			b.MsgID = autoMsgID(st.msgidSeq)
 		}
 		st.sendConfMsgIDs = append(st.sendConfMsgIDs, b.MsgID)
 	case "retrieve_conf":
 		if isExplicitID(ev.MessageID) && !strings.HasPrefix(ev.MessageID, "same_as_send_conf:") {
 			b.MsgID = ev.MessageID
 		} else if ev.MessageID != "" {
-			s.msgidSeq++
-			b.MsgID = autoMsgID(s.msgidSeq)
+			st.msgidSeq++
+			b.MsgID = autoMsgID(st.msgidSeq)
 		}
 	case "delivery_ind", "read_rec_ind":
 		mid := ev.MessageID
@@ -201,6 +242,21 @@ func (st *txState) resolveOne(si int, ev *core.MMSEEvent) (*txBinding, error) {
 
 // isExplicitID reports whether the config value is a literal (not "auto"/"").
 func isExplicitID(s string) bool { return s != "" && s != "auto" }
+
+// resolveNotifAlias resolves a "same_as_notification:<i>" Transaction-ID
+// reference against the notification registry（0 基，跨会话）。isAlias=false
+// 表示非引用形；isAlias=true 且 !ok 表示引用越界（无此通知序数）。
+func resolveNotifAlias(st *txState, id string) (ref string, isAlias, ok bool) {
+	const prefix = "same_as_notification:"
+	if !strings.HasPrefix(id, prefix) {
+		return "", false, false
+	}
+	idx, err := strconv.Atoi(strings.TrimPrefix(id, prefix))
+	if err != nil || idx < 0 || idx >= len(st.notifTIDs) {
+		return "", true, false
+	}
+	return st.notifTIDs[idx], true, true
+}
 
 func containsID(list []string, v string) bool {
 	for _, x := range list {
@@ -329,6 +385,9 @@ func validateEvent(cfg *core.MMSEConfig, sess *core.MMSESession, ev *core.MMSEEv
 	}
 	if b.tidMismatch {
 		return fmt.Errorf("%s: explicit transaction-id %q does not match the paired transaction %q (transaction)", where, ev.TransactionID, b.pairTID)
+	}
+	if b.tidOutOfRange {
+		return fmt.Errorf("%s: transaction-id reference %q is out of range — no such notification_ind ordinal (transaction)", where, ev.TransactionID)
 	}
 	if b.msgidOutOfRange {
 		return fmt.Errorf("%s: message-id reference %q is out of range — no such send_conf ordinal (message-id)", where, ev.MessageID)

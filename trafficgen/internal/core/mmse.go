@@ -71,8 +71,10 @@ type MMSEEvent struct {
 	// read_rec_ind（retrieve 为 GET，URI 自动取引用通知的 content_location，
 	// 契约 §5 自动派生③）。
 	Kind string `json:"kind,omitempty"`
-	// TransactionID is X-Mms-Transaction-ID（"auto" = 会话内计数器 T%04d，
-	// 显式串否则；策略上界 32B——validator 强制，契约 §3.4/§8）。
+	// TransactionID is X-Mms-Transaction-ID（"auto" = config 全局计数器
+	// MMSE-N-%04d，跨会话唯一；显式串否则；引用形 "same_as_notification:<i>"
+	// 回指第 i（0 起）个 notification_ind 的已分配 TID（跨会话，契约 §5）。
+	// 策略上界 32B——validator 强制，契约 §3.4/§8）。
 	TransactionID string `json:"transaction_id,omitempty"`
 	// Date is the Date header（epoch 秒；Long-integer 定宽 4B，契约 §3.3）。
 	Date *int64 `json:"date,omitempty"`
@@ -109,8 +111,8 @@ type MMSEEvent struct {
 	// ResponseText is X-Mms-Response-Text（send_conf 可选）。
 	ResponseText string `json:"response_text,omitempty"`
 	// MessageID is the Message-ID 头（RFC 822 msg-id，不含 <>）："auto" =
-	// 会话内计数器 M%04d（send_conf 接受时/retrieve-conf/delivery/read-rec
-	// 出现）；"same_as_send_conf:<i>" 引用第 i（1 起）个 send_conf 的已分配
+	// config 全局计数器 mmsc-msg-%d（send_conf 接受时/retrieve-conf 出现）；
+	// "same_as_send_conf:<i>" 引用第 i（0 起）个 send_conf 的已分配
 	// Message-ID（跨会话回指，契约 §5 取材）。
 	MessageID string `json:"message_id,omitempty"`
 	// MessageSize is X-Mms-Message-Size 字节（通知必选；Long-integer 定宽 3B）。

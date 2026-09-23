@@ -131,7 +131,8 @@ func appendLongInt(b []byte, n int, v uint64) []byte {
 	return b
 }
 
-// appendUintvar appends a WSP Uintvar（7bit 一组，低组在前，除末组外高位置 1）。
+// appendUintvar appends a WSP Uintvar（WAP-230 §8.1.2：7bit 一组，低组在前，
+// 除末组外高位置 1——2097152 → 80 80 80 01）。
 func appendUintvar(b []byte, v uint64) []byte {
 	if v == 0 {
 		return append(b, 0)
@@ -143,9 +144,9 @@ func appendUintvar(b []byte, v uint64) []byte {
 		v >>= 7
 		n++
 	}
-	for i := n - 1; i >= 0; i-- {
+	for i := 0; i < n; i++ {
 		c := groups[i]
-		if i != 0 {
+		if i != n-1 {
 			c |= 0x80
 		}
 		b = append(b, c)
@@ -242,18 +243,14 @@ func mediaCode(ct string) (byte, bool) {
 // 参数）或 Value-length(媒体码+参数集)（契约 §3.6；N-6：name/charset 参数
 // 编在 Value-length 之内）。
 func appendContentTypeValue(b []byte, p *core.MMSEPart) []byte {
-	code, wellKnown := mediaCode(p.ContentType)
+	// part CT-value 恒带 Value-length 包裹（B6 夹具同款——裸媒体码/扩展文本
+	// 同样包 VL；WSP §8.4.2.1 两可形取 VL 形，part 头长度可复算）。
 	var body []byte
-	if p.Name == "" && p.Charset == 0 {
-		if wellKnown {
-			return append(b, code) // 单媒体码，无参数无 Value-length
-		}
-		// Extension-media 文本形态（application/smil 等无码类型）。
-		return appendTextString(b, p.ContentType)
-	}
+	code, wellKnown := mediaCode(p.ContentType)
 	if wellKnown {
 		body = append(body, code)
 	} else {
+		// Extension-media 文本形态（application/smil 等无码类型）。
 		body = appendTextString(body, p.ContentType)
 	}
 	if p.Name != "" {
@@ -381,100 +378,36 @@ func buildPDU(cfg *core.MMSEConfig, ev *core.MMSEEvent, tx *txBinding) ([]byte, 
 	}
 	b = append(b, fMMSVersion, vw)
 
-	// 可选/必选头（确定性渲染序；必选性由 validator 执法，builder 忠实渲染）。
-	if ev.Date != nil {
-		b = appendLongInt(append(b, fDate), 4, uint64(*ev.Date))
-	}
-	if ev.From != nil || pt == pduSendReq {
-		b = appendFrom(b, ev.From)
-	}
-	for _, a := range ev.To {
-		b = appendTextString(append(b, fTo), a)
-	}
-	for _, a := range ev.Cc {
-		b = appendTextString(append(b, fCc), a)
-	}
-	for _, a := range ev.Bcc {
-		b = appendTextString(append(b, fBcc), a)
-	}
-	if ev.Subject != nil {
-		b = append(b, fSubject)
-		b = appendEncodedStringValue(b, ev.Subject.Text, ev.Subject.Charset)
-	}
-	// Message-ID 以解析值为准（tx.MsgID）——配置键在无分配语义的 kind 上
-	// 被 sessionTx 忽略（避免渲染空头）。渲染面另受 pduFieldAllowance 表约束。
-	if tx.MsgID != "" {
-		b = appendTextString(append(b, fMessageID), tx.MsgID)
-	}
-	if ev.MessageClass != "" {
-		b = append(b, fMessageClass, enumClass[ev.MessageClass])
-	}
-	if ev.Expiry != nil {
-		var body []byte
-		if ev.Expiry.Absolute != nil {
-			body = append(body, tokenAbsolute)
-			body = appendLongInt(body, 4, uint64(*ev.Expiry.Absolute))
-		} else if ev.Expiry.Relative != nil {
-			body = append(body, tokenRelative)
-			body = appendLongInt(body, 3, uint64(*ev.Expiry.Relative))
+	// 逐 kind 字段序（契约 §3.5 表 1–7 的字段序列，B6 夹具同序——字节钉死
+	// 依赖此序；必选性由 validator 执法，builder 忠实渲染；Message-ID 以
+	// 解析值为准 tx.MsgID，无分配语义的 kind 被 sessionTx 置空不渲染空头）。
+	appendSubject := func() {
+		if ev.Subject != nil {
+			b = append(b, fSubject)
+			b = appendEncodedStringValue(b, ev.Subject.Text, ev.Subject.Charset)
 		}
-		b = append(b, fExpiry)
+	}
+	appendTime := func(code byte, t *core.MMSETime) {
+		if t == nil {
+			return
+		}
+		var body []byte
+		if t.Absolute != nil {
+			body = append(body, tokenAbsolute)
+			body = appendLongInt(body, 4, uint64(*t.Absolute))
+		} else if t.Relative != nil {
+			body = append(body, tokenRelative)
+			body = appendLongInt(body, 3, uint64(*t.Relative))
+		}
+		b = append(b, code)
 		b = appendValueLength(b, len(body))
 		b = append(b, body...)
 	}
-	if ev.DeliveryTime != nil {
-		var body []byte
-		if ev.DeliveryTime.Absolute != nil {
-			body = append(body, tokenAbsolute)
-			body = appendLongInt(body, 4, uint64(*ev.DeliveryTime.Absolute))
-		} else if ev.DeliveryTime.Relative != nil {
-			body = append(body, tokenRelative)
-			body = appendLongInt(body, 3, uint64(*ev.DeliveryTime.Relative))
-		}
-		b = append(b, fDeliveryTime)
-		b = appendValueLength(b, len(body))
-		b = append(b, body...)
-	}
-	if ev.Priority != "" {
-		b = append(b, fPriority, enumPriority[ev.Priority])
-	}
-	if ev.SenderVisibility != "" {
-		b = append(b, fSenderVisibility, enumVisibility[ev.SenderVisibility])
-	}
-	if ev.DeliveryReport != nil {
-		b = append(b, fDeliveryReport, yesNoByte(*ev.DeliveryReport))
-	}
-	if ev.ReadReply != nil {
-		b = append(b, fReadReply, yesNoByte(*ev.ReadReply))
-	}
-	if ev.ReportAllowed != nil {
-		b = append(b, fReportAllowed, yesNoByte(*ev.ReportAllowed))
-	}
-	if ev.ResponseStatus != "" {
-		b = append(b, fResponseStatus, enumResponseStatus[ev.ResponseStatus])
-	}
-	if ev.ResponseText != "" {
-		b = appendEncodedStringValue(append(b, fResponseText), ev.ResponseText, 0)
-	}
-	if ev.MessageSize != nil {
-		b = appendLongInt(append(b, fMessageSize), 3, uint64(*ev.MessageSize))
-	}
-	if ev.ContentLocation != "" {
-		b = appendTextString(append(b, fContentLocation), ev.ContentLocation)
-	}
-	if ev.Status != "" {
-		b = append(b, fStatus, enumStatus[ev.Status])
-	}
-	if ev.ReadStatus != "" {
-		b = append(b, fReadStatus, enumReadStatus[ev.ReadStatus])
-	}
-
-	// Content-Type 恒最后 + 消息体（仅 send-req/retrieve-conf，契约 §3.5）。
-	if pt == pduSendReq || pt == pduRetrieveConf {
+	appendCTAndBody := func() error {
 		if ev.Content != nil {
 			body, err := buildMultipartBody(ev.Content)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			b = append(b, fContentType)
 			b = append(b, buildMultipartCT(ev.Content)...)
@@ -482,6 +415,131 @@ func buildPDU(cfg *core.MMSEConfig, ev *core.MMSEEvent, tx *txBinding) ([]byte, 
 		} else {
 			b = append(b, fContentType)
 			b = append(b, mediaTextPlain) // 单媒体码最小形态
+		}
+		return nil
+	}
+	switch ev.Kind {
+	case "send_req": // 表 1
+		if ev.Date != nil {
+			b = appendLongInt(append(b, fDate), 4, uint64(*ev.Date))
+		}
+		if ev.From != nil {
+			b = appendFrom(b, ev.From)
+		}
+		for _, a := range ev.To {
+			b = appendTextString(append(b, fTo), a)
+		}
+		for _, a := range ev.Cc {
+			b = appendTextString(append(b, fCc), a)
+		}
+		for _, a := range ev.Bcc {
+			b = appendTextString(append(b, fBcc), a)
+		}
+		appendSubject()
+		if ev.MessageClass != "" {
+			b = append(b, fMessageClass, enumClass[ev.MessageClass])
+		}
+		if ev.Priority != "" {
+			b = append(b, fPriority, enumPriority[ev.Priority])
+		}
+		if ev.SenderVisibility != "" {
+			b = append(b, fSenderVisibility, enumVisibility[ev.SenderVisibility])
+		}
+		if ev.DeliveryReport != nil {
+			b = append(b, fDeliveryReport, yesNoByte(*ev.DeliveryReport))
+		}
+		if ev.ReadReply != nil {
+			b = append(b, fReadReply, yesNoByte(*ev.ReadReply))
+		}
+		appendTime(fExpiry, ev.Expiry)
+		appendTime(fDeliveryTime, ev.DeliveryTime)
+		if err := appendCTAndBody(); err != nil {
+			return nil, err
+		}
+	case "send_conf": // 表 2：ResponseStatus → ResponseText → Message-ID 收尾
+		if ev.ResponseStatus != "" {
+			b = append(b, fResponseStatus, enumResponseStatus[ev.ResponseStatus])
+		}
+		if ev.ResponseText != "" {
+			b = appendEncodedStringValue(append(b, fResponseText), ev.ResponseText, 0)
+		}
+		if tx.MsgID != "" {
+			b = appendTextString(append(b, fMessageID), tx.MsgID)
+		}
+	case "notification_ind": // 表 3：From?→Subject?→class→size→expiry→location
+		if ev.From != nil {
+			b = appendFrom(b, ev.From)
+		}
+		appendSubject()
+		if ev.MessageClass != "" {
+			b = append(b, fMessageClass, enumClass[ev.MessageClass])
+		}
+		if ev.MessageSize != nil {
+			b = appendLongInt(append(b, fMessageSize), 3, uint64(*ev.MessageSize))
+		}
+		appendTime(fExpiry, ev.Expiry)
+		if ev.ContentLocation != "" {
+			b = appendTextString(append(b, fContentLocation), ev.ContentLocation)
+		}
+	case "notifyresp_ind": // 表 4：Status → Report-Allowed
+		if ev.Status != "" {
+			b = append(b, fStatus, enumStatus[ev.Status])
+		}
+		if ev.ReportAllowed != nil {
+			b = append(b, fReportAllowed, yesNoByte(*ev.ReportAllowed))
+		}
+	case "retrieve_conf": // 表 5：Date→MsgID→From?→To→Subject→class→priority→DR→RR→CT
+		if ev.Date != nil {
+			b = appendLongInt(append(b, fDate), 4, uint64(*ev.Date))
+		}
+		if tx.MsgID != "" {
+			b = appendTextString(append(b, fMessageID), tx.MsgID)
+		}
+		if ev.From != nil {
+			b = appendFrom(b, ev.From)
+		}
+		for _, a := range ev.To {
+			b = appendTextString(append(b, fTo), a)
+		}
+		appendSubject()
+		if ev.MessageClass != "" {
+			b = append(b, fMessageClass, enumClass[ev.MessageClass])
+		}
+		if ev.Priority != "" {
+			b = append(b, fPriority, enumPriority[ev.Priority])
+		}
+		if ev.DeliveryReport != nil {
+			b = append(b, fDeliveryReport, yesNoByte(*ev.DeliveryReport))
+		}
+		if ev.ReadReply != nil {
+			b = append(b, fReadReply, yesNoByte(*ev.ReadReply))
+		}
+		if err := appendCTAndBody(); err != nil {
+			return nil, err
+		}
+	case "acknowledge_ind": // 表 6：Report-Allowed
+		if ev.ReportAllowed != nil {
+			b = append(b, fReportAllowed, yesNoByte(*ev.ReportAllowed))
+		}
+	case "delivery_ind": // 表 7（无 Transaction-ID）：MsgID→To→Date→Status
+		if tx.MsgID != "" {
+			b = appendTextString(append(b, fMessageID), tx.MsgID)
+		}
+		for _, a := range ev.To {
+			b = appendTextString(append(b, fTo), a)
+		}
+		if ev.Date != nil {
+			b = appendLongInt(append(b, fDate), 4, uint64(*ev.Date))
+		}
+		if ev.Status != "" {
+			b = append(b, fStatus, enumStatus[ev.Status])
+		}
+	case "read_rec_ind": // 表 7：MsgID→Read-Status
+		if tx.MsgID != "" {
+			b = appendTextString(append(b, fMessageID), tx.MsgID)
+		}
+		if ev.ReadStatus != "" {
+			b = append(b, fReadStatus, enumReadStatus[ev.ReadStatus])
 		}
 	}
 	return b, nil

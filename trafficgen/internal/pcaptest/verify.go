@@ -596,6 +596,19 @@ func IsMalformedWhitelisted(caseID string, flags ...string) bool {
 		caseID == "gnutella_frame_boundary") &&
 		strings.Contains(flag, "[Malformed Packet: GNUTELLA]"):
 		return true
+	// 10. MMSE send_conf Response-Status=0x84（error-sending-address-unresolved）
+	//     dissector 伪影（D-MMSE-1，tshark 3.6，字节级已对
+	//     /tmp/mcp-pcaps/mmse/mmse_response_status_error_values.pcap 帧 23
+	//     验证）：PDU 为规范 WAP-209 §7.3 形（8C 81 | 98 TID | 8D 92 |
+	//     8B Message-ID | 92 84，22B 与 Content-Length 自洽），dissector 正确
+	//     解析全部字段（Message-Id / Response-Status: Sending address
+	//     unresolved (0x84) 均在 -V 输出）后在 PDU 末端抛 Exception →
+	//     "[Malformed Packet: MMSE]"。同形 send_conf 携带 0x81/0x83/0x85…
+	//     0x88 值的帧全部干净，仅 0x84 触发——值特异的 dissector 缺陷，
+	//     非帧缺陷。帧字节由 fields 断言钉死（response_status 0x84）。
+	case caseID == "mmse_response_status_error_values" &&
+		strings.Contains(flag, "[Malformed Packet: MMSE]"):
+		return true
 	}
 	return false
 }

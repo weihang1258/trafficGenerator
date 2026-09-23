@@ -62,6 +62,11 @@ func (g *MMSEGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 	sessions := cfg.Sessions
 	// concurrent：config 级强制全部；会话级 flag 亦可单会话声明。
 	concurrent := cfg.Concurrent
+	// Host 载荷标识（B6 夹具语义）：流级链层目标，空回退 198.51.100.71。
+	host := req.Meta.DstIP
+	if host == "" {
+		host = "198.51.100.71"
+	}
 	runs := make([]*sessRun, len(sessions))
 	for i := range sessions {
 		s := sessions[i]
@@ -109,7 +114,7 @@ func (g *MMSEGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 		for ei := 0; ei < maxLen; ei++ {
 			for _, r := range runs {
 				if ei < len(r.sess.Events) {
-					if err := g.renderEvent(r, ei, cfg, emit); err != nil {
+					if err := g.renderEvent(r, ei, cfg, host, emit); err != nil {
 						return err
 					}
 				}
@@ -119,7 +124,7 @@ func (g *MMSEGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 	}
 	for _, r := range runs {
 		for ei := range r.sess.Events {
-			if err := g.renderEvent(r, ei, cfg, emit); err != nil {
+			if err := g.renderEvent(r, ei, cfg, host, emit); err != nil {
 				return err
 			}
 		}
@@ -128,10 +133,15 @@ func (g *MMSEGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 }
 
 // renderEvent emits one event as a complete HTTP frame MessageEvent.
-func (g *MMSEGenerator) renderEvent(r *sessRun, ei int, cfg *core.MMSEConfig, emit func(layers.MessageEvent) error) error {
+// Host 载荷语义（B6 夹具 110B 头集合可复算）：Host 取流级链层目标
+// （meta.DstIP，空回退 198.51.100.71），不带端口后缀/不加 IPv6 方括号、
+// 恒不省略；会话级 dst_ip 是连接四元组覆盖（回放方向工件），不改变
+// Host 标识。响应帧（200）不带 Host（B6 同款，send_conf_ok pin 140B
+// 可复算）。acknowledge_ind 是单向 MM1 请求——生成器自动补一帧空体
+// HTTP 200（design §5 事务表；其余请求侧 POST 不自动应答）。
+func (g *MMSEGenerator) renderEvent(r *sessRun, ei int, cfg *core.MMSEConfig, host string, emit func(layers.MessageEvent) error) error {
 	ev := &r.sess.Events[ei]
 	b := r.bindings[ei]
-	host := hostHeader(r.dstIP, r.dstPort)
 	var frame []byte
 	if ev.Kind == "retrieve" {
 		frame = buildHTTPRequest("GET", b.URI, host, ev.HTTP, nil)
@@ -147,12 +157,23 @@ func (g *MMSEGenerator) renderEvent(r *sessRun, ei int, cfg *core.MMSEConfig, em
 			}
 			frame = buildHTTPRequest("POST", uri, host, ev.HTTP, pdu)
 		} else {
-			frame = buildHTTPResponse(200, host, ev.HTTP, pdu)
+			frame = buildHTTPResponse(200, "", ev.HTTP, pdu)
 		}
 	}
 	evm := layers.MessageEvent{Up: b.IsRequest, Bytes: frame}
 	setEventEndpoint(&evm, r)
-	return emit(evm)
+	if err := emit(evm); err != nil {
+		return err
+	}
+	if ev.Kind == "acknowledge_ind" {
+		ack := layers.MessageEvent{
+			Up:    false,
+			Bytes: []byte("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"),
+		}
+		setEventEndpoint(&ack, r)
+		return emit(ack)
+	}
+	return nil
 }
 
 // setEventEndpoint stamps the event with the session's connection endpoints
@@ -173,41 +194,6 @@ func setEventEndpoint(ev *layers.MessageEvent, r *sessRun) {
 	if r.dstPort != 0 {
 		ev.DstPort = r.dstPort
 	}
-}
-
-// hostHeader renders the Host header value（IPv6 字面量加方括号）。
-func hostHeader(dstIP string, dstPort uint16) string {
-	host := dstIP
-	if host == "" {
-		return ""
-	}
-	if containsByte(host, ':') && host[0] != '[' {
-		host = "[" + host + "]"
-	}
-	return host + ":" + itoa(uint64(dstPort))
-}
-
-func containsByte(s string, c byte) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] == c {
-			return true
-		}
-	}
-	return false
-}
-
-func itoa(v uint64) string {
-	if v == 0 {
-		return "0"
-	}
-	var buf [20]byte
-	i := len(buf)
-	for v > 0 {
-		i--
-		buf[i] = byte('0' + v%10)
-		v /= 10
-	}
-	return string(buf[i:])
 }
 
 func int64Ptr(v int64) *int64 { return &v }
