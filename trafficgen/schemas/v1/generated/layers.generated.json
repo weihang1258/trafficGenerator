@@ -3750,6 +3750,33 @@
           "type": "string"
         }
       }
+    },
+    "xmrmining": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "18081"
+      },
+      "fields": {
+        "concurrent": {
+          "type": "bool",
+          "default": false
+        },
+        "profile": {
+          "type": "string",
+          "default": ""
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "wire_fault": {
+          "type": "string",
+          "default": ""
+        }
+      }
     }
   }
 }

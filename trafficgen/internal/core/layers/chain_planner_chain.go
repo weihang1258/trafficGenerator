@@ -556,6 +556,21 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 					cfg["concurrent"] = true
 				}
 			}
+			// xmrmining 链并发会话语义（edp/mmse 同款）：spec.XMR.Concurrent
+			//（或任一会话级声明）→ tcp 层 concurrent=true（D-XMR-1 裁定10，
+			// 契约 §5 C-07 并发会话）。
+			if isXMRChain(chain) && spec.XMR != nil {
+				xmrConcurrent := spec.XMR.Concurrent
+				for i := range spec.XMR.Sessions {
+					if spec.XMR.Sessions[i].Concurrent {
+						xmrConcurrent = true
+						break
+					}
+				}
+				if xmrConcurrent {
+					cfg["concurrent"] = true
+				}
+			}
 			// nmea 链会话级 termination:"rst" 翻译（69-nmea §5 正例 46）：
 			// 任一会话声明 rst 即切 tcp 层 RST 形态——rst=true 使
 			// TCPGenerator 以单帧 RST|ACK(up) 短路收尾（3+N+1），并关

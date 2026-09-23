@@ -132,6 +132,7 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		HL7:        spec.HL7,
 		MMSE:       spec.MMSE,
 		EDP:        spec.EDP,
+		XMR:        spec.XMR,
 		CQL:        spec.CQL,
 		LDP:        spec.LDP,
 		PCEP:       spec.PCEP,
@@ -2100,6 +2101,30 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.EDP = &ec
+	case "xmrmining":
+		if spec.XMR != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		// D-XMR-1：层 config（profile/concurrent/sessions/wire_fault）经 JSON
+		// 往返解码为 core.XMRConfig。裁定8：未知键严格拒（DisallowUnknown
+		// Fields——config/session/event 三级）。解码失败一律计 ValidationErrors
+		// 走任务错误——置空配置会被 validator 直通成默认流假成功（edp 同款）。
+		cfg := completedConfig(s, term.Config)
+		raw, err := json.Marshal(cfg)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("xmrmining layer config encode: %v", err))
+			return
+		}
+		var xc core.XMRConfig
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&xc); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("xmrmining layer config decode: %v", err))
+			return
+		}
+		spec.XMR = &xc
 	case "ftp":
 		// 只在扁平路径确实携带了业务内容（sessions/banner/commands/data_channel）
 		// 时才跳过翻译。mapToFlowSpec 对协议 ftp 总会创建一个 FTPConfig

@@ -64,6 +64,26 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 			}
 		}
 	}
+	if protocol == "xmrmining" {
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			for _, item := range probe {
+				if _, ok := item["udp"]; ok {
+					return nil, fmt.Errorf("xmrmining chain: udp carrier is not supported — xmrmining rides tcp only (Monero stratum over a byte stream) (carrier)")
+				}
+				if rawIP, ok := item["ip"]; ok && len(rawIP) > 0 {
+					var ipcfg map[string]interface{}
+					if err := json.Unmarshal(rawIP, &ipcfg); err == nil {
+						src, _ := ipcfg["src"].(string)
+						dst, _ := ipcfg["dst"].(string)
+						if src != "" && dst != "" && strings.Contains(src, ":") != strings.Contains(dst, ":") {
+							return nil, fmt.Errorf("xmrmining chain: mixed address family in ip layer (src %q / dst %q) — src and dst must be the same family (address)", src, dst)
+						}
+					}
+				}
+			}
+		}
+	}
 	effective, err := ValidateLayers(layersJSON, protocol)
 	if err != nil {
 		return nil, err

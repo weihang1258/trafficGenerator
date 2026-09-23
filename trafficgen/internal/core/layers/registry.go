@@ -726,6 +726,16 @@ func buildDefaultRegistry() {
 			"wire_fault":  {Type: "string", Default: ""}, // 28 值枚举（D-EDP-1 §7 表）；""=无故障
 		},
 	})
+	r.Register(LayerSchema{Name: "xmrmining", Category: CategoryTerminal,
+		DependsOn:     []string{"tcp"},
+		FieldContract: map[string]string{"tcp.dst_port": "18081"},
+		Fields: map[string]FieldSchema{
+			"profile":    {Type: "string", Default: ""},  // xmrmining_stratum_v1（缺省）/ xmrmining_job_legacy_v1 / xmrmining_ipv6_v1
+			"concurrent": {Type: "bool", Default: false}, // 双矿机交错回放（v2.0.1 C-07 翻案）
+			"sessions":   {Type: "list", Default: []interface{}{}},
+			"wire_fault": {Type: "string", Default: ""}, // 39 值枚举（D-XMR-1 §7 表）；""=无故障
+		},
+	})
 	r.Register(LayerSchema{Name: "cql", Category: CategoryTerminal, DependsOn: []string{"tcp"}})
 	r.Register(LayerSchema{Name: "iec104", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "2404"},

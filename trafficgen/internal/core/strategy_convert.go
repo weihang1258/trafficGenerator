@@ -741,6 +741,16 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// EDP defaults to port 4472. Only override when the user did not
 		// specify a dst_port.
 		setDefaultDstPort(&spec, cfg, 4472)
+	case "xmrmining":
+		// XMRMining (Monero stratum): TCP-only family. Config is carried in
+		// the xmrmining layer sub-map; top-level xmrmining key is rejected by
+		// CheckProtoFlat.
+		if sub, ok := cfg["xmrmining"].(map[string]interface{}); ok {
+			spec.XMR = parseXMRConfig(sub)
+		}
+		// XMR defaults to fixture port 18081 (裁定2：daemon RPC 端口假设；
+		// 非默认端口显式声明合法). Only override when unset.
+		setDefaultDstPort(&spec, cfg, 18081)
 	case "sip":
 		if sub, ok := cfg["sip"].(map[string]interface{}); ok {
 			spec.SIP = &SIPConfig{
@@ -8290,6 +8300,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 			return "protocol edp no longer accepts a top-level edp sub-config (move it into the edp layer of an [ip,tcp,edp] layers chain; OneNET EDP framing lives in the edp layer)"
 		}
 	}
+	// D-XMR-1：xmrmining 顶层 xmrmining 子映射 presence 判死（edp 先例；空
+	// map 也死——B6 扁平注入形退役，配置迁 xmrmining 层键）。层链形状不触发。
+	if protocol == "xmrmining" {
+		if v, ok := cfg["xmrmining"]; ok && v != nil {
+			return "protocol xmrmining no longer accepts a top-level xmrmining sub-config (move it into the xmrmining layer of an [ip,tcp,xmrmining] layers chain; Monero stratum framing lives in the xmrmining layer)"
+		}
+	}
 	// D-SMTP-1：smtp 顶层 smtp 子映射 presence 判死（mqtt 先例；空 map 也
 	// 死）。层链形状不触发。
 	if protocol == "smtp" {
@@ -8613,4 +8630,105 @@ func parseEDPConfig(m map[string]interface{}) *EDPConfig {
 		}
 	}
 	return cfg
+}
+
+// parseXMRConfig converts the JSON-decoded "xmrmining" sub-map into an
+// *XMRConfig. Returns nil for absent/non-map input. Empty fields are left
+// empty so the planner can apply its own defaults. 请求 id 在 map 面是
+// float64——整数值还原为 JSON number 字面量（json.RawMessage）。
+func parseXMRConfig(m map[string]interface{}) *XMRConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &XMRConfig{
+		Profile:    getString(m, "profile"),
+		WireFault:  getString(m, "wire_fault"),
+		Concurrent: getBool(m, "concurrent", false),
+	}
+	if sessArr, ok := m["sessions"].([]interface{}); ok {
+		for _, si := range sessArr {
+			sessm, ok := si.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			sess := XMRSession{
+				SrcPort:    getUint16(sessm, "src_port"),
+				DstPort:    getUint16(sessm, "dst_port"),
+				Concurrent: getBool(sessm, "concurrent", false),
+			}
+			if evArr, ok := sessm["events"].([]interface{}); ok {
+				for _, ei := range evArr {
+					evm, ok := ei.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					ev := XMREvent{
+						Kind:           getString(evm, "kind"),
+						Login:          getString(evm, "login"),
+						Pass:           getString(evm, "pass"),
+						Agent:          getString(evm, "agent"),
+						Rigid:          getString(evm, "rigid"),
+						SessionID:      getString(evm, "session_id"),
+						Status:         getString(evm, "status"),
+						KeepaliveAlias: getBool(evm, "keepalive_alias", false),
+						Legacy:         getBool(evm, "legacy", false),
+						JobID:          getString(evm, "job_id"),
+						FBlob:          getString(evm, "blob"),
+						FTarget:        getString(evm, "target"),
+						FAlgo:          getString(evm, "f_algo"),
+						FHeight:        getInt(evm, "height"),
+						FSeedHash:      getString(evm, "seed_hash"),
+						Nonce:          getString(evm, "nonce"),
+						Result:         getString(evm, "result"),
+						Algo:           getString(evm, "algo"),
+						Sig:            getString(evm, "sig"),
+						Commitment:     getString(evm, "commitment"),
+						ErrCode:        getInt(evm, "err_code"),
+						ErrMsg:         getString(evm, "err_msg"),
+						WireFault:      getString(evm, "wire_fault"),
+					}
+					ev.PackNext = getBool(evm, "pack_next", false)
+					if id, ok := jsonNumber(evm, "id"); ok {
+						ev.ID = id
+					}
+					if extArr, ok := evm["extensions"].([]interface{}); ok {
+						for _, ex := range extArr {
+							if exs, ok := ex.(string); ok {
+								ev.Extensions = append(ev.Extensions, exs)
+							}
+						}
+					}
+					if jm, ok := evm["job"].(map[string]interface{}); ok {
+						ev.Job = &XMRJob{
+							Blob:     getString(jm, "blob"),
+							Algo:     getString(jm, "algo"),
+							Height:   getInt(jm, "height"),
+							SeedHash: getString(jm, "seed_hash"),
+							JobID:    getString(jm, "job_id"),
+							Target:   getString(jm, "target"),
+							ID:       getString(jm, "id"),
+						}
+					}
+					sess.Events = append(sess.Events, ev)
+				}
+			}
+			cfg.Sessions = append(cfg.Sessions, sess)
+		}
+	}
+	return cfg
+}
+
+// jsonNumber renders an integral JSON number member (map 面 float64) back to
+// its literal bytes; non-integral or absent values are rejected（请求 id 恒
+// 整数——login 恒 1、后续递增）.
+func jsonNumber(m map[string]interface{}, key string) (json.RawMessage, bool) {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return nil, false
+	}
+	f, ok := v.(float64)
+	if !ok || f != float64(int64(f)) {
+		return nil, false
+	}
+	return json.RawMessage(strconv.FormatInt(int64(f), 10)), true
 }

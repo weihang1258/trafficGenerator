@@ -1812,6 +1812,7 @@ type FlowSpec struct {
 	HL7         *HL7Config         `json:"hl7,omitempty"`
 	MMSE        *MMSEConfig        `json:"mmse,omitempty"`
 	EDP         *EDPConfig         `json:"edp,omitempty"`
+	XMR         *XMRConfig         `json:"xmr,omitempty"`
 	NTP         *NTPConfig         `json:"ntp,omitempty"`
 	OpenVPN     *OpenVPNConfig     `json:"openvpn,omitempty"`
 	PostgreSQL  *PostgreSQLConfig  `json:"postgresql,omitempty"`

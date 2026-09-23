@@ -2576,9 +2576,115 @@ def check_vnc(cases):
 
     return rows
 
+def check_xmrmining(cases):
+    """D-XMR-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 xmrmining", '"xmrmining": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 xmrmining（已准入）", '"xmrmining"' not in pt[i_neg:i_neg + 400], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case xmrmining（严格解码）", 'case "xmrmining":' in tr and "DisallowUnknownFields" in tr, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.XMR", "XMR        *core.XMRConfig" in gen, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry xmrmining 行 + tcp 18081 契约", '"tcp.dst_port": "18081"' in rg, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    rows.append(("udp 载体预检（tcp-only）", "xmrmining rides tcp only" in vl, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go ChainPlanner(xmrmining) 接线", 'NewChainPlanner("xmrmining")' in mn, "在案"))
+
+    # 2. 行为面（validator/builder 关键件）。
+    pl = (tg / "internal" / "protocol" / "xmrmining" / "planner.go").read_text()
+    import re as _re
+    _i = pl.index("wireFaultAnchors = map[string]string{")
+    _seg = pl[_i:pl.index("\n}", _i)]
+    _n = len(_re.findall(r'"[a-z0-9_]+":', _seg))
+    rows.append(("wire_fault 闭环 39 值锚词表", _n == 39, f"{_n} 值"))
+    for guard, name in [
+        ("closed = true", "状态机走查（login 拒绝后 Closed 真拒绝——B6 死代码勘误）"),
+        ("first application message must be login", "login 必首"),
+        ("below the 43-byte lower bound", "blob 下界 43B"),
+        ("at/above the 408-byte upper bound", "blob 上界 408B（≥408 拒）"),
+        ("not from this session's jobs", "job 关联（job_unknown）"),
+        ("reused within session", "id 会话内唯一"),
+        ("mergedJob(ev).JobID", "login 初始 job 登记（generator/validator 同源——红例④实证）"),
+    ]:
+        rows.append((f"关键件：{name}", guard in pl, "在案"))
+    bl = (tg / "internal" / "protocol" / "xmrmining" / "builder.go").read_text()
+    for prim, name in [
+        ("func BuildLoginReq", "login 请求构造器"),
+        ("func BuildJobNotify", "job 通知构造器（省略顶层 id）"),
+        ("func BuildSubmitReq", "submit 构造器"),
+        ("func BuildKeepalivedResp", "keepalived 响应（status KEEPALIVED）"),
+        ("func BuildGetjobResp", "getjob 响应（result=job）"),
+        ("func mergedJob", "单解析权威（生成器/validator 共用）"),
+        ("packWithNext", "pack_next 粘连单段"),
+    ]:
+        rows.append((f"builder：{name}", prim in bl, "在案"))
+    rows.append(("端口缺省继承链级（不硬编码 18081 注记在案）", "不在此硬编码 18081" in bl, "在案"))
+    rows.append(("事件级严格解码（UnmarshalJSON DisallowUnknownFields——红例⑮ 实证）",
+                 "dec.DisallowUnknownFields()" in (tg / "internal" / "core" / "xmrmining.go").read_text(), "在案"))
+
+    # 3. 用例面（25 正 + 39 负；proto=xmrmining；顶层仅 layers）。
+    pos = [c for c in cases if "packet_count" in (c.get("expect") or {})]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("64 例对账（25 正+39 负）", len(pos) == 25 and len(neg) == 39 and len(cases) == 64,
+                 f"{len(pos)}+{len(neg)}={len(cases)}"))
+    bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "xmrmining"]
+    rows.append(("proto 全=xmrmining（单准入名）", not bad_proto, bad_proto or "全 xmrmining"))
+    leaked = sorted({k for c in cases for k in (c.get("spec_json", {}) or {}) if k != "layers"})
+    rows.append(("顶层残留为零（仅 layers——B6 混用形已重排）", not leaked, leaked or "零残留"))
+    for kw, name in [
+        ("xmrmining_login_job_ipv4", "① login 基线（现代 job）"),
+        ("xmrmining_login_reject", "② login 拒绝路径"),
+        ("xmrmining_login_extensions", "③ extensions 变体"),
+        ("xmrmining_job_notify_legacy", "④ legacy 三字段形态"),
+        ("xmrmining_submit_reject", "⑤ submit 拒绝（会话继续）"),
+        ("xmrmining_keepalive_alias", "⑥ keepalive 别名"),
+        ("xmrmining_getjob", "⑦ 主动拉取"),
+        ("xmrmining_id_correlation", "⑧ id 按值配对"),
+        ("xmrmining_blob_max", "⑨ blob 407B 满值"),
+        ("xmrmining_line_packing", "⑩ 多行粘连单段"),
+        ("xmrmining_mss_large_jobid", "⑪ job_id 1500 跨 MSS"),
+        ("xmrmining_ipv6", "⑫ IPv6"),
+        ("xmrmining_multi_session", "⑬ 多会话展开"),
+        ("xmrmining_concurrent_sessions", "⑭ 并发会话"),
+        ("xmrmining_port_nondefault", "⑮ 非默认端口 3333"),
+        ("xmrmining_neg_json_truncated", "负例 json_truncated"),
+        ("xmrmining_neg_result_id_missing", "负例 result_id_missing（v2.0.2 V-1）"),
+        ("xmrmining_neg_prop_fake_success", "负例 prop_fake_success（传播面）"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 4. 锚词面（39 负例 error_contains 与 planner 锚词表值集一致）。
+    anchors = set()
+    for m in _re.finditer(r'"[a-z0-9_]+":\s*"([a-z_]+)"', pl[pl.index("wireFaultAnchors"):pl.index("func Validate")]):
+        anchors.add(m.group(1))
+    bad_anchor = []
+    for c in neg:
+        ec = (c.get("expect") or {}).get("error_contains", "")
+        if ec not in anchors:
+            bad_anchor.append(f"{c.get('id', '?')}:{ec}")
+    rows.append(("39 负例锚词 ∈ planner 锚词表值集", not bad_anchor, bad_anchor or "全部在集"))
+    wf_in_cfg = [c.get("id") for c in neg
+                 if any((l.get("xmrmining") or {}).get("wire_fault")
+                        for l in (c.get("spec_json", {}).get("layers") or []) if isinstance(l, dict))]
+    rows.append(("wire_fault 注入负例 =39（全负例经注入通道带锚词）",
+                 len(wf_in_cfg) == 39, f"{len(wf_in_cfg)} 例注入"))
+
+    return rows
+
+
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining}
 
 
 def main(argv):

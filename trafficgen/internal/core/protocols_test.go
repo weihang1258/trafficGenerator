@@ -56,6 +56,9 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		// 72-edp（D-EDP-1）：layer/planner 注册后准入（占位用例同步替换
 		// 为 89 语义用例）。
 		"edp",
+		// 74-xmrmining（D-XMR-1）：layer/planner 注册后准入（占位用例同步
+		// 替换为 64 语义用例）。
+		"xmrmining",
 	}
 	sort.Strings(want)
 
@@ -92,7 +95,6 @@ func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 		// 用例 P5 落地，占位例随之移除——契约 §1）。hl7/megaco 先例。
 		"kerberos", "ntlm", "ocsp",
 		"spnego", "sstp",
-		"xmrmining",
 	}
 	for _, name := range negativeOnly {
 		if IsAllowedProtocol(name) {

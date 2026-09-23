@@ -254,6 +254,12 @@ func isEDPChain(chain []Layer) bool {
 	return len(chain) > 0 && chain[len(chain)-1].Name == "edp"
 }
 
+// isXMRChain reports whether the chain's terminal layer is xmrmining
+// (D-XMR-1: [ip,]tcp,xmrmining concurrent hook + tcp-only carrier family).
+func isXMRChain(chain []Layer) bool {
+	return len(chain) > 0 && chain[len(chain)-1].Name == "xmrmining"
+}
+
 func hasLayer(chain []Layer, name string) bool {
 	for _, l := range chain {
 		if l.Name == name {

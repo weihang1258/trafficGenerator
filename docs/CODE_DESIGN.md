@@ -4499,4 +4499,6 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 
 ### 执行记录（P4-P6 逐段回填）
 
-- P4/P5/P6 未开工（本条目 P1-P3 定稿即提交；edp 先例：设计先行独立提交，实现、跑测、评审各自独立提交）。
+- **P4 实现**（层链翻转五件套 + 终结层新建）：`core/xmrmining.go`（XMR* 类型 + 39 常量 + XMREvent.UnmarshalJSON 严格解码——红例⑮ 实证自定义 UnmarshalJSON 绕过外层 DisallowUnknownFields，事件级自带严格性）；`protocol/xmrmining/` builder.go（17 行构造器 + 生成器 + init）/planner.go（39 锚词 + 状态机自然面真拒绝）/layer_gen.go；接线九处（types FlowSpec.XMR、registry 118→119、validate_layers 预检、isXMRChain 钩、translate case、FlowMeta.XMR、CheckProtoFlat+parseXMRConfig+18081、protocols 白名单、main.go）。**P4 主线程对抗自审三修正**：①validator 未登记 login 响应初始 job——generator/validator 语义分叉（submit 引用 login 初始 job 被 job_unknown 误拒，红例④实证），mergedJob 单解析权威两处共用；②B6 参考的 login-reject 后续事件检查是死代码（算 closed 从不返回错误）——本实现据实拒绝（state_after_login_reject/state_after_close 自然面）；③未用 toCoreJob 死代码删。链级红例 17（①-⑰）全绿（其中红例④⑮ 先红后绿抓真 bug 两处）；gofmt/vet 净。
+- **P5 跑测**：cases/xmrmining.json 占位 1 例移除、B6 64 例 reshape 落地（**B6 用例系混用形**——顶层四元组+顶层 xmrmining 子映射并存，会被混用拒绝门全数拦死；重排为纯层链形 [ip,tcp,xmrmining]）；**round-1 即 64/64 全绿零校准**（B6 期望帧 hex/packet_count/tcp.len 与本引擎字节级一致——线格式忠实度强证）→ ×2 全量绿；coverage_gate check_xmrmining 47/47（新建登记）；pipe_gate 静态四项绿；-race 净；sibling 回归 edp 89/89；清库 xmrmining 行 25 strategies+100 tasks→0/0 对账（备份留存）。
+- **P6 评审**：隔离终审 subagent（进行中）。
