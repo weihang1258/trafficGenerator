@@ -29,7 +29,6 @@ type sessionRun struct {
 	idx     int
 	sess    core.HL7Session
 	dyn     *dynState
-	ctrlSeq int64
 	ackSeq  int64
 }
 
@@ -324,15 +323,6 @@ func emitSessionEvent(cfg *core.HL7Config, r *sessionRun, ev core.HL7Event, dstI
 		DstPort: r.sess.DstPort,
 		SrcPort: r.sess.SrcPort,
 	})
-}
-
-func nextCtrlID(r *sessionRun) string {
-	if r.ctrlSeq == 0 {
-		r.ctrlSeq = 1
-	}
-	id := fmt.Sprintf("MSG%04d", r.ctrlSeq)
-	r.ctrlSeq++
-	return id
 }
 
 // nextAckID returns the session-scoped incrementing ACK control ID

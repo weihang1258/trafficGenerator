@@ -96,6 +96,6 @@ Cases: 95 — pass 95, fail 0, error 0
 | hl7_s2c_receiver_role | s2c direction with role=receiver | pass | 9 | [pcap](hl7/hl7_s2c_receiver_role.pcap) |
 | hl7_set_id_fields | Set ID fields: PID-1/PV1-1 = 1 | pass | 9 | [pcap](hl7/hl7_set_id_fields.pcap) |
 | hl7_siu_s12_appointment | SIU^S12: SCH/AIS segments | pass | 9 | [pcap](hl7/hl7_siu_s12_appointment.pcap) |
-| hl7_tcp_mss_reassembly | TCP reassembly: ORU + ADT MLLP frames across 2 data segments (one frame per segment, same tcp.stream) | pass | 10 | [pcap](hl7/hl7_tcp_mss_reassembly.pcap) |
+| hl7_tcp_mss_reassembly | TCP MSS reassembly: mss=536, long ORU frame spans 2 segments (0B in first, 1C 0D in last — reassembly lands on tail segment) | pass | 12 | [pcap](hl7/hl7_tcp_mss_reassembly.pcap) |
 | hl7_version_profiles | MSH-12 version values 2.5/2.8 + MSH-11 P/T | pass | 11 | [pcap](hl7/hl7_version_profiles.pcap) |
 | hl7_z_segment_passthrough | Z segment passthrough with allow_z_segments flag | pass | 9 | [pcap](hl7/hl7_z_segment_passthrough.pcap) |

@@ -4201,3 +4201,14 @@ F1/F3/F4/F5/F6 五项闭合经独立复现确认（12 面探针/双向突变/8 �
 - **F11 [MED] §6 动态值机制未实现**：落实现——HL7Session 增 Name/control_id/timestamp/patient_id（RawMessage）；protocol/hl7/dynamic.go 唯一解析权威（newDynState/resolve，validator 判重与生成器渲染同源——megaco U1/U2 教训）；inc 区间回绕、rand 定种子确定序；@ts/@pid/@cid/@name 占位符 renderCtx.subs 替换；未知 strategy/坏 range/未知占位/@pid 无策略/@name 无会话名即拒；裁定8/门1 §12 声明与实现对齐；#62 转真策略形（control_id {inc,[1000,1099],1}，|1000|/|1001|/|1002| 钉值不变）。红例⑫⑬。
 
 修轮验证：链例 23 绿（14 原 + 9 新）；suite 95/95 ×2（修轮二进制重编重启后）；pipe_gate 静态四项绿；coverage_gate 29/29；-race（core/layers/schema/megaco）净；schemagen 重跑零漂移；在库清空回基线 4411/993（hl7 残留 0，删前 248/52 报数、备份 bak-hl7fix）。修轮提交后回注隔离复审同代理核验（round 2）。
+
+### Round 2 复审（PASS 关单，/tmp/hl7-final/review2.md，2026-09-23）
+
+F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形三面（事件/会话/配置级）翻译落线 + 无值解码旁路（指针接收者经 slice 元素寻址必触发）；**resolve 序列同源性硬证明**——rand(seed 42) 线上控制 ID 序列与独立第三方 math/rand 复算逐值全等；突变抽验 4 项各转对应红例；全部数字独立复跑（独立 HEAD 服务端/端口/DB）。非阻塞观察 O1-O6 处置：
+
+- **O1（已修，残项批）**：testcase #22 权威声明"小 MSS 长消息跨段+重组落尾段"但用例未设 mss（声明与夹具失配）→ 转真跨段例：tcp 层 mss=536、ORU 帧 1405B 跨 3 段（536/536/333）、`decode_as tcp.port==2575,hl7` 下 hl7.message.type=ORU 落尾段 p6（tshark 重组实证）、12 包重钉。
+- **O2 @占位符启发式误伤邮箱类值**：登记不改——validator 拒未知 @token 属响亮失败（非静默），用户可改名/转义；契约占位符面仅四 token。
+- **O3 JSON null 字面量 coerce 语义**：登记为既定语义——JSON null ≈ 键缺省（继承会话/配置级），契约 `null`（无 ACK）是字符串 "null"；coerceAckJSON 注释已注明。
+- **O4 Name 含 @token 病态替换**：登记不改——病态配置面，占位符表四键固定，Name 仅经 @name 上线。
+- **O5 nextCtrlID/ctrlSeq 死代码**：删除（残项批，权威已迁 dynState.seq）。
+- **O6 配置/会话级 ack coerce 无链例钉**：登记——round 2 探针已补证三面落线；事件级链例⑮为套件面代表（配置/会话级同函数同路径）。

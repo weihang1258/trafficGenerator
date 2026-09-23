@@ -2056,7 +2056,7 @@
  {
   "id": "hl7_tcp_mss_reassembly",
   "proto": "hl7",
-  "summary": "TCP reassembly: ORU + ADT MLLP frames across 2 data segments (one frame per segment, same tcp.stream)",
+  "summary": "TCP MSS reassembly: mss=536, long ORU frame spans 2 segments (0B in first, 1C 0D in last — reassembly lands on tail segment)",
   "spec_json": {
    "layers": [
     {
@@ -2068,7 +2068,8 @@
     {
      "tcp": {
       "src_port": 42680,
-      "dst_port": 2575
+      "dst_port": 2575,
+      "mss": 536
      }
     },
     {
@@ -2087,7 +2088,7 @@
              "1",
              "",
              "ORD-1001&HIS",
-             "",
+             "FILL-2001&LIS-NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
              "GLU^Glucose"
             ]
            },
@@ -2096,7 +2097,7 @@
             "fields": [
              "1",
              "NM",
-             "GLU^Glucose^L",
+             "GLU^Glucose^LNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
              "95",
              "mg/dL",
              "70-110",
@@ -2163,7 +2164,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
-   "packet_count": 10,
+   "packet_count": 12,
    "fields": [
     {
      "packet": 4,
@@ -2173,22 +2174,7 @@
     {
      "packet": 4,
      "field": "tcp.len",
-     "nonzero": true
-    },
-    {
-     "packet": 5,
-     "field": "tcp.len",
-     "nonzero": true
-    },
-    {
-     "packet": 5,
-     "field": "tcp.len",
-     "nonzero": true
-    },
-    {
-     "packet": 6,
-     "field": "tcp.len",
-     "nonzero": true
+     "value": "536"
     },
     {
      "packet": 4,
@@ -2196,9 +2182,34 @@
      "value": "0"
     },
     {
+     "packet": 5,
+     "field": "tcp.len",
+     "value": "536"
+    },
+    {
+     "packet": 6,
+     "field": "tcp.len",
+     "value": "333"
+    },
+    {
      "packet": 6,
      "field": "tcp.stream",
      "value": "0"
+    },
+    {
+     "packet": 6,
+     "field": "hl7.message.type",
+     "value": "ORU"
+    },
+    {
+     "packet": 7,
+     "field": "tcp.len",
+     "value": "84"
+    },
+    {
+     "packet": 8,
+     "field": "tcp.len",
+     "value": "152"
     }
    ],
    "frames": [
@@ -2208,22 +2219,25 @@
      "offset": 54
     },
     {
-     "packet": 4,
+     "packet": 6,
      "hex": "1C 0D",
-     "offset": 243
+     "offset": 385
     },
     {
-     "packet": 6,
+     "packet": 8,
      "hex": "0B",
      "offset": 54
     },
     {
-     "packet": 6,
+     "packet": 8,
      "hex": "1C 0D",
      "offset": 204
     }
    ]
-  }
+  },
+  "decode_as": [
+   "tcp.port==2575,hl7"
+  ]
  },
  {
   "id": "hl7_ipv6_transport",
