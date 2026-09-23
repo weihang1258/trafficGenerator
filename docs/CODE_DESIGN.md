@@ -4128,11 +4128,11 @@ F1/F3/F4/F5/F6 五项闭合经独立复现确认（12 面探针/双向突变/8 �
 - Regenerate: `schemas/v1/generated/layers.generated.json`（115→116）+ webgen
 - Tools: `tools/pipe_gate.sh`（hl7 自键组）、`tools/coverage_gate.py`（check_hl7）
 
-### wire_fault 逐值处置表（裁定4；P4 落码同步——33 值 = 20 自然面守卫 + 13 书面豁免）
+### wire_fault 逐值处置表（裁定4；P4 落码同步——33 值 = 19 自然面守卫 + 14 书面豁免）
 
 自然面守卫 = 自然配置可表达同一故障且 validator 同步拒绝；书面豁免 = builder 恒产合法线格式 / 生成器不变式 / 结构不可达，注入通道唯一入口。
 
-**守卫在位（20 值）：**
+**守卫在位（19 值）：**
 
 | wire_fault 值 | 锚 | 自然面表达 | 守卫证据 |
 |---|---|---|---|
@@ -4157,7 +4157,7 @@ F1/F3/F4/F5/F6 五项闭合经独立复现确认（12 面探针/双向突变/8 �
 | framing_control_byte | mllp | 字段值/MSH 承载键（message_type/control_id/timestamp/msh8_security/msa3_text/会话 app-fac/Name）携带未转义 0x0B/0x1C（终审 F3：扫描提到事件级+会话级） | validateSegCommon + validateEvent/Session 全键扫描；修轮红例⑧ |
 | （控制 ID 会话内判重——megaco U1 前置，非 33 值映射行） | msh | 显式钉值与运行期分配撞号 | validateSession seenCtrl；红例⑫ |
 
-**书面豁免（13 值，wire_fault-only）：**
+**书面豁免（14 值，wire_fault-only）：**
 
 | wire_fault 值 | 锚 | 豁免理由 |
 |---|---|---|
