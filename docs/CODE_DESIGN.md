@@ -4613,3 +4613,56 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
   - 复评回归：casegen 自证绿、红例绿、-race 绿、suite 97/97（修后两轮）、门2 静态四项全绿、二进制同代。
   - **关单（终核结论：通过，同意关单）**：终审 5 finding（F1-F5）+ 复评 2 finding（R-1/R-2）+ 终核残点 1 项全部修结，无遗留；修结链 F1 13 标签全枚举+强断言恢复、F2 signed 最短式+值域守卫 4 面、F3 vendor NLM 守卫、F4 hundredths 键名、F5 记录卫生、R-1 putLength 根因+double 非法编码+误诊撤回、R-2 守卫接入面补全。
 - 门3 验收抽查三条（15.9）：①§12 行 invoke 递增算法 → invokeWalker（builder.go:616 request/pendingInvoke）；②§5 行 42 锚词闭环 → wireFaultAnchors（planner.go:23）+ 三方机械对账 0 偏差 + coverage_gate 57/57；③最复杂用例 bacnet_concurrent_sessions 交织维度点数 4（2 客户端多方 × 双会话 × concurrent 交错 × who_is→i_am 事务配对）≥9.50 下限，pcap 包序 .66→.67→←.66←.67 tshark 实证。
+
+## D-DCERPC-1 dcerpc 层链接入（#42，DCE/RPC v5 over TCP（EPM 135 + 动态端点），P1 开工）
+
+> 契约权威：`docs/protocol-designs/63-dcerpc-design.md` v1.0.0（2026-08-20 旧稿，P1 判定需 v2.0.0 重写）+ `63-dcerpc-testcase.md`。三源=①The Open Group C706（DCE 1.1 RPC，idl/sysidl IDL 语法定义 idl_base.idl — common header/PDU 类型/绑定编解码权威）②MS-RPCE（Windows 现网行为面：pduread/endpoint-mapper/tower 解析，参考实现 smb/clair 源码注释印证）③本机 tshark 3.6.14（dcerpc dissector 字段实证）。**端序总表：common header 整数字段按 DataRepresentation 声明——fixture 钉 little-endian（`10000000`：int LE + ASCII + IEEE float），frag_len/auth_len/call_id 全 LE；fixture 不产生 BE drep 变体（契约 §3 声明 + 负例 drep 固定假设拒绝）。**
+
+### P1 规范矩阵（§4 八项确认态）
+
+| # | 要求（规范要求） | 业务场景 | 代码现状 | 缺口 |
+|---|---|---|---|---|
+| 1 | 连接模型：DCE/RPC v5 over TCP 长连接（C706 §11.1 MS-RPCE §2.1.1），客户端主动建连；TCP record ≠ PDU 边界（frag_len 切 PDU，一 PDU 可跨 segment、多 PDU 可并 segment） | RPC 客户端接入/EPM 查询/业务调用 | 无任何接线（registry/protocols/protocol 包/main.go 全空；占位 1 例 dcerpc_neg_unregistered） | 全量新建（tcp 载体终结层，hl7/smb 族同型；layer 需 DependsOn ["tcp"]） |
+| 2 | 消息表：16B common header（ver 5.0/type/flags/drep/frag_len/auth_len/call_id）+ PDU 族：BIND(11)/BIND_ACK(12)/ALTER_CTX(14)/ALTER_CTX_RESP(15)/REQUEST(0)/RESPONSE(2)/FAULT(3) 七种产生 + REJECT/SHUTDOWN/CANCEL/ORPHANED/CL_COcancel 等其余 8 型不产生声明（v1.3 行为面枚举——v1.0.0 未枚举 REJECT/SHUTDOWN 面） | 绑定/上下文协商/调用/失败路径 | 无 | builder 按 PDU 族组帧；不产生型负例值域兜底 |
+| 3 | 状态机：Idle→Bound（BIND/BIND_ACK 完成）→Calling（context accepted 后可 REQUEST）→终态（FAULT 后该 call 终止）；同一 call_id 一对一关联请求与应答；并发 call distinct；context_id 必须来自已 accepted BIND/ALTER | 确定性回放 + 非法序列拒绝 | 无 | validator 状态机（bound 前 request 拒、未知 context 拒、FAULT 后同 call 续 success 拒） |
+| 4 | 字段表：16B 头逐字段（C706 §12.5.3.12）+ BIND body（max_xmit/recv_frag/assoc_group/contexts 编码）+ BIND_ACK（secondary address len 前缀字符串/result list）+ REQUEST（alloc_hint/context_id/opnum/object_uuid 可选/stub）+ FAULT（status/reserved2）+ NDR 对齐/pointer/array/union/string | 行长公式逐 PDU 可复算（16B 最小头、frag_len≥16） | 无 | Go struct 序=线序+值域守卫 |
+| 5 | 错误处理：wire_fault 原子拆分——v1.0.0 仅 6 粗组（common_truncated/frag_auth_length/context_syntax/ndr_bounds/auth_trailer/carrier_profile），按 v1.3 逐故障拆为单锚词行（目标 25-35 行：version/minor/type/flags/drep/frag_len/auth_len/call_id/major-version 语义/ctx 重复/ctx 未知/syntax 拒收/UUID 宽度/opnum 越域/alloc_hint 域/NDR 对齐/referent/array count/union arm/auth pad/trailer 边界/verifier 载体 …），主锚词一行一钉死 | 拒绝传播为 task error | 无 | 处置表下表（P3 列清单，P4 落码据实勘误——bacnet 15+27 先例） |
+| 6 | 超时与活性：TCP 长连接由 tcp 层管握手/挥手/保活；应用层无心跳（shutdown 型不产生）；异常中断=FAULT/连接断 | — | 无 | 如实不适用声明（N-2 口径） |
+| 7 | NAT/被动：不适用（客户端主动外联） | — | — | 如实 |
+| 8 | 版本方言：version 5 minor 0 钉死（minor 1 仅 auth 语义差异，不产生）；drep 固定 LE fixture；IPv4/IPv6 双地址族同字节序；auth 只 opaque 断言（NTLM/KERBEROS type/level/长度，不伪造密文） | — | 无 | 无版本矩阵（minor≠0 拒） |
+| 9 | 关联：call_id 配对（REQUEST↔RESPONSE/FAULT same_as；并发 distinct）；context_id 关联 accepted 集合；EPM session 与 dynamic session 的 call/assoc/ctx 全隔离 | EPM 查询→动态端口→业务调用两段式 | 无 | validator 关联校验 + callWalker 单解析权威（bacnet invokeWalker 先例——声明采纳/缺省迭代起 1） |
+| 10 | 承载/并发：tcp 载体唯一（TransportOn ["tcp"]，udp 拒=载体锚词）；EPM@135 显式声明 + 动态端口显式声明（不从 135 推导，v1.0.0 P-DYNAMIC 条款保留）；多 session 整块展开 + 多 context/多 call 并发；流关联=TCP 无副连接（EPM→dynamic 是两次独立 TCP 会话由配置显式编排，非协议内关联） | 多客户端/多接口并发 | 无 | tcp 族并发钩（hl7/mms 先例） |
+
+### 门 1 开工对照表（§1–§14）
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 目标形状：`{"layers":[{"ip":{"src":"192.0.2.63","dst":"198.51.100.63"}},{"tcp":{"src_port":40063,"dst_port":135}},{"dcerpc":{"sessions":[{"src_ip":"192.0.2.63","events":[{"kind":"bind","contexts":[...],"respond":{"ack":"bind_ack"}},{"kind":"request","opnum":0,"call_id":1,"stub":"...","respond":{"ack":"response"}}]}]}}]}`——v1.0.0 契约 §2 的旧扁平示例（顶层 src_ip/dst_ip/src_port/dst_port）在 v2.0.0 重写中迁入层链；顶层 dcerpc 子映射 presence 判死；端口住 tcp 层 | CheckProtoFlat（既有）；契约 v2.0.0 §2 |
+| §2 策略/任务 | 框架语义未动；多流走 strategy_fc | 契约 §1 |
+| §3 五件套 | 会话表=sessions[]（TCP 会话=EPM 会话与 dynamic 会话各自独立声明）；事务序列=events[]（bind/alter_ctx/request 三类请求 + respond 应答面）；关联=call_id 配对（request↔response/fault）+ context_id 归属 accepted 集合；插入位置=终结层每事件按 PDU 渲染（应答自动派生沿 §5 规则）；时间线=TCP 握手→bind→调用序列→挥手，多会话整块展开、会话内事件有序 | 契约 v2.0.0 §4/§5 |
+| §4 查规范 | C706+MS-RPCE+tshark 三层——P1 矩阵 10 行 | 契约 §0 |
+| §5 依赖与错误 | DependsOn ["tcp"]；wire_fault 处置表逐行锚词（P3 拆分） | 契约 v2.0.0 §7 |
+| §6 性能 | TCP 流式渲染；分片重组单帧内；行长公式可复算；pcap 路实测（网卡路如实注记——v1.0.0 #14 NIC 一致性例改 pcap 内一致性断言，NIC 路按 6.3 注记不跑） | 契约 §8 |
+| §7 三份文档 | 63-dcerpc-{design,testcase}.md v2.0.0（行为面权威，ID 权威=testcase §2）+ D-DCERPC-1（本条目）+ T-DCERPC（TEST_CASES）+ generated schema | 契约修订记录 |
+| §8 设计先行 | 本条目 P1-P3 先于 P4 实现，独立提交 | 提交序 |
+| §9 测试三源 | 三源=C706/MS-RPCE 条款+D-DCERPC-1+tshark/现网；正负对账；一行一注入原子原则 | T-DCERPC |
+| §10 评审闭环 | 每阶段对抗自审+收官隔离复审+修轮；红先绿后 | P6 链 |
+| §11 白话 | 每阶段白话一句先行 | 汇报 |
+| §12 动态清单 | 四元组=ip/tcp 层+会话级 src 覆盖；业务字段（UUID/ctx_id/opnum/call_id/stub/assoc_group/secondary address/status）fixture 钉死，无策略动态消费面（声明式回放，bacnet 同判）；call_id 缺省派生算法收单解析权威（callWalker） | 契约 §3/§5 |
+| §13 schema 派生 | registry dcerpc 行（DependsOn ["tcp"]/TransportOn ["tcp"]/FieldContract tcp.dst_port=135）→ schemagen 重跑 | 契约 §6 |
+| §14 真实流程 | suite 经 MCP 建任务→引擎生成→tshark `dcerpc.*` 字段（dcerpc dissector 需环境实证——先 `tshark -G fields` 探测，无则按契约 §9 退化 tcp+raw frames 断言）+ frames hex 双通道；先跑后钉 | 用例 §1 |
+
+### 裁定
+
+1. **裁定1 tcp 载体**：DCE/RPC v5 over TCP（C706 connection-oriented）；udp（connectionless CL 模式）不产生（拒）；TransportOn ["tcp"]，载体锚词沿 complete.go 既有（udp-only 对称面 bacnet 已铺，tcp-only 走 D-HL7-1 裁定2 既有路径）。
+2. **裁定2 端口/profile**：EPM@135 fixture（tshark dcerpc 自动解码约束——实现前实证 dissector）；动态端口显式声明（不从 135 推导，v1.0.0 P-DYNAMIC 保留）；未声明非默认端口=拒（negative 通道沿 bacnet neg_port_undeclared 口径）。
+3. **裁定3 端序**：drep fixture 钉 LE（`10000000`）；frag_len/auth_len/call_id 按 drep LE 编码；drep≠LE 拒（负例通道）；NDR scalar 同 LE。
+4. **裁定4 PDU 产生域**：BIND/BIND_ACK/ALTER_CONTEXT/ALTER_CONTEXT_RESP/REQUEST/RESPONSE/FAULT 七型产生；REJECT/SHUTDOWN/CANCEL/ORPHANED/PING 等 8 型不产生（负例 type 值域兜底）；auth_len=0 为主面、auth>0 走 opaque fixture（type/level/长度/pad 边界断言，不伪造密文——MS-RPCE 安全条款）。
+5. **裁定5 状态机**：request 前必须 bound（BIND/BIND_ACK 完成或 fixture 声明 prebound）；context_id ∈ accepted 集合；FAULT 后同 call_id 不得续 success 响应；并发 call_id distinct。
+6. **裁定6 call_id 单解析权威**：callWalker（bacnet invokeWalker 先例）——声明采纳（推进 ctr）、缺省迭代起 1；应答 pendingInvoke 配对回显；声明撞 open 集=mismatch、无 open=state 错。
+7. **裁定7 分片**：PFC_FIRST_FRAG/PFC_LAST_FRAG 闭合（有 FIRST 必有 LAST，中间片无完整头语义按同 call_id 关联）；每片自含 16B 头+frag_len；跨 TCP segment 由 tcp 层自然承载（本 fixture PDU 不跨 segment 发射——TCP record≠PDU 边界的断言由多 PDU 并 segment 例承载，真跨 segment 分片属 NIC/stack 行为不产生）。
+8. **裁定8 NDR 可观察面**：scalar LE/自然对齐 padding 计入 stub/unique pointer referent 4B/conformant array 三计数/union 单 arm/stub 边界内校验；UTF-16 字符串按 2B code unit；NDR 越界=拒。
+9. **裁定9 EPM/dynamic 双 profile**：两 TCP session 显式编排（EPM@135 会话 + dynamic 端口会话），call_id/assoc_group/context 状态不跨 session 复用；EPM tower 只按长度/UUID/端口边界断言。
+10. **裁定10 v1.0.0→v2.0.0 重写**：ID 权威迁 testcase §2；负例 6 粗组拆逐故障单锚词行（一行一注入）；#14 NIC 一致性例改 pcap 内一致性口径（NIC 路按 6.3 两路注记）；旧扁平示例迁层链；20 ID 重排为行为面全枚举（规模按枚举定，预计 60-90）。
+
+（P2/P3 详表——wire_fault 逐值处置表、测试点清单、T-DCERPC——在契约 v2.0.0 重写提交中落定；P4 未开工。）
