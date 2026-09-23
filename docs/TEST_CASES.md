@@ -4009,3 +4009,9 @@ ICMPv4（RFC 792）反推 8 例（4 正+4 负；链级红例=单测面不占号�
 **测试点清单先行（P3）：** ①BVLC/BBMD 族：单播基线/最小帧 8B（Who-Is 无限制）/定向广播/Forwarded/RFD TTL 三点/Result 成功与 NAK/BDT-FDT 读写删与多表项/Distribute 静默成功/厂商 ID 满值；②NPDU 族：DNET 路由目的/SNET 路由来源/NLM 一对/网络优先级 4 值/SA bit/全局广播 DNET 0xFFFF；③服务族：RP 含数组下标/RPM 单双对象/WP 优先级四态/Who-Has 按名按 ID 与范围对/COV 订阅三形态+通知/DCC 主形态与三变体/Error/Reject/Abort；④分段与事务族：分段请求应答+SegmentACK/invoke 边界 0/255 与相邻 1/254/多事务递增/window 1/255；⑤编码与值域族：I-Am 分段能力 0-2/13 应用标签全枚举+Boolean 双值/对象边界四点/1024B 扩展长度档/UCS-2 字符集；⑥载体与会话族：IPv6 同字节 offset 62/多会话按序展开/非默认端口 47809+DecodeAs/并发交错；⑦负例 42：一行一注入逐行锚词（§7 主锚词钉死——BVLC 6/NPDU 6/APDU 3/服务 2/标签 4/值域 9/关联 3/载体 5/状态机 3）。
 
 **断言通道纪律（§7-3）：** fields 用 `bvlc.*`/`bacnet.*`/`bacapp.*`/`udp.*`/`ipv6.*`/`frame.*`——47808 端口为 tshark 自动解码硬约束（47809 例须 `-d` DecodeAs 口径注记）；**`bvlc.length` 是 dissector 计算值非线上原值——线上 Length 断言走 frames offset 44-45 的 2 字节 hex**；APDU 起点随 NPDU 变长（无固定偏移），frames 变长偏移表达；分段用 tshark 重组字段（`bacapp.fragment.count`/`bacapp.reassembled.length`）。
+
+**状态：** P5 全绿（2026-09-24，97/97 ×2 稳态 + 门 2 静态四项绿 + coverage 反查 57/57；pcap 落 `/tmp/mcp-pcaps/bacnet/`，负例 24B 空占位）。**级别：** pcap。
+
+**P5 校准记录（先跑后钉实证，43→95→97 三轮收敛）：** ①渲染格式：`bvlc.function`/`bvlc.result`/`bacnet.control`/`bacnet.mesgtyp` 实渲染 `0x0a` 式十六进制串，期望值逐条对齐；`bacapp.max_adpu_size` 渲染原始码值（5）非字节数（1476）。②多出现字段按帧逗号并集（`0,8`/`85,77,85,77`/`12,2,9,2`）——跨帧 distinct 断言一律改逐帧精确值（rpm_multi_object 升格 7 条双帧精确钉）。③`fragment.count`/`reassembled.length` 落末段帧（非首段后一帧）；multi_session 实例 300 在第 4 包（第 3 包为会话 2 who_is）。④property 77（object-name）值渲染为 `bacapp.object_name`；subscribeCOV 的 processId 无专用字段——ctx 标签逗号表 `0,1,2,3` 代钉；`bacapp.LVT` 多出现噪声断言删除。⑤`has_payload`（frame.len>80）与 bacnet 50-70B 帧不相容——全例移除（帧字节钉本就更精确）。⑥**wireshark 缺陷登记（tshark 3.6.14）**：LVT 直存（内容 ≤4 八位组）CharacterString 解码失败（WP 面空/RPM 属性值面 Malformed 异常）——135 确定性短式合法编码，builder 不妥协；用例 fixture 取 ≥5 八位组（`objs`/`中文`）规避，正例 55 钉字节随实改 `7505 04 4e2d6587`。
+
+**存量用例零残留：** 97 例 spec_json 无顶层旧键（pipe_gate 门2-1 绿）；负例 42 锚词 ∈ planner 值集（门2-4 绿）。

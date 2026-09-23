@@ -1,28 +1,6290 @@
 [
-  {
-    "id": "bacnet_neg_unregistered",
-    "proto": "bacnet",
-    "summary": "BACnet layer is not registered yet; reject at layer validation",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "bacnet": {}
-        }
-      ],
-      "src_ip": "192.0.2.66",
-      "dst_ip": "198.51.100.66",
-      "src_port": 47808,
-      "dst_port": 47808
+ {
+  "id": "bacnet_bvlc_unicast_baseline",
+  "proto": "bacnet",
+  "summary": "Who-Is(0-100)→I-Am 单播基线：BVLC 0x0a/len12、I-Am u16 宽度 22 000f、厂商 15",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "unknown layer",
-      "notes": [
-        "Design-only gate: bacnet is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove it and add the 14 positive and 6 negative semantic cases in testcase order."
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "high": 100,
+          "kind": "who_is",
+          "low": 0,
+          "respond_i_am": true
+         }
+        ]
+       }
       ]
+     }
     }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bvlc.function",
+     "packet": 1,
+     "value": "0x0a"
+    },
+    {
+     "field": "bacnet.version",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "field": "bacnet.control",
+     "packet": 1,
+     "value": "0x00"
+    },
+    {
+     "field": "bacapp.unconfirmed_service",
+     "packet": 1,
+     "value": "8"
+    },
+    {
+     "field": "bacapp.objectType",
+     "packet": 2,
+     "value": "8"
+    },
+    {
+     "field": "bacapp.instance_number",
+     "packet": 2,
+     "value": "100"
+    },
+    {
+     "field": "bacapp.vendor_identifier",
+     "packet": 2,
+     "value": "15"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A000C0100100809001964",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "810A001501001000C4020000642205C4910322",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 2
   }
+ },
+ {
+  "id": "bacnet_min_frame",
+  "proto": "bacnet",
+  "summary": "无参数 Who-Is 8B BACnet/IP 最小帧（低/高限缺省，字段缺失断言）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {}
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.unconfirmed_service",
+     "packet": 1,
+     "value": "8"
+    },
+    {
+     "field": "udp.length",
+     "packet": 1,
+     "value": "16"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A000801001008",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 1
+  }
+ },
+ {
+  "id": "bacnet_bvlc_broadcast",
+  "proto": "bacnet",
+  "summary": "定向广播 Who-Is（0x0b）→ 双 I-Am（实例 100/200 distinct）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.255",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "high": 100,
+          "kind": "who_is",
+          "low": 0,
+          "respond_i_am": true
+         },
+         {
+          "device_instance": 200,
+          "kind": "i_am"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bvlc.function",
+     "packet": 1,
+     "value": "0x0b"
+    },
+    {
+     "field": "bacapp.instance_number",
+     "packet": 2,
+     "value": "100"
+    },
+    {
+     "field": "bacapp.instance_number",
+     "packet": 3,
+     "value": "200"
+    },
+    {
+     "field": "bacapp.application_tag_number",
+     "packet": 2,
+     "value": "12,2,9,2"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810B000C0100100809001964",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 3
+  }
+ },
+ {
+  "id": "bacnet_bvlc_forwarded",
+  "proto": "bacnet",
+  "summary": "BBMD Forwarded-NPDU（0x04）：6B 原始源地址 192.0.2.99:47808 + 内层 Who-Is",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "fwd_ip": "192.0.2.99",
+          "fwd_port": 47808,
+          "inner": {
+           "kind": "who_is"
+          },
+          "kind": "forwarded_npdu"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bvlc.function",
+     "packet": 1,
+     "value": "0x04"
+    },
+    {
+     "field": "bvlc.fwd_ip",
+     "packet": 1,
+     "value": "192.0.2.99"
+    },
+    {
+     "field": "bvlc.fwd_port",
+     "packet": 1,
+     "value": "47808"
+    },
+    {
+     "field": "bacapp.unconfirmed_service",
+     "packet": 1,
+     "value": "8"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "8104000EC0000263BAC001001008",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 1
+  }
+ },
+ {
+  "id": "bacnet_bvlc_register_foreign",
+  "proto": "bacnet",
+  "summary": "RFD TTL 600 与 0（立即到期合法边界）→ Result 0x0000 ×2",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "register_foreign_device",
+          "ttl": 600
+         },
+         {
+          "kind": "register_foreign_device",
+          "ttl": 0
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bvlc.function",
+     "packet": 1,
+     "value": "0x05"
+    },
+    {
+     "field": "bvlc.reg_ttl",
+     "packet": 1,
+     "value": "600"
+    },
+    {
+     "field": "bvlc.result",
+     "packet": 2,
+     "value": "0x0000"
+    },
+    {
+     "field": "bvlc.reg_ttl",
+     "packet": 3,
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810500060258",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "810500060000",
+     "offset": 42,
+     "packet": 3
+    }
+   ],
+   "packet_count": 4
+  }
+ },
+ {
+  "id": "bacnet_bvlc_result_nak",
+  "proto": "bacnet",
+  "summary": "RFD→Result 0x0030（Register-FD NAK 合法错误路径）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "register_foreign_device",
+          "respond": {
+           "result": 48
+          },
+          "ttl": 600
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bvlc.result",
+     "packet": 2,
+     "value": "0x0030"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810000060030",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_bvlc_write_bdt",
+  "proto": "bacnet",
+  "summary": "Write-BDT 单表项（192.0.2.88:47808 掩码 /24）→ Result",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "entries": [
+           {
+            "ip": "192.0.2.88",
+            "mask": "ffffff00",
+            "port": 47808
+           }
+          ],
+          "kind": "write_bdt"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bvlc.function",
+     "packet": 1,
+     "value": "0x01"
+    },
+    {
+     "field": "bvlc.bdt_ip",
+     "packet": 1,
+     "value": "192.0.2.88"
+    },
+    {
+     "field": "bvlc.bdt_port",
+     "packet": 1,
+     "value": "47808"
+    },
+    {
+     "field": "bvlc.bdt_mask",
+     "packet": 1,
+     "value": "ffffff00"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "8101000EC0000258BAC0FFFFFF00",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_bvlc_read_bdt",
+  "proto": "bacnet",
+  "summary": "Read-BDT（无负载 len 4）→ Ack 单表项",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "read_bdt",
+          "respond": {
+           "entries": [
+            {
+             "ip": "192.0.2.88",
+             "mask": "ffffff00",
+             "port": 47808
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bvlc.function",
+     "packet": 1,
+     "value": "0x02"
+    },
+    {
+     "field": "bvlc.function",
+     "packet": 2,
+     "value": "0x03"
+    },
+    {
+     "field": "bvlc.bdt_ip",
+     "packet": 2,
+     "value": "192.0.2.88"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "81020004",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "8103000EC0000258BAC0FFFFFF00",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_bvlc_read_fdt",
+  "proto": "bacnet",
+  "summary": "Read-FDT → Ack 表项（192.0.2.99 TTL 300 超时 120）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "read_fdt",
+          "respond": {
+           "entries": [
+            {
+             "ip": "192.0.2.99",
+             "port": 47808,
+             "timeout": 120,
+             "ttl": 300
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bvlc.function",
+     "packet": 1,
+     "value": "0x06"
+    },
+    {
+     "field": "bvlc.function",
+     "packet": 2,
+     "value": "0x07"
+    },
+    {
+     "field": "bvlc.fdt_ip",
+     "packet": 2,
+     "value": "192.0.2.99"
+    },
+    {
+     "field": "bvlc.fdt_ttl",
+     "packet": 2,
+     "value": "300"
+    },
+    {
+     "field": "bvlc.fdt_timeout",
+     "packet": 2,
+     "value": "120"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "81060004",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "8107000EC0000263BAC0012C0078",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_bvlc_delete_fdt",
+  "proto": "bacnet",
+  "summary": "Delete-FDT-Entry（6B 外部设备地址）→ Result",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "entries": [
+           {
+            "ip": "192.0.2.99",
+            "port": 47808
+           }
+          ],
+          "kind": "delete_fdt"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bvlc.function",
+     "packet": 1,
+     "value": "0x08"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "8108000AC0000263BAC0",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_bvlc_distribute_broadcast",
+  "proto": "bacnet",
+  "summary": "Distribute-Broadcast（0x09 承载 Who-Is，静默转发无 Result）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "inner": {
+           "high": 100,
+           "kind": "who_is",
+           "low": 0
+          },
+          "kind": "distribute_broadcast"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bvlc.function",
+     "packet": 1,
+     "value": "0x09"
+    },
+    {
+     "field": "bacapp.unconfirmed_service",
+     "packet": 1,
+     "value": "8"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "8109000C0100100809001964",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 1
+  }
+ },
+ {
+  "id": "bacnet_npdu_dest_address",
+  "proto": "bacnet",
+  "summary": "NPDU 目的说明符：DNET 2001+DLEN 6+DADR+Hop（帧 1）/ DLEN=0 网内广播变体（帧 2）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "who_is",
+          "npdu": {
+           "dest": {
+            "ip": "192.0.2.99",
+            "net": 2001,
+            "port": 47808
+           }
+          }
+         },
+         {
+          "kind": "who_is",
+          "npdu": {
+           "dest": {
+            "net": 2001
+           }
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacnet.control",
+     "packet": 1,
+     "value": "0x20"
+    },
+    {
+     "field": "bacnet.control_dest",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "field": "bacnet.dnet",
+     "packet": 1,
+     "value": "2001"
+    },
+    {
+     "field": "bacnet.dlen",
+     "packet": 1,
+     "value": "6"
+    },
+    {
+     "field": "bacnet.hopc",
+     "packet": 1,
+     "value": "255"
+    },
+    {
+     "field": "bacnet.dlen",
+     "packet": 2,
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A0012012007D106C0000263BAC0FF1008",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "810A000C012007D100FF1008",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_npdu_src_address",
+  "proto": "bacnet",
+  "summary": "NPDU 源说明符：I-Am 携 SNET 2001+SLEN 6+SADR（帧 2）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "high": 100,
+          "kind": "who_is",
+          "low": 0
+         },
+         {
+          "kind": "i_am",
+          "npdu": {
+           "src": {
+            "ip": "192.0.2.99",
+            "net": 2001,
+            "port": 47808
+           }
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacnet.control",
+     "packet": 2,
+     "value": "0x08"
+    },
+    {
+     "field": "bacnet.control_src",
+     "packet": 2,
+     "value": "1"
+    },
+    {
+     "field": "bacnet.snet",
+     "packet": 2,
+     "value": "2001"
+    },
+    {
+     "field": "bacnet.slen",
+     "packet": 2,
+     "value": "6"
+    },
+    {
+     "field": "bacapp.instance_number",
+     "packet": 2,
+     "value": "100"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001E010807D106C0000263BAC01000C4020000642205C4910322",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_npdu_router_discovery",
+  "proto": "bacnet",
+  "summary": "网络层消息对：Who-Is-Router(0x00, DNET FFFF)→I-Am-Router(0x01, DNET 2001)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "router_discovery",
+          "nets": [
+           65535
+          ],
+          "respond": {
+           "nets": [
+            2001
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacnet.control",
+     "packet": 1,
+     "value": "0x84"
+    },
+    {
+     "field": "bacnet.control_net",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "field": "bacnet.mesgtyp",
+     "packet": 1,
+     "value": "0x00"
+    },
+    {
+     "field": "bacnet.control",
+     "packet": 2,
+     "value": "0x80"
+    },
+    {
+     "field": "bacnet.mesgtyp",
+     "packet": 2,
+     "value": "0x01"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A0009018400FFFF",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "810A000901800107D1",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_npdu_priority",
+  "proto": "bacnet",
+  "summary": "NPDU 网络优先级三值：0x01/0x02/0x03（Who-Is ×3）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "who_is",
+          "npdu": {
+           "priority": 1
+          }
+         },
+         {
+          "kind": "who_is",
+          "npdu": {
+           "priority": 2
+          }
+         },
+         {
+          "kind": "who_is",
+          "npdu": {
+           "priority": 3
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacnet.control_prio_high",
+     "packet": 1,
+     "value": "0"
+    },
+    {
+     "field": "bacnet.control_prio_low",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "field": "bacnet.control_prio_high",
+     "packet": 2,
+     "value": "1"
+    },
+    {
+     "field": "bacnet.control_prio_low",
+     "packet": 2,
+     "value": "0"
+    },
+    {
+     "field": "bacnet.control_prio_high",
+     "packet": 3,
+     "value": "1"
+    },
+    {
+     "field": "bacnet.control_prio_low",
+     "packet": 3,
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A000801011008",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 3
+  }
+ },
+ {
+  "id": "bacnet_read_property",
+  "proto": "bacnet",
+  "summary": "RP 请求（control 04 期望回复）→ ComplexACK Real 22.5 大端",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "instance": 1,
+          "invoke_id": 1,
+          "kind": "read_property",
+          "object_type": 0,
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacnet.control",
+     "packet": 1,
+     "value": "0x04"
+    },
+    {
+     "field": "bacapp.max_adpu_size",
+     "packet": 1,
+     "value": "5"
+    },
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "field": "bacapp.confirmed_service",
+     "packet": 1,
+     "value": "12"
+    },
+    {
+     "field": "bacapp.objectType",
+     "packet": 1,
+     "value": "0"
+    },
+    {
+     "field": "bacapp.instance_number",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "field": "bacapp.property_identifier",
+     "packet": 1,
+     "value": "85"
+    },
+    {
+     "field": "bacapp.type",
+     "packet": 2,
+     "value": "3"
+    },
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 2,
+     "value": "1"
+    },
+    {
+     "field": "bacapp.present_value.real",
+     "packet": 2,
+     "value": "22.5"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001101040005010C0C000000011955",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "810A0017010030010C0C0000000119553E4441B400003F",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_read_property_array_index",
+  "proto": "bacnet",
+  "summary": "RP ctx2 下标 1 与 0（整个数组合法边界），应答回显下标",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "array_index": 1,
+          "instance": 1,
+          "invoke_id": 1,
+          "kind": "read_property",
+          "object_type": 0,
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         },
+         {
+          "array_index": 0,
+          "instance": 1,
+          "invoke_id": 2,
+          "kind": "read_property",
+          "object_type": 0,
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 3,
+     "value": "2"
+    },
+    {
+     "field": "bacapp.present_value.real",
+     "packet": 4,
+     "value": "22.5"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001301040005010C0C0000000119552901",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "810A001301040005020C0C0000000119552900",
+     "offset": 42,
+     "packet": 3
+    }
+   ],
+   "packet_count": 4
+  }
+ },
+ {
+  "id": "bacnet_read_property_multiple",
+  "proto": "bacnet",
+  "summary": "RPM 单对象双属性（开[1] 85+77 闭[1]）→ ComplexACK 双值",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "rpm",
+          "reads": [
+           {
+            "instance": 1,
+            "object_type": 0,
+            "props": [
+             {
+              "property": 85
+             },
+             {
+              "property": 77
+             }
+            ]
+           }
+          ],
+          "respond": {
+           "ack": "complex",
+           "results": [
+            {
+             "instance": 1,
+             "object_type": 0,
+             "props": [
+              {
+               "property": 85,
+               "value": {
+                "type": "real",
+                "value": 22.5
+               }
+              },
+              {
+               "property": 77,
+               "value": {
+                "type": "char_string",
+                "value": "ai-1"
+               }
+              }
+             ]
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.confirmed_service",
+     "packet": 1,
+     "value": "14"
+    },
+    {
+     "field": "bacapp.objectType",
+     "packet": 1,
+     "value": "0"
+    },
+    {
+     "field": "bacapp.instance_number",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "distinct_values": [
+      "85,77"
+     ],
+     "field": "bacapp.property_identifier",
+     "packet": 2
+    },
+    {
+     "field": "bacapp.present_value.real",
+     "packet": 2,
+     "value": "22.5"
+    },
+    {
+     "field": "bacapp.object_name",
+     "packet": 2,
+     "value": "ai-1"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001501040005010E0C000000011E0955094D1F",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_write_property",
+  "proto": "bacnet",
+  "summary": "WP 布尔 TRUE + 优先级 8（49 08）→ SimpleACK",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "instance": 1,
+          "invoke_id": 2,
+          "kind": "write_property",
+          "object_type": 0,
+          "priority": 8,
+          "property": 85,
+          "respond": {
+           "ack": "simple"
+          },
+          "value": {
+           "type": "boolean",
+           "value": true
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.confirmed_service",
+     "packet": 1,
+     "value": "15"
+    },
+    {
+     "field": "bacapp.present_value.boolean",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "field": "bacapp.type",
+     "packet": 2,
+     "value": "2"
+    },
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 2,
+     "value": "2"
+    },
+    {
+     "field": "bacapp.confirmed_service",
+     "packet": 2,
+     "value": "15"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001601040005020F0C0000000119553E113F4908",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "810A0009010020020F",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_write_property_no_priority",
+  "proto": "bacnet",
+  "summary": "WP 缺省优先级（无 49 xx 尾巴 = 语义 16）→ SimpleACK",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "instance": 1,
+          "invoke_id": 2,
+          "kind": "write_property",
+          "object_type": 0,
+          "property": 85,
+          "respond": {
+           "ack": "simple"
+          },
+          "value": {
+           "type": "boolean",
+           "value": true
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 2,
+     "value": "2"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001401040005020F0C0000000119553E113F",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_who_has_i_have",
+  "proto": "bacnet",
+  "summary": "Who-Has 名字分支（ctx3 CharacterString）→ I-Have；[2] 对象 ID 分支 → I-Have",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "who_has",
+          "object_name": "ai-1"
+         },
+         {
+          "device_instance": 100,
+          "instance": 1,
+          "kind": "i_have",
+          "object_name": "ai-1",
+          "object_type": 0
+         },
+         {
+          "instance": 1,
+          "kind": "who_has",
+          "object_type": 0
+         },
+         {
+          "device_instance": 100,
+          "instance": 1,
+          "kind": "i_have",
+          "object_name": "ai-1",
+          "object_type": 0
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.unconfirmed_service",
+     "packet": 1,
+     "value": "7"
+    },
+    {
+     "field": "bacapp.object_name",
+     "packet": 1,
+     "value": "ai-1"
+    },
+    {
+     "field": "bacapp.string_character_set",
+     "packet": 1,
+     "value": "0"
+    },
+    {
+     "field": "bacapp.unconfirmed_service",
+     "packet": 2,
+     "value": "1"
+    },
+    {
+     "field": "bacapp.objectType",
+     "packet": 3,
+     "value": "0"
+    },
+    {
+     "field": "bacapp.instance_number",
+     "packet": 3,
+     "value": "1"
+    },
+    {
+     "distinct_values": [
+      "12,12,7"
+     ],
+     "field": "bacapp.application_tag_number",
+     "packet": 4
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A000F010010073D050061692D31",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "810A000D010010072C00000001",
+     "offset": 42,
+     "packet": 3
+    }
+   ],
+   "packet_count": 4
+  }
+ },
+ {
+  "id": "bacnet_subscribe_cov",
+  "proto": "bacnet",
+  "summary": "SubscribeCOV（process 1/device:5/issue-confirmed TRUE/lifetime 600）→ SimpleACK",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "instance": 5,
+          "invoke_id": 3,
+          "issue_confirmed": true,
+          "kind": "subscribe_cov",
+          "lifetime": 600,
+          "object_type": 8,
+          "process_id": 1,
+          "respond": {
+           "ack": "simple"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.confirmed_service",
+     "packet": 1,
+     "value": "5"
+    },
+    {
+     "field": "bacapp.context_tag_number",
+     "packet": 1,
+     "value": "0,1,2,3"
+    },
+    {
+     "field": "bacapp.objectType",
+     "packet": 1,
+     "value": "8"
+    },
+    {
+     "field": "bacapp.instance_number",
+     "packet": 1,
+     "value": "5"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001601040005030509011C0200000529013A0258",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_cov_notification",
+  "proto": "bacnet",
+  "summary": "UnconfirmedCOVNotification 单帧（开[4] ctx0 属性+开[2] Real 24.0 闭[2] 闭[4]）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "cov_values": [
+           {
+            "property": 85,
+            "value": {
+             "type": "real",
+             "value": 24
+            }
+           }
+          ],
+          "initiating_device": 5,
+          "instance": 5,
+          "kind": "cov_notification",
+          "object_type": 8,
+          "process_id": 1,
+          "time_remaining": 540
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.unconfirmed_service",
+     "packet": 1,
+     "value": "2"
+    },
+    {
+     "field": "bacapp.processId",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "field": "bacapp.present_value.real",
+     "packet": 1,
+     "value": "24"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A00220100100209011C020000052C020000053A021C4E09552E4441C000002F4F",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 1
+  }
+ },
+ {
+  "id": "bacnet_subscribe_cov_cancel",
+  "proto": "bacnet",
+  "summary": "SubscribeCOV 取消形态（[2][3] 均缺省）→ SimpleACK",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "instance": 5,
+          "invoke_id": 3,
+          "kind": "subscribe_cov",
+          "object_type": 8,
+          "process_id": 1,
+          "respond": {
+           "ack": "simple"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.confirmed_service",
+     "packet": 2,
+     "value": "5"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001101040005030509011C02000005",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_device_communication_control",
+  "proto": "bacnet",
+  "summary": "DCC duration 0+disable 1+password pass（[2] ctx3 CharacterString 实占 7B）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "disable": 1,
+          "duration": 0,
+          "invoke_id": 4,
+          "kind": "dcc",
+          "password": "pass",
+          "respond": {
+           "ack": "simple"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.confirmed_service",
+     "packet": 1,
+     "value": "17"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A00160104000504110A000019012D050070617373",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_error_response",
+  "proto": "bacnet",
+  "summary": "Error 应答 invoke 配对（class 2 property + code 32/40 两组合）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 5,
+          "kind": "read_property",
+          "property": 85
+         },
+         {
+          "error_class": 2,
+          "error_code": 32,
+          "invoke_id": 5,
+          "kind": "error",
+          "service_choice": 12
+         },
+         {
+          "invoke_id": 6,
+          "kind": "read_property",
+          "property": 85
+         },
+         {
+          "error_class": 2,
+          "error_code": 40,
+          "invoke_id": 6,
+          "kind": "error",
+          "service_choice": 12
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.type",
+     "packet": 2,
+     "value": "5"
+    },
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 2,
+     "value": "5"
+    },
+    {
+     "field": "bacapp.confirmed_service",
+     "packet": 2,
+     "value": "12"
+    },
+    {
+     "field": "bacapp.error_class",
+     "packet": 2,
+     "value": "2"
+    },
+    {
+     "field": "bacapp.error_code",
+     "packet": 2,
+     "value": "32"
+    },
+    {
+     "field": "bacapp.error_code",
+     "packet": 4,
+     "value": "40"
+    },
+    {
+     "distinct_values": [
+      "9,9"
+     ],
+     "field": "bacapp.application_tag_number",
+     "packet": 2
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A000D010050050C91029120",
+     "offset": 42,
+     "packet": 2
+    },
+    {
+     "hex": "810A000D010050060C91029128",
+     "offset": 42,
+     "packet": 4
+    }
+   ],
+   "packet_count": 4
+  }
+ },
+ {
+  "id": "bacnet_reject",
+  "proto": "bacnet",
+  "summary": "Reject 应答（60 02 05 missing-required-parameter）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 2,
+          "kind": "write_property",
+          "value": {
+           "type": "boolean",
+           "value": true
+          }
+         },
+         {
+          "invoke_id": 2,
+          "kind": "reject",
+          "reject_reason": 5
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.type",
+     "packet": 2,
+     "value": "6"
+    },
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 2,
+     "value": "2"
+    },
+    {
+     "field": "bacapp.reject_reason",
+     "packet": 2,
+     "value": "5"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A00090100600205",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_abort",
+  "proto": "bacnet",
+  "summary": "Abort 应答（71 02 0b，SRV=1 设备侧）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 2,
+          "kind": "write_property",
+          "value": {
+           "type": "boolean",
+           "value": true
+          }
+         },
+         {
+          "abort_reason": 11,
+          "invoke_id": 2,
+          "kind": "abort",
+          "srv": true
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.type",
+     "packet": 2,
+     "value": "7"
+    },
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 2,
+     "value": "2"
+    },
+    {
+     "field": "bacapp.abort_reason",
+     "packet": 2,
+     "value": "11"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A0009010071020B",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_segmented_request",
+  "proto": "bacnet",
+  "summary": "分段 WriteProperty（465B CharacterString 天然超 480）两段+SegmentACK（SRV=1）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "instance": 1,
+          "invoke_id": 6,
+          "kind": "segmented_request",
+          "object_type": 0,
+          "priority": 8,
+          "property": 85,
+          "value": {
+           "type": "char_string",
+           "value": "BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BAC"
+          },
+          "window_size": 2
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.segmented_request",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "field": "bacapp.more_segments",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "field": "bacapp.sequence_number",
+     "packet": 1,
+     "value": "0"
+    },
+    {
+     "field": "bacapp.window_size",
+     "packet": 1,
+     "value": "2"
+    },
+    {
+     "field": "bacapp.confirmed_service",
+     "packet": 1,
+     "value": "15"
+    },
+    {
+     "field": "bacapp.more_segments",
+     "packet": 2,
+     "value": "0"
+    },
+    {
+     "field": "bacapp.sequence_number",
+     "packet": 2,
+     "value": "1"
+    },
+    {
+     "field": "bacapp.fragment.count",
+     "packet": 2,
+     "value": "2"
+    },
+    {
+     "field": "bacapp.reassembled.length",
+     "packet": 2,
+     "value": "481"
+    },
+    {
+     "field": "bacapp.type",
+     "packet": 3,
+     "value": "4"
+    },
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 3,
+     "value": "6"
+    },
+    {
+     "field": "bacapp.sequence_number",
+     "packet": 3,
+     "value": "1"
+    },
+    {
+     "field": "bacapp.window_size",
+     "packet": 3,
+     "value": "2"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001401040C230600020F0C0000000119553E",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "810A000A010041060102",
+     "offset": 42,
+     "packet": 3
+    }
+   ],
+   "packet_count": 3
+  }
+ },
+ {
+  "id": "bacnet_segmented_complex_ack",
+  "proto": "bacnet",
+  "summary": "分段 ComplexACK（窗口 4，SRV=0 客户端 SegmentACK）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 7,
+          "kind": "read_property",
+          "property": 85
+         },
+         {
+          "instance": 1,
+          "invoke_id": 7,
+          "kind": "segmented_ack",
+          "object_type": 0,
+          "property": 85,
+          "value": {
+           "type": "real",
+           "value": 22.5
+          },
+          "window_size": 4
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "distinct_values": [
+      "0",
+      "1"
+     ],
+     "field": "bacapp.sequence_number",
+     "packet": 2
+    },
+    {
+     "field": "bacapp.fragment.count",
+     "packet": 3,
+     "value": "2"
+    },
+    {
+     "field": "bacapp.reassembled.length",
+     "packet": 3,
+     "value": "14"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001301043C0700040C0C0000000119553E",
+     "offset": 42,
+     "packet": 2
+    },
+    {
+     "hex": "810A000A010040070104",
+     "offset": 42,
+     "packet": 4
+    }
+   ],
+   "packet_count": 4
+  }
+ },
+ {
+  "id": "bacnet_i_am_capabilities",
+  "proto": "bacnet",
+  "summary": "I-Am 能力三变体（分段能力 0/1/2 + max-APDU 1024，无符号最短式）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "device_instance": 200,
+          "kind": "i_am",
+          "max_apdu": 1024,
+          "segmentation": 0,
+          "vendor_id": 15
+         },
+         {
+          "device_instance": 201,
+          "kind": "i_am",
+          "max_apdu": 1024,
+          "segmentation": 1,
+          "vendor_id": 15
+         },
+         {
+          "device_instance": 202,
+          "kind": "i_am",
+          "max_apdu": 1024,
+          "segmentation": 2,
+          "vendor_id": 15
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.objectType",
+     "packet": 1,
+     "value": "8"
+    },
+    {
+     "field": "bacapp.vendor_identifier",
+     "packet": 1,
+     "value": "15"
+    },
+    {
+     "distinct_values": [
+      "200",
+      "201",
+      "202"
+     ],
+     "field": "bacapp.instance_number",
+     "packet": 1
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001501001000C4020000C8220400910022000F",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "810A001501001000C4020000C9220400910122000F",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 3
+  }
+ },
+ {
+  "id": "bacnet_app_tag_encoding",
+  "proto": "bacnet",
+  "summary": "ComplexACK 承载 13 种应用标签值 + 追加 Boolean FALSE（10 无内容字节）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "rpm",
+          "reads": [
+           {
+            "instance": 1,
+            "object_type": 0,
+            "props": [
+             {
+              "property": 85
+             },
+             {
+              "property": 85
+             },
+             {
+              "property": 85
+             }
+            ]
+           }
+          ],
+          "respond": {
+           "ack": "complex",
+           "results": [
+            {
+             "instance": 1,
+             "object_type": 0,
+             "props": [
+              {
+               "property": 85,
+               "value": {
+                "type": "null"
+               }
+              },
+              {
+               "property": 85,
+               "value": {
+                "type": "boolean",
+                "value": true
+               }
+              },
+              {
+               "property": 85,
+               "value": {
+                "type": "unsigned",
+                "value": 42
+               }
+              }
+             ]
+            }
+           ]
+          }
+         },
+         {
+          "invoke_id": 2,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "boolean",
+            "value": false
+           }
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "distinct_values": [
+      "0",
+      "1"
+     ],
+     "field": "bacapp.present_value.boolean",
+     "packet": 2
+    },
+    {
+     "field": "bacapp.present_value.uint",
+     "packet": 2,
+     "value": "42"
+    },
+    {
+     "field": "bacapp.present_value.boolean",
+     "packet": 4,
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A0013010030020C0C0000000019553E103F",
+     "offset": 42,
+     "packet": 4
+    }
+   ],
+   "packet_count": 4
+  }
+ },
+ {
+  "id": "bacnet_object_id_boundary",
+  "proto": "bacnet",
+  "summary": "对象 analog-input:0 与私有类型 128 实例 0x3FFFFF（0c 00000000 / 0c 203fffff）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "instance": 0,
+          "invoke_id": 1,
+          "kind": "read_property",
+          "object_type": 0,
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         },
+         {
+          "instance": 4194303,
+          "invoke_id": 2,
+          "kind": "read_property",
+          "object_type": 128,
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "distinct_values": [
+      "0",
+      "4194303"
+     ],
+     "field": "bacapp.instance_number",
+     "packet": 1
+    },
+    {
+     "field": "bacapp.objectType",
+     "packet": 3,
+     "value": "128"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001101040005010C0C000000001955",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "810A001101040005020C0C203FFFFF1955",
+     "offset": 42,
+     "packet": 3
+    }
+   ],
+   "packet_count": 4
+  }
+ },
+ {
+  "id": "bacnet_invoke_id_boundary",
+  "proto": "bacnet",
+  "summary": "Invoke ID 0 与 255 边界（ACK 回显 same_as_packet）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 0,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         },
+         {
+          "invoke_id": 255,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 1,
+     "value": "0"
+    },
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 2,
+     "value": "0"
+    },
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 3,
+     "value": "255"
+    },
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 4,
+     "value": "255"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001101040005000C0C000000001955",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 4
+  }
+ },
+ {
+  "id": "bacnet_multi_transaction",
+  "proto": "bacnet",
+  "summary": "单会话六帧序列 Who-Is→I-Am→RP(1)→ACK→WP(2)→ACK（方向交替 invoke 递增）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "who_is",
+          "respond_i_am": true
+         },
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         },
+         {
+          "invoke_id": 2,
+          "kind": "write_property",
+          "respond": {
+           "ack": "simple"
+          },
+          "value": {
+           "type": "boolean",
+           "value": true
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 3,
+     "value": "1"
+    },
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 4,
+     "value": "1"
+    },
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 5,
+     "value": "2"
+    },
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 6,
+     "value": "2"
+    },
+    {
+     "field": "bacapp.unconfirmed_service",
+     "packet": 1,
+     "value": "8"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A000801001008",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 6
+  }
+ },
+ {
+  "id": "bacnet_ipv6",
+  "proto": "bacnet",
+  "summary": "IPv6 承载（2001:db8::65→2001:db8::100:65）：BVLC 首字节 offset 62，字节与用例 1 一致",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "2001:db8::100:65",
+      "src": "2001:db8::65"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "high": 100,
+          "kind": "who_is",
+          "low": 0,
+          "respond_i_am": true
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ipv6.nxt",
+     "packet": 1,
+     "value": "17"
+    },
+    {
+     "field": "bvlc.function",
+     "packet": 1,
+     "value": "0x0a"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A000C0100100809001964",
+     "offset": 62,
+     "packet": 1
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_multi_session",
+  "proto": "bacnet",
+  "summary": "双会话按序整块展开（会话 2 首包 = 3；src .66/.67 distinct；实例 100/300）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "device_instance": 100,
+        "events": [
+         {
+          "kind": "who_is",
+          "respond_i_am": true
+         }
+        ],
+        "src_ip": "192.0.2.66"
+       },
+       {
+        "device_instance": 300,
+        "events": [
+         {
+          "kind": "who_is",
+          "respond_i_am": true
+         }
+        ],
+        "src_ip": "192.0.2.67"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "distinct_exclude": [
+      "198.51.100.66"
+     ],
+     "distinct_values": [
+      "192.0.2.66",
+      "192.0.2.67"
+     ],
+     "field": "ip.src",
+     "packet": 1
+    },
+    {
+     "field": "bacapp.instance_number",
+     "packet": 4,
+     "value": "300"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A000801001008",
+     "offset": 42,
+     "packet": 3
+    }
+   ],
+   "packet_count": 4
+  }
+ },
+ {
+  "id": "bacnet_large_charstring",
+  "proto": "bacnet",
+  "summary": "1024B CharacterString（扩展长度档 fe 0401）单帧 1089B 不分片",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 8,
+          "kind": "read_property",
+          "property": 77,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "char_string",
+            "value": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+           }
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "udp.length",
+     "packet": 2,
+     "value": "1055"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A0417010030080C0C00000000194D3E75FE0401007A7A",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_invoke_id_adjacent",
+  "proto": "bacnet",
+  "summary": "Invoke 1 与 254 相邻值（ACK 回显）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         },
+         {
+          "invoke_id": 254,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "distinct_values": [
+      "1",
+      "254"
+     ],
+     "field": "bacapp.invoke_id",
+     "packet": 1
+    },
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 2,
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001101040005FE0C0C000000001955",
+     "offset": 42,
+     "packet": 3
+    }
+   ],
+   "packet_count": 4
+  }
+ },
+ {
+  "id": "bacnet_instance_adjacent",
+  "proto": "bacnet",
+  "summary": "实例 1 与 4194302（0x3FFFFE）相邻值",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "instance": 1,
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         },
+         {
+          "instance": 4194302,
+          "invoke_id": 2,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "distinct_values": [
+      "1",
+      "4194302"
+     ],
+     "field": "bacapp.instance_number",
+     "packet": 1
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001101040005020C0C003FFFFE1955",
+     "offset": 42,
+     "packet": 3
+    }
+   ],
+   "packet_count": 4
+  }
+ },
+ {
+  "id": "bacnet_object_type_boundaries",
+  "proto": "bacnet",
+  "summary": "类型 127（标准末值）与 1023（10 位满值）：0c 1fc00001 / 0c 3fc00001",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "instance": 1,
+          "invoke_id": 1,
+          "kind": "read_property",
+          "object_type": 127,
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         },
+         {
+          "instance": 1,
+          "invoke_id": 2,
+          "kind": "read_property",
+          "object_type": 1023,
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.objectType",
+     "packet": 3,
+     "value": "1023"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001101040005010C0C1FC000011955",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "810A001101040005020C0CFFC000011955",
+     "offset": 42,
+     "packet": 3
+    }
+   ],
+   "packet_count": 4
+  }
+ },
+ {
+  "id": "bacnet_priority_boundaries",
+  "proto": "bacnet",
+  "summary": "WP 优先级显式 1 与显式 16（4901/4910 三形态之二）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "write_property",
+          "priority": 1,
+          "property": 85,
+          "respond": {
+           "ack": "simple"
+          },
+          "value": {
+           "type": "boolean",
+           "value": true
+          }
+         },
+         {
+          "invoke_id": 2,
+          "kind": "write_property",
+          "priority": 16,
+          "property": 85,
+          "respond": {
+           "ack": "simple"
+          },
+          "value": {
+           "type": "boolean",
+           "value": true
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 3,
+     "value": "2"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001601040005010F0C0000000019553E113F4901",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "810A001601040005020F0C0000000019553E113F4910",
+     "offset": 42,
+     "packet": 3
+    }
+   ],
+   "packet_count": 4
+  }
+ },
+ {
+  "id": "bacnet_window_size_boundaries",
+  "proto": "bacnet",
+  "summary": "窗口 1 逐段确认（4 帧）与窗口 255 整窗确认（3 帧）——提议值非段数",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "segmented_request",
+          "priority": 8,
+          "value": {
+           "type": "char_string",
+           "value": "BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BAC"
+          },
+          "window_size": 1
+         },
+         {
+          "invoke_id": 2,
+          "kind": "segmented_request",
+          "priority": 8,
+          "value": {
+           "type": "char_string",
+           "value": "BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BAC"
+          },
+          "window_size": 255
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.window_size",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "field": "bacapp.window_size",
+     "packet": 5,
+     "value": "255"
+    },
+    {
+     "field": "bacapp.sequence_number",
+     "packet": 4,
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001401040C230100010F",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "810A001401040C230200FF0F",
+     "offset": 42,
+     "packet": 5
+    }
+   ],
+   "packet_count": 7
+  }
+ },
+ {
+  "id": "bacnet_vendor_id_max",
+  "proto": "bacnet",
+  "summary": "I-Am 厂商 ID 65535（u16 上界 22 ffff）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "device_instance": 200,
+          "kind": "i_am",
+          "max_apdu": 1476,
+          "segmentation": 3,
+          "vendor_id": 65535
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.vendor_identifier",
+     "packet": 1,
+     "value": "65535"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001501001000C4020000C82205C4910322FFFF",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 1
+  }
+ },
+ {
+  "id": "bacnet_ttl_max",
+  "proto": "bacnet",
+  "summary": "RFD TTL 65535（u16 上界）→ Result",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "register_foreign_device",
+          "ttl": 65535
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bvlc.reg_ttl",
+     "packet": 1,
+     "value": "65535"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "81050006FFFF",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_port_nondefault",
+  "proto": "bacnet",
+  "summary": "显式 47809（src=dst）：BACnet 字节与用例 1 一致，DecodeAs 解码",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47809,
+      "src_port": 47809
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "high": 100,
+          "kind": "who_is",
+          "low": 0,
+          "respond_i_am": true
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "udp.srcport",
+     "packet": 1,
+     "value": "47809"
+    },
+    {
+     "field": "udp.dstport",
+     "packet": 1,
+     "value": "47809"
+    },
+    {
+     "field": "bacapp.unconfirmed_service",
+     "packet": 1,
+     "value": "8"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A000C0100100809001964",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 2
+  },
+  "decode_as": [
+   "udp.port==47809,bvlc"
+  ]
+ },
+ {
+  "id": "bacnet_concurrent_sessions",
+  "proto": "bacnet",
+  "summary": "concurrent 双客户端交错（up 帧源 IP 交替，各自事务配对完整）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "concurrent": true,
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "who_is"
+         },
+         {
+          "device_instance": 100,
+          "kind": "i_am"
+         }
+        ],
+        "src_ip": "192.0.2.66"
+       },
+       {
+        "events": [
+         {
+          "kind": "who_is"
+         },
+         {
+          "device_instance": 300,
+          "kind": "i_am"
+         }
+        ],
+        "src_ip": "192.0.2.67"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ip.src",
+     "packet": 1,
+     "value": "192.0.2.66"
+    },
+    {
+     "field": "ip.src",
+     "packet": 2,
+     "value": "192.0.2.67"
+    },
+    {
+     "field": "ip.dst",
+     "packet": 3,
+     "value": "192.0.2.66"
+    },
+    {
+     "field": "ip.dst",
+     "packet": 4,
+     "value": "192.0.2.67"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A000801001008",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 4
+  }
+ },
+ {
+  "id": "bacnet_who_has_limits",
+  "proto": "bacnet",
+  "summary": "Who-Has [0][1] 范围对（0/100）+ [2] 对象 ID 分支 → I-Have",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "high": 100,
+          "instance": 1,
+          "kind": "who_has",
+          "low": 0,
+          "object_type": 0
+         },
+         {
+          "device_instance": 100,
+          "instance": 1,
+          "kind": "i_have",
+          "object_name": "ai-1",
+          "object_type": 0
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.unconfirmed_service",
+     "packet": 1,
+     "value": "7"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001101001007090019642C00000001",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_rpm_multi_object",
+  "proto": "bacnet",
+  "summary": "RPM 双对象（ai:1 与 device:5 各双属性）→ ComplexACK 双对象多值",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "rpm",
+          "reads": [
+           {
+            "instance": 1,
+            "object_type": 0,
+            "props": [
+             {
+              "property": 85
+             },
+             {
+              "property": 77
+             }
+            ]
+           },
+           {
+            "instance": 5,
+            "object_type": 8,
+            "props": [
+             {
+              "property": 85
+             },
+             {
+              "property": 77
+             }
+            ]
+           }
+          ],
+          "respond": {
+           "ack": "complex",
+           "results": [
+            {
+             "instance": 1,
+             "object_type": 0,
+             "props": [
+              {
+               "property": 85,
+               "value": {
+                "type": "real",
+                "value": 22.5
+               }
+              },
+              {
+               "property": 77,
+               "value": {
+                "type": "char_string",
+                "value": "objs"
+               }
+              }
+             ]
+            },
+            {
+             "instance": 5,
+             "object_type": 8,
+             "props": [
+              {
+               "property": 85,
+               "value": {
+                "type": "real",
+                "value": 22.5
+               }
+              },
+              {
+               "property": 77,
+               "value": {
+                "type": "char_string",
+                "value": "objs"
+               }
+              }
+             ]
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.objectType",
+     "packet": 1,
+     "value": "0,8"
+    },
+    {
+     "field": "bacapp.instance_number",
+     "packet": 1,
+     "value": "1,5"
+    },
+    {
+     "field": "bacapp.property_identifier",
+     "packet": 1,
+     "value": "85,77,85,77"
+    },
+    {
+     "field": "bacapp.objectType",
+     "packet": 2,
+     "value": "0,8"
+    },
+    {
+     "field": "bacapp.instance_number",
+     "packet": 2,
+     "value": "1,5"
+    },
+    {
+     "field": "bacapp.property_identifier",
+     "packet": 2,
+     "value": "85,77,85,77"
+    },
+    {
+     "field": "bacapp.object_name",
+     "packet": 2,
+     "value": "objs,objs"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A002001040005010E0C000000011E0955094D1F0C020000051E0955094D1F",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_dcc_variants",
+  "proto": "bacnet",
+  "summary": "DCC 三变体：enable+duration 30 / disable-initiation+duration 0 / 缺省 [0]+disable 1",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "disable": 0,
+          "duration": 30,
+          "invoke_id": 1,
+          "kind": "dcc",
+          "respond": {
+           "ack": "simple"
+          }
+         },
+         {
+          "disable": 2,
+          "duration": 0,
+          "invoke_id": 2,
+          "kind": "dcc",
+          "respond": {
+           "ack": "simple"
+          }
+         },
+         {
+          "disable": 1,
+          "invoke_id": 3,
+          "kind": "dcc",
+          "respond": {
+           "ack": "simple"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.confirmed_service",
+     "packet": 1,
+     "value": "17"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A000F0104000501110A001E1900",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "810A000F0104000502110A00001902",
+     "offset": 42,
+     "packet": 3
+    },
+    {
+     "hex": "810A000C0104000503111901",
+     "offset": 42,
+     "packet": 5
+    }
+   ],
+   "packet_count": 6
+  }
+ },
+ {
+  "id": "bacnet_subscribe_cov_unconfirmed",
+  "proto": "bacnet",
+  "summary": "SubscribeCOV [2] 存在且 FALSE（2900）+ lifetime",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "instance": 5,
+          "invoke_id": 3,
+          "issue_confirmed": false,
+          "kind": "subscribe_cov",
+          "lifetime": 600,
+          "object_type": 8,
+          "process_id": 1,
+          "respond": {
+           "ack": "simple"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.confirmed_service",
+     "packet": 2,
+     "value": "5"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001601040005030509011C0200000529003A0258",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_confirmed_request_sa",
+  "proto": "bacnet",
+  "summary": "Confirmed-REQ 首字节 SA bit1=1（02）客户端声明接受分段响应",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          },
+          "sa": true
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.invoke_id",
+     "packet": 1,
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A001101040205010C0C000000001955",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_npdu_global_broadcast",
+  "proto": "bacnet",
+  "summary": "NPDU 全局广播（DNET FFFF+DLEN 0+Hop FF，路由侧语义钉死）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "who_is",
+          "npdu": {
+           "dest": {
+            "net": 65535
+           }
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacnet.dnet",
+     "packet": 1,
+     "value": "65535"
+    },
+    {
+     "field": "bacnet.dlen",
+     "packet": 1,
+     "value": "0"
+    },
+    {
+     "field": "bacnet.hopc",
+     "packet": 1,
+     "value": "255"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A000C0120FFFF00FF1008",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 1
+  }
+ },
+ {
+  "id": "bacnet_bdt_multi_entry",
+  "proto": "bacnet",
+  "summary": "Write-BDT 双表项（len 0x18）+ Read-FDT-Ack 双表项",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "entries": [
+           {
+            "ip": "192.0.2.88",
+            "mask": "ffffff00",
+            "port": 47808
+           },
+           {
+            "ip": "192.0.2.90",
+            "mask": "ffffff00",
+            "port": 47808
+           }
+          ],
+          "kind": "write_bdt"
+         },
+         {
+          "kind": "read_fdt",
+          "respond": {
+           "entries": [
+            {
+             "ip": "192.0.2.99",
+             "port": 47808,
+             "timeout": 120,
+             "ttl": 300
+            },
+            {
+             "ip": "192.0.2.101",
+             "port": 47808,
+             "timeout": 30,
+             "ttl": 60
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "distinct_values": [
+      "192.0.2.88,192.0.2.90"
+     ],
+     "field": "bvlc.bdt_ip",
+     "packet": 1
+    },
+    {
+     "distinct_values": [
+      "192.0.2.99,192.0.2.101"
+     ],
+     "field": "bvlc.fdt_ip",
+     "packet": 4
+    }
+   ],
+   "frames": [
+    {
+     "hex": "81010018C0000258BAC0FFFFFF00",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 4
+  }
+ },
+ {
+  "id": "bacnet_charstring_ucs2",
+  "proto": "bacnet",
+  "summary": "charset 4（UCS-2）CharacterString：7505 04 4e2d6587",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 9,
+          "kind": "read_property",
+          "property": 77,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "charset": 4,
+            "type": "char_string",
+            "value": "中文"
+           }
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "bacapp.string_character_set",
+     "packet": 2,
+     "value": "4"
+    },
+    {
+     "field": "bacapp.object_name",
+     "packet": 2,
+     "value": "中文"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "810A0019010030090C0C00000000194D3E7505044E2D65873F",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "bacnet_neg_bvlc_type",
+  "proto": "bacnet",
+  "summary": "BVLC Type ≠0x81（如 0x80/0x82/0xFF）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "bvlc_type"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "type",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_bvlc_function",
+  "proto": "bacnet",
+  "summary": "BVLC Function ∉0x00–0x0B 明文功能域",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "bvlc_function"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "function",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_bvlc_secure",
+  "proto": "bacnet",
+  "summary": "Secure-BVLL 0x0C 被当明文产生",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "bvlc_secure"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "secure",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_bvlc_length_min",
+  "proto": "bacnet",
+  "summary": "BVLC Length \u003c4",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "bvlc_length_min"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "length",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_bvlc_length_mismatch",
+  "proto": "bacnet",
+  "summary": "BVLC Length ≠ 4+功能负载实际字节",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "bvlc_length_mismatch"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "length",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_bvlc_length_forwarded",
+  "proto": "bacnet",
+  "summary": "Forwarded-NPDU Length 未计 6B 源地址",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "bvlc_length_forwarded"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "length",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_npdu_version",
+  "proto": "bacnet",
+  "summary": "NPDU Version ≠0x01",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "npdu_version"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "version",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_npdu_dest_missing",
+  "proto": "bacnet",
+  "summary": "Control bit5=1 而 DNET/HopCount 缺失",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "npdu_dest_missing"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "dnet",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_npdu_src_len_zero",
+  "proto": "bacnet",
+  "summary": "Control bit3=1 而 SLEN=0",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "npdu_src_len_zero"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "snet",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_npdu_reserved_bits",
+  "proto": "bacnet",
+  "summary": "Control 保留位 bit6/bit4 置 1",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "npdu_reserved_bits"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "control",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_npdu_no_message_type",
+  "proto": "bacnet",
+  "summary": "Control bit7=1 而 Message Type 缺失",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "npdu_no_message_type"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "control",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_npdu_dlen_invalid",
+  "proto": "bacnet",
+  "summary": "DLEN ∉{0,6}",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "npdu_dlen_invalid"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "dlen",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_apdu_type_invalid",
+  "proto": "bacnet",
+  "summary": "APDU 首字节高 4 位 \u003e7",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "apdu_type_invalid"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "apdu",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_apdu_header_confirmed",
+  "proto": "bacnet",
+  "summary": "Confirmed-Request 头部不完整",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "apdu_header_confirmed"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "header",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_apdu_header_simpleack",
+  "proto": "bacnet",
+  "summary": "SimpleACK \u003c3 字节",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "apdu_header_simpleack"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "header",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_service_confirmed_unimplemented",
+  "proto": "bacnet",
+  "summary": "确认服务不在子集（如 ReadRange 34）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "service_confirmed_unimplemented"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "service",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_service_unconfirmed_invalid",
+  "proto": "bacnet",
+  "summary": "非确认服务 ∉{0,1,2,7,8}",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "service_unconfirmed_invalid"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "service",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_tag_lvt_mismatch",
+  "proto": "bacnet",
+  "summary": "LVT=4 而内容仅 2 字节",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "tag_lvt_mismatch"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "lvt",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_tag_open_unmatched",
+  "proto": "bacnet",
+  "summary": "开标签无同号闭标签配对",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "tag_open_unmatched"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "tag",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_tag_boolean_lvt",
+  "proto": "bacnet",
+  "summary": "Boolean 应用标签 LVT=2",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "tag_boolean_lvt"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "tag",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_tag_context_number",
+  "proto": "bacnet",
+  "summary": "上下文标签号超出服务 ASN.1 定义",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "tag_context_number"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "tag",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_object_type_overflow",
+  "proto": "bacnet",
+  "summary": "对象类型 \u003e1023（10 位溢出，如 1024）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "read_property",
+          "object_type": 1024,
+          "property": 85
+         }
+        ]
+       }
+      ],
+      "wire_fault": "object_type_overflow"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "object",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_object_instance_overflow",
+  "proto": "bacnet",
+  "summary": "对象实例 \u003e4194303（22 位溢出）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "instance": 4194304,
+          "kind": "read_property",
+          "property": 85
+         }
+        ]
+       }
+      ],
+      "wire_fault": "object_instance_overflow"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "instance",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_object_iam_not_device",
+  "proto": "bacnet",
+  "summary": "I-Am 设备标识对象类型 ≠8",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "wire_fault": "object_iam_not_device"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "object",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_property_id_vendor",
+  "proto": "bacnet",
+  "summary": "属性 ID \u003e511 未声明厂商私有",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "read_property",
+          "property": 512
+         }
+        ]
+       }
+      ],
+      "wire_fault": "property_id_vendor"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "property",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_property_index_negative",
+  "proto": "bacnet",
+  "summary": "数组下标为负（-1）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "array_index": -1,
+          "kind": "read_property",
+          "property": 85
+         }
+        ]
+       }
+      ],
+      "wire_fault": "property_index_negative"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "property",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_priority_range",
+  "proto": "bacnet",
+  "summary": "优先级 ∉1–16（0）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "write_property",
+          "priority": 0,
+          "property": 85,
+          "value": {
+           "type": "boolean",
+           "value": true
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "priority_range"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "priority",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_error_class_range",
+  "proto": "bacnet",
+  "summary": "error-class 越域（8）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85
+         },
+         {
+          "error_class": 8,
+          "error_code": 32,
+          "invoke_id": 1,
+          "kind": "error",
+          "service_choice": 12
+         }
+        ]
+       }
+      ],
+      "wire_fault": "error_class_range"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "error",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_invoke_mismatch",
+  "proto": "bacnet",
+  "summary": "应答 Invoke ≠ 触发请求 Invoke",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85
+         },
+         {
+          "error_class": 2,
+          "error_code": 32,
+          "invoke_id": 2,
+          "kind": "error",
+          "service_choice": 12
+         }
+        ]
+       }
+      ],
+      "wire_fault": "invoke_mismatch"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "invoke",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_invoke_reuse",
+  "proto": "bacnet",
+  "summary": "未完成事务期间复用同一 Invoke ID",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 3,
+          "kind": "read_property",
+          "property": 85
+         },
+         {
+          "invoke_id": 3,
+          "kind": "write_property",
+          "value": {
+           "type": "boolean",
+           "value": true
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "invoke_reuse"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "invoke",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_segment_extra_fields",
+  "proto": "bacnet",
+  "summary": "SEG=0 却携带 seq/window",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "read_property",
+          "property": 85,
+          "window_size": 2
+         }
+        ]
+       }
+      ],
+      "wire_fault": "segment_extra_fields"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "segment",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_segment_missing_fields",
+  "proto": "bacnet",
+  "summary": "SEG=1 缺 seq/window",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "segment_missing_fields"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "segment",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_segment_window_zero",
+  "proto": "bacnet",
+  "summary": "提议窗口 0（合法 1-255）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "segmented_request",
+          "value": {
+           "type": "char_string",
+           "value": "BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BACnetSegment.BAC"
+          },
+          "window_size": 0
+         }
+        ]
+       }
+      ],
+      "wire_fault": "segment_window_zero"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "window",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_segment_sequence_skip",
+  "proto": "bacnet",
+  "summary": "seq 回绕/跳变",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "segment_sequence_skip"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "sequence",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_carrier_layer_missing",
+  "proto": "bacnet",
+  "summary": "层链缺 udp（[bacnet] 直连）",
+  "spec_json": {
+   "layers": [
+    {
+     "bacnet": {}
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "carrier",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_carrier_tcp",
+  "proto": "bacnet",
+  "summary": "TCP 载体声明（BACnet/IP 仅 UDP，Annex J）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {}
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "carrier",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_port_undeclared",
+  "proto": "bacnet",
+  "summary": "端口 ≠47808 未显式声明（静默回退禁止）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "port_undeclared"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "port",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_address_family_mismatch",
+  "proto": "bacnet",
+  "summary": "IPv6 地址配 IPv4 层链",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "2001:db8::1",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {}
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "family",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_address_family_derived",
+  "proto": "bacnet",
+  "summary": "从 IPv4 fixture 推导 IPv6 地址",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "address_family_derived"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "address",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_state_ack_no_request",
+  "proto": "bacnet",
+  "summary": "ACK/Error 事件无前置确认请求",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "error_class": 2,
+          "error_code": 32,
+          "invoke_id": 9,
+          "kind": "error",
+          "service_choice": 12
+         }
+        ]
+       }
+      ],
+      "wire_fault": "state_ack_no_request"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "state",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_state_iam_no_whois",
+  "proto": "bacnet",
+  "summary": "I-Am 无前置 Who-Is（注入通道；正例 31 钉独立宣告合法）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "state_iam_no_whois"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "state",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "bacnet_neg_state_cov_no_subscribe",
+  "proto": "bacnet",
+  "summary": "COV 通知无前置订阅（注入通道；正例 23 钉单帧通知合法）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.66",
+      "src": "192.0.2.66"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 47808,
+      "src_port": 47808
+     }
+    },
+    {
+     "bacnet": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "invoke_id": 1,
+          "kind": "read_property",
+          "property": 85,
+          "respond": {
+           "ack": "complex",
+           "value": {
+            "type": "real",
+            "value": 22.5
+           }
+          }
+         }
+        ]
+       }
+      ],
+      "wire_fault": "state_cov_no_subscribe"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "state",
+   "expect_error": true
+  }
+ }
 ]

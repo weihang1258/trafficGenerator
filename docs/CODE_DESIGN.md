@@ -4577,4 +4577,21 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 
 ### 执行记录（P4-P6 逐段回填）
 
-- P4/P5/P6 未开工（本条目 P1-P3 定稿即提交）。
+**P4 已完成（2026-09-24，feat 提交）**
+
+- 实现 11 文件实况：`internal/core/bacnet.go`（BACNET* 类型 + 42 常量 + strict UnmarshalJSON DisallowUnknownFields）+ `internal/protocol/bacnet/`（builder.go ~1250 行 BVLC/NPDU/APDU/标签三层组帧 + invokeWalker 单一解析权威 + wrapBVLC 通道 + segmentFrames 值边界贪心/强制切分；planner.go 42 锚词 + validateSession 状态机；无独立 layer_gen——层校验器 `(&Planner{}).Validate` coap 同款）+ 接线九点（types/strategy_convert/protocols/protocols_test/layers generator+registry+validate_layers+chain_planner_translate+complete 预检/main.go 空导入）。
+- schema：registry 119→120 层；`layers.generated.json` 重跑（120 层）；FieldContract `udp.dst_port=47808`。
+- 红例：`bacnet_chain_test.go` 16 例（基线字节钉/最小帧/who_has/RP/WP/RFD/Distribute/NPDU dest/分段 WP/多会话/concurrent/error 配对/15 自然负例/未知 kind/未知 wire_fault/载体三形状）全绿；core/layers/bacnet 三包 `-race` 绿。
+- **处置表据实勘误（M2 教训执行）**：初版两计数笔误——"19 自然/23 注入"系误记，按枚举实为 17/25=42；落码实况 **15 自然守卫 + 27 仅注入 = 42 可复算**：state_iam_no_whois、state_cov_no_subscribe 转仅注入（正例 31 standalone I-Am、23 单帧 COVNotification 钉独立事件合法——独立 COV 通知与 subscribeCOV 无前置要求），state_ack_no_request 仍自然（invoke 状态机走查）；npdu_src_len_zero 注记：bare `npdu.src` 缺 addr 由 validateNPDU 以 (snet) 邻位守卫拒，wire_fault 注入通道独立并存。
+- **设计文档对勘误（v2.1.0 → 实测，登记为 doc recalibration）**：①hop count 在 DADR 块之后（135-2016 §6.2.2，契约表序笔误）；②正例 13 NPDU 总长 0x1e 非 0x1c（算术）；③正例 41 type-1023 复合码 = 0xFFC00001（1023<<22，契约 0x3FC00001 算术误）；④正例 55 短串 LVT3 直存 `73 03`（契约 `75 03` 违反自身 §3.4 最短式规则）；⑤正例 32 按 4 帧重整（T-BACNET 注记）；⑥正例 12 BVLC len 0x12、⑦正例 30 len 0x13、⑧正例 52 补 SA 位——均以 frameAsserts 生成时自证（钉=实测字节）。
+
+**P5 已完成（2026-09-24，97/97 ×2 全绿）**
+
+- 三步真实流程：MCP 建任务→引擎生成→tshark 校对；suite RESULT 97 pass/0 fail/0 error 连续两轮（+重编后第三轮），pcap 落 `/tmp/mcp-pcaps/bacnet/`（97 个，负例 24B 空占位）。
+- 门2 静态四项全绿（顶层旧键零残留/二进制同代/coverage_gate 57/57/负例锚词∈值集 42/42——39 注入+3 载体形状预检拒）。
+- **tshark 渲染格式校准清单（先跑后钉实证）**：`bvlc.function`/`bvlc.result`/`bacnet.control`/`bacnet.mesgtyp` 带帧渲染 `0x0a`/`0x0000`/`0x20`/`0x01` 十六进制串；`bacapp.max_adpu_size` 渲染原始码值（5）非字节数；多出现字段按帧逗号并集（`0,8`、`85,77,85,77`、`12,2,9,2`）——distinct 断言一律改逐帧精确值；`fragment.count`/`reassembled.length` 渲染在末段帧；property 77（object-name）值渲染为 `bacapp.object_name` 非 present_value；subscribeCOV 的 processId 无专用字段（ctx 标签逗号表 `0,1,2,3` 代钉）；`bacapp.LVT` 多出现噪声断言删除；`has_payload`（frame.len>80）与 bacnet 50-70B 帧不相容——移除，帧字节钉更精确。
+- **wireshark 缺陷登记（tshark 3.6.14）**：bacapp dissector 对 LVT 直存（内容 ≤4 八位组）CharacterString 解码失败——WP 面静默解码空、RPM 属性值面抛 Malformed 异常；该编码系 135 确定性短式（builder 不妥协），用例 fixture 取 ≥5 八位组（`objs`/`中文`）规避。
+- **框架补强（bacnet 载体锚词对称面，D-HL7-1 裁定2 同构）**：complete.go transport-dup 检查补 udp-only TransportOn 终结层 + 用户显式 tcp → 创建面即报 `(carrier)` 锚词；registry bacnet 行补 `TransportOn:["udp"]`。
+- 清库对账：strategies 57→0、tasks 385→0（删前报数✓ 备份 `/tmp/tg-sv-p5/backup-bacnet-purge.db`✓ 删后复核✓ 交叉引用 0✓；库总量 1222/6322）。
+
+- P6 终审进行中（隔离 fresh-context subagent 全文复审→修轮→复评→关单后回填）。
