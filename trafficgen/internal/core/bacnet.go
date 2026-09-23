@@ -89,7 +89,7 @@ type BACNETValue struct {
 	Type string `json:"type"`
 	// Value is the semantic payload: bool | number | hex string
 	// (octet_string/bit_string 内容) | string (char_string) |
-	// {year,month,day,weekday} (date) | {hour,minute,second,century}
+	// {year,month,day,weekday} (date) | {hour,minute,second,hundredths}（厘秒）
 	// (time)；object_id 用 ObjType/ObjInstance.
 	Value interface{} `json:"value,omitempty"`
 	// Charset for char_string (0=ANSI/UTF-8 缺省；4=UCS-2).

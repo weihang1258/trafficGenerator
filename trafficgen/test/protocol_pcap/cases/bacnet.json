@@ -2514,7 +2514,7 @@
  {
   "id": "bacnet_app_tag_encoding",
   "proto": "bacnet",
-  "summary": "ComplexACK 承载 13 种应用标签值 + 追加 Boolean FALSE（10 无内容字节）",
+  "summary": "ComplexACK 承载 13 种应用标签值（标签 0-12 逐一：null/bool/uint/int/real/double/octet/char/bit/enum/date/time/objectID）+ 追加 Boolean FALSE（10 无内容字节）",
   "spec_json": {
    "layers": [
     {
@@ -2542,6 +2542,36 @@
             "instance": 1,
             "object_type": 0,
             "props": [
+             {
+              "property": 85
+             },
+             {
+              "property": 85
+             },
+             {
+              "property": 85
+             },
+             {
+              "property": 85
+             },
+             {
+              "property": 85
+             },
+             {
+              "property": 85
+             },
+             {
+              "property": 85
+             },
+             {
+              "property": 85
+             },
+             {
+              "property": 85
+             },
+             {
+              "property": 85
+             },
              {
               "property": 85
              },
@@ -2580,6 +2610,88 @@
                 "type": "unsigned",
                 "value": 42
                }
+              },
+              {
+               "property": 85,
+               "value": {
+                "type": "int",
+                "value": -7
+               }
+              },
+              {
+               "property": 85,
+               "value": {
+                "type": "real",
+                "value": 22.5
+               }
+              },
+              {
+               "property": 85,
+               "value": {
+                "type": "double",
+                "value": 3.14
+               }
+              },
+              {
+               "property": 85,
+               "value": {
+                "type": "octet_string",
+                "value": "DEADBEEF"
+               }
+              },
+              {
+               "property": 85,
+               "value": {
+                "type": "char_string",
+                "value": "objs"
+               }
+              },
+              {
+               "property": 85,
+               "value": {
+                "type": "bit_string",
+                "unused_bits": 5,
+                "value": "70"
+               }
+              },
+              {
+               "property": 85,
+               "value": {
+                "type": "enumerated",
+                "value": 5
+               }
+              },
+              {
+               "property": 85,
+               "value": {
+                "type": "date",
+                "value": {
+                 "day": 24,
+                 "month": 9,
+                 "weekday": 4,
+                 "year": 2026
+                }
+               }
+              },
+              {
+               "property": 85,
+               "value": {
+                "type": "time",
+                "value": {
+                 "hour": 12,
+                 "hundredths": 50,
+                 "minute": 30,
+                 "second": 45
+                }
+               }
+              },
+              {
+               "property": 85,
+               "value": {
+                "object_instance": 5,
+                "object_type": 8,
+                "type": "object_id"
+               }
               }
              ]
             }
@@ -2608,25 +2720,17 @@
   "expect": {
    "fields": [
     {
-     "distinct_values": [
-      "0",
-      "1"
-     ],
-     "field": "bacapp.present_value.boolean",
-     "packet": 2
-    },
-    {
-     "field": "bacapp.present_value.uint",
-     "packet": 2,
-     "value": "42"
-    },
-    {
      "field": "bacapp.present_value.boolean",
      "packet": 4,
      "value": "0"
     }
    ],
    "frames": [
+    {
+     "hex": "810A007A010030010E0C000000011E29554E004F29554E114F29554E212A4F29554E31F94F29554E4441B400004F29554E5840091EB851EB851F4F29554E6404DEADBEEF4F29554E7505006F626A734F29554E820205704F29554E91054F29554EA47E0918044F29554EB40C1E2D324F29554EC4020000054F1F",
+     "offset": 42,
+     "packet": 2
+    },
     {
      "hex": "810A0013010030020C0C0000000019553E103F",
      "offset": 42,

@@ -696,30 +696,48 @@ func TestGenerateBACNETCases(t *testing.T) {
 
 	// —— 32 应用标签全枚举（4 帧：RPM 13 值 + RP Boolean FALSE；§4 帧数 3 的
 	// 声明化重构——每个 ComplexACK 需各自请求帧，T-BACNET 登记）——
-	add("bacnet_app_tag_encoding", "ComplexACK 承载 13 种应用标签值 + 追加 Boolean FALSE（10 无内容字节）",
+	add("bacnet_app_tag_encoding", "ComplexACK 承载 13 种应用标签值（标签 0-12 逐一：null/bool/uint/int/real/double/octet/char/bit/enum/date/time/objectID）+ 追加 Boolean FALSE（10 无内容字节）",
 		chain(map[string]interface{}{"sessions": []interface{}{sess(
 			ev(map[string]interface{}{"kind": "rpm", "invoke_id": 1,
 				"reads": []interface{}{map[string]interface{}{
 					"object_type": 0, "instance": 1,
-					"props": []interface{}{
-						map[string]interface{}{"property": 85},
-						map[string]interface{}{"property": 85},
-						map[string]interface{}{"property": 85}}}},
+					"props": func() []interface{} {
+						ps := []interface{}{}
+						for i := 0; i < 13; i++ {
+							ps = append(ps, map[string]interface{}{"property": 85})
+						}
+						return ps
+					}()}},
 				"respond": map[string]interface{}{"ack": "complex", "results": []interface{}{
 					map[string]interface{}{"object_type": 0, "instance": 1, "props": []interface{}{
 						map[string]interface{}{"property": 85, "value": map[string]interface{}{"type": "null"}},
 						map[string]interface{}{"property": 85, "value": map[string]interface{}{"type": "boolean", "value": true}},
-						map[string]interface{}{"property": 85, "value": map[string]interface{}{"type": "unsigned", "value": 42}}}}}}}),
+						map[string]interface{}{"property": 85, "value": map[string]interface{}{"type": "unsigned", "value": 42}},
+						map[string]interface{}{"property": 85, "value": map[string]interface{}{"type": "int", "value": -7}},
+						map[string]interface{}{"property": 85, "value": map[string]interface{}{"type": "real", "value": 22.5}},
+						map[string]interface{}{"property": 85, "value": map[string]interface{}{"type": "double", "value": 3.14}},
+						map[string]interface{}{"property": 85, "value": map[string]interface{}{"type": "octet_string", "value": "DEADBEEF"}},
+						map[string]interface{}{"property": 85, "value": map[string]interface{}{"type": "char_string", "value": "objs"}},
+						map[string]interface{}{"property": 85, "value": map[string]interface{}{"type": "bit_string", "value": "70", "unused_bits": 5}},
+						map[string]interface{}{"property": 85, "value": map[string]interface{}{"type": "enumerated", "value": 5}},
+						map[string]interface{}{"property": 85, "value": map[string]interface{}{"type": "date", "value": map[string]interface{}{"year": 2026, "month": 9, "day": 24, "weekday": 4}}},
+						map[string]interface{}{"property": 85, "value": map[string]interface{}{"type": "time", "value": map[string]interface{}{"hour": 12, "minute": 30, "second": 45, "hundredths": 50}}},
+						map[string]interface{}{"property": 85, "value": map[string]interface{}{"type": "object_id", "object_type": 8, "object_instance": 5}}}}}}}),
 			ev(map[string]interface{}{"kind": "read_property", "invoke_id": 2, "property": 85,
 				"respond": map[string]interface{}{"ack": "complex",
 					"value": map[string]interface{}{"type": "boolean", "value": false}}}),
 		)}}), 4,
 		[]fld{
-			{2, "bacapp.present_value.boolean", "", 0, []string{"0", "1"}, nil},
-			{2, "bacapp.present_value.uint", "42", 0, nil, nil},
+			// 断言边界（9.27/C 类注记）：wireshark bacapp RPM propertyValue
+			// dissector 对逐值递进的 13 标签序列（LVT8 直存 double/LVT5 扩展
+			// bit_string/date/time）解析失真——pkt2 断言走 frames 整帧字节钉
+			// （比 fields 更强），pkt4 走 fields。
 			{4, "bacapp.present_value.boolean", "0", 0, nil, nil},
 		},
-		[]fr{{4, 42, "810A0013010030020C0C0000000019553E103F"}},
+		[]fr{
+			{2, 42, "810A007A010030010E0C000000011E29554E004F29554E114F29554E212A4F29554E31F94F29554E4441B400004F29554E5840091EB851EB851F4F29554E6404DEADBEEF4F29554E7505006F626A734F29554E820205704F29554E91054F29554EA47E0918044F29554EB40C1E2D324F29554EC4020000054F1F"},
+			{4, 42, "810A0013010030020C0C0000000019553E103F"},
+		},
 		cliA, srv)
 
 	// —— 33 对象 ID 边界 ——

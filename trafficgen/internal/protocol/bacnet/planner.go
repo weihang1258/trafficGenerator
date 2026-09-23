@@ -361,6 +361,11 @@ func validateSession(sess *core.BACNETSession, si int) error {
 				return fmt.Errorf("%s: forwarded_npdu needs the original source address (fwd_ip)", ep)
 			}
 		case "router_discovery", "raw_npdu":
+			// Vendor-defined NLM（mt ≥ 0x80）契约声明不产生（D-3⑤）——
+			// 声明的边界在配置面强制（终审 F3）。
+			if ev.NetMsgType >= 0x80 {
+				return fmt.Errorf("%s: vendor-defined network message type %d is not produced (control)", ep, ev.NetMsgType)
+			}
 			for _, n := range ev.Nets {
 				if n < 0 || n > 65535 {
 					return fmt.Errorf("%s: net %d out of u16 range (dnet)", ep, n)
@@ -413,6 +418,40 @@ func validateNPDU(ep string, npdu *core.BACNETNPDU) error {
 		}
 	}
 	return nil
+}
+
+// validateBACNETValue 整数域守卫（135 §3.4 最短式 1-4B 值域；终审 F2 配套
+// ——渲染错误=空流契约要求守卫住同步校验器）。
+func validateBACNETValue(ep string, v *core.BACNETValue) error {
+	switch v.Type {
+	case "int":
+		n, err := valueAsInt64(v.Value)
+		if err != nil {
+			return fmt.Errorf("%s: %v (tag)", ep, err)
+		}
+		if n < -2147483648 || n > 2147483647 {
+			return fmt.Errorf("%s: int value %d outside the signed 4-octet domain (tag)", ep, n)
+		}
+	case "unsigned", "enumerated":
+		n, err := valueAsInt64(v.Value)
+		if err != nil {
+			return fmt.Errorf("%s: %v (tag)", ep, err)
+		}
+		if n < 0 || n > 4294967295 {
+			return fmt.Errorf("%s: %s value %d outside the unsigned 4-octet domain (tag)", ep, v.Type, n)
+		}
+	}
+	return nil
+}
+
+func valueAsInt64(v interface{}) (int64, error) {
+	switch n := v.(type) {
+	case float64:
+		return int64(n), nil
+	case int:
+		return int64(n), nil
+	}
+	return 0, fmt.Errorf("value must be a number")
 }
 
 func validateObjectID(ep string, objType, instance int) error {
@@ -474,6 +513,20 @@ func validateTableEntry(ep string, e *core.BACNETTableEntry, bdt bool) error {
 func validateRespond(ep string, r *core.BACNETRespond) error {
 	if r == nil {
 		return nil
+	}
+	for _, res := range r.Results {
+		for pi, pv := range res.Props {
+			if pv.Value != nil {
+				if err := validateBACNETValue(fmt.Sprintf("%s.results.props[%d]", ep, pi), pv.Value); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	if r.Value != nil {
+		if err := validateBACNETValue(ep+".value", r.Value); err != nil {
+			return err
+		}
 	}
 	if r.Result != nil && (*r.Result < 0 || *r.Result > 65535) {
 		return fmt.Errorf("%s: bvlc result code %d out of u16 range (length)", ep, *r.Result)

@@ -5,7 +5,7 @@ Cases: 97 — pass 97, fail 0, error 0
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
 | bacnet_abort | Abort 应答（71 02 0b，SRV=1 设备侧） | pass | 2 | [pcap](bacnet/bacnet_abort.pcap) |
-| bacnet_app_tag_encoding | ComplexACK 承载 13 种应用标签值 + 追加 Boolean FALSE（10 无内容字节） | pass | 4 | [pcap](bacnet/bacnet_app_tag_encoding.pcap) |
+| bacnet_app_tag_encoding | ComplexACK 承载 13 种应用标签值（标签 0-12 逐一：null/bool/uint/int/real/double/octet/char/bit/enum/date/time/objectID）+ 追加 Boolean FALSE（10 无内容字节） | pass | 4 | [pcap](bacnet/bacnet_app_tag_encoding.pcap) |
 | bacnet_bdt_multi_entry | Write-BDT 双表项（len 0x18）+ Read-FDT-Ack 双表项 | pass | 4 | [pcap](bacnet/bacnet_bdt_multi_entry.pcap) |
 | bacnet_bvlc_broadcast | 定向广播 Who-Is（0x0b）→ 双 I-Am（实例 100/200 distinct） | pass | 3 | [pcap](bacnet/bacnet_bvlc_broadcast.pcap) |
 | bacnet_bvlc_delete_fdt | Delete-FDT-Entry（6B 外部设备地址）→ Result | pass | 2 | [pcap](bacnet/bacnet_bvlc_delete_fdt.pcap) |

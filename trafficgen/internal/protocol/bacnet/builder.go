@@ -209,10 +209,10 @@ func appTag(b []byte, v *core.BACNETValue) ([]byte, error) {
 	case "time":
 		m, ok := v.Value.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("bacnet: time value must be {hour,minute,second,century}")
+			return nil, fmt.Errorf("bacnet: time value must be {hour,minute,second,hundredths}")
 		}
 		b = putTag(b, 11, false, 4)
-		return append(b, byte(getI(m, "hour")), byte(getI(m, "minute")), byte(getI(m, "second")), byte(getI(m, "century"))), nil
+		return append(b, byte(getI(m, "hour")), byte(getI(m, "minute")), byte(getI(m, "second")), byte(getI(m, "hundredths"))), nil
 	case "object_id":
 		b = putTag(b, 12, false, 4)
 		return binary.BigEndian.AppendUint32(b, objectID(v.ObjType, v.ObjInstance)), nil
@@ -347,27 +347,18 @@ func hexNibble(c byte) int {
 	return -1
 }
 
-// signedBytes minimal two's-complement big-endian (0 → 1B).
+// signedBytes minimal two's-complement big-endian（135 §20.2.1.3.2 最短式：
+// 1B [-128,127] / 2B [-32768,32767] / 4B 其余 int32 域；0 → 1B 00。终审 F2 修正
+// ——旧实现负数恒产 8B 补码，违反最短式）。
 func signedBytes(v int64) []byte {
-	if v == 0 {
-		return []byte{0}
+	switch {
+	case v >= -128 && v <= 127:
+		return []byte{byte(v)}
+	case v >= -32768 && v <= 32767:
+		return []byte{byte(v >> 8), byte(v)}
+	default:
+		return []byte{byte(v >> 24), byte(v >> 16), byte(v >> 8), byte(v)}
 	}
-	neg := v < 0
-	var tmp [8]byte
-	n := 0
-	u := uint64(v)
-	for {
-		tmp[7-n] = byte(u)
-		u >>= 8
-		n++
-		if u == 0 && ((tmp[8-n]&0x80) == 0) == !neg {
-			break
-		}
-		if n == 8 {
-			break
-		}
-	}
-	return append([]byte{}, tmp[8-n:]...)
 }
 func getI(m map[string]interface{}, k string) int {
 	v, _ := m[k].(float64)
