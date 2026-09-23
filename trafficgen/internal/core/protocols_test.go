@@ -50,6 +50,9 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		"onvif",
 		// 64-cwmp：layer/planner 注册后准入（占位用例同步替换为 150 语义用例）。
 		"cwmp",
+		// 71-mmse（D-MMSE-1）：layer/planner 注册后准入（占位用例同步替换
+		// 为 100 语义用例）。
+		"mmse",
 	}
 	sort.Strings(want)
 
@@ -80,7 +83,9 @@ func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 		// dialect=kingbase）——must remain rejected，防复活。
 		"kingbase",
 		"bacnet", "dcerpc", "dtls", "edp",
-		"kerberos", "mmse", "ntlm", "ocsp",
+		// D-MMSE-1：mmse 已注册 layer/planner，摘出 negativeOnly（100 语义
+		// 用例 P5 落地，占位例随之移除——契约 §1）。hl7/megaco 先例。
+		"kerberos", "ntlm", "ocsp",
 		"spnego", "sstp",
 		"xmrmining",
 	}

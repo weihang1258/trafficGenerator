@@ -105,6 +105,13 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 	if hasLayer(chain, "onvif") && !hasLayer(chain, "http") {
 		return nil, fmt.Errorf("onvif: terminal layer requires the http carrier layer ([tcp, http, onvif]; tcp→onvif direct chain rejected, carrier missing)")
 	}
+	// MMSE 载体检查（71-mmse v2.1.0 设计 §2，D-MMSE-1 裁定2）：mmse 终结
+	// 层事件是完整 HTTP 帧（透传变换器），链上必须有 http 层（[tcp, http,
+	// mmse]，tcp→mmse 直连拒绝）。DependsOn http 使补全恒供给——自然配置
+	// 结构不可达（carrier_no_http 书面豁免），本预检为纵深位。
+	if hasLayer(chain, "mmse") && !hasLayer(chain, "http") {
+		return nil, fmt.Errorf("mmse: terminal layer requires the http carrier layer ([tcp, http, mmse]; tcp→mmse direct chain rejected, carrier missing)")
+	}
 	// D-HTTP-1 §5：gbt/getwork/hls/hds/http_flv 载体检查（cwmp/doh/onvif
 	// 同款）。5 家终结层事件都经 http 层（帧变换或透传），链上无 http 层
 	// 即结构性错误——Plan/Validate 期同步拒绝（drive 期报错会被吞成空流）。

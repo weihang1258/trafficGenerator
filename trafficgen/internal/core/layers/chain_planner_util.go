@@ -242,6 +242,12 @@ func transportProtocol(chain []Layer) uint8 {
 }
 
 // hasLayer reports whether the chain contains a layer named name.
+// isMMSEChain reports whether the chain's terminal layer is mmse
+// (D-MMSE-1: [ip,]tcp,http,mmse concurrent hook + tcp-only carrier family).
+func isMMSEChain(chain []Layer) bool {
+	return len(chain) > 0 && chain[len(chain)-1].Name == "mmse"
+}
+
 func hasLayer(chain []Layer, name string) bool {
 	for _, l := range chain {
 		if l.Name == name {

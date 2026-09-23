@@ -699,6 +699,23 @@ func buildDefaultRegistry() {
 			"wire_fault":      {Type: "string", Default: ""}, // 闭环 33 值枚举（D-HL7-1 §7 表）；""=无故障
 		},
 	})
+	// mmse（WAP-209 MMSEncapsulation，71-mmse v2.1.0）：终结层事件是完整
+	// HTTP 帧（透明变换器，D-MMSE-1 裁定2——http 族第 5 协议）。DependsOn
+	// http（自身依赖 tcp）使补全恒供给 http+tcp——缺 http 结构不可达（
+	// carrier_no_http 书面豁免；validate_layers 预检为纵深位）。五键=
+	// MMSEConfig 顶层同名（V9 只验顶层键存在，嵌套值语义归 translate 严格
+	// 解码 + validator）；80 端口经 FieldContract 供通用应用补齐。
+	r.Register(LayerSchema{Name: "mmse", Category: CategoryTerminal,
+		DependsOn:     []string{"http"},
+		FieldContract: map[string]string{"tcp.dst_port": "80"},
+		Fields: map[string]FieldSchema{
+			"profile":     {Type: "string", Default: ""},  // mmse_http_v1（缺省）/mmse_http_v6
+			"mms_version": {Type: "string", Default: ""},  // 1.0/1.1/1.2（缺省）/1.3（线码 N-1）
+			"concurrent":  {Type: "bool", Default: false}, // 双会话交错回放（C-1）
+			"sessions":    {Type: "list", Default: []interface{}{}},
+			"wire_fault":  {Type: "string", Default: ""}, // 闭环 55 值枚举（契约 §7 表）；""=无故障
+		},
+	})
 	r.Register(LayerSchema{Name: "cql", Category: CategoryTerminal, DependsOn: []string{"tcp"}})
 	r.Register(LayerSchema{Name: "iec104", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "2404"},

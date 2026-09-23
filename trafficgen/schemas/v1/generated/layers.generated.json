@@ -1796,6 +1796,37 @@
         }
       }
     },
+    "mmse": {
+      "category": "terminal",
+      "depends_on": [
+        "http"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "80"
+      },
+      "fields": {
+        "concurrent": {
+          "type": "bool",
+          "default": false
+        },
+        "mms_version": {
+          "type": "string",
+          "default": ""
+        },
+        "profile": {
+          "type": "string",
+          "default": ""
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "wire_fault": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
     "modbus": {
       "category": "terminal",
       "depends_on": [

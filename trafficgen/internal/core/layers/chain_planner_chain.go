@@ -522,6 +522,13 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 				(len(spec.CWMP.Flows) > 0 || spec.CWMP.Concurrent) {
 				cfg["concurrent"] = true
 			}
+			// mmse 链并发会话语义（cwmp 同款）：spec.MMSE.Concurrent（或任
+			// 一会话级声明）→ tcp 层 concurrent=true——否则顺序挥旧握新会把
+			// round-robin 交错的会话切换搅成 teardown+重握手风暴（D-MMSE-1
+			// 裁定2，契约 §5 并发会话）。
+			if isMMSEChain(chain) && spec.MMSE != nil && spec.MMSE.Concurrent {
+				cfg["concurrent"] = true
+			}
 			// nmea 链会话级 termination:"rst" 翻译（69-nmea §5 正例 46）：
 			// 任一会话声明 rst 即切 tcp 层 RST 形态——rst=true 使
 			// TCPGenerator 以单帧 RST|ACK(up) 短路收尾（3+N+1），并关

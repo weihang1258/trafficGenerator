@@ -1,6 +1,7 @@
 package layers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -129,6 +130,7 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		PostgreSQL: spec.PostgreSQL,
 		Megaco:     spec.Megaco,
 		HL7:        spec.HL7,
+		MMSE:       spec.MMSE,
 		CQL:        spec.CQL,
 		LDP:        spec.LDP,
 		PCEP:       spec.PCEP,
@@ -2045,6 +2047,33 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.HL7 = &hc
+	case "mmse":
+		if spec.MMSE != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		// D-MMSE-1：层 config（profile/mms_version/concurrent/sessions/
+		// wire_fault）经 JSON 往返解码为 core.MMSEConfig。裁定8：未知键严
+		// 格拒（DisallowUnknownFields——config/session/event/content/part
+		// 四级；reply_charging/previously_sent_by 等本版不产生键的自然面
+		// 通道）。解码失败（畸形/类型不符/未知键）一律计 ValidationErrors
+		// 走任务错误——置空配置会被 validator 直通成默认流假成功（hl7 修轮
+		// d0d78f0 模式）。
+		cfg := completedConfig(s, term.Config)
+		raw, err := json.Marshal(cfg)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("mmse layer config encode: %v", err))
+			return
+		}
+		var mc core.MMSEConfig
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&mc); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("mmse layer config decode: %v", err))
+			return
+		}
+		spec.MMSE = &mc
 	case "ftp":
 		// 只在扁平路径确实携带了业务内容（sessions/banner/commands/data_channel）
 		// 时才跳过翻译。mapToFlowSpec 对协议 ftp 总会创建一个 FTPConfig

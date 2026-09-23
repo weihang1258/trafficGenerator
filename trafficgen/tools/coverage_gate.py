@@ -2215,6 +2215,95 @@ def check_hl7(cases):
     rows.append(("负例锚词覆盖十三族", anchors <= got, sorted(got)))
     return rows
 
+def check_mmse(cases):
+    """D-MMSE-1 P6 反查表（100 例=45 正+55 负，WAP-209 HTTP 承载/TCP-80。
+    返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 mmse", '"mmse": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 mmse（已准入）", '"mmse"' not in pt[i_neg:i_neg + 400], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case mmse（严格解码）", 'case "mmse":' in tr and "DisallowUnknownFields" in tr, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.MMSE", "MMSE       *core.MMSEConfig" in gen, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry mmse 行+tcp 80 契约", '"tcp.dst_port": "80"' in rg, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    rows.append(("http 载体预检（carrier missing）", "requires the http carrier layer ([tcp, http, mmse]" in vl, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go ChainPlanner(mmse) 接线", 'NewChainPlanner("mmse")' in mn, "在案"))
+    hg = (tg / "internal" / "protocol" / "http" / "layer_gen.go").read_text()
+    rows.append(("http 透传族收 mmse", "meta.MMSE != nil" in hg, "在案"))
+
+    # 2. 行为面（validator/builder 关键件）。
+    pl = (tg / "internal" / "protocol" / "mmse" / "planner.go").read_text()
+    import re as _re
+    _i = pl.index("wireFaults = map[string]struct{ detail, anchor string }")
+    _seg = pl[_i:pl.index("\n}", _i)]
+    _n = len(_re.findall(r'"([a-z_0-9]+)":\s*\{', _seg))
+    rows.append(("wire_fault 闭环 55 值锚词表（契约枚举名）", _n == 55, f"{_n} 值"))
+    for guard, name in [
+        ("buildTxBindings", "sessionTx 唯一解析权威"),
+        ("isWSPBearerPort", "carrier_port 自然面"),
+        ("msgidUnsourced", "MsgID 回指断裂守卫"),
+        ("pendingRetrieveTID", "retrieve→ack 配对"),
+    ]:
+        rows.append((f"关键件：{name}", guard in pl, "在案"))
+    bl = (tg / "internal" / "protocol" / "mmse" / "builder.go").read_text()
+    for prim, name in [
+        ("func appendUintvar", "Uintvar LSB 组先"),
+        ("func appendValueLength", "Value-length 0x1F+Uintvar"),
+        ("func buildMultipartBody", "multipart 长度自洽编码"),
+        ("func appendTextString", "Text-string Quote 形态"),
+        ("isTextSeparator", "RFC 822 分隔符集"),
+    ]:
+        rows.append((f"builder：{name}", prim in bl, "在案"))
+    lg = (tg / "internal" / "protocol" / "mmse" / "layer_gen.go").read_text()
+    rows.append(("concurrent round-robin 交错", "round-robin" in lg, "在案"))
+
+    # 3. 用例面（45 正 + 55 负；proto=mmse；顶层仅 layers）。
+    pos = [c for c in cases if "packet_count" in (c.get("expect") or {})]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("100 例对账（45 正+55 负）", len(pos) == 45 and len(neg) == 55 and len(cases) == 100,
+                 f"{len(pos)}+{len(neg)}={len(cases)}"))
+    bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "mmse"]
+    rows.append(("proto 全=mmse（单准入名）", not bad_proto, bad_proto or "全 mmse"))
+    leaked = sorted({k for c in cases for k in (c.get("spec_json", {}) or {}) if k != "layers"})
+    rows.append(("顶层残留为零（仅 layers）", not leaked, leaked or "零残留"))
+    udp_cases = [c.get("id") for c in cases
+                 if any(isinstance(l2, dict) and "udp" in l2 for l2 in (c["spec_json"].get("layers") or []))]
+    rows.append(("udp 层零残留（TCP/HTTP-only）", not udp_cases, udp_cases or "零 udp"))
+    for kw, name in [
+        ("mmse_send_req_ipv4", "T-1 m-send-req 基线"),
+        ("mmse_notification_ind", "T-4 通知逐字节复算 99B"),
+        ("mmse_acknowledge_ind", "T-7 延迟链全链"),
+        ("mmse_concurrent_sessions", "T-28 并发会话"),
+        ("mmse_port_nondefault", "T-29 非默认端口"),
+        ("mmse_partnum_max_127", "T-34 partNum 恰等上界"),
+        ("mmse_neg_carrier_no_http", "T-46 载体缺失负例"),
+        ("mmse_neg_sequence_response_first", "T-73 响应先于请求负例"),
+        ("mmse_neg_value_notif_expiry_absolute", "T-100 通知绝对 expiry 负例"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 4. 锚词面（主锚词族在负例 expect 中）。
+    anchors = {"layer", "content-type", "port", "carrier", "order", "header", "message-type",
+               "unknown", "body", "mandatory", "response-status", "multipart", "data", "part",
+               "start", "overflow", "transaction", "message-id", "sequence", "length",
+               "long-integer", "uintvar", "value-length", "transaction-id", "priority",
+               "status", "message-class", "read-status", "delivery-report", "reply-charging",
+               "text-string", "application-header", "charset", "previously-sent", "expiry"}
+    got = {(c.get("expect") or {}).get("error_contains") for c in neg}
+    missing = sorted(anchors - got)
+    rows.append(("负例锚词覆盖三十五族", not missing, missing or sorted(got)))
+    return rows
+
 def check_arp(cases):
     """D-ARP-1 P6 反查表（T-ARP-1…12，9.52 对账 分项和 12=建例 12。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -2367,7 +2456,7 @@ def check_vnc(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse}
 
 
 def main(argv):

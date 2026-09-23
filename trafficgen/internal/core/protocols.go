@@ -78,6 +78,9 @@ var allowedProtocols = map[string]bool{
 	// B6（67-onvif）：注册 layer/planner 后准入（占位用例同步替换为 95
 	// 语义用例，protocols_test 哨兵同步摘除）。
 	"onvif": true,
+	// B6（71-mmse）：注册 layer/planner 后准入（占位用例同步替换为 100
+	// 语义用例，D-MMSE-1）。
+	"mmse": true,
 }
 
 // IsAllowedProtocol reports whether name is an accepted traffic protocol.

@@ -96,6 +96,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mcp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mdns"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/megaco"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/mmse" // init 注册 mmse 终结层生成器+校验器（D-MMSE-1，WAP-209 HTTP 承载）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mms"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/modbus"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mongodb"
@@ -505,7 +506,8 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("dameng"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("postgresql")) // 共享 PG v3 wire 层（kingbase 作 dialect 变体，不再独立注册）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("megaco"))
-	app.engine.RegisterPlanner(layers.NewChainPlanner("hl7")) // D-HL7-1：HL7 v2.x MLLP（TCP/2575 单载体）     // D-MEGACO-1：RFC 3525 文本编码（udp/tcp 双载体，mgcp 别名 2427）
+	app.engine.RegisterPlanner(layers.NewChainPlanner("hl7"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("mmse")) // D-MMSE-1：WAP-209 MMSEncapsulation（http 族第 5 协议，TCP/80） // D-HL7-1：HL7 v2.x MLLP（TCP/2575 单载体）     // D-MEGACO-1：RFC 3525 文本编码（udp/tcp 双载体，mgcp 别名 2427）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("cql"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("someip"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("stun"))

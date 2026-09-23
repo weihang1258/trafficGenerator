@@ -74,7 +74,8 @@ func (g *HTTPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 // isHTTPRPCInner reports whether the inner terminal layer emits pre-framed
 // HTTP messages that must be forwarded verbatim (identity transformer).
 func isHTTPRPCInner(meta layers.FlowMeta) bool {
-	return meta.GBT != nil || meta.GetWork != nil || meta.CWMP != nil || meta.DOH != nil || meta.ONVIF != nil
+	return meta.GBT != nil || meta.GetWork != nil || meta.CWMP != nil || meta.DOH != nil ||
+		meta.ONVIF != nil || meta.MMSE != nil // D-MMSE-1：http 族第 5 协议（WAP-209 PDU 是完整 HTTP 帧）
 }
 
 // generateForwardTransformer forwards the inner terminal stream's events

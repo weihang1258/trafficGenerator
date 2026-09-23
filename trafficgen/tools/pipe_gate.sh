@@ -81,7 +81,7 @@ PYEOF
       ;;
     # D-MEGACO-1：megaco 配置迁层（B6 顶层注入形退役），presence 红线切自键
     # （cwmp 先例；presence 负例豁免，其余顶层 megaco 共存即红）。
-    dns|mqtt|smtp|pop3|imap|mcp|srv6|fins|goose|sv|icmpv6|h323|mpls|ngap|telnet|sip|radius|pppoe|ldap|rtmp|rtsp|pptp|vnc|xmpp|sctp|jt808|jt809|jtt905|arp|icmp|megaco|hl7)
+    dns|mqtt|smtp|pop3|imap|mcp|srv6|fins|goose|sv|icmpv6|h323|mpls|ngap|telnet|sip|radius|pppoe|ldap|rtmp|rtsp|pptp|vnc|xmpp|sctp|jt808|jt809|jtt905|arp|icmp|megaco|hl7|mmse)
       _pres_key="$PROTO"
       ;;
   esac

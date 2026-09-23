@@ -405,6 +405,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 	}
 
+	// D-MMSE-1：mmse 在库旧策略顶层 mmse → ValidationErrors（hl7 同款；
+	// 在库 0 行纯防御）。
+	if protocol == "mmse" {
+		if v, ok := cfg["mmse"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
+
 	// D-FTP-3 §5: 扁平四键收动态对象（引擎直调路径，REST 形状层已先 400）→
 	// spec.ValidationErrors 拒绝并指路层字段，worker 预检终态 error，绝不
 	// 静默回退缺省。注意 defaultString/defaultPort 对对象值恒回缺省，本分支
@@ -8256,6 +8264,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "hl7" {
 		if v, ok := cfg["hl7"]; ok && v != nil {
 			return "protocol hl7 no longer accepts a top-level hl7 sub-config (move it into the hl7 layer of an [ip,tcp,hl7] layers chain; MLLP framing lives in the hl7 layer)"
+		}
+	}
+	// D-MMSE-1：mmse 顶层 mmse 子映射 presence 判死（hl7 先例；空 map 也
+	// 死——B6 扁平注入形退役，配置迁 mmse 层五键）。层链形状不触发。
+	if protocol == "mmse" {
+		if v, ok := cfg["mmse"]; ok && v != nil {
+			return "protocol mmse no longer accepts a top-level mmse sub-config (move it into the mmse layer of an [ip,tcp,http,mmse] layers chain; WAP-209 PDU config lives in the mmse layer)"
 		}
 	}
 	// D-SMTP-1：smtp 顶层 smtp 子映射 presence 判死（mqtt 先例；空 map 也
