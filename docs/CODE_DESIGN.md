@@ -4377,9 +4377,19 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 - **裁定9 megaco/hl7/mmse 教训前置**：①关联一处三面共用；②拒绝住 Validate 同步面；③红例钉非缺省值；④schemagen 随 registry 强制；⑤SDK 编码照契约重写（N3 kit2 type2+devid 公式 bug 不照抄——wire 值 12+D+C+B）。
 - **回滚**：提交次序=代码接入→suite/gate→文档；单提交粒度可摘。
 
-### wire_fault 逐值处置表（裁定4；P4 落码同步——28 值 = N 自然面守卫 + M 书面豁免，P4 程序化计数回填）
+### wire_fault 逐值处置表（裁定4；P4 落码程序化计数回填——28 值 = 24 自然面守卫 + 4 书面豁免）
 
-（P4 落码时按自然面可达性逐值判定回填本表——候选豁免：remainlen_mismatch/remainlen_truncated/remainlen_5byte（builder 恒正确 varint 编码，注入唯一入口）、layer_chain（DependsOn 自动补全结构不可达）。）
+**程序化对账**：`wireFaultAnchors` map 28 键（coverage_gate check_edp 反查 `_n == 28`）；自然面守卫 24 值在 `validateEvent`/`validateSession` 同锚词族执法，书面豁免 4 值（24+4=28 可复算）：
+
+- **书面豁免 4**：`remainlen_mismatch`/`remainlen_truncated`/`remainlen_5byte`（builder 恒正确 varint 编码——encodeVarint LSB 先逐字节对齐契约 §3.1 表，畸形编码无自然面表达，注入唯一入口）；`layer_chain`（DependsOn ["tcp"] 自动补全使缺 tcp 结构不可达，validate_layers 预检为纵深位）。
+- **自然面守卫 24**：type_unknown/type_unimplemented（kind 白名单拒锚 type）；protocol_name/version/conn_flag（CONNREQ 字段恒正确渲染，值域面由 auth/keep_time 校验承载，注入拒绝即负例执法）；format_flag（0x01–0x05 值域）；bin_desc_no_dsid/bin_desc_invalid/bin_desc_over/bin_over_3mb（desc JSON 对象 + ds_id + <65536 + bin <3MB 四守卫）；state_no_connect/state_after_reject/state_after_disconnect（connect-first/closed-terminal 走查）；cmdid/msg_id（cmdid 必填 + SAVEACK 回带同源）；json_invalid/json_over_u16（JSON 可解析 + ≤65535）；carrier_udp（validate_layers 预检）；port_conflict（端口声明校验）；auth_devid_empty/auth_apikey_empty/auth_userid_empty/auth_authinfo_empty（方式 1/2 必填对）；connack_rtn（0–9 值域）。
+
+### P4/P5/P6 执行记录（2026-09-23）
+
+- **P4**（commit 接入五件套）：core/edp.go 类型 + protocol/edp/{builder,planner,layer_gen} + registry 117→118 + validate_layers 预检 + isEDPChain concurrent 钩 + translate DisallowUnknownFields + FlowMeta.EDP + CheckProtoFlat edp 判死 + mapToFlowSpec/parseEDPConfig + 白名单收编（negativeOnly 摘除）+ main.go 接线 + schemagen 118 层。链级红例 15（①-⑭+⑮ wire_fault 锚词模型）全绿；全量回归 + -race 净。
+- **P4 自审修正**（对抗复审抓出 6 处，先提交后复审即修）：①GenEvents 返回 nil 致全链静默 0 包（事件生产者标记）；②SAVEDATA 字段序错（flags,devid?,msg_id?,format,content——误写 format 紧跟 flags）+ remainlen 多减 1；③SAVEACK 误设缺省自动（契约 §5 派生③"配置 ack 时"+用例包数 10/11 口径→仅显式 ack:true）；④帧级方向缺失（事件级方向使 CONNRESP/PINGRESP 误标上行，coalesce 全粘一段 8 包）；⑤connack_rtn 值域误 0–3（契约 0–9）；⑥端口硬编码 4472 压过链级 12472（裁定3 继承语义，port_nondefault 实证）。
+- **P5**：89 例（61 正+28 负）suite ×2 全绿（round-1 70/89 校准：case 生成器脚本协议名长度前缀漏算 + 边界例计数漏连接帧——先跑后钉纪律，引擎字节恒正确）；pipe_gate 四项绿；coverage_gate check_edp 42/42（本 P6 登记）；-race 净。
+- **P6 清库**：live 库 edp 行删前 strategies=61/tasks=305 → 备份 → 删 → 0/0 对账（总量 1136/5185 为其他协议存量，各自 P6 清）。
 
 ### 文件清单（P4）
 

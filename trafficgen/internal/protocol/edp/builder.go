@@ -45,8 +45,10 @@ func (g *EDPGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 		cfg = &core.EDPConfig{}
 	}
 
-	// EDP default dst_port = 4472
-	dstPort := uint16(4472)
+	// 裁定3：端口缺省继承链级（FieldContract 4472 或用户显式非默认）——
+	// 事件 DstPort=0 → tcp 层走链级默认；不在此硬编码 4472（port_nondefault
+	// 例实证硬编码压过链级 12472）。
+	dstPort := uint16(0)
 	if len(cfg.Sessions) > 0 && cfg.Sessions[0].DstPort != 0 {
 		dstPort = cfg.Sessions[0].DstPort
 	}

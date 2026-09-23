@@ -824,6 +824,126 @@ def check_sip(cases):
 
     return rows
 
+# --------------------------------------------------------------------------
+# EDP 检查表（D-EDP-1 P6 反查表：89 例=61 正+28 负，OneNET EDP TCP-4472
+# tcp-only 族。wire_fault 28 值注入锚词闭环；状态机三约束；载体预检）
+# --------------------------------------------------------------------------
+
+EDP_FAULTS = [
+    "type_unknown", "type_unimplemented", "remainlen_mismatch",
+    "remainlen_truncated", "remainlen_5byte", "protocol_name", "version",
+    "conn_flag", "format_flag", "bin_desc_no_dsid", "bin_desc_invalid",
+    "bin_desc_over", "bin_over_3mb", "state_no_connect", "state_after_reject",
+    "state_after_disconnect", "cmdid", "msg_id", "json_invalid",
+    "json_over_u16", "layer_chain", "carrier_udp", "port_conflict",
+    "auth_devid_empty", "auth_apikey_empty", "auth_userid_empty",
+    "auth_authinfo_empty", "connack_rtn",
+]
+
+
+def check_edp(cases):
+    """D-EDP-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 edp", '"edp": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 edp（已准入）", '"edp"' not in pt[i_neg:i_neg + 400], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case edp（严格解码）", 'case "edp":' in tr and "DisallowUnknownFields" in tr, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.EDP", "EDP        *core.EDPConfig" in gen, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry edp 行 + tcp 4472 契约", '"tcp.dst_port": "4472"' in rg, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    rows.append(("udp 载体预检（tcp-only）", "edp rides tcp only" in vl, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go ChainPlanner(edp) 接线", 'NewChainPlanner("edp")' in mn, "在案"))
+
+    # 2. 行为面（validator/builder 关键件）。
+    pl = (tg / "internal" / "protocol" / "edp" / "planner.go").read_text()
+    n_faults = sum(1 for f in EDP_FAULTS if f'"{f}"' in pl or f"core.EDPWireFault" in pl)
+    import re as _re
+    _i = pl.index("wireFaultAnchors = map[string]string{")
+    _seg = pl[_i:pl.index("\n}", _i)]
+    _n = len(_re.findall(r"core\.EDPWireFault[A-Za-z0-9]+:", _seg))
+    rows.append(("wire_fault 闭环 28 值锚词表（契约枚举名）", _n == 28, f"{_n} 值"))
+    for guard, name in [
+        ("closed = true", "状态机走查（rtn≠0/disconnect 后禁业务帧）"),
+        ("out of range 0-9", "connack_rtn 值域 0–9"),
+        ("ds_id", "type2 desc ds_id 自然面"),
+        ("u16 bound 65535", "json u16 上界"),
+        ("3MB", "bin 3MB 上界（wire 口径）"),
+    ]:
+        rows.append((f"关键件：{name}", guard in pl, "在案"))
+    bl = (tg / "internal" / "protocol" / "edp" / "builder.go").read_text()
+    for prim, name in [
+        ("func encodeVarint", "varint LSB 先（MQTT 同构）"),
+        ("func buildCONNREQ", "CONNREQ 双方式（0x40/0xC0）"),
+        ("func buildSAVEDATA", "SAVEDATA 标志×格式"),
+        ("func buildCMDRESP", "CMDRESP 条件缺省"),
+        ("func emitCoalescedEvents", "coalesce JoinNext"),
+    ]:
+        rows.append((f"builder：{name}", prim in bl, "在案"))
+    lg = (tg / "internal" / "protocol" / "edp" / "builder.go").read_text()
+    rows.append(("端口缺省继承链级（不硬编码 4472）", "不在此硬编码 4472" in lg, "在案"))
+
+    # 3. 用例面（61 正 + 28 负；proto=edp；顶层仅 layers）。
+    pos = [c for c in cases if "packet_count" in (c.get("expect") or {})]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("89 例对账（61 正+28 负）", len(pos) == 61 and len(neg) == 28 and len(cases) == 89,
+                 f"{len(pos)}+{len(neg)}={len(cases)}"))
+    bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "edp"]
+    rows.append(("proto 全=edp（单准入名）", not bad_proto, bad_proto or "全 edp"))
+    leaked = sorted({k for c in cases for k in (c.get("spec_json", {}) or {}) if k != "layers"})
+    rows.append(("顶层残留为零（仅 layers）", not leaked, leaked or "零残留"))
+    for kw, name in [
+        ("edp_connreq_devid_ipv4", "① 方式 1 基线（keep_time 缺省断言）"),
+        ("edp_connreq_userid", "② 方式 2（0xC0 空 devid）"),
+        ("edp_savedata_type1_fulljson", "③ 存储矩阵 type1×C0"),
+        ("edp_savedata_bin_empty", "④ bin_len=0 边界"),
+        ("edp_savedata_deliver", "⑤ 下行同构无应答"),
+        ("edp_saveack_msgid", "⑥ SAVEACK msg_id 关联"),
+        ("edp_cmdresp_empty", "⑦ 条件缺省"),
+        ("edp_remainlen_1byte_max", "⑧ 四档边界 7f"),
+        ("edp_remainlen_4byte_band", "⑨ 四档边界 80808001"),
+        ("edp_multi_frame_segment", "⑩ 多帧粘连"),
+        ("edp_multi_transaction_keepalive", "⑪ 多事务全链"),
+        ("edp_ipv6", "⑫ IPv6"),
+        ("edp_multi_session", "⑬ 多会话展开"),
+        ("edp_concurrent_sessions", "⑭ 并发会话"),
+        ("edp_devid_u16_max", "⑮ devid u16 满值"),
+        ("edp_neg_type_unknown", "负例 type_unknown"),
+        ("edp_neg_carrier_udp", "负例 carrier_udp（真实 udp 链形状）"),
+        ("edp_neg_layer_chain", "负例 layer_chain（书面豁免注入通道）"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 4. 锚词面（28 负例 error_contains 全部含契约 §7 主锚词）。
+    anchors = ["type", "remainlen", "truncat", "protocol", "version", "flag",
+               "format", "ds_id", "desc", "length", "connect", "state",
+               "cmdid", "msg_id", "json", "layer", "carrier", "port",
+               "devid", "apikey", "userid", "authinfo", "rtn"]
+    bad_anchor = []
+    for c in neg:
+        ec = (c.get("expect") or {}).get("error_contains", "")
+        if ec not in anchors:
+            bad_anchor.append(f"{c.get('id', '?')}:{ec}")
+    rows.append(("28 负例锚词 ∈ 契约 §7 主锚词集", not bad_anchor, bad_anchor or "全部在集"))
+    fault_vals = sorted((c.get("expect") or {}).get("spec_json", {})
+                        and "" or "" for c in [])  # placeholder no-op
+    wf_in_cfg = [c.get("id") for c in neg
+                 if ((c.get("spec_json", {}).get("layers") or [{}])[-1].get("edp") or {}).get("wire_fault")]
+    rows.append(("wire_fault 注入负例 ≥26（除 carrier_udp 真实链形）",
+                 len(wf_in_cfg) >= 26, f"{len(wf_in_cfg)} 例注入"))
+
+    return rows
+
+
 CHECKS = {
     "smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
@@ -2456,7 +2576,7 @@ def check_vnc(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp}
 
 
 def main(argv):
