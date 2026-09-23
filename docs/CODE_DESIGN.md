@@ -4609,4 +4609,7 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 - 复评（同 agent scoped re-review）：**R-1（MAJOR）+ R-2（MINOR）**——F2/F3/F4/F5 修结，但复评实证双轮修轮引入/暴露的深层面：
   - **R-1 double 非法标签字节**：appTag double 支路 `putTag(LVT=8)` 溢出进 class 位产出非法 `0x58`（内容 >4B 必须 LVT=5+1B 长度）——修轮时误诊为"wireshark RPM dissector 解析失真"，复评证伪（钉=坏字节自洽）。根因修复直达底层：`putLength` 对 n ≤ 4 改 no-op（直存时标签字节已含长度，再附长度八位组即非法多一字节——octet_string/bit_string/char_string/ctxCharString 四支 ≤4 内容路径全部中招，修一处根修四支）；double 支路改 LVT5+长度。修后 tshark 全帧干净解码：`application_tag_number` 渲染完整 `0,1,…,12`、double=3.14——fields 断言恢复为逐帧精确钉 + 122→120B 整帧字节钉双通道。
   - **R-2 值域守卫接入面**：validateBACNETValue 只接了 respond 侧——补齐 write_property 请求值与 cov_notification CovValues 两处调用点。
-  - 复评回归：casegen 自证绿、红例绿、-race 绿、suite 97/97（修后两轮）、门2 静态四项全绿、二进制同代。**关单。**
+  - **终核残点**：segmented_request 分支漏接 validateBACNETValue（MINOR）——4 行补丁独立提交（validateBACNETValue 计 4 处调用点：respond.value/respond.results.props/write_property 值/cov_values/segmented_request 值），suite 97/97 复跑绿。
+  - 复评回归：casegen 自证绿、红例绿、-race 绿、suite 97/97（修后两轮）、门2 静态四项全绿、二进制同代。
+  - **关单（终核结论：通过，同意关单）**：终审 5 finding（F1-F5）+ 复评 2 finding（R-1/R-2）+ 终核残点 1 项全部修结，无遗留；修结链 F1 13 标签全枚举+强断言恢复、F2 signed 最短式+值域守卫 4 面、F3 vendor NLM 守卫、F4 hundredths 键名、F5 记录卫生、R-1 putLength 根因+double 非法编码+误诊撤回、R-2 守卫接入面补全。
+- 门3 验收抽查三条（15.9）：①§12 行 invoke 递增算法 → invokeWalker（builder.go:616 request/pendingInvoke）；②§5 行 42 锚词闭环 → wireFaultAnchors（planner.go:23）+ 三方机械对账 0 偏差 + coverage_gate 57/57；③最复杂用例 bacnet_concurrent_sessions 交织维度点数 4（2 客户端多方 × 双会话 × concurrent 交错 × who_is→i_am 事务配对）≥9.50 下限，pcap 包序 .66→.67→←.66←.67 tshark 实证。
