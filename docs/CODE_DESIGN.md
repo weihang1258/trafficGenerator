@@ -4346,7 +4346,7 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 
 | 条 | 本协议怎么满足 | 证据 |
 |---|---|---|
-| §1 层链唯一真相 | 目标形状：`{"layers":[{"ip":{"src":"192.0.2.72","dst":"198.51.100.72"}},{"tcp":{"src_port":41072,"dst_port":4472}},{"edp":{"profile":"edp_tcp_plain_v1","sessions":[{"src_port":41072,"dst_port":4472,"events":[{"kind":"connect","auth":"devid","devid":"123456789","apikey":"kJ8mQ2xV","keep_time":128,"connack_rtn":0},{"kind":"savedata","devid_flag":true,"msg_id_flag":true,"devid":"123456789","msg_id":21930,"format":3,"json_str":"{\"temperature\":22}","ack":true}]}],"wire_fault":""}}]}`——顶层旧四元组/count 零残留；顶层 edp 子映射 presence 判死 | CheckProtoFlat edp 分支（P4）；门 2-1 |
+| §1 层链唯一真相 | 目标形状：`{"layers":[{"ip":{"src":"192.0.2.72","dst":"198.51.100.72"}},{"tcp":{"src_port":41072,"dst_port":4472}},{"edp":{"profile":"edp_tcp_plain_v1","sessions":[{"src_port":41072,"dst_port":4472,"events":[{"kind":"connect","auth":"devid","devid":"123456789","apikey":"kJ8mQ2xV","keep_time":128,"connack_rtn":0},{"kind":"savedata","devid_flag":1,"msg_id_flag":1,"devid":"123456789","msg_id":21930,"format":3,"json":"{\"temperature\":22}","ack":true}]}],"wire_fault":""}}]}`——顶层旧四元组/count 零残留；顶层 edp 子映射 presence 判死 | CheckProtoFlat edp 分支（P4）；门 2-1 |
 | §2 策略/任务 | 框架语义未动；多流走 strategy_fc | 契约 §6 |
 | §3 五件套 | 会话表=sessions[]（四元组/events/coalesce）；事务序列=events[]（kind 六种：connect/savedata/pushdata/cmdreq/ping/disconnect）；关联=cmdid（cmdreq↔cmdresp）+msg_id（savedata↔saveack）两族显式；插入位置=终结层每事件一帧（自动应答帧按 §5 派生①-④插入）；时间线=connect 必首、rtn≠0 断链、disconnect 终态，多会话整块展开（第二会话包号=前会话总包+1）或 concurrent 交错 | 契约 §5/§6 |
 | §4 查规范 | EdpKit SDK 双镜像逐行（v1.3 重审 0 缺陷）+官方文档站存档+公开资料假设校准——P1 矩阵 10 行 | 契约 §0 出处分层 |
@@ -4377,12 +4377,18 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 - **裁定9 megaco/hl7/mmse 教训前置**：①关联一处三面共用；②拒绝住 Validate 同步面；③红例钉非缺省值；④schemagen 随 registry 强制；⑤SDK 编码照契约重写（N3 kit2 type2+devid 公式 bug 不照抄——wire 值 12+D+C+B）。
 - **回滚**：提交次序=代码接入→suite/gate→文档；单提交粒度可摘。
 
-### wire_fault 逐值处置表（裁定4；P4 落码程序化计数回填——28 值 = 24 自然面守卫 + 4 书面豁免）
+### wire_fault 逐值处置表（裁定4；P4 落码回填 + 修轮 F6 勘误——28 值 = 19 自然面守卫 + 9 仅注入/结构不可达）
 
-**程序化对账**：`wireFaultAnchors` map 28 键（coverage_gate check_edp 反查 `_n == 28`）；自然面守卫 24 值在 `validateEvent`/`validateSession` 同锚词族执法，书面豁免 4 值（24+4=28 可复算）：
+**程序化对账**：`wireFaultAnchors` map 28 键（coverage_gate check_edp 反查 regex 计数 `_n == 28`）；修轮勘误（终审 F6）：原"24+4"分类注水——protocol_name/version/conn_flag 的 CONNREQ 字段恒正确渲染无自然面表达、port_conflict 在端口一致性守卫落地前无自然面、msg_id 回带是结构同源非守卫。据实重计（19+9=28 可复算）：
 
-- **书面豁免 4**：`remainlen_mismatch`/`remainlen_truncated`/`remainlen_5byte`（builder 恒正确 varint 编码——encodeVarint LSB 先逐字节对齐契约 §3.1 表，畸形编码无自然面表达，注入唯一入口）；`layer_chain`（DependsOn ["tcp"] 自动补全使缺 tcp 结构不可达，validate_layers 预检为纵深位）。
-- **自然面守卫 24**：type_unknown/type_unimplemented（kind 白名单拒锚 type）；protocol_name/version/conn_flag（CONNREQ 字段恒正确渲染，值域面由 auth/keep_time 校验承载，注入拒绝即负例执法）；format_flag（0x01–0x05 值域）；bin_desc_no_dsid/bin_desc_invalid/bin_desc_over/bin_over_3mb（desc JSON 对象 + ds_id + <65536 + bin <3MB 四守卫）；state_no_connect/state_after_reject/state_after_disconnect（connect-first/closed-terminal 走查）；cmdid/msg_id（cmdid 必填 + SAVEACK 回带同源）；json_invalid/json_over_u16（JSON 可解析 + ≤65535）；carrier_udp（validate_layers 预检）；port_conflict（端口声明校验）；auth_devid_empty/auth_apikey_empty/auth_userid_empty/auth_authinfo_empty（方式 1/2 必填对）；connack_rtn（0–9 值域）。
+- **自然面守卫 19**：type_unknown/type_unimplemented（kind 白名单拒锚 type）；format_flag（0x01–0x05 值域）；bin_desc_no_dsid/bin_desc_invalid/bin_desc_over/bin_over_3mb（desc JSON 对象 + ds_id + <65536 + bin <3MB 四守卫）；state_no_connect/state_after_reject/state_after_disconnect（connect-first/closed-terminal 走查）；cmdid（cmdid 必填守卫）；json_invalid/json_over_u16（JSON 可解析 + ≤65535）；carrier_udp（validate_layers 预检）；port_conflict（修轮 F10 落地：会话间 dst_port 一致性守卫）；auth_devid_empty/auth_apikey_empty/auth_userid_empty/auth_authinfo_empty（方式 1/2 必填对）；connack_rtn（0–9 值域）。
+- **仅注入/结构不可达 9**：`remainlen_mismatch`/`remainlen_truncated`/`remainlen_5byte`（builder 恒正确 varint 编码——encodeVarint LSB 先逐字节对齐契约 §3.1 表，畸形编码无自然面表达）；`protocol_name`/`version`/`conn_flag`（CONNREQ 字段恒按 SDK 正确渲染，无配置面表达畸形值）；`msg_id`（SAVEACK 回带=同源结构，错配无配置表达）；`layer_chain`（DependsOn ["tcp"] 自动补全使缺 tcp 结构不可达）；`port_conflict` 注入通道为会话间一致性的负例面补充（自然面=会话间冲突；链级 vs 会话级冲突无配置表达）。
+
+### 门3 抽查三条（门1 表抽 §1/§5/§14 行，逐条点行号/用例号）
+
+① **§1 层链唯一真相**：cases/edp.json 首例 `edp_connreq_devid_ipv4` spec_json 顶层仅 `layers`（[ip,src/dst]+[tcp,41072/4472]+[edp,sessions]），落盘 pcap 帧 4 offset 54 hex `10 1e 0003 454450 01 40 0080...` 与契约 §4.1 逐字节吻合（suite RESULT 89/89）；
+② **§5 依赖与错误**：validate_layers.go edp 预检块 `edp chain: udp carrier is not supported ... (carrier)`——edp_neg_carrier_udp 真实 udp 链形状 task error 命中锚 carrier（BuildLayersPlanner 先于 ValidateLayers 通用 transport duplicated，裁定2 纵深）；
+③ **§14 真实流程**：planner.go `out of range 0-9 (connack_rtn) (rtn)` + builder.go 端口继承注释——edp_port_nondefault 12472 落盘 `tcp.dstport=12472` 全程 + EDP 帧字节与 4472 基线完全一致（P4 自审修正⑥ 实证，裁定3）。
 
 ### P4/P5/P6 执行记录（2026-09-23）
 
@@ -4390,6 +4396,26 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 - **P4 自审修正**（对抗复审抓出 6 处，先提交后复审即修）：①GenEvents 返回 nil 致全链静默 0 包（事件生产者标记）；②SAVEDATA 字段序错（flags,devid?,msg_id?,format,content——误写 format 紧跟 flags）+ remainlen 多减 1；③SAVEACK 误设缺省自动（契约 §5 派生③"配置 ack 时"+用例包数 10/11 口径→仅显式 ack:true）；④帧级方向缺失（事件级方向使 CONNRESP/PINGRESP 误标上行，coalesce 全粘一段 8 包）；⑤connack_rtn 值域误 0–3（契约 0–9）；⑥端口硬编码 4472 压过链级 12472（裁定3 继承语义，port_nondefault 实证）。
 - **P5**：89 例（61 正+28 负）suite ×2 全绿（round-1 70/89 校准：case 生成器脚本协议名长度前缀漏算 + 边界例计数漏连接帧——先跑后钉纪律，引擎字节恒正确）；pipe_gate 四项绿；coverage_gate check_edp 42/42（本 P6 登记）；-race 净。
 - **P6 清库**：live 库 edp 行删前 strategies=61/tasks=305 → 备份 → 删 → 0/0 对账（总量 1136/5185 为其他协议存量，各自 P6 清）。
+- **P6 隔离终审**（fresh-context subagent 只读，独立重编码对账 61 正例零失配）：C=1/H=1/M=9/L=6 共 17 条，结论需修轮。线格式/varint/28 锚词闭环/接线/三级 DisallowUnknownFields 全数 CONFIRMED（"先跑后钉"疑虑实测排除——无用例断言引擎不会产生的字节）。
+- **P6 修轮**（17 条逐条落实）：
+  - **F1[C]** edp_concurrent_sessions 按 §4.56 重建（connect+savedata+saveack 双会话、每流 `10 20 80 90` 配对、SAVEACK msg_id 21930/21931 跨流不串用——frames/fields 按 round-robin 交错序钉位）；
+  - **F2[H]** u16 标识符上界守卫 checkU16Str（devid/apikey/userid/authinfo/savedata-devid/cmdid 六调用点，>65535 拒锚 length——防 uint16 截断静默坏帧）；红例⑳；
+  - **F3[M]** cases 全序重排 = §2 权威序（token 归位 #12、multibyte/1byte_max 互换归位、datapoint/mss_large_bin 归位、carrier_udp 归位 #83）；
+  - **F4[M]** multi_session 会话 2 devid=223456780 + devid/端口 distinct 断言 + 握手起点勘误（SYN=包 11、CONNREQ=14、SAVEDATA=16——先跑后钉）；
+  - **F5[M]** multi_frame_segment 按 §4.43 改 savedata type3×2（`80160003...×2`）；
+  - **F6[M]** 处置表勘误重计 19 守卫+9 仅注入/结构不可达（protocol_name/version/conn_flag/port_conflict/msg_id 五值据实改判）；
+  - **F7[M]** CMDRESP ack:false 抑制恢复（帧方向重写时丢失）+ SAVEACK 双前置（ack:true ∧ msg_id——§5③ 原文）；
+  - **F8[M]** 契约 v2.1.1 校准：§6 示例 json_str→json、devid_flag 布尔→0/1（与实现 tag/cases 工作形状对齐）；
+  - **F9[M]** 用例文档 v2.1.1：行 48 包数 1444→1446 勘误；
+  - **F10[M]** 会话级 dst_port 逐会话生效（builder sessionPort 闭包）+ 会话间一致性守卫（validator port_conflict 自然面）；红例㉑；
+  - **F11[M]** 补红例 6（⑯⑰自然面状态机/⑱kind 白名单真触达/⑲嵌套未知键/⑳u16 上界/㉑端口一致性——探针转正）；
+  - **F12[L]** 61 正例补 has_payload（§4 总则最低集）；
+  - **F13[L]** gofmt 净（edp 四文件+红例）；
+  - **F14[L]** check_edp 死变量删 + 注释串伪检改行为检查 + F2/F7/F10 行为回查四行（46/46）；
+  - **F15[L]** parseEDPConfig msgid_flag→msg_id_flag 键名对齐 + Auth=="2" 死别名删；
+  - **F16[L]** 28 负例 expect notes 摘除（§7.4 键集合严格）；
+  - **F17[L]** EDPSession SrcIP/DstIP 惰性字段移除（契约 §6 sessions 形状=端口对，地址族归链 ip 层）。
+- **修轮后验证**：链级红例 21（①-㉑）全绿；suite 89/89 ×2；coverage_gate 46/46；pipe_gate 四项绿；-race 净。
 
 ### 文件清单（P4）
 

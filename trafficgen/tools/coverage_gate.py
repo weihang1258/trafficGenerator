@@ -865,7 +865,6 @@ def check_edp(cases):
 
     # 2. 行为面（validator/builder 关键件）。
     pl = (tg / "internal" / "protocol" / "edp" / "planner.go").read_text()
-    n_faults = sum(1 for f in EDP_FAULTS if f'"{f}"' in pl or f"core.EDPWireFault" in pl)
     import re as _re
     _i = pl.index("wireFaultAnchors = map[string]string{")
     _seg = pl[_i:pl.index("\n}", _i)]
@@ -889,7 +888,12 @@ def check_edp(cases):
     ]:
         rows.append((f"builder：{name}", prim in bl, "在案"))
     lg = (tg / "internal" / "protocol" / "edp" / "builder.go").read_text()
-    rows.append(("端口缺省继承链级（不硬编码 4472）", "不在此硬编码 4472" in lg, "在案"))
+    rows.append(("端口缺省继承链级（行为检查：不硬编码 4472 注记在案）", "不在此硬编码 4472" in lg, "在案"))
+    # 终审 F2/F7/F10 行为面回查。
+    rows.append(("u16 标识符上界守卫（planner checkU16Str ≥5 调用点）", pl.count("checkU16Str(where") >= 5, f"{pl.count('checkU16Str(where')} 处调用"))
+    rows.append(("CMDRESP ack:false 抑制（行为：builder 分支在案）", "可被 ack:false 抑制" in lg and "if ev.Ack != nil && !*ev.Ack" in lg, "在案"))
+    rows.append(("SAVEACK msg_id 双前置（行为：builder 分支在案）", "ev.MsgID != nil" in lg, "在案"))
+    rows.append(("会话级 dst_port 逐会话生效（行为：sessionPort 闭包）", "sessionPort := func(si int)" in lg, "在案"))
 
     # 3. 用例面（61 正 + 28 负；proto=edp；顶层仅 layers）。
     pos = [c for c in cases if "packet_count" in (c.get("expect") or {})]
@@ -934,8 +938,6 @@ def check_edp(cases):
         if ec not in anchors:
             bad_anchor.append(f"{c.get('id', '?')}:{ec}")
     rows.append(("28 负例锚词 ∈ 契约 §7 主锚词集", not bad_anchor, bad_anchor or "全部在集"))
-    fault_vals = sorted((c.get("expect") or {}).get("spec_json", {})
-                        and "" or "" for c in [])  # placeholder no-op
     wf_in_cfg = [c.get("id") for c in neg
                  if ((c.get("spec_json", {}).get("layers") or [{}])[-1].get("edp") or {}).get("wire_fault")]
     rows.append(("wire_fault 注入负例 ≥26（除 carrier_udp 真实链形）",

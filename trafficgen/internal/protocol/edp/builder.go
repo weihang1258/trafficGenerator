@@ -47,10 +47,13 @@ func (g *EDPGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 
 	// 裁定3：端口缺省继承链级（FieldContract 4472 或用户显式非默认）——
 	// 事件 DstPort=0 → tcp 层走链级默认；不在此硬编码 4472（port_nondefault
-	// 例实证硬编码压过链级 12472）。
-	dstPort := uint16(0)
-	if len(cfg.Sessions) > 0 && cfg.Sessions[0].DstPort != 0 {
-		dstPort = cfg.Sessions[0].DstPort
+	// 例实证硬编码压过链级 12472）。会话级 dst_port 覆盖逐会话生效
+	//（validator 已守会话间一致性），不取 Sessions[0] 施加全体会话。
+	sessionPort := func(si int) uint16 {
+		if si < len(cfg.Sessions) {
+			return cfg.Sessions[si].DstPort
+		}
+		return 0
 	}
 
 	runs := make([]*sessionRun, len(cfg.Sessions))
@@ -87,7 +90,7 @@ func (g *EDPGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 					continue
 				}
 				for _, ev := range r[j] {
-					ev.DstPort = dstPort
+					ev.DstPort = sessionPort(si)
 					ev.SrcPort = cfg.Sessions[si].SrcPort
 					if err := emit(ev); err != nil {
 						return err
@@ -103,13 +106,13 @@ func (g *EDPGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 		sess := cfg.Sessions[si]
 		if sess.Coalesce {
 			// JoinNext pattern: accumulate adjacent same-direction events
-			if err := emitCoalescedEvents(r, dstPort, sess.SrcPort, emit); err != nil {
+			if err := emitCoalescedEvents(r, sessionPort(si), sess.SrcPort, emit); err != nil {
 				return err
 			}
 		} else {
 			for _, group := range r {
 				for k := range group {
-					group[k].DstPort = dstPort
+					group[k].DstPort = sessionPort(si)
 					group[k].SrcPort = sess.SrcPort
 					if err := emit(group[k]); err != nil {
 						return err
@@ -172,12 +175,10 @@ func emitCoalescedEvents(eventGroups [][]layers.MessageEvent, dstPort, srcPort u
 	return nil
 }
 
-
-
 // --- Event frame builders ---
 
 // buildEDPFrames renders one event's wire frames with per-frame directions
-//（契约 §3.2 方向列：CONNREQ/PINGREQ/SAVEDATA 上行 + CONNRESP/PINGRESP/
+// （契约 §3.2 方向列：CONNREQ/PINGREQ/SAVEDATA 上行 + CONNRESP/PINGRESP/
 // SAVEACK 下行；CMDREQ 平台→设备下行 + CMDRESP 设备→平台上行；PUSHDATA
 // 按 direction；DISCONNECT 上行）。
 func buildEDPFrames(sess *core.EDPSession, evIdx int) []frame {
@@ -192,13 +193,18 @@ func buildEDPFrames(sess *core.EDPSession, evIdx int) []frame {
 			// 下行 SAVEDATA 同构、无应答（§3.5：下行不回 SAVEACK）。
 			return []frame{{false, buildSAVEDATA(ev)}}
 		}
-		// SAVEACK 仅显式 ack:true 时自动补（§5 派生③；契约用例包数口径：
-		// 基线存储例 10 包无 SAVEACK，ack 例 11 包）。
-		if ev.Ack != nil && *ev.Ack {
+		// SAVEACK 自动补双前置（§5 派生③"带 msg_id 且配置 ack 时"）：
+		// 显式 ack:true 且带 msg_id——无 msg_id 无回带对象，不臆造回带 0。
+		if ev.Ack != nil && *ev.Ack && ev.MsgID != nil {
 			return []frame{{true, buildSAVEDATA(ev)}, {false, buildSAVEACK(ev)}}
 		}
 		return []frame{{true, buildSAVEDATA(ev)}}
 	case "cmdreq":
+		// CMDRESP 自动应答可被 ack:false 抑制（§5④"按配置自动补"；裁定6
+		// 显式配置覆盖面）。缺省（ack 缺省/true）自动补。
+		if ev.Ack != nil && !*ev.Ack {
+			return []frame{{false, buildCMDREQ(ev)}}
+		}
 		return []frame{{false, buildCMDREQ(ev)}, {true, buildCMDRESP(ev)}}
 	case "pushdata":
 		return []frame{{ev.Direction != "down", buildPUSHDATA(ev)}}
@@ -249,7 +255,7 @@ func buildCONNREQ(ev core.EDPEvent) []byte {
 		keepTime = *ev.KeepTime
 	}
 
-	if ev.Auth == "userid" || ev.Auth == "2" {
+	if ev.Auth == "userid" {
 		userid := ev.UserID
 		authinfo := ev.AuthInfo
 		remainLen := 15 + len(userid) + len(authinfo)
@@ -258,17 +264,25 @@ func buildCONNREQ(ev core.EDPEvent) []byte {
 
 		buf := make([]byte, total)
 		off := 0
-		buf[off] = 0x10; off++
+		buf[off] = 0x10
+		off++
 		off += copy(buf[off:], remainBytes)
-		writeU16BE(buf[off:], uint16(len(protocolName))); off += 2
+		writeU16BE(buf[off:], uint16(len(protocolName)))
+		off += 2
 		off += copy(buf[off:], protocolName)
-		buf[off] = version; off++
-		buf[off] = 0xC0; off++
-		writeU16BE(buf[off:], keepTime); off += 2
-		writeU16BE(buf[off:], 0); off += 2 // empty devid
-		writeU16BE(buf[off:], uint16(len(userid))); off += 2
+		buf[off] = version
+		off++
+		buf[off] = 0xC0
+		off++
+		writeU16BE(buf[off:], keepTime)
+		off += 2
+		writeU16BE(buf[off:], 0)
+		off += 2 // empty devid
+		writeU16BE(buf[off:], uint16(len(userid)))
+		off += 2
 		off += copy(buf[off:], userid)
-		writeU16BE(buf[off:], uint16(len(authinfo))); off += 2
+		writeU16BE(buf[off:], uint16(len(authinfo)))
+		off += 2
 		off += copy(buf[off:], authinfo)
 		return buf
 	}
@@ -282,16 +296,23 @@ func buildCONNREQ(ev core.EDPEvent) []byte {
 
 	buf := make([]byte, total)
 	off := 0
-	buf[off] = 0x10; off++
+	buf[off] = 0x10
+	off++
 	off += copy(buf[off:], remainBytes)
-	writeU16BE(buf[off:], uint16(len(protocolName))); off += 2
+	writeU16BE(buf[off:], uint16(len(protocolName)))
+	off += 2
 	off += copy(buf[off:], protocolName)
-	buf[off] = version; off++
-	buf[off] = 0x40; off++
-	writeU16BE(buf[off:], keepTime); off += 2
-	writeU16BE(buf[off:], uint16(len(devid))); off += 2
+	buf[off] = version
+	off++
+	buf[off] = 0x40
+	off++
+	writeU16BE(buf[off:], keepTime)
+	off += 2
+	writeU16BE(buf[off:], uint16(len(devid)))
+	off += 2
 	off += copy(buf[off:], devid)
-	writeU16BE(buf[off:], uint16(len(apikey))); off += 2
+	writeU16BE(buf[off:], uint16(len(apikey)))
+	off += 2
 	off += copy(buf[off:], apikey)
 	return buf
 }
@@ -325,9 +346,11 @@ func buildPUSHDATA(ev core.EDPEvent) []byte {
 
 	buf := make([]byte, total)
 	off := 0
-	buf[off] = 0x30; off++
+	buf[off] = 0x30
+	off++
 	off += copy(buf[off:], remainBytes)
-	writeU16BE(buf[off:], uint16(len(devid))); off += 2
+	writeU16BE(buf[off:], uint16(len(devid)))
+	off += 2
 	off += copy(buf[off:], devid)
 	off += copy(buf[off:], data)
 	return buf
@@ -384,7 +407,8 @@ func buildSAVEDATA(ev core.EDPEvent) []byte {
 	total := 1 + len(remainBytes) + remainLen
 	buf := make([]byte, total)
 	off := 0
-	buf[off] = 0x80; off++
+	buf[off] = 0x80
+	off++
 	off += copy(buf[off:], remainBytes)
 	off += copy(buf[off:], body)
 	return buf
@@ -420,10 +444,13 @@ func buildSAVEACK(ev core.EDPEvent) []byte {
 
 	buf := make([]byte, total)
 	off := 0
-	buf[off] = 0x90; off++
+	buf[off] = 0x90
+	off++
 	off += copy(buf[off:], remainBytes)
-	buf[off] = 0x00; off++
-	writeU16BE(buf[off:], uint16(len(ackBytes))); off += 2
+	buf[off] = 0x00
+	off++
+	writeU16BE(buf[off:], uint16(len(ackBytes)))
+	off += 2
 	off += copy(buf[off:], ackBytes)
 	return buf
 }
@@ -437,11 +464,14 @@ func buildCMDREQ(ev core.EDPEvent) []byte {
 
 	buf := make([]byte, total)
 	off := 0
-	buf[off] = 0xA0; off++
+	buf[off] = 0xA0
+	off++
 	off += copy(buf[off:], remainBytes)
-	writeU16BE(buf[off:], uint16(len(cmdid))); off += 2
+	writeU16BE(buf[off:], uint16(len(cmdid)))
+	off += 2
 	off += copy(buf[off:], cmdid)
-	writeU32BE(buf[off:], uint32(len(reqBytes))); off += 4
+	writeU32BE(buf[off:], uint32(len(reqBytes)))
+	off += 4
 	off += copy(buf[off:], reqBytes)
 	return buf
 }
@@ -456,9 +486,11 @@ func buildCMDRESP(ev core.EDPEvent) []byte {
 		total := 1 + len(remainBytes) + remainLen
 		buf := make([]byte, total)
 		off := 0
-		buf[off] = 0xB0; off++
+		buf[off] = 0xB0
+		off++
 		off += copy(buf[off:], remainBytes)
-		writeU16BE(buf[off:], uint16(len(cmdidBytes))); off += 2
+		writeU16BE(buf[off:], uint16(len(cmdidBytes)))
+		off += 2
 		off += copy(buf[off:], cmdidBytes)
 		return buf
 	}
@@ -468,11 +500,14 @@ func buildCMDRESP(ev core.EDPEvent) []byte {
 	total := 1 + len(remainBytes) + remainLen
 	buf := make([]byte, total)
 	off := 0
-	buf[off] = 0xB0; off++
+	buf[off] = 0xB0
+	off++
 	off += copy(buf[off:], remainBytes)
-	writeU16BE(buf[off:], uint16(len(cmdidBytes))); off += 2
+	writeU16BE(buf[off:], uint16(len(cmdidBytes)))
+	off += 2
 	off += copy(buf[off:], cmdidBytes)
-	writeU32BE(buf[off:], uint32(len(respData))); off += 4
+	writeU32BE(buf[off:], uint32(len(respData)))
+	off += 4
 	off += copy(buf[off:], respData)
 	return buf
 }

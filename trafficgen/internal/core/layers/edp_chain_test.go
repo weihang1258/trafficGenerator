@@ -354,3 +354,107 @@ func TestEDPChain_WireFaultAnchors(t *testing.T) {
 		t.Errorf("unknown wire_fault should be rejected with kind error, got %v", err)
 	}
 }
+
+// ——隔离终审 F11 补红例（自然面守卫 + 嵌套严格解码 + kind 白名单真触达）——
+
+// 红例⑯ 自然面 state_after_reject：rtn≠0 后排业务事件，validator 走查拒
+// （非 wire_fault 注入通道——28 负例全走注入，自然面拒绝路径此前零已提交测试）。
+func TestEDPChain_NaturalStateAfterReject(t *testing.T) {
+	err := driveEDPErr(t, map[string]interface{}{
+		"sessions": []interface{}{map[string]interface{}{
+			"events": []interface{}{
+				map[string]interface{}{"kind": "connect", "auth": "devid", "devid": "123456789", "apikey": "kJ8mQ2xV", "connack_rtn": 2},
+				map[string]interface{}{"kind": "ping"},
+			},
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "state") {
+		t.Fatalf("natural state_after_reject should reject with anchor state, got %v", err)
+	}
+}
+
+// 红例⑰ 自然面 state_after_disconnect：DISCONNECT 后排业务事件拒。
+func TestEDPChain_NaturalStateAfterDisconnect(t *testing.T) {
+	err := driveEDPErr(t, map[string]interface{}{
+		"sessions": []interface{}{map[string]interface{}{
+			"events": []interface{}{
+				connectEv(),
+				map[string]interface{}{"kind": "disconnect"},
+				map[string]interface{}{"kind": "ping"},
+			},
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "state") {
+		t.Fatalf("natural state_after_disconnect should reject with anchor state, got %v", err)
+	}
+}
+
+// 红例⑱ kind 白名单真触达：connect-first 守卫先放行 connect，第二个事件
+// 携未知 kind → 走 validateEvent 的 kind 分支（红例⑩单事件被 connect-first
+// 先拒——测试因错误的原因通过，此处修正触达路径）。
+func TestEDPChain_UnknownKindSecondEvent(t *testing.T) {
+	err := driveEDPErr(t, map[string]interface{}{
+		"sessions": []interface{}{map[string]interface{}{
+			"events": []interface{}{
+				connectEv(),
+				map[string]interface{}{"kind": "bogus_kind"},
+			},
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "kind") {
+		t.Fatalf("unknown kind on second event should hit kind whitelist, got %v", err)
+	}
+}
+
+// 红例⑲ 嵌套级未知键严格拒（裁定8 三级——session/event 级经 stdlib
+// DisallowUnknownFields 递归覆盖，隔离终审探针实证转正）。
+func TestEDPChain_NestedUnknownKeys(t *testing.T) {
+	_, err := planEDPChain(t, map[string]interface{}{
+		"sessions": []interface{}{map[string]interface{}{
+			"bogus_sess_key": 1,
+			"events":         []interface{}{connectEv()},
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "bogus_sess_key") {
+		t.Fatalf("session-level unknown key should be rejected, got %v", err)
+	}
+	_, err = planEDPChain(t, map[string]interface{}{
+		"sessions": []interface{}{map[string]interface{}{
+			"events": []interface{}{map[string]interface{}{
+				"kind": "connect", "auth": "devid", "devid": "1", "apikey": "k",
+				"bogus_ev_key": 1,
+			}},
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "bogus_ev_key") {
+		t.Fatalf("event-level unknown key should be rejected, got %v", err)
+	}
+}
+
+// 红例⑳ u16 标识符上界（终审 F2：超界 uint16 截断产坏帧——validator 即拒）。
+func TestEDPChain_U16IdentifierBound(t *testing.T) {
+	err := driveEDPErr(t, map[string]interface{}{
+		"sessions": []interface{}{map[string]interface{}{
+			"events": []interface{}{
+				map[string]interface{}{"kind": "connect", "auth": "devid", "devid": strings.Repeat("D", 70000), "apikey": "k"},
+			},
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "u16 bound") {
+		t.Fatalf("70000B devid should be rejected (u16 bound), got %v", err)
+	}
+}
+
+// 红例㉑ 会话间端口一致性（终审 F10：port_conflict 自然面——会话级
+// dst_port 显式声明彼此不一致即拒）。
+func TestEDPChain_SessionPortConflict(t *testing.T) {
+	err := driveEDPErr(t, map[string]interface{}{
+		"sessions": []interface{}{
+			map[string]interface{}{"src_port": 41072, "dst_port": 4472, "events": []interface{}{connectEv()}},
+			map[string]interface{}{"src_port": 41073, "dst_port": 5555, "events": []interface{}{connectEv()}},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "port") {
+		t.Fatalf("conflicting session dst_ports should be rejected (port_conflict), got %v", err)
+	}
+}

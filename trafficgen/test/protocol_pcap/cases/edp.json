@@ -39,6 +39,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 9,
    "frames": [
     {
@@ -134,6 +135,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 9,
    "frames": [
     {
@@ -190,6 +192,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 9,
    "frames": [
     {
@@ -249,6 +252,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 9,
    "frames": [
     {
@@ -299,6 +303,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 9,
    "frames": [
     {
@@ -364,6 +369,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 11,
    "frames": [
     {
@@ -440,6 +446,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 15,
    "frames": [
     {
@@ -525,6 +532,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -592,6 +600,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -659,6 +668,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -726,6 +736,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -739,6 +750,74 @@
      "packet": 6,
      "field": "tcp.len",
      "value": "103"
+    }
+   ]
+  }
+ },
+ {
+  "id": "edp_savedata_type1_token",
+  "proto": "edp",
+  "summary": "存储 type1（flag 0xC0）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.72",
+      "dst": "198.51.100.72"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 41072,
+      "dst_port": 4472
+     }
+    },
+    {
+     "edp": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "connect",
+          "auth": "devid",
+          "keep_time": 128,
+          "devid": "123456789",
+          "apikey": "kJ8mQ2xV"
+         },
+         {
+          "kind": "savedata",
+          "direction": "up",
+          "devid_flag": 1,
+          "msg_id_flag": 1,
+          "devid": "123456789",
+          "msg_id": 21930,
+          "format": 1,
+          "json": "{\"token\":\"t-123\",\"datastreams\":[{\"id\":\"temp\",\"datapoints\":[{\"at\":\"2026-08-31 12:00:00\",\"value\":22}]}]}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "packet_count": 10,
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "80 77 c0 00 09 31 32 33 34 35 36 37 38 39 55 aa 01 00 66 7b 22 74 6f 6b 65 6e 22 3a 22 74 2d 31 32 33 22 2c 22 64 61 74 61 73 74 72 65 61 6d 73 22 3a 5b 7b 22 69 64 22 3a 22 74 65 6d 70 22 2c 22 64 61 74 61 70 6f 69 6e 74 73 22 3a 5b 7b 22 61 74 22 3a 22 32 30 32 36 2d 30 38 2d 33 31 20 31 32 3a 30 30 3a 30 30 22 2c 22 76 61 6c 75 65 22 3a 32 32 7d 5d 7d 5d 7d"
+    }
+   ],
+   "fields": [
+    {
+     "packet": 6,
+     "field": "tcp.len",
+     "value": "121"
     }
    ]
   }
@@ -793,6 +872,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -860,6 +940,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -927,6 +1008,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -994,6 +1076,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -1061,6 +1144,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -1128,6 +1212,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -1195,6 +1280,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -1262,6 +1348,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -1329,6 +1416,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -1396,6 +1484,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -1463,6 +1552,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -1530,6 +1620,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -1543,72 +1634,6 @@
      "packet": 6,
      "field": "tcp.len",
      "value": "31"
-    }
-   ]
-  }
- },
- {
-  "id": "edp_savedata_type1_token",
-  "proto": "edp",
-  "summary": "type1 顶层 token 变体（JSON 内容自由度）",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "192.0.2.72",
-      "dst": "198.51.100.72"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 41072,
-      "dst_port": 4472
-     }
-    },
-    {
-     "edp": {
-      "sessions": [
-       {
-        "events": [
-         {
-          "kind": "connect",
-          "auth": "devid",
-          "keep_time": 128,
-          "devid": "123456789",
-          "apikey": "kJ8mQ2xV"
-         },
-         {
-          "kind": "savedata",
-          "devid_flag": 1,
-          "msg_id_flag": 1,
-          "devid": "123456789",
-          "msg_id": 21930,
-          "format": 1,
-          "json": "{\"token\":\"t-123\",\"datastreams\":[{\"id\":\"temp\",\"datapoints\":[{\"at\":\"2026-08-31 12:00:00\",\"value\":22}]}]}"
-         }
-        ]
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "packet_count": 10,
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "80 77 c0 00 09 31 32 33 34 35 36 37 38 39 55 aa 01 00 66 7b 22 74 6f 6b 65 6e 22 3a 22 74 2d 31 32 33 22 2c 22 64 61 74 61 73 74 72 65 61 6d 73 22 3a 5b 7b 22 69 64 22 3a 22 74 65 6d 70 22 2c 22 64 61 74 61 70 6f 69 6e 74 73 22 3a 5b 7b 22 61 74 22 3a 22 32 30 32 36 2d 30 38 2d 33 31 20 31 32 3a 30 30 3a 30 30 22 2c 22 76 61 6c 75 65 22 3a 32 32 7d 5d 7d 5d 7d"
-    }
-   ],
-   "fields": [
-    {
-     "packet": 6,
-     "field": "tcp.len",
-     "value": "121"
     }
    ]
   }
@@ -1658,6 +1683,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -1720,6 +1746,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -1787,6 +1814,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -1854,6 +1882,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -1921,6 +1950,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -1984,6 +2014,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -2047,6 +2078,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -2124,6 +2156,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 11,
    "frames": [
     {
@@ -2191,6 +2224,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 11,
    "frames": [
     {
@@ -2248,6 +2282,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -2304,6 +2339,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -2367,6 +2403,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -2429,6 +2466,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -2485,6 +2523,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 11,
    "frames": [
     {
@@ -2561,6 +2600,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 11,
    "frames": [
     {
@@ -2624,6 +2664,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 11,
    "frames": [
     {
@@ -2685,6 +2726,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 11,
    "frames": [
     {
@@ -2743,6 +2785,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -2784,14 +2827,14 @@
           "apikey": "kJ8mQ2xV"
          },
          {
-          "kind": "pushdata",
-          "devid": "987654321",
-          "data_b64": "R0FURVdBWTpIRUxMTw=="
+          "kind": "savedata",
+          "format": 3,
+          "json": "{\"temperature\":22}"
          },
          {
-          "kind": "pushdata",
-          "devid": "987654321",
-          "data_b64": "R0FURVdBWTpIRUxMTw=="
+          "kind": "savedata",
+          "format": 3,
+          "json": "{\"temperature\":22}"
          }
         ],
         "coalesce": true
@@ -2804,74 +2847,17 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
      "packet": 6,
      "offset": 54,
-     "hex": "30 18 00 09 39 38 37 36 35 34 33 32 31 47 41 54 45 57 41 59 3a 48 45 4c 4c 4f 30 18 00 09 39 38 37 36 35 34 33 32 31 47 41 54 45 57 41 59 3a 48 45 4c 4c 4f"
+     "hex": "80 16 00 03 00 12 7b 22 74 65 6d 70 65 72 61 74 75 72 65 22 3a 32 32 7d 80 16 00 03 00 12 7b 22 74 65 6d 70 65 72 61 74 75 72 65 22 3a 32 32 7d"
     }
    ],
    "notes": [
-    "同向相邻帧拼单段；请求/响应对不粘（hl7 先例）"
-   ]
-  }
- },
- {
-  "id": "edp_remainlen_1byte_max",
-  "proto": "edp",
-  "summary": "1 字节档上界（remainlen 127 → 7f）",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "192.0.2.72",
-      "dst": "198.51.100.72"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 41072,
-      "dst_port": 4472
-     }
-    },
-    {
-     "edp": {
-      "sessions": [
-       {
-        "events": [
-         {
-          "kind": "connect",
-          "auth": "devid",
-          "keep_time": 128,
-          "devid": "123456789",
-          "apikey": "kJ8mQ2xV"
-         },
-         {
-          "kind": "savedata",
-          "format": 5,
-          "json": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-         }
-        ]
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "packet_count": 10,
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "80 7f 00 05 00 7b 78 78 78 78 78 78"
-    }
-   ],
-   "notes": [
-    "帧总长 129 B（varint 1 B），跨 MSS 分 1 段；断言帧首 12 字节"
+    "契约 §4.43：savedata type3×2 粘连段 80160003...×2；同向相邻帧拼单段，请求/响应对不粘（hl7 先例）"
    ]
   }
  },
@@ -2920,6 +2906,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -2930,6 +2917,65 @@
    ],
    "notes": [
     "帧总长 131 B（varint 2 B），跨 MSS 分 1 段；断言帧首 12 字节"
+   ]
+  }
+ },
+ {
+  "id": "edp_remainlen_1byte_max",
+  "proto": "edp",
+  "summary": "1 字节档上界（remainlen 127 → 7f）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.72",
+      "dst": "198.51.100.72"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 41072,
+      "dst_port": 4472
+     }
+    },
+    {
+     "edp": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "connect",
+          "auth": "devid",
+          "keep_time": 128,
+          "devid": "123456789",
+          "apikey": "kJ8mQ2xV"
+         },
+         {
+          "kind": "savedata",
+          "format": 5,
+          "json": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "packet_count": 10,
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "80 7f 00 05 00 7b 78 78 78 78 78 78"
+    }
+   ],
+   "notes": [
+    "帧总长 129 B（varint 1 B），跨 MSS 分 1 段；断言帧首 12 字节"
    ]
   }
  },
@@ -2978,6 +3024,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 21,
    "frames": [
     {
@@ -3037,6 +3084,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 1446,
    "frames": [
     {
@@ -3096,6 +3144,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 1446,
    "frames": [
     {
@@ -3155,6 +3204,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 21,
    "frames": [
     {
@@ -3213,6 +3263,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 54,
    "frames": [
     {
@@ -3271,6 +3322,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 54,
    "frames": [
     {
@@ -3329,6 +3381,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "notes": [
     "值类四种一帧；JSON 内容自由度（SDK 不校验内容）"
@@ -3395,6 +3448,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 16,
    "frames": [
     {
@@ -3470,6 +3524,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 9,
    "frames": [
     {
@@ -3532,6 +3587,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 10,
    "frames": [
     {
@@ -3587,7 +3643,7 @@
           "kind": "connect",
           "auth": "devid",
           "keep_time": 128,
-          "devid": "123456789",
+          "devid": "223456780",
           "apikey": "kJ8mQ2xV"
          },
          {
@@ -3607,16 +3663,44 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 20,
+   "frames": [
+    {
+     "packet": 14,
+     "offset": 54,
+     "hex": "10 1e 00 03 45 44 50 01 40 00 80 00 09 32 32 33"
+    },
+    {
+     "packet": 16,
+     "offset": 54,
+     "hex": "80 16 00 03 00 12 7b 22 74 65 6d 70 65 72 61 74 75 72 65 22 3a 32 32 7d"
+    }
+   ],
    "fields": [
     {
-     "packet": 13,
+     "packet": 11,
+     "field": "tcp.flags",
+     "value": "0x00000002"
+    },
+    {
+     "packet": 14,
      "field": "tcp.srcport",
      "value": "41073"
+    },
+    {
+     "packet": 16,
+     "field": "tcp.srcport",
+     "value": "41073"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.srcport",
+     "value": "41072"
     }
    ],
    "notes": [
-    "会话 2 握手起点 = 包 13（10+3）"
+    "会话 2 握手 SYN 起点 = 包 11（前会话总包 10 + 1：s2=11-13 握手、14 CONNREQ、15 CONNRESP、16 SAVEDATA、17-20 挥手）；两会话 devid distinct（123456789 / 223456780，帧 4 vs 帧 14 hex 分侧断言）"
    ]
   }
  },
@@ -3652,7 +3736,12 @@
           "apikey": "kJ8mQ2xV"
          },
          {
-          "kind": "ping"
+          "kind": "savedata",
+          "msg_id_flag": 1,
+          "msg_id": 21930,
+          "format": 3,
+          "json": "{\"temperature\":22}",
+          "ack": true
          }
         ],
         "src_port": 41072,
@@ -3668,7 +3757,12 @@
           "apikey": "kJ8mQ2xV"
          },
          {
-          "kind": "ping"
+          "kind": "savedata",
+          "msg_id_flag": 1,
+          "msg_id": 21931,
+          "format": 3,
+          "json": "{\"temperature\":22}",
+          "ack": true
          }
         ],
         "src_port": 41073,
@@ -3682,7 +3776,75 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
-   "packet_count": 22
+   "has_payload": true,
+   "packet_count": 22,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "10 1e 00 03 45 44 50 01 40 00 80 00 09 31 32 33"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "20 02 00 00"
+    },
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "10 1e 00 03 45 44 50 01 40 00 80 00 09 31 32 33"
+    },
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "20 02 00 00"
+    },
+    {
+     "packet": 11,
+     "offset": 54,
+     "hex": "80 18 40 55 aa 03 00 12 7b 22 74 65 6d 70 65 72 61 74 75 72 65 22 3a 32 32 7d"
+    },
+    {
+     "packet": 12,
+     "offset": 54,
+     "hex": "90 20 00 00 1d 7b 22 6d 73 67 5f 69 64 22 3a 32 31 39 33 30 2c 22 65 72 72 5f 63 6f 64 65 22 3a 30 7d"
+    },
+    {
+     "packet": 13,
+     "offset": 54,
+     "hex": "80 18 40 55 ab 03 00 12 7b 22 74 65 6d 70 65 72 61 74 75 72 65 22 3a 32 32 7d"
+    },
+    {
+     "packet": 14,
+     "offset": 54,
+     "hex": "90 20 00 00 1d 7b 22 6d 73 67 5f 69 64 22 3a 32 31 39 33 31 2c 22 65 72 72 5f 63 6f 64 65 22 3a 30 7d"
+    }
+   ],
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.srcport",
+     "value": "41072"
+    },
+    {
+     "packet": 9,
+     "field": "tcp.srcport",
+     "value": "41073"
+    },
+    {
+     "packet": 11,
+     "field": "tcp.srcport",
+     "value": "41072"
+    },
+    {
+     "packet": 13,
+     "field": "tcp.srcport",
+     "value": "41073"
+    }
+   ],
+   "notes": [
+    "契约 §4.56：round-robin 交错序 s1.connect→s2.connect→s1.savedata→s2.savedata；每流 10 20 80 90 配对；SAVEACK msg_id 21930/21931 跨流不串用"
+   ]
   }
  },
  {
@@ -3725,6 +3887,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 9,
    "frames": [
     {
@@ -3775,6 +3938,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 9,
    "frames": [
     {
@@ -3825,6 +3989,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 9,
    "frames": [
     {
@@ -3878,6 +4043,7 @@
   "expect": {
    "has_handshake": true,
    "terminates": true,
+   "has_payload": true,
    "packet_count": 53,
    "frames": [
     {
@@ -3894,7 +4060,7 @@
  {
   "id": "edp_neg_type_unknown",
   "proto": "edp",
-  "summary": "未知消息类型值（不在 §3.2 表内）",
+  "summary": "未知消息类型值（不在 §3.2 表内）（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -3918,16 +4084,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "type",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 type（裁定4 注入通道）"
-   ]
+   "error_contains": "type"
   }
  },
  {
   "id": "edp_neg_type_unimplemented",
   "proto": "edp",
-  "summary": "ENCRYPT 0xE0/0xF0 边界不实现（注入走负例）",
+  "summary": "ENCRYPT 0xE0/0xF0 边界不实现（注入走负例）（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -3951,16 +4114,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "type",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 type（裁定4 注入通道）"
-   ]
+   "error_contains": "type"
   }
  },
  {
   "id": "edp_neg_remainlen_mismatch",
   "proto": "edp",
-  "summary": "剩余长度 ≠ 消息体实际字节数（豁免行：builder 恒正确编码）",
+  "summary": "剩余长度 ≠ 消息体实际字节数（豁免行：builder 恒正确编码）（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -3984,16 +4144,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "remainlen",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 remainlen（裁定4 注入通道）"
-   ]
+   "error_contains": "remainlen"
   }
  },
  {
   "id": "edp_neg_remainlen_truncated",
   "proto": "edp",
-  "summary": "报文截断（体短于 remainlen 声明，豁免行）",
+  "summary": "报文截断（体短于 remainlen 声明，豁免行）（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4017,16 +4174,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "truncat",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 truncat（裁定4 注入通道）"
-   ]
+   "error_contains": "truncat"
   }
  },
  {
   "id": "edp_neg_remainlen_5byte",
   "proto": "edp",
-  "summary": "变长编码第 5 字节仍置延续位（豁免行）",
+  "summary": "变长编码第 5 字节仍置延续位（豁免行）（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4050,16 +4204,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "remainlen",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 remainlen（裁定4 注入通道）"
-   ]
+   "error_contains": "remainlen"
   }
  },
  {
   "id": "edp_neg_conn_protocol_name",
   "proto": "edp",
-  "summary": "协议名 ≠ EDP（如 EDQ）",
+  "summary": "协议名 ≠ EDP（如 EDQ）（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4083,16 +4234,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "protocol",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 protocol（裁定4 注入通道）"
-   ]
+   "error_contains": "protocol"
   }
  },
  {
   "id": "edp_neg_conn_version",
   "proto": "edp",
-  "summary": "协议版本 ≠ 1",
+  "summary": "协议版本 ≠ 1（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4116,16 +4264,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "version",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 version（裁定4 注入通道）"
-   ]
+   "error_contains": "version"
   }
  },
  {
   "id": "edp_neg_conn_flag",
   "proto": "edp",
-  "summary": "连接标志非 0x40/0xC0",
+  "summary": "连接标志非 0x40/0xC0（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4149,16 +4294,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "flag",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 flag（裁定4 注入通道）"
-   ]
+   "error_contains": "flag"
   }
  },
  {
   "id": "edp_neg_savedata_format",
   "proto": "edp",
-  "summary": "数据格式标志越域（0x00/0x06/0xFF）",
+  "summary": "数据格式标志越域（0x00/0x06/0xFF）（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4182,16 +4324,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "format",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 format（裁定4 注入通道）"
-   ]
+   "error_contains": "format"
   }
  },
  {
   "id": "edp_neg_bin_desc_no_dsid",
   "proto": "edp",
-  "summary": "type2 desc 无 ds_id 字段",
+  "summary": "type2 desc 无 ds_id 字段（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4215,16 +4354,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "ds_id",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 ds_id（裁定4 注入通道）"
-   ]
+   "error_contains": "ds_id"
   }
  },
  {
   "id": "edp_neg_bin_desc_invalid",
   "proto": "edp",
-  "summary": "type2 desc 非法 JSON（截断/非对象）",
+  "summary": "type2 desc 非法 JSON（截断/非对象）（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4248,16 +4384,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "desc",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 desc（裁定4 注入通道）"
-   ]
+   "error_contains": "desc"
   }
  },
  {
   "id": "edp_neg_bin_desc_over",
   "proto": "edp",
-  "summary": "desc ≥65,536B（wire 口径恰值即拒）",
+  "summary": "desc ≥65,536B（wire 口径恰值即拒）（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4281,16 +4414,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "desc",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 desc（裁定4 注入通道）"
-   ]
+   "error_contains": "desc"
   }
  },
  {
   "id": "edp_neg_bin_over_3mb",
   "proto": "edp",
-  "summary": "bin_len ≥3MB（wire 口径恰值即拒）",
+  "summary": "bin_len ≥3MB（wire 口径恰值即拒）（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4314,16 +4444,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "length",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 length（裁定4 注入通道）"
-   ]
+   "error_contains": "length"
   }
  },
  {
   "id": "edp_neg_state_no_connect",
   "proto": "edp",
-  "summary": "事件序列不以 connect 开头",
+  "summary": "事件序列不以 connect 开头（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4347,16 +4474,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "connect",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 connect（裁定4 注入通道）"
-   ]
+   "error_contains": "connect"
   }
  },
  {
   "id": "edp_neg_state_after_reject",
   "proto": "edp",
-  "summary": "CONNRESP rtn≠0 后继续排业务事件",
+  "summary": "CONNRESP rtn≠0 后继续排业务事件（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4380,16 +4504,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "state",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 state（裁定4 注入通道）"
-   ]
+   "error_contains": "state"
   }
  },
  {
   "id": "edp_neg_state_after_disconnect",
   "proto": "edp",
-  "summary": "DISCONNECT 后继续排业务事件",
+  "summary": "DISCONNECT 后继续排业务事件（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4413,16 +4534,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "state",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 state（裁定4 注入通道）"
-   ]
+   "error_contains": "state"
   }
  },
  {
   "id": "edp_neg_cmdid_correlation",
   "proto": "edp",
-  "summary": "CMDRESP cmdid 与 CMDREQ 不匹配",
+  "summary": "CMDRESP cmdid 与 CMDREQ 不匹配（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4446,16 +4564,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "cmdid",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 cmdid（裁定4 注入通道）"
-   ]
+   "error_contains": "cmdid"
   }
  },
  {
   "id": "edp_neg_msgid_correlation",
   "proto": "edp",
-  "summary": "SAVEACK msg_id ≠ SAVEDATA 消息编号",
+  "summary": "SAVEACK msg_id ≠ SAVEDATA 消息编号（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4479,16 +4594,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "msg_id",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 msg_id（裁定4 注入通道）"
-   ]
+   "error_contains": "msg_id"
   }
  },
  {
   "id": "edp_neg_json_invalid",
   "proto": "edp",
-  "summary": "JSON 载荷非法（截断/非对象）",
+  "summary": "JSON 载荷非法（截断/非对象）（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4512,16 +4624,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "json",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 json（裁定4 注入通道）"
-   ]
+   "error_contains": "json"
   }
  },
  {
   "id": "edp_neg_json_over_u16",
   "proto": "edp",
-  "summary": "json >65,535（u16 溢出）",
+  "summary": "json >65,535（u16 溢出）（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4545,16 +4654,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "json",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 json（裁定4 注入通道）"
-   ]
+   "error_contains": "json"
   }
  },
  {
   "id": "edp_neg_layer_chain",
   "proto": "edp",
-  "summary": "层链缺 tcp（DependsOn 自动补全结构不可达——书面豁免注入通道）",
+  "summary": "层链缺 tcp（DependsOn 自动补全结构不可达——书面豁免注入通道）（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4578,16 +4684,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "layer",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 layer（裁定4 注入通道）"
-   ]
+   "error_contains": "layer"
   }
  },
  {
   "id": "edp_neg_port_conflict",
   "proto": "edp",
-  "summary": "端口/载体声明矛盾",
+  "summary": "端口/载体声明矛盾（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4611,16 +4714,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "port",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 port（裁定4 注入通道）"
-   ]
+   "error_contains": "port"
   }
  },
  {
   "id": "edp_neg_auth_devid_empty",
   "proto": "edp",
-  "summary": "方式 1 devid 空串",
+  "summary": "方式 1 devid 空串（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4644,16 +4744,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "devid",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 devid（裁定4 注入通道）"
-   ]
+   "error_contains": "devid"
   }
  },
  {
   "id": "edp_neg_auth_apikey_empty",
   "proto": "edp",
-  "summary": "方式 1 apikey 空串",
+  "summary": "方式 1 apikey 空串（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4677,16 +4774,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "apikey",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 apikey（裁定4 注入通道）"
-   ]
+   "error_contains": "apikey"
   }
  },
  {
   "id": "edp_neg_auth_userid_empty",
   "proto": "edp",
-  "summary": "方式 2 userid 空串",
+  "summary": "方式 2 userid 空串（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4710,16 +4804,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "userid",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 userid（裁定4 注入通道）"
-   ]
+   "error_contains": "userid"
   }
  },
  {
   "id": "edp_neg_auth_authinfo_empty",
   "proto": "edp",
-  "summary": "方式 2 authinfo 空串",
+  "summary": "方式 2 authinfo 空串（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4743,16 +4834,13 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "authinfo",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 authinfo（裁定4 注入通道）"
-   ]
+   "error_contains": "authinfo"
   }
  },
  {
   "id": "edp_neg_connack_rtn_range",
   "proto": "edp",
-  "summary": "connack_rtn 取 0–9 值域外值",
+  "summary": "connack_rtn 取 0–9 值域外值（契约 §7 一行一注入；validator 即拒 + 主锚词）",
   "spec_json": {
    "layers": [
     {
@@ -4776,10 +4864,7 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "rtn",
-   "notes": [
-    "契约 §7 一行一注入；validator 即拒 + 主锚词 rtn（裁定4 注入通道）"
-   ]
+   "error_contains": "rtn"
   }
  },
  {

@@ -23,34 +23,34 @@ import (
 // wireFaultAnchors maps each wire_fault kind to its error_contains anchor
 // (契约 §7 表主锚词钉死，28 值 1:1 同序).
 var wireFaultAnchors = map[string]string{
-	core.EDPWireFaultTypeUnknown:       "type",
-	core.EDPWireFaultTypeUnimplemented: "type",
-	core.EDPWireFaultRemainlenMismatch: "remainlen",
-	core.EDPWireFaultRemainlenTruncated:  "truncat",
-	core.EDPWireFaultRemainlen5Byte:      "remainlen",
-	core.EDPWireFaultConnProtocolName:    "protocol",
-	core.EDPWireFaultConnVersion:         "version",
-	core.EDPWireFaultConnFlag:            "flag",
-	core.EDPWireFaultSavedataFormat:      "format",
-	core.EDPWireFaultBinDescNoDsID:       "ds_id",
-	core.EDPWireFaultBinDescInvalid:      "desc",
-	core.EDPWireFaultBinDescOver:         "desc",
-	core.EDPWireFaultBinOver3MB:          "length",
-	core.EDPWireFaultStateNoConnect:      "connect",
-	core.EDPWireFaultStateAfterReject:    "state",
+	core.EDPWireFaultTypeUnknown:          "type",
+	core.EDPWireFaultTypeUnimplemented:    "type",
+	core.EDPWireFaultRemainlenMismatch:    "remainlen",
+	core.EDPWireFaultRemainlenTruncated:   "truncat",
+	core.EDPWireFaultRemainlen5Byte:       "remainlen",
+	core.EDPWireFaultConnProtocolName:     "protocol",
+	core.EDPWireFaultConnVersion:          "version",
+	core.EDPWireFaultConnFlag:             "flag",
+	core.EDPWireFaultSavedataFormat:       "format",
+	core.EDPWireFaultBinDescNoDsID:        "ds_id",
+	core.EDPWireFaultBinDescInvalid:       "desc",
+	core.EDPWireFaultBinDescOver:          "desc",
+	core.EDPWireFaultBinOver3MB:           "length",
+	core.EDPWireFaultStateNoConnect:       "connect",
+	core.EDPWireFaultStateAfterReject:     "state",
 	core.EDPWireFaultStateAfterDisconnect: "state",
-	core.EDPWireFaultCmdidCorrelation:    "cmdid",
-	core.EDPWireFaultMsgidCorrelation:    "msg_id",
-	core.EDPWireFaultJsonInvalid:         "json",
-	core.EDPWireFaultJsonOverU16:         "json",
-	core.EDPWireFaultLayerChain:          "layer",
-	core.EDPWireFaultCarrierUDP:          "carrier",
-	core.EDPWireFaultPortConflict:        "port",
-	core.EDPWireFaultAuthDevidEmpty:      "devid",
-	core.EDPWireFaultAuthAPIKeyEmpty:     "apikey",
-	core.EDPWireFaultAuthUserIDEmpty:     "userid",
-	core.EDPWireFaultAuthAuthInfoEmpty:   "authinfo",
-	core.EDPWireFaultConnackRTNRange:     "rtn",
+	core.EDPWireFaultCmdidCorrelation:     "cmdid",
+	core.EDPWireFaultMsgidCorrelation:     "msg_id",
+	core.EDPWireFaultJsonInvalid:          "json",
+	core.EDPWireFaultJsonOverU16:          "json",
+	core.EDPWireFaultLayerChain:           "layer",
+	core.EDPWireFaultCarrierUDP:           "carrier",
+	core.EDPWireFaultPortConflict:         "port",
+	core.EDPWireFaultAuthDevidEmpty:       "devid",
+	core.EDPWireFaultAuthAPIKeyEmpty:      "apikey",
+	core.EDPWireFaultAuthUserIDEmpty:      "userid",
+	core.EDPWireFaultAuthAuthInfoEmpty:    "authinfo",
+	core.EDPWireFaultConnackRTNRange:      "rtn",
 }
 
 // rejectWireFault converts a wire_fault injection into its task error.
@@ -85,6 +85,18 @@ func (p *EDPPlanner) Validate(spec core.FlowSpec) error {
 		return rejectWireFault("edp:", cfg.WireFault)
 	}
 
+	// port_conflict 自然面守卫（裁定3：同 fixture 端口一致性——会话级
+	// dst_port 显式声明彼此不一致即拒；builder 逐会话取各自 DstPort）。
+	seenPort := uint16(0)
+	for i := range cfg.Sessions {
+		if p := cfg.Sessions[i].DstPort; p != 0 {
+			if seenPort != 0 && p != seenPort {
+				return fmt.Errorf("edp: session[%d] dst_port %d conflicts with session dst_port %d (port_conflict) (port)", i, p, seenPort)
+			}
+			seenPort = p
+		}
+	}
+
 	for i := range cfg.Sessions {
 		if err := validateSession(cfg, &cfg.Sessions[i], i); err != nil {
 			return err
@@ -96,11 +108,6 @@ func (p *EDPPlanner) Validate(spec core.FlowSpec) error {
 // validateSession checks one session: structure + state machine + events.
 func validateSession(cfg *core.EDPConfig, s *core.EDPSession, i int) error {
 	where := fmt.Sprintf("edp: session[%d]", i)
-	// Session-level IPs are optional overrides (chain ip layer is the
-	// default; design §6 fixture carries ports only).
-	if (s.SrcIP != "") != (s.DstIP != "") {
-		return fmt.Errorf("%s must set both src_ip and dst_ip or neither", where)
-	}
 	if len(s.Events) == 0 {
 		return fmt.Errorf("%s has no events", where)
 	}
@@ -157,6 +164,12 @@ func validateEvent(s *core.EDPSession, ev *core.EDPEvent, si, ei int) error {
 			if ev.APIKey == "" {
 				return fmt.Errorf("%s connect requires apikey (auth_apikey_empty) (apikey)", where)
 			}
+			if err := checkU16Str(where, "devid", ev.Devid, "devid"); err != nil {
+				return err
+			}
+			if err := checkU16Str(where, "apikey", ev.APIKey, "apikey"); err != nil {
+				return err
+			}
 		case "userid":
 			// 方式 2：userid + authinfo（auth_userid_empty/auth_authinfo_empty
 			// 自然面守卫 + 注入锚 userid/authinfo）。
@@ -165,6 +178,12 @@ func validateEvent(s *core.EDPSession, ev *core.EDPEvent, si, ei int) error {
 			}
 			if ev.AuthInfo == "" {
 				return fmt.Errorf("%s connect userid mode requires authinfo (auth_authinfo_empty) (authinfo)", where)
+			}
+			if err := checkU16Str(where, "userid", ev.UserID, "userid"); err != nil {
+				return err
+			}
+			if err := checkU16Str(where, "authinfo", ev.AuthInfo, "authinfo"); err != nil {
+				return err
 			}
 		default:
 			return fmt.Errorf("%s auth %q invalid (devid/userid)", where, ev.Auth)
@@ -182,6 +201,9 @@ func validateEvent(s *core.EDPSession, ev *core.EDPEvent, si, ei int) error {
 		// devid 仅在 flag bit7 置位时必填（§3.5：本设备连接上报时可不带）。
 		if ev.DevidFlag != 0 && ev.Devid == "" {
 			return fmt.Errorf("%s savedata devid_flag set but devid empty (auth_devid_empty) (devid)", where)
+		}
+		if err := checkU16Str(where, "devid", ev.Devid, "devid"); err != nil {
+			return err
 		}
 		switch ev.Format {
 		case 0x02:
@@ -226,6 +248,9 @@ func validateEvent(s *core.EDPSession, ev *core.EDPEvent, si, ei int) error {
 		if ev.Devid == "" {
 			return fmt.Errorf("%s pushdata requires devid", where)
 		}
+		if err := checkU16Str(where, "devid", ev.Devid, "devid"); err != nil {
+			return err
+		}
 		if _, err := decodeB64(ev.DataB64); err != nil {
 			return fmt.Errorf("%s pushdata data_b64 invalid base64: %v", where, err)
 		}
@@ -233,6 +258,9 @@ func validateEvent(s *core.EDPSession, ev *core.EDPEvent, si, ei int) error {
 	case "cmdreq":
 		if ev.CmdID == "" {
 			return fmt.Errorf("%s cmdreq requires cmdid (cmdid) (cmdid)", where)
+		}
+		if err := checkU16Str(where, "cmdid", ev.CmdID, "cmdid"); err != nil {
+			return err
 		}
 		if _, err := decodeB64(ev.ReqB64); err != nil {
 			return fmt.Errorf("%s cmdreq req_b64 invalid base64: %v", where, err)
@@ -249,6 +277,16 @@ func validateEvent(s *core.EDPSession, ev *core.EDPEvent, si, ei int) error {
 
 	default:
 		return fmt.Errorf("%s kind %q invalid (connect/savedata/pushdata/cmdreq/ping/disconnect) (type)", where, ev.Kind)
+	}
+	return nil
+}
+
+// checkU16Str guards a u16-length-prefixed identifier field (design §8
+// 标识符上界 65,535B——超界时 builder uint16 截断产前缀与字节不符的静默
+// 坏帧，validator 即拒——§5 不得静默产出）。
+func checkU16Str(where, field, val, anchor string) error {
+	if len(val) > 65535 {
+		return fmt.Errorf("%s %s length %d exceeds u16 bound 65535 (length)", where, field, len(val))
 	}
 	return nil
 }

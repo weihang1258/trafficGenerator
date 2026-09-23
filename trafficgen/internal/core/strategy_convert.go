@@ -8568,8 +8568,6 @@ func parseEDPConfig(m map[string]interface{}) *EDPConfig {
 				continue
 			}
 			sess := EDPSession{
-				SrcIP:      getString(sessm, "src_ip"),
-				DstIP:      getString(sessm, "dst_ip"),
 				SrcPort:    getUint16(sessm, "src_port"),
 				DstPort:    getUint16(sessm, "dst_port"),
 				Concurrent: getBool(sessm, "concurrent", false),
@@ -8592,18 +8590,18 @@ func parseEDPConfig(m map[string]interface{}) *EDPConfig {
 						ConnackRtn: getIntPtr(evm, "connack_rtn"),
 						Direction:  getString(evm, "direction"),
 						DevidFlag:  getInt(evm, "devid_flag"),
-						MsgIDFlag:  getInt(evm, "msgid_flag"),
+						MsgIDFlag:  getInt(evm, "msg_id_flag"),
 						MsgID:      getUint16Ptr(evm, "msg_id"),
 						Format:     getInt(evm, "format"),
 						JSONStr:    getString(evm, "json"),
 						Desc:       getString(evm, "desc"),
 						BinB64:     getString(evm, "bin_b64"),
-						ErrCode:   getIntPtr(evm, "err_code"),
-						DataB64:   getString(evm, "data_b64"),
-						CmdID:     getString(evm, "cmdid"),
-						ReqB64:    getString(evm, "req_b64"),
-						RespB64:   getString(evm, "resp_b64"),
-						WireFault: getString(evm, "wire_fault"),
+						ErrCode:    getIntPtr(evm, "err_code"),
+						DataB64:    getString(evm, "data_b64"),
+						CmdID:      getString(evm, "cmdid"),
+						ReqB64:     getString(evm, "req_b64"),
+						RespB64:    getString(evm, "resp_b64"),
+						WireFault:  getString(evm, "wire_fault"),
 					}
 					if ackVal, ok := evm["ack"].(bool); ok {
 						ev.Ack = &ackVal

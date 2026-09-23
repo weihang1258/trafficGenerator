@@ -9,7 +9,7 @@
 > ② **OneNET 官方文档站 EDP 页**（open.iot.10086.cn，web.archive.org 2019-08 存档）：EDP 定性（Enhanced Device Protocol、基于 TCP 长连接、数据点上报/透传/转发/存储、平台消息下发、加密传输）、接入流程、FAQ（type=1/type=3 数据点 JSON 形态、cmd_id 语义与命令应答状态）——出处写"官方文档站《EDP 简介/接入说明》"；
 > ③ **公开资料 + 假设，实现阶段实证校准**：端口 4472（公开接入资料 jjfaedp.h3.chinam2m.com:4472，平台控制台可配）、CONNRESP 标志字节语义、SAVEACK 应答 JSON 内容、DISCONNECT 报文体——公开 SDK 未钉死，逐处标注；
 > ④ **本机实测**：tshark 3.6.14 `-G fields`/`-G protocols` + 按 SDK 逻辑构造 pcap 实证（`tcp.payload` 精确提取 EDP 报文字节、offset 54/74，见用例文档 §1）。
-> 修订记录：v2.1.0（2026-09-02）：按《需求文档 v1.3》rr-edp 重审（8C+5N）修复：**C-1** §1 补 pcap/NIC 双输出契约；**C-2** §5/§6 并发会话翻案纳入（+`edp_concurrent_sessions`）；**C-3** §5 补 RST/异常中断声明（FIN 统一挥手，cwmp R-6 同形）；**C-4** §2 补端口变体声明（+`edp_port_nondefault`）；**C-5** §7 负例 12 → 28 行原子拆分（一行一注入）、wire_fault 枚举 28 值 1:1 同序（§6）、锚词改"主锚词钉死（备选括注）"；**C-6** §8 边界相邻值族双侧补齐（127/16,383/2,097,151/65,534/devid u16 上界各 +1 例）；**C-7** 占位 JSON 三处对齐；**C-8** 用例文档 §1 edp.* 字段表述更正；**N1** §3.5 补 desc/bin 上界 SDK 严格 > 与 wire ≥ 口径差异声明；**N2** §3.5 补 kit2 msg_id 固定常量出处注；**N3** §3.10 补 kit2 type2+devid 公式漏 devid_len（SDK bug）注；**N4** §3.5 补标志×格式两维独立声明 + 矩阵 4×5 全 20 格正例；**N5** rtn=1 正例。配套用例文档 v2.1.0：39 → **89 条（61 正 + 28 负）**，ID 权威改用例文档 §2（§9 改簇级）。
+> 修订记录：v2.1.1（2026-09-23，修轮 F8 校准）：§6 示例与实现对齐——`json_str` 键更正为 `json`（实现 EDPEvent tag）、`devid_flag/msg_id_flag` 布尔更正为 0/1 整型（与 cases/edp.json 工作形状一致）；v2.1.0（2026-09-02）：按《需求文档 v1.3》rr-edp 重审（8C+5N）修复：**C-1** §1 补 pcap/NIC 双输出契约；**C-2** §5/§6 并发会话翻案纳入（+`edp_concurrent_sessions`）；**C-3** §5 补 RST/异常中断声明（FIN 统一挥手，cwmp R-6 同形）；**C-4** §2 补端口变体声明（+`edp_port_nondefault`）；**C-5** §7 负例 12 → 28 行原子拆分（一行一注入）、wire_fault 枚举 28 值 1:1 同序（§6）、锚词改"主锚词钉死（备选括注）"；**C-6** §8 边界相邻值族双侧补齐（127/16,383/2,097,151/65,534/devid u16 上界各 +1 例）；**C-7** 占位 JSON 三处对齐；**C-8** 用例文档 §1 edp.* 字段表述更正；**N1** §3.5 补 desc/bin 上界 SDK 严格 > 与 wire ≥ 口径差异声明；**N2** §3.5 补 kit2 msg_id 固定常量出处注；**N3** §3.10 补 kit2 type2+devid 公式漏 devid_len（SDK bug）注；**N4** §3.5 补标志×格式两维独立声明 + 矩阵 4×5 全 20 格正例；**N5** rtn=1 正例。配套用例文档 v2.1.0：39 → **89 条（61 正 + 28 负）**，ID 权威改用例文档 §2（§9 改簇级）。
 > 修订记录：v2.0.1（2026-09-01）：按独立隔离审查 9 项清单修复（E01–E09，详见 git 历史）；v2.0.0（2026-09-01）：按需求文档 v1.1 重写取代 2026-08-21 臆造旧稿。
 
 ## 1. 范围、profile 和未注册边界
@@ -241,10 +241,9 @@ DISCONNECT：2017 版 SDK 头文件定义类型值 `0x40`（连接关闭），**
         "events": [
           {"kind": "connect", "auth": "devid", "devid": "123456789",
            "apikey": "kJ8mQ2xV", "keep_time": 128, "connack_rtn": 0},
-          {"kind": "savedata", "direction": "up", "devid_flag": true, "msg_id_flag": true,
+          {"kind": "savedata", "direction": "up", "devid_flag": 1, "msg_id_flag": 1,
            "devid": "123456789", "msg_id": 21930, "format": 1,
-           "json": {"datastreams": [{"id": "temp", "datapoints":
-                     [{"at": "2026-08-31 12:00:00", "value": 22}]}]},
+           "json": "{\"datastreams\":[{\"id\":\"temp\",\"datapoints\":[{\"at\":\"2026-08-31 12:00:00\",\"value\":22}]}]}",
            "ack": true},
           {"kind": "ping"},
           {"kind": "cmdreq", "cmdid": "12345678", "req_b64": "eyJsZWQiOiJvbiJ9",

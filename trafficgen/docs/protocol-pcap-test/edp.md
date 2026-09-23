@@ -29,34 +29,34 @@ Cases: 89 — pass 89, fail 0, error 0
 | edp_multi_frame_segment | 多帧粘连（两帧一个 TCP 段，coalesce 流式定界合法形态） | pass | 10 | [pcap](edp/edp_multi_frame_segment.pcap) |
 | edp_multi_session | 双设备双四元组多会话展开（第二会话包号=前会话总包+1） | pass | 20 | [pcap](edp/edp_multi_session.pcap) |
 | edp_multi_transaction_keepalive | 单连接多事务全链（接入→上报→心跳→命令→断开） | pass | 16 | [pcap](edp/edp_multi_transaction_keepalive.pcap) |
-| edp_neg_auth_apikey_empty | 方式 1 apikey 空串 | pass | 0 | [pcap]() |
-| edp_neg_auth_authinfo_empty | 方式 2 authinfo 空串 | pass | 0 | [pcap]() |
-| edp_neg_auth_devid_empty | 方式 1 devid 空串 | pass | 0 | [pcap]() |
-| edp_neg_auth_userid_empty | 方式 2 userid 空串 | pass | 0 | [pcap]() |
-| edp_neg_bin_desc_invalid | type2 desc 非法 JSON（截断/非对象） | pass | 0 | [pcap]() |
-| edp_neg_bin_desc_no_dsid | type2 desc 无 ds_id 字段 | pass | 0 | [pcap]() |
-| edp_neg_bin_desc_over | desc ≥65,536B（wire 口径恰值即拒） | pass | 0 | [pcap]() |
-| edp_neg_bin_over_3mb | bin_len ≥3MB（wire 口径恰值即拒） | pass | 0 | [pcap]() |
+| edp_neg_auth_apikey_empty | 方式 1 apikey 空串（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_auth_authinfo_empty | 方式 2 authinfo 空串（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_auth_devid_empty | 方式 1 devid 空串（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_auth_userid_empty | 方式 2 userid 空串（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_bin_desc_invalid | type2 desc 非法 JSON（截断/非对象）（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_bin_desc_no_dsid | type2 desc 无 ds_id 字段（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_bin_desc_over | desc ≥65,536B（wire 口径恰值即拒）（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_bin_over_3mb | bin_len ≥3MB（wire 口径恰值即拒）（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
 | edp_neg_carrier_udp | UDP 载体判拒（tcp-only 族，BuildLayersPlanner 预检纵深） | pass | 0 | [pcap]() |
-| edp_neg_cmdid_correlation | CMDRESP cmdid 与 CMDREQ 不匹配 | pass | 0 | [pcap]() |
-| edp_neg_conn_flag | 连接标志非 0x40/0xC0 | pass | 0 | [pcap]() |
-| edp_neg_conn_protocol_name | 协议名 ≠ EDP（如 EDQ） | pass | 0 | [pcap]() |
-| edp_neg_conn_version | 协议版本 ≠ 1 | pass | 0 | [pcap]() |
-| edp_neg_connack_rtn_range | connack_rtn 取 0–9 值域外值 | pass | 0 | [pcap]() |
-| edp_neg_json_invalid | JSON 载荷非法（截断/非对象） | pass | 0 | [pcap]() |
-| edp_neg_json_over_u16 | json >65,535（u16 溢出） | pass | 0 | [pcap]() |
-| edp_neg_layer_chain | 层链缺 tcp（DependsOn 自动补全结构不可达——书面豁免注入通道） | pass | 0 | [pcap]() |
-| edp_neg_msgid_correlation | SAVEACK msg_id ≠ SAVEDATA 消息编号 | pass | 0 | [pcap]() |
-| edp_neg_port_conflict | 端口/载体声明矛盾 | pass | 0 | [pcap]() |
-| edp_neg_remainlen_5byte | 变长编码第 5 字节仍置延续位（豁免行） | pass | 0 | [pcap]() |
-| edp_neg_remainlen_mismatch | 剩余长度 ≠ 消息体实际字节数（豁免行：builder 恒正确编码） | pass | 0 | [pcap]() |
-| edp_neg_remainlen_truncated | 报文截断（体短于 remainlen 声明，豁免行） | pass | 0 | [pcap]() |
-| edp_neg_savedata_format | 数据格式标志越域（0x00/0x06/0xFF） | pass | 0 | [pcap]() |
-| edp_neg_state_after_disconnect | DISCONNECT 后继续排业务事件 | pass | 0 | [pcap]() |
-| edp_neg_state_after_reject | CONNRESP rtn≠0 后继续排业务事件 | pass | 0 | [pcap]() |
-| edp_neg_state_no_connect | 事件序列不以 connect 开头 | pass | 0 | [pcap]() |
-| edp_neg_type_unimplemented | ENCRYPT 0xE0/0xF0 边界不实现（注入走负例） | pass | 0 | [pcap]() |
-| edp_neg_type_unknown | 未知消息类型值（不在 §3.2 表内） | pass | 0 | [pcap]() |
+| edp_neg_cmdid_correlation | CMDRESP cmdid 与 CMDREQ 不匹配（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_conn_flag | 连接标志非 0x40/0xC0（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_conn_protocol_name | 协议名 ≠ EDP（如 EDQ）（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_conn_version | 协议版本 ≠ 1（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_connack_rtn_range | connack_rtn 取 0–9 值域外值（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_json_invalid | JSON 载荷非法（截断/非对象）（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_json_over_u16 | json >65,535（u16 溢出）（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_layer_chain | 层链缺 tcp（DependsOn 自动补全结构不可达——书面豁免注入通道）（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_msgid_correlation | SAVEACK msg_id ≠ SAVEDATA 消息编号（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_port_conflict | 端口/载体声明矛盾（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_remainlen_5byte | 变长编码第 5 字节仍置延续位（豁免行）（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_remainlen_mismatch | 剩余长度 ≠ 消息体实际字节数（豁免行：builder 恒正确编码）（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_remainlen_truncated | 报文截断（体短于 remainlen 声明，豁免行）（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_savedata_format | 数据格式标志越域（0x00/0x06/0xFF）（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_state_after_disconnect | DISCONNECT 后继续排业务事件（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_state_after_reject | CONNRESP rtn≠0 后继续排业务事件（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_state_no_connect | 事件序列不以 connect 开头（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_type_unimplemented | ENCRYPT 0xE0/0xF0 边界不实现（注入走负例）（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
+| edp_neg_type_unknown | 未知消息类型值（不在 §3.2 表内）（契约 §7 一行一注入；validator 即拒 + 主锚词） | pass | 0 | [pcap]() |
 | edp_pingreq_pingresp | 心跳单轮（2 字节最小帧 c000/d000） | pass | 11 | [pcap](edp/edp_pingreq_pingresp.pcap) |
 | edp_port_nondefault | 非默认端口 12472（端口由配置覆盖，EDP 帧与端口无关） | pass | 9 | [pcap](edp/edp_port_nondefault.pcap) |
 | edp_pushdata_binary | 透传二进制不透明载荷 | pass | 10 | [pcap](edp/edp_pushdata_binary.pcap) |
@@ -75,7 +75,7 @@ Cases: 89 — pass 89, fail 0, error 0
 | edp_savedata_type1_flag40 | 存储 type1（flag 0x40） | pass | 10 | [pcap](edp/edp_savedata_type1_flag40.pcap) |
 | edp_savedata_type1_flag80 | 存储 type1（flag 0x80） | pass | 10 | [pcap](edp/edp_savedata_type1_flag80.pcap) |
 | edp_savedata_type1_fulljson | 存储 type1（flag 0xC0） | pass | 10 | [pcap](edp/edp_savedata_type1_fulljson.pcap) |
-| edp_savedata_type1_token | type1 顶层 token 变体（JSON 内容自由度） | pass | 10 | [pcap](edp/edp_savedata_type1_token.pcap) |
+| edp_savedata_type1_token | 存储 type1（flag 0xC0） | pass | 10 | [pcap](edp/edp_savedata_type1_token.pcap) |
 | edp_savedata_type2_bin | type2 Bin flag 0xC0（desc+u32+bin） | pass | 10 | [pcap](edp/edp_savedata_type2_bin.pcap) |
 | edp_savedata_type2_flag40 | type2 Bin flag 0x40（desc+u32+bin） | pass | 10 | [pcap](edp/edp_savedata_type2_flag40.pcap) |
 | edp_savedata_type2_flag80 | type2 Bin flag 0x80（desc+u32+bin） | pass | 10 | [pcap](edp/edp_savedata_type2_flag80.pcap) |
