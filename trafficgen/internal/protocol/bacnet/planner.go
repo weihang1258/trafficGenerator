@@ -311,6 +311,11 @@ func validateSession(sess *core.BACNETSession, si int) error {
 			if ev.WindowSize == 0 {
 				return fmt.Errorf("%s: segmented request needs a proposed window size 1-255, got 0 (window)", ep)
 			}
+			if ev.Value != nil {
+				if err := validateBACNETValue(ep+".value", ev.Value); err != nil {
+					return err
+				}
+			}
 			id := inv.request(ev.InvokeID)
 			if open[id] {
 				return fmt.Errorf("%s: invoke id %d reused while transaction open (invoke)", ep, id)
