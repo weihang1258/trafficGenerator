@@ -3985,3 +3985,13 @@ ICMPv4（RFC 792）反推 8 例（4 正+4 负；链级红例=单测面不占号�
 **P5 已执行（2026-09-23）：** 89/89 ×2 全绿（round-1 70/89 → 校准后全绿）。校准三类：①case 生成器脚本 CONNREQ 漏 u16 协议名长度前缀（0003）——引擎字节恒正确（`10 1e 0003 454450 01 40...` 与契约 §4.1 逐字节吻合），脚本算术错；②边界例 packet_count 漏连接帧（3+2+nseg+4 口径）；③multi_transaction 帧号偏移。链级红例 15（①-⑭+⑮ wire_fault 锚词模型）独立全绿；coverage_gate check_edp 42/42；pipe_gate 四项绿。清库对账：edp 行 61 strategies+305 tasks → 0/0（备份留存）。
 
 **P6 评审链（终审→修轮→复评→第二轮修轮）：** 隔离终审 17 条（C1+H1+M9+L6）→ 修轮逐条落实（红例扩 ①-㉑）→ 复评判 FIXED 15/PARTIAL 2（F3 三块错位残留、F16 carrier_udp notes）/NOT-FIXED 0 + 新发现 N1[M]（§7.6 并发断言纪律与 #56 钉位冲突）+N2[L]（SAVEACK 回带对象口径）→ **第二轮修轮四项**：§2 权威序逐位重排（value_string/object→17/18、datapoint→49、mss_large_bin→57、carrier_udp→83）+ carrier_udp notes 摘除（28 负例键集合恰 {expect_error, error_contains} 复核）+ §7.6 增确定性调度例外（v2.1.2）+ SAVEACK 收紧为真入帧口径（红例㉒ 先红后绿）。终验：89/89 ×2（新二进制）+ 红例 22（①-㉒）全绿 + coverage_gate 46/46 + pipe_gate 静态四项绿 + -race 净。
+
+## T-XMR-1…64 xmrmining 层链接入（#40 D-XMR-1，Monero/RandomX stratum 行式 JSON/TCP 18081，64 例）
+
+**三源回指：** xmrig/xmrig-proxy《STRATUM.md》（唯一成文规范，线格式/方法形态/错误文案 verbatim 出处）+ xmrig-impl（Client.cpp/Job.h：紧凑 JSON 成员序、blob nonce offset39/4B 小端/上界 408B、seed_hash 64 校验、extensions）+ mo-pool protocol.js（现代 job 形态/通知省略 id/keepalive 别名/getjob）→ D-XMR-1 → `test/protocol_pcap/cases/xmrmining.json`（64 例）。ID 权威 = `74-xmrmining-testcase.md` §2（25 正 + 39 负）；本节对账 64 = 25 + 39。
+
+**存量审计（占位 1 例去向，9.14 口径）：** `xmrmining_neg_unregistered` 注册前置占位随注册移除（契约 §1）；无存量语义用例（B6 c477ecc 未落本分支，64 例按契约 §9 逐 ID 新建——契约逐 fixture 常量与行长公式给出精确行预算）。
+
+**测试点清单先行（P3）：** ①接入族：login 全字段基线（id 恒 1 + 现代 job）/login 拒绝错误路径（会话关闭）/extensions/rigid 变体；②任务族：job 通知现代形态（顶层省略 id + algo/height/seed_hash）/legacy 三字段形态；③提交族：submit 接受/拒绝（拒绝会话继续非 critical）/algo/sig+commitment 可选字段（长行 450B）；④保活族：keepalived（status KEEPALIVED）+ keepalive 别名 method；⑤拉取族：getjob（result=job 对象，假设形态标注）；⑥关联族：id 按值配对多事务（1/2/3 递增）、submit session id + job_id 双关联；⑦边界族：blob nonce offset39 4B 小端、blob 407B 满值上界（行 1082B）、target 4/8B 两态、nonce 0/满值、job_id 1500 字符压力行 1892B 跨 MSS 2 段、job+submit 多行粘连单段（653B 段内 2 LF）、IPv4/IPv6 独立 fixture（offset 54/74）；⑧场景族：多会话双四元组展开（独立 session id/job/id 互不串用）、单会话多事务生命周期全链、非默认端口 3333（行字节与基线一致）、并发会话交错回放；⑨负例 39：一行一注入逐行锚词（§7 主锚词钉死——线格式 6/方法 3/params 6/hex 9/状态机 4/关联 6/载体 3/传播 2）。
+
+**断言通道纪律（§7-3）：** fields 只用 `tcp.*`/`ip.version`/`ipv6.nxt`/`frame.*`——**禁用 `json.*` tshark 字段作主断言**（无 XMR 专用 dissector，json.* 仅辅助）；行内容走 `tcp.payload` 全行 hex（含行尾 0a）+ frames offset 54/74 双通道；跨段行按 tcp.stream 重组后断言、不按段断整行；粘连段按 LF 拆行断言段边界≠行边界两方向。

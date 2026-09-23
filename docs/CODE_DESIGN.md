@@ -4431,3 +4431,72 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 - Test: `internal/core/layers/edp_chain_test.go`（链级红例）
 - Reshape: `test/protocol_pcap/cases/edp.json`（占位移除，89 例=61 正+28 负）
 - Regenerate: `schemas/v1/generated/layers.generated.json`（117→118）+ webgen
+
+## D-XMR-1 xmrmining 层链接入（#40，Monero/RandomX stratum 行式 JSON over TCP/18081，64 例）
+
+> 契约权威：`docs/protocol-designs/74-xmrmining-design.md` v2.0.2（v1.3 重审 7C+2N 修复 + 独立复验 9/9 关单）+ `74-xmrmining-testcase.md`；B6 提交 c477ecc 仅作思路参考（不搬代码，本分支按 P-PIPE 重做）。四层出处=①xmrig STRATUM.md（唯一成文规范）②xmrig-impl Client.cpp/Job.h ③mo-pool protocol.js ④公开资料+假设校准（端口 18081/result.id UUID 形态/getjob result 形态）。
+
+### P1 规范矩阵（§4 八项确认态）
+
+| # | 要求（规范要求） | 业务场景 | 代码现状 | 缺口 |
+|---|---|---|---|---|
+| 1 | 连接模型：矿机↔矿池 TCP 明文长连接，行式 JSON 单 LF 定界（无长度前缀无记录头），段边界≠行边界 | 矿场矿机常驻接入 | 无任何接线（registry/protocols/protocol 包/main.go 全空） | 全量新建 |
+| 2 | 消息表：5 类方法 login/job/submit/keepalived/getjob + keepalive 别名 + job 现代/legacy 两形态 + 响应两态 | 接入/收任务/提交/保活/拉任务全链 | 无 | builder 17 行构造器 + 自动派生响应 |
+| 3 | 状态机：五态 Disconnected→TransportReady→LoggingIn→LoggedIn→Closed；login 必首恒 id=1；login 失败 Closed 不得再发 | 确定性回放 + 非法序列拒绝 | 无 | validator 状态机走查（4 负例） |
+| 4 | 字段表：紧凑 JSON 成员顺序钉死（请求 id,jsonrpc,method,params/响应 id,jsonrpc,error,result/通知 jsonrpc,method,params）；hex 值域（blob[43,407]B nonce offset39 4B 小端/target 4\|8B/seed_hash 64/nonce 8/result 64）；job_id/session opaque | 行长公式 §3.8 逐消息可复算 | 无 | Go struct 序=线序 + 值域守卫 |
+| 5 | 错误处理：39 wire_fault 原子拆分（线格式 6/方法 3/params 6/hex 9/状态机 4/关联 6/载体 3/传播 2），主锚词钉死 | 拒绝传播为 task error | 无 | 处置表下表 26 自然+13 仅注入/结构 |
+| 6 | 超时活性：keepalived 业务方法（status KEEPALIVED）；无应用层 PING/重试；RST 不适用统一 FIN | 空闲防断线 | 无 | 如实不适用声明 |
+| 7 | NAT/被动：不适用（单 TCP 长连接矿机主动发起） | — | — | 如实 |
+| 8 | 版本方言：jsonrpc 恒 "2.0"；keepalived 带 jsonrpc 主形态（省略=合法方言不设例）；现代 job 附加字段 algo/height/seed_hash/id 可选 | — | 无 | 无版本矩阵（如实） |
+| 9 | 关联：id 同值回带按值配对（非 TCP 位置）；submit params.id=session id、job_id∈已收 job；通知省略顶层 id | 多事务依赖链 | 无 | validator 关联校验（6 负例） |
+| 10 | 承载/并发：tcp-only 载体；多会话按序整块+第二会话起点=前会话总包+1；concurrent 交错翻案（判例链 cwmp⑦→…→edp）；多流显式不适用 | 多矿机并发接入 | 无 | isXMRChain concurrent 钩 |
+
+### 门 1 开工对照表（§1–§14）
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 目标形状：`{"layers":[{"ip":{"src":"192.0.2.74","dst":"198.51.100.74"}},{"tcp":{"src_port":4074,"dst_port":18081}},{"xmrmining":{"profile":"xmrmining_stratum_v1","sessions":[{"src_port":4074,"dst_port":18081,"events":[{"kind":"login","id":1,"login":"48edf…","pass":"x","agent":"XMRig/6.21.0 …","session_id":"1be0b7b6-…","job":{"blob":"0707…","job_id":"q7PLU…","target":"b88d0600","algo":"rx/0","height":2652853,"seed_hash":"c9aa…"},"status":"OK"}]}],"wire_fault":""}}]}`——顶层旧四元组/count 零残留；顶层 xmrmining 子映射 presence 判死；端口住 tcp 层（18081=FieldContract fixture，非默认显式声明合法） | CheckProtoFlat xmrmining 分支（P4）；契约 §6 |
+| §2 策略/任务 | 框架语义未动；多流走 strategy_fc | 契约 §1 |
+| §3 五件套 | 会话表=sessions[]（四元组/events/concurrent）；事务序列=events[]（kind 五种：login/job/submit/keepalived/getjob——通知 job 无应答不构成事务）；关联=id 同值回带（响应按值配对）+session id 会话键+job_id 作业键三族；插入位置=终结层每事件一行（自动派生响应按契约 §5 规则①-⑤插入）；时间线=login 必首恒 id=1、失败 Closed、多会话整块展开（第二会话起点=前会话总包+1）或 concurrent 交错 | 契约 §4/§5 |
+| §4 查规范 | xmrig STRATUM.md 唯一成文规范+xmrig-impl+mo-pool 三源逐条+假设四处标注——P1 矩阵 10 行 | 契约 §0 |
+| §5 依赖与错误 | DependsOn ["tcp"]；39 锚词闭环（处置表下表） | 契约 §7 |
+| §6 性能 | 行流式渲染零全量收集；大 job_id 行 1892B 跨 MSS 2 段（tcp 层承载）；行长公式 §3.8 全可复算；pcap 路实测（网卡路如实未跑） | 契约 §8 |
+| §7 三份文档 | 74-xmrmining-{design,testcase}.md v2.0.2（行为面权威）+ D-XMR-1（本条目）+ T-XMR（TEST_CASES）+ generated schema | 契约修订记录 |
+| §8 设计先行 | 本条目（P1-P3）先于 P4 实现，独立提交 | 提交序 |
+| §9 测试三源 | 三源=STRATUM.md 行级+D-XMR-1+mo-pool 现网形态；64=25+39 对账；一行一注入原子原则 | T-XMR |
+| §10 评审闭环 | 每阶段对抗自审+收官隔离复审+修轮；红先绿后 | P6 链 |
+| §11 白话 | 每阶段白话一句先行 | 汇报 |
+| §12 动态清单 | 四元组=ip/tcp 层+会话级覆盖；业务字段（login/pass/agent/rigid/session_id/job 对象/nonce/result/extensions）fixture 全钉死（钱包 95 字符/session id 36 字符/错误文案 spec verbatim），无策略动态消费面（声明式回放，mmse/edp 同判）；自动派生响应按契约 §5 显式规则；id 会话内迭代、login 恒 1 | 契约 §3/§5/§6 |
+| §13 schema 派生 | registry xmrmining 行（Fields/FieldContract tcp.dst_port=18081/DependsOn ["tcp"]）→ schemagen 重跑 | 契约 §6 |
+| §14 真实流程 | suite 经 MCP 建任务→引擎生成→tshark `tcp.payload` 全行 hex（含行尾 0a）/offset 54/74 frames 双通道；无 XMR 专用 dissector 禁 `json.*` 主断言；先跑后钉 | 用例 §1 |
+
+### 裁定
+
+1. **裁定1 tcp-only 载体**：行式 JSON 单 LF 定界，无长度前缀无记录头；CRLF/长度前缀/裸无 LF 全负例；UDP/HTTP daemon RPC（monerod 18081 HTTP 形态）边界不实现。
+2. **裁定2 端口**：fixture 18081（daemon RPC 端口，标注"公开资料+假设"；端口非协议识别证据）；3333 显式声明合法通道（正例 24）；未声明非默认端口拒（负例 62，自然守卫）。
+3. **裁定3 通知省略 id**：`job` 通知无顶层 `id` 成员（≠`"id":null`）；断言口径=顶层无 `"id":`（params.id 为 job 对象成员不受限，C-02）；伪 id 仅注入。
+4. **裁定4 自动派生五规则**：login/submit/keepalived/getjob 事件后自动补同 id 响应行（status/error 按事件配置展开）；TCP 握手/FIN 归 tcp 层；submit 拒绝是合法路径会话继续（非 critical），login 拒绝 Closed。
+5. **裁定5 成员顺序钉死**：Go struct 字段序=线序（请求/响应/通知三序）；紧凑形态无空格（xmrig-impl JsonRequest 行为）。
+6. **裁定6 keepalived 双形态**：主形态带 jsonrpc（钉死）；`keepalive` 别名 method 正例 12；省略 jsonrpc 方言不设例不进负例。
+7. **裁定7 hex 值域**：blob 解码 [43,407]B（nonce offset39+4B 小端；407 满值正例 20 与 408 超界负例 44 边界对闭合）/seed_hash 恰 64/target 4|8B/nonce 恰 8/result 恰 64；job_id/session opaque 不套 hex。
+8. **裁定8 状态机**：五态走查进 validator（first_login/submit_before_login/after_login_reject/after_close 四负例全自然面）；生成器遇非法事件必拒不得静默产出。
+9. **裁定9 关联三族**：id 同值回带会话内唯一（复用拒）；session id 会话键（mismatch 拒）；job_id 作业键（unknown 拒）；跨会话可同值不得互消费。
+10. **裁定10 concurrent 翻案沿用**：`concurrent: true` 双矿机交错（正例 25），判例链 cwmp⑦→doh#24→onvif#56→hl7#26→megaco#45→edp 同口径；多流显式不适用（单连接串行）。
+
+### wire_fault 逐值处置表（39 值 = 26 自然面守卫 + 13 仅注入/结构不可达）
+
+- **自然面守卫 26**：method_unknown（kind 白名单拒锚 method）；params_login_missing/params_login_type/params_submit_missing/params_submit_type/params_getjob_missing/params_keepalived_missing（六字段校验）；hex_blob_odd/hex_blob_nonhex/hex_blob_short/hex_blob_overflow/hex_seed_hash/hex_target/hex_nonce/hex_result/hex_prefix（九值域守卫——blob 奇长/非法字符/<43B/≥408B/seed≠64/target 非 4\|8B/nonce≠8/result≠64/0x 前缀）；state_first_login/state_submit_before_login/state_after_login_reject/state_after_close（状态机走查四态）；id_reuse（会话内唯一）；job_unknown（已收 job 集合）；job_session_mismatch（会话 id 等值）；carrier_missing_tcp/carrier_udp（validate_layers 预检）；carrier_port_conflict（端口一致性守卫）。
+- **仅注入/结构不可达 13**：json_truncated/json_unclosed/json_notobject（builder 序列化恒合法）；framing_no_lf/framing_crlf/framing_length_prefix（builder 恒单 LF 收尾）；method_direction/method_btc_array（kind 定方向恒正确/无数组 params 面）；id_resp_mismatch/result_id_missing/id_notify_fake（自动派生恒同值/恒带 result.id/通知结构恒省略 id）；prop_swallowed/prop_fake_success（错误传播过程断言，非配置可表达）。
+- 26+13=39 可复算；P4 落码后如有出入据实勘误（edp 修轮 F6 先例）。
+
+### 文件清单（P4）
+
+- Create: `internal/core/xmrmining.go`（XMR* 类型）+ `internal/protocol/xmrmining/`（builder 紧凑 JSON 17 行构造器/planner 状态机+关联+39 锚词/layer_gen 会话循环+并发钩）
+- Modify: `internal/core/types.go`（FlowSpec.XMR）、`layers/registry.go`（xmrmining 行，118→119）、`layers/validate_layers.go`、`layers/chain_planner_chain.go`（isXMRChain concurrent 钩）、`layers/chain_planner_translate.go`（case xmrmining）、`layers/generator.go`（FlowMeta.XMR）、`internal/core/strategy_convert.go`（判死+parse）、`internal/core/protocols.go`+`protocols_test.go`（白名单）、`cmd/server/main.go`（接线）
+- Test: `internal/core/layers/xmrmining_chain_test.go`（链级红例，数量按 P3 清单定）
+- Reshape: `test/protocol_pcap/cases/xmrmining.json`（占位移除，64 例=25 正+39 负按 §2 权威序）
+- Regenerate: `schemas/v1/generated/layers.generated.json`（118→119）+ webgen
+
+### 执行记录（P4-P6 逐段回填）
+
+- P4/P5/P6 未开工（本条目 P1-P3 定稿即提交；edp 先例：设计先行独立提交，实现、跑测、评审各自独立提交）。
