@@ -468,12 +468,13 @@ func validateEvent(cfg *core.MMSEConfig, sess *core.MMSESession, ev *core.MMSEEv
 
 	// 越表头拒（契约 §3.5 表 1–7：每 PDU 的字段集固定——send-req 才有
 	// Priority、send-conf 才有 Response-Status 等；配置声明越表头即显式
-	// 拒，不静默丢键、不静默落线）。
-	if b.PDUType != 0 {
-		for _, f := range eventFieldCodes(ev) {
-			if !pduFieldAllowance[b.PDUType][f] {
-				return fmt.Errorf("%s: header field code 0x%02x is not permitted on this PDU type (Table 1-7 field sets)", where, f)
-			}
+	// 拒，不静默丢键、不静默落线）。retrieve（GET，PDUType 0）无 PDU 体
+	// ——任何 PDU 头字段声明同拒（终审修轮 F-L4：原 PDUType 0 跳过检查
+	// 致误声明字段被渲染器静默忽略；transaction_id 是配对配置非 PDU 头，
+	// 不在 eventFieldCodes 面）。
+	for _, f := range eventFieldCodes(ev) {
+		if b.PDUType == 0 || !pduFieldAllowance[b.PDUType][f] {
+			return fmt.Errorf("%s: header field code 0x%02x is not permitted on this PDU type (Table 1-7 field sets)", where, f)
 		}
 	}
 

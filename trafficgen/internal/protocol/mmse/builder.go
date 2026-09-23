@@ -13,6 +13,7 @@ package mmse
 import (
 	"encoding/base64"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -603,14 +604,21 @@ func writeHeaders(sb *strings.Builder, host string, hdrs map[string]string, body
 		}
 	}
 	if hdrs != nil {
-		for k, v := range hdrs {
+		// 事件级头按键排序渲染（终审修轮 F-L3：map 迭代序不定，违背文件头
+		// 「同一配置必然产出同一字节序列」声明；固定头已在上文消费）。
+		keys := make([]string, 0, len(hdrs))
+		for k := range hdrs {
 			switch k {
 			case "Content-Type", "Content-Length", "Host":
 				continue
 			}
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
 			sb.WriteString(k)
 			sb.WriteString(": ")
-			sb.WriteString(v)
+			sb.WriteString(hdrs[k])
 			sb.WriteString("\r\n")
 		}
 	}

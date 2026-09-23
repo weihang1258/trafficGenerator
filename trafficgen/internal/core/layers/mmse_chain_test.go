@@ -14,8 +14,8 @@ package layers_test
 // 唯一权威硬证明（auto 计数器线上序列 vs 独立复算全等——megaco/hl7
 // round-2 同法）；⑯carrier_content_type；⑰carrier_port；⑱TID 32B/33B
 // 边界；⑲body_on_bodyless；⑳concurrent 双会话；㉑Content-Length parity；
-// ㉓PDU 字段集越表头拒；
-// ㉒GET URI 自动派生③；㉓越表头即拒（表 1–7 字段集）。
+// ㉒GET URI 自动派生③；㉓越表头即拒（表 1–7 字段集）；㉔未知 kind 自然面拒
+//（终审修轮 F-L2 补——原⑳计划漏提交）。
 
 import (
 	"context"
@@ -608,7 +608,7 @@ func TestMMSEChain_CarrierContentTypeGuard(t *testing.T) {
 }
 
 // 红例⑰【D-MMSE-1 裁定3】：WSP/Push 端口配 http 载体 → carrier_port 拒
-//（锚 port）。
+// （锚 port）。
 func TestMMSEChain_CarrierPortGuard(t *testing.T) {
 	raw := mmseChain(t, mmseConf(mmseSession("ua", []map[string]interface{}{
 		mmseSendReq("P-1"),
@@ -642,7 +642,7 @@ func TestMMSEChain_BodyOnBodyless(t *testing.T) {
 }
 
 // 红例⑳【D-MMSE-1 C-1】：concurrent 双会话——双四元组各自 POST 落线
-//（生成器 round-robin 交错 + tcp 层 concurrent 由链钩切换）。
+// （生成器 round-robin 交错 + tcp 层 concurrent 由链钩切换）。
 func TestMMSEChain_ConcurrentSessions(t *testing.T) {
 	cfg := mmseConf(
 		mmseSession("ua", []map[string]interface{}{
@@ -708,5 +708,16 @@ func TestMMSEChain_GetURIAutoDerived(t *testing.T) {
 	mustContain(t, body, "GET /mms/MSG20260901001 HTTP/1.1")
 	if strings.Count(body, "G-N") < 2 {
 		t.Fatalf("immediate retrieve must reuse the notification TID on the retrieve-conf\nwire: %q", body[:min(400, len(body))])
+	}
+}
+
+// 红例㉔【D-MMSE-1 终审修轮 F-L2】：未知 kind 自然面拒（pdu_type_unassigned
+// 锚 message-type）——原 P4 计划红例⑳漏提交；守卫在位（PL resolveOne
+// kindShape 查表拒），此例钉其自然面执法。
+func TestMMSEChain_UnknownKindNatural(t *testing.T) {
+	if err := validateRaw(t, mmseChain(t, mmseConf(mmseSession("ua", []map[string]interface{}{
+		{"kind": "retrieve_status_ind"},
+	}, nil)))); err == nil || !strings.Contains(err.Error(), "message-type unknown") {
+		t.Fatalf("unknown kind must reject with anchor `message-type unknown`, got %v", err)
 	}
 }

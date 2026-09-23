@@ -41,7 +41,8 @@ type MMSEConfig struct {
 	// length_uintvar_over|length_value_length|length_tid_over|value_priority|
 	// value_status|value_message_class|value_response_status|value_read_status|
 	// value_yesno|value_reply_charging|value_empty_string|value_charset|
-	// value_previously_sent|value_notif_expiry_absolute.
+	// value_previously_sent|value_notif_expiry_absolute|
+	// value_application_header（终审修轮补登：注释枚举应含全部 55 值）.
 	WireFault string `json:"wire_fault,omitempty"`
 }
 

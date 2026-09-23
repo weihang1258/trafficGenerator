@@ -525,9 +525,20 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 			// mmse 链并发会话语义（cwmp 同款）：spec.MMSE.Concurrent（或任
 			// 一会话级声明）→ tcp 层 concurrent=true——否则顺序挥旧握新会把
 			// round-robin 交错的会话切换搅成 teardown+重握手风暴（D-MMSE-1
-			// 裁定2，契约 §5 并发会话）。
-			if isMMSEChain(chain) && spec.MMSE != nil && spec.MMSE.Concurrent {
-				cfg["concurrent"] = true
+			// 裁定2，契约 §5 并发会话）。会话级声明与 config 级同语义
+			//（layer_gen 会话级 flag 升级全局交错——终审修轮 F-L5 对齐：
+			// tcp 透传同步认会话级，免交错+顺序 tcp 风暴不一致）。
+			if isMMSEChain(chain) && spec.MMSE != nil {
+				mmseConcurrent := spec.MMSE.Concurrent
+				for i := range spec.MMSE.Sessions {
+					if spec.MMSE.Sessions[i].Concurrent {
+						mmseConcurrent = true
+						break
+					}
+				}
+				if mmseConcurrent {
+					cfg["concurrent"] = true
+				}
 			}
 			// nmea 链会话级 termination:"rst" 翻译（69-nmea §5 正例 46）：
 			// 任一会话声明 rst 即切 tcp 层 RST 形态——rst=true 使

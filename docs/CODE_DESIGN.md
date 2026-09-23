@@ -4125,7 +4125,7 @@ F1/F3/F4/F5/F6 五项闭合经独立复现确认（12 面探针/双向突变/8 �
 - Modify: `internal/core/types.go`（FlowSpec.HL7）、`layers/registry.go`（hl7 行，七→八键）、`layers/chain_planner.go`（carrier/port 块）、`layers/chain_planner_translate.go`（case+flowMetaFor）、`layers/generator.go`（FlowMeta.HL7）、`internal/core/strategy_convert.go`（判死+在库 switch）、`internal/core/protocols.go`+`protocols_test.go`（白名单）、`cmd/server/main.go`（接线）
 - Test: `internal/core/layers/hl7_chain_test.go`（链级红例，megaco 21 例先例同构 + parity/边界/非缺省钉值前置）
 - Reshape: `test/protocol_pcap/cases/hl7.json`（B6 95 例层链整形：四元组进 ip/tcp 层、hl7 子映射进 hl7 层、占位例移除）
-- Regenerate: `schemas/v1/generated/layers.generated.json`（115→116）+ webgen
+- Regenerate: `schemas/v1/generated/layers.generated.json`（116→117）+ webgen
 - Tools: `tools/pipe_gate.sh`（hl7 自键组）、`tools/coverage_gate.py`（check_hl7）
 
 ### wire_fault 逐值处置表（裁定4；P4 落码同步——33 值 = 19 自然面守卫 + 14 书面豁免）
@@ -4251,7 +4251,7 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 | §10 评审闭环 | 改→审→测→修→再审；主线程相位自审 + 收官隔离终审（megaco 五轮/hl7 三轮链同流程）；测试四问 | T-MMSE；门 3 抽查 |
 | §11 白话汇报 | 先一句结论；锚词/突变实录 | 每次汇报 |
 | §12 动态清单 | 四元组：ip 层 src/dst + tcp 层 src_port/dst_port + 会话级四键覆盖（src_ip/dst_ip/src_port/dst_port——mmsc 回放方向独立四元组）；业务动态：`transaction_id` 三形态（显式串 \| "auto" config 全局计数器 MMSE-N-%04d 式跨会话唯一 \| `same_as_notification:<i>`/send_conf MsgID `same_as_send_conf:<i>` 引用）与 `message_id`（显式 \| "auto" mmsc-msg-N 式）——序号算法=protocol/mmse planner sessionTx resolve（**validator 关联校验与生成器渲染同函数同序**，megaco sessionTxState/hl7 dynamic.go 先例）；日期=显式 epoch 配置值（无墙钟）；断言 presence/nonzero/same_as_packet/distinct | 契约 §5 确定性声明；§12 表；用例 mmse_tid_max_32（显式）+ mmse_send_conf_ok（auto+same_as_packet） |
-| §13 schema 同步 | registry 新增 mmse 行 → schemagen 重跑提交（115→116）+ freshness 五面比对（megaco 先例：type/min/max/default 全比） | `layers.generated.json` |
+| §13 schema 同步 | registry 新增 mmse 行 → schemagen 重跑提交（116→117）+ freshness 五面比对（megaco 先例：type/min/max/default 全比） | `layers.generated.json` |
 | §14 真实流程 | cases 即任务 spec；MCP 建任务→引擎→tshark（**Content-Type 触发 mmse 解码，无 DecodeAs 依赖**——8002 非默认端口正例同断言集）；负例带锚词 task error；全量绿；pcap 落盘 | 契约 §2/§9；门 2 |
 
 ### 缺口清单与裁定（P2）
@@ -4262,7 +4262,7 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 - **裁定1 协议身份**：mmse 单准入名（无别名族）；白名单收 mmse + negativeOnly 摘除（红先绿后）。
 - **裁定2 载体**：http 族第 5 协议——`[tcp,http,mmse]`（DependsOn [tcp,http] 自动补全；v6 fixture 走 ip 层 src/dst v6 形）；udp 载体经通用 transport-duplicated 判定拒（mmse DependsOn [http] 非 tcp-only 判定族成员——tcp 重复挂载同锚 carrier）；缺 http 结构不可达（DependsOn 补全）→ carrier_no_http 书面豁免 + validate_layers 预检纵深。Content-Type 恒 `application/vnd.wap.mms-message`（事件 http 覆盖偏离即拒——carrier_content_type 守卫）。
 - **裁定3 端口**：80 缺省（FieldContract 常量）；显式覆盖合法（`mmse_port_nondefault` 8002 正例）；WSP/WAP Push 端口 9200/9201/2948 与 http 载体矛盾 → carrier_port 拒锚 port；会话级 DstPort 覆盖同语义。
-- **裁定4 wire_fault**：55 值闭环枚举（契约 §6/§7/用例 §5 三方同序同词，B6 与契约同代无改名面）；validator 即拒+主锚词；40 守卫 + 14 豁免处置表（下表，P4 落码同步）。
+- **裁定4 wire_fault**：55 值闭环枚举（契约 §6/§7/用例 §5 三方同序同词，B6 与契约同代无改名面）；validator 即拒+主锚词；40 守卫 + 15 豁免处置表（下表，P4 落码同步；终审修轮算术勘误 40+15=55）。
 - **裁定5 事务关联唯一权威**：sessionTx 状态机——TID resolve 三形态（显式串/"auto" config 全局计数器 MMSE-N-%04d 跨会话唯一，B6 mmseGenState 同款/引用 `same_as_notification:<i>` 0 基跨会话）+ MsgID 回指（delivery/read-rec 必须解析到既有 send-conf 的 Message-ID：显式等值或 `same_as_send_conf:<i>` 0 基；auto 分配形 mmsc-msg-N）+ 跨会话配对回退（notifyresp→全局最近通知、ack→全局最近 retrieve——通知/确认骑独立连接的 §6 用例形状，B6 corr 同构）；validator 关联校验与生成器渲染**同函数同序**（megaco U1/U2 教训）；延迟取回新 TID 显式配置（validate 两值互异）；ack TID 取自紧邻前一 retrieve。
 - **裁定6 动态值口径**：契约 §5 确定性声明——无墙钟、无策略对象（与 hl7 不同：mmse 日期为显式配置值）；"auto" 计数器确定序可复算；断言面 nonzero/same_as_packet/精确配置值三档。
 - **裁定7 multipart 不变式**：headersLen/dataLen 由 builder 按实际编码产出（豁免面）；partNum=len(parts) 派生（≤127 恰等正例 + 128 越界守卫 + 0/失配豁免——注入唯一入口）；start 引用存在性守卫；长度自洽 Σ 校验 validator；N-6 参数编在 Content-type-value Value-length 之内（builder 实现警告落地）。
@@ -4270,16 +4270,22 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 - **裁定9 megaco/hl7 教训前置**：①关联/序号一处三面共用（sessionTx）；②长度与关联类拒绝住 Validate 同步面（Plan goroutine 吞生成器错误成空流）；③红例断言钉非缺省可辨识值（profile/mms_version/自定义字符串）；④schemagen 重跑 + freshness 五面比对随 registry 变更强制；⑤B6 builder 编码语义照契约 §3.3 重写（定宽补零策略：Date-value 恒 4B、Delta-seconds/Message-Size 恒 3B）。
 - **回滚**：提交次序=代码接入→suite/gate→文档；单提交粒度可摘。
 
+### 门 3 验收抽查（P6，2026-09-23 实测回填）
+
+1. **裁定5 sessionTx 同源**——`buildTxBindings` 单函数三消费面：定义 planner.go:287、validator 调用（Validate 主路径）、生成器 layer_gen.go:89（绑定预计算与回放同源）；红例⑮（mmse_chain_test.go TestMMSEChain_TxAuthorityParity）独立复算 config 全局计数器硬证明（MMSE-N-0001×2 + MMSE-N-0002×2 + mmsc-msg-1/2 逐值落线断言）。
+2. **§1/裁定3 Host 载荷语义**——layer_gen.go:65-68（meta.DstIP 空回退 198.51.100.71）+ 落盘实测：mmse_send_req_ipv4（会话无 dst_ip=回退路径）`tshark -e http.host` = `198.51.100.71`（frame 4）；响应帧无 Host=send_conf_ok pin 140B 可复算。
+3. **§4 矩阵第 2 行逐 kind 字段序**——builder.go:443（priority）先于 :454（fExpiry appendTime）；落盘实测 mmse_time_absolute_form frame 4 偏移 0xf0 起 hex `8a 80 | 8f 81 | 88 06 80 04…`（class→priority→Expiry 绝对形 4B 定宽）与用例 frames pin offset 246 命中（suite 绿）。
+
 ### 文件清单（P4）
 
 - Create: `internal/core/mmse.go`（MMSE* 类型，契约 §6 对齐：config/session/event/from/subject/time/content/part 七级）+ `internal/protocol/mmse/`（builder 编码原语/planner 校验+sessionTx/layer_gen 会话循环，B6 借鉴重写：裁定9 五前置内建）
-- Modify: `internal/core/types.go`（FlowSpec.MMSE）、`layers/registry.go`（mmse 行，115→116）、`layers/validate_layers.go`（carrier 预检）、`layers/chain_planner.go`（carrier/port 块）、`layers/chain_planner_chain.go`（isMMSEChain concurrent 钩）、`layers/chain_planner_translate.go`（case mmse + flowMetaFor strict decode→ValidationErrors）、`layers/generator.go`（FlowMeta.MMSE）、`internal/core/strategy_convert.go`（判死+在库 switch）、`internal/core/protocols.go`+`protocols_test.go`（白名单）、`cmd/server/main.go`（接线）
+- Modify: `internal/core/types.go`（FlowSpec.MMSE）、`layers/registry.go`（mmse 行，116→117）、`layers/validate_layers.go`（carrier 预检）、`layers/chain_planner.go`（carrier/port 块）、`layers/chain_planner_chain.go`（isMMSEChain concurrent 钩）、`layers/chain_planner_translate.go`（case mmse + flowMetaFor strict decode→ValidationErrors）、`layers/generator.go`（FlowMeta.MMSE）、`internal/core/strategy_convert.go`（判死+在库 switch）、`internal/core/protocols.go`+`protocols_test.go`（白名单）、`cmd/server/main.go`（接线）
 - Test: `internal/core/layers/mmse_chain_test.go`（链级红例，megaco/hl7 先例同构 + 非缺省钉值/突变矩阵前置）
 - Reshape: `test/protocol_pcap/cases/mmse.json`（B6 100 例层链整形：四元组进 ip/tcp 层、mmse 子映射进 mmse 层、占位例移除）
-- Regenerate: `schemas/v1/generated/layers.generated.json`（115→116）+ webgen
+- Regenerate: `schemas/v1/generated/layers.generated.json`（116→117）+ webgen
 - Tools: `tools/pipe_gate.sh`（mmse 自键组）、`tools/coverage_gate.py`（check_mmse）
 
-### wire_fault 逐值处置表（裁定4；P4 落码同步——55 值 = 40 自然面守卫 + 14 书面豁免）
+### wire_fault 逐值处置表（裁定4；P4 落码同步——55 值 = 40 自然面守卫 + 15 书面豁免）
 
 自然面守卫 = 自然配置可表达同一故障且 validator 同步拒绝；书面豁免 = builder 恒产合法线格式 / 派生值不可配 / 结构不可达，注入通道唯一入口。
 
@@ -4313,6 +4319,6 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 | value_previously_sent | previously_sent 族键出现在配置（未知键严格拒） | previously-sent |
 | value_notif_expiry_absolute | 通知 expiry 绝对形态（表 3 仅 interval） | expiry |
 
-**书面豁免（14 值）：** carrier_no_http（DependsOn [tcp,http] 补全恒供给——结构不可达，validate_layers 预检为纵深位）；head_order_tid_first/head_order_version_missing/head_first_not_8c（builder 首三头 `8C 98 8D` 固定序恒产——头序不可配）；pdu_type_unsupported（kind 枚举仅覆盖 8 支持值，0x88–0x93 无配置表达面）；content_type_missing（体 PDU 的 Content-Type 头 builder 恒补收尾）；multipart_headers_len/multipart_data_len/multipart_partnum_zero/multipart_partnum_mismatch（三值均 builder 按实际编码/len(parts) 派生，不可配——注入唯一入口）；length_long_int_zero/length_uintvar_over/length_value_length（长度字节=0、Uintvar >4B 载荷（需 ≥2^28 数据）、Value-length 失配均 builder 恒正确编码——注入唯一入口）；value_yesno（配置面为布尔类型，wire 0x80/0x81 映射不变式，域外字节无自然配置面——注入唯一入口）。
+**书面豁免（14 值）：** carrier_no_http（DependsOn [tcp,http] 补全恒供给——结构不可达，validate_layers 预检为纵深位）；head_order_tid_first/head_order_version_missing/head_first_not_8c（builder 首三头 `8C 98 8D` 固定序恒产——头序不可配）；pdu_type_unsupported（kind 枚举仅覆盖 8 支持值，0x88–0x93 无配置表达面）；content_type_missing（体 PDU 的 Content-Type 头 builder 恒补收尾）；multipart_headers_len/multipart_data_len/multipart_partnum_zero/multipart_partnum_mismatch（三值均 builder 按实际编码/len(parts) 派生，不可配——注入唯一入口）；length_long_int_zero/length_uintvar_over/length_value_length（长度字节=0、Uintvar >4B 载荷（需 ≥2^28 数据）、Value-length 失配均 builder 恒正确编码——注入唯一入口）；value_yesno（配置面为布尔类型，wire 0x80/0x81 映射不变式，域外字节无自然配置面——注入唯一入口）；value_application_header（application-header 头本版无配置表达面——终审修轮补登，注入唯一入口）。
 
-（守卫 40 = carrier 3 + pdu 1 + body 1 + mandatory 11 + multipart 2 + 关联 5 + 顺序 4 + 长度 3 + 值域 10；豁免 14 = carrier 1 + header 3 + pdu 1 + ctype 1 + multipart 4 + 长度 3 + 值域 1。40+14=55 与契约 §7 逐行对齐。）
+（守卫 40 = carrier 3 + pdu 1 + body 1 + mandatory 11 + multipart 2 + 关联 5 + 顺序 4 + 长度 3 + 值域 10；豁免 15 = carrier 1 + header 3 + pdu 1 + ctype 1 + multipart 4 + 长度 3 + 值域 2。40+15=55 与契约 §7 逐行对齐——终审修轮 F-M1 算术勘误：原 40+14=54 漏 value_application_header。）
