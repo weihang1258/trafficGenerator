@@ -248,6 +248,12 @@ func isMMSEChain(chain []Layer) bool {
 	return len(chain) > 0 && chain[len(chain)-1].Name == "mmse"
 }
 
+// isEDPChain reports whether the chain's terminal layer is edp
+// (D-EDP-1: [ip,]tcp,edp concurrent hook + tcp-only carrier family).
+func isEDPChain(chain []Layer) bool {
+	return len(chain) > 0 && chain[len(chain)-1].Name == "edp"
+}
+
 func hasLayer(chain []Layer, name string) bool {
 	for _, l := range chain {
 		if l.Name == name {

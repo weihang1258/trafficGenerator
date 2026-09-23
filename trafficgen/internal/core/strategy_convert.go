@@ -731,6 +731,16 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// the user did not specify a dst_port — matches the DNS override
 		// pattern.
 		setDefaultDstPort(&spec, cfg, 21)
+	case "edp":
+		// EDP (OneNET Enhanced Device Protocol): TCP-only family.
+		// Config is carried in the edp layer sub-map; top-level edp key
+		// is rejected by CheckProtoFlat.
+		if sub, ok := cfg["edp"].(map[string]interface{}); ok {
+			spec.EDP = parseEDPConfig(sub)
+		}
+		// EDP defaults to port 4472. Only override when the user did not
+		// specify a dst_port.
+		setDefaultDstPort(&spec, cfg, 4472)
 	case "sip":
 		if sub, ok := cfg["sip"].(map[string]interface{}); ok {
 			spec.SIP = &SIPConfig{
@@ -8273,6 +8283,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 			return "protocol mmse no longer accepts a top-level mmse sub-config (move it into the mmse layer of an [ip,tcp,http,mmse] layers chain; WAP-209 PDU config lives in the mmse layer)"
 		}
 	}
+	// D-EDP-1：edp 顶层 edp 子映射 presence 判死（mmse 先例；空 map 也
+	// 死——B6 扁平注入形退役，配置迁 edp 层三键）。层链形状不触发。
+	if protocol == "edp" {
+		if v, ok := cfg["edp"]; ok && v != nil {
+			return "protocol edp no longer accepts a top-level edp sub-config (move it into the edp layer of an [ip,tcp,edp] layers chain; OneNET EDP framing lives in the edp layer)"
+		}
+	}
 	// D-SMTP-1：smtp 顶层 smtp 子映射 presence 判死（mqtt 先例；空 map 也
 	// 死）。层链形状不触发。
 	if protocol == "smtp" {
@@ -8530,4 +8547,72 @@ func getTxDataChannelMap(m map[string]interface{}, si, ti int) map[string]interf
 		return nil
 	}
 	return dcm
+}
+
+// parseEDPConfig converts the JSON-decoded "edp" sub-map into an *EDPConfig.
+// Returns nil for absent/non-map input. Empty fields are left empty so
+// the planner can apply its own defaults.
+func parseEDPConfig(m map[string]interface{}) *EDPConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &EDPConfig{
+		Profile:    getString(m, "profile"),
+		WireFault:  getString(m, "wire_fault"),
+		Concurrent: getBool(m, "concurrent", false),
+	}
+	if sessArr, ok := m["sessions"].([]interface{}); ok {
+		for _, si := range sessArr {
+			sessm, ok := si.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			sess := EDPSession{
+				SrcIP:      getString(sessm, "src_ip"),
+				DstIP:      getString(sessm, "dst_ip"),
+				SrcPort:    getUint16(sessm, "src_port"),
+				DstPort:    getUint16(sessm, "dst_port"),
+				Concurrent: getBool(sessm, "concurrent", false),
+				Coalesce:   getBool(sessm, "coalesce", false),
+			}
+			if evArr, ok := sessm["events"].([]interface{}); ok {
+				for _, ei := range evArr {
+					evm, ok := ei.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					ev := EDPEvent{
+						Kind:       getString(evm, "kind"),
+						Auth:       getString(evm, "auth"),
+						Devid:      getString(evm, "devid"),
+						APIKey:     getString(evm, "apikey"),
+						UserID:     getString(evm, "userid"),
+						AuthInfo:   getString(evm, "authinfo"),
+						KeepTime:   getUint16Ptr(evm, "keep_time"),
+						ConnackRtn: getIntPtr(evm, "connack_rtn"),
+						Direction:  getString(evm, "direction"),
+						DevidFlag:  getInt(evm, "devid_flag"),
+						MsgIDFlag:  getInt(evm, "msgid_flag"),
+						MsgID:      getUint16Ptr(evm, "msg_id"),
+						Format:     getInt(evm, "format"),
+						JSONStr:    getString(evm, "json"),
+						Desc:       getString(evm, "desc"),
+						BinB64:     getString(evm, "bin_b64"),
+						ErrCode:   getIntPtr(evm, "err_code"),
+						DataB64:   getString(evm, "data_b64"),
+						CmdID:     getString(evm, "cmdid"),
+						ReqB64:    getString(evm, "req_b64"),
+						RespB64:   getString(evm, "resp_b64"),
+						WireFault: getString(evm, "wire_fault"),
+					}
+					if ackVal, ok := evm["ack"].(bool); ok {
+						ev.Ack = &ackVal
+					}
+					sess.Events = append(sess.Events, ev)
+				}
+			}
+			cfg.Sessions = append(cfg.Sessions, sess)
+		}
+	}
+	return cfg
 }

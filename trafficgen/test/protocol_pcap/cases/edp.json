@@ -2,7 +2,7 @@
   {
     "id": "edp_neg_unregistered",
     "proto": "edp",
-    "summary": "EDP layer is not registered yet; reject at layer validation",
+    "summary": "EDP is a negative-only placeholder; top-level flat keys rejected by CheckProtoFlat",
     "spec_json": {
       "layers": [
         {
@@ -19,9 +19,9 @@
     },
     "expect": {
       "expect_error": true,
-      "error_contains": "unknown layer",
+      "error_contains": "no longer accepts flat config field",
       "notes": [
-        "Design-only gate: edp is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove it and add the 14 positive and 6 negative semantic cases in testcase order."
+        "Design-only gate: edp is not registered in the layer registry. Top-level src_ip/dst_ip/src_port/dst_port rejected by CheckProtoFlat (Step 1泛化)."
       ]
     }
   }

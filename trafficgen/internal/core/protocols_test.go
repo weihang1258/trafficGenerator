@@ -53,6 +53,9 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		// 71-mmse（D-MMSE-1）：layer/planner 注册后准入（占位用例同步替换
 		// 为 100 语义用例）。
 		"mmse",
+		// 72-edp（D-EDP-1）：layer/planner 注册后准入（占位用例同步替换
+		// 为 89 语义用例）。
+		"edp",
 	}
 	sort.Strings(want)
 
@@ -82,7 +85,9 @@ func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 		// D-KINGBASE-1 裁定1：协议身份退役（唯一形态 = postgresql 层
 		// dialect=kingbase）——must remain rejected，防复活。
 		"kingbase",
-		"bacnet", "dcerpc", "dtls", "edp",
+		"bacnet", "dcerpc", "dtls",
+		// D-EDP-1：edp 已注册 layer/planner，摘出 negativeOnly（89 语义
+		// 用例落地，占位例随之移除——契约 §1）。mmse/hl7/megaco 先例。
 		// D-MMSE-1：mmse 已注册 layer/planner，摘出 negativeOnly（100 语义
 		// 用例 P5 落地，占位例随之移除——契约 §1）。hl7/megaco 先例。
 		"kerberos", "ntlm", "ocsp",

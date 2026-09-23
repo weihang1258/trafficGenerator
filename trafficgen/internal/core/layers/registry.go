@@ -716,6 +716,16 @@ func buildDefaultRegistry() {
 			"wire_fault":  {Type: "string", Default: ""}, // 闭环 55 值枚举（契约 §7 表）；""=无故障
 		},
 	})
+	r.Register(LayerSchema{Name: "edp", Category: CategoryTerminal,
+		DependsOn:     []string{"tcp"},
+		FieldContract: map[string]string{"tcp.dst_port": "4472"},
+		Fields: map[string]FieldSchema{
+			"profile":     {Type: "string", Default: ""},  // edp_tcp_plain_v1（缺省）/ edp_ipv6_v1
+			"concurrent":  {Type: "bool", Default: false}, // 双会话交错回放（v2.1 C-2 翻案）
+			"sessions":    {Type: "list", Default: []interface{}{}},
+			"wire_fault":  {Type: "string", Default: ""}, // 28 值枚举（D-EDP-1 §7 表）；""=无故障
+		},
+	})
 	r.Register(LayerSchema{Name: "cql", Category: CategoryTerminal, DependsOn: []string{"tcp"}})
 	r.Register(LayerSchema{Name: "iec104", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "2404"},

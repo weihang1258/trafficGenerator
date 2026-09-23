@@ -22,7 +22,7 @@ var allowedProtocols = map[string]bool{
 	"a2a": true, "amqp": true, "arp": true, "bgp": true,
 	"cflow": true, "coap": true, "cql": true, "dameng": true,
 	"dhcp": true, "dhcpv6": true, "dnp3": true, "dns": true,
-	"doip": true, "drda": true, "enip": true, "fins": true,
+	"doip": true, "drda": true, "edp": true, "enip": true, "fins": true,
 	"ftp": true, "gbt32960": true, "goose": true, "gre": true,
 	"grpc": true, "gtp": true, "h323": true, "hds": true,
 	"hl7": true,
