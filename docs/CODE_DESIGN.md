@@ -4212,3 +4212,104 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 - **O4 Name 含 @token 病态替换**：登记不改——病态配置面，占位符表四键固定，Name 仅经 @name 上线。
 - **O5 nextCtrlID/ctrlSeq 死代码**：删除（残项批，权威已迁 dynState.seq）。
 - **O6 配置/会话级 ack coerce 无链例钉**：登记——round 2 探针已补证三面落线；事件级链例⑮为套件面代表（配置/会话级同函数同路径）。
+
+## D-MMSE-1 mmse 层链接入（#38，WAP-209 MMSEncapsulation HTTP 承载，100 例）
+
+> mmse（多媒体消息服务封装，MM1 接口 MMS PDU 二进制编码，WAP-209 + OMA-MMS-ENC）= 终结层接入：`[tcp,http,mmse]`（引擎补 ip；**http 族第 5 协议**，cwmp/doh/onvif/gbt 同款透传变换器——mmse 事件字节已是完整 HTTP 帧）。行为面权威 = `docs/protocol-designs/71-mmse-design.md` v2.1.0 + `71-mmse-testcase.md`（100 语义 ID = 45 正 + 55 负，rr v1.3 行为面全枚举 138 点修复稿）。B6 参考（4fb973f）作 builder 编码语义与用例形状借鉴，**不搬代码**（契约与 B6 同代 v2.1.0，无 hl7 式枚举改名问题）。
+
+### P1 规范矩阵（§4 八项确认态）
+
+| 项 | 要求 | 现状 | 缺口 |
+|---|---|---|---|
+| 1 连接模型 | HTTP/1.1 明文 TCP/80（MMSC URL 端口可配置，fixture 缺省 80/正例 8002）；keep-alive 多事务严格配对 | registry 行 FieldContract tcp.dst_port=80；mmse 解码经 HTTP Content-Type 触发**与端口无关、无 DecodeAs 依赖**（tshark 实测 C-5） | 无 |
+| 2 命令/消息表 | 8 类 PDU（m-send-req/conf、notification/notifyresp-ind、retrieve-conf、acknowledge-ind、delivery-ind、read-rec-ind）+ 1.1+ 扩展 PDU（0x88–0x93）不产生边界 | 契约 §3.5 表 1–7 + §1 收窄声明 | 无 |
+| 3 状态机 | 请求/响应严格交替（无 pipelining）；TID 配对三族（send-req↔conf、notif→notifyresp、retrieve→ack）+ MsgID 回指两族（delivery/read-rec → send-conf）；延迟取回新 TID | 契约 §5 取材规则逐对 | 无 |
+| 4 字段表 | 头字段代码表 28 项（线码 0x80\|编号，§3.4）+ 编码原语七种（§3.3：Short/Long-integer 大端、Uintvar LSB 组先、Value-length 0x1F+Uintvar、Text-string Quote、Encoded-string-value、Date-value、绝对/相对 token） | builder 编码 | 无 |
+| 5 错误处理 | 55 wire_fault 闭环锚词（carrier4/header3/pdu2/ctype2/mandatory11/multipart6/关联5/顺序4/长度6/值域12） | 契约 §7 表逐行主锚词钉死 | 无 |
+| 6 超时与活性 | NA（声明式回放无超时语义；**不产生 RST**，C-3；重连/重试不适用 C-6⑤） | 如实 | 无 |
+| 7 NAT/被动 | 不适用 | 如实 | 无 |
+| 8 版本方言 | 1.0/1.2/1.3 线码 0x90/0x92/0x93（N-1 口径，缺省 1.2）；1.1+ 字段（Retrieve-Status 族、Reply-Charging 族、Previously-Sent 族）不产生 | mms_version 声明校验 + §1 收窄 | 无 |
+| **承载面** | 层链唯一真相 | B6 扁平四元组+顶层 mmse 子映射 → presence 判死（cwmp/doh/onvif 同族先例） | 无 |
+| **动态值面** | TID/MsgID = 显式配置值 \| "auto" 会话计数器 \| "same_as_send_conf:\<i\>" 引用形；日期 = 显式 epoch（**确定性：无墙钟依赖**，契约 §5）；断言 nonzero/same_as_packet/精确值 | §6 fixture + §5 确定性声明 | 无 |
+
+### 门 1 开工对照表（§1–§14，三道硬门之门 1——P2 先行不收官回填；证据=文档节/代码行/用例号）
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 顶层旧键零残留；顶层 mmse 子映射 presence 判死。目标形状（mmse 层键面全列）：`{"layers":[{"ip":{"src":"192.0.2.71","dst":"198.51.100.71"}},{"tcp":{"src_port":40710,"dst_port":80}},{"http":{}},{"mmse":{"profile":"mmse_http_v1","mms_version":"1.2","concurrent":false,"sessions":[{"role":"ua","src_ip":"192.0.2.71","dst_ip":"198.51.100.71","src_port":40710,"dst_port":80,"events":[{"kind":"send_req","transaction_id":"auto","date":1725000000,"from":{"address":"+8613800138000/TYPE=PLMN"},"to":["+8613911223344/TYPE=PLMN"],"subject":{"text":"MMSE check","charset":106},"message_class":"personal","priority":"normal","expiry":{"relative":3600},"sender_visibility":"show","delivery_report":true,"read_reply":true,"content":{"kind":"multipart_related","start":"<smil.smil>","type":"application/smil","parts":[{"content_type":"application/smil","content_id":"<smil.smil>","data_b64":"PHNtaWw+"},{"content_type":"text/plain","charset":106,"name":"text_1.txt","content_id":"<text_1.txt>","content_location":"text_1.txt","data":"Hello MMSE world"}]}},{"kind":"send_conf","transaction_id":"auto","response_status":"ok","message_id":"auto"}]},{"role":"mmsc","src_ip":"198.51.100.71","dst_ip":"192.0.2.72","src_port":40711,"dst_port":80,"events":[{"kind":"notification_ind","transaction_id":"MMSC-N-0007","from":{"address":"+8613900139000/TYPE=PLMN"},"message_class":"personal","message_size":4800,"expiry":{"relative":921600},"content_location":"http://mmsc.example/mms/MSG20260901001"}]}],"wire_fault":""}}]}` | `CheckProtoFlat` mmse 分支（P4 落码）；门 2-1 脚本 |
+| §2 策略/任务分工 | mmse 无子流派生端口（流关联显式不适用——消息体带内，契约 §4）；多流走 `flow_control`；会话编排住 mmse 层 `sessions[]`（role ua/mmsc + 会话级四元组覆盖含 src_ip/dst_ip——回放语义需独立四元组） | registry 行；T-MMSE 用例面 |
+| §3 五件套 | 会话表=`sessions[]`（role/四元组覆盖/events）；事务序列=`events[]`（kind 九种：send_req/send_conf/notification_ind/notifyresp_ind/retrieve/retrieve_conf/acknowledge_ind/delivery_ind/read_rec_ind——retrieve 为 GET，URI 自动取引用通知的 content_location）；关联=TID 配对三族 + MsgID 回指两族（`same_as_send_conf:<i>` 引用形）；插入位置=链终结层每 PDU 一事件（http 层透传转发，gbt/getwork/cwmp/doh/onvif 同款）；时间线=会话内请求/响应严格交替，多会话按序整块回放（第二会话握手包号=前会话总包数+1）或 `concurrent:true` 按事件下标交错 | 契约 §5 状态机表+取材规则；§6 typedef |
+| §4 规范矩阵 | 上表 10 行（WAP-209 §3–§8 + OMA-MMS-ENC 1.1 边界 + WAP-206 事务流） | 本条目 P1 矩阵 |
+| §5 有错必处理 | 55 wire_fault 闭环锚词 validator 即拒（carrier/header/pdu/ctype/mandatory/multipart/关联/顺序/长度/值域十族）+ 载体双拒（udp→`carrier` tcp-only 判定；缺 http=DependsOn 补全语义）；值域域外即拒（"Any other values SHALL NOT be used"） | 契约 §7 表 55 行；T-MMSE |
+| §6 性能 | 事件流式渲染；PDU 长度公式逐字节可复算（§3.5 速查+定宽策略，工作例通知 99B/最小 71B）；Content-Length 自洽不变式；边界诚实声明（无吞吐目标，网卡未跑） | 契约 §3.5/§3.6；T-MMSE 跑法口径 |
+| §7 三份文档 | 设计=71-mmse v2.1.0 + 本条目；用例=T-MMSE（100 审计）；cases 回指语义 ID | T-MMSE 三源回指 |
+| §8 先设计后代码 | 本条目（矩阵+门1+裁定）定稿后开工 P4 | 本条目 |
+| §9 三源+整格 | 三源回指（WAP-209 章节/契约语义 ID/用例号）；55 负例逐故障原子注入（一行一例单一 wire_fault，C-4）；正交=PDU 类型×值域组×地址族×multipart 形态×地址版本 | T-MMSE 存量审计行 |
+| §10 评审闭环 | 改→审→测→修→再审；主线程相位自审 + 收官隔离终审（megaco 五轮/hl7 三轮链同流程）；测试四问 | T-MMSE；门 3 抽查 |
+| §11 白话汇报 | 先一句结论；锚词/突变实录 | 每次汇报 |
+| §12 动态清单 | 四元组：ip 层 src/dst + tcp 层 src_port/dst_port + 会话级四键覆盖（src_ip/dst_ip/src_port/dst_port——mmsc 回放方向独立四元组）；业务动态：`transaction_id`/`message_id` 双形态（显式串 \| "auto" 会话内计数器 TID-0001 式 \| `same_as_send_conf:<i>` 引用）——序号算法=protocol/mmse planner sessionTx resolve（**validator 关联校验与生成器渲染同函数同序**，megaco sessionTxState/hl7 dynamic.go 先例）；日期=显式 epoch 配置值（无墙钟）；断言 presence/nonzero/same_as_packet/distinct | 契约 §5 确定性声明；§12 表；用例 mmse_tid_max_32（显式）+ mmse_send_conf_ok（auto+same_as_packet） |
+| §13 schema 同步 | registry 新增 mmse 行 → schemagen 重跑提交（115→116）+ freshness 五面比对（megaco 先例：type/min/max/default 全比） | `layers.generated.json` |
+| §14 真实流程 | cases 即任务 spec；MCP 建任务→引擎→tshark（**Content-Type 触发 mmse 解码，无 DecodeAs 依赖**——8002 非默认端口正例同断言集）；负例带锚词 task error；全量绿；pcap 落盘 | 契约 §2/§9；门 2 |
+
+### 缺口清单与裁定（P2）
+
+- G1 本条目（唯一入口）/ G2 T-MMSE 节（100 审计）/ G3 coverage_gate check_mmse → P4-P6 落地。
+- G4 pipe_gate mmse 自键组（presence 判死执法）→ P5 实跑。
+- **G5 承载面判死**：CheckProtoFlat mmse 分支（顶层 mmse 子映射+layers 并存即 400）+ mapToFlowSpec 在库 switch（在库 0 行纯防御）。
+- **裁定1 协议身份**：mmse 单准入名（无别名族）；白名单收 mmse + negativeOnly 摘除（红先绿后）。
+- **裁定2 载体**：http 族第 5 协议——`[tcp,http,mmse]`（DependsOn [tcp,http] 自动补全；v6 fixture 走 ip 层 src/dst v6 形）；udp 载体经 tcp-only 判定拒锚 carrier（647c207 判定族——mmse 终结层 rides http rides tcp）；缺 http 结构不可达（DependsOn 补全）→ carrier_no_http 书面豁免 + validate_layers 预检纵深。Content-Type 恒 `application/vnd.wap.mms-message`（事件 http 覆盖偏离即拒——carrier_content_type 守卫）。
+- **裁定3 端口**：80 缺省（FieldContract 常量）；显式覆盖合法（`mmse_port_nondefault` 8002 正例）；WSP/WAP Push 端口 9200/9201/2948 与 http 载体矛盾 → carrier_port 拒锚 port；会话级 DstPort 覆盖同语义。
+- **裁定4 wire_fault**：55 值闭环枚举（契约 §6/§7/用例 §5 三方同序同词，B6 与契约同代无改名面）；validator 即拒+主锚词；40 守卫 + 14 豁免处置表（下表，P4 落码同步）。
+- **裁定5 事务关联唯一权威**：sessionTx 状态机——TID resolve 三形态（显式串/"auto" 会话内计数器/引用）+ MsgID 回指（delivery/read-rec 必须解析到既有 send-conf 的 Message-ID：显式等值或 `same_as_send_conf:<i>`）；validator 关联校验与生成器渲染**同函数同序**（megaco U1/U2 教训）；延迟取回新 TID 显式配置（validate 两值互异）；ack TID 取自紧邻前一 retrieve。
+- **裁定6 动态值口径**：契约 §5 确定性声明——无墙钟、无策略对象（与 hl7 不同：mmse 日期为显式配置值）；"auto" 计数器确定序可复算；断言面 nonzero/same_as_packet/精确配置值三档。
+- **裁定7 multipart 不变式**：headersLen/dataLen 由 builder 按实际编码产出（豁免面）；partNum=len(parts) 派生（≤127 恰等正例 + 128 越界守卫 + 0/失配豁免——注入唯一入口）；start 引用存在性守卫；长度自洽 Σ 校验 validator；N-6 参数编在 Content-type-value Value-length 之内（builder 实现警告落地）。
+- **裁定8 未知键严格拒绝**（hl7 F11 类前置）：mmse 配置面 translate 解码 DisallowUnknownFields（config/session/event/content/part 四级）→ 未知键（reply_charging/previously_sent_by 族/application-header 等）→ spec.ValidationErrors 锚词化——本版不产生形态的自然面通道（value_reply_charging/value_previously_sent/value_application_header 守卫的落码位）；translate 解码失败（类型错/未知键）一律计 ValidationErrors 走任务错误，不置空配置（hl7 修轮 d0d78f0 模式）。
+- **裁定9 megaco/hl7 教训前置**：①关联/序号一处三面共用（sessionTx）；②长度与关联类拒绝住 Validate 同步面（Plan goroutine 吞生成器错误成空流）；③红例断言钉非缺省可辨识值（profile/mms_version/自定义字符串）；④schemagen 重跑 + freshness 五面比对随 registry 变更强制；⑤B6 builder 编码语义照契约 §3.3 重写（定宽补零策略：Date-value 恒 4B、Delta-seconds/Message-Size 恒 3B）。
+- **回滚**：提交次序=代码接入→suite/gate→文档；单提交粒度可摘。
+
+### 文件清单（P4）
+
+- Create: `internal/core/mmse.go`（MMSE* 类型，契约 §6 对齐：config/session/event/from/subject/time/content/part 七级）+ `internal/protocol/mmse/`（builder 编码原语/planner 校验+sessionTx/layer_gen 会话循环，B6 借鉴重写：裁定9 五前置内建）
+- Modify: `internal/core/types.go`（FlowSpec.MMSE）、`layers/registry.go`（mmse 行，115→116）、`layers/validate_layers.go`（carrier 预检）、`layers/chain_planner.go`（carrier/port 块）、`layers/chain_planner_chain.go`（isMMSEChain concurrent 钩）、`layers/chain_planner_translate.go`（case mmse + flowMetaFor strict decode→ValidationErrors）、`layers/generator.go`（FlowMeta.MMSE）、`internal/core/strategy_convert.go`（判死+在库 switch）、`internal/core/protocols.go`+`protocols_test.go`（白名单）、`cmd/server/main.go`（接线）
+- Test: `internal/core/layers/mmse_chain_test.go`（链级红例，megaco/hl7 先例同构 + 非缺省钉值/突变矩阵前置）
+- Reshape: `test/protocol_pcap/cases/mmse.json`（B6 100 例层链整形：四元组进 ip/tcp 层、mmse 子映射进 mmse 层、占位例移除）
+- Regenerate: `schemas/v1/generated/layers.generated.json`（115→116）+ webgen
+- Tools: `tools/pipe_gate.sh`（mmse 自键组）、`tools/coverage_gate.py`（check_mmse）
+
+### wire_fault 逐值处置表（裁定4；P4 落码同步——55 值 = 40 自然面守卫 + 14 书面豁免）
+
+自然面守卫 = 自然配置可表达同一故障且 validator 同步拒绝；书面豁免 = builder 恒产合法线格式 / 派生值不可配 / 结构不可达，注入通道唯一入口。
+
+**守卫在位（40 值）：**
+
+| 值 | 自然面 | 锚词 |
+|---|---|---|
+| carrier_content_type | 事件 http 覆盖 Content-Type 偏离 vnd.wap.mms-message | content-type |
+| carrier_port | 会话/流端口 9200/9201/2948（WSP/Push 端口配 http 载体） | port |
+| carrier_profile | profile 未定义值或 mmse_wsp_boundary | carrier |
+| pdu_type_unassigned | kind 未知串 | unknown |
+| body_on_bodyless | 无体 PDU（notifyresp/delivery/ack/…）声明 content 或 Content-Type 头 | body |
+| mandatory_from | send_req 缺 from | mandatory |
+| mandatory_recipients | send_req to/cc/bcc 全缺 | mandatory |
+| mandatory_notif_class/size/expiry/location | notification_ind 缺四必选各一 | mandatory |
+| mandatory_response_status | send_conf 缺 response_status | response-status |
+| mandatory_delivery_msgid/to/date/status | delivery_ind 缺四必选各一 | mandatory |
+| multipart_start_dangling | start 引用不存在 content_id | start |
+| multipart_partnum_over | parts 128 个 | overflow |
+| tid_send_conf / tid_notifyresp / tid_acknowledge | 显式 TID 与请求侧/通知/前 retrieve 不一致 | transaction |
+| msgid_delivery / msgid_read_rec | msgid 解析不到既有 send-conf（显式孤儿串或引用越界） | message-id |
+| sequence_ack_first / sequence_notifyresp_orphan / sequence_conf_orphan | 事件序声明违反状态机（ack 先于 retrieve/notifyresp 无通知/conf 无 req） | sequence |
+| sequence_response_first | 响应侧事件先于本会话首请求 | order |
+| length_content_length | 事件 http 覆盖 Content-Length ≠ PDU 编码字节数 | length |
+| length_long_int_over | 绝对时间 epoch > 0xFFFFFFFF（4B 上界） | long-integer |
+| length_tid_over | transaction_id 33B（>32B 策略上界） | transaction-id |
+| value_priority/status/message_class/response_status/read_status | 值串域外（含 1.1+ 收窄值） | priority/status/message-class/response-status/read-status |
+| value_reply_charging | reply_charging 族键出现在配置（未知键严格拒） | reply-charging |
+| value_empty_string | subject text 空串（本版不产生形态） | text-string |
+| value_charset | charset ≠ 106（本版仅 106） | charset |
+| value_previously_sent | previously_sent 族键出现在配置（未知键严格拒） | previously-sent |
+| value_notif_expiry_absolute | 通知 expiry 绝对形态（表 3 仅 interval） | expiry |
+
+**书面豁免（14 值）：** carrier_no_http（DependsOn [tcp,http] 补全恒供给——结构不可达，validate_layers 预检为纵深位）；head_order_tid_first/head_order_version_missing/head_first_not_8c（builder 首三头 `8C 98 8D` 固定序恒产——头序不可配）；pdu_type_unsupported（kind 枚举仅覆盖 8 支持值，0x88–0x93 无配置表达面）；content_type_missing（体 PDU 的 Content-Type 头 builder 恒补收尾）；multipart_headers_len/multipart_data_len/multipart_partnum_zero/multipart_partnum_mismatch（三值均 builder 按实际编码/len(parts) 派生，不可配——注入唯一入口）；length_long_int_zero/length_uintvar_over/length_value_length（长度字节=0、Uintvar >4B 载荷（需 ≥2^28 数据）、Value-length 失配均 builder 恒正确编码——注入唯一入口）；value_yesno（配置面为布尔类型，wire 0x80/0x81 映射不变式，域外字节无自然配置面——注入唯一入口）。
+
+（守卫 40 = carrier 3 + pdu 1 + body 1 + mandatory 11 + multipart 2 + 关联 5 + 顺序 4 + 长度 3 + 值域 10；豁免 14 = carrier 1 + header 3 + pdu 1 + ctype 1 + multipart 4 + 长度 3 + 值域 1。40+14=55 与契约 §7 逐行对齐。）
