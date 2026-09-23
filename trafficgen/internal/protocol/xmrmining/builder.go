@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/trafficgen/trafficgen/internal/core"
@@ -276,12 +277,35 @@ func (g *XMRGenerator) EmitEvent(ev layers.MessageEvent) error {
 	return fmt.Errorf("xmrmining generator: EmitEvent is not wired; events flow through GenRequest.EmitMsg only")
 }
 
+// idWalker resolves request ids（契约 §3.1：由矿机迭代、会话内唯一、login
+// 恒 1——声明值采纳并推进计数，缺省值迭代递增。生成器渲染与 validator
+// 唯一性预演共用单解析权威，终审 H1 勘误：原按 kind 硬编码缺省 2/3/4，
+// 同会话双 submit 线上复用 id=2 违契约）.
+type idWalker struct{ ctr int }
+
+func (w *idWalker) resolve(ev core.XMREvent) json.RawMessage {
+	if len(ev.ID) > 0 && string(ev.ID) != "null" {
+		var n int
+		if err := json.Unmarshal(ev.ID, &n); err == nil && n > w.ctr {
+			w.ctr = n
+		}
+		return ev.ID
+	}
+	w.ctr++
+	return json.RawMessage(strconv.Itoa(w.ctr))
+}
+
 // sessionRun is the per-session generation state（契约 §5 状态机）.
 type sessionRun struct {
 	sess     core.XMRSession
 	loggedIn bool
 	seenJobs map[string]bool
-	pending  []byte
+	// sessionRef is this session's id（login 声明值或 fixture 缺省）——后续
+	// 事件未声明 session_id 时继承本值（终审 H2 勘误：原事件局部 fixture
+	// 缺省可把错 id 发上线）.
+	sessionRef string
+	ids        idWalker
+	pending    []byte
 	// pendingUp marks the flushed run's direction（最近吸收行方向——跨方向
 	// 粘连段的方向取末行，testcase #18 语义）.
 	pendingUp bool
@@ -379,10 +403,23 @@ func eventJob(ev core.XMREvent) *coreJob {
 		Legacy: ev.Legacy}
 }
 
-// sessionID resolves the session id (event override → fixture).
+// sessionID resolves the session id of a LOGIN event (event override →
+// fixture)——login 响应的 result.id 即会话引用值.
 func sessionID(ev core.XMREvent) string {
 	if ev.SessionID != "" {
 		return ev.SessionID
+	}
+	return FixtureSession
+}
+
+// eventSessionID resolves a request event's params.id：声明值优先，未声明
+// 继承本会话引用（validator 同源同序）.
+func (run *sessionRun) eventSessionID(ev core.XMREvent) string {
+	if ev.SessionID != "" {
+		return ev.SessionID
+	}
+	if run.sessionRef != "" {
+		return run.sessionRef
 	}
 	return FixtureSession
 }
@@ -398,10 +435,7 @@ type builtLine struct {
 func (run *sessionRun) renderEvent(ev core.XMREvent) ([]builtLine, error) {
 	switch ev.Kind {
 	case "login":
-		id := ev.ID
-		if len(id) == 0 {
-			id = json.RawMessage(`1`)
-		}
+		id := run.ids.resolve(ev)
 		login, pass, agent := ev.Login, ev.Pass, ev.Agent
 		if login == "" {
 			login = FixtureWallet
@@ -427,19 +461,17 @@ func (run *sessionRun) renderEvent(ev core.XMREvent) ([]builtLine, error) {
 			return lines, nil
 		}
 		run.loggedIn = true
+		run.sessionRef = sessionID(ev)
 		job := eventJob(ev)
 		run.seenJobs[job.JobID] = true
-		lines = append(lines, builtLine{up: false, bytes: BuildLoginRespOK(id, sessionID(ev), job, ev.Extensions)})
+		lines = append(lines, builtLine{up: false, bytes: BuildLoginRespOK(id, run.sessionRef, job, ev.Extensions)})
 		return lines, nil
 	case "job":
 		job := eventJob(ev)
 		run.seenJobs[job.JobID] = true
 		return []builtLine{{up: false, bytes: BuildJobNotify(job)}}, nil
 	case "submit":
-		id := ev.ID
-		if len(id) == 0 {
-			id = json.RawMessage(`2`)
-		}
+		id := run.ids.resolve(ev)
 		jobID := ev.JobID
 		if jobID == "" && ev.Job != nil {
 			jobID = ev.Job.JobID
@@ -455,7 +487,7 @@ func (run *sessionRun) renderEvent(ev core.XMREvent) ([]builtLine, error) {
 		if result == "" {
 			result = FixtureResult
 		}
-		lines := []builtLine{{up: true, bytes: BuildSubmitReq(id, sessionID(ev), jobID, nonce, result, ev.Algo, ev.Sig, ev.Commitment)}}
+		lines := []builtLine{{up: true, bytes: BuildSubmitReq(id, run.eventSessionID(ev), jobID, nonce, result, ev.Algo, ev.Sig, ev.Commitment)}}
 		if ev.Status == "error" {
 			code := ev.ErrCode
 			if code == 0 {
@@ -471,22 +503,16 @@ func (run *sessionRun) renderEvent(ev core.XMREvent) ([]builtLine, error) {
 		}
 		return lines, nil
 	case "keepalived":
-		id := ev.ID
-		if len(id) == 0 {
-			id = json.RawMessage(`3`)
-		}
-		lines := []builtLine{{up: true, bytes: BuildKeepalivedReq(id, sessionID(ev), ev.KeepaliveAlias)}}
+		id := run.ids.resolve(ev)
+		lines := []builtLine{{up: true, bytes: BuildKeepalivedReq(id, run.eventSessionID(ev), ev.KeepaliveAlias)}}
 		lines = append(lines, builtLine{up: false, bytes: BuildKeepalivedResp(id)})
 		return lines, nil
 	case "getjob":
-		id := ev.ID
-		if len(id) == 0 {
-			id = json.RawMessage(`4`)
-		}
+		id := run.ids.resolve(ev)
 		job := eventJob(ev)
 		run.seenJobs[job.JobID] = true
 		return []builtLine{
-			{up: true, bytes: BuildGetjobReq(id, sessionID(ev))},
+			{up: true, bytes: BuildGetjobReq(id, run.eventSessionID(ev))},
 			{up: false, bytes: BuildGetjobResp(id, job)},
 		}, nil
 	}

@@ -503,3 +503,76 @@ func TestXMRChain_EmptyConfigBaseline(t *testing.T) {
 		t.Fatalf("empty config baseline must emit default login, got %q", got[:40])
 	}
 }
+
+// 红例⑱ 请求 id 会话内迭代（终审 H1：缺省派生收进单解析权威——同会话双
+// submit 线上 id 必须递增，契约 §3.1"由矿机迭代、会话内唯一"）。
+func TestXMRChain_RequestIDIterates(t *testing.T) {
+	pkts := driveXMR(t, map[string]interface{}{
+		"sessions": []interface{}{map[string]interface{}{
+			"events": []interface{}{
+				xmrLoginEv(), // id 恒 1（声明）
+				map[string]interface{}{
+					"kind": "submit", "job_id": "q7PLUPL25UV0z5Ij14IyMk8htXbj",
+					"nonce": "00000000", "result": strings.Repeat("a", 64),
+				},
+				map[string]interface{}{
+					"kind": "submit", "job_id": "q7PLUPL25UV0z5Ij14IyMk8htXbj",
+					"nonce": "ffffffff", "result": strings.Repeat("b", 64),
+				},
+			},
+		}},
+	})
+	// 3 握手 + login 2 + submit1 2 + submit2 2 + 4 挥手 = 13。
+	if len(pkts) != 13 {
+		t.Fatalf("expected 13 packets, got %d", len(pkts))
+	}
+	first := xmrPayload(t, pkts, 5)
+	second := xmrPayload(t, pkts, 7)
+	if !strings.HasPrefix(first, `{"id":2,"jsonrpc":"2.0","method":"submit"`) {
+		t.Fatalf("first submit (undeclared id) must take id=2, got %q", first[:40])
+	}
+	if !strings.HasPrefix(second, `{"id":3,"jsonrpc":"2.0","method":"submit"`) {
+		t.Fatalf("second submit (undeclared id) must iterate to id=3, got %q", second[:40])
+	}
+	// 响应同值回带（迭代值）。
+	if got := xmrPayload(t, pkts, 8); !strings.HasPrefix(got, `{"id":3,`) {
+		t.Fatalf("second submit response must echo id=3, got %q", got[:30])
+	}
+}
+
+// 红例⑲ keepalived 会话 id 等值守卫（终审 H2：契约 §7 负例 59 明文含
+// keepalived——params.id ≠ 本会话 session id 自然拒）。
+func TestXMRChain_KeepalivedSessionMismatch(t *testing.T) {
+	err := driveXMRErr(t, map[string]interface{}{
+		"sessions": []interface{}{map[string]interface{}{
+			"events": []interface{}{
+				xmrLoginEv(),
+				map[string]interface{}{"kind": "keepalived", "id": 2, "session_id": "ffff-bogus-session"},
+			},
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "session") {
+		t.Fatalf("keepalived with mismatched session id should be rejected, got %v", err)
+	}
+}
+
+// 红例⑳ getjob 响应 job 登记 validator 已收集合（终审 M1：合法
+// getjob→submit 新 job_id 不得被 job_unknown 误拒）。
+func TestXMRChain_GetjobJobRegistered(t *testing.T) {
+	pkts := driveXMR(t, map[string]interface{}{
+		"sessions": []interface{}{map[string]interface{}{
+			"events": []interface{}{
+				xmrLoginEv(),
+				map[string]interface{}{"kind": "getjob", "id": 2, "session_id": "1be0b7b6-b15a-47be-a17d-46b2911cf7d0"},
+				map[string]interface{}{
+					"kind": "submit", "id": 3, "session_id": "1be0b7b6-b15a-47be-a17d-46b2911cf7d0",
+					"job_id": "q7PLUPL25UV0z5Ij14IyMk8htXbj", "nonce": "d0030040",
+					"result": strings.Repeat("a", 64),
+				},
+			},
+		}},
+	})
+	if len(pkts) != 13 {
+		t.Fatalf("expected 13 packets (3+2+2+2+4), got %d", len(pkts))
+	}
+}

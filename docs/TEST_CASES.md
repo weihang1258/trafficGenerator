@@ -3990,10 +3990,12 @@ ICMPv4（RFC 792）反推 8 例（4 正+4 负；链级红例=单测面不占号�
 
 **三源回指：** xmrig/xmrig-proxy《STRATUM.md》（唯一成文规范，线格式/方法形态/错误文案 verbatim 出处）+ xmrig-impl（Client.cpp/Job.h：紧凑 JSON 成员序、blob nonce offset39/4B 小端/上界 408B、seed_hash 64 校验、extensions）+ mo-pool protocol.js（现代 job 形态/通知省略 id/keepalive 别名/getjob）→ D-XMR-1 → `test/protocol_pcap/cases/xmrmining.json`（64 例）。ID 权威 = `74-xmrmining-testcase.md` §2（25 正 + 39 负）；本节对账 64 = 25 + 39。
 
-**存量审计（占位 1 例去向，9.14 口径）：** `xmrmining_neg_unregistered` 注册前置占位随注册移除（契约 §1）；无存量语义用例（B6 c477ecc 未落本分支，64 例按契约 §9 逐 ID 新建——契约逐 fixture 常量与行长公式给出精确行预算）。
+**存量审计（占位 1 例去向，9.14 口径）：** `xmrmining_neg_unregistered` 注册前置占位随注册移除（契约 §1）；本分支无 B6 存量语义用例，64 例内容自 B6 提交 c477ecc 搬运并重排为纯层链形（expect 断言逐字节等值、reshape 无损——隔离终审深度 diff 证实），逐 ID 对齐契约 §9（契约逐 fixture 常量与行长公式给出精确行预算）。
 
 **测试点清单先行（P3）：** ①接入族：login 全字段基线（id 恒 1 + 现代 job）/login 拒绝错误路径（会话关闭）/extensions/rigid 变体；②任务族：job 通知现代形态（顶层省略 id + algo/height/seed_hash）/legacy 三字段形态；③提交族：submit 接受/拒绝（拒绝会话继续非 critical）/algo/sig+commitment 可选字段（长行 450B）；④保活族：keepalived（status KEEPALIVED）+ keepalive 别名 method；⑤拉取族：getjob（result=job 对象，假设形态标注）；⑥关联族：id 按值配对多事务（1/2/3 递增）、submit session id + job_id 双关联；⑦边界族：blob nonce offset39 4B 小端、blob 407B 满值上界（行 1082B）、target 4/8B 两态、nonce 0/满值、job_id 1500 字符压力行 1892B 跨 MSS 2 段、job+submit 多行粘连单段（653B 段内 2 LF）、IPv4/IPv6 独立 fixture（offset 54/74）；⑧场景族：多会话双四元组展开（独立 session id/job/id 互不串用）、单会话多事务生命周期全链、非默认端口 3333（行字节与基线一致）、并发会话交错回放；⑨负例 39：一行一注入逐行锚词（§7 主锚词钉死——线格式 6/方法 3/params 6/hex 9/状态机 4/关联 6/载体 3/传播 2）。
 
 **断言通道纪律（§7-3）：** fields 只用 `tcp.*`/`ip.version`/`ipv6.nxt`/`frame.*`——**禁用 `json.*` tshark 字段作主断言**（无 XMR 专用 dissector，json.* 仅辅助）；行内容走 `tcp.payload` 全行 hex（含行尾 0a）+ frames offset 54/74 双通道；跨段行按 tcp.stream 重组后断言、不按段断整行；粘连段按 LF 拆行断言段边界≠行边界两方向。
 
 **P5 已执行（2026-09-23）：** 64/64 ×2 全绿（**round-1 即全绿零校准**——B6 用例期望与本引擎字节级一致，先跑后钉纪律下钉位成立）；链级红例 17（①-⑰）独立全绿（红例④⑮ 先红后绿抓真 bug：validator 未登记 login 初始 job 的语义分叉、XMREvent 自定义 UnmarshalJSON 绕过严格解码）；coverage_gate check_xmrmining 47/47（新建）；pipe_gate 静态四项绿；-race 净；sibling 回归 edp 89/89；清库 xmrmining 行 25+100→0/0（备份留存）。用例 reshape 注记：B6 64 例系混用形（顶层四元组+顶层 xmrmining 并存），已重排纯层链形 [ip,tcp,xmrmining]（B6 原 layers 内空 xmrmining 层与 config 合并去重）。
+
+**P6 修轮（终审 H1+H2+M1+M2 处置，2026-09-24）：** H1 请求 id 迭代（idWalker 单解析权威）——nonce_boundary/lifecycle 五处 field 期望按契约忠实字节校准（旧钉=违契约的 id 复用字节；lifecycle 恢复 §4#23 1→2→3 递增）；H2 keepalived 会话等值守卫 + 会话引用继承；M1 getjob 响应 job 登记；M2 处置表 21+18 据实勘误。验收执行器=MCP 套件（终结层族 edp/mmse 同状，离线执行器不覆盖系先例）。终验：红例 20（①-⑳）全绿 + 64/64 ×2（新二进制）+ coverage 47/47 + race 净。

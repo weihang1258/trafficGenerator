@@ -4483,11 +4483,11 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 9. **裁定9 关联三族**：id 同值回带会话内唯一（复用拒）；session id 会话键（mismatch 拒）；job_id 作业键（unknown 拒）；跨会话可同值不得互消费。
 10. **裁定10 concurrent 翻案沿用**：`concurrent: true` 双矿机交错（正例 25），判例链 cwmp⑦→doh#24→onvif#56→hl7#26→megaco#45→edp 同口径；多流显式不适用（单连接串行）。
 
-### wire_fault 逐值处置表（39 值 = 26 自然面守卫 + 13 仅注入/结构不可达）
+### wire_fault 逐值处置表（39 值 = 21 自然面守卫 + 18 仅注入/结构不可达——终审 M2 据实勘误，原 26+13 归类失实）
 
-- **自然面守卫 26**：method_unknown（kind 白名单拒锚 method）；params_login_missing/params_login_type/params_submit_missing/params_submit_type/params_getjob_missing/params_keepalived_missing（六字段校验）；hex_blob_odd/hex_blob_nonhex/hex_blob_short/hex_blob_overflow/hex_seed_hash/hex_target/hex_nonce/hex_result/hex_prefix（九值域守卫——blob 奇长/非法字符/<43B/≥408B/seed≠64/target 非 4\|8B/nonce≠8/result≠64/0x 前缀）；state_first_login/state_submit_before_login/state_after_login_reject/state_after_close（状态机走查四态）；id_reuse（会话内唯一）；job_unknown（已收 job 集合）；job_session_mismatch（会话 id 等值）；carrier_missing_tcp/carrier_udp（validate_layers 预检）；carrier_port_conflict（端口一致性守卫）。
-- **仅注入/结构不可达 13**：json_truncated/json_unclosed/json_notobject（builder 序列化恒合法）；framing_no_lf/framing_crlf/framing_length_prefix（builder 恒单 LF 收尾）；method_direction/method_btc_array（kind 定方向恒正确/无数组 params 面）；id_resp_mismatch/result_id_missing/id_notify_fake（自动派生恒同值/恒带 result.id/通知结构恒省略 id）；prop_swallowed/prop_fake_success（错误传播过程断言，非配置可表达）。
-- 26+13=39 可复算；P4 落码后如有出入据实勘误（edp 修轮 F6 先例）。
+- **自然面守卫 21**：method_unknown（kind 白名单拒锚 method）；params_login_type/params_submit_type（严格解码类型错自然拒——**missing 四值不属自然面**：事件编排缺省走 fixture 同源默认是契约 §6 合法形态，params_login_missing/params_submit_missing/params_getjob_missing/params_keepalived_missing 归仅注入）；hex_blob_odd/hex_blob_nonhex/hex_blob_short/hex_blob_overflow/hex_seed_hash/hex_target/hex_nonce/hex_result/hex_prefix（九值域守卫——blob 奇长/非法字符/<43B/≥408B/seed≠64/target 非 4\|8B/nonce≠8/result≠64/0x 前缀）；state_first_login/state_submit_before_login/state_after_login_reject/state_after_close（状态机走查四态）；id_reuse（effective id 会话内唯一——终审 H1 后对迭代解析值查重）；job_unknown（已收 job 集合含 login 初始 job 与 getjob 响应 job——终审 M1 补登记）；job_session_mismatch（会话 id 等值，effective 值口径覆盖 submit/getjob/keepalived 三 kind——终审 H2 补 keepalived）；carrier_udp/carrier_port_conflict（validate_layers 预检/端口一致性守卫）。
+- **仅注入/结构不可达 18**：json_truncated/json_unclosed/json_notobject（builder 序列化恒合法）；framing_no_lf/framing_crlf/framing_length_prefix（builder 恒单 LF 收尾）；method_direction/method_btc_array（kind 定方向恒正确/无数组 params 面）；params_login_missing/params_submit_missing/params_getjob_missing/params_keepalived_missing（缺省=合法形态，故障只能注入）；id_resp_mismatch/result_id_missing/id_notify_fake（自动派生恒同值/恒带 result.id/通知结构恒省略 id）；carrier_missing_tcp（**validate_layers 预检只盖 udp+混合地址族，DependsOn 不作链拒绝——edp 同状系书面豁免注入通道**）；prop_swallowed/prop_fake_success（错误传播过程断言，非配置可表达）。
+- 21+18=39 可复算（终审 M2 勘误重计，edp 修轮 F6 先例——P4 初稿 26+13 账面成立但 params_missing 四值与 carrier_missing_tcp 归类失实，据实改判）。
 
 ### 文件清单（P4）
 
@@ -4501,4 +4501,11 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 
 - **P4 实现**（层链翻转五件套 + 终结层新建）：`core/xmrmining.go`（XMR* 类型 + 39 常量 + XMREvent.UnmarshalJSON 严格解码——红例⑮ 实证自定义 UnmarshalJSON 绕过外层 DisallowUnknownFields，事件级自带严格性）；`protocol/xmrmining/` builder.go（17 行构造器 + 生成器 + init）/planner.go（39 锚词 + 状态机自然面真拒绝）/layer_gen.go；接线九处（types FlowSpec.XMR、registry 118→119、validate_layers 预检、isXMRChain 钩、translate case、FlowMeta.XMR、CheckProtoFlat+parseXMRConfig+18081、protocols 白名单、main.go）。**P4 主线程对抗自审三修正**：①validator 未登记 login 响应初始 job——generator/validator 语义分叉（submit 引用 login 初始 job 被 job_unknown 误拒，红例④实证），mergedJob 单解析权威两处共用；②B6 参考的 login-reject 后续事件检查是死代码（算 closed 从不返回错误）——本实现据实拒绝（state_after_login_reject/state_after_close 自然面）；③未用 toCoreJob 死代码删。链级红例 17（①-⑰）全绿（其中红例④⑮ 先红后绿抓真 bug 两处）；gofmt/vet 净。
 - **P5 跑测**：cases/xmrmining.json 占位 1 例移除、B6 64 例 reshape 落地（**B6 用例系混用形**——顶层四元组+顶层 xmrmining 子映射并存，会被混用拒绝门全数拦死；重排为纯层链形 [ip,tcp,xmrmining]）；**round-1 即 64/64 全绿零校准**（B6 期望帧 hex/packet_count/tcp.len 与本引擎字节级一致——线格式忠实度强证）→ ×2 全量绿；coverage_gate check_xmrmining 47/47（新建登记）；pipe_gate 静态四项绿；-race 净；sibling 回归 edp 89/89；清库 xmrmining 行 25 strategies+100 tasks→0/0 对账（备份留存）。
-- **P6 评审**：隔离终审 subagent（进行中）。
+- **P6 隔离终审**（fresh-context subagent 只读，独立重编码 175/175 断言零失配 + §3.8 公式复算 20 条 + 探针实证）：十维度中八维核实通过（锚词闭环/接线九处/三级严格解码/用例面/实跑/无回归），判**需修轮 H1+H2 必修、M1+M2 同轮**：
+- **P6 修轮**（终审 4 findings + 2 注记逐条落实）：
+  - **H1[M→线上字节违契约]** 请求 id 缺省派生不迭代——同会话双 submit 线上复用 id=2（原按 kind 硬编码缺省 2/3/4，validator 唯一性只见声明值）。修：`idWalker` 单解析权威（声明值采纳推进计数、缺省值迭代递增，login 恒 1），生成器渲染与 validator 唯一性预演两面共用（红例⑱ 先红后绿）；受影响用例 nonce_boundary/lifecycle 五处 field 期望按新引擎字节校准（旧钉即契约违例字节，lifecycle id 序恢复 §4#23 明文 1→2→3 递增——先跑后钉：新二进制 62/64 暴露→校准→64/64 ×2）。
+  - **H2[M]** keepalived 缺会话 id 等值守卫（契约 §7 负例 59 明文含 keepalived）。修：会话引用继承模型（sessionRef=login 声明值，事件未声明 session_id 继承本会话引用——不再事件局部 fixture 兜底）+ effective 值等值校验覆盖 submit/getjob/keepalived 三 kind（红例⑲ 先红后绿）。
+  - **M1[M]** getjob 响应 job 未登记 validator 已收集合（合法 getjob→submit 新 job_id 被 job_unknown 误拒——红例④语义分叉同类残留）。修：getjob 分支 mergedJob 登记（红例⑳ 先红后绿）。
+  - **M2[M]** 处置表 26+13 归类失实据实勘误为 **21+18**（params_missing 四值=缺省合法形态归仅注入；carrier_missing_tcp=预检不盖缺 tcp 归仅注入——探针实证，edp 同状书面豁免通道）。
+  - **L1[N]** 验收执行器点名：P5 ×2 全量绿=MCP 套件（终结层族 edp/mmse 同状，离线 layer_chain_suite 执行器不覆盖终结层系先例非回归）；L2[N] T-XMR 存量审计措辞校正（内容自 B6 提交搬运重排）。
+- **修轮后验证**：链级红例 20（①-⑳）全绿；suite 64/64 ×2（新二进制同代）；coverage_gate 47/47；pipe_gate 静态四项绿；-race/vet/gofmt 净。

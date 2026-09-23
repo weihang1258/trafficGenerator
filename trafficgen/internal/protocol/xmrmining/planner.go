@@ -103,6 +103,8 @@ func validateSession(sess core.XMRSession, si int) error {
 	firstApp := true
 	seenJobs := map[string]bool{}
 	openIDs := map[string]bool{}
+	var ids idWalker // 与生成器同源（单解析权威，终审 H1 勘误）
+	sessionRef := "" // 本会话 id（login 声明值或 fixture 缺省）
 	for ei, ev := range sess.Events {
 		ep := fmt.Sprintf("%s.events[%d]", prefix, ei)
 		if ev.Kind == "" {
@@ -136,6 +138,7 @@ func validateSession(sess core.XMRSession, si int) error {
 				// 初始 job 被 job_unknown 误拒——generator/validator 语义
 				// 分叉，红例先红后绿）。
 				seenJobs[mergedJob(ev).JobID] = true
+				sessionRef = sessionID(ev)
 			}
 		case "job":
 			// 矿池→矿机通知（事件编排里 job 事件本身即矿池侧行，合法；
@@ -179,40 +182,58 @@ func validateSession(sess core.XMRSession, si int) error {
 			if !seenJobs[jid] {
 				return fmt.Errorf("%s: submit job_id %q not from this session's jobs (job)", ep, jid)
 			}
-			// session id 关联（job_session_mismatch）：显式声明时必须与本
-			// 会话 session id（login 事件声明值或 fixture）一致.
-			if ev.SessionID != "" {
-				ref := sessionID(sess.Events[0])
-				if ev.SessionID != ref {
-					return fmt.Errorf("%s: submit params.id %q does not match this session's id %q (session)", ep, ev.SessionID, ref)
-				}
+			// session id 关联（job_session_mismatch）：effective 值（声明
+			// 优先、未声明继承会话引用）必须等于本会话 id——生成器同源.
+			if sid := effectiveSessionID(ev, sessionRef); sid != sessionRef {
+				return fmt.Errorf("%s: submit params.id %q does not match this session's id %q (session)", ep, sid, sessionRef)
 			}
 		case "keepalived":
 			if !loggedIn {
 				return fmt.Errorf("%s: keepalived before successful login (state machine: keepalived)", ep)
 			}
+			// 会话 id 等值守卫（终审 H2：契约 §7 负例 59 明文含 keepalived
+			//——effective 值必须等于本会话 id，红例⑲ 先红后绿）.
+			if sid := effectiveSessionID(ev, sessionRef); sid != sessionRef {
+				return fmt.Errorf("%s: keepalived params.id %q does not match this session's id %q (session)", ep, sid, sessionRef)
+			}
 		case "getjob":
 			if !loggedIn {
 				return fmt.Errorf("%s: getjob before successful login (state machine: getjob)", ep)
 			}
-			if ev.SessionID != "" {
-				ref := sessionID(sess.Events[0])
-				if ev.SessionID != ref {
-					return fmt.Errorf("%s: getjob params.id %q does not match this session's id %q (session)", ep, ev.SessionID, ref)
-				}
+			// getjob 响应自动携带 job 对象——与生成器同源登记（终审 M1
+			// 勘误：不登记则合法 getjob→submit 新 job_id 被 job_unknown
+			// 误拒——红例⑳ 先红后绿）.
+			seenJobs[mergedJob(ev).JobID] = true
+			if sid := effectiveSessionID(ev, sessionRef); sid != sessionRef {
+				return fmt.Errorf("%s: getjob params.id %q does not match this session's id %q (session)", ep, sid, sessionRef)
 			}
 		default:
 			return fmt.Errorf("%s: unknown event kind %q (method_unknown)", ep, ev.Kind)
 		}
-		// id uniqueness within session（契约 §3.1：请求 id 会话内唯一）.
-		if len(ev.ID) > 0 && string(ev.ID) != "null" {
-			if openIDs[string(ev.ID)] {
-				return fmt.Errorf("%s: request id %s reused within session (id_reuse)", ep, string(ev.ID))
+		// id uniqueness within session（契约 §3.1：请求 id 会话内唯一——
+		// 对 EFFECTIVE 值查重：声明值采纳、缺省值迭代，与生成器同源同序；
+		// job 通知无 id 不参与。终审 H1：仅查声明值会漏缺省复用）.
+		if ev.Kind != "job" {
+			effID := string(ids.resolve(ev))
+			if openIDs[effID] {
+				return fmt.Errorf("%s: request id %s reused within session (id_reuse)", ep, effID)
 			}
-			openIDs[string(ev.ID)] = true
+			openIDs[effID] = true
 		}
 	}
 	return nil
+}
+
+// effectiveSessionID mirrors the generator's eventSessionID（声明优先、未
+// 声明继承会话引用；引用未立时 fixture 兜底——与生成器同源）.
+func effectiveSessionID(ev core.XMREvent, sessionRef string) string {
+	if ev.SessionID != "" {
+		return ev.SessionID
+	}
+	if sessionRef != "" {
+		return sessionRef
+	}
+	return FixtureSession
 }
 
 // checkJobFields validates the job object hex domains（契约 §3.9）.
