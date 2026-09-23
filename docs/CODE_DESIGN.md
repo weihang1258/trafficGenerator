@@ -4444,7 +4444,7 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 | 2 | 消息表：5 类方法 login/job/submit/keepalived/getjob + keepalive 别名 + job 现代/legacy 两形态 + 响应两态 | 接入/收任务/提交/保活/拉任务全链 | 无 | builder 17 行构造器 + 自动派生响应 |
 | 3 | 状态机：五态 Disconnected→TransportReady→LoggingIn→LoggedIn→Closed；login 必首恒 id=1；login 失败 Closed 不得再发 | 确定性回放 + 非法序列拒绝 | 无 | validator 状态机走查（4 负例） |
 | 4 | 字段表：紧凑 JSON 成员顺序钉死（请求 id,jsonrpc,method,params/响应 id,jsonrpc,error,result/通知 jsonrpc,method,params）；hex 值域（blob[43,407]B nonce offset39 4B 小端/target 4\|8B/seed_hash 64/nonce 8/result 64）；job_id/session opaque | 行长公式 §3.8 逐消息可复算 | 无 | Go struct 序=线序 + 值域守卫 |
-| 5 | 错误处理：39 wire_fault 原子拆分（线格式 6/方法 3/params 6/hex 9/状态机 4/关联 6/载体 3/传播 2），主锚词钉死 | 拒绝传播为 task error | 无 | 处置表下表 26 自然+13 仅注入/结构 |
+| 5 | 错误处理：39 wire_fault 原子拆分（线格式 6/方法 3/params 6/hex 9/状态机 4/关联 6/载体 3/传播 2），主锚词钉死 | 拒绝传播为 task error | 无 | 处置表下表 21 自然+18 仅注入/结构（终审 M2 据实勘误） |
 | 6 | 超时活性：keepalived 业务方法（status KEEPALIVED）；无应用层 PING/重试；RST 不适用统一 FIN | 空闲防断线 | 无 | 如实不适用声明 |
 | 7 | NAT/被动：不适用（单 TCP 长连接矿机主动发起） | — | — | 如实 |
 | 8 | 版本方言：jsonrpc 恒 "2.0"；keepalived 带 jsonrpc 主形态（省略=合法方言不设例）；现代 job 附加字段 algo/height/seed_hash/id 可选 | — | 无 | 无版本矩阵（如实） |
