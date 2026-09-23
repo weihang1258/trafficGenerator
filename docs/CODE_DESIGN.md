@@ -4215,7 +4215,7 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 
 ## D-MMSE-1 mmse 层链接入（#38，WAP-209 MMSEncapsulation HTTP 承载，100 例）
 
-> **P4 已执行（2026-09-23，提交 b8ceb1f P1-P3 文档 / 902e1b3 层链五件套+红例 / e968ab5 修轮：Message-ID 渲染权威+pduFieldAllowance 越表拒+红例㉓ / af66381 gofmt）：** translate case "mmse"（DisallowUnknownFields 四级→ValidationErrors，裁定8）+ registry 行（DependsOn ["http"] FieldContract tcp.dst_port=80，116→117）+ FlowMeta.MMSE + CheckProtoFlat presence + validate_layers 载体预检 + chain_planner concurrent 透传 + main.go NewChainPlanner + mmse_chain_test.go 23 红例（①-㉓）先红后绿 + 突变矩阵六项。
+> **P4 已执行（2026-09-23，提交 b8ceb1f P1-P3 文档 / 902e1b3 层链五件套+红例 / e968ab5 修轮：Message-ID 渲染权威+pduFieldAllowance 越表拒+红例㉓ / af66381 gofmt）：** translate case "mmse"（DisallowUnknownFields 四级→ValidationErrors，裁定8）+ registry 行（DependsOn ["http"] FieldContract tcp.dst_port=80，116→117）+ FlowMeta.MMSE + CheckProtoFlat presence + validate_layers 载体预检 + chain_planner concurrent 透传 + main.go NewChainPlanner + mmse_chain_test.go 23 红例（①-㉓）先红后绿 + 突变矩阵六项（终审修轮补㉔=24）。
 > **P5 已执行（2026-09-23）：** 100/100 ×2 全绿（T-MMSE 状态行详六类校准：Host 流级语义/ack 自动 200/auto 计数器全局化 MMSE-N-%04d+mmsc-msg-N/same_as_notification 引用形/part CT 恒 VL/逐 kind 字段序——附 appendUintvar LSB 组先修正与 tshark 0x84 伪影白名单）；门 2 四项绿（反查 33/33）；touched 包 -race 净；清库 264+41→0/0 对账精确 4411/993。
 
 > mmse（多媒体消息服务封装，MM1 接口 MMS PDU 二进制编码，WAP-209 + OMA-MMS-ENC）= 终结层接入：`[tcp,http,mmse]`（引擎补 ip；**http 族第 5 协议**，cwmp/doh/onvif/gbt 同款透传变换器——mmse 事件字节已是完整 HTTP 帧）。行为面权威 = `docs/protocol-designs/71-mmse-design.md` v2.1.0 + `71-mmse-testcase.md`（100 语义 ID = 45 正 + 55 负，rr v1.3 行为面全枚举 138 点修复稿）。B6 参考（4fb973f）作 builder 编码语义与用例形状借鉴，**不搬代码**（契约与 B6 同代 v2.1.0，无 hl7 式枚举改名问题）。
