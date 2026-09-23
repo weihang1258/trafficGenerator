@@ -4322,3 +4322,69 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 **书面豁免（14 值）：** carrier_no_http（DependsOn [tcp,http] 补全恒供给——结构不可达，validate_layers 预检为纵深位）；head_order_tid_first/head_order_version_missing/head_first_not_8c（builder 首三头 `8C 98 8D` 固定序恒产——头序不可配）；pdu_type_unsupported（kind 枚举仅覆盖 8 支持值，0x88–0x93 无配置表达面）；content_type_missing（体 PDU 的 Content-Type 头 builder 恒补收尾）；multipart_headers_len/multipart_data_len/multipart_partnum_zero/multipart_partnum_mismatch（三值均 builder 按实际编码/len(parts) 派生，不可配——注入唯一入口）；length_long_int_zero/length_uintvar_over/length_value_length（长度字节=0、Uintvar >4B 载荷（需 ≥2^28 数据）、Value-length 失配均 builder 恒正确编码——注入唯一入口）；value_yesno（配置面为布尔类型，wire 0x80/0x81 映射不变式，域外字节无自然配置面——注入唯一入口）；value_application_header（application-header 头本版无配置表达面——终审修轮补登，注入唯一入口）。
 
 （守卫 40 = carrier 3 + pdu 1 + body 1 + mandatory 11 + multipart 2 + 关联 5 + 顺序 4 + 长度 3 + 值域 10；豁免 15 = carrier 1 + header 3 + pdu 1 + ctype 1 + multipart 4 + 长度 3 + 值域 2。40+15=55 与契约 §7 逐行对齐——终审修轮 F-M1 算术勘误：原 40+14=54 漏 value_application_header。）
+
+## D-EDP-1 edp 层链接入（#39，OneNET EDP TCP 明文长连接，89 例）
+
+> edp（Enhanced Device Protocol，中国移动 OneNET 设备接入，EdpKit SDK v1.1.4/v1.0 双镜像为线格式权威）= 终结层接入：`[ip,tcp,edp]`（**tcp-only 族**，mqtt/gnutella 同款"TCP 之上直接组帧"字节流终结层；无 http 中间层）。行为面权威 = `docs/protocol-designs/72-edp-design.md` v2.1.0 + `72-edp-testcase.md`（89 语义 ID = 61 正 + 28 负，rr-edp 行为面全枚举 ~125 点）。B6 参考（797af86）作思路参考**不搬代码**。断言通道：本机 tshark 无 OneNET EDP dissector（"EDP"=Extreme Discovery Protocol，`edp.*` 字段全属 Extreme **禁用**）——断言走 `tcp.payload` 全帧 hex + frames offset 54/74 双通道，与端口无关、无 DecodeAs 依赖。
+
+### P1 规范矩阵（§4 八项确认态）
+
+| 项 | 要求 | 现状 | 缺口 |
+|---|---|---|---|
+| 1 连接模型 | TCP 明文长连接/4472（平台控制台可配，fixture 缺省 4472、非默认 12472 正例）；流式定界（分段边界≠帧边界） | registry 行 FieldContract tcp.dst_port=4472；断言 tcp.payload 无 DecodeAs 依赖 | 无 |
+| 2 命令/消息表 | 12 类消息类型：本版实现 10 类（CONNREQ 0x10/CONNRESP 0x20/PUSHDATA 0x30/DISCONNECT 0x40/SAVEDATA 0x80/SAVEACK 0x90/CMDREQ 0xA0/CMDRESP 0xB0/PINGREQ 0xC0/PINGRESP 0xD0）；ENCRYPTREQ 0xE0/ENCRYPTRESP 0xF0 布局未公开=边界（注入走负例） | 契约 §3.2 类型表 + §1 收窄声明 | 无 |
+| 3 状态机 | Disconnected→TransportReady→Connecting→Connected→Disconnecting→Closed 六态；connect 必为首条业务报文；rtn≠0→Closed 后禁业务帧；DISCONNECT 后禁业务帧；cmdid/msg_id 两族显式关联 | 契约 §5 状态机表 + 取材规则 | 无 |
+| 4 字段表 | 通用帧=类型 1B+varint 剩余长度（1–4B，MQTT 同构，权值 1/128/16384/2097152）+体；CONNREQ 两方式（0x40 devid+apikey / 0xC0 空devid+userid+authinfo）；SAVEDATA 标志×格式 4×5 全 20 格（flag bit7 devid/bit6 msg_id × format 0x01–0x05）；CMDRESP 条件缺省（resp 空无 resp_len） | builder 逐 SDK 函数对齐 | 无 |
+| 5 错误处理 | 28 wire_fault 闭环锚词（类型 2/remainlen 3/连接协议 3/格式 1/desc-bin 4/状态机 3/关联 2/json 2/载体 3/鉴权 4/rtn 1） | 契约 §7 表逐行主锚词钉死 | 无 |
+| 6 超时与活性 | 保活 keep_time（缺省 128s/满值 0xFFFF/最小非零 1）由平台执行；生成器按事件序列显式编排心跳（单轮/多轮）；FIN 统一挥手**不产生 RST**（C-3，cwmp R-6 同形） | 如实 | 无 |
+| 7 NAT/被动 | 不适用 | 如实 | 无 |
+| 8 版本方言 | 协议版本恒 1（SDK PROTOCOL_VERSION）；无多版本方言 | version 字段校验（≠1 拒，负例 68） | 无 |
+| **承载面** | 层链唯一真相 | 占位 `edp_neg_unregistered` → 注册后移除；顶层旧键 presence 判死 | 无 |
+| **动态值面** | devid/apikey/userid/authinfo/cmdid/JSON 全部 fixture 钉死常量（帧字节可精确预算）；SAVEACK msg_id 回带=same_as_packet 关联断言面 | 契约 §3 fixture 常量表 | 无 |
+
+### 门 1 开工对照表（§1–§14）
+
+| 条 | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 目标形状：`{"layers":[{"ip":{"src":"192.0.2.72","dst":"198.51.100.72"}},{"tcp":{"src_port":41072,"dst_port":4472}},{"edp":{"profile":"edp_tcp_plain_v1","sessions":[{"src_port":41072,"dst_port":4472,"events":[{"kind":"connect","auth":"devid","devid":"123456789","apikey":"kJ8mQ2xV","keep_time":128,"connack_rtn":0},{"kind":"savedata","devid_flag":true,"msg_id_flag":true,"devid":"123456789","msg_id":21930,"format":3,"json_str":"{\"temperature\":22}","ack":true}]}],"wire_fault":""}}]}`——顶层旧四元组/count 零残留；顶层 edp 子映射 presence 判死 | CheckProtoFlat edp 分支（P4）；门 2-1 |
+| §2 策略/任务 | 框架语义未动；多流走 strategy_fc | 契约 §6 |
+| §3 五件套 | 会话表=sessions[]（四元组/events/coalesce）；事务序列=events[]（kind 六种：connect/savedata/pushdata/cmdreq/ping/disconnect）；关联=cmdid（cmdreq↔cmdresp）+msg_id（savedata↔saveack）两族显式；插入位置=终结层每事件一帧（自动应答帧按 §5 派生①-④插入）；时间线=connect 必首、rtn≠0 断链、disconnect 终态，多会话整块展开（第二会话包号=前会话总包+1）或 concurrent 交错 | 契约 §5/§6 |
+| §4 查规范 | EdpKit SDK 双镜像逐行（v1.3 重审 0 缺陷）+官方文档站存档+公开资料假设校准——P1 矩阵 10 行 | 契约 §0 出处分层 |
+| §5 依赖与错误 | DependsOn ["tcp"]；28 锚词闭环（处置表下表） | 契约 §7 |
+| §6 性能 | 事件流式渲染零全量收集；大 bin 跨 MSS 分段（tcp 层承载）；长度公式 §3.10 全可复算；pcap 路实测（网卡路如实未跑） | 契约 §8 大载荷族 |
+| §7 三份文档 | 72-edp-{design,testcase}.md v2.1.0（行为面权威）+ D-EDP-1（本条目）+ T-EDP（TEST_CASES）+ generated schema | 契约修订记录 |
+| §8 设计先行 | 本条目（P1-P3）先于 P4 实现，独立提交 | 提交序 |
+| §9 测试三源 | 三源=EdpKit SDK 行级+D-EDP-1+官方文档站；89=61+28 对账；一行一注入原子原则 | T-EDP |
+| §10 评审闭环 | 每阶段对抗自审+收官隔离复审+修轮；红先绿后 | P6 链 |
+| §11 白话 | 每阶段白话一句先行 | 汇报 |
+| §12 动态清单 | 四元组=ip/tcp 层+会话级覆盖；业务字段 fixture 全钉死（devid/apikey/userid/authinfo/cmdid/msg_id/json/bin），无策略动态消费面（声明式回放，mmse 同判）；自动应答帧按 §5 显式派生规则 | 契约 §3/§5/§6 |
+| §13 schema | registry edp 行（117→118）→ schemagen 重跑提交 + freshness | layers.generated.json |
+| §14 真实流程 | cases 即任务 spec；MCP→engine→tshark（tcp.payload/frames 双通道，无 edp.* 字段）；负例带锚词 task error；全量绿；pcap 落盘 | 契约 §1/§7 |
+
+### 缺口清单与裁定（P2）
+
+- G1 本条目（唯一入口）/ G2 T-EDP 节（89 审计）/ G3 coverage_gate check_edp → P4-P6 落地。
+- G4 pipe_gate edp 自键组 → P5 实跑。
+- **G5 承载面判死**：CheckProtoFlat edp 分支 + mapToFlowSpec 在库 switch。
+- **裁定1 协议身份**：edp 单准入名；白名单收 edp + negativeOnly 摘除（红先绿后）。
+- **裁定2 载体**：tcp-only 族（647c207 判定族成员）——DependsOn ["tcp"]/TransportOn ["tcp"]；udp 载体经 tcp-only 判定拒锚 carrier（自然面）；层链缺 tcp 结构不可达（DependsOn 自动补全）→ layer_chain 书面豁免 + validate_layers 预检纵深。
+- **裁定3 端口**：4472 缺省（FieldContract 常量）；非默认 12472 显式正例；同 fixture 端口一致性校验（port_conflict 守卫）。
+- **裁定4 wire_fault**：28 值闭环枚举（契约 §6/§7/用例 §5 三方同序同词）；validator 即拒+主锚词；自然面守卫 + 书面豁免处置表（P4 落码时程序化计数——豁免候选：remainlen_mismatch/truncated/5byte 三值 builder 恒正确编码注入唯一入口；layer_chain 结构不可达）。
+- **裁定5 事务关联唯一权威**：sessionTx 状态机（六态 + cmdid/msg_id 双注册表配对 + connect-first/rtn-closed/disconnect-terminal 三约束）——validator 校验与生成器渲染同函数同序（buildTxBindings 先例，mmse 红例⑮同法硬证明）。
+- **裁定6 自动应答面**：CONNRESP/PINGRESP/SAVEACK/CMDRESP 四类自动帧（契约 §5 派生①-④），connack_rtn/ack/resp_b64 显式配置覆盖；下行 SAVEDATA/PUSHDATA 无应答（SDK 无函数，不臆造）。
+- **裁定7 coalesce 合段**：session 级 coalesce:true → JoinNext 累积-冲洗模式（gbt/getwork 先例）——同向相邻帧拼接单段发射，方向混排即配置错误；多帧粘连=流式定界合法形态（用例 43）。
+- **裁定8 未知键严格拒绝**：edp 配置面 translate DisallowUnknownFields（config/session/event 三级）→ ValidationErrors 锚词化（hl7 F11/mmse 裁定8 同款）。
+- **裁定9 megaco/hl7/mmse 教训前置**：①关联一处三面共用；②拒绝住 Validate 同步面；③红例钉非缺省值；④schemagen 随 registry 强制；⑤SDK 编码照契约重写（N3 kit2 type2+devid 公式 bug 不照抄——wire 值 12+D+C+B）。
+- **回滚**：提交次序=代码接入→suite/gate→文档；单提交粒度可摘。
+
+### wire_fault 逐值处置表（裁定4；P4 落码同步——28 值 = N 自然面守卫 + M 书面豁免，P4 程序化计数回填）
+
+（P4 落码时按自然面可达性逐值判定回填本表——候选豁免：remainlen_mismatch/remainlen_truncated/remainlen_5byte（builder 恒正确 varint 编码，注入唯一入口）、layer_chain（DependsOn 自动补全结构不可达）。）
+
+### 文件清单（P4）
+
+- Create: `internal/core/edp.go`（EDP* 类型，契约 §6 对齐）+ `internal/protocol/edp/`（builder varint+10 类消息/planner 状态机+关联+wire_fault/layer_gen 会话循环+coalesce）
+- Modify: `internal/core/types.go`（FlowSpec.EDP）、`layers/registry.go`（edp 行，117→118）、`layers/validate_layers.go`、`layers/chain_planner_chain.go`（isEDPChain concurrent/coalesce 钩）、`layers/chain_planner_translate.go`（case edp）、`layers/generator.go`（FlowMeta.EDP）、`internal/core/strategy_convert.go`（判死+在库 switch）、`internal/core/protocols.go`+`protocols_test.go`（白名单）、`cmd/server/main.go`（接线）
+- Test: `internal/core/layers/edp_chain_test.go`（链级红例）
+- Reshape: `test/protocol_pcap/cases/edp.json`（占位移除，89 例=61 正+28 负）
+- Regenerate: `schemas/v1/generated/layers.generated.json`（117→118）+ webgen
