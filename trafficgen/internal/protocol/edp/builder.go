@@ -194,8 +194,9 @@ func buildEDPFrames(sess *core.EDPSession, evIdx int) []frame {
 			return []frame{{false, buildSAVEDATA(ev)}}
 		}
 		// SAVEACK 自动补双前置（§5 派生③"带 msg_id 且配置 ack 时"）：
-		// 显式 ack:true 且带 msg_id——无 msg_id 无回带对象，不臆造回带 0。
-		if ev.Ack != nil && *ev.Ack && ev.MsgID != nil {
+		// 显式 ack:true 且 msg_id 真入帧（flag 置位 + 值非 nil）——
+		// 无回带对象不臆造（复评 N2：msg_id 置位而 flag=0 时帧不载 msg_id）。
+		if ev.Ack != nil && *ev.Ack && ev.MsgIDFlag != 0 && ev.MsgID != nil {
 			return []frame{{true, buildSAVEDATA(ev)}, {false, buildSAVEACK(ev)}}
 		}
 		return []frame{{true, buildSAVEDATA(ev)}}

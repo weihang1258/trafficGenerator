@@ -4400,7 +4400,7 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 - **P6 修轮**（17 条逐条落实）：
   - **F1[C]** edp_concurrent_sessions 按 §4.56 重建（connect+savedata+saveack 双会话、每流 `10 20 80 90` 配对、SAVEACK msg_id 21930/21931 跨流不串用——frames/fields 按 round-robin 交错序钉位）；
   - **F2[H]** u16 标识符上界守卫 checkU16Str（devid/apikey/userid/authinfo/savedata-devid/cmdid 六调用点，>65535 拒锚 length——防 uint16 截断静默坏帧）；红例⑳；
-  - **F3[M]** cases 全序重排 = §2 权威序（token 归位 #12、multibyte/1byte_max 互换归位、datapoint/mss_large_bin 归位、carrier_udp 归位 #83）；
+  - **F3[M]** cases 全序重排 = §2 权威序（token 归位 #12、multibyte/1byte_max 互换归位；~~datapoint/mss_large_bin 归位、carrier_udp 归位 #83~~——此四块第一轮实未落，系虚报，复评 F3 PARTIAL 抓出，第二轮修轮补做，见下）；
   - **F4[M]** multi_session 会话 2 devid=223456780 + devid/端口 distinct 断言 + 握手起点勘误（SYN=包 11、CONNREQ=14、SAVEDATA=16——先跑后钉）；
   - **F5[M]** multi_frame_segment 按 §4.43 改 savedata type3×2（`80160003...×2`）；
   - **F6[M]** 处置表勘误重计 19 守卫+9 仅注入/结构不可达（protocol_name/version/conn_flag/port_conflict/msg_id 五值据实改判）；
@@ -4416,6 +4416,13 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
   - **F16[L]** 28 负例 expect notes 摘除（§7.4 键集合严格）；
   - **F17[L]** EDPSession SrcIP/DstIP 惰性字段移除（契约 §6 sessions 形状=端口对，地址族归链 ip 层）。
 - **修轮后验证**：链级红例 21（①-㉑）全绿；suite 89/89 ×2；coverage_gate 46/46；pipe_gate 四项绿；-race 净。
+- **P6 复评**（同 agent scoped，独立重编码重跑 89 例字节级零失配）：17 条判 **FIXED 15 / PARTIAL 2（F3、F16）/ NOT-FIXED 0**，新发现 N1[M]+N2[L]，结论"核心 C/H 全部真修，仍差一个小修轮"。
+- **P6 第二轮修轮**（复评残留 + 新发现，四项）：
+  - **F3 补做[M]** cases 全序重排真落地：value_string/object 25/26→17/18、datapoint 52→49、mss_large_bin 49→57、carrier_udp 89→83（按 §2 表逐位脚本重排，89 位全序断言）；
+  - **F16 补做[L]** edp_neg_carrier_udp expect 摘 notes（28 负例键集合恰 {expect_error, error_contains} 全数程序化复核；正例 expect.notes 系 runner 合法注记字段，不在纪律内）；
+  - **N1[M]** §7.6 并发断言纪律修订（v2.1.2）：默认只断言 stream 归属，例外=引擎调度确定性实证（round-robin 固定交错 ×2 复现 + 独立重编码字节级复算）时可钉全局序，`edp_concurrent_sessions` 登记为该例外——择"修订契约文本"而非改断言（钉位稳定且已双证，改断言反而丢失确定性回归价值）；
+  - **N2[L]** SAVEACK 双前置收紧为真入帧口径：`Ack ∧ MsgIDFlag≠0 ∧ MsgID≠nil`（红例㉒ 先红后绿——msg_id 置位而 flag=0 时帧不载 msg_id，无回带对象不得臆造 SAVEACK）。
+- **第二轮修轮后验证**：链级红例 22（①-㉒）全绿；suite 89/89 ×2（新二进制，门2-3 同代）；coverage_gate 46/46；pipe_gate 静态四项绿；-race 净；gofmt/vet 净。
 
 ### 文件清单（P4）
 

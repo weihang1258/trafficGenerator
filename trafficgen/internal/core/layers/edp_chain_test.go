@@ -458,3 +458,29 @@ func TestEDPChain_SessionPortConflict(t *testing.T) {
 		t.Fatalf("conflicting session dst_ports should be rejected (port_conflict), got %v", err)
 	}
 }
+
+// 红例㉒ SAVEACK 回带对象守卫（复评 N2：§5③"带 msg_id"= msg_id 真入帧）。
+// msg_id_flag=0 时 SAVEDATA 帧不载 msg_id——即便 msg_id 置位、ack:true，
+// SAVEACK 也无回带对象，不得臆造回带。
+func TestEDPChain_SaveAckRequiresMsgIDOnWire(t *testing.T) {
+	pkts := driveEDP(t, map[string]interface{}{
+		"sessions": []interface{}{map[string]interface{}{
+			"events": []interface{}{
+				connectEv(),
+				map[string]interface{}{
+					"kind": "savedata", "direction": "up", "devid_flag": 1, "msg_id_flag": 0, "devid": "123456789",
+					"msg_id": 21930, "format": 1, "ack": true,
+					"json": `{"ds_id":"temp"}`,
+				},
+			},
+		}},
+	})
+	// 10 包 = 3 + CONNREQ + CONNRESP + SAVEDATA + 4（无 SAVEACK）
+	if len(pkts) != 10 {
+		t.Fatalf("expected 10 packets (no SAVEACK when msg_id not on wire), got %d", len(pkts))
+	}
+	payload := payloadHex(t, pkts, 5)
+	if strings.Contains(payload, "55aa") {
+		t.Fatalf("SAVEDATA with msg_id_flag=0 must not carry msg_id bytes, got %s", payload)
+	}
+}

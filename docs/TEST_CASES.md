@@ -3983,3 +3983,5 @@ ICMPv4（RFC 792）反推 8 例（4 正+4 负；链级红例=单测面不占号�
 **跑法口径：** `CASE_PROTO=edp` 89/89 ×2 全绿；MCP 真实流程（strategy create→task→engine→tshark）；断言以 `tcp.payload`/frames offset 54/74 为准（无 edp.* 字段依赖）；负例 task error 带 §5 主锚词；pcap 落盘 `/tmp/mcp-pcaps/edp/`。
 
 **P5 已执行（2026-09-23）：** 89/89 ×2 全绿（round-1 70/89 → 校准后全绿）。校准三类：①case 生成器脚本 CONNREQ 漏 u16 协议名长度前缀（0003）——引擎字节恒正确（`10 1e 0003 454450 01 40...` 与契约 §4.1 逐字节吻合），脚本算术错；②边界例 packet_count 漏连接帧（3+2+nseg+4 口径）；③multi_transaction 帧号偏移。链级红例 15（①-⑭+⑮ wire_fault 锚词模型）独立全绿；coverage_gate check_edp 42/42；pipe_gate 四项绿。清库对账：edp 行 61 strategies+305 tasks → 0/0（备份留存）。
+
+**P6 评审链（终审→修轮→复评→第二轮修轮）：** 隔离终审 17 条（C1+H1+M9+L6）→ 修轮逐条落实（红例扩 ①-㉑）→ 复评判 FIXED 15/PARTIAL 2（F3 三块错位残留、F16 carrier_udp notes）/NOT-FIXED 0 + 新发现 N1[M]（§7.6 并发断言纪律与 #56 钉位冲突）+N2[L]（SAVEACK 回带对象口径）→ **第二轮修轮四项**：§2 权威序逐位重排（value_string/object→17/18、datapoint→49、mss_large_bin→57、carrier_udp→83）+ carrier_udp notes 摘除（28 负例键集合恰 {expect_error, error_contains} 复核）+ §7.6 增确定性调度例外（v2.1.2）+ SAVEACK 收紧为真入帧口径（红例㉒ 先红后绿）。终验：89/89 ×2（新二进制）+ 红例 22（①-㉒）全绿 + coverage_gate 46/46 + pipe_gate 静态四项绿 + -race 净。
