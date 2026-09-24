@@ -4818,3 +4818,54 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 7. **裁定7 TCP 分帧口径**：每条 kerberos 消息前置 4B BE 长度（不含自身）；`packet_count` 只计线上帧（TCP 握手/挥手属载体证据不计入——契约 §3）；合并/切分 fixture 由多消息事件序列表达，引擎不做真实 segment 切分（设计 §3"允许 segment 切分或合并"的接收端语义，生成面恒整 record 发送）。
 
 （P3 测试点清单——testcase §2/§3 已逐 ID 断言契约，P4 落码据实勘误。）
+
+### P2 代码设计（§5/§6/§8，定稿后才开工）
+
+**文件清单（新建 6 + 接线 9）**：
+
+| 文件 | 职责 |
+|---|---|
+| internal/core/kerberos.go（NEW） | KerberosConfig/Sessions/Event/Msg 结构 + 严格 UnmarshalJSON（递归 DisallowUnknownFields，dtls 同款三级）+ 6 wire_fault 常量与 DescribeKerberosWireFault 锚词表 |
+| internal/protocol/kerberos/der.go（NEW） | DER 编码原语：tag 字节（class\|constructed\|num）、长度短形（<128）/长形（0x8N）、INTEGER/OCTET STRING/GeneralizedTime/SEQUENCE/上下文构造型——全 definite-length（裁定3） |
+| internal/protocol/kerberos/builder.go（NEW） | 六消息 builder（下表结构）+ 双载体分帧（UDP 每消息一 datagram；TCP 每消息前 4B BE 长度，裁定7）+ kerberosWalker 会话状态单权威 + init() 注册 generator/validator |
+| internal/protocol/kerberos/planner.go（NEW） | validateSpec/validateSession（walk renderEvent 同路径单权威）+ validateWireFault + tag↔msg-type 一致性守卫（裁定6）+ 会话 dst_port 冲突守卫 |
+| internal/protocol/kerberos/casegen_test.go（NEW） | 一次性生成器：20 例（14 正+6 负）契约计数逐例 add()，落 test/protocol_pcap/cases/kerberos.json |
+| internal/core/layers/kerberos_chain_test.go（NEW） | 链级红例（基线字节钉/UDP+TCP 双载体/守卫/wire_fault 锚词/carrier 形状/严格解码） |
+| 接线件 | types.go `Kerberos *KerberosConfig`；FlowMeta.Kerberos；translate `case "kerberos"` + Meta 直传（**固定检查点：`Kerberos: spec.Kerberos` 字面量——dcerpc/dtls 两犯**）；strategy_convert `case "kerberos"` + setDefaultDstPort 88；registry 行 DependsOn ["udp","tcp"] + FieldContract udp.dst_port=88；validate_layers 预检（缺载体/双载体并存拒）；main.go 空白导入 + NewChainPlanner("kerberos")；protocols.go 白名单 + protocols_test 同步；schemagen 重跑（123 层） |
+| tools/coverage_gate.py | check_kerberos（准入接线/关键件/守卫/用例面四段） |
+
+**DER 字段 tag 权威表（RFC 4120 §5.2–5.4.2；P4 逐字节对照此表）**：
+
+```
+顶层（application constructed）：AS-REQ 0x6a[10]/AS-REP 0x6b[11]/TGS-REQ 0x6c[12]/
+  TGS-REP 0x6d[13]/AP-REQ 0x6e[14]/AP-REP 0x6f[15]/KRB-ERROR 0x7e[30]
+KDC-REQ (AS/TGS 共用)：SEQUENCE{ pvno[1]=5, msg-type[2](10|12), padata[3] OPTIONAL,
+  req-body[4] }；req-body=SEQUENCE{ kdc-options[0], cname[1] OPTIONAL, realm[2],
+  sname[3] OPTIONAL, till[7] GeneralizedTime, nonce[9] u32, etype[10] SEQ{Int32} }
+KDC-REP (AS/TGS 共用)：SEQUENCE{ pvno[0]=5, msg-type[1](11|13), padata[2] OPTIONAL,
+  crealm[3], cname[4], ticket[5] Ticket, enc-part[6] EncryptedData }
+AP-REQ：SEQUENCE{ pvno[0]=5, msg-type[1]=14, ap-options[2] BIT STRING, ticket[3],
+  authenticator[4] EncryptedData }
+AP-REP：SEQUENCE{ pvno[0]=5, msg-type[1]=15, enc-part[2] EncryptedData }
+KRB-ERROR：SEQUENCE{ pvno[0]=5, msg-type[1]=30, ctime[2]/cusec[3] OPTIONAL,
+  stime[4], susec[5], error-code[6] i32, crealm[7]/cname[8] OPTIONAL, realm[9],
+  sname[10] OPTIONAL, e-text[11]/e-data[12] OPTIONAL }
+Ticket ::= [APPLICATION 1] (0x61) SEQUENCE{ tkt-vno[0]=5, realm[1], sname[2],
+  enc-part[3] EncryptedData }
+EncryptedData ::= SEQUENCE{ etype[0] i32, kvno[1] OPTIONAL u32, cipher[2] OCTET STRING
+  （cipher 内容=确定性填充不伪造语义，裁定5） }
+PrincipalName ::= SEQUENCE{ name-type[0] i32, name-string[1] SEQ{OCTET STRING} }
+Realm/KerberosString ::= OCTET STRING（UTF-8）；KerberosTime ::= GeneralizedTime 格 "YYYYMMDDHHMMSSZ"
+上下文标签均 context-class constructed（0xA0+tagno）；msg-type↔顶层 tag 映射恒定（裁定6 校验面）
+```
+
+**事件/会话面（配置形状，对齐契约 §2 键表）**：
+- `sessions[]`：`src_ip/src_port/dst_port`（端点覆盖，bacnet/dtls 同款）+ `events[]`；会话间 nonce/ticket/framing 状态全隔离（逐会话独立 walker）。
+- `events[]` 每 event = 一条完整 Kerberos 消息（=一 UDP datagram / 一 TCP record）：`kind`（as_req|as_rep|tgs_req|tgs_rep|ap_req|ap_rep|krb_error）、`up` 方向、`msg_type`（声明面，与 kind 派生 tag 不一致=自然守卫拒，裁定6）、`realm/cname/sname/name_type`（principal 结构化组件）、`etype/kvno/cipher_len`（EncryptedData 外壳）、`nonce/till/ctime/cusec`（声明面值）、`error_code/e_text`（krb_error）、`body`（整消息 DER hex 覆盖——opaque fixture 逃生口，负例/特殊形用）、`padata`（preauth PA-DATA 类型+长度声明面）。
+- `wire_fault`：6 值（record_truncated/tcp_length/tag/encrypted_boundary/replay/carrier），锚词=契约 §10 逐行。
+
+**错误处理（§5.2）**：所有被拒 spec 传播为 task error（零假成功）：①wire_fault 6 值注入拒（锚词进断言）；②自然守卫：未知 kind / msg_type↔tag 不一致（裁定6）/ 会话 dst_port 冲突 / 会话级载体与链不符（tcp record 出现在 udp 链=拒）；③validate_layers 预检：缺载体层 / udp+tcp 双载体并存拒（单链单载体，裁定1）。
+
+**性能设计与验收（§6）**：O(n) 流式——逐事件渲染直发 EmitMsg 无全量聚合；确定性内存（无按包增长结构）；无锁无 sleep（bacnet 族同款事件驱动）；回归口径=kerberos.json 全量 suite 耗时 ±10%；边界诚实声明：无吞吐/并发/内存目标数字（声明式回放族判，门1 §6 行）。
+
+**回滚方式（§8.8）**：全量 revert 新建文件 + 接线件回退（git revert 提交序）；registry/schemagen 生成文件随提交对齐回退；无数据迁移面。
