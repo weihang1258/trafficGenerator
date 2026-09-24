@@ -4676,4 +4676,11 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 
 - **用例生成**：`internal/protocol/dcerpc/casegen_test.go`（一次性）按 testcase §2 权威序产 80 例（48 正+32 负）；正例帧断言取自 BuildLayersPlanner→Plan 真实回放（单权威）；负例 = wire_fault 注入单锚词（DescribeDCERPCWireFault 同表）+ carrier/family 自然形状。占位 `dcerpc_neg_unregistered` 移除。
 - **六轮收敛**：66→70→71→73→78→80（详见 T-DCERPC 校准记录）。核心实证：PFC_OBJECT_UUID=0x80（0x20 系 DID_NOT_EXECUTE——builder 常量据实改）；单 PDU 恒 FIRST|LAST=0x03（tshark 0 flags 视作 Fragment:Mid 延迟解析）；多会话=按会话块序展开（非 event-index 交错）；EPM 深观察用真 epm_Lookup 线格式（tower 后置 unique-pointee 延迟分解，取 wireshark epm 源码实证）。
-- **门2**：静态四项绿 + suite RESULT 80/80 ×2。**coverage_gate check_dcerpc** 登记并 44/44 绿。**清库**：tasks 672 + strategies 98 → 0（备份 `/tmp/tg-sv-p5/backup-dcerpc-purge.db`；对账 tasks 7092 / strategies 1279 与删前非 dcerpc 行数吻合）。auth 字段断言退化帧 hex 权威（tshark opaque 凭据不渲染 sec_trailer——契约 §4 允许通道，T-DCERPC 校准记录在案）。
+- **门2**：静态四项绿 + suite RESULT 80/80 ×2。**coverage_gate check_dcerpc** 登记并 46/46 绿（44 项 + P6 复评 M4 补 F4 双守卫锚点）。**清库**：tasks 672 + strategies 98 → 0（备份 `/tmp/tg-sv-p5/backup-dcerpc-purge.db`；对账 tasks 7092 / strategies 1279 与删前非 dcerpc 行数吻合）。auth 字段断言退化帧 hex 权威（tshark opaque 凭据不渲染 sec_trailer——契约 §4 允许通道，T-DCERPC 校准记录在案）。
+
+### P6 关单记录（2026-09-24）
+
+- **终审**（隔离 fresh-context subagent）：80/80 ×2 亲跑 + 80 ID 三方对账 + 锚词三方同表 + 单权威零 diff + 44/44 + 门 2 + tshark 抽查全过；F1（§4.2 ALTER header_t 文本未更新，MAJOR）+ F2-F5（4 MINOR），无 CRITICAL。
+- **修轮**（170039e）：F1 契约 v2.0.2（§4.2 header_t+取舍理由）；F3 §5/§7 A/B/C 落码实况；F4 planner ack 值域守卫+ack 型拒 auth（failing-test-first 红例 2）；F2 pipe_gate 排除 _test.go；F5 .neg.pcap 79+1 口径注记。门 2 四项绿 + suite 80/80 ×2 + coverage 44/44 全绿。
+- **复评**（隔离 scoped re-review）：F1-F5 全部已关闭（红例反证：旧 planner 配新测试仅双 FAIL）；新发现 M1-M5（4 文档 MINOR+1 coverage 缺口）顺手修：M1 悬空 §4.15→现网分解器实证表述、M2 §5.3→§4.3、M3 链级/服务端产物口径限定、M4 coverage 补 F4 双守卫（46/46）、M5 "31 常量"笔误。**裁定：同意关单，无需第二轮。**
+- **状态：已验收。**

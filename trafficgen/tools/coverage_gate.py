@@ -1005,6 +1005,8 @@ def check_dcerpc(cases):
         ("is not a 32-hex-digit UUID (uuid)", "uuid_width/version_missing（UUID 宽度+hex）"),
         ("unknown event kind", "kind 值域兜底"),
         ("needs at least one transfer syntax", "context_syntax（≥1 transfer syntax）"),
+        ("is not bind_ack/alter_ctx_resp for a bind", "F4 bind ack 值域守卫（P6 修轮）"),
+        ("is not produced on a bind_ack/alter_ctx_resp", "F4 ack 型 respond 拒 auth（P6 修轮）"),
     ]:
         rows.append((f"关键件：{name}", guard in pl, "在案"))
 
