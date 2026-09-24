@@ -4695,7 +4695,7 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 |---|---|---|---|---|
 | 1 | 连接模型：DTLS over UDP 无连接；每 record 一 datagram（RFC 6347 §4.1） | IoT/VPN 安全传输（UDP/4433） | 无任何接线（registry/protocols/protocol 包/main.go 全空；占位 1 例 dtls_neg_unregistered） | 全量新建（udp 载体终结层，bacnet 同族；DependsOn ["udp"]，无握手/挥手） |
 | 2 | 记录层：13B 头 ContentType(1)+Version(2)+Epoch(2)+Seq48(6)+Length(2)，BE（RFC 6347 §4.1） | 全部记录 | 无 | builder putRecord（BE 序） |
-| 3 | 版本：1.0=`feff`，1.2=`fefd`；ClientHello 内层版本自洽（RFC 6347 §4.2.1） | 版本协商/legacy | 无 | version 字段+自洽校验 |
+| 3 | 版本：1.0=`feff`，1.2=`fefd`；ClientHello 内层版本自洽（RFC 6347 §4.2.1） | 版本协商/legacy | 无 | version 字段+自洽校验（P4 勘误：record 外层版本按 RFC 6347 §4.1 legacy_record_version 恒用 feff/fefd 两档，CH 内层版本在 opaque fixture body 内不参与跨层校验——"自洽校验"判不适用，非跳过；裁定6） |
 | 4 | epoch/seq：epoch u16 递增不回退；seq 48-bit BE 单调递增，重传不复用 seq | 密钥切换 epoch0→1；flight 重传 | 无 | seqWalker 单解析权威（方向独立） |
 | 5 | 握手：12B 头 type+len24+msg_seq+off24+fraglen24；分片重组按 msg_seq/offset（RFC 6347 §4.2.6） | 大证书分片；乱序重组 | 无 | fragment 头+fixture 声明式分片 |
 | 6 | Cookie：HelloVerifyRequest 无状态 cookie；长度前缀=实际字节（RFC 6347 §4.2.1） | DoS 防护交换 | 无 | cookie opaque（长度一致校验） |
@@ -4713,7 +4713,7 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 | §3 五件套 | 会话表=sessions[]（四元组+epoch/seq独立）；事务序列=events[]（握手/CCS/alert/appdata）；关联=同会话 msg_seq+epoch/seq 配对（无副流派生）；插入位置=终结层每事件一 datagram；时间线=datagram 序列，多会话隔离 | 契约 v1.0.0 §9 |
 | §4 查规范 | RFC 6347/4347+tshark+现网三源——P1 矩阵 8 行 | 契约 §1/§12 |
 | §5 依赖与错误 | DependsOn ["udp"]；wire_fault 6 值+自然守卫 | 契约 §10 |
-| §6 性能 | UDP 流式渲染；行长公式可复算；pcap 路实测（NIC 路注记） | 契约 §12 |
+| §6 性能 | UDP 流式渲染；行长公式可复算；pcap 路实测（NIC 路注记）；声明式回放族无协议级吞吐/并发预算数字（bacnet/dcerpc 同判——性能目标归引擎框架面，协议面只承诺 O(n) 流式与确定性内存） | 契约 §12 |
 | §7 三份文档 | 58-dtls-{design,testcase}.md v1.0.0（ID 权威=testcase §2）+ D-DTLS-1（本条目）+ T-DTLS（TEST_CASES）+ generated schema | 契约修订记录 |
 | §8 设计先行 | 本条目 P1-P3 先于 P4 实现，独立提交 | 提交序 |
 | §9 测试三源 | 三源=RFC 条款+D-DTLS-1+tshark；20 ID 正负对账；一行一注入 | T-DTLS |
@@ -4730,6 +4730,7 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 3. **裁定3 端序**：全 BE（record/epoch/seq48/handshake 24-bit）；版本 feff/fefd 自洽。
 4. **裁定4 v1.0.0 可用**：20 ID 已行为面枚举，无需重写；packet_count 约定值 P5 以实测重钉（§9.31）；`dtls_pcap_nic_consistency` 改 pcap 内一致性口径（dcerpc #14 先例）。
 5. **裁定5 加密边界**：加密 epoch fixture 全 opaque（设计 §8——不断言明文；key log 另立项不做）。
+6. **裁定6 版本自洽不适用（P6 修轮 m5 补裁）**：RFC 6347 §4.1 legacy_record_version 规定 record 外层版本恒用 `feff`（DTLS 1.0）或 `fefd`（DTLS 1.2+ 的 1.0 兼容写法）——P1 矩阵 #3"CH 内层版本自洽校验"判**不适用**：CH 内层版本字节在 fixture body（opaque 面）内，引擎不做跨层一致性校验；③例 record `feff` + CH body 内 `fefd` 正是 RFC 规定组合。
 
 （P3 测试点清单——testcase §2/§3 已逐 ID 断言契约，P4 落码据实勘误。）
 
@@ -4743,11 +4744,27 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 ### P5 跑测（提交 e7c577b；7 轮校准收敛 20/20 ×2 稳态）
 
 - **msg_seq 语义根因重写**：初版全局单计数器，suite 抓"want 0 got 1"——RFC 6347 §4.2.1 要求每方向独立计数器、§4.2.2 续片共享本消息 msg_seq；dtlsWalker 改 msgCtr/msgLast/msgHas [2] 逐方向数组（record seq 与 msg_seq 是两套独立计数——重传只复用 msg_seq 永不复用 record seq）。
-- **tshark 分解器实证校准**（先跑后钉，`tshark -V` 直接打失败帧）：①CKE（type 16）body 须 RSA 形——前 2 字节被读作 EncryptedPreMaster 长度，`0030`+48B blob=50B 才干净（初版 0301 开头被当 769 长度判 malformed）；②零长 record 恒 malformed（⑫ 例）——appdata 改 1B opaque（0xA5），零长语义留链级单测守；③CH/SH/Cert 须真最小结构体（伪 opaque body 触发 Malformed expert）；④`dtls.record.version` 渲染 `0xfefd`/`0xfeff` 字符串非十进制。
+- **tshark 分解器实证校准**（先跑后钉，`tshark -V` 直接打失败帧）：①CKE（type 16）body 须 RSA 形——前 2 字节被读作 EncryptedPreMaster 长度，`0030`+48B blob=50B 才干净（初版 0301 开头被当 769 长度判 malformed）；②零长 record 恒 malformed（⑫ 例）——appdata 改 1B opaque（0xA5），零长语义由链级单测 `TestDTLSChain_ZeroLengthRecord` 钉死（13B 头 Length=0 无 payload 逐字节；P6 修轮 M1 落测——本行原文"留链级单测守"当时无测属虚报，已更正）；③CH/SH/Cert 须真最小结构体（伪 opaque body 触发 Malformed expert）；④`dtls.record.version` 渲染 `0xfefd`/`0xfeff` 字符串非十进制。
 - **用例钉法**：recHex/hsHex 程序化 pin 构建（§9.31 先跑后钉——手拼 hex 三犯其三后全改助手函数）；14 正例 contract count 逐例对齐（casegen add() rendered≠contract 即红=契约 §9.31 重钉权威）；⑤续片三片声明 message_seq=0（声明 < 计数器=合法重传复用不推进）；⑥重组例同 msg_seq 三片。
-- **结果**：suite 20/20 ×2 稳态（7/13→10/10→11/9→14/6→19/1→20/20 六轮收敛 + 复跑确认）；coverage_gate check_dtls 47/47；pipe_gate 静态四项绿；pcap 落 `/tmp/mcp-pcaps/dtls/`（14 正 + 5 负例 24B 占位 + 1 创建面拒无产物=20）；DB 清库：strategies 47→0、tasks 168→0（备份 /tmp/tg-sv-p5/backup-dtls-purge.db，总量对账 1326/7284 平）。
+- **结果**：suite 20/20 ×2 稳态（7/13→10/10→11/9→14/6→19/1→20/20 六轮收敛 + 复跑确认）；coverage_gate check_dtls 47/47；pipe_gate 静态四项绿；pcap 落 `/tmp/mcp-pcaps/dtls/`（14 正 + 5 负例 24B 占位 + 1 创建面拒无产物=19 文件）；DB 清库：strategies 47→0、tasks 168→0（备份 /tmp/tg-sv-p5/backup-dtls-purge.db，总量对账 1326/7284 平）。
+- **重钉点名（§9.31/裁定4）**：`dtls_v10_legacy_record` 契约约定 8 → 实测 12（v10 会话全事件面 12 record——先跑后钉权威=casegen add()）；其余 13 正例契约值与实测一致。负例 ID `dtls_neg_udp_carrier`（契约 §2 权威名，P6 修轮 M2 回正——P5 期间曾误写 carrier_udp 语序）。
 
 ### P6 评审与收官
 
 - 门 3 抽查三条：①§1 层链唯一真相——dtls.json 20 例 spec_json 顶层旧键 0 残留（pipe_gate 门 2-1 绿 + jq 反查）；②§3 五件套——builder.go:113-119 walker 状态五元组逐条对应（会话表=sessions/事务=events/关联=walker 逐会话隔离/插入=终结层/时间线=datagram 序）；③§12 动态清单——cookie/seq/epoch 声明面 fixture 钉死无策略消费面，seq 缺省派生收 dtlsWalker 单权威（builder.go:127-180）。
-- 门 3 复核 + 门 2 三项 + coverage 反查全绿；独立隔离复审见 P6 修轮记录（若有 finding 据实回填）。
+- 门 3 抽查④（9.53 最复杂例维度点数，修轮 m6 回填）：`dtls_multi_session_isolation` 24 包 = **多会话（2）× 质询 cookie（CH→HVR→CH' 三步）× 完整握手（SH/Cert/CKE）× 双方向（up/down 各 6 事件）× epoch 切换（0→1 CCS 后）× 加密边界（CCS→appdata opaque）× 关闭（alert 双向）= 7 维交织**，超 9.49/9.50 地板（≥2 项）三倍以上。
+- 门 3 复核 + 门 2 三项 + coverage 反查全绿；独立隔离复审见 P6 修轮记录。
+
+### P6 修轮记录（隔离终审 0 CRITICAL/2 MAJOR/7 MINOR，逐条处置）
+
+终审报告：/tmp/dtls-final-review-report.md（fresh-context subagent，6 提交全量 diff 逐字节核）。处置：
+
+- **M1（MAJOR，已修）**：P5 记录虚报"零长留链级单测守"而链级无零长测试——补 `TestDTLSChain_ZeroLengthRecord`（13B 头 Length=0 无 payload 逐字节钉）；⑫ 例 summary 字符串 "0/12/1/2/1400/0" 与实际断言 1/62/1/2/1400/1 不符——casegen 更正重生成；P5 记录原文同步更正并注明虚报。
+- **M2（MAJOR，已修）**：负例 ID 实现名 `dtls_neg_carrier_udp` 与契约权威名 `dtls_neg_udp_carrier`（testcase §2 #20）不一致——按 ID 权威=testcase §2 回正：casegen addNeg + coverage_gate.py + dtls.json 重生成（附带：P5 早期校准轮曾在盘 `dtls_neg_udp_carrier.neg.pcap` 陈旧产物，改名后成孤儿，P6 已清）。
+- **m1（已修）**：v10 例契约约定 8→实测 12 重钉未点名——P5 记录补"重钉点名"行。
+- **m2（已修）**：5 文件 gofmt dirty（缩进/注释对齐漂移）——gofmt -w 全清（`gofmt -l` 空）。
+- **m3（已修）**：strategy_convert.go dtls 分支注释误称"top-level dtls key rejected by CheckProtoFlat"——更正为层链权威+混用形 translate 期拒的真实行为。
+- **m4（已修）**：planner.go 头注释"5 走注入拒"与实际 3 注入+2 自然配置+1 预检不符——按 json 实据更正三通道描述。
+- **m5（已修）**：P1 矩阵 #3"CH 内层版本自洽校验"实现判不适用但无处置记录——补裁定6（RFC 6347 §4.1 legacy_record_version：record 外层恒 feff/fefd 两档，内层版本在 opaque body 不做跨层校验；③例 record feff+CH fefd 即 RFC 规定组合）。
+- **m6（已修）**：门3 三条抽查无最复杂例维度点数——补抽查④：multi_session_isolation 24 包 7 维交织（多会话×cookie 质询×完整握手×双方向×epoch 切换×加密边界×关闭）。
+- **m7（注记）**：设计 §12 无定量性能预算——门1 §6 行补声明式回放族判（bacnet/dcerpc 同判：性能目标归框架面，协议面承诺 O(n) 流式+确定性内存），非缺口。

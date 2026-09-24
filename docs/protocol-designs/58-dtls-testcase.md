@@ -1,10 +1,10 @@
 # DTLS（数据报传输层安全，Datagram Transport Layer Security）测试用例契约
 
-> 版本：v1.0.0（设计阶段）
-> 日期：2026-08-20
+> 版本：v1.0.1（2026-09-24 实测重钉+修轮对齐；v1.0.0 设计阶段 2026-08-20）
+> 日期：2026-09-24
 > 配套设计：`docs/protocol-designs/58-dtls-design.md`
 > 机器契约：`trafficgen/test/protocol_pcap/cases/dtls.json`
-> 状态：`dtls` 层尚未注册；本文定义实现后的 PCAP（抓包文件）/NIC（网卡）断言，不宣称当前 suite（测试套件）可运行。
+> 状态：`dtls` 层已注册（#43 D-DTLS-1 已验收，suite 20/20 绿）；本文 20 ID 全部落地，v1.0.1 为实测重钉与通道注记（§7 修订记录）。
 
 ## 1. 测试原则和未注册边界
 
@@ -20,7 +20,7 @@ DTLS 是 UDP/4433 数据报协议。无 VLAN、IP options、IPv6 extension heade
 |---:|---|---|---|---:|
 | 1 | `dtls_ipv4_v12_basic` | 正 | IPv4/UDP 4433、DTLS 1.2 基本握手记录 | 12 |
 | 2 | `dtls_ipv6_v12_basic` | 正 | IPv6/UDP 4433、DTLS 1.2 独立 fixture | 12 |
-| 3 | `dtls_v10_legacy_record` | 正 | DTLS 1.0 `fe ff` record/version 边界 | 8 |
+| 3 | `dtls_v10_legacy_record` | 正 | DTLS 1.0 `fe ff` record/version 边界 | 12（v1.0.1 实测重钉，原约定 8） |
 | 4 | `dtls_v12_cookie_exchange` | 正 | ClientHello、HelloVerifyRequest、带 cookie 的 ClientHello | 16 |
 | 5 | `dtls_handshake_fragmentation` | 正 | 单握手消息跨 records 的 fragment header | 10 |
 | 6 | `dtls_handshake_reassembly` | 正 | 分片乱序重组、message_seq/offset 完整性 | 10 |
@@ -52,7 +52,7 @@ DTLS 是 UDP/4433 数据报协议。无 VLAN、IP options、IPv6 extension heade
 9. **`dtls_retransmission_timeout`**：丢失或未确认 flight 时重复相同 message_seq/fragment 语义并增加可观察重传；超过 retry limit 后报告 timeout/error 或 alert close，`packet_count=18`；不得 completed/0 packet。
 10. **`dtls_multi_session_isolation`**：两条独立 UDP session 各自完成 cookie/epoch/sequence/关闭，至少 24 packets；cookie、重传 flight、sequence 不跨 session 串用，使用 distinct/same-as 动态断言。
 11. **`dtls_multi_flow`**：多四元组和双向流，至少 12 packets；每 flow 的 UDP port、session state、epoch/sequence 关联一致，跨 flow 不拼 handshake 片段，不假设全局顺序。
-12. **`dtls_record_boundary_lengths`**：至少一条 Length=0 record 和一条最大支持值附近 record；断言 UDP datagram 与 13-byte header/Length 边界一致，`packet_count=6`，显式零不可被默认值替换。
+12. **`dtls_record_boundary_lengths`**：record 长度边界面（v1.0.1：Length=0 由实现侧链级单测 `TestDTLSChain_ZeroLengthRecord` 承接——tshark 对 0 长 record 恒标 Malformed 不能作干净正例；本用例断言 1/62/1/2/1400/1 六档与 13-byte header/Length 边界一致，`packet_count=6`，显式值不可被默认值替换）。
 13. **`dtls_pcap_nic_consistency`**：同一 fixture 输出 PCAP 并在指定 NIC capture；两条方向明确的 UDP/4433 records 的 version/type/epoch/Length 和稳定前缀一致，`packet_count=16`；过滤器为 `udp port 4433`，记录 checksum offload。
 14. **`dtls_encrypted_opaque_boundary`**：加密 epoch records 仅断言 type/version/epoch/6-byte sequence/Length 和密文长度，`packet_count=10`；不能写 `dtls.handshake.type` 或明文 alert/application payload 的断言，除非提供 key log 解密证据。
 
@@ -89,3 +89,4 @@ DTLS 是 UDP/4433 数据报协议。无 VLAN、IP options、IPv6 extension heade
 ## 7. 修订记录
 
 - v1.0.0（2026-08-20）：建立 14 个 DTLS 1.0/1.2 正例和 6 个严格负例，覆盖 RFC 4347/6347 记录层、epoch/48-bit sequence、握手分片重组、cookie、重传/超时、CCS/alert/application data、加密边界、IPv4/IPv6、多会话/多流、PCAP/NIC 和错误传播；不修改 Go 实现。
+- v1.0.1（2026-09-24，P5 实测重钉 + P6 修轮对齐）：①③ `dtls_v10_legacy_record` packet_count 约定 8 → 实测 12（裁定4+§9.31，全事件面 12 record）；②⑫ `dtls_record_boundary_lengths` 的 Length=0 record 改 1B opaque（tshark 对 0 长 record 恒标 Malformed，无法作为干净正例断言），零长语义由实现侧链级单测 `TestDTLSChain_ZeroLengthRecord`（13B 头 Length=0 无 payload 逐字节钉）承接——本 §3.12"显式零不可被默认值替换"的意图由该单测满足；③负例通道据实三分：`record_truncated`/`version_epoch`/`sequence_overflow` 走 wire_fault 注入拒，`fragment_bounds`/`cookie_state` 走自然非法配置守卫拒，`udp_carrier` 走 validate_layers 预检拒（§4 锚词不变）。

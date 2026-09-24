@@ -3,12 +3,14 @@
 // HVR、分片越界）+ 值域走查。每个被拒 spec 必须传播为 task error——绝不
 // 产出 completed/0-packet 或只剩 UDP 外壳的假成功。
 //
-// 处置表：6 负例中 5 走 validateWireFault 注入拒（record_length/
-// version_epoch/sequence_overflow/fragment_bounds/cookie_state——生成路径
-// 结构上恒自洽，注入是唯一通道）；carrier_udp 注入拒 + 自然面预检双通道
-// （transport-dup/缺 udp/混合地址族在 ValidateLayers 预检拦，bacnet 同构）。
-// 自然守卫（不占负例号，链级红例覆盖）：epoch 回退、seq 回退/复用、
-// cookie 非 HVR、kind 未知、版本非法——walker 与 handshakeBody 单权威。
+// 处置表：6 负例三通道——3 走 validateWireFault 注入拒（record_length/
+// version_epoch/sequence_overflow：生成路径结构上恒自洽，注入是唯一通道）；
+// 2 走自然非法配置（fragment_bounds/cookie_state：用例直接声明越界分片/
+// 非 HVR cookie，经 handshakeBody/validateSession 守卫拒）；1 走
+// validate_layers 预检拒（carrier_udp：transport-dup/缺 udp/混合地址族，
+// bacnet 同构）。自然守卫（不占负例号，链级红例覆盖）：epoch 回退、
+// seq 回退/复用、cookie 非 HVR、kind 未知、版本非法——walker 与
+// handshakeBody 单权威。
 package dtls
 
 import (

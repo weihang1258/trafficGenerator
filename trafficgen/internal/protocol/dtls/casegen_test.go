@@ -2,9 +2,9 @@ package dtls
 
 import (
 	"context"
-	"fmt"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -80,12 +80,12 @@ type negCase struct {
 }
 
 const (
-	dtlsCli    = "192.0.2.63"
-	dtlsSrv    = "198.51.100.63"
-	dtlsCli6   = "2001:db8::63"
-	dtlsSrv6   = "2001:db8:ffff::63"
-	dtlsCli2   = "192.0.2.64"
-	defaultSP  = 44330
+	dtlsCli   = "192.0.2.63"
+	dtlsSrv   = "198.51.100.63"
+	dtlsCli6  = "2001:db8::63"
+	dtlsSrv6  = "2001:db8:ffff::63"
+	dtlsCli2  = "192.0.2.64"
+	defaultSP = 44330
 )
 
 // --- 真实握手体（tshark DTLS 1.2 dissector 可识别）---
@@ -93,10 +93,10 @@ const (
 // rnd32 32B random 占位（全零确定性）；chBody0 ClientHello 无 cookie 体
 // （ver2+rand32+sid0+cookie0+cs_len2+suite2+comp_len1+comp1 = 42B）。
 var (
-	rnd32   = strings.Repeat("00", 32)                    // 64 hex
-	chBody0 = "FEFD" + rnd32 + "00000002002F0100"         // 84 hex = 42B
-	shBody  = "FEFD" + rnd32 + "00" + "002F" + "00"       // ServerHello 38B
-	certBody = "000000"                                   // 空 Certificate list
+	rnd32    = strings.Repeat("00", 32)                                                                               // 64 hex
+	chBody0  = "FEFD" + rnd32 + "00000002002F0100"                                                                    // 84 hex = 42B
+	shBody   = "FEFD" + rnd32 + "00" + "002F" + "00"                                                                  // ServerHello 38B
+	certBody = "000000"                                                                                               // 空 Certificate list
 	ckeBody  = "0030414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141" // RSA CKE 50B（2B len 0x0030 + 48B blob——tshark DTLS CKE 前置 2B 长度）
 )
 
@@ -133,8 +133,10 @@ func ev(kind string, up bool, extra map[string]interface{}) map[string]interface
 	}
 	return m
 }
-func ccs(up bool) map[string]interface{}         { return ev("ccs", up, nil) }
-func app(up bool, n int) map[string]interface{}  { return ev("appdata", up, map[string]interface{}{"ciphertext_len": n}) }
+func ccs(up bool) map[string]interface{} { return ev("ccs", up, nil) }
+func app(up bool, n int) map[string]interface{} {
+	return ev("appdata", up, map[string]interface{}{"ciphertext_len": n})
+}
 func appE(up bool, n, e int) map[string]interface{} {
 	return ev("appdata", up, map[string]interface{}{"epoch": e, "ciphertext_len": n})
 }
@@ -530,10 +532,10 @@ func TestGenerateDTLSCases(t *testing.T) {
 		},
 		nil)
 
-	// ⑫ dtls_record_boundary_lengths（6）：0/12B 握手头/1/2/1400/0。
-	add("dtls_record_boundary_lengths", "record 长度边界（0/12/1/2/1400/0）",
+	// ⑫ dtls_record_boundary_lengths（6）：1/62(CKE 50B 体)/1/2/1400/1。
+	add("dtls_record_boundary_lengths", "record 长度边界（1/62/1/2/1400/1）",
 		chain(map[string]interface{}{"sessions": []interface{}{dSess(
-			app(true, 1), // 1B opaque（tshark 对 0 长记录标 malformed，契约零长改链级单测守）
+			app(true, 1), // 1B opaque（tshark 对 0 长记录标 malformed——零长由 TestDTLSChain_ZeroLengthRecord 链级单测钉）
 			hsE(true, 16, map[string]interface{}{"body": ckeBody}), // RSA CKE 50B
 			ccs(true),
 			ev("alert", true, nil),
@@ -641,7 +643,7 @@ func TestGenerateDTLSCases(t *testing.T) {
 		"cookie")
 
 	// ⑳ carrier_udp
-	addNeg("dtls_neg_carrier_udp", "DTLS 需要 UDP 载体，tcp 载体拒绝",
+	addNeg("dtls_neg_udp_carrier", "DTLS 需要 UDP 载体，tcp 载体拒绝",
 		[]interface{}{
 			ipLayer(dtlsCli, dtlsSrv),
 			map[string]interface{}{"tcp": map[string]interface{}{"src_port": 40063, "dst_port": 4433}},

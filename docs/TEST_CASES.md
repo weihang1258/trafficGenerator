@@ -4006,7 +4006,7 @@ ICMPv4（RFC 792）反推 8 例（4 正+4 负；链级红例=单测面不占号�
 
 **存量审计（占位 1 例去向，9.14 口径）：** `dtls_neg_unregistered` 注册前置占位随注册移除（契约 §1/§5）；无存量语义用例。
 
-**测试点清单先行（P3）：** ①双地址族：IPv4/UDP 4433 基线 + IPv6 独立 fixture（offset 42/62）；②版本：1.2 `fefd`+1.0 `feff` legacy；③cookie 交换：CH→HVR→CH(cookie)→ServerHello；④分片/重组：跨 record 片+乱序重组（msg_seq/offset）；⑤epoch/seq：0→1 切换+48-bit BE 独立递增+重传不复用 seq；⑥CCS→加密 alert/appdata 外层；⑦重传超时→error；⑧多会话隔离/多流；⑨边界：Length=0/最大附近；⑩加密 opaque 边界；⑪负例 6：一行一注入（record/version_epoch/sequence/fragment/cookie_state/carrier）。
+**测试点清单先行（P3）：** ①双地址族：IPv4/UDP 4433 基线 + IPv6 独立 fixture（offset 42/62）；②版本：1.2 `fefd`+1.0 `feff` legacy；③cookie 交换：CH→HVR→CH(cookie)→ServerHello；④分片/重组：跨 record 片+乱序重组（msg_seq/offset）；⑤epoch/seq：0→1 切换+48-bit BE 独立递增+重传不复用 seq；⑥CCS→加密 alert/appdata 外层；⑦重传超时→error；⑧多会话隔离/多流；⑨边界：Length 边界（⑫ 例实测 1/62/1/2/1400/1——tshark 对 0 长 record 恒标 malformed，零长语义由链级单测 `TestDTLSChain_ZeroLengthRecord` 钉死）；⑩加密 opaque 边界；⑪负例 6：一行一注入（record/version_epoch/sequence/fragment/cookie_state/carrier）。
 
 **断言通道纪律：** fields 用 `dtls.record.*`（content_type/version/epoch/sequence_number/length）+`dtls.handshake.*`（type/length/message_seq/fragment_offset/length）+`udp.dstport`/`ip.proto`/`ipv6.nxt`；frames offset 42（IPv4）/62（IPv6）13B 头逐字节钉；加密 epoch 退化外层+hex（设计 §8）；动态端口例顶层 `decode_as`。
 

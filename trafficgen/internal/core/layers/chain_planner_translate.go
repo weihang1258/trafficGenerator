@@ -141,17 +141,17 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		DCERPC: spec.DCERPC,
 		// D-DTLS-1：dtls 终结层同款（sessions[]/events[] 经 Meta 直传
 		// 生成器；每事件 = 一 record = 一 UDP 数据报）。
-		DTLS: spec.DTLS,
-		CQL:    spec.CQL,
-		LDP:    spec.LDP,
-		PCEP:   spec.PCEP,
-		CFlow:  spec.CFlow,
-		AMQP:   spec.AMQP,
-		RTMFP:  spec.RTMFP,
-		IGMP:   spec.IGMP,
-		OSPF:   spec.OSPF,
-		PIM:    spec.PIM,
-		ISIS:   spec.ISIS,
+		DTLS:  spec.DTLS,
+		CQL:   spec.CQL,
+		LDP:   spec.LDP,
+		PCEP:  spec.PCEP,
+		CFlow: spec.CFlow,
+		AMQP:  spec.AMQP,
+		RTMFP: spec.RTMFP,
+		IGMP:  spec.IGMP,
+		OSPF:  spec.OSPF,
+		PIM:   spec.PIM,
+		ISIS:  spec.ISIS,
 		// GBT 同款（B6）：sessions[]/events[] 配置经 Meta 直传 gbt 终结层
 		// 生成器（每事件一笔事务一侧的完整 HTTP 帧字节；http 层透传转发）。
 		GBT: spec.GBT,
@@ -2179,7 +2179,7 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 				fmt.Sprintf("dcerpc layer config decode: %v", err))
 			return
 		}
-	spec.DCERPC = &dc
+		spec.DCERPC = &dc
 	case "dtls":
 		if spec.DTLS != nil {
 			return // flat 权威；二者并存时 flat 优先

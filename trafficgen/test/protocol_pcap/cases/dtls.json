@@ -1803,7 +1803,7 @@
  {
   "id": "dtls_record_boundary_lengths",
   "proto": "dtls",
-  "summary": "record 长度边界（0/12/1/2/1400/0）",
+  "summary": "record 长度边界（1/62/1/2/1400/1）",
   "spec_json": {
    "layers": [
     {
@@ -2401,7 +2401,7 @@
   }
  },
  {
-  "id": "dtls_neg_carrier_udp",
+  "id": "dtls_neg_udp_carrier",
   "proto": "dtls",
   "summary": "DTLS 需要 UDP 载体，tcp 载体拒绝",
   "spec_json": {

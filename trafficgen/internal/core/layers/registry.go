@@ -759,7 +759,7 @@ func buildDefaultRegistry() {
 	})
 	r.Register(LayerSchema{Name: "dtls", Category: CategoryTerminal,
 		DependsOn:     []string{"udp"},
-		TransportOn:   []string{"udp"},                         // DTLS 仅 UDP 载体（RFC 6347 datagram 语义）——transport-dup 检查据此报 carrier 锚词
+		TransportOn:   []string{"udp"},                           // DTLS 仅 UDP 载体（RFC 6347 datagram 语义）——transport-dup 检查据此报 carrier 锚词
 		FieldContract: map[string]string{"udp.dst_port": "4433"}, // DTLS 惯用端口（tshark 自动解码依赖）
 		Fields: map[string]FieldSchema{
 			"sessions":   {Type: "list", Default: []interface{}{}},

@@ -230,7 +230,7 @@ func TestDTLSChain_DeclaredSeqAdoptAndAdvance(t *testing.T) {
 }
 
 // ⑧ 多会话状态隔离：会话 2 的 epoch/seq/cookie 状态不串会话 1
-//（逐会话独立 walker；按序整块回放）。
+// （逐会话独立 walker；按序整块回放）。
 func TestDTLSChain_MultiSessionIsolation(t *testing.T) {
 	cfg := map[string]interface{}{"sessions": []interface{}{
 		map[string]interface{}{"src_port": 5001, "events": []interface{}{
@@ -382,5 +382,25 @@ func TestDTLSChain_StrictDecode(t *testing.T) {
 	}})
 	if err == nil || !strings.Contains(err.Error(), "dtls layer config decode") {
 		t.Fatalf("event strict decode: %v", err)
+	}
+}
+
+// ⑬ 零长 record：零长 appdata 合法（record Length=0，无 payload）——
+// tshark 会标 malformed 故 suite 用例用 1B opaque，零长语义由本链级
+// 单测钉死（契约 §3.12 边界面）。
+func TestDTLSChain_ZeroLengthRecord(t *testing.T) {
+	cfg := map[string]interface{}{"sessions": []interface{}{
+		map[string]interface{}{"events": []interface{}{
+			map[string]interface{}{"kind": "appdata", "up": true, "seq": 7},
+		}},
+	}}
+	pkts := driveDTLS(t, cfg)
+	if len(pkts) != 1 {
+		t.Fatalf("want 1, got %d", len(pkts))
+	}
+	// 13B 头：ct 23/fefd/epoch 0/seq 7/length 0，无 payload。
+	want := "17FEFD" + "0000" + "000000000007" + "0000"
+	if got := dtlsHex(t, pkts, 0); got != want {
+		t.Fatalf("zero-length record:\n got %s\nwant %s", got, want)
 	}
 }

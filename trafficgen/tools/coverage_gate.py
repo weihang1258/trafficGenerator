@@ -2892,7 +2892,7 @@ def check_dtls(cases):
     rows.append(("negativeOnly 不含 dtls（已准入）", '"dtls"' not in pt[i_neg:i_neg + 400], "已摘除"))
     tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
     rows.append(("translate case dtls（严格解码）", 'case "dtls":' in tr and "DisallowUnknownFields" in tr, "在案"))
-    rows.append(("FlowMeta.DTLS 直传（静默基线根修）", "DTLS: spec.DTLS" in tr, "在案"))
+    rows.append(("FlowMeta.DTLS 直传（静默基线根修）", "DTLS:" in tr and "spec.DTLS" in tr, "在案"))
     gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
     rows.append(("FlowMeta.DTLS", "DTLS       *core.DTLSConfig" in gen, "在案"))
     rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
@@ -2948,7 +2948,7 @@ def check_dtls(cases):
         "dtls_encrypted_opaque_boundary",
         "dtls_neg_record_truncated", "dtls_neg_version_epoch",
         "dtls_neg_sequence_overflow", "dtls_neg_fragment_bounds",
-        "dtls_neg_cookie_state", "dtls_neg_carrier_udp",
+        "dtls_neg_cookie_state", "dtls_neg_udp_carrier",
     ]:
         rows.append((f"用例在案：{cid}", cid in ids, "在案"))
     rows.append(("用例总数 20（14 正+6 负）", len(cases) == 20, f"{len(cases)} 例"))

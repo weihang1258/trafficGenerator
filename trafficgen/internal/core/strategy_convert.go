@@ -771,9 +771,11 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// EPM 标准端口 135（tshark 自动解码依赖；动态端口显式声明合法）。
 		setDefaultDstPort(&spec, cfg, 135)
 	case "dtls":
-		// DTLS (RFC 6347): UDP-only family. Config in dtls layer sub-map;
-		// top-level dtls key rejected by CheckProtoFlat. Strict decode via
-		// DTLSConfig UnmarshalJSON.
+		// DTLS (RFC 6347): UDP-only family. Config in dtls layer sub-map
+		// (authoritative); a top-level dtls sub-map alongside layers is a
+		// mixed-shape rejection at translate time (translate reads the
+		// layer chain, not this map). Strict decode via DTLSConfig
+		// UnmarshalJSON.
 		if sub, ok := cfg["dtls"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*DTLSConfig](&spec, sub, "dtls", &spec.DTLS)
 		}
