@@ -4000,6 +4000,18 @@ ICMPv4（RFC 792）反推 8 例（4 正+4 负；链级红例=单测面不占号�
 
 **P6 修轮（终审 H1+H2+M1+M2 处置，2026-09-24）：** H1 请求 id 迭代（idWalker 单解析权威）——nonce_boundary/lifecycle 五处 field 期望按契约忠实字节校准（旧钉=违契约的 id 复用字节；lifecycle 恢复 §4#23 1→2→3 递增）；H2 keepalived 会话等值守卫 + 会话引用继承；M1 getjob 响应 job 登记；M2 处置表 21+18 据实勘误。验收执行器=MCP 套件（终结层族 edp/mmse 同状，离线执行器不覆盖系先例）。终验：红例 20（①-⑳）全绿 + 64/64 ×2（新二进制）+ coverage 47/47 + race 净。
 
+## T-DTLS-1…20 dtls 层链接入（#43 D-DTLS-1，DTLS 1.0/1.2 over UDP/4433，20 例）
+
+**三源回指：** RFC 6347（record/epoch/seq/握手分片/CCS/alert/appdata）+RFC 4347（1.0 legacy）→ D-DTLS-1 → `test/protocol_pcap/cases/dtls.json`（20 例）。ID 权威 = `58-dtls-testcase.md` §2（14 正 + 6 负）；本节对账 20 = 14 + 6。
+
+**存量审计（占位 1 例去向，9.14 口径）：** `dtls_neg_unregistered` 注册前置占位随注册移除（契约 §1/§5）；无存量语义用例。
+
+**测试点清单先行（P3）：** ①双地址族：IPv4/UDP 4433 基线 + IPv6 独立 fixture（offset 42/62）；②版本：1.2 `fefd`+1.0 `feff` legacy；③cookie 交换：CH→HVR→CH(cookie)→ServerHello；④分片/重组：跨 record 片+乱序重组（msg_seq/offset）；⑤epoch/seq：0→1 切换+48-bit BE 独立递增+重传不复用 seq；⑥CCS→加密 alert/appdata 外层；⑦重传超时→error；⑧多会话隔离/多流；⑨边界：Length=0/最大附近；⑩加密 opaque 边界；⑪负例 6：一行一注入（record/version_epoch/sequence/fragment/cookie_state/carrier）。
+
+**断言通道纪律：** fields 用 `dtls.record.*`（content_type/version/epoch/sequence_number/length）+`dtls.handshake.*`（type/length/message_seq/fragment_offset/length）+`udp.dstport`/`ip.proto`/`ipv6.nxt`；frames offset 42（IPv4）/62（IPv6）13B 头逐字节钉；加密 epoch 退化外层+hex（设计 §8）；动态端口例顶层 `decode_as`。
+
+**状态：** P3（testcase 断言契约已逐 ID 落定；P5 先跑后钉）。
+
 ## T-DCERPC-1…80 dcerpc 层链接入（#42 D-DCERPC-1，DCE/RPC v5 over TCP/EPM 135+动态端口，80 例）
 
 **三源回指：** C706/Open Group（§4.2 通信头/§4.3 BIND 族/§4.4 调用族/§12 封装/§12.5.4 头结构+F.2.9 tower 示例）+ MS-RPCE（2.2.1.1.1 头/auth verifier u16 ctx_id/epm idl 语义）→ D-DCERPC-1 → `test/protocol_pcap/cases/dcerpc.json`（80 例）。ID 权威 = `63-dcerpc-testcase.md` §2（48 正 + 32 负）；本节对账 80 = 48 + 32。
