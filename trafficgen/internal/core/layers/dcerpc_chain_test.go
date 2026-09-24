@@ -116,15 +116,15 @@ func TestDCERPCChain_BindBaselineBytes(t *testing.T) {
 	if len(pkts) != 9 {
 		t.Fatalf("want 9 packets (3 hs + bind + ack + 4 fin), got %d", len(pkts))
 	}
-	want1 := "05000B00100000004800000001000000" +
+	want1 := "05000B03100000004800000001000000" +
 		"D016D0160000000001000000" +
 		"000001000883AFE11F5DC91191A408002B14A0FA03000000" +
 		"045D888AEB1CC9119FE808002B10486002000000"
 	if got := dceHex(t, pkts, 3); got != want1 {
 		t.Fatalf("bind mismatch:\n got %s\nwant %s", got, want1)
 	}
-	want2 := "05000C00100000003800000001000000" +
-		"D016D01604003130323500000100000000000000045D888AEB1CC9119FE808002B10486002000000"
+	want2 := "05000C03100000003C00000001000000" +
+		"D016D0160000000004003130323500000100000000000000045D888AEB1CC9119FE808002B10486002000000"
 	if got := dceHex(t, pkts, 4); got != want2 {
 		t.Fatalf("bind_ack mismatch:\n got %s\nwant %s", got, want2)
 	}
@@ -146,12 +146,12 @@ func TestDCERPCChain_RequestResponseBytes(t *testing.T) {
 		t.Fatalf("want 9 packets, got %d", len(pkts))
 	}
 	// request：alloc 08000000 ctx 0000 op 0200 + stub 6B → frag 0x1C，call 1（prebound 无 bind，walker 起 1）
-	want1 := "05000000100000001E000000010000000800000000000200010400010400"
+	want1 := "05000003100000001E000000010000000800000000000200010400010400"
 	if got := dceHex(t, pkts, 3); got != want1 {
 		t.Fatalf("request mismatch:\n got %s\nwant %s", got, want1)
 	}
 	// response：alloc 00000000 ctx 0000 cc 00 rsv 00 + stub 3B → frag 0x17
-	want2 := "05000200100000001B000000010000000000000000000000010400"
+	want2 := "05000203100000001B000000010000000000000000000000010400"
 	if got := dceHex(t, pkts, 4); got != want2 {
 		t.Fatalf("response mismatch:\n got %s\nwant %s", got, want2)
 	}
@@ -177,7 +177,7 @@ func TestDCERPCChain_CallWalkerSequence(t *testing.T) {
 	}
 	got := dceHex(t, pkts, 5)
 	// call_id 住 16B 头 offset 12（hex[24:32]）；frag 16+alloc4+ctx2+op2=24=0x18
-	if !strings.HasPrefix(got, "050000001000000018000000") || got[24:32] != "06000000" {
+	if !strings.HasPrefix(got, "050000031000000018000000") || got[24:32] != "06000000" {
 		t.Fatalf("request call_id not 6: %s", got)
 	}
 }
@@ -216,7 +216,7 @@ func TestDCERPCChain_FaultStatus(t *testing.T) {
 		t.Fatalf("want 9 packets, got %d", len(pkts))
 	}
 	// fault body: alloc(4) ctx(2) cc(1) rsv(1) status(4) rsv2(4)=12B → frag 0x1C
-	want := "0500030010000000200000000100000000000000000000000500000000000000"
+	want := "0500030310000000200000000100000000000000000000000500000000000000"
 	if got := dceHex(t, pkts, 4); got != want {
 		t.Fatalf("fault mismatch:\n got %s\nwant %s", got, want)
 	}
@@ -234,7 +234,7 @@ func TestDCERPCChain_AuthTrailer(t *testing.T) {
 	pkts := driveDCERPC(t, cfg)
 	got := dceHex(t, pkts, 3)
 	// body: alloc4+ctx2+op2+stub2=10；trailer = 6B 头(type/level/padlen/rsv/ctx_id u16)+4 creds → frag 16+10+10=36=0x24 auth_len 10=0x0A
-	if !strings.HasPrefix(got, "050000001000000024000A0001000000") || !strings.HasSuffix(got, "0A0200000000DEADBEEF") {
+	if !strings.HasPrefix(got, "050000031000000024000A0001000000") || !strings.HasSuffix(got, "0A0200000000DEADBEEF") {
 		t.Fatalf("auth trailer layout wrong: %s", got)
 	}
 }

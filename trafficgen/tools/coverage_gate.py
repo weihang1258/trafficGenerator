@@ -946,6 +946,83 @@ def check_edp(cases):
     return rows
 
 
+def check_dcerpc(cases):
+    """D-DCERPC-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 dcerpc", '"dcerpc": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 dcerpc（已准入）", '"dcerpc"' not in pt[i_neg:i_neg + 400], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case dcerpc（严格解码）", 'case "dcerpc":' in tr and "DisallowUnknownFields" in tr, "在案"))
+    rows.append(("FlowMeta.DCERPC 直传（静默 0 事件根修）", "DCERPC: spec.DCERPC" in tr, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.DCERPC", "DCERPC     *core.DCERPCConfig" in gen, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry dcerpc 行 + tcp/135 契约", '"tcp.dst_port": "135"' in rg and '"dcerpc"' in rg, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    rows.append(("tcp 载体预检（缺 tcp/混合族）", "missing tcp carrier" in vl and "(family)" in vl, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go ChainPlanner(dcerpc) 接线", 'NewChainPlanner("dcerpc")' in mn, "在案"))
+    ch = (tg / "internal" / "core" / "layers" / "chain_planner_chain.go").read_text()
+    rows.append(("tcp 分支 dcerpc concurrent=true", "isDCERPCChain" in ch, "在案"))
+
+    # 2. 行为面（builder/planner 关键件）。
+    dc = (tg / "internal" / "core" / "dcerpc.go").read_text()
+    import re as _re
+    _i = dc.index("anchors := map[string]string{")
+    _seg = dc[_i:dc.index("\n\t}", _i)]
+    _n = len(_re.findall(r'DCERPCWireFault[A-Za-z0-9]+:', _seg))
+    rows.append(("wire_fault 闭环 32 值锚词表", _n == 32, f"{_n} 值"))
+    bl = (tg / "internal" / "protocol" / "dcerpc" / "builder.go").read_text()
+    for prim, name in [
+        ("func uuidEncode", "UUID 混合端序编解码权威（§0）"),
+        ("func commonHeader", "16B LE 公共头（drep 10000000）"),
+        ("func buildContextList", "context element 装配（BIND/ALTER 共用）"),
+        ("func buildBindAck", "BIND_ACK/ALTER_CTX_RESP（assoc_group+sec_addr 恒写——P4 勘误）"),
+        ("func buildCallPDU", "REQUEST/RESPONSE/FAULT 装配（PFC_OBJECT_UUID 0x80）"),
+        ("func splitStub", "分片均分（裁定7：每片自含完整头）"),
+        ("type callWalker", "call_id 单解析权威（裁定6）"),
+        ("func authTrailer", "auth trailer（6B verifier 头+opaque 凭据）"),
+        ("pfcObjUUID   = 0x80", "PFC_OBJECT_UUID=0x80（tshark 实证勘误）"),
+        ("flags := byte(pfcFirstFrag | pfcLastFrag)", "单 PDU 恒 FIRST|LAST=0x03（tshark Fragment:Mid 教训）"),
+        ("body = le32(body, int64(assocGroup))", "BIND_ACK assoc_group(4B) 回带（C706 header_t）"),
+        ("sec = nil", "ALTER_CTX_RESP sec_addr_len=0 恒写"),
+    ]:
+        rows.append((f"关键件：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "dcerpc" / "planner.go").read_text()
+    for guard, name in [
+        ("reused while transaction open", "call_id_reuse（事务不重用）"),
+        ("does not match open call", "call_mismatch（应答配对）"),
+        ("never accepted (context)", "state_request_unbound/context_unknown"),
+        ("whose bind result was rejection (syntax)", "syntax_mismatch（rejected 后引用）"),
+        ("duplicated within one bind (context)", "context_duplicate"),
+        ("is negative (hint)", "alloc_hint_negative（u32 域）"),
+        ("is not a 32-hex-digit UUID (uuid)", "uuid_width/version_missing（UUID 宽度+hex）"),
+        ("unknown event kind", "kind 值域兜底"),
+        ("needs at least one transfer syntax", "context_syntax（≥1 transfer syntax）"),
+    ]:
+        rows.append((f"关键件：{name}", guard in pl, "在案"))
+
+    # 3. 用例面（80 例簇覆盖）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "dcerpc_epm_ipv4_bind_lookup", "dcerpc_epm_ipv6_bind_lookup",
+        "dcerpc_common_header_fields", "dcerpc_uuid_encoding_authority",
+        "dcerpc_fragment_three_pieces", "dcerpc_multi_pdu_back_to_back",
+        "dcerpc_auth_pad_2bytes", "dcerpc_bind_ack_assoc_group",
+        "dcerpc_epm_tower_variants", "dcerpc_epm_annotation",
+        "dcerpc_neg_assoc_group_width", "dcerpc_neg_address_family_mismatch",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    rows.append(("用例总数 80（48 正+32 负）", len(cases) == 80, f"{len(cases)} 例"))
+    return rows
+
+
 def check_bacnet(cases):
     """D-BACNET-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -2802,7 +2879,7 @@ def check_xmrmining(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc}
 
 
 def main(argv):

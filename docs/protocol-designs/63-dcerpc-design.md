@@ -2,7 +2,7 @@
 
 > 版本：v2.0.0（行为面全枚举，层链形）
 > 日期：2026-09-24
-> 状态：按《协议设计文档与用例文档需求文档 v1.3》对 v1.0.0 做行为面重写：ID 权威迁 `63-dcerpc-testcase.md` §2；负例 6 粗组拆逐故障单锚词行；旧扁平示例迁层链；本文 §9/§10 改簇级覆盖图景。目标形状为 P4 实现后的可跑配置。
+> 状态：P5 全绿（2026-09-24，80/80 ×2，dcerpc 层已注册翻转）；行为面重写（ID 权威=testcase §2）+ v2.0.1 P4/P5 据实勘误（§3/§4/§6/§7——修订记录在案）。
 > 配套文件：`docs/protocol-designs/63-dcerpc-testcase.md`、`trafficgen/test/protocol_pcap/cases/dcerpc.json`
 > 规范基线：The Open Group C706（DCE 1.1 RPC：RPC 协议规范第 12 章 connection-oriented PDU/编解码权威）、MS-RPCE（Windows 现网行为面：2.2.2.1 common header/2.2.1.1.1 UUID 编码/endpoint-mapper tower）、RFC 793（TCP 载体）。
 
@@ -66,7 +66,7 @@
 | 0 | 1 | Version | 固定 `5`，≠5 拒。 |
 | 1 | 1 | VersionMinor | 固定 `0`，≠0 拒（minor 1 仅 auth 语义差异，不产生）。 |
 | 2 | 1 | PacketType | BIND=11/BIND_ACK=12/ALTER_CONTEXT=14/ALTER_CONTEXT_RESP=15/REQUEST=0/RESPONSE=2/FAULT=3 七型产生；REJECT(1)/SHUTDOWN(6)/CANCEL(8)/ORPHANED(17)/PING(1_CL) 等其余不产生（负例值域兜底）。 |
-| 3 | 1 | PacketFlags | PFC_FIRST_FRAG=0x01、PFC_LAST_FRAG=0x02、PFC_PENDING_CANCEL=0x04、PFC_OBJECT_UUID=0x20（仅 REQUEST）；分片首/末标志必须闭合（有 FIRST 的调用必有 LAST）。 |
+| 3 | 1 | PacketFlags | PFC_FIRST_FRAG=0x01、PFC_LAST_FRAG=0x02、PFC_PENDING_CANCEL=0x04、PFC_OBJECT_UUID=0x80（仅 REQUEST；v2.0.1 勘误——0x20 系 PFC_DID_NOT_EXECUTE，tshark 位序实证）；分片首/末标志必须闭合（有 FIRST 的调用必有 LAST），非分片恒 0x03。 |
 | 4 | 4 | DataRepresentation | fixture 恒 `10 00 00 00`（LE int+ASCII+IEEE）；≠拒。 |
 | 8 | 2 | FragLength | LE；从 header 起计含 body/pad/auth trailer；≥16；须与实际 PDU 字节一致。 |
 | 10 | 2 | AuthLength | LE；凭据长度不含 header；=0 无 trailer，>0 须有 verifier 且 `auth_len ≤ frag_len-24`。 |
@@ -92,12 +92,12 @@ stub 按 drep LE 编码 scalar；复合值起始自然对齐（2→2/4→4/8→8
 
 ## 6. Fragment 与 TCP record boundary
 
-PDU 超 record 时按同一 call_id/context_id 分片：每片自含 16B header+frag_len，首片 PFC_FIRST_FRAG、末片 PFC_LAST_FRAG。fixture 分片由 `fragments: n`（request/respond 内）声明，引擎按 stub 均分产 n 片。多 PDU 背靠背（引擎每 PDU 一 TCP 段）覆盖"PDU≠TCP record"观察面；真跨 segment 重组属 NIC/栈行为不产生（裁定7）。v1.0.0 #13"合并 segment"例改"背靠背多 PDU"口径。
+PDU 超 record 时按同一 call_id/context_id 分片：每片自含 16B header+frag_len，首片 PFC_FIRST_FRAG、末片 PFC_LAST_FRAG。fixture 分片由 `fragments: n`（request/respond 内）声明，引擎按 stub 均分产 n 片（首 01/中 00/末 02）；**非分片 PDU 恒 PFC_FIRST_FRAG|PFC_LAST_FRAG=0x03**（真实栈行为；tshark 对 0 flags 视作 Fragment:Mid 延迟解析——P5 实证勘误）。多 PDU 背靠背（引擎每 PDU 一 TCP 段）覆盖"PDU≠TCP record"观察面；真跨 segment 重组属 NIC/栈行为不产生（裁定7）。v1.0.0 #13"合并 segment"例改"背靠背多 PDU"口径。
 
 ## 7. wire_fault 逐值处置表（32 值；P4 落码据实勘误——bacnet 15+27 先例）
 
 - **拟定自然面守卫**（配置可表达、validator 同步拒）：call_id_reuse（并发撞车）；call_mismatch（应答 call 与 open 集不符）；state_ack_no_call（应答无前置请求）；state_request_unbound（bound 前 request）；context_duplicate（同 BIND 内 ID 重复）；context_unknown（引用未 accepted context）；syntax_mismatch（rejected 后仍用）；alloc_hint_negative（u32 域）；ndr_alignment（padding 缺失）；ndr_array_count（count 越界）；ndr_union_unknown（未知 discriminant）；ndr_stub_overflow（stub 越界）；auth_pad_invalid（pad_length≠实际）；auth_trailer_over（trailer 越 frag_len）；auth_verifier_len（auth_len 与 credentials 不符）；context_syntax（UUID/version 缺字段）；frag_flags_first_no_last（FIRST 无 LAST）——计 17。
-- **拟定仅注入/结构不可达**（builder 恒渲染正确字节）：version_not5、version_minor_not0、packet_type_unknown、packet_type_reserved（8 型不产生）、drep_not_le、frag_len_lt16、frag_len_mismatch、auth_len_over、flags_last_no_first、uuid_width（UUID 非 16B 渲染恒对）、opnum_width、secondary_addr_len（长度前缀字符串渲染恒对）、assoc_group_width、carrier_layer_missing、carrier_udp、port_undeclared、address_family_mismatch——计 15。
+- **拟定仅注入/结构不可达**（builder 恒渲染正确字节）：version_not5、version_minor_not0、packet_type_unknown、packet_type_reserved（8 型不产生）、drep_not_le、frag_len_lt16、frag_len_mismatch、auth_len_over、auth_verifier_len、auth_pad_invalid（pad 与实际填充 builder 恒一致）、auth_trailer_over、flags_last_no_first、flags_first_no_last（分片 flags 由引擎管理，配置不可达——v2.0.1 勘误：从自然面移注入口）、uuid_width（UUID 非 16B 渲染恒对）、assoc_group_width、carrier_layer_missing、carrier_udp、port_undeclared、address_family_mismatch——计 20 注入/12 自然（负例 32 全经 wire_fault 注入通道或载体自然形状落码，锚词三方同表）。
 - 17+15=32 可复算；P4 落码逐值对照实况勘误（bacnet M2 教训：对着代码真行为，不对着意图）。
 
 ## 8. 边界与安全限制

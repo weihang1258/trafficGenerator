@@ -1,10 +1,10 @@
 # DCERPC（分布式计算环境远程过程调用，DCE/RPC）测试用例契约
 
-> 版本：v2.0.0（行为面全枚举，ID 权威）
+> 版本：v2.0.1（行为面全枚举，ID 权威；P5 校准注记在 §1/状态行）
 > 日期：2026-09-24
 > 配套设计：`docs/protocol-designs/63-dcerpc-design.md` v2.0.0
 > 机器契约：`trafficgen/test/protocol_pcap/cases/dcerpc.json`（80 例=48 正+32 负）
-> 状态：`dcerpc` 层尚未注册；本文为 P4 实现后的 PCAP 断言契约。注册后移除占位 `dcerpc_neg_unregistered`。
+> 状态：P5 全绿（2026-09-24，80/80 ×2）；占位已移除；§4 补断言通道勘误——sec_trailer 字段（dcerpc.auth_type/level/pad_len）在 opaque 凭据下 tshark 不渲染（含 bind+auth 前导），auth 三例退化帧 hex 权威；EPM 深观察两例用真 epm_Lookup 线格式（请求 40B 全 NULL/零；应答 handle20+num_ents+ucarray(max,off,act)+entry+tower 后置+rc——wireshark epm 分解器源码实证）；多会话=按会话块序展开（同四元组会话合并单连接，跨端口会话块间按序）。
 
 ## 1. 测试原则
 

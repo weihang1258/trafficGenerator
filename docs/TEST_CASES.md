@@ -4000,6 +4000,20 @@ ICMPv4（RFC 792）反推 8 例（4 正+4 负；链级红例=单测面不占号�
 
 **P6 修轮（终审 H1+H2+M1+M2 处置，2026-09-24）：** H1 请求 id 迭代（idWalker 单解析权威）——nonce_boundary/lifecycle 五处 field 期望按契约忠实字节校准（旧钉=违契约的 id 复用字节；lifecycle 恢复 §4#23 1→2→3 递增）；H2 keepalived 会话等值守卫 + 会话引用继承；M1 getjob 响应 job 登记；M2 处置表 21+18 据实勘误。验收执行器=MCP 套件（终结层族 edp/mmse 同状，离线执行器不覆盖系先例）。终验：红例 20（①-⑳）全绿 + 64/64 ×2（新二进制）+ coverage 47/47 + race 净。
 
+## T-DCERPC-1…80 dcerpc 层链接入（#42 D-DCERPC-1，DCE/RPC v5 over TCP/EPM 135+动态端口，80 例）
+
+**三源回指：** C706/Open Group（§4.2 通信头/§4.3 BIND 族/§4.4 调用族/§12 封装/§12.5.4 头结构+F.2.9 tower 示例）+ MS-RPCE（2.2.1.1.1 头/auth verifier u16 ctx_id/epm idl 语义）→ D-DCERPC-1 → `test/protocol_pcap/cases/dcerpc.json`（80 例）。ID 权威 = `63-dcerpc-testcase.md` §2（48 正 + 32 负）；本节对账 80 = 48 + 32。
+
+**存量审计（占位 1 例去向，9.14 口径）：** `dcerpc_neg_unregistered` 注册前置占位随注册移除（契约 §1/§5）；无存量语义用例。
+
+**测试点清单先行（P3）：** ①双 profile×地址族：EPM bind→lookup→response 基线 IPv4/IPv6+动态端口独立会话 4 例；②common header：七型混排/frag_len 下限/call_id 0 与 0xFFFFFFFF/相邻配对/opnum 0 与 65535；③BIND 族：双 context/最小/secondary "1025" 与空/rejected result/assoc_group 回带/reject 后 ALTER 换 syntax；④调用与 FAULT：NDR scalar/FAULT status 域/cancel_count/object UUID/alloc_hint 0 与≠实际/empty stub/prebound；⑤NDR 面：pointer+array+union/hyper/UTF-16/conformant array/NULL pointer/struct padding（stub opaque——帧 hex 权威）；⑥auth：opaque 凭据/pad=2/type-level 矩阵（bind+auth 前导真实形）；⑦分片与多 PDU：2 片/3 片/背靠背；⑧多会话：2×2 ctx 并发/块序展开/交错/concurrent；⑨EPM 深观察：真 epm tower（7→4 floor 实证）/annotation；⑩负例 32：wire_fault 注入逐行锚词 + carrier/family 自然形状。
+
+**断言通道纪律（契约 §1/§4）：** fields 用 `dcerpc.*`（ver/pkt_type/cn_* /auth_len）+ `epm.*`（tower/annotation——EPM 真接口触发子分解器）+ `tcp.dstport`/`ipv6.nxt`；动态端口例顶层 `decode_as`（tcp.port==4135,dcerpc）；**sec_trailer 字段（dcerpc.auth_type/level/pad_len）在 opaque 凭据下 tshark 不渲染（无 auth 分解器上下文，含 bind+auth 前导亦然）——auth 三例退化帧 hex 权威（契约 §4 允许的退化通道）**；frames offset 54（IPv4 TCP 载体）/UUID 域 78（object）/86（bind abstract）逐字节钉。
+
+**状态：** P5 全绿（2026-09-24，80/80 ×2 稳态 + 门 2 静态四项绿 + coverage 反查 44/44；pcap 落 `/tmp/mcp-pcaps/dcerpc/`，负例空占位）。**级别：** pcap。
+
+**P5 校准记录（先跑后钉实证，66→70→71→73→78→80 六轮收敛）：** ①**PFC_OBJECT_UUID=0x80 非 0x20**——初版 builder 常量 0x20 实为 PFC_DID_NOT_EXECUTE，tshark Packet Flags 展示位序（Object=MSB）证伪，builder 据实改；②**单 PDU 恒 FIRST|LAST=0x03**——flags 0 的 PDU 被 tshark 视作"Fragment: Mid"延迟解析（auth/ack_result 字段全空），真实栈行为即 0x03，builder 根因修复（分片首中末仍 01/00/02）；③**BIND_ACK/ALTER_CTX_RESP 头含 assoc_group(4B) 且 ALTER_CTX_RESP sec_addr_len=0 恒写**（C706 §12.5.4.2 header_t 共享——初版缺 assoc 致 dissector 错位）；④**多会话语义=按会话块序展开**（非 event-index 交错）：[s1: hs+全部事件][s2: hs+全部事件][各会话挥手块]——同四元组会话合并单连接（多 ctx 例会话 2 需显式 dst_port）；⑤genAUUID 撞真实 SPOOLSS UUID（12345678-1234-abcd-ef00-0123456789ab）致"Unimplemented dissector"异常连锁污染 auth 字段——换未注册 UUID；⑥**EPM 深观察用真 epm_Lookup 线格式**（取 wireshark epm 分解器源码实证）：请求=inq4+object ptr4+interface ptr4+ver_opt4+handle20+max_towers4（全 NULL/零）；应答=handle20+num_ents4+REF ucarray(max4+off4+act4)+entries+rc4；entry=object uuid16+tower unique referent4+ann_offset4+ann_len4+annotation+**tower 字节后置**（wireshark 对 unique pointer 指向物延迟分解——tower=[len4+len4+num_floors u16+floors]，floor=[lhs_len u16+lhs+rhs_len u16+rhs]，UUID floor lhs=0x0D+16B+rhs=ver maj/min 各 1B，TCP floor rhs=port BE，IP floor rhs=4B BE）；⑦drep.byteorder 渲染 1=LE（非 0）；⑧add() 尾参误传 IP 进 decode_as 一次性修正（tshark -d 模板校验拦截）。
+
 ## T-BACNET-1…97 bacnet 层链接入（#41 D-BACNET-1，BACnet/IP（BVLC 0x81）/UDP 47808，97 例）
 
 **三源回指：** ANSI/ASHRAE 135（Clause 6/18/20/21/23/Annex J；条款号经参考实现注释印证，不臆造）+ bacnet-stack（BTL 参考栈，线格式逐函数权威：bvlc.h/bvlc.c/npdu.c/h_apdu.c/bacdcode.c/bacreal.c/whois.c/iam.c/rp.c/wp.c/rpm.c/cov.c/dcc.c）→ D-BACNET-1 → `test/protocol_pcap/cases/bacnet.json`（97 例）。ID 权威 = `65-bacnet-testcase.md` §2（55 正 + 42 负，D-1 megaco 判例）；本节对账 97 = 55 + 42。

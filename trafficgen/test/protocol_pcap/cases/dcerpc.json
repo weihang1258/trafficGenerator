@@ -1,28 +1,5303 @@
 [
-  {
-    "id": "dcerpc_neg_unregistered",
-    "proto": "dcerpc",
-    "summary": "DCERPC layer is not registered yet; reject at layer validation",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "dcerpc": {}
-        }
-      ],
-      "src_ip": "192.0.2.63",
-      "dst_ip": "198.51.100.63",
-      "src_port": 40063,
-      "dst_port": 135
+ {
+  "id": "dcerpc_epm_ipv4_bind_lookup",
+  "proto": "dcerpc",
+  "summary": "TCP/135 EPM bind→lookup→response 基线（IPv4）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "unknown layer",
-      "notes": [
-        "Design-only gate: dcerpc is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove it and add the 14 positive and 6 negative semantic cases in testcase order."
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "e1af8308-5d1f-11c9-91a4-08002b14a0fa",
+            "abstract_version": [
+             3,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ],
+           "secondary": "135"
+          }
+         },
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 2,
+          "respond": {
+           "ack": "response",
+           "stub": "00000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "stub": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+         }
+        ]
+       }
       ]
+     }
     }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 4,
+     "value": "11"
+    },
+    {
+     "field": "dcerpc.cn_bind_to_uuid",
+     "packet": 4,
+     "value": "e1af8308-5d1f-11c9-91a4-08002b14a0fa"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 5,
+     "value": "12"
+    },
+    {
+     "field": "dcerpc.cn_sec_addr",
+     "packet": 5,
+     "value": "135"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 6,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.opnum",
+     "packet": 6,
+     "value": "2"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 7,
+     "value": "2"
+    },
+    {
+     "field": "dcerpc.cn_call_id",
+     "packet": 6,
+     "value": "2"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "05000B0310000000",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "packet_count": 11
   }
+ },
+ {
+  "id": "dcerpc_epm_ipv6_bind_lookup",
+  "proto": "dcerpc",
+  "summary": "IPv6 独立 EPM session（ipv6.nxt=6）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "2001:db8:ffff::63",
+      "src": "2001:db8::63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "e1af8308-5d1f-11c9-91a4-08002b14a0fa",
+            "abstract_version": [
+             3,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ],
+           "secondary": "135"
+          }
+         },
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 2,
+          "respond": {
+           "ack": "response",
+           "stub": "00000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "stub": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ipv6.nxt",
+     "packet": 1,
+     "value": "6"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 4,
+     "value": "11"
+    },
+    {
+     "field": "dcerpc.opnum",
+     "packet": 6,
+     "value": "2"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 7,
+     "value": "2"
+    }
+   ],
+   "frames": [],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "dcerpc_dynamic_ipv4_profile",
+  "proto": "dcerpc",
+  "summary": "EPM 查询→动态端口（4135 显式）独立 session 调用",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "e1af8308-5d1f-11c9-91a4-08002b14a0fa",
+            "abstract_version": [
+             3,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ],
+           "secondary": "135"
+          }
+         },
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 2,
+          "respond": {
+           "ack": "response",
+           "stub": "00000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "stub": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+         }
+        ]
+       },
+       {
+        "dst_port": 4135,
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response",
+           "stub": "0102"
+          },
+          "stub": "0102"
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 4,
+     "value": "11"
+    },
+    {
+     "field": "dcerpc.opnum",
+     "packet": 6,
+     "value": "2"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 11,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 12,
+     "value": "2"
+    },
+    {
+     "field": "tcp.dstport",
+     "packet": 4,
+     "value": "135"
+    },
+    {
+     "field": "tcp.dstport",
+     "packet": 11,
+     "value": "4135"
+    }
+   ],
+   "frames": [],
+   "packet_count": 20
+  },
+  "decode_as": [
+   "tcp.port==4135,dcerpc"
+  ]
+ },
+ {
+  "id": "dcerpc_dynamic_ipv6_profile",
+  "proto": "dcerpc",
+  "summary": "同上 IPv6",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "2001:db8:ffff::63",
+      "src": "2001:db8::63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "e1af8308-5d1f-11c9-91a4-08002b14a0fa",
+            "abstract_version": [
+             3,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ],
+           "secondary": "135"
+          }
+         },
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 2,
+          "respond": {
+           "ack": "response",
+           "stub": "00000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "stub": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+         }
+        ]
+       },
+       {
+        "dst_port": 4135,
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response",
+           "stub": "0102"
+          },
+          "stub": "0102"
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ipv6.nxt",
+     "packet": 1,
+     "value": "6"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 11,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 12,
+     "value": "2"
+    }
+   ],
+   "frames": [],
+   "packet_count": 20
+  },
+  "decode_as": [
+   "tcp.port==4135,dcerpc"
+  ]
+ },
+ {
+  "id": "dcerpc_common_header_fields",
+  "proto": "dcerpc",
+  "summary": "七型 PDU 混排：ver/type/flags/drep/frag/call_id 逐字段",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         },
+         {
+          "contexts": [
+           {
+            "abstract": "0a0b0c0d-0e0f-1112-1314-15161718191a",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 1,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "alter_ctx",
+          "respond": {
+           "ack": "alter_ctx_resp",
+           "results": [
+            {
+             "context_id": 1,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         },
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 1,
+          "respond": {
+           "ack": "response"
+          }
+         },
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 2,
+          "respond": {
+           "ack": "fault",
+           "status": 5
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.ver",
+     "packet": 4,
+     "value": "5"
+    },
+    {
+     "field": "dcerpc.ver_minor",
+     "packet": 4,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 4,
+     "value": "11"
+    },
+    {
+     "field": "dcerpc.drep.byteorder",
+     "packet": 4,
+     "value": "1"
+    },
+    {
+     "field": "dcerpc.cn_flags.first_frag",
+     "packet": 4,
+     "value": "1"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 5,
+     "value": "12"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 6,
+     "value": "14"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 7,
+     "value": "15"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 8,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 9,
+     "value": "2"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 11,
+     "value": "3"
+    },
+    {
+     "field": "dcerpc.cn_call_id",
+     "packet": 4,
+     "value": "1"
+    },
+    {
+     "field": "dcerpc.cn_call_id",
+     "packet": 8,
+     "value": "3"
+    },
+    {
+     "field": "dcerpc.cn_call_id",
+     "packet": 11,
+     "value": "4"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "05000B0310000000",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "packet_count": 15
+  }
+ },
+ {
+  "id": "dcerpc_bind_multi_context",
+  "proto": "dcerpc",
+  "summary": "一 BIND 双 context+双 transfer syntax、result 逐项对应",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           },
+           {
+            "abstract": "0a0b0c0d-0e0f-1112-1314-15161718191a",
+            "abstract_version": [
+             2,
+             0
+            ],
+            "context_id": 1,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            },
+            {
+             "context_id": 1,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_num_ctx_items",
+     "packet": 4,
+     "value": "2"
+    },
+    {
+     "field": "dcerpc.cn_bind_to_uuid",
+     "packet": 4,
+     "value": "5ca1ab1e-dead-beef-0000-000000000001,0a0b0c0d-0e0f-1112-1314-15161718191a"
+    },
+    {
+     "field": "dcerpc.cn_num_results",
+     "packet": 5,
+     "value": "2"
+    },
+    {
+     "field": "dcerpc.cn_ack_result",
+     "packet": 5,
+     "value": "0,0"
+    }
+   ],
+   "frames": [],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_bind_single_context_min",
+  "proto": "dcerpc",
+  "summary": "最小合法 BIND（单 ctx 单 syntax）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 4,
+     "value": "11"
+    },
+    {
+     "field": "dcerpc.cn_num_ctx_items",
+     "packet": 4,
+     "value": "1"
+    },
+    {
+     "field": "dcerpc.cn_frag_len",
+     "packet": 4,
+     "value": "72"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "05000B03100000004800000001000000",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "packet_count": 8
+  }
+ },
+ {
+  "id": "dcerpc_bind_ack_secondary_address",
+  "proto": "dcerpc",
+  "summary": "secondary address \"1025\" 长度前缀+对齐",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ],
+           "secondary": "1025"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 5,
+     "value": "12"
+    },
+    {
+     "field": "dcerpc.cn_sec_addr",
+     "packet": 5,
+     "value": "1025"
+    },
+    {
+     "field": "dcerpc.cn_sec_addr_len",
+     "packet": 5,
+     "value": "4"
+    }
+   ],
+   "frames": [],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_bind_ack_secondary_empty",
+  "proto": "dcerpc",
+  "summary": "secondary address 空串形态",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_sec_addr_len",
+     "packet": 5,
+     "value": "0"
+    }
+   ],
+   "frames": [],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_bind_ack_rejected_result",
+  "proto": "dcerpc",
+  "summary": "result=2 provider rejection 传播",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 2,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_ack_result",
+     "packet": 5,
+     "value": "2"
+    }
+   ],
+   "frames": [],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_bind_ack_assoc_group",
+  "proto": "dcerpc",
+  "summary": "assoc_group_id 显式值回带（ack assoc 777=0x309）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "assoc_group": 777,
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_assoc_group",
+     "packet": 4,
+     "value": "0x00000309"
+    },
+    {
+     "field": "dcerpc.cn_assoc_group",
+     "packet": 5,
+     "value": "0x00000309"
+    }
+   ],
+   "frames": [],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_alter_context",
+  "proto": "dcerpc",
+  "summary": "已绑定 association 新增 context→ALTER_RESP",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         },
+         {
+          "contexts": [
+           {
+            "abstract": "0a0b0c0d-0e0f-1112-1314-15161718191a",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 1,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "alter_ctx",
+          "respond": {
+           "ack": "alter_ctx_resp",
+           "results": [
+            {
+             "context_id": 1,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 6,
+     "value": "14"
+    },
+    {
+     "field": "dcerpc.cn_ctx_id",
+     "packet": 6,
+     "value": "1"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 7,
+     "value": "15"
+    }
+   ],
+   "frames": [],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "dcerpc_alter_context_resp_reject",
+  "proto": "dcerpc",
+  "summary": "ALTER_RESP rejected→该 context 后续拒（负例侧呼应）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         },
+         {
+          "contexts": [
+           {
+            "abstract": "0a0b0c0d-0e0f-1112-1314-15161718191a",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 1,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "alter_ctx",
+          "respond": {
+           "ack": "alter_ctx_resp",
+           "results": [
+            {
+             "context_id": 1,
+             "reason": 0,
+             "result": 2,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_ack_result",
+     "packet": 7,
+     "value": "2"
+    }
+   ],
+   "frames": [],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "dcerpc_request_response_ndr",
+  "proto": "dcerpc",
+  "summary": "REQUEST/RESPONSE call_id 同值、opnum、NDR scalar+struct",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "alloc_hint": 16,
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 5,
+          "respond": {
+           "ack": "response",
+           "stub": "44332211"
+          },
+          "stub": "443322110a001e00"
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 4,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.opnum",
+     "packet": 4,
+     "value": "5"
+    },
+    {
+     "field": "dcerpc.cn_alloc_hint",
+     "packet": 4,
+     "value": "16"
+    },
+    {
+     "field": "dcerpc.cn_call_id",
+     "packet": 4,
+     "value": "1"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 5,
+     "value": "2"
+    },
+    {
+     "field": "dcerpc.cn_call_id",
+     "packet": 5,
+     "value": "1"
+    }
+   ],
+   "frames": [],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_fault_status",
+  "proto": "dcerpc",
+  "summary": "REQUEST→FAULT status、call 终态",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "fault",
+           "status": 5
+          }
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 4,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 5,
+     "value": "3"
+    },
+    {
+     "field": "dcerpc.cn_status",
+     "packet": 5,
+     "value": "0x00000005"
+    }
+   ],
+   "frames": [],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_ndr_pointer_array_union",
+  "proto": "dcerpc",
+  "summary": "pointer referent+conformant array 三计数+union 单 arm",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response",
+           "stub": "01000000"
+          },
+          "stub": "01000000030000000000000003000000010002000300010000000a000000"
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 4,
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "05000003100000003600000001000000000000000000000001000000030000000000000003000000010002000300010000000A000000",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_ndr_scalars_hyper",
+  "proto": "dcerpc",
+  "summary": "8B hyper 对齐/LE",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response",
+           "stub": "0123456789abcdef"
+          },
+          "stub": "0123456789abcdef"
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_frag_len",
+     "packet": 4,
+     "value": "32"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "0500000310000000200000000100000000000000000000000123456789ABCDEF",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_ndr_utf16_string",
+  "proto": "dcerpc",
+  "summary": "UTF-16 max/offset/actual 2B code unit",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response",
+           "stub": ""
+          },
+          "stub": "030000000000000003000000410042004300"
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_frag_len",
+     "packet": 4,
+     "value": "42"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "05000003100000002A000000010000000000000000000000030000000000000003000000410042004300",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_ndr_conformant_array",
+  "proto": "dcerpc",
+  "summary": "max/offset/actual+元素 LE",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response",
+           "stub": ""
+          },
+          "stub": "04000000000000000400000001000000020000000300000004000000"
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_frag_len",
+     "packet": 4,
+     "value": "52"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "05000003100000003400000001000000000000000000000004000000000000000400000001000000020000000300000004000000",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_ndr_unique_pointer_null",
+  "proto": "dcerpc",
+  "summary": "referent=0 NULL 语义",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response",
+           "stub": ""
+          },
+          "stub": "0000000005000000"
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_frag_len",
+     "packet": 4,
+     "value": "32"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "0500000310000000200000000100000000000000000000000000000005000000",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_ndr_struct_padding",
+  "proto": "dcerpc",
+  "summary": "尾部 padding 计入 stub",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response",
+           "stub": ""
+          },
+          "stub": "2b000000000000000102030405060708"
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_frag_len",
+     "packet": 4,
+     "value": "40"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "0500000310000000280000000100000000000000000000002B000000000000000102030405060708",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_auth_trailer_opaque",
+  "proto": "dcerpc",
+  "summary": "auth_len\u003e0、pad/trailer 闭合、opaque credentials",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "auth": {
+           "context_id": 0,
+           "credentials": "deadbeef",
+           "level": 2,
+           "type": 9
+          },
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         },
+         {
+          "auth": {
+           "context_id": 0,
+           "credentials": "deadbeef",
+           "level": 2,
+           "type": 9
+          },
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "stub": "aabbccdd"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 6,
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "050000031000000026000A00020000000000000000000000AABBCCDD090200000000DEADBEEF",
+     "offset": 54,
+     "packet": 6
+    }
+   ],
+   "packet_count": 10
+  }
+ },
+ {
+  "id": "dcerpc_auth_pad_2bytes",
+  "proto": "dcerpc",
+  "summary": "pad=2 与实际填充一致",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "auth": {
+           "context_id": 0,
+           "credentials": "cafe",
+           "level": 2,
+           "type": 9
+          },
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         },
+         {
+          "auth": {
+           "context_id": 0,
+           "credentials": "cafe",
+           "level": 2,
+           "pad": 2,
+           "type": 9
+          },
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "stub": "aabbccddeeff"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 6,
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "050000031000000028000800020000000000000000000000AABBCCDDEEFF0000090202000000CAFE",
+     "offset": 54,
+     "packet": 6
+    }
+   ],
+   "packet_count": 10
+  }
+ },
+ {
+  "id": "dcerpc_auth_type_level_variants",
+  "proto": "dcerpc",
+  "summary": "type/level 组合矩阵代表值",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "auth": {
+           "context_id": 0,
+           "credentials": "beef",
+           "level": 2,
+           "type": 9
+          },
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           },
+           {
+            "abstract": "0a0b0c0d-0e0f-1112-1314-15161718191a",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 1,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            },
+            {
+             "context_id": 1,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         },
+         {
+          "auth": {
+           "context_id": 0,
+           "credentials": "beef",
+           "level": 2,
+           "pad": 3,
+           "type": 9
+          },
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "stub": "aa"
+         },
+         {
+          "auth": {
+           "context_id": 1,
+           "credentials": "feedface",
+           "level": 6,
+           "pad": 3,
+           "type": 10
+          },
+          "context_id": 1,
+          "kind": "request",
+          "opnum": 1,
+          "stub": "bb"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 6,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 7,
+     "value": "0"
+    }
+   ],
+   "frames": [],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "dcerpc_multi_context_call_session",
+  "proto": "dcerpc",
+  "summary": "2 session×2 ctx×并发 2 call 隔离",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           },
+           {
+            "abstract": "0a0b0c0d-0e0f-1112-1314-15161718191a",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 1,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            },
+            {
+             "context_id": 1,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         },
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 1,
+          "respond": {
+           "ack": "response"
+          }
+         },
+         {
+          "context_id": 1,
+          "kind": "request",
+          "opnum": 2,
+          "respond": {
+           "ack": "response"
+          }
+         }
+        ]
+       },
+       {
+        "dst_port": 4135,
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           },
+           {
+            "abstract": "0a0b0c0d-0e0f-1112-1314-15161718191a",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 1,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            },
+            {
+             "context_id": 1,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         },
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 1,
+          "respond": {
+           "ack": "response"
+          }
+         },
+         {
+          "context_id": 1,
+          "kind": "request",
+          "opnum": 2,
+          "respond": {
+           "ack": "response"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_call_id",
+     "packet": 4,
+     "value": "1"
+    },
+    {
+     "field": "dcerpc.cn_call_id",
+     "packet": 6,
+     "value": "2"
+    },
+    {
+     "field": "dcerpc.cn_ctx_id",
+     "packet": 6,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.cn_call_id",
+     "packet": 8,
+     "value": "3"
+    },
+    {
+     "field": "dcerpc.cn_ctx_id",
+     "packet": 8,
+     "value": "1"
+    },
+    {
+     "field": "dcerpc.cn_call_id",
+     "packet": 15,
+     "value": "2"
+    }
+   ],
+   "frames": [],
+   "packet_count": 26
+  },
+  "decode_as": [
+   "tcp.port==4135,dcerpc"
+  ]
+ },
+ {
+  "id": "dcerpc_fragment_first_last",
+  "proto": "dcerpc",
+  "summary": "REQUEST 拆 2 片 FIRST/LAST+重组",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "context_id": 0,
+          "fragments": 2,
+          "kind": "request",
+          "opnum": 0,
+          "stub": "0011223344556677"
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_flags.first_frag",
+     "packet": 4,
+     "value": "1"
+    },
+    {
+     "field": "dcerpc.cn_flags.last_frag",
+     "packet": 4,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.cn_flags.first_frag",
+     "packet": 5,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.cn_flags.last_frag",
+     "packet": 5,
+     "value": "1"
+    },
+    {
+     "field": "dcerpc.cn_call_id",
+     "packet": 4,
+     "value": "1"
+    },
+    {
+     "field": "dcerpc.cn_call_id",
+     "packet": 5,
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "05000001100000001C00000001000000",
+     "offset": 54,
+     "packet": 4
+    },
+    {
+     "hex": "05000002100000001C00000001000000",
+     "offset": 54,
+     "packet": 5
+    }
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_fragment_three_pieces",
+  "proto": "dcerpc",
+  "summary": "3 片（首/中/末）flags 矩阵",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "context_id": 0,
+          "fragments": 3,
+          "kind": "request",
+          "opnum": 0,
+          "stub": "001122334455667788"
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_flags.first_frag",
+     "packet": 4,
+     "value": "1"
+    },
+    {
+     "field": "dcerpc.cn_flags.first_frag",
+     "packet": 5,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.cn_flags.last_frag",
+     "packet": 5,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.cn_flags.last_frag",
+     "packet": 6,
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "05000000100000001B00000001000000",
+     "offset": 54,
+     "packet": 5
+    }
+   ],
+   "packet_count": 10
+  }
+ },
+ {
+  "id": "dcerpc_multi_pdu_back_to_back",
+  "proto": "dcerpc",
+  "summary": "多 PDU 背靠背（PDU≠TCP record 观察面）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 1,
+          "respond": {
+           "ack": "response",
+           "stub": ""
+          }
+         },
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 2,
+          "respond": {
+           "ack": "response",
+           "stub": ""
+          }
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 4,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 5,
+     "value": "2"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 6,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 7,
+     "value": "2"
+    },
+    {
+     "field": "tcp.stream",
+     "packet": 4,
+     "same_as_packet": 7
+    }
+   ],
+   "frames": [],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "dcerpc_frag_len_min",
+  "proto": "dcerpc",
+  "summary": "最小合法 PDU（empty REQUEST frag_len 24）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response",
+           "stub": ""
+          }
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_frag_len",
+     "packet": 4,
+     "value": "24"
+    },
+    {
+     "field": "dcerpc.cn_auth_len",
+     "packet": 4,
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "050000031000000018000000010000000000000000000000",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_call_id_boundary",
+  "proto": "dcerpc",
+  "summary": "call_id 0 与 4294967295",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "call_id": 0,
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response"
+          }
+         },
+         {
+          "call_id": 4294967295,
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response"
+          }
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_call_id",
+     "packet": 4,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.cn_call_id",
+     "packet": 6,
+     "value": "4294967295"
+    }
+   ],
+   "frames": [],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "dcerpc_call_id_adjacent",
+  "proto": "dcerpc",
+  "summary": "相邻值 7/8 应答配对",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "call_id": 7,
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         },
+         {
+          "call_id": 8,
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_call_id",
+     "packet": 4,
+     "value": "7"
+    },
+    {
+     "field": "dcerpc.cn_call_id",
+     "packet": 5,
+     "value": "7"
+    },
+    {
+     "field": "dcerpc.cn_call_id",
+     "packet": 6,
+     "value": "8"
+    },
+    {
+     "field": "dcerpc.cn_call_id",
+     "packet": 7,
+     "value": "8"
+    }
+   ],
+   "frames": [],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "dcerpc_opnum_boundary",
+  "proto": "dcerpc",
+  "summary": "opnum 0 与 65535",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response"
+          }
+         },
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 65535,
+          "respond": {
+           "ack": "response"
+          }
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.opnum",
+     "packet": 4,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.opnum",
+     "packet": 6,
+     "value": "65535"
+    }
+   ],
+   "frames": [],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "dcerpc_context_id_zero",
+  "proto": "dcerpc",
+  "summary": "context_id=0 最小值",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         },
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 1,
+          "respond": {
+           "ack": "response"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_ctx_id",
+     "packet": 4,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.cn_ctx_id",
+     "packet": 6,
+     "value": "0"
+    }
+   ],
+   "frames": [],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "dcerpc_alloc_hint_variants",
+  "proto": "dcerpc",
+  "summary": "alloc_hint 0 与≠实际 stub（合法提示）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "alloc_hint": 0,
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response"
+          },
+          "stub": "aabbccdd"
+         },
+         {
+          "alloc_hint": 99,
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response"
+          },
+          "stub": "aabb"
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_alloc_hint",
+     "packet": 4,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.cn_alloc_hint",
+     "packet": 6,
+     "value": "99"
+    }
+   ],
+   "frames": [],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "dcerpc_request_object_uuid",
+  "proto": "dcerpc",
+  "summary": "PFC_OBJECT_UUID 置位+16B object UUID",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "object_uuid": "01020304-0506-0708-090a-0b0c0d0e0f10",
+          "opnum": 0,
+          "respond": {
+           "ack": "response",
+           "stub": ""
+          },
+          "stub": "0102"
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_flags.object",
+     "packet": 4,
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "0403020106050807090A0B0C0D0E0F10",
+     "offset": 78,
+     "packet": 4
+    }
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_response_cancel_count",
+  "proto": "dcerpc",
+  "summary": "cancel_count\u003e0",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response",
+           "cancel_count": 3
+          }
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_cancel_count",
+     "packet": 5,
+     "value": "3"
+    }
+   ],
+   "frames": [],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_fault_status_boundary",
+  "proto": "dcerpc",
+  "summary": "status 边界值（nca 域 0x1C010003）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "fault",
+           "status": 469762051
+          }
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_status",
+     "packet": 5,
+     "value": "0x1c000003"
+    }
+   ],
+   "frames": [],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_empty_stub",
+  "proto": "dcerpc",
+  "summary": "合法 empty stub（req/resp 双 24B）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response",
+           "stub": ""
+          }
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_frag_len",
+     "packet": 4,
+     "value": "24"
+    },
+    {
+     "field": "dcerpc.cn_frag_len",
+     "packet": 5,
+     "value": "24"
+    }
+   ],
+   "frames": [],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_prebound_profile",
+  "proto": "dcerpc",
+  "summary": "fixture 声明 prebound（跳 bind 直接调用合法面）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 4,
+          "respond": {
+           "ack": "response",
+           "stub": ""
+          }
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 4,
+     "value": "0"
+    },
+    {
+     "field": "dcerpc.opnum",
+     "packet": 4,
+     "value": "4"
+    }
+   ],
+   "frames": [],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_multi_session_sequential",
+  "proto": "dcerpc",
+  "summary": "多会话按序整块展开（单事件会话→块连续）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         }
+        ]
+       },
+       {
+        "dst_port": 4135,
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response",
+           "stub": ""
+          }
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 4,
+     "value": "11"
+    },
+    {
+     "field": "tcp.dstport",
+     "packet": 4,
+     "value": "135"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 9,
+     "value": "0"
+    },
+    {
+     "field": "tcp.dstport",
+     "packet": 9,
+     "value": "4135"
+    }
+   ],
+   "frames": [],
+   "packet_count": 18
+  },
+  "decode_as": [
+   "tcp.port==4135,dcerpc"
+  ]
+ },
+ {
+  "id": "dcerpc_concurrent_sessions",
+  "proto": "dcerpc",
+  "summary": "concurrent 交错（双会话按 event index 交替）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         },
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 1,
+          "respond": {
+           "ack": "response"
+          }
+         }
+        ]
+       },
+       {
+        "dst_port": 4135,
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 1,
+          "respond": {
+           "ack": "response",
+           "stub": ""
+          }
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "tcp.dstport",
+     "packet": 4,
+     "value": "135"
+    },
+    {
+     "field": "tcp.dstport",
+     "packet": 6,
+     "value": "135"
+    },
+    {
+     "field": "tcp.dstport",
+     "packet": 11,
+     "value": "4135"
+    }
+   ],
+   "frames": [],
+   "packet_count": 20
+  },
+  "decode_as": [
+   "tcp.port==4135,dcerpc"
+  ]
+ },
+ {
+  "id": "dcerpc_max_xmit_recv_frag",
+  "proto": "dcerpc",
+  "summary": "max_xmit/max_recv 变体（0xFFFF 边界）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "max_recv": 4096,
+          "max_xmit": 65535
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_max_xmit",
+     "packet": 4,
+     "value": "65535"
+    },
+    {
+     "field": "dcerpc.cn_max_recv",
+     "packet": 4,
+     "value": "4096"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "05000B03100000004800000001000000FFFF00100000000001000000",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "packet_count": 8
+  }
+ },
+ {
+  "id": "dcerpc_epm_tower_variants",
+  "proto": "dcerpc",
+  "summary": "tower 长度/UUID/端口边界（EPM response 内观察）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "e1af8308-5d1f-11c9-91a4-08002b14a0fa",
+            "abstract_version": [
+             3,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ],
+           "secondary": "135"
+          }
+         },
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 2,
+          "respond": {
+           "ack": "response",
+           "stub": "000000000000000000000000000000000000000001000000010000000000000001000000000000000000000000000000000000000100000000000000000000004000000040000000040011000D0883AFE11F5DC91191A408002B14A0FA0200030011000D045D888AEB1CC9119FE808002B10486002000200010007020010270100090400C633643F00000000"
+          },
+          "stub": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 7,
+     "value": "2"
+    },
+    {
+     "field": "epm.tower.num_floors",
+     "packet": 7,
+     "value": "4"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "0500020310000000",
+     "offset": 54,
+     "packet": 7
+    }
+   ],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "dcerpc_epm_annotation",
+  "proto": "dcerpc",
+  "summary": "annotation 长度前缀字符串",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "e1af8308-5d1f-11c9-91a4-08002b14a0fa",
+            "abstract_version": [
+             3,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ],
+           "secondary": "135"
+          }
+         },
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 2,
+          "respond": {
+           "ack": "response",
+           "stub": "0000000000000000000000000000000000000000010000000100000000000000010000000000000000000000000000000000000001000000000000000800000065706D61707065724000000040000000040011000D0883AFE11F5DC91191A408002B14A0FA0200030011000D045D888AEB1CC9119FE808002B10486002000200010007020010270100090400C633643F00000000"
+          },
+          "stub": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.opnum",
+     "packet": 6,
+     "value": "2"
+    },
+    {
+     "field": "epm.annotation",
+     "packet": 7,
+     "value": "epmapper"
+    }
+   ],
+   "frames": [],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "dcerpc_bind_ack_reject_then_altctx",
+  "proto": "dcerpc",
+  "summary": "reject 后 ALTER 换 syntax 成功",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "5ca1ab1e-dead-beef-0000-000000000001",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 2,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         },
+         {
+          "contexts": [
+           {
+            "abstract": "0a0b0c0d-0e0f-1112-1314-15161718191a",
+            "abstract_version": [
+             2,
+             0
+            ],
+            "context_id": 1,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "alter_ctx",
+          "respond": {
+           "ack": "alter_ctx_resp",
+           "results": [
+            {
+             "context_id": 1,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_ack_result",
+     "packet": 5,
+     "value": "2"
+    },
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 6,
+     "value": "14"
+    },
+    {
+     "field": "dcerpc.cn_ack_result",
+     "packet": 7,
+     "value": "0"
+    }
+   ],
+   "frames": [],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "dcerpc_large_stub",
+  "proto": "dcerpc",
+  "summary": "1024B 级 stub（frag_len 扩展）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response",
+           "stub": ""
+          },
+          "stub": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_frag_len",
+     "packet": 4,
+     "value": "1048"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "050000031000000018040000010000000000000000000000AA",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_port_dynamic_declared",
+  "proto": "dcerpc",
+  "summary": "动态端口显式声明（非 135，tshark DecodeAs 口径）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 4135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "dst_port": 4135,
+        "events": [
+         {
+          "context_id": 0,
+          "kind": "request",
+          "opnum": 0,
+          "respond": {
+           "ack": "response",
+           "stub": ""
+          }
+         }
+        ],
+        "prebound": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.pkt_type",
+     "packet": 4,
+     "value": "0"
+    },
+    {
+     "field": "tcp.dstport",
+     "packet": 4,
+     "value": "4135"
+    }
+   ],
+   "frames": [],
+   "packet_count": 9
+  },
+  "decode_as": [
+   "tcp.port==4135,dcerpc"
+  ]
+ },
+ {
+  "id": "dcerpc_uuid_encoding_authority",
+  "proto": "dcerpc",
+  "summary": "MS/AD 混合端序 UUID 逐字节钉（编解码权威）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "contexts": [
+           {
+            "abstract": "01020304-0506-0708-090a-0b0c0d0e0f10",
+            "abstract_version": [
+             1,
+             0
+            ],
+            "context_id": 0,
+            "syntaxes": [
+             {
+              "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+              "version": [
+               2,
+               0
+              ]
+             }
+            ]
+           }
+          ],
+          "kind": "bind",
+          "respond": {
+           "ack": "bind_ack",
+           "results": [
+            {
+             "context_id": 0,
+             "reason": 0,
+             "result": 0,
+             "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+             "version": [
+              2,
+              0
+             ]
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dcerpc.cn_bind_to_uuid",
+     "packet": 4,
+     "value": "01020304-0506-0708-090a-0b0c0d0e0f10"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "0403020106050807090A0B0C0D0E0F10",
+     "offset": 86,
+     "packet": 4
+    }
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "dcerpc_neg_version_not5",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：version_not5",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "version_not5"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "header",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_version_minor_not0",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：version_minor_not0",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "version_minor_not0"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "version",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_packet_type_unknown",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：packet_type_unknown",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "packet_type_unknown"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "packet",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_packet_type_reserved",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：packet_type_reserved",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "packet_type_reserved"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "packet",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_flags_first_no_last",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：flags_first_no_last",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "flags_first_no_last"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "fragment",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_flags_last_no_first",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：flags_last_no_first",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "flags_last_no_first"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "fragment",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_drep_not_le",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：drep_not_le",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "drep_not_le"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "drep",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_frag_len_lt16",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：frag_len_lt16",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "frag_len_lt16"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "frag",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_frag_len_mismatch",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：frag_len_mismatch",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "frag_len_mismatch"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "length",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_auth_len_over",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：auth_len_over",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "auth_len_over"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "auth",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_call_id_reuse",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：call_id_reuse",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "call_id_reuse"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "call",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_call_mismatch",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：call_mismatch",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "call_mismatch"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "call",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_state_ack_no_call",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：state_ack_no_call",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "state_ack_no_call"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "state",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_state_request_unbound",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：state_request_unbound",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "state_request_unbound"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "state",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_context_duplicate",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：context_duplicate",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "context_duplicate"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "context",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_context_unknown",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：context_unknown",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "context_unknown"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "context",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_syntax_mismatch",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：syntax_mismatch",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "syntax_mismatch"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "syntax",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_uuid_version_missing",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：uuid_version_missing",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "uuid_version_missing"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "uuid",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_alloc_hint_negative",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：alloc_hint_negative",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "alloc_hint_negative"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "hint",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_ndr_alignment",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：ndr_alignment",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "ndr_alignment"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "ndr",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_ndr_array_count",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：ndr_array_count",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "ndr_array_count"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "array",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_ndr_union_unknown",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：ndr_union_unknown",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "ndr_union_unknown"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "union",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_ndr_stub_overflow",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：ndr_stub_overflow",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "ndr_stub_overflow"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "ndr",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_auth_pad_invalid",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：auth_pad_invalid",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "auth_pad_invalid"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "trailer",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_auth_trailer_over",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：auth_trailer_over",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "auth_trailer_over"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "trailer",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_auth_verifier_len",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：auth_verifier_len",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "auth_verifier_len"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "verifier",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_carrier_layer_missing",
+  "proto": "dcerpc",
+  "summary": "缺 tcp 载体",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "dcerpc": {}
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "carrier",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_carrier_udp",
+  "proto": "dcerpc",
+  "summary": "udp 载体声明",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 135,
+      "src_port": 135
+     }
+    },
+    {
+     "dcerpc": {}
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "carrier",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_port_undeclared",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：port_undeclared",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "port_undeclared"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "port",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_address_family_mismatch",
+  "proto": "dcerpc",
+  "summary": "IPv4/IPv6 混地址族",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "2001:db8::63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {}
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "family",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_uuid_width",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：uuid_width",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "uuid_width"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "uuid",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dcerpc_neg_assoc_group_width",
+  "proto": "dcerpc",
+  "summary": "wire_fault 注入：assoc_group_width",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 135,
+      "src_port": 40063
+     }
+    },
+    {
+     "dcerpc": {
+      "wire_fault": "assoc_group_width"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "width",
+   "expect_error": true
+  }
+ }
 ]

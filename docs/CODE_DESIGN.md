@@ -4665,4 +4665,15 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 9. **裁定9 EPM/dynamic 双 profile**：两 TCP session 显式编排（EPM@135 会话 + dynamic 端口会话），call_id/assoc_group/context 状态不跨 session 复用；EPM tower 只按长度/UUID/端口边界断言。
 10. **裁定10 v1.0.0→v2.0.0 重写**：ID 权威迁 testcase §2；负例 6 粗组拆逐故障单锚词行（一行一注入）；#14 NIC 一致性例改 pcap 内一致性口径（NIC 路按 6.3 两路注记）；旧扁平示例迁层链；20 ID 重排为行为面全枚举（规模按枚举定，预计 60-90）。
 
-（P2/P3 详表——wire_fault 逐值处置表、测试点清单、T-DCERPC——在契约 v2.0.0 重写提交中落定；P4 未开工。）
+（P2/P3 详表——wire_fault 逐值处置表、测试点清单、T-DCERPC——在契约 v2.0.0 重写提交中落定。）
+
+### P4 实现记录（2026-09-24，提交 6e65abe）
+
+- **五件套**：`internal/core/dcerpc.go`（Config/Session/Context/Auth/Respond/Event 严格解码 + 32 wire_fault 常量 + Describe 锚词表）；`internal/protocol/dcerpc/{builder,planner}.go`（16B LE 头/UUID 混合端序/七型 PDU/auth trailer/callWalker/分片 FIRST·LAST + 会话状态机 bound/accepted/rejected + call_id 复用/宽度域）；接线（types/FlowMeta/translate `DCERPC: spec.DCERPC` 直传——静默 0 事件根修/strategy_convert 135/registry 行/BuildLayersPlanner tcp 载体预检/tcp 分支 isDCERPCChain concurrent=true/main.go 翻转）+ `layers.generated.json` 121 层重生成；链级红例 10（字节钉/自然守卫 9 锚词/载体三形状），layers -race 绿。
+- **P4 据实勘误（v2.0.1）**：auth_context_id 4→2（MS-RPCE 2.2.2.1.1 u16 权威）；auth_len = 6 + credentials。评审另抓两处 wire bug（P5 校准确认）：BIND_ACK 缺 assoc_group(4B)（C706 §12.5.4.2 header_t）；ALTER_CTX_RESP 缺 sec_addr_len(2)=0 恒写——均已修。
+
+### P5 执行记录（2026-09-24，80/80 ×2 全绿）
+
+- **用例生成**：`internal/protocol/dcerpc/casegen_test.go`（一次性）按 testcase §2 权威序产 80 例（48 正+32 负）；正例帧断言取自 BuildLayersPlanner→Plan 真实回放（单权威）；负例 = wire_fault 注入单锚词（DescribeDCERPCWireFault 同表）+ carrier/family 自然形状。占位 `dcerpc_neg_unregistered` 移除。
+- **六轮收敛**：66→70→71→73→78→80（详见 T-DCERPC 校准记录）。核心实证：PFC_OBJECT_UUID=0x80（0x20 系 DID_NOT_EXECUTE——builder 常量据实改）；单 PDU 恒 FIRST|LAST=0x03（tshark 0 flags 视作 Fragment:Mid 延迟解析）；多会话=按会话块序展开（非 event-index 交错）；EPM 深观察用真 epm_Lookup 线格式（tower 后置 unique-pointee 延迟分解，取 wireshark epm 源码实证）。
+- **门2**：静态四项绿 + suite RESULT 80/80 ×2。**coverage_gate check_dcerpc** 登记并 44/44 绿。**清库**：tasks 672 + strategies 98 → 0（备份 `/tmp/tg-sv-p5/backup-dcerpc-purge.db`；对账 tasks 7092 / strategies 1279 与删前非 dcerpc 行数吻合）。auth 字段断言退化帧 hex 权威（tshark opaque 凭据不渲染 sec_trailer——契约 §4 允许通道，T-DCERPC 校准记录在案）。

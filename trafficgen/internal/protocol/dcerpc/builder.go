@@ -30,7 +30,7 @@ const (
 const (
 	pfcFirstFrag = 0x01
 	pfcLastFrag  = 0x02
-	pfcObjUUID   = 0x20
+	pfcObjUUID   = 0x80 // C706 §12.4：0x20=PFC_DID_NOT_EXECUTE，Object UUID=0x80
 )
 
 // uuidEncode parses a canonical UUID string to 16 wire bytes（MS/AD 混合端序：
@@ -112,6 +112,14 @@ func authLenOf(a *core.DCERPCAuth) int {
 	return len(creds) + 6
 }
 
+// assocGroupOf 取 bind/alter 事件的关联组（缺省 0）。
+func assocGroupOf(ev *core.DCERPCEvent) uint32 {
+	if ev.AssocGroup != nil {
+		return uint32(*ev.AssocGroup)
+	}
+	return 0
+}
+
 // buildContextList renders context elements（BIND/ALTER_CTX 共用）。
 func buildContextList(ctxs []core.DCERPCContext) ([]byte, error) {
 	var b []byte
@@ -175,22 +183,27 @@ func buildBind(ev *core.DCERPCEvent, ptype byte, callID uint32) ([]byte, error) 
 		authLen = authLenOf(ev.Auth)
 		fragLen += len(t)
 	}
-	out := commonHeader(ptype, 0, fragLen, authLen, callID)
+	out := commonHeader(ptype, pfcFirstFrag|pfcLastFrag, fragLen, authLen, callID)
 	out = append(out, body...)
 	return append(out, trailer...), nil
 }
 
 // buildBindAck renders BIND_ACK(12)/ALTER_CONTEXT_RESP(15) server PDU。
-func buildBindAck(r *core.DCERPCRespond, ptype byte, callID uint32) ([]byte, error) {
+func buildBindAck(r *core.DCERPCRespond, ptype byte, callID uint32, assocGroup uint32) ([]byte, error) {
+	// C706 §12.5.4.2 header_t：mx(2) mr(2) assoc_group(4) + secondary——
+	// BIND_ACK 携 sec_addr；ALTER_CONTEXT_RESP sec_addr_len=0 但 assoc 仍在。
 	body := le16(nil, 5840)
 	body = le16(body, 5840)
-	if ptype == ptBindAck {
-		sec := []byte(r.Secondary)
-		body = le16(body, len(sec))
-		body = append(body, sec...)
-		for len(body)%4 != 0 {
-			body = append(body, 0)
-		}
+	body = le32(body, int64(assocGroup))
+	// sec_addr_len 两型恒写：BIND_ACK 携串，ALTER_CONTEXT_RESP 置 0。
+	sec := []byte(r.Secondary)
+	if ptype != ptBindAck {
+		sec = nil
+	}
+	body = le16(body, len(sec))
+	body = append(body, sec...)
+	for len(body)%4 != 0 {
+		body = append(body, 0)
 	}
 	body = le16(body, len(r.Results))
 	body = le16(body, 0)
@@ -208,7 +221,7 @@ func buildBindAck(r *core.DCERPCRespond, ptype byte, callID uint32) ([]byte, err
 		mj, mi := versionVec(res.Version)
 		body = append(body, mj, mi, 0, 0)
 	}
-	out := commonHeader(ptype, 0, 16+len(body), 0, callID)
+	out := commonHeader(ptype, pfcFirstFrag|pfcLastFrag, 16+len(body), 0, callID)
 	return append(out, body...), nil
 }
 
@@ -356,7 +369,7 @@ func buildEventFrames(ev *core.DCERPCEvent, w *callWalker) ([]frame, error) {
 			if r.Ack == "alter_ctx_resp" {
 				pt2 = byte(ptAlterCtxRes)
 			}
-			down, err := buildBindAck(r, pt2, rid)
+			down, err := buildBindAck(r, pt2, rid, assocGroupOf(ev))
 			if err != nil {
 				return nil, err
 			}
@@ -369,8 +382,9 @@ func buildEventFrames(ev *core.DCERPCEvent, w *callWalker) ([]frame, error) {
 			return nil, err
 		}
 		for i, piece := range splitStub(stub, ev.Fragments) {
-			var flags byte
+			flags := byte(pfcFirstFrag | pfcLastFrag)
 			if ev.Fragments > 1 {
+				flags = 0
 				if i == 0 {
 					flags |= pfcFirstFrag
 				}
@@ -394,8 +408,9 @@ func buildEventFrames(ev *core.DCERPCEvent, w *callWalker) ([]frame, error) {
 				return nil, err
 			}
 			for i, piece := range splitStub(rstub, r.Fragments) {
-				var flags byte
+				flags := byte(pfcFirstFrag | pfcLastFrag)
 				if r.Fragments > 1 {
+					flags = 0
 					if i == 0 {
 						flags |= pfcFirstFrag
 					}
