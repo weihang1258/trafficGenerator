@@ -81,7 +81,11 @@ func validateSession(sess *core.DTLSSession, si int) error {
 		}
 		msgSeq := 0
 		if ev.Kind == "handshake" {
-			msgSeq = w.nextMsgSeq(ev.Handshake.MsgSeq)
+			dir := 0
+			if ev.Up {
+				dir = 1
+			}
+			msgSeq = w.nextMsgSeq(dir, ev.Handshake)
 		}
 		if _, err := eventPayload(ev, msgSeq); err != nil {
 			return fmt.Errorf("%s.events[%d]: %v", prefix, ei, err)

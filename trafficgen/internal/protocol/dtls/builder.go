@@ -106,12 +106,16 @@ type seqKey struct {
 //   - epoch：声明采纳并前推（回退=守卫拒）；缺省沿当前值（起 0）。
 //   - seq：声明值 < 计数器 = 回退/复用拒（重传不复用 record seq）；
 //     ≥ 计数器 = 采纳并跳到值+1；缺省 = 计数器++。
-//   - msg_seq：声明采纳（重传复用同值合法——不设回退守卫，设计 §7）；
-//     缺省 = 计数器++（跨 epoch 不重置——RFC 6347 §4.2.1 msg_seq 全局序）。
+//   - msg_seq：每方向独立计数器（RFC 6347 §4.2.1 各侧 message_seq 起 0、
+//     新消息递增）；声明采纳并把计数器推到值+1（< 计数器的声明 = 重传
+//     复用旧值，合法不推进）；续片（fragment_offset>0 且方向已有消息）
+//     复用该消息的 message_seq（RFC 6347 §4.2.2 分片共享）。
 type dtlsWalker struct {
-	cur    [2]int         // per-direction current epoch
-	ctr    map[seqKey]int // next record seq per (epoch, direction)
-	msgSeq int            // next handshake message_seq
+	cur     [2]int         // per-direction current epoch
+	ctr     map[seqKey]int // next record seq per (epoch, direction)
+	msgCtr  [2]int         // next handshake message_seq per direction
+	msgLast [2]int         // last emitted message_seq per direction
+	msgHas  [2]bool        // direction has emitted a handshake message
 }
 
 func newWalker() *dtlsWalker {
@@ -153,16 +157,25 @@ func (w *dtlsWalker) nextRecord(prefix string, ev *core.DTLSEvent) (epoch, seq i
 	return epoch, seq, nil
 }
 
-// nextMsgSeq resolves the handshake message_seq.
-func (w *dtlsWalker) nextMsgSeq(declared *int) int {
-	if declared != nil {
-		if *declared > w.msgSeq {
-			w.msgSeq = *declared
+// nextMsgSeq resolves the handshake message_seq（dir: 0=down 1=up；
+// h 为 nil 时只用于无握手事件——不推进）。
+func (w *dtlsWalker) nextMsgSeq(dir int, h *core.DTLSHandshake) int {
+	if h != nil && h.MsgSeq != nil {
+		if *h.MsgSeq >= w.msgCtr[dir] {
+			w.msgCtr[dir] = *h.MsgSeq + 1
 		}
-		return *declared
+		w.msgLast[dir] = *h.MsgSeq
+		w.msgHas[dir] = true
+		return *h.MsgSeq
 	}
-	v := w.msgSeq
-	w.msgSeq++
+	if h != nil && h.FragOffset > 0 && w.msgHas[dir] {
+		// 续片：复用本消息已发出的 message_seq。
+		return w.msgLast[dir]
+	}
+	v := w.msgCtr[dir]
+	w.msgCtr[dir]++
+	w.msgLast[dir] = v
+	w.msgHas[dir] = true
 	return v
 }
 
@@ -305,6 +318,10 @@ func renderEvent(w *dtlsWalker, sess *core.DTLSSession, ev *core.DTLSEvent) (fra
 		return frame{}, fmt.Errorf("dtls: handshake event requires a handshake object (handshake)")
 	}
 	prefix := fmt.Sprintf("dtls: session %q event (%s)", sessIdent(sess), ev.Kind)
+	msgDir := 0
+	if ev.Up {
+		msgDir = 1
+	}
 	epoch, seq, err := w.nextRecord(prefix, ev)
 	if err != nil {
 		return frame{}, err
@@ -332,7 +349,7 @@ func renderEvent(w *dtlsWalker, sess *core.DTLSSession, ev *core.DTLSEvent) (fra
 	}
 	msgSeq := 0
 	if ev.Kind == "handshake" {
-		msgSeq = w.nextMsgSeq(ev.Handshake.MsgSeq)
+		msgSeq = w.nextMsgSeq(msgDir, ev.Handshake)
 	}
 	payload, err := eventPayload(ev, msgSeq)
 	if err != nil {
