@@ -4000,6 +4000,18 @@ ICMPv4（RFC 792）反推 8 例（4 正+4 负；链级红例=单测面不占号�
 
 **P6 修轮（终审 H1+H2+M1+M2 处置，2026-09-24）：** H1 请求 id 迭代（idWalker 单解析权威）——nonce_boundary/lifecycle 五处 field 期望按契约忠实字节校准（旧钉=违契约的 id 复用字节；lifecycle 恢复 §4#23 1→2→3 递增）；H2 keepalived 会话等值守卫 + 会话引用继承；M1 getjob 响应 job 登记；M2 处置表 21+18 据实勘误。验收执行器=MCP 套件（终结层族 edp/mmse 同状，离线执行器不覆盖系先例）。终验：红例 20（①-⑳）全绿 + 64/64 ×2（新二进制）+ coverage 47/47 + race 净。
 
+## T-KERBEROS-1…20 kerberos 层链接入（#44 D-KERBEROS-1，Kerberos V5 over UDP/TCP 88，20 例）
+
+**三源回指：** RFC 4120（Kerberos V5 消息封装/DER tag/principal/realm/nonce/时间）+RFC 6113（pre-auth METHOD-DATA/PA-ENC-TIMESTAMP）+RFC 3961/4121（etype 与加密框架边界）→ D-KERBEROS-1 → `test/protocol_pcap/cases/kerberos.json`（20 例）。ID 权威 = `59-kerberos-testcase.md` §2（14 正 + 6 负）；本节对账 20 = 14 + 6。
+
+**存量审计（占位 1 例去向，9.14 口径）：** `kerberos_neg_unregistered` 注册前置占位随注册移除（契约 §1/§5）；无存量语义用例。
+
+**测试点清单先行（P3）：** ①双地址族×双载体四格：IPv4/UDP 88、IPv6/UDP 88、IPv4/TCP 88（4B BE 分帧）、IPv6/TCP 88（offset 42/62/54/74 四档）；②AS 交换：AS-REQ/AS-REP 基本（pvno=5/msg-type 10/11）与 nonce/realm/principal 外壳；③TGS 交换：TGS-REQ/TGS-REP（12/13）与 krbtgt→service ticket 边界不混用；④AP 交换：AP-REQ/AP-REP（14/15）与 ticket/authenticator opaque；⑤KRB-ERROR 族：PREAUTH_REQUIRED 与 e-data 结构；⑥RFC 6113 预认证：无 PA-DATA 首请求→ERROR→带 PA-ENC-TIMESTAMP 重发（METHOD-DATA 顺序保持不覆盖）；⑦Ticket/principal/realm：tkt-vno=5、realm 独立字段、name-type+name-string 组件（不把 user@REALM 当单一 name-string）；⑧EncryptedData opaque：etype/kvno/cipher 长度可见、内层不可声称；⑨nonce/时间/skew：reply same_as nonce 关联、时间窗越界错误；⑩重传与 replay：同请求重传同字节不推进状态、重复 authenticator 拒绝；⑪多会话/多流：会话间 nonce/ticket/framing 状态不串用、UDP↔TCP 不互转边界（同逻辑交互换载体须新连接重分帧）；⑫PCAP/NIC 同 fixture：方向/88/record-DER 外壳一致；⑬DER 边界与错误面：长度短形/长形切换、tag/msg-type 不一致、截断、TCP length 前缀错、payload 边界；⑭负例 6：一行一注入逐行锚词（§4 表：record_truncated/tcp_length/message_tag/encrypted_boundary/time_nonce_replay/udp_carrier）。
+
+**断言通道纪律：** fields 用 `kerberos.*`（dissector 309 字段已实证：`pvno`/`msg_type`/`realm`/`crealm`/`cname_string`/`sname_string`/`etype`/`error_code`）+ 载体 `udp.dstport`/`tcp.dstport`/`ip.proto`/`ipv6.nxt`；TCP 载体 4-byte BE record length 走 frames offset 54（IPv4）/74（IPv6）4 字节 hex 钉（无专用字段时原文断言，契约 §12）；UDP 载体 DER 顶层 tag 走 frames offset 42/62 首字节钉（6a/6b/6c/6d/6e/6f/7e）；**加密内层（ticket enc-part/authenticator/cipher）一律 opaque——不得断言 `kerberos.*` 内层明文字段，除非提供 keytab/key log 解密 fixture（契约 §1/§7）**；ticket/nonce/ctime 等运行期值用 presence/nonzero/same_as，不硬编码常量。
+
+**状态：** P3（testcase 断言契约已逐 ID 落定；P5 先跑后钉）。
+
 ## T-DTLS-1…20 dtls 层链接入（#43 D-DTLS-1，DTLS 1.0/1.2 over UDP/4433，20 例）
 
 **三源回指：** RFC 6347（record/epoch/seq/握手分片/CCS/alert/appdata）+RFC 4347（1.0 legacy）→ D-DTLS-1 → `test/protocol_pcap/cases/dtls.json`（20 例）。ID 权威 = `58-dtls-testcase.md` §2（14 正 + 6 负）；本节对账 20 = 14 + 6。
