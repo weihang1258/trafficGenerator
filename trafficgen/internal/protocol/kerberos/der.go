@@ -89,9 +89,14 @@ func derInteger(v int) []byte {
 	}
 }
 
-// derOctet renders an OCTET STRING（universal primitive 0x04——Realm/
-// KerberosString 同面，RFC 4120 §5.2.1）。
+// derOctet renders an OCTET STRING（universal primitive 0x04——cipher/
+// padata-value 同面，RFC 4120 §5.2.9）。
 func derOctet(s string) []byte { return tlv(0x04, []byte(s)) }
+
+// derGStr renders a KerberosString/Realm = GeneralString（universal
+// primitive 0x1B，RFC 4120 §5.2.1——tshark dissector 按 GeneralString
+// 解码，OCTET STRING 触发 Wrong-field malformed；P5 校准轮实修）。
+func derGStr(s string) []byte { return tlv(0x1B, []byte(s)) }
 
 // derBitString renders a BIT STRING（0x03）：unused-bits 前导 1B + 数据。
 func derBitString(data []byte) []byte {

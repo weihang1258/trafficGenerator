@@ -54,11 +54,12 @@ const (
 
 // ---- DER 结构组装（P2 tag 权威表逐行）----
 
-// principalName renders PrincipalName ::= SEQUENCE{ name-type[0], name-string[1] SEQ OF }.
+// principalName renders PrincipalName ::= SEQUENCE{ name-type[0],
+// name-string[1] SEQ OF KerberosString（GeneralString——P5 校准轮实修）}.
 func principalName(nameType int, components []string) []byte {
 	var strs [][]byte
 	for _, c := range components {
-		strs = append(strs, derOctet(c))
+		strs = append(strs, derGStr(c))
 	}
 	nameString := derSeq(strs...)
 	return derSeq(derCtx(0, derInteger(nameType)), derCtx(1, nameString))
@@ -102,7 +103,7 @@ func ticket(e *core.KerberosEvent) []byte {
 	}
 	body := derSeq(
 		derCtx(0, derInteger(5)),
-		derCtx(1, derOctet(realm)),
+		derCtx(1, derGStr(realm)),
 		derCtx(2, principalName(nameType, sname)),
 		derCtx(3, encryptedData(e)),
 	)
@@ -110,12 +111,46 @@ func ticket(e *core.KerberosEvent) []byte {
 }
 
 // padataSeq renders METHOD-DATA ::= SEQUENCE OF PA-DATA（保序——RFC 6113）。
-func padataSeq(pas []core.KerberosPAData) []byte {
+// 两个已知类型必须结构自洽（tshark 对 padata-value 递归解剖，raw 填充触发
+// Malformed exception——P5 校准轮实修）：
+//   - type 1 PA-TGS-REQ（RFC 4120 §7.5.1）：value = 完整 AP-REQ DER
+//     （ticket/authenticator opaque——设计 §6"PA-TGS-REQ 的 AP-REQ 载体"）；
+//   - type 2 PA-ENC-TIMESTAMP：value = EncryptedData{ etype, cipher=opaque
+//     ValueLen 字节 }（RFC 4120 §5.4.1——timestamp 明文不可见，cipher 不透明，
+//     裁定5）；
+//   - type 128 PA-PAC-REQUEST（MS-KILE，非 PA-TGS-REQ——tshark 按 128 解剖
+//     BOOLEAN）：value = [0] BOOLEAN TRUE（请求 PAC——P5 校准轮实修：128
+//     当 TGS-REQ 载体是 RFC 误记）；
+//   - 其余类型：raw 确定性填充（未知类型 tshark 不递归，不触发解剖）。
+func padataSeq(pas []core.KerberosPAData, e *core.KerberosEvent) []byte {
+	etype := fixtureEType
+	if e.EType != nil {
+		etype = *e.EType
+	}
 	var seqs [][]byte
 	for _, pa := range pas {
-		val := make([]byte, pa.ValueLen)
-		for i := range val {
-			val[i] = fixtureFill
+		var val []byte
+		switch pa.Type {
+		case 1:
+			// PA-TGS-REQ 携带 TGT：嵌入 AP-REQ 的 ticket 用 krbtgt 缺省
+			// 主体（清空会话 SName/CName——目标 service 主体只在 req-body
+			// sname 面，不进内嵌票据），etype/kvno/cipher_len 沿事件。
+			tgt := *e
+			tgt.SName, tgt.CName = nil, nil
+			val = apReq(&tgt)
+		case 2:
+			cipher := make([]byte, pa.ValueLen)
+			for i := range cipher {
+				cipher[i] = fixtureFill
+			}
+			val = derSeq(derCtx(0, derInteger(etype)), derCtx(2, tlv(0x04, cipher)))
+		case 128:
+			val = tlv(0x01, []byte{0xFF})
+		default:
+			val = make([]byte, pa.ValueLen)
+			for i := range val {
+				val[i] = fixtureFill
+			}
 		}
 		seqs = append(seqs, derSeq(
 			derCtx(1, derInteger(pa.Type)),
@@ -131,7 +166,10 @@ func kdcOptions() []byte { return derCtx(0, derBitString(make([]byte, 4))) }
 // kdcReq renders KDC-REQ（AS-REQ [10]/TGS-REQ [12] 共用）：
 // SEQUENCE{ pvno[1]=5, msg-type[2], padata[3] OPTIONAL, req-body[4] }；
 // req-body = SEQUENCE{ kdc-options[0], cname[1] OPTIONAL, realm[2],
-// sname[3] OPTIONAL, till[7], nonce[9], etype[10] SEQ{Int32} }.
+// sname[3] OPTIONAL, from[4] OPTIONAL, till[5], rtime[6] OPTIONAL,
+// nonce[7], etype[8] SEQ{Int32}, addresses[9]/enc-authz-data[10]/
+// additional-tickets[11] OPTIONAL 不渲染 }（RFC 4120 §5.4.1——P5 校准轮
+// 实修：原 till[7]/nonce[9]/etype[10] 标签号错误）。
 func kdcReq(tag byte, msgType int, e *core.KerberosEvent) ([]byte, error) {
 	nonce := fixtureNonce
 	if e.Nonce != nil {
@@ -157,7 +195,7 @@ func kdcReq(tag byte, msgType int, e *core.KerberosEvent) ([]byte, error) {
 		}
 		reqParts = append(reqParts, derCtx(1, principalName(nameType, e.CName)))
 	}
-	reqParts = append(reqParts, derCtx(2, derOctet(realm)))
+	reqParts = append(reqParts, derCtx(2, derGStr(realm)))
 	if len(e.SName) > 0 {
 		nameType := fixtureNameType
 		if e.NameType != nil {
@@ -166,9 +204,9 @@ func kdcReq(tag byte, msgType int, e *core.KerberosEvent) ([]byte, error) {
 		reqParts = append(reqParts, derCtx(3, principalName(nameType, e.SName)))
 	}
 	reqParts = append(reqParts,
-		derCtx(7, derGeneralizedTime(till)),
-		derCtx(9, derInteger(nonce)),
-		derCtx(10, derSeq(derInteger(etype))),
+		derCtx(5, derGeneralizedTime(till)),
+		derCtx(7, derInteger(nonce)),
+		derCtx(8, derSeq(derInteger(etype))),
 	)
 	reqBody := derSeq(reqParts...)
 	parts := [][]byte{
@@ -176,7 +214,7 @@ func kdcReq(tag byte, msgType int, e *core.KerberosEvent) ([]byte, error) {
 		derCtx(2, derInteger(msgType)),
 	}
 	if len(e.PAData) > 0 {
-		parts = append(parts, derCtx(3, padataSeq(e.PAData)))
+		parts = append(parts, derCtx(3, padataSeq(e.PAData, e)))
 	}
 	parts = append(parts, derCtx(4, reqBody))
 	return derApp(tag, derSeq(parts...)), nil
@@ -204,7 +242,7 @@ func kdcRep(tag byte, msgType int, e *core.KerberosEvent) []byte {
 	return derApp(tag, derSeq(
 		derCtx(0, derInteger(5)),
 		derCtx(1, derInteger(msgType)),
-		derCtx(3, derOctet(crealm)),
+		derCtx(3, derGStr(crealm)),
 		derCtx(4, principalName(nameType, cname)),
 		derCtx(5, ticket(e)),
 		derCtx(6, encryptedData(e)),
@@ -233,7 +271,9 @@ func apRep(e *core.KerberosEvent) []byte {
 
 // krbError renders KRB-ERROR ::= SEQUENCE{ pvno[0]=5, msg-type[1]=30,
 // ctime[2]/cusec[3] OPTIONAL, stime[4], susec[5], error-code[6], crealm[7]
-// OPTIONAL, cname[8] OPTIONAL, realm[9], sname[10] OPTIONAL, e-text[11] }.
+// OPTIONAL, cname[8] OPTIONAL, realm[9], sname[10] OPTIONAL, e-data[11]/
+// e-text[12] OPTIONAL（e-text = KerberosString——P5 校准轮实修，原 [11]
+// OCTET STRING 错标 e-data 槽）}.
 func krbError(e *core.KerberosEvent) ([]byte, error) {
 	if e.ErrorCode == nil {
 		return nil, fmt.Errorf("kerberos: krb_error event requires error_code (kind)")
@@ -266,7 +306,7 @@ func krbError(e *core.KerberosEvent) ([]byte, error) {
 		derCtx(6, derInteger(*e.ErrorCode)),
 	)
 	if e.CRealm != "" {
-		parts = append(parts, derCtx(7, derOctet(e.CRealm)))
+		parts = append(parts, derCtx(7, derGStr(e.CRealm)))
 	}
 	if len(e.CName) > 0 {
 		nameType := fixtureNameType
@@ -275,7 +315,7 @@ func krbError(e *core.KerberosEvent) ([]byte, error) {
 		}
 		parts = append(parts, derCtx(8, principalName(nameType, e.CName)))
 	}
-	parts = append(parts, derCtx(9, derOctet(realm)))
+	parts = append(parts, derCtx(9, derGStr(realm)))
 	if len(e.SName) > 0 {
 		nameType := fixtureNameType
 		if e.NameType != nil {
@@ -284,7 +324,7 @@ func krbError(e *core.KerberosEvent) ([]byte, error) {
 		parts = append(parts, derCtx(10, principalName(nameType, e.SName)))
 	}
 	if e.EText != "" {
-		parts = append(parts, derCtx(11, derOctet(e.EText)))
+		parts = append(parts, derCtx(12, derGStr(e.EText)))
 	}
 	return derApp(30, derSeq(parts...)), nil
 }

@@ -4769,7 +4769,7 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 - **m6（已修）**：门3 三条抽查无最复杂例维度点数——补抽查④：multi_session_isolation 24 包 7 维交织（多会话×cookie 质询×完整握手×双方向×epoch 切换×加密边界×关闭）。
 - **m7（注记）**：设计 §12 无定量性能预算——门1 §6 行补声明式回放族判（bacnet/dcerpc 同判：性能目标归框架面，协议面承诺 O(n) 流式+确定性内存），非缺口。
 
-## D-KERBEROS-1 kerberos 层链接入（#44，Kerberos V5 over UDP/TCP 88，P1 开工）
+## D-KERBEROS-1 kerberos 层链接入（#44，Kerberos V5 over UDP/TCP 88，已验收）
 
 > 契约权威：`docs/protocol-designs/59-kerberos-design.md` v1.0.0 + `59-kerberos-testcase.md` v1.0.0（2026-08-20，行为面全枚举：20 ID=14 正+6 负，ID 权威=testcase §2）。三源=①RFC 4120（Kerberos V5）+RFC 6113（pre-auth）+RFC 3961/4121（加密框架/AES etype）②Windows/FreeIPA 现网 KDC 行为（kinit 抓包形态）③本机 tshark（kerberos dissector 309 字段已实证在案 2026-09-24）。**编码权威：ASN.1 DER definite-length；双载体：UDP datagram 边界 + TCP 4-byte BE record length（不含自身）。**
 
@@ -4784,7 +4784,7 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 | 5 | 不透明边界：EncryptedData etype/kvno/cipher 长度可见，ticket/authenticator/密文内层 opaque；无 key log 不断言明文（RFC 4120 §5.4.1；设计 §1/§7） | 加密面 | 无 | etype/长度结构化 + 内层 opaque fixture |
 | 6 | nonce/时间/重放：请求关联（reply same_as nonce）、skew 窗口、replay 拒绝/标记（RFC 4120 §5.3.2/设计 §8） | 防重放 | 无 | nonce/时间字段声明 + replay 负例 |
 | 7 | principal/realm 结构：PrincipalName name-type+name-string[]，realm 独立字段不与 name-string 拼接（RFC 4120 §5.2.1/§6.2；设计 §7） | 主体标识 | 无 | realm/principal 结构化 DER 组件 |
-| 8 | 错误处理：截断/tcp_length/tag/encrypted_boundary/replay/carrier 六负例（设计 §10 表，逐行锚词） | 负例 6 | 无 | 6 负例 + 自然守卫（DER 长度形/tag 一致性） |
+| 8 | 错误处理：截断/record 长度/tag/encrypted_boundary/replay/carrier 六负例（设计 §10 表，逐行锚词；wire_fault 值面=设计 §2 逐字） | 负例 6 | 无 | 6 负例 + 自然守卫（DER 长度形/tag 一致性） |
 
 三路对照：①RFC 4120/6113/3961 原文；②Windows AD+FreeIPA kinit 现网形态（UDP 优先超 MTU 转 TCP 的现网惯例——本引擎按 fixture 显式声明 transport，不做自动降级）；③wireshark packet-kerberos.c（字段语义借鉴不搬码）。候选方案：A）结构化声明式回放（realm/principal/etype 等外层结构化 + 加密内层 opaque，bacnet/dcerpc/dtls 同族）B）完整 ASN.1 schema 编译器（超 fixture 范围，且加密内层本就不可断言，不选）；选 A。
 
@@ -4796,7 +4796,7 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 | §2 策略/任务 | 框架语义未动 | 契约 §1 |
 | §3 五件套 | 会话表=sessions[]（四元组+exchange 状态+replay 状态独立）；事务序列=events[]（AS/TGS/AP/KRB-ERROR 消息序）；关联=同会话 nonce same_as+ticket 归属（无副流派生——单通道协议）；插入位置=终结层每消息一 UDP datagram/TCP record；时间线=UDP 按序 datagram，TCP 按序 record（MCP 侧每 record 一 segment 简化，合并/切分由声明式 multi-record 事件表达） | 契约 v1.0.0 §9 |
 | §4 查规范 | RFC 4120/6113/3961+tshark 309 字段+现网三源——P1 矩阵 8 行 | 契约 §1/§12 |
-| §5 依赖与错误 | DependsOn ["udp"]/["tcp"] 双注册；wire_fault 6 值（record_truncated/tcp_length/tag/encrypted_boundary/replay/carrier）+自然守卫（DER 长度形非法/tag↔msg-type 不一致） | 契约 §10 |
+| §5 依赖与错误 | DependsOn ["udp"] + TransportOn ["udp","tcp"] 双载体（裁定1）；wire_fault 6 值=**设计 §2 配置键表逐字**（record_truncated/record_length/tag/encrypted_boundary/replay/carrier——P5 校准轮回正，原文 tcp_length/message_tag/time_nonce_replay 系误名）+自然守卫（DER 长度形非法/tag↔msg-type 不一致） | 契约 §2/§10 |
 | §6 性能 | 声明式回放族：O(n) 流式渲染无全量聚合；pcap 路实测（NIC 路注记沿裁定4 家族口径）；无协议级吞吐预算数字（bacnet/dcerpc/dtls 同判） | 契约 §12 |
 | §7 三份文档 | 59-kerberos-{design,testcase}.md v1.0.0（ID 权威=testcase §2）+ D-KERBEROS-1（本条目）+ T-KERBEROS（TEST_CASES）+ generated schema | 契约修订记录 |
 | §8 设计先行 | 本条目 P1-P3 先于 P4 实现，独立提交 | 提交序 |
@@ -4826,7 +4826,7 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 | 文件 | 职责 |
 |---|---|
 | internal/core/kerberos.go（NEW） | KerberosConfig/Sessions/Event/Msg 结构 + 严格 UnmarshalJSON（递归 DisallowUnknownFields，dtls 同款三级）+ 6 wire_fault 常量与 DescribeKerberosWireFault 锚词表 |
-| internal/protocol/kerberos/der.go（NEW） | DER 编码原语：tag 字节（class\|constructed\|num）、长度短形（<128）/长形（0x8N）、INTEGER/OCTET STRING/GeneralizedTime/SEQUENCE/上下文构造型——全 definite-length（裁定3） |
+| internal/protocol/kerberos/der.go（NEW） | DER 编码原语：tag 字节（class\|constructed\|num）、长度短形（<128）/长形（0x8N）、INTEGER/OCTET STRING（cipher/padata-value）/GeneralString（Realm/KerberosString——P5 校准轮实修）/GeneralizedTime/SEQUENCE/上下文构造型——全 definite-length（裁定3） |
 | internal/protocol/kerberos/builder.go（NEW） | 六消息 builder（下表结构）+ 双载体分帧（UDP 每消息一 datagram；TCP 每消息前 4B BE 长度，裁定7）+ kerberosWalker 会话状态单权威 + init() 注册 generator/validator |
 | internal/protocol/kerberos/planner.go（NEW） | validateSpec/validateSession（walk renderEvent 同路径单权威）+ validateWireFault + tag↔msg-type 一致性守卫（裁定6）+ 会话 dst_port 冲突守卫 |
 | internal/protocol/kerberos/casegen_test.go（NEW） | 一次性生成器：20 例（14 正+6 负）契约计数逐例 add()，落 test/protocol_pcap/cases/kerberos.json |
@@ -4841,7 +4841,9 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
   TGS-REP 0x6d[13]/AP-REQ 0x6e[14]/AP-REP 0x6f[15]/KRB-ERROR 0x7e[30]
 KDC-REQ (AS/TGS 共用)：SEQUENCE{ pvno[1]=5, msg-type[2](10|12), padata[3] OPTIONAL,
   req-body[4] }；req-body=SEQUENCE{ kdc-options[0], cname[1] OPTIONAL, realm[2],
-  sname[3] OPTIONAL, till[7] GeneralizedTime, nonce[9] u32, etype[10] SEQ{Int32} }
+  sname[3] OPTIONAL, till[5] GeneralizedTime, nonce[7] u32, etype[8] SEQ{Int32} }
+  ※ P5 校准轮勘误：till/nonce/etype 标签号原写 [7]/[9]/[10] 系 RFC 误记，
+    RFC 4120 §5.4.1 权威为 [5]/[7]/[8]（from[4]/rtime[6] 不渲染）
 KDC-REP (AS/TGS 共用)：SEQUENCE{ pvno[0]=5, msg-type[1](11|13), padata[2] OPTIONAL,
   crealm[3], cname[4], ticket[5] Ticket, enc-part[6] EncryptedData }
 AP-REQ：SEQUENCE{ pvno[0]=5, msg-type[1]=14, ap-options[2] BIT STRING, ticket[3],
@@ -4849,20 +4851,23 @@ AP-REQ：SEQUENCE{ pvno[0]=5, msg-type[1]=14, ap-options[2] BIT STRING, ticket[3
 AP-REP：SEQUENCE{ pvno[0]=5, msg-type[1]=15, enc-part[2] EncryptedData }
 KRB-ERROR：SEQUENCE{ pvno[0]=5, msg-type[1]=30, ctime[2]/cusec[3] OPTIONAL,
   stime[4], susec[5], error-code[6] i32, crealm[7]/cname[8] OPTIONAL, realm[9],
-  sname[10] OPTIONAL, e-text[11]/e-data[12] OPTIONAL }
+  sname[10] OPTIONAL, e-data[11]/e-text[12] OPTIONAL }
+  ※ P5 校准轮勘误：e-text=[12] GeneralString（原写 [11] OCTET STRING 错占 e-data 槽）
 Ticket ::= [APPLICATION 1] (0x61) SEQUENCE{ tkt-vno[0]=5, realm[1], sname[2],
   enc-part[3] EncryptedData }
 EncryptedData ::= SEQUENCE{ etype[0] i32, kvno[1] OPTIONAL u32, cipher[2] OCTET STRING
   （cipher 内容=确定性填充不伪造语义，裁定5） }
-PrincipalName ::= SEQUENCE{ name-type[0] i32, name-string[1] SEQ{OCTET STRING} }
-Realm/KerberosString ::= OCTET STRING（UTF-8）；KerberosTime ::= GeneralizedTime 格 "YYYYMMDDHHMMSSZ"
+PrincipalName ::= SEQUENCE{ name-type[0] i32, name-string[1] SEQ{KerberosString} }
+Realm/KerberosString ::= GeneralString（0x1B UTF-8）；KerberosTime ::= GeneralizedTime 格 "YYYYMMDDHHMMSSZ"
+  ※ P5 校准轮勘误：KerberosString 是 GeneralString 非 OCTET STRING（RFC 4120
+    §5.2.1）——tshark 按 GeneralString 解码，OCTET STRING 触发 Wrong-field malformed
 上下文标签均 context-class constructed（0xA0+tagno）；msg-type↔顶层 tag 映射恒定（裁定6 校验面）
 ```
 
 **事件/会话面（配置形状，对齐契约 §2 键表）**：
 - `sessions[]`：`src_ip/src_port/dst_port`（端点覆盖，bacnet/dtls 同款）+ `events[]`；会话间 nonce/ticket/framing 状态全隔离（逐会话独立 walker）。
 - `events[]` 每 event = 一条完整 Kerberos 消息（=一 UDP datagram / 一 TCP record）：`kind`（as_req|as_rep|tgs_req|tgs_rep|ap_req|ap_rep|krb_error）、`up` 方向、`msg_type`（声明面，与 kind 派生 tag 不一致=自然守卫拒，裁定6）、`realm/cname/sname/name_type`（principal 结构化组件）、`etype/kvno/cipher_len`（EncryptedData 外壳）、`nonce/till/ctime/cusec`（声明面值）、`error_code/e_text`（krb_error）、`body`（整消息 DER hex 覆盖——opaque fixture 逃生口，负例/特殊形用）、`padata`（preauth PA-DATA 类型+长度声明面）。
-- `wire_fault`：6 值（record_truncated/tcp_length/tag/encrypted_boundary/replay/carrier），锚词=契约 §10 逐行。
+- `wire_fault`：6 值（record_truncated/record_length/tag/encrypted_boundary/replay/carrier——**值面=设计 §2 配置键表逐字**，P5 校准轮回正原文误名），锚词=契约 §10 逐行。
 
 **错误处理（§5.2）**：所有被拒 spec 传播为 task error（零假成功）：①wire_fault 6 值注入拒（锚词进断言）；②自然守卫：未知 kind / msg_type↔tag 不一致（裁定6）/ 会话 dst_port 冲突 / 会话级载体与链不符（tcp record 出现在 udp 链=拒）；③validate_layers 预检：缺载体层 / udp+tcp 双载体并存拒（单链单载体，裁定1）。
 
