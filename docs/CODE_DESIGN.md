@@ -4684,3 +4684,51 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 - **修轮**（170039e）：F1 契约 v2.0.2（§4.2 header_t+取舍理由）；F3 §5/§7 A/B/C 落码实况；F4 planner ack 值域守卫+ack 型拒 auth（failing-test-first 红例 2）；F2 pipe_gate 排除 _test.go；F5 .neg.pcap 79+1 口径注记。门 2 四项绿 + suite 80/80 ×2 + coverage 44/44 全绿。
 - **复评**（隔离 scoped re-review）：F1-F5 全部已关闭（红例反证：旧 planner 配新测试仅双 FAIL）；新发现 M1-M5（4 文档 MINOR+1 coverage 缺口）顺手修：M1 悬空 §4.15→现网分解器实证表述、M2 §5.3→§4.3、M3 链级/服务端产物口径限定、M4 coverage 补 F4 双守卫（46/46）、M5 "31 常量"笔误。**裁定：同意关单，无需第二轮。**
 - **状态：已验收。**
+
+## D-DTLS-1 dtls 层链接入（#43，DTLS 1.0/1.2 over UDP/4433，P1 开工）
+
+> 契约权威：`docs/protocol-designs/58-dtls-design.md` v1.0.0 + `58-dtls-testcase.md` v1.0.0（2026-08-20，行为面全枚举：20 ID=14 正+6 负，ID 权威=testcase §2——P1 判定无需重写，dcerpc v1.0.0→v2.0.0 先例不适用）。三源=①RFC 6347（DTLS 1.2 record/epoch/握手分片权威）+RFC 4347（DTLS 1.0）②OpenSSL s_server -dtls/mbedTLS 现网抓包（P4 前实证）③本机 tshark（dtls dissector 291 字段已实证在案）。**端序总表：全 BE（record 头/epoch/seq48/handshake 24-bit 字段均网络序；dcerpc LE 勿串）。**
+
+### P1 规范矩阵（§4 八项确认态）
+
+| # | 要求（规范要求） | 业务场景 | 代码现状 | 缺口 |
+|---|---|---|---|---|
+| 1 | 连接模型：DTLS over UDP 无连接；每 record 一 datagram（RFC 6347 §4.1） | IoT/VPN 安全传输（UDP/4433） | 无任何接线（registry/protocols/protocol 包/main.go 全空；占位 1 例 dtls_neg_unregistered） | 全量新建（udp 载体终结层，bacnet 同族；DependsOn ["udp"]，无握手/挥手） |
+| 2 | 记录层：13B 头 ContentType(1)+Version(2)+Epoch(2)+Seq48(6)+Length(2)，BE（RFC 6347 §4.1） | 全部记录 | 无 | builder putRecord（BE 序） |
+| 3 | 版本：1.0=`feff`，1.2=`fefd`；ClientHello 内层版本自洽（RFC 6347 §4.2.1） | 版本协商/legacy | 无 | version 字段+自洽校验 |
+| 4 | epoch/seq：epoch u16 递增不回退；seq 48-bit BE 单调递增，重传不复用 seq | 密钥切换 epoch0→1；flight 重传 | 无 | seqWalker 单解析权威（方向独立） |
+| 5 | 握手：12B 头 type+len24+msg_seq+off24+fraglen24；分片重组按 msg_seq/offset（RFC 6347 §4.2.6） | 大证书分片；乱序重组 | 无 | fragment 头+fixture 声明式分片 |
+| 6 | Cookie：HelloVerifyRequest 无状态 cookie；长度前缀=实际字节（RFC 6347 §4.2.1） | DoS 防护交换 | 无 | cookie opaque（长度一致校验） |
+| 7 | CCS(20)/Alert(21)/AppData(23)；加密 epoch 后只观察外层（RFC 6347 §4.1/§7） | 建立→加密传输→关闭 | 无 | content-type 事件面+opaque 边界 |
+| 8 | 错误处理：截断/非法版本/seq 溢出/分片越界/cookie 状态错/载体错（设计 §10 六负例） | 负例 6 | 无 | 6 wire_fault +自然守卫 |
+
+三路对照：①RFC 6347/4347 原文；②OpenSSL/mbedTLS 现网抓包；③wireshark packet-dtls.c（只借鉴字段语义，不搬代码）。候选方案：A）事件声明式回放（bacnet/dcerpc 同族）B）真握手状态机（需密钥协商，超 fixture 范围，不选）；选 A。
+
+### 门 1 开工对照表（§1–§14）
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 目标形状：`{"layers":[{"ip":{"src":"192.0.2.58","dst":"198.51.100.58"}},{"udp":{"src_port":45058,"dst_port":4433}},{"dtls":{"sessions":[...]}}]}`；地址→ip 层，4433→udp 层，数量→flow_control；占位顶层旧键随注册移除 | CheckProtoFlat（既有）；契约 v1.0.0 §2 |
+| §2 策略/任务 | 框架语义未动 | 契约 §1 |
+| §3 五件套 | 会话表=sessions[]（四元组+epoch/seq独立）；事务序列=events[]（握手/CCS/alert/appdata）；关联=同会话 msg_seq+epoch/seq 配对（无副流派生）；插入位置=终结层每事件一 datagram；时间线=datagram 序列，多会话隔离 | 契约 v1.0.0 §9 |
+| §4 查规范 | RFC 6347/4347+tshark+现网三源——P1 矩阵 8 行 | 契约 §1/§12 |
+| §5 依赖与错误 | DependsOn ["udp"]；wire_fault 6 值+自然守卫 | 契约 §10 |
+| §6 性能 | UDP 流式渲染；行长公式可复算；pcap 路实测（NIC 路注记） | 契约 §12 |
+| §7 三份文档 | 58-dtls-{design,testcase}.md v1.0.0（ID 权威=testcase §2）+ D-DTLS-1（本条目）+ T-DTLS（TEST_CASES）+ generated schema | 契约修订记录 |
+| §8 设计先行 | 本条目 P1-P3 先于 P4 实现，独立提交 | 提交序 |
+| §9 测试三源 | 三源=RFC 条款+D-DTLS-1+tshark；20 ID 正负对账；一行一注入 | T-DTLS |
+| §10 评审闭环 | 每阶段对抗自审+收官隔离复审+修轮；红先绿后 | P6 链 |
+| §11 白话 | 每阶段白话一句先行 | 汇报 |
+| §12 动态清单 | 四元组=ip/udp 层；业务字段（cookie/seq/epoch/handshake）fixture 钉死，无策略动态消费面（声明式回放，bacnet 同判）；seq 缺省派生算法收单解析权威（seqWalker 方向独立） | 契约 §3/§5 |
+| §13 schema 派生 | registry dtls 行（DependsOn ["udp"]/TransportOn ["udp"]/FieldContract udp.dst_port=4433）→ schemagen 重跑 | 契约 §6（类比） |
+| §14 真实流程 | suite 经 MCP 建任务→引擎生成→tshark `dtls.*` 字段（291 字段已实证）+ frames hex 双通道；先跑后钉 | 用例 §1/§6 |
+
+### 裁定
+
+1. **裁定1 udp 载体**：DTLS over UDP（RFC 6347）；TCP 不产生（拒）；TransportOn ["udp"]，载体锚词走 bacnet 同构（udp-only 专用错）。
+2. **裁定2 端口**：4433 fixture（tshark 自动解码约束）；未声明非默认端口=拒。
+3. **裁定3 端序**：全 BE（record/epoch/seq48/handshake 24-bit）；版本 feff/fefd 自洽。
+4. **裁定4 v1.0.0 可用**：20 ID 已行为面枚举，无需重写；packet_count 约定值 P5 以实测重钉（§9.31）；`dtls_pcap_nic_consistency` 改 pcap 内一致性口径（dcerpc #14 先例）。
+5. **裁定5 加密边界**：加密 epoch fixture 全 opaque（设计 §8——不断言明文；key log 另立项不做）。
+
+（P3 测试点清单——testcase §2/§3 已逐 ID 断言契约，P4 落码据实勘误。）
