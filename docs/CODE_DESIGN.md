@@ -4768,3 +4768,53 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 - **m5（已修）**：P1 矩阵 #3"CH 内层版本自洽校验"实现判不适用但无处置记录——补裁定6（RFC 6347 §4.1 legacy_record_version：record 外层恒 feff/fefd 两档，内层版本在 opaque body 不做跨层校验；③例 record feff+CH fefd 即 RFC 规定组合）。
 - **m6（已修）**：门3 三条抽查无最复杂例维度点数——补抽查④：multi_session_isolation 24 包 7 维交织（多会话×cookie 质询×完整握手×双方向×epoch 切换×加密边界×关闭）。
 - **m7（注记）**：设计 §12 无定量性能预算——门1 §6 行补声明式回放族判（bacnet/dcerpc 同判：性能目标归框架面，协议面承诺 O(n) 流式+确定性内存），非缺口。
+
+## D-KERBEROS-1 kerberos 层链接入（#44，Kerberos V5 over UDP/TCP 88，P1 开工）
+
+> 契约权威：`docs/protocol-designs/59-kerberos-design.md` v1.0.0 + `59-kerberos-testcase.md` v1.0.0（2026-08-20，行为面全枚举：20 ID=14 正+6 负，ID 权威=testcase §2）。三源=①RFC 4120（Kerberos V5）+RFC 6113（pre-auth）+RFC 3961/4121（加密框架/AES etype）②Windows/FreeIPA 现网 KDC 行为（kinit 抓包形态）③本机 tshark（kerberos dissector 309 字段已实证在案 2026-09-24）。**编码权威：ASN.1 DER definite-length；双载体：UDP datagram 边界 + TCP 4-byte BE record length（不含自身）。**
+
+### P1 规范矩阵（§4 八项确认态）
+
+| # | 要求（规范要求） | 业务场景 | 代码现状 | 缺口 |
+|---|---|---|---|---|
+| 1 | 连接模型：KDC 请求/应答；UDP 保留 datagram 边界，TCP 字节流须 4B 长度分帧（RFC 4120 §6；设计 §3） | 域认证（UDP/TCP 88） | 无任何接线（registry/protocols/protocol 包/main.go 全空；占位 1 例 kerberos_neg_unregistered 且仍为旧扁平形） | 全量新建（**双载体**终结层：DependsOn ["udp"] 或 ["tcp"]——dtls udp-only 判不适用） |
+| 2 | 消息封装：ASN.1 DER，顶层 application tag：AS-REQ `[10]`=6a/AS-REP `[11]`=6b/TGS-REQ `[12]`=6c/TGS-REP `[13]`=6d/AP-REQ `[14]`=6e/AP-REP `[15]`=6f/KRB-ERROR `[30]`=7e（RFC 4120 §5.1；设计 §4） | 全部消息 | 无 | DER builder（tag+len 短/长形+value；definite-length 恒定） |
+| 3 | 版本/类型自洽：pvno=5 且 msg-type 与顶层 tag 一致（RFC 4120 §5；设计 §4"互相一致"） | 全部消息 | 无 | msg-type↔tag 一致性校验（kerberos 侧有实义结构，非 dtls 裁定6 的 opaque 面——两者不类比） |
+| 4 | 交换状态机：AS（REQ→REP，preauth 时 ERROR→REQ'→REP）/TGS（REQ→REP）/AP（REQ→REP 可选半程）（RFC 4120 §3.1-3.3；RFC 6113；设计 §5-§6） | 域登录全流程 | 无 | exchange 声明式事件序（as/tgs/ap/error），状态不跨 session 复用 |
+| 5 | 不透明边界：EncryptedData etype/kvno/cipher 长度可见，ticket/authenticator/密文内层 opaque；无 key log 不断言明文（RFC 4120 §5.4.1；设计 §1/§7） | 加密面 | 无 | etype/长度结构化 + 内层 opaque fixture |
+| 6 | nonce/时间/重放：请求关联（reply same_as nonce）、skew 窗口、replay 拒绝/标记（RFC 4120 §5.3.2/设计 §8） | 防重放 | 无 | nonce/时间字段声明 + replay 负例 |
+| 7 | principal/realm 结构：PrincipalName name-type+name-string[]，realm 独立字段不与 name-string 拼接（RFC 4120 §5.2.1/§6.2；设计 §7） | 主体标识 | 无 | realm/principal 结构化 DER 组件 |
+| 8 | 错误处理：截断/tcp_length/tag/encrypted_boundary/replay/carrier 六负例（设计 §10 表，逐行锚词） | 负例 6 | 无 | 6 负例 + 自然守卫（DER 长度形/tag 一致性） |
+
+三路对照：①RFC 4120/6113/3961 原文；②Windows AD+FreeIPA kinit 现网形态（UDP 优先超 MTU 转 TCP 的现网惯例——本引擎按 fixture 显式声明 transport，不做自动降级）；③wireshark packet-kerberos.c（字段语义借鉴不搬码）。候选方案：A）结构化声明式回放（realm/principal/etype 等外层结构化 + 加密内层 opaque，bacnet/dcerpc/dtls 同族）B）完整 ASN.1 schema 编译器（超 fixture 范围，且加密内层本就不可断言，不选）；选 A。
+
+### 门 1 开工对照表（§1–§14）
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 目标形状：`{"layers":[{"ip":{"src":"192.0.2.59","dst":"198.51.100.59"}},{"udp":{"src_port":40159,"dst_port":88}},{"kerberos":{"sessions":[...]}}]}`（TCP 载体换 tcp 层）；地址→ip 层，88→udp/tcp 层，数量→flow_control；占位（旧扁平形）随注册移除 | CheckProtoFlat（既有）；契约 v1.0.0 §2 |
+| §2 策略/任务 | 框架语义未动 | 契约 §1 |
+| §3 五件套 | 会话表=sessions[]（四元组+exchange 状态+replay 状态独立）；事务序列=events[]（AS/TGS/AP/KRB-ERROR 消息序）；关联=同会话 nonce same_as+ticket 归属（无副流派生——单通道协议）；插入位置=终结层每消息一 UDP datagram/TCP record；时间线=UDP 按序 datagram，TCP 按序 record（MCP 侧每 record 一 segment 简化，合并/切分由声明式 multi-record 事件表达） | 契约 v1.0.0 §9 |
+| §4 查规范 | RFC 4120/6113/3961+tshark 309 字段+现网三源——P1 矩阵 8 行 | 契约 §1/§12 |
+| §5 依赖与错误 | DependsOn ["udp"]/["tcp"] 双注册；wire_fault 6 值（record_truncated/tcp_length/tag/encrypted_boundary/replay/carrier）+自然守卫（DER 长度形非法/tag↔msg-type 不一致） | 契约 §10 |
+| §6 性能 | 声明式回放族：O(n) 流式渲染无全量聚合；pcap 路实测（NIC 路注记沿裁定4 家族口径）；无协议级吞吐预算数字（bacnet/dcerpc/dtls 同判） | 契约 §12 |
+| §7 三份文档 | 59-kerberos-{design,testcase}.md v1.0.0（ID 权威=testcase §2）+ D-KERBEROS-1（本条目）+ T-KERBEROS（TEST_CASES）+ generated schema | 契约修订记录 |
+| §8 设计先行 | 本条目 P1-P3 先于 P4 实现，独立提交 | 提交序 |
+| §9 测试三源 | 三源=RFC 条款+D-KERBEROS-1+tshark kerberos.* 字段（309 已实证）；20 ID 正负对账 | T-KERBEROS |
+| §10 评审闭环 | 每阶段对抗自审+收官隔离复审+修轮；红先绿后 | P6 链 |
+| §11 白话 | 每阶段白话一句先行 | 汇报 |
+| §12 动态清单 | 四元组=ip/udp/tcp 层；业务字段（realm/principal/etype/nonce/时间）fixture 钉死无策略动态消费面（声明式回放族判）；TCP record length 派生算法=4B BE 写消息实际长度（builder 单权威） | 契约 §3/§5 |
+| §13 schema 派生 | registry kerberos 行（DependsOn ["udp","tcp"]/FieldContract udp.dst_port=88）→ schemagen 重跑 | 契约 §6（类比） |
+| §14 真实流程 | suite 经 MCP 建任务→引擎生成→tshark `kerberos.*` 字段（309 实证）+ frames hex 双通道；先跑后钉 | 用例 §1/§6 |
+
+### 裁定
+
+1. **裁定1 双载体**：UDP（datagram 边界，每消息一 datagram）与 TCP（4B BE record length 分帧，长度不含自身）双载体同支持（契约 §3 明文）；载体链 `[...,udp,kerberos]` / `[...,tcp,kerberos]` 各自校验 DependsOn；混合载体会话=跨流独立（不拼接 framing 状态，设计 §9）。
+2. **裁定2 端口**：88 fixture（tshark 自动解码约束）；未声明非默认端口=拒（FieldContract 双层 88）。
+3. **裁定3 DER 编码**：definite-length 恒定（BER 宽松解析不改变线上生成契约——设计 §4 明文）；长度 <128 短形、≥128 长形（0x8x 前缀）；顶层 application tag 构造型（0x6a-0x6f/0x7e）；builder 单权威（tag+长度+值一体渲染）。
+4. **裁定4 v1.0.0 可用 + 重钉**：20 ID 已行为面枚举无需重写；packet_count 约定值 P5 实测重钉（§9.31）；`kerberos_pcap_nic_consistency` 改 pcap 内一致性口径（dcerpc #14/dtls 同判）。
+5. **裁定5 opaque 边界**：EncryptedData/ticket enc-part/authenticator 内层全 opaque（etype/kvno/cipher-len 结构化可见，密文确定性填充不伪造语义——设计 §1/§7；key log 解密另立项不做）。
+6. **裁定6 msg-type↔tag 一致性是本协议实义校验**：与 dtls 裁定6（opaque 面不校验）不同——kerberos 顶层 tag 与 pvno/msg-type 均在明文结构面，broker 一致性=自然守卫（负例 #17 tag 通道），不做=失职。
+7. **裁定7 TCP 分帧口径**：每条 kerberos 消息前置 4B BE 长度（不含自身）；`packet_count` 只计线上帧（TCP 握手/挥手属载体证据不计入——契约 §3）；合并/切分 fixture 由多消息事件序列表达，引擎不做真实 segment 切分（设计 §3"允许 segment 切分或合并"的接收端语义，生成面恒整 record 发送）。
+
+（P3 测试点清单——testcase §2/§3 已逐 ID 断言契约，P4 落码据实勘误。）
