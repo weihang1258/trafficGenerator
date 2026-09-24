@@ -322,6 +322,22 @@ func TestDCERPCChain_NaturalGuards(t *testing.T) {
 		{"call_mismatch", dceSess(true,
 			map[string]interface{}{"kind": "request", "call_id": 1, "context_id": 0,
 				"respond": map[string]interface{}{"ack": "response", "call_id": 9}}), "call"},
+		{"bind_ack_wrong_type", dceSess(false,
+			map[string]interface{}{"kind": "bind", "contexts": dceTestContexts(),
+				"respond": map[string]interface{}{
+					"ack": "response",
+					"results": []interface{}{map[string]interface{}{
+						"context_id": 0, "result": 0, "uuid": dceTestSyntax,
+						"version": []interface{}{2, 0}}}}}), "state"},
+		{"bind_ack_auth_silent_drop", dceSess(false,
+			map[string]interface{}{"kind": "bind", "contexts": dceTestContexts(),
+				"respond": map[string]interface{}{
+					"ack": "bind_ack",
+					"auth": map[string]interface{}{
+						"type": 9, "level": 2, "credentials": "AA"},
+					"results": []interface{}{map[string]interface{}{
+						"context_id": 0, "result": 0, "uuid": dceTestSyntax,
+						"version": []interface{}{2, 0}}}}}), "state"},
 		{"unknown_kind", dceSess(false, map[string]interface{}{"kind": "mystery"}), "unknown event kind"},
 		{"bind_ok_then_request_ok_negative_not", nil, ""}, // 占位删除
 	}

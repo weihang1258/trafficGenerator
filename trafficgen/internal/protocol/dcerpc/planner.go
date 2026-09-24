@@ -151,6 +151,17 @@ func validateSession(ep string, sess *core.DCERPCSession) error {
 						return fmt.Errorf("%s: respond call_id %d does not match open call %d (call)", ep2, ov, cid)
 					}
 				}
+				// D-DCERPC-1 P6 修轮（终审 F4）：bind/alter_ctx 的 respond 只许
+				// bind_ack 或 alter_ctx_resp——拼错/他型（response/fault）不再
+				// 静默渲染成 BIND_ACK（builder 按 ack=="alter_ctx_resp" 选型）。
+				if r.Ack != "" && r.Ack != "bind_ack" && r.Ack != "alter_ctx_resp" {
+					return fmt.Errorf("%s: respond ack %q is not bind_ack/alter_ctx_resp for a bind (state)", ep2, r.Ack)
+				}
+				// BIND_ACK/ALTER_CTX_RESP 线上无 auth trailer（buildBindAck 恒
+				// auth_len=0）——携 auth 的 ack 型 respond 同步拒，不静默丢弃。
+				if r.Auth != nil {
+					return fmt.Errorf("%s: respond auth is not produced on a bind_ack/alter_ctx_resp (state)", ep2)
+				}
 				if r.Secondary != "" && len(r.Secondary) > 255 {
 					return fmt.Errorf("%s: secondary address %q too long (length)", ep2, r.Secondary)
 				}

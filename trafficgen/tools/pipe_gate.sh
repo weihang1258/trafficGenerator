@@ -115,7 +115,7 @@ echo "== 门2-3 二进制与 HEAD 同代"
 if [ ! -x "$SERVER_BIN" ]; then
   echo "  黄: 服务二进制不存在($SERVER_BIN)，跳过（调用方须确认服务与 HEAD 同代）"
 else
-  newer=$(find trafficgen -name '*.go' -newer "$SERVER_BIN" 2>/dev/null | head -5)
+  newer=$(find trafficgen -name '*.go' ! -name '*_test.go' -newer "$SERVER_BIN" 2>/dev/null | head -5)
   if [ -n "$newer" ]; then
     echo "  红: 有 .go 比服务二进制新，先重编重跑:"; echo "$newer" | sed 's/^/    /'; fail=1
   else
