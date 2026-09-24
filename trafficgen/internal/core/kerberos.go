@@ -77,10 +77,11 @@ type KerberosEvent struct {
 	// 填充 0xA5；缺省 52）.
 	CipherLen int `json:"cipher_len,omitempty"`
 
-	// Nonce is the req-body nonce [9]（缺省 778001——MIT kinit 惯用形态）.
+	// Nonce is the req-body nonce [7]（缺省 778001——MIT kinit 惯用形态；
+	// RFC 4120 §5.4.1，P5 校准轮勘误旧号 [9]）.
 	Nonce *int `json:"nonce,omitempty"`
-	// Till is the req-body till [7] GeneralizedTime（缺省 20370913024805Z
-	// ——MIT 形态）.
+	// Till is the req-body till [5] GeneralizedTime（缺省 20370913024805Z
+	// ——MIT 形态；RFC 4120 §5.4.1，P5 校准轮勘误旧号 [7]）.
 	Till string `json:"till,omitempty"`
 	// CTime/CUsec declare client time（PA-ENC-TIMESTAMP 外壳/KRB-ERROR
 	// ctime[2]/cusec[3]；缺省 20260924120000Z / 0）.
@@ -92,7 +93,8 @@ type KerberosEvent struct {
 	// ErrorCode is the KRB-ERROR error-code [6]（krb_error 必声明；
 	// 7 = KDC_ERR_PREAUTH_REQUIRED、25 = KRB_AP_ERR_SKEW 等）.
 	ErrorCode *int `json:"error_code,omitempty"`
-	// EText is the optional e-text [11].
+	// EText is the optional e-text [12] GeneralString（P5 校准轮勘误：
+	// 旧号 [11] 错占 e-data 槽）.
 	EText string `json:"e_text,omitempty"`
 	// PAData declares req-body padata [3]（METHOD-DATA 保序不覆盖——
 	// RFC 6113；value = 确定性 opaque 填充）.

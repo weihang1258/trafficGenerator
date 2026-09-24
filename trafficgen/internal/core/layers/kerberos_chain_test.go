@@ -26,8 +26,8 @@ import (
 // kASReqDefault 是缺省 fixture AS-REQ 的完整 DER（76B；P4 实测钉，
 // P5 tshark kerberos dissector 复核）：[10] AS-REQ { pvno[1]=5,
 // msg-type[2]=10, req-body[4]{ kdc-options[0] BIT STRING(4B 全零),
-// realm[2] "EXAMPLE.TEST", till[7] 20370913024805Z, nonce[9]=778001,
-// etype[10]{18} } }。
+// realm[2] "EXAMPLE.TEST", till[5] 20370913024805Z, nonce[7]=778001,
+// etype[8]{18} } }。
 const kASReqDefault = "6A4A3048A103020105A20302010AA43C303AA00703050000000000A20E1B0C4558414D504C452E54455354A511180F32303337303931333032343830355AA70502030BDF11A8053003020112"
 
 func kerberosJSON(t *testing.T, layersArr []interface{}) json.RawMessage {

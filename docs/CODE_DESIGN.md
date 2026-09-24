@@ -4874,3 +4874,40 @@ Realm/KerberosString ::= GeneralString（0x1B UTF-8）；KerberosTime ::= Genera
 **性能设计与验收（§6）**：O(n) 流式——逐事件渲染直发 EmitMsg 无全量聚合；确定性内存（无按包增长结构）；无锁无 sleep（bacnet 族同款事件驱动）；回归口径=kerberos.json 全量 suite 耗时 ±10%；边界诚实声明：无吞吐/并发/内存目标数字（声明式回放族判，门1 §6 行）。
 
 **回滚方式（§8.8）**：全量 revert 新建文件 + 接线件回退（git revert 提交序）；registry/schemagen 生成文件随提交对齐回退；无数据迁移面。
+
+### P4 实现（提交 c834dac，15 文件 1399 行；链级红例先行）
+
+- **接线五件套**：core/kerberos.go（KerberosConfig/Session/Event/PAData 类型 + DisallowUnknownFields 严格解码 + 6 wire_fault 常量**值面=设计 §2 配置键表逐字**：record_truncated/record_length/tag/encrypted_boundary/replay/carrier + DescribeKerberosWireFault 单锚词表）；FlowMeta.Kerberos（generator.go:382）；translate `case "kerberos"` 严格 JSON round-trip（chain_planner_translate.go:2209-2231）+ **Meta 字面量 `Kerberos: spec.Kerberos` 直传**（chain_planner_translate.go:147——dcerpc/dtls 两犯后本条目钉死的固定检查点）；strategy_convert `case "kerberos"` + setDefaultDstPort 88（:784-795）；registry kerberos 行（DependsOn ["udp"]/TransportOn ["udp","tcp"]/FieldContract udp+tcp 双 88，registry.go:769-777）；validate_layers 预检（缺载体/udp+tcp 并存/混合地址族/tcp+src_ip 覆盖拒，锚词 `(carrier)`/`(family)`，validate_layers.go:170-227）；main.go 空白导入（:97）+ NewChainPlanner("kerberos")（:522）；protocols.go 白名单（:27）+ protocols_test stable-list 同步 + negativeOnly 摘除；schemagen 重跑（123 层）。
+- **builder 单解析权威**：der.go DER definite-length 原语（短形 <0x80 / 长形 0x81-0x83 / INTEGER 最小补码 / OCTET STRING / GeneralizedTime / [n] context / [APPLICATION n] 顶层 tag——裁定3）；builder.go 六消息 builder（KDC-REQ pvno[1] vs KDC-REP pvno[0] 非对称、PrincipalName/EncryptedData/Ticket/PA-DATA 保序、kindTable 七 kind → tag/msg-type 权威表（:30-41）、msg-type↔tag 一致性守卫（:342-344，裁定6）、tcpFrame 4B BE record 前缀不含自身（:376-381，裁定7）、fixtureFill 0xA5 确定性填充（裁定5）、空配置缺省 AS-REQ 基线 76B——bacnet/dtls 家族同款不静默 0 包）+ init() 注册 generator/validator；planner.go validateWireFault 注入拒 + 会话 dst_port 一致性守卫。
+- **P4 自审两轮抓出并修**：①hexBytes 手写 nib 查表越界（`hexDigits[i+16]` 读出长 32 常量表外下标——奇长 hex 在判错锚词前先 panic）→stdlib `hex.DecodeString` 收编，奇长/非 hex 两面锚词保持；②TCP 载体 + 会话 src_ip 覆盖 = connKey 分叉（down 事件带 DstIP 覆盖被 TCP 层折叠成第二条连接，挥旧握新语义破碎）→先落 builder 生成面被链级红例抓出"Plan goroutine 吞错返回 nil"（megaco 修轮⑨同教训）→移入 validate_layers 同步预检面（:207-227）。
+- **链级红例 12 测试函数覆盖 13 红例簇**（kerberos_chain_test.go:106-395）：①UDP 基线 76B 缺省 AS-REQ 逐字节钉/②TCP 8 包（3 握手+1 数据+4 挥手，4B 前缀 `0000004C` 与 UDP 面逐字节同）/③AS 对（AS-REP 243B 长形 `6B81F0` + down 端口交换）/④七 kind tag 表（6a/6b/6c/6d/6e/6f/7e + msg-type 槽钉）/⑤tag↔msg-type 一致性/⑥⑦结构守卫（krb_error 必带 error_code/未知 kind/body hex 奇长与非 hex 双拒/会话 dst_port 冲突）/⑧6 wire_fault 锚词 + 未知 fault/⑨carrier 四形状（缺载体/udp+tcp 并存/混合地址族/tcp+src_ip）/⑩严格解码/⑪多会话隔离（src_port+src_ip 覆盖 + down 显式路由回会话客户端，L3.DstIP 钉 192.0.2.60）/⑫IPv6 同 fixture 同字节。
+
+### P5 跑测（提交 6afccde（用例）+ 13fc383（线格式实修）；十轮校准收敛 20/20 ×2 稳态）
+
+- **tshark 分解器实证校准**（先跑后钉：每轮 `tshark -V` 直接打失败帧定位，首轮 6/20——旧二进制跑新用例，随后逐轮 6→10→18→18→18→18→19→20）：
+  ①**KerberosString=GeneralString 0x1B**（RFC 4120 §5.2.1）——原用 OCTET STRING 0x04，tshark 报 `Wrong field in SEQUENCE OF: expected tag:27(GeneralString) but found tag:4`；realm/principal/ticket realm/crealm/e-text 全面 derOctet→derGStr；
+  ②**req-body 标签号 till[5]/nonce[7]/etype[8]**（RFC 4120 §5.4.1）——原 [7]/[9]/[10] 系 RFC 误记；
+  ③**e-text=[12] GeneralString**（原 [11] OCTET STRING 错占 e-data 槽）；
+  ④**PA-DATA 分型**：type 1=PA-TGS-REQ（RFC 4120 §7.5.1——原误记 128）value=嵌入 TGT 的完整 AP-REQ（ticket 用 krbtgt 缺省主体）/type 2=PA-ENC-TIMESTAMP value=EncryptedData 外壳（etype+cipher）/type 128=PA-PAC-REQUEST value=裸 BOOLEAN `01 FF`/其余类型 raw 填充——tshark 对已知类型 padata-value 递归解剖，raw 恒 Malformed（**PA-DATA 无 raw 形态**）；
+  ⑤**tshark 字段面**：`CNameString`/`SNameString` 为逐项字段（`cname_string`/`sname_string` 是 SEQUENCE count 字段）、ticket+authenticator 双 enc-part 使 `etype`/`kvno` 渲染双值逗号拼接（`18,18`/`2,2`）、GeneralizedTime 渲染 `YYYY-MM-DD HH:MM:SS (UTC)`。
+- **用例钉法（手拼 hex 三犯其三后全改派生，dtls 同判）**：`kPin`/`kPinPrefix` 由 builder 单权威渲染派生（分帧/序/方向/会话路由权威=casegen；DER 内容权威=链级单测字面量）；字面量只留 `hexASReqDefault`/`hexKrbErrPre` 两处（链级单测逐位钉死的缺省 fixture）；TCP record 前缀=4B BE 长度不含自身（`0000061B` = 1559B AS-REP record）；⑤ 内嵌 TGT 致 `msg_type`/`SNameString` 双提取（`12,14`/`krbtgt,EXAMPLE.TEST,host,app.example.test`）；⑫ `ip.src` 聚合断言带 `distinct_exclude`（down 三包 src=服务端——聚合方向陷阱，首轮红→补 exclude 绿）。
+- **结果**：suite 20/20 ×2 稳态；coverage_gate check_kerberos 53/53（接线 10 项 + DER 原语 5 项 + 关键件 11 项 + 守卫 4 项 + 用例 20 项 + 总数）；pipe_gate 静态四项绿；pcap 落 `/tmp/mcp-pcaps/kerberos/` 19 文件（14 正 + 5 负例 24B 占位）+ 1 创建面拒无产物 = 20；DB 清库：strategies 16→0、tasks 168→0（备份 `/tmp/tg-sv-p5/backup-kerberos-purge.db`；总量对账 1356/7494 → 1340/7326）。
+- **重钉点名（§9.31/裁定4）**：③`kerberos_tcp_record_framing` 契约约定 8 → 实测 11（AS-REP record cipher_len 700 使双 enc-part 同扩至 1559B，mss 536 下跨 3 segments：握手 3 + AS-REQ 1 + AS-REP 3 + 挥手 4）；④`kerberos_as_req_as_rep` 契约约定 4 → 实测 2（单对 AS-REQ/AS-REP 语义完备）；其余 12 正例契约值与实测一致。
+
+### P6 评审与收官
+
+- **隔离终审**（fresh-context 只读 subagent，报告 `/tmp/kerberos-final-review-report.md`）：六项标准 1/2/3/4/5 全 PASS、标准 6 CONDITIONAL PASS；终审独立复跑证据=go build/vet 绿、casegen 重跑 `git diff` 零变化（落盘确定性）、coverage 53/53、pipe_gate 静态四项绿、抽 6 帧 frames pin 与真实 pcap 逐字节 MATCH、14 正例 expert 扫描零 Malformed/Error/Warning、`tshark -G fields` 309 字段、DB 清库算术复账 16/168 与 P5 记录逐数相符。**零 CRITICAL**，1 MAJOR（M1）+ 2 MINOR（M2/M3）+ 2 注记（N1/N2）。
+- 门 3 抽查三条：①§1 层链唯一真相——kerberos.json 20 例 spec_json 顶层键并集={layers}（顶层旧键 0 残留，pipe_gate 门 2-1 绿）；②§3 五件套——builder.go Generate 逐会话循环（会话表=sessions/事务序列=events/关联=同会话 nonce+ticket 归属逐会话隔离/插入位置=终结层每消息一 datagram 或 record/时间线=按序整块回放）；③§12 动态清单——realm/principal/etype/nonce/时间 fixture 钉死无策略动态消费面（layer_dyn.go 零 kerberos 行，终审实测），TCP record length 派生算法=tcpFrame 写消息实际长度（builder.go:376-381 单权威）。
+- 门 3 抽查④（9.53 最复杂例维度点数）：⑤`kerberos_tgs_req_tgs_rep` 6 包 = **域登录全链（AS→TGS→AP 三类交织）× PA-TGS-REQ 内嵌 TGT（krbtgt 缺省主体，msg_type/SNameString 双提取）× service ticket 边界（host/app.example.test 双组件）× opaque 双 enc-part（etype 双值）× AP mutual-auth 半程完整 = 5 维交织**，超 9.49/9.50 地板（≥2 项）两倍以上。
+- 248 条款对照表：`docs/protocol-designs/59-kerberos-clauses-248.md`（实测计数 ✅217 · 🔶31 · ❌0）。
+- **状态：已验收。**
+
+### P6 修轮记录（隔离终审 0 CRITICAL/1 MAJOR/2 MINOR + 2 注记，逐条处置）
+
+终审报告：/tmp/kerberos-final-review-report.md。处置：
+
+- **M1（MAJOR，已修）**：248 表行 91/159/246 与 T-KERBEROS 所称"D 条目 P5 记录"/"P6 记录点名"无落点——本条目尾原止于 P2（"回滚方式"），无 P4/P5/P6 小节（dtls 对照具三小节）。修法取"补小节"路：本条目补 `### P4 实现` / `### P5 跑测` / `### P6 评审与收官` 三小节（含本节），事实源=各提交体 + 终审独立复跑证据 + casegen 注释行号；248 表三行与 T-KERBEROS 状态行随之为真。
+- **M2（MINOR，已修）**：注释层旧标签号残留（线字节无涉）——core/kerberos.go `Nonce [9]`→`[7]`、`Till [7]`→`[5]`、`EText [11]`→`[12] GeneralString`（各带"P5 校准轮勘误"注记）；kerberos_chain_test.go:29-30 基线注释 `till[7]/nonce[9]/etype[10]`→`till[5]/nonce[7]/etype[8]`。修后全仓 `grep 'nonce \[9\]|till \[7\]|e-text \[11\]'` 零命中（仅 builder.go:172 保留"原 [7]/[9]/[10] 标签号错误"的勘误注记，属有意）。
+- **M3（MINOR，已修）**：248 表头汇总自评 `✅214 · 🔶34 · ❌0` 与数据行实测不符——脚本重数 248 数据行得 ✅217/🔶31/❌0，表头改实测值（❌0 为真）。
+- **N1（注记，登记不修）**：KRB-ERROR e-data（METHOD-DATA）无独立字段面——padata 建模只在请求侧（req-body padata[3]），krb_error 只渲 e-text[12]；契约 §6"e-data 结构"当前覆盖=错误码 + 重试关系，弱于字面。**处置：登记为契约偏差注记（e-data 建模另立项，同 key log"另立项不做"口径）**，不挡关单。
+- **N2（注记，登记不修）**：nonce 关联未用 `same_as_packet` 断言动词——本协议 nonce 是声明式 fixture 常量（builder fixtureNonce/显式声明），常量钉即关联证明；设计 §1"动态值用 presence/nonzero/same_as"针对运行期随机常量，本实现无随机源。**处置：登记口径说明**（声明式回放族同判，dtls/bacnet 先例），不挡关单。
