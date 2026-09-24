@@ -111,6 +111,33 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 			}
 		}
 	}
+	if protocol == "dcerpc" {
+		// D-DCERPC-1 裁定1：缺 tcp 载体在 ValidateLayers（含链补全）之前拦
+		// ——DependsOn tcp 会自动补 tcp 层，用户裸 dcerpc 层会被补全掩盖
+		//（bacnet 缺 udp 预检同构，hl7 裁定2 注记先例）；混合地址族同面预检。
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			hasTCP := false
+			for _, item := range probe {
+				if _, ok := item["tcp"]; ok {
+					hasTCP = true
+				}
+				if rawIP, ok := item["ip"]; ok && len(rawIP) > 0 {
+					var ipcfg map[string]interface{}
+					if err := json.Unmarshal(rawIP, &ipcfg); err == nil {
+						srcS, _ := ipcfg["src"].(string)
+						dstS, _ := ipcfg["dst"].(string)
+						if srcS != "" && dstS != "" && strings.Contains(srcS, ":") != strings.Contains(dstS, ":") {
+							return nil, fmt.Errorf("dcerpc chain: mixed address family in ip layer (src %q / dst %q) — src and dst must be the same family (family)", srcS, dstS)
+						}
+					}
+				}
+			}
+			if !hasTCP {
+				return nil, fmt.Errorf("dcerpc chain: missing tcp carrier — DCE/RPC v5 requires an [ip,tcp,dcerpc] chain (carrier)")
+			}
+		}
+	}
 	effective, err := ValidateLayers(layersJSON, protocol)
 	if err != nil {
 		return nil, err

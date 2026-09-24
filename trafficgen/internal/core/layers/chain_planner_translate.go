@@ -136,6 +136,9 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// D-BACNET-1：bacnet 终结层同款（sessions[]/events[] 配置经 Meta
 		// 直传 bacnet 生成器；每事件一 UDP 数据报；自动应答按 respond 展开）。
 		BACNET: spec.BACNET,
+		// D-DCERPC-1：dcerpc 终结层同款（sessions[]/events[] 经 Meta 直传
+		// 生成器；每事件按 PDU 渲染；应答按 respond 展开）。
+		DCERPC: spec.DCERPC,
 		CQL:    spec.CQL,
 		LDP:    spec.LDP,
 		PCEP:   spec.PCEP,
@@ -2153,6 +2156,27 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.BACNET = &bc
+	case "dcerpc":
+		if spec.DCERPC != nil {
+			return // flat 权威；二者并存时 flat 优先
+		}
+		// D-DCERPC-1：层 config 严格往返解码（DCERPCConfig UnmarshalJSON）。
+		cfg2 := completedConfig(s, term.Config)
+		raw, err := json.Marshal(cfg2)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("dcerpc layer config encode: %v", err))
+			return
+		}
+		var dc core.DCERPCConfig
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&dc); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("dcerpc layer config decode: %v", err))
+			return
+		}
+		spec.DCERPC = &dc
 	case "ftp":
 		// 只在扁平路径确实携带了业务内容（sessions/banner/commands/data_channel）
 		// 时才跳过翻译。mapToFlowSpec 对协议 ftp 总会创建一个 FTPConfig

@@ -720,10 +720,10 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "4472"},
 		Fields: map[string]FieldSchema{
-			"profile":     {Type: "string", Default: ""},  // edp_tcp_plain_v1（缺省）/ edp_ipv6_v1
-			"concurrent":  {Type: "bool", Default: false}, // 双会话交错回放（v2.1 C-2 翻案）
-			"sessions":    {Type: "list", Default: []interface{}{}},
-			"wire_fault":  {Type: "string", Default: ""}, // 28 值枚举（D-EDP-1 §7 表）；""=无故障
+			"profile":    {Type: "string", Default: ""},  // edp_tcp_plain_v1（缺省）/ edp_ipv6_v1
+			"concurrent": {Type: "bool", Default: false}, // 双会话交错回放（v2.1 C-2 翻案）
+			"sessions":   {Type: "list", Default: []interface{}{}},
+			"wire_fault": {Type: "string", Default: ""}, // 28 值枚举（D-EDP-1 §7 表）；""=无故障
 		},
 	})
 	r.Register(LayerSchema{Name: "xmrmining", Category: CategoryTerminal,
@@ -738,13 +738,23 @@ func buildDefaultRegistry() {
 	})
 	r.Register(LayerSchema{Name: "bacnet", Category: CategoryTerminal,
 		DependsOn:     []string{"udp"},
-		TransportOn:   []string{"udp"}, // BACnet/IP 仅 UDP 载体（Annex J）——transport-dup 检查据此报 carrier 锚词
+		TransportOn:   []string{"udp"},                            // BACnet/IP 仅 UDP 载体（Annex J）——transport-dup 检查据此报 carrier 锚词
 		FieldContract: map[string]string{"udp.dst_port": "47808"}, // BACnet/IP Annex J 标准端口（tshark 自动解码依赖）
 		Fields: map[string]FieldSchema{
 			"profile":    {Type: "string", Default: ""},  // bacnet_ip_v1 主档（informational）
 			"concurrent": {Type: "bool", Default: false}, // 多客户端交错回放（v2.1 C-1）
 			"sessions":   {Type: "list", Default: []interface{}{}},
 			"wire_fault": {Type: "string", Default: ""}, // 42 值枚举（D-BACNET-1 §7 表）；""=无故障
+		},
+	})
+	r.Register(LayerSchema{Name: "dcerpc", Category: CategoryTerminal,
+		DependsOn:     []string{"tcp"},
+		TransportOn:   []string{"tcp"},                          // DCE/RPC v5 over TCP——CL/udp 不产生（transport-dup 检查据此报 carrier 锚词）
+		FieldContract: map[string]string{"tcp.dst_port": "135"}, // EPM 标准端口（tshark 自动解码依赖）
+		Fields: map[string]FieldSchema{
+			"concurrent": {Type: "bool", Default: false}, // 多会话交错回放
+			"sessions":   {Type: "list", Default: []interface{}{}},
+			"wire_fault": {Type: "string", Default: ""}, // 32 值枚举（D-DCERPC-1 §7 表）；""=无故障
 		},
 	})
 	r.Register(LayerSchema{Name: "cql", Category: CategoryTerminal, DependsOn: []string{"tcp"}})

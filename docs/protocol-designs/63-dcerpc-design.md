@@ -84,7 +84,7 @@ BIND_ACK body：`max_xmit_frag(2) max_recv_frag(2) assoc_group_id(4) sec_addr_le
 REQUEST body：`alloc_hint(4) context_id(2) opnum(2)` +（PFC_OBJECT_UUID 置位）object UUID(16) + stub。RESPONSE body：`alloc_hint(4) context_id(2) cancel_count(1) reserved(1)` + stub。FAULT body：`alloc_hint(4) context_id(2) cancel_count(1) reserved(1) status(4) reserved2(4)` + stub。同一 call_id 一对一关联 REQUEST 与 RESPONSE/FAULT；FAULT 后该调用终态。
 
 ### 4.4 Auth trailer（auth_len>0）
-stub 后 pad 至 4B 对齐，随后 verifier：`auth_type(1) auth_level(1) auth_pad_length(1) auth_reserved(1) auth_context_id(4) credentials(auth_len)`。pad 字节计入 frag_len；pad_length ∈ 0-3 须与实际填充一致。
+stub 后 pad 至 4B 对齐，随后 verifier：`auth_type(1) auth_level(1) auth_pad_length(1) auth_reserved(1) auth_context_id(2) credentials(auth_len)`。pad 字节计入 frag_len；pad_length ∈ 0-3 须与实际填充一致。auth_len = 6 + credentials 数（verifier 语义长，pad 不计）。
 
 ## 5. NDR 可观察契约
 
@@ -110,5 +110,6 @@ PDU 超 record 时按同一 call_id/context_id 分片：每片自含 16B header+
 
 ## 10. 修订记录
 
+- v2.0.1（2026-09-24，P4 据实勘误）：§4 verifier `auth_context_id` 4→2（MS-RPCE 2.2.2.1.1 u16 权威；builder/authTrailer 一致）并钉 `auth_len = 6 + credentials` 公式。
 - v2.0.0（2026-09-24，v1.3 行为面重写）：ID 权威迁 testcase §2（80=48 正+32 负）；负例 6 粗组拆 32 行逐故障单锚词（§7 处置表 17 自然+15 注入）；旧扁平示例迁层链（§1）；drep 端序勘误（C706 按 drep 编码，fixture 钉 LE——v1.0.0 §3"网络大端"系笔误）；新增 UUID 混合端序编解码权威（§0）；PDU 产生域钉七型+不产生 8 型（裁定4）；#14 NIC 一致性例改 pcap 内一致性口径；#13 合并 segment 例改背靠背多 PDU；fragment 生成面收窄为 fixture 声明 `fragments`（裁定7）；既有决策未改：auth opaque 安全限制、EPM/dynamic 双 profile、TCP record≠PDU 边界观察面。
 - v1.0.0（2026-08-20）：初稿 20 ID（14 正+6 负粗组），见 git 历史。

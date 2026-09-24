@@ -487,6 +487,13 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 			if isFTPChain(chain) {
 				cfg["concurrent"] = true
 			}
+			// dcerpc 链并发会话语义（ftp/edp 同款）：EPM 会话与 dynamic 会话
+			// 靠事件 SrcPort/DstPort 覆盖合成独立 connKey；concurrent=true
+			// 使 tcp 层按 key 独立建连/恢复 seq/流末统一挥手（termination
+			// 保持 true——RPC 连接正常关闭）。
+			if isDCERPCChain(chain) {
+				cfg["concurrent"] = true
+			}
 			// mms 链强制并发会话语义（同 http 链强制 legacy 模式）：MMS 关联
 			// 会话不挥 TCP 手（设计 §6.1 connect_establish 7 帧止于 DT2；所有
 			// case 包数均不含 FIN），multiSession 是并发会话（按 SrcPort 保持

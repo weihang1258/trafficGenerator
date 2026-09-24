@@ -762,6 +762,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// BACnet defaults to Annex J standard port 47808 (tshark 自动解码
 		// 依赖；非默认端口显式声明合法——正例 46). Only override when unset.
 		setDefaultDstPort(&spec, cfg, 47808)
+	case "dcerpc":
+		// DCE/RPC v5 over TCP: config in dcerpc layer sub-map; top-level
+		// dcerpc key rejected by CheckProtoFlat.
+		if sub, ok := cfg["dcerpc"].(map[string]interface{}); ok {
+			parseSubconfigJSON[*DCERPCConfig](&spec, sub, "dcerpc", &spec.DCERPC)
+		}
+		// EPM 标准端口 135（tshark 自动解码依赖；动态端口显式声明合法）。
+		setDefaultDstPort(&spec, cfg, 135)
 	case "sip":
 		if sub, ok := cfg["sip"].(map[string]interface{}); ok {
 			spec.SIP = &SIPConfig{

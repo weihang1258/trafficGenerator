@@ -1814,6 +1814,7 @@ type FlowSpec struct {
 	EDP         *EDPConfig         `json:"edp,omitempty"`
 	XMR         *XMRConfig         `json:"xmr,omitempty"`
 	BACNET      *BACNETConfig      `json:"bacnet,omitempty"`
+	DCERPC      *DCERPCConfig      `json:"dcerpc,omitempty"`
 	NTP         *NTPConfig         `json:"ntp,omitempty"`
 	OpenVPN     *OpenVPNConfig     `json:"openvpn,omitempty"`
 	PostgreSQL  *PostgreSQLConfig  `json:"postgresql,omitempty"`

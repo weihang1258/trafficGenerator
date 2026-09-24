@@ -91,6 +91,9 @@
       "depends_on": [
         "udp"
       ],
+      "transport_on": [
+        "udp"
+      ],
       "field_contract": {
         "udp.dst_port": "47808"
       },
@@ -357,6 +360,32 @@
         "tcp.dst_port": "5236"
       },
       "fields": {}
+    },
+    "dcerpc": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "transport_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "135"
+      },
+      "fields": {
+        "concurrent": {
+          "type": "bool",
+          "default": false
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "wire_fault": {
+          "type": "string",
+          "default": ""
+        }
+      }
     },
     "dhcp": {
       "category": "terminal",

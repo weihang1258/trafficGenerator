@@ -377,6 +377,7 @@ type FlowMeta struct {
 	EDP        *core.EDPConfig    // D-EDP-1：edp 终结层（OneNET Enhanced Device Protocol，TCP 单载体）
 	XMR        *core.XMRConfig    // D-XMR-1：xmrmining 终结层（Monero stratum 行式 JSON，TCP 单载体）
 	BACNET     *core.BACNETConfig // D-BACNET-1：bacnet 终结层（BACnet/IP Annex J，UDP/47808 单载体）
+	DCERPC     *core.DCERPCConfig // D-DCERPC-1：dcerpc 终结层（DCE/RPC v5 over TCP，EPM 135+动态端口）
 	CQL        *core.CQLConfig
 	LDP        *core.LDPConfig
 	PCEP       *core.PCEPConfig

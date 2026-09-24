@@ -171,7 +171,7 @@ func TestBACNETChain_WritePropertyPrioritySimpleAck(t *testing.T) {
 				map[string]interface{}{
 					"kind": "write_property", "invoke_id": 2,
 					"object_type": 0, "instance": 1, "property": 85,
-					"value": map[string]interface{}{"type": "boolean", "value": true},
+					"value":    map[string]interface{}{"type": "boolean", "value": true},
 					"priority": 8,
 					"respond":  map[string]interface{}{"ack": "simple"},
 				},
@@ -256,7 +256,7 @@ func TestBACNETChain_SegmentedWriteProperty(t *testing.T) {
 			"events": []interface{}{map[string]interface{}{
 				"kind": "segmented_request", "invoke_id": 6, "window_size": 2,
 				"object_type": 0, "instance": 1, "property": 85,
-				"value": map[string]interface{}{"type": "char_string", "value": big},
+				"value":    map[string]interface{}{"type": "char_string", "value": big},
 				"priority": 8,
 			}},
 		}},
