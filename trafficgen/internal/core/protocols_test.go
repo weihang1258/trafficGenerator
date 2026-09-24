@@ -18,7 +18,7 @@ import (
 func TestAllowedProtocolsStable(t *testing.T) {
 	want := []string{
 		"a2a", "amqp", "arp", "bacnet", "bgp", "cflow", "coap", "cql", "dameng",
-		"dcerpc",
+		"dcerpc", "dtls",
 		"dhcp", "dhcpv6", "dnp3", "dns", "doip", "drda", "enip", "fins",
 		"ftp", "gbt32960", "goose", "gre", "grpc", "gtp", "h323", "hds",
 		"hl7", "hls", "http", "http_flv", "icmp", "icmpv6", "iec104", "igmp", "ike",
@@ -93,7 +93,8 @@ func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 		// （97 语义用例落地——契约 §1）。edp/mmse/hl7/megaco 先例。
 		// D-DCERPC-1：dcerpc 已注册 layer/planner，摘出 negativeOnly
 		// （80 语义用例落地——契约 §1）。bacnet/edp/mmse 先例。
-		"dtls",
+		// D-DTLS-1：dtls 已注册 layer/planner，摘出 negativeOnly
+		// （20 语义用例落地——契约 §1）。dcerpc/bacnet 先例。
 		// D-EDP-1：edp 已注册 layer/planner，摘出 negativeOnly（89 语义
 		// 用例落地，占位例随之移除——契约 §1）。mmse/hl7/megaco 先例。
 		// D-MMSE-1：mmse 已注册 layer/planner，摘出 negativeOnly（100 语义

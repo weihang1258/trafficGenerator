@@ -757,6 +757,15 @@ func buildDefaultRegistry() {
 			"wire_fault": {Type: "string", Default: ""}, // 32 值枚举（D-DCERPC-1 §7 表）；""=无故障
 		},
 	})
+	r.Register(LayerSchema{Name: "dtls", Category: CategoryTerminal,
+		DependsOn:     []string{"udp"},
+		TransportOn:   []string{"udp"},                         // DTLS 仅 UDP 载体（RFC 6347 datagram 语义）——transport-dup 检查据此报 carrier 锚词
+		FieldContract: map[string]string{"udp.dst_port": "4433"}, // DTLS 惯用端口（tshark 自动解码依赖）
+		Fields: map[string]FieldSchema{
+			"sessions":   {Type: "list", Default: []interface{}{}},
+			"wire_fault": {Type: "string", Default: ""}, // 6 值枚举（D-DTLS-1 §10 表）；""=无故障
+		},
+	})
 	r.Register(LayerSchema{Name: "cql", Category: CategoryTerminal, DependsOn: []string{"tcp"}})
 	r.Register(LayerSchema{Name: "iec104", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "2404"},

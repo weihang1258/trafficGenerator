@@ -551,6 +551,28 @@
         }
       }
     },
+    "dtls": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "transport_on": [
+        "udp"
+      ],
+      "field_contract": {
+        "udp.dst_port": "4433"
+      },
+      "fields": {
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "wire_fault": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
     "edp": {
       "category": "terminal",
       "depends_on": [

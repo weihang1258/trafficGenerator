@@ -94,6 +94,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/xmrmining" // init 注册 xmrmining 终结层生成器+校验器（D-XMR-1，Monero stratum/TCP-18081）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/bacnet"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dcerpc" // init 注册 dcerpc 终结层生成器+校验器（D-DCERPC-1，DCE/RPC v5 over TCP/EPM 135） // init 注册 bacnet 终结层生成器+校验器（D-BACNET-1，BACnet/IP Annex J/UDP-47808）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/dtls"   // init 注册 dtls 终结层生成器+校验器（D-DTLS-1，DTLS records/UDP-4433）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/l2tp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ldap" // 空导入：ldap 包 init 注册层生成器 + 校验器（D-LDAP-1）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ldp"
@@ -516,7 +517,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("xmrmining")) // D-XMR-1：Monero stratum 行式 JSON（TCP/18081 单载体）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("bacnet"))    // D-BACNET-1：BACnet/IP Annex J（UDP/47808 单载体）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("dcerpc"))    // D-DCERPC-1：DCE/RPC v5 over TCP（EPM 135+动态端口）
-	app.engine.RegisterPlanner(layers.NewChainPlanner("bacnet")) // D-BACNET-1：BACnet/IP Annex J（UDP/47808 单载体）
+	app.engine.RegisterPlanner(layers.NewChainPlanner("dtls"))      // D-DTLS-1：DTLS records over UDP（4433 单载体）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("cql"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("someip"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("stun"))

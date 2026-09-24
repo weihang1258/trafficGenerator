@@ -139,6 +139,9 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// D-DCERPC-1：dcerpc 终结层同款（sessions[]/events[] 经 Meta 直传
 		// 生成器；每事件按 PDU 渲染；应答按 respond 展开）。
 		DCERPC: spec.DCERPC,
+		// D-DTLS-1：dtls 终结层同款（sessions[]/events[] 经 Meta 直传
+		// 生成器；每事件 = 一 record = 一 UDP 数据报）。
+		DTLS: spec.DTLS,
 		CQL:    spec.CQL,
 		LDP:    spec.LDP,
 		PCEP:   spec.PCEP,
@@ -2176,7 +2179,29 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 				fmt.Sprintf("dcerpc layer config decode: %v", err))
 			return
 		}
-		spec.DCERPC = &dc
+	spec.DCERPC = &dc
+	case "dtls":
+		if spec.DTLS != nil {
+			return // flat 权威；二者并存时 flat 优先
+		}
+		// D-DTLS-1：层 config 严格往返解码（DTLSConfig UnmarshalJSON——
+		// config/session/event/handshake 四级 DisallowUnknownFields）。
+		cfg3 := completedConfig(s, term.Config)
+		raw, err := json.Marshal(cfg3)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("dtls layer config encode: %v", err))
+			return
+		}
+		var dcfg core.DTLSConfig
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&dcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("dtls layer config decode: %v", err))
+			return
+		}
+		spec.DTLS = &dcfg
 	case "ftp":
 		// 只在扁平路径确实携带了业务内容（sessions/banner/commands/data_channel）
 		// 时才跳过翻译。mapToFlowSpec 对协议 ftp 总会创建一个 FTPConfig

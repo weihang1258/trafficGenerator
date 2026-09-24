@@ -138,6 +138,35 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 			}
 		}
 	}
+	if protocol == "dtls" {
+		// D-DTLS-1：缺 udp 载体预检 + tcp 拒（bacnet/dcerpc 预检同构——
+		// DependsOn udp 自动补全前拦，裸 dtls 层不被补全掩盖）；混合地址族同面。
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			hasUDP := false
+			for _, item := range probe {
+				if _, ok := item["tcp"]; ok {
+					return nil, fmt.Errorf("dtls chain: tcp carrier is not supported — DTLS rides udp only (RFC 6347 datagram semantics) (carrier)")
+				}
+				if _, ok := item["udp"]; ok {
+					hasUDP = true
+				}
+				if rawIP, ok := item["ip"]; ok && len(rawIP) > 0 {
+					var ipcfg map[string]interface{}
+					if err := json.Unmarshal(rawIP, &ipcfg); err == nil {
+						srcD, _ := ipcfg["src"].(string)
+						dstD, _ := ipcfg["dst"].(string)
+						if srcD != "" && dstD != "" && strings.Contains(srcD, ":") != strings.Contains(dstD, ":") {
+							return nil, fmt.Errorf("dtls chain: mixed address family in ip layer (src %q / dst %q) — src and dst must be the same family (family)", srcD, dstD)
+						}
+					}
+				}
+			}
+			if !hasUDP {
+				return nil, fmt.Errorf("dtls chain: missing udp carrier — DTLS requires an [ip,udp,dtls] chain (carrier)")
+			}
+		}
+	}
 	effective, err := ValidateLayers(layersJSON, protocol)
 	if err != nil {
 		return nil, err
