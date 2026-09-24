@@ -772,10 +772,10 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		setDefaultDstPort(&spec, cfg, 135)
 	case "dtls":
 		// DTLS (RFC 6347): UDP-only family. Config in dtls layer sub-map
-		// (authoritative); a top-level dtls sub-map alongside layers is a
-		// mixed-shape rejection at translate time (translate reads the
-		// layer chain, not this map). Strict decode via DTLSConfig
-		// UnmarshalJSON.
+		// (authoritative); a top-level dtls sub-map alongside layers is
+		// tolerated with silent flat-wins (translateTerminalConfig early-
+		// returns when spec.DTLS is already set, skipping the layer chain
+		// config). Strict decode via DTLSConfig UnmarshalJSON.
 		if sub, ok := cfg["dtls"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*DTLSConfig](&spec, sub, "dtls", &spec.DTLS)
 		}

@@ -4763,7 +4763,7 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 - **M2（MAJOR，已修）**：负例 ID 实现名 `dtls_neg_carrier_udp` 与契约权威名 `dtls_neg_udp_carrier`（testcase §2 #20）不一致——按 ID 权威=testcase §2 回正：casegen addNeg + coverage_gate.py + dtls.json 重生成（附带：P5 早期校准轮曾在盘 `dtls_neg_udp_carrier.neg.pcap` 陈旧产物，改名后成孤儿，P6 已清）。
 - **m1（已修）**：v10 例契约约定 8→实测 12 重钉未点名——P5 记录补"重钉点名"行。
 - **m2（已修）**：5 文件 gofmt dirty（缩进/注释对齐漂移）——gofmt -w 全清（`gofmt -l` 空）。
-- **m3（已修）**：strategy_convert.go dtls 分支注释误称"top-level dtls key rejected by CheckProtoFlat"——更正为层链权威+混用形 translate 期拒的真实行为。
+- **m3（已修×2，复评后改口）**：strategy_convert.go dtls 分支注释误称"top-level dtls key rejected by CheckProtoFlat"——第一修更正为"translate 期混用拒"仍失实（复评抓出：并存形实际是 translateTerminalConfig 早退静默 flat-wins，chain_planner_translate.go:2183-2185 `if spec.DTLS != nil { return }`，全链无拒绝）——第二修按实改口"tolerated with silent flat-wins"；coverage_gate 直传检查同步改同行正则 `DTLS:\s+spec\.DTLS`（堵 RHS 改写形态误绿）。
 - **m4（已修）**：planner.go 头注释"5 走注入拒"与实际 3 注入+2 自然配置+1 预检不符——按 json 实据更正三通道描述。
 - **m5（已修）**：P1 矩阵 #3"CH 内层版本自洽校验"实现判不适用但无处置记录——补裁定6（RFC 6347 §4.1 legacy_record_version：record 外层恒 feff/fefd 两档，内层版本在 opaque body 不做跨层校验；③例 record feff+CH fefd 即 RFC 规定组合）。
 - **m6（已修）**：门3 三条抽查无最复杂例维度点数——补抽查④：multi_session_isolation 24 包 7 维交织（多会话×cookie 质询×完整握手×双方向×epoch 切换×加密边界×关闭）。

@@ -2892,7 +2892,7 @@ def check_dtls(cases):
     rows.append(("negativeOnly 不含 dtls（已准入）", '"dtls"' not in pt[i_neg:i_neg + 400], "已摘除"))
     tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
     rows.append(("translate case dtls（严格解码）", 'case "dtls":' in tr and "DisallowUnknownFields" in tr, "在案"))
-    rows.append(("FlowMeta.DTLS 直传（静默基线根修）", "DTLS:" in tr and "spec.DTLS" in tr, "在案"))
+    rows.append(("FlowMeta.DTLS 直传（静默基线根修）", re.search(r"DTLS:\s+spec\.DTLS\b", tr) is not None, "在案"))
     gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
     rows.append(("FlowMeta.DTLS", "DTLS       *core.DTLSConfig" in gen, "在案"))
     rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
