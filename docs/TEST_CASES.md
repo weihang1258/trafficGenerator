@@ -4010,7 +4010,7 @@ ICMPv4（RFC 792）反推 8 例（4 正+4 负；链级红例=单测面不占号�
 
 **断言通道纪律：** fields 用 `dtls.record.*`（content_type/version/epoch/sequence_number/length）+`dtls.handshake.*`（type/length/message_seq/fragment_offset/length）+`udp.dstport`/`ip.proto`/`ipv6.nxt`；frames offset 42（IPv4）/62（IPv6）13B 头逐字节钉；加密 epoch 退化外层+hex（设计 §8）；动态端口例顶层 `decode_as`。
 
-**状态：** P3（testcase 断言契约已逐 ID 落定；P5 先跑后钉）。
+**状态：** P5 全绿（2026-09-24，20/20 ×2 稳态 + 门 2 静态四项绿 + coverage 反查 47/47；pcap 落 `/tmp/mcp-pcaps/dtls/`，负例 5 占位 24B + 1 创建面拒无产物）。**级别：** pcap。
 
 ## T-DCERPC-1…80 dcerpc 层链接入（#42 D-DCERPC-1，DCE/RPC v5 over TCP/EPM 135+动态端口，80 例）
 

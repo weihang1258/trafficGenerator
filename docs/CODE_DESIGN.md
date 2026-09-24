@@ -4685,7 +4685,7 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 - **复评**（隔离 scoped re-review）：F1-F5 全部已关闭（红例反证：旧 planner 配新测试仅双 FAIL）；新发现 M1-M5（4 文档 MINOR+1 coverage 缺口）顺手修：M1 悬空 §4.15→现网分解器实证表述、M2 §5.3→§4.3、M3 链级/服务端产物口径限定、M4 coverage 补 F4 双守卫（46/46）、M5 "31 常量"笔误。**裁定：同意关单，无需第二轮。**
 - **状态：已验收。**
 
-## D-DTLS-1 dtls 层链接入（#43，DTLS 1.0/1.2 over UDP/4433，P1 开工）
+## D-DTLS-1 dtls 层链接入（#43，DTLS 1.0/1.2 over UDP/4433，已验收）
 
 > 契约权威：`docs/protocol-designs/58-dtls-design.md` v1.0.0 + `58-dtls-testcase.md` v1.0.0（2026-08-20，行为面全枚举：20 ID=14 正+6 负，ID 权威=testcase §2——P1 判定无需重写，dcerpc v1.0.0→v2.0.0 先例不适用）。三源=①RFC 6347（DTLS 1.2 record/epoch/握手分片权威）+RFC 4347（DTLS 1.0）②OpenSSL s_server -dtls/mbedTLS 现网抓包（P4 前实证）③本机 tshark（dtls dissector 291 字段已实证在案）。**端序总表：全 BE（record 头/epoch/seq48/handshake 24-bit 字段均网络序；dcerpc LE 勿串）。**
 
@@ -4732,3 +4732,22 @@ F1-F11 逐条证伪失败（全部核实到位）。关键实证：ack 对象形
 5. **裁定5 加密边界**：加密 epoch fixture 全 opaque（设计 §8——不断言明文；key log 另立项不做）。
 
 （P3 测试点清单——testcase §2/§3 已逐 ID 断言契约，P4 落码据实勘误。）
+
+### P4 实现（提交 c7a44d7，14 文件 1200 行；链级红例先行）
+
+- **接线五件套**：core/types.go `DTLS *DTLSConfig`（严格 UnmarshalJSON 递归三级 DisallowUnknownFields——dcerpc 同款）；FlowMeta.DTLS；translate `case "dtls"` 严格 JSON round-trip + **Meta 字面量 `DTLS: spec.DTLS` 直传**；strategy_convert `case "dtls"` + setDefaultDstPort 4433；registry dtls 行（DependsOn ["udp"]/TransportOn ["udp"]/FieldContract udp.dst_port=4433）；validate_layers 预检（tcp 载体拒/缺 udp/混合地址族，锚词 `(carrier)`/`(family)`）；main.go 空白导入 + NewChainPlanner("dtls")（顺带清除一处既有 bacnet 重复注册）；protocols.go 白名单 + protocols_test 负名单/stable-list 同步；schemagen 重跑（122 层）。
+- **builder 单解析权威**：dtlsWalker（epoch 采纳前推/回退拒；seq 每 (epoch,方向) 独立 48-bit 计数、声明采纳/回退复用拒——重传不复用 record seq；msg_seq 每方向独立计数器，续片 fragment_offset>0 复用本消息 msg_seq——RFC 6347 §4.2.1/§4.2.2）；versionBytes 1.0=feff/1.2=fefd；putRecord 13B BE；handshakeBody（cookie 仅 type 3 自动组 body=ver2+len1+cookie、长度前缀=实际字节；frag_len≠线上 body 拒=wire 谎言守卫；offset+fraglen>length 越界守卫）；cipherFill 0xA5 确定性填充。
+- **P4 自审两轮抓出并修**：①translate Meta 字面量漏 `DTLS: spec.DTLS`（静默回退基线 0 事件——dcerpc 同类 bug 第二犯，已在本条目钉死为固定检查点）；②会话级 version 缺省未合并（renderEvent 只读 ev.Version——v1.0 链级红例抓出，补 effVersion 合并）。
+- 链级红例 12（dtls_chain_test.go）：基线 33B 逐字节钉/CH 字节钉/v1.0 legacy/HVR cookie 全钉/CCS→epoch1 appdata（0xA5）/方向独立 seq/声明 seq 采纳 [10:22] 切片钉/多会话隔离/9 自然守卫/6 wire_fault 锚词/carrier 三形状/严格解码两级。
+
+### P5 跑测（提交 e7c577b；7 轮校准收敛 20/20 ×2 稳态）
+
+- **msg_seq 语义根因重写**：初版全局单计数器，suite 抓"want 0 got 1"——RFC 6347 §4.2.1 要求每方向独立计数器、§4.2.2 续片共享本消息 msg_seq；dtlsWalker 改 msgCtr/msgLast/msgHas [2] 逐方向数组（record seq 与 msg_seq 是两套独立计数——重传只复用 msg_seq 永不复用 record seq）。
+- **tshark 分解器实证校准**（先跑后钉，`tshark -V` 直接打失败帧）：①CKE（type 16）body 须 RSA 形——前 2 字节被读作 EncryptedPreMaster 长度，`0030`+48B blob=50B 才干净（初版 0301 开头被当 769 长度判 malformed）；②零长 record 恒 malformed（⑫ 例）——appdata 改 1B opaque（0xA5），零长语义留链级单测守；③CH/SH/Cert 须真最小结构体（伪 opaque body 触发 Malformed expert）；④`dtls.record.version` 渲染 `0xfefd`/`0xfeff` 字符串非十进制。
+- **用例钉法**：recHex/hsHex 程序化 pin 构建（§9.31 先跑后钉——手拼 hex 三犯其三后全改助手函数）；14 正例 contract count 逐例对齐（casegen add() rendered≠contract 即红=契约 §9.31 重钉权威）；⑤续片三片声明 message_seq=0（声明 < 计数器=合法重传复用不推进）；⑥重组例同 msg_seq 三片。
+- **结果**：suite 20/20 ×2 稳态（7/13→10/10→11/9→14/6→19/1→20/20 六轮收敛 + 复跑确认）；coverage_gate check_dtls 47/47；pipe_gate 静态四项绿；pcap 落 `/tmp/mcp-pcaps/dtls/`（14 正 + 5 负例 24B 占位 + 1 创建面拒无产物=20）；DB 清库：strategies 47→0、tasks 168→0（备份 /tmp/tg-sv-p5/backup-dtls-purge.db，总量对账 1326/7284 平）。
+
+### P6 评审与收官
+
+- 门 3 抽查三条：①§1 层链唯一真相——dtls.json 20 例 spec_json 顶层旧键 0 残留（pipe_gate 门 2-1 绿 + jq 反查）；②§3 五件套——builder.go:113-119 walker 状态五元组逐条对应（会话表=sessions/事务=events/关联=walker 逐会话隔离/插入=终结层/时间线=datagram 序）；③§12 动态清单——cookie/seq/epoch 声明面 fixture 钉死无策略消费面，seq 缺省派生收 dtlsWalker 单权威（builder.go:127-180）。
+- 门 3 复核 + 门 2 三项 + coverage 反查全绿；独立隔离复审见 P6 修轮记录（若有 finding 据实回填）。
