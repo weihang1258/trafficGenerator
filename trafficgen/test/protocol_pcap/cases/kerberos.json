@@ -1,28 +1,1724 @@
 [
-  {
-    "id": "kerberos_neg_unregistered",
-    "proto": "kerberos",
-    "summary": "Kerberos layer is not registered yet; reject at layer validation",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "kerberos": {}
-        }
-      ],
-      "src_ip": "192.0.2.59",
-      "dst_ip": "198.51.100.59",
-      "src_port": 40159,
-      "dst_port": 88
+ {
+  "id": "kerberos_ipv4_udp_as_basic",
+  "proto": "kerberos",
+  "summary": "IPv4/UDP 88 AS 交换（preauth 轮回 kinit 形态）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "unknown layer",
-      "notes": [
-        "Design-only gate: kerberos is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove it and add the 14 positive and 6 negative semantic cases in testcase order."
+    {
+     "udp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "as_req",
+          "up": true
+         },
+         {
+          "error_code": 7,
+          "kind": "krb_error",
+          "up": false
+         },
+         {
+          "kind": "as_req",
+          "padata": [
+           {
+            "type": 2,
+            "value_len": 4
+           }
+          ],
+          "up": true
+         },
+         {
+          "kind": "as_rep",
+          "up": false
+         }
+        ]
+       }
       ]
+     }
     }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ip.proto",
+     "packet": 1,
+     "value": "17"
+    },
+    {
+     "field": "udp.dstport",
+     "packet": 1,
+     "value": "88"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 1,
+     "value": "10"
+    },
+    {
+     "field": "kerberos.pvno",
+     "packet": 1,
+     "value": "5"
+    },
+    {
+     "field": "kerberos.nonce",
+     "packet": 1,
+     "value": "778001"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 2,
+     "value": "30"
+    },
+    {
+     "field": "kerberos.error_code",
+     "packet": 2,
+     "value": "7"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 3,
+     "value": "10"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 4,
+     "value": "11"
+    },
+    {
+     "field": "kerberos.CNameString",
+     "packet": 4,
+     "value": "user"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "6A4A3048A103020105A20302010AA43C303AA00703050000000000A20E1B0C4558414D504C452E54455354A511180F32303337303931333032343830355AA70502030BDF11A8053003020112",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "7E393037A003020105A10302011EA411180F32303236303932343132303030305AA503020100A603020107A90E1B0C4558414D504C452E54455354",
+     "offset": 42,
+     "packet": 2
+    },
+    {
+     "hex": "6B81F03081EDA003020105A10302010BA30E1B0C4558414D504C452E54455354",
+     "offset": 42,
+     "packet": 4
+    }
+   ],
+   "packet_count": 4
   }
+ },
+ {
+  "id": "kerberos_ipv6_udp_as_basic",
+  "proto": "kerberos",
+  "summary": "IPv6/UDP 88 独立 AS fixture（外层地址族不改变 DER）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "2001:db8:ffff::59",
+      "src": "2001:db8::59"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "as_req",
+          "up": true
+         },
+         {
+          "error_code": 7,
+          "kind": "krb_error",
+          "up": false
+         },
+         {
+          "kind": "as_req",
+          "padata": [
+           {
+            "type": 2,
+            "value_len": 4
+           }
+          ],
+          "up": true
+         },
+         {
+          "kind": "as_rep",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ipv6.nxt",
+     "packet": 1,
+     "value": "17"
+    },
+    {
+     "field": "udp.dstport",
+     "packet": 1,
+     "value": "88"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 1,
+     "value": "10"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "6A4A3048A103020105A20302010AA43C303AA00703050000000000A20E1B0C4558414D504C452E54455354A511180F32303337303931333032343830355AA70502030BDF11A8053003020112",
+     "offset": 62,
+     "packet": 1
+    },
+    {
+     "hex": "7E393037A003020105A10302011EA411180F32303236303932343132303030305AA503020100A603020107A90E1B0C4558414D504C452E54455354",
+     "offset": 62,
+     "packet": 2
+    }
+   ],
+   "packet_count": 4
+  }
+ },
+ {
+  "id": "kerberos_tcp_record_framing",
+  "proto": "kerberos",
+  "summary": "TCP 4-byte record framing：整 record + record 跨 segments 按 length 重组",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 88,
+      "mss": 536,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "as_req",
+          "up": true
+         },
+         {
+          "cipher_len": 700,
+          "kind": "as_rep",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "tcp.dstport",
+     "packet": 1,
+     "value": "88"
+    },
+    {
+     "field": "tcp.flags.syn",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "field": "tcp.len",
+     "packet": 4,
+     "value": "80"
+    },
+    {
+     "field": "tcp.len",
+     "packet": 5,
+     "value": "536"
+    },
+    {
+     "field": "tcp.len",
+     "packet": 6,
+     "value": "536"
+    },
+    {
+     "field": "tcp.len",
+     "packet": 7,
+     "value": "495"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "0000004C6A4A3048A103020105A20302010AA43C303AA00703050000000000A20E1B0C4558414D504C452E54455354A511180F32303337303931333032343830355AA70502030BDF11A8053003020112",
+     "offset": 54,
+     "packet": 4
+    },
+    {
+     "hex": "0000061B6B82061730820613A003020105A10302010BA30E1B0C4558414D504C452E5445",
+     "offset": 54,
+     "packet": 5
+    }
+   ],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "kerberos_as_req_as_rep",
+  "proto": "kerberos",
+  "summary": "AS-REQ/AS-REP 单对：nonce/realm/principal 外壳",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "cname": [
+           "alice"
+          ],
+          "kind": "as_req",
+          "name_type": 1,
+          "nonce": 778101,
+          "realm": "EXAMPLE.TEST",
+          "sname": [
+           "krbtgt",
+           "EXAMPLE.TEST"
+          ],
+          "up": true
+         },
+         {
+          "cname": [
+           "alice"
+          ],
+          "crealm": "EXAMPLE.TEST",
+          "kind": "as_rep",
+          "nonce": 778101,
+          "realm": "EXAMPLE.TEST",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "kerberos.msg_type",
+     "packet": 1,
+     "value": "10"
+    },
+    {
+     "field": "kerberos.CNameString",
+     "packet": 1,
+     "value": "alice"
+    },
+    {
+     "field": "kerberos.nonce",
+     "packet": 1,
+     "value": "778101"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 2,
+     "value": "11"
+    },
+    {
+     "field": "kerberos.crealm",
+     "packet": 2,
+     "value": "EXAMPLE.TEST"
+    },
+    {
+     "field": "kerberos.CNameString",
+     "packet": 2,
+     "value": "alice"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "6A8181307FA103020105A20302010AA4733071A007030500",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 2
+  }
+ },
+ {
+  "id": "kerberos_tgs_req_tgs_rep",
+  "proto": "kerberos",
+  "summary": "AS→TGS→AP 全链：krbtgt 与 service ticket 边界",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "as_req",
+          "up": true
+         },
+         {
+          "kind": "as_rep",
+          "up": false
+         },
+         {
+          "kind": "tgs_req",
+          "nonce": 778201,
+          "padata": [
+           {
+            "type": 1,
+            "value_len": 8
+           }
+          ],
+          "sname": [
+           "host",
+           "app.example.test"
+          ],
+          "up": true
+         },
+         {
+          "kind": "tgs_rep",
+          "sname": [
+           "host",
+           "app.example.test"
+          ],
+          "up": false
+         },
+         {
+          "kind": "ap_req",
+          "up": true
+         },
+         {
+          "kind": "ap_rep",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "kerberos.msg_type",
+     "packet": 3,
+     "value": "12,14"
+    },
+    {
+     "field": "kerberos.SNameString",
+     "packet": 3,
+     "value": "krbtgt,EXAMPLE.TEST,host,app.example.test"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 4,
+     "value": "13"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 5,
+     "value": "14"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 6,
+     "value": "15"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "6C82015E3082015AA103020105A203",
+     "offset": 42,
+     "packet": 3
+    },
+    {
+     "hex": "6D81F23081EFA003020105A10302010D",
+     "offset": 42,
+     "packet": 4
+    },
+    {
+     "hex": "6E81D63081D3A003020105A10302010E",
+     "offset": 42,
+     "packet": 5
+    },
+    {
+     "hex": "6F4D304BA003020105A10302010FA23F303DA003020112A2360434A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5",
+     "offset": 42,
+     "packet": 6
+    }
+   ],
+   "packet_count": 6
+  }
+ },
+ {
+  "id": "kerberos_ap_req_ap_rep",
+  "proto": "kerberos",
+  "summary": "AP-REQ/AP-REP 三服务交换：ticket/authenticator opaque",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "cipher_len": 52,
+          "etype": 18,
+          "kind": "ap_req",
+          "kvno": 2,
+          "up": true
+         },
+         {
+          "cipher_len": 52,
+          "etype": 18,
+          "kind": "ap_rep",
+          "up": false
+         },
+         {
+          "cipher_len": 64,
+          "etype": 17,
+          "kind": "ap_req",
+          "kvno": 1,
+          "sname": [
+           "cifs",
+           "fs.example.test"
+          ],
+          "up": true
+         },
+         {
+          "cipher_len": 64,
+          "etype": 17,
+          "kind": "ap_rep",
+          "up": false
+         },
+         {
+          "cipher_len": 36,
+          "etype": 23,
+          "kind": "ap_req",
+          "sname": [
+           "ldap",
+           "dc.example.test"
+          ],
+          "up": true
+         },
+         {
+          "cipher_len": 36,
+          "etype": 23,
+          "kind": "ap_rep",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "kerberos.etype",
+     "packet": 1,
+     "value": "18,18"
+    },
+    {
+     "field": "kerberos.etype",
+     "packet": 3,
+     "value": "17,17"
+    },
+    {
+     "field": "kerberos.etype",
+     "packet": 5,
+     "value": "23,23"
+    },
+    {
+     "field": "kerberos.kvno",
+     "packet": 1,
+     "value": "2,2"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "6E81E23081DFA003020105A10302010E",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "6F4D304BA003020105A10302010FA23F303DA003020112A2360434A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 6
+  }
+ },
+ {
+  "id": "kerberos_krb_error_preauth_required",
+  "proto": "kerberos",
+  "summary": "KRB-ERROR PREAUTH_REQUIRED 字段面 + 重试",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "as_req",
+          "up": true
+         },
+         {
+          "cname": [
+           "user"
+          ],
+          "crealm": "EXAMPLE.TEST",
+          "ctime": "20260924115959Z",
+          "cusec": 111,
+          "e_text": "NEEDS-PA",
+          "error_code": 7,
+          "kind": "krb_error",
+          "sname": [
+           "krbtgt",
+           "EXAMPLE.TEST"
+          ],
+          "stime": "20260924120000Z",
+          "susec": 222,
+          "up": false
+         },
+         {
+          "kind": "as_req",
+          "padata": [
+           {
+            "type": 2,
+            "value_len": 4
+           }
+          ],
+          "up": true
+         },
+         {
+          "kind": "as_rep",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "kerberos.error_code",
+     "packet": 2,
+     "value": "7"
+    },
+    {
+     "field": "kerberos.ctime",
+     "packet": 2,
+     "value": "2026-09-24 11:59:59 (UTC)"
+    },
+    {
+     "field": "kerberos.cusec",
+     "packet": 2,
+     "value": "111"
+    },
+    {
+     "field": "kerberos.stime",
+     "packet": 2,
+     "value": "2026-09-24 12:00:00 (UTC)"
+    },
+    {
+     "field": "kerberos.susec",
+     "packet": 2,
+     "value": "222"
+    },
+    {
+     "field": "kerberos.CNameString",
+     "packet": 2,
+     "value": "user"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "7E81A53081A2A003020105A10302011EA211180F32303236303932343131353935395AA30302016FA411180F32303236303932343132303030305AA504020200DEA603020107A70E1B0C4558414D504C452E54455354A811300FA003020101A10830061B0475736572A90E1B0C4558414D504C452E54455354AA21301FA003020101A11830161B066B72627467741B0C4558414D504C452E54455354AC0A1B084E454544532D5041",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 4
+  }
+ },
+ {
+  "id": "kerberos_preauth_rfc6113",
+  "proto": "kerberos",
+  "summary": "RFC 6113 METHOD-DATA 保序 + PA-TGS-REQ 载体区分",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "as_req",
+          "up": true
+         },
+         {
+          "error_code": 7,
+          "kind": "krb_error",
+          "up": false
+         },
+         {
+          "kind": "as_req",
+          "padata": [
+           {
+            "type": 2,
+            "value_len": 4
+           },
+           {
+            "type": 150,
+            "value_len": 0
+           }
+          ],
+          "up": true
+         },
+         {
+          "kind": "as_rep",
+          "up": false
+         },
+         {
+          "kind": "tgs_req",
+          "padata": [
+           {
+            "type": 1,
+            "value_len": 8
+           }
+          ],
+          "up": true
+         },
+         {
+          "kind": "tgs_rep",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "kerberos.msg_type",
+     "packet": 3,
+     "value": "10"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 5,
+     "value": "12,14"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "6A743072A103020105A20302010AA32830263018A103020102A211040F300DA003020112A2060404",
+     "offset": 42,
+     "packet": 3
+    }
+   ],
+   "packet_count": 6
+  }
+ },
+ {
+  "id": "kerberos_ticket_principal_realm",
+  "proto": "kerberos",
+  "summary": "Ticket/principal/realm 组件与关联",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "cname": [
+           "bob"
+          ],
+          "kind": "as_req",
+          "up": true
+         },
+         {
+          "cname": [
+           "bob"
+          ],
+          "kind": "as_rep",
+          "up": false
+         },
+         {
+          "kind": "tgs_req",
+          "name_type": 2,
+          "nonce": 778301,
+          "sname": [
+           "host",
+           "web.example.test"
+          ],
+          "up": true
+         },
+         {
+          "cname": [
+           "bob"
+          ],
+          "kind": "tgs_rep",
+          "up": false
+         },
+         {
+          "kind": "ap_req",
+          "sname": [
+           "host",
+           "web.example.test"
+          ],
+          "up": true
+         },
+         {
+          "kind": "ap_rep",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "kerberos.CNameString",
+     "packet": 1,
+     "value": "bob"
+    },
+    {
+     "field": "kerberos.SNameString",
+     "packet": 3,
+     "value": "host,web.example.test"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 4,
+     "value": "13"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 5,
+     "value": "14"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "6D81EF3081ECA003020105A10302010D",
+     "offset": 42,
+     "packet": 4
+    }
+   ],
+   "packet_count": 6
+  }
+ },
+ {
+  "id": "kerberos_encrypteddata_opaque",
+  "proto": "kerberos",
+  "summary": "EncryptedData etype/长度可见、内层 opaque",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "cipher_len": 52,
+          "etype": 18,
+          "kind": "as_rep",
+          "up": false
+         },
+         {
+          "cipher_len": 64,
+          "etype": 17,
+          "kind": "tgs_rep",
+          "up": false
+         },
+         {
+          "cipher_len": 16,
+          "etype": 23,
+          "kind": "ap_req",
+          "up": true
+         },
+         {
+          "cipher_len": 16,
+          "etype": 23,
+          "kind": "ap_rep",
+          "up": false
+         },
+         {
+          "cipher_len": 52,
+          "etype": 18,
+          "kind": "as_rep",
+          "kvno": 3,
+          "up": false
+         },
+         {
+          "cipher_len": 64,
+          "etype": 17,
+          "kind": "ap_req",
+          "up": true
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "kerberos.etype",
+     "packet": 1,
+     "value": "18,18"
+    },
+    {
+     "field": "kerberos.etype",
+     "packet": 2,
+     "value": "17,17"
+    },
+    {
+     "field": "kerberos.etype",
+     "packet": 3,
+     "value": "23,23"
+    },
+    {
+     "field": "kerberos.kvno",
+     "packet": 5,
+     "value": "3,3"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "6E818E30818BA003020105A10302010E",
+     "offset": 42,
+     "packet": 3
+    },
+    {
+     "hex": "6F293027A003020105A10302010FA21B3019A003020117A2120410A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5",
+     "offset": 42,
+     "packet": 4
+    }
+   ],
+   "packet_count": 6
+  }
+ },
+ {
+  "id": "kerberos_nonce_time_skew",
+  "proto": "kerberos",
+  "summary": "nonce 关联、时间窗口、KRB_AP_ERR_SKEW 边界",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "as_req",
+          "nonce": 778401,
+          "till": "20380101120000Z",
+          "up": true
+         },
+         {
+          "kind": "as_rep",
+          "up": false
+         },
+         {
+          "kind": "tgs_req",
+          "nonce": 778402,
+          "up": true
+         },
+         {
+          "kind": "tgs_rep",
+          "up": false
+         },
+         {
+          "kind": "ap_req",
+          "up": true
+         },
+         {
+          "error_code": 25,
+          "kind": "krb_error",
+          "stime": "20260924120130Z",
+          "susec": 900,
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "kerberos.nonce",
+     "packet": 1,
+     "value": "778401"
+    },
+    {
+     "field": "kerberos.nonce",
+     "packet": 3,
+     "value": "778402"
+    },
+    {
+     "field": "kerberos.till",
+     "packet": 1,
+     "value": "2038-01-01 12:00:00 (UTC)"
+    },
+    {
+     "field": "kerberos.error_code",
+     "packet": 6,
+     "value": "25"
+    },
+    {
+     "field": "kerberos.stime",
+     "packet": 6,
+     "value": "2026-09-24 12:01:30 (UTC)"
+    },
+    {
+     "field": "kerberos.susec",
+     "packet": 6,
+     "value": "900"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "7E3A3038A003020105A10302011EA411180F32303236303932343132303133305AA50402020384A603020119A90E1B0C4558414D504C452E54455354",
+     "offset": 42,
+     "packet": 6
+    }
+   ],
+   "packet_count": 6
+  }
+ },
+ {
+  "id": "kerberos_replay_retransmission",
+  "proto": "kerberos",
+  "summary": "请求重传复用 bytes + 重复 AP-REQ replay 错误",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "as_req",
+          "up": true
+         },
+         {
+          "kind": "as_req",
+          "up": true
+         },
+         {
+          "error_code": 7,
+          "kind": "krb_error",
+          "up": false
+         },
+         {
+          "kind": "as_req",
+          "padata": [
+           {
+            "type": 2,
+            "value_len": 4
+           }
+          ],
+          "up": true
+         },
+         {
+          "kind": "as_rep",
+          "up": false
+         },
+         {
+          "kind": "ap_req",
+          "up": true
+         },
+         {
+          "kind": "ap_req",
+          "up": true
+         },
+         {
+          "error_code": 41,
+          "kind": "krb_error",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "kerberos.msg_type",
+     "packet": 1,
+     "value": "10"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 2,
+     "value": "10"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 6,
+     "value": "14"
+    },
+    {
+     "field": "kerberos.error_code",
+     "packet": 8,
+     "value": "41"
+    },
+    {
+     "distinct_exclude": [
+      "198.51.100.59"
+     ],
+     "distinct_values": [
+      "192.0.2.59"
+     ],
+     "field": "ip.src",
+     "packet": 1,
+     "value": "192.0.2.59"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "6A4A3048A103020105A20302010AA43C303AA00703050000000000A20E1B0C4558414D504C452E54455354A511180F32303337303931333032343830355AA70502030BDF11A8053003020112",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "6A4A3048A103020105A20302010AA43C303AA00703050000000000A20E1B0C4558414D504C452E54455354A511180F32303337303931333032343830355AA70502030BDF11A8053003020112",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 8
+  }
+ },
+ {
+  "id": "kerberos_multi_session_flow",
+  "proto": "kerberos",
+  "summary": "多会话/多流：三客户端独立 nonce/ticket/framing 状态",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "as_req",
+          "up": true
+         },
+         {
+          "error_code": 7,
+          "kind": "krb_error",
+          "up": false
+         },
+         {
+          "kind": "as_req",
+          "padata": [
+           {
+            "type": 2,
+            "value_len": 4
+           }
+          ],
+          "up": true
+         },
+         {
+          "kind": "as_rep",
+          "up": false
+         }
+        ],
+        "src_ip": "192.0.2.61",
+        "src_port": 5001
+       },
+       {
+        "events": [
+         {
+          "kind": "tgs_req",
+          "up": true
+         },
+         {
+          "kind": "tgs_rep",
+          "up": false
+         },
+         {
+          "kind": "ap_req",
+          "up": true
+         },
+         {
+          "kind": "ap_rep",
+          "up": false
+         }
+        ],
+        "src_ip": "192.0.2.62",
+        "src_port": 5002
+       },
+       {
+        "events": [
+         {
+          "kind": "as_req",
+          "up": true
+         },
+         {
+          "kind": "as_rep",
+          "up": false
+         },
+         {
+          "kind": "ap_req",
+          "up": true
+         },
+         {
+          "kind": "ap_rep",
+          "up": false
+         }
+        ],
+        "src_ip": "192.0.2.63",
+        "src_port": 5003
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "udp.srcport",
+     "packet": 1,
+     "value": "5001"
+    },
+    {
+     "field": "udp.srcport",
+     "packet": 5,
+     "value": "5002"
+    },
+    {
+     "field": "udp.srcport",
+     "packet": 9,
+     "value": "5003"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 5,
+     "value": "12"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 9,
+     "value": "10"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "6A4A3048A103020105A20302010AA43C303AA00703050000000000A20E1B0C4558414D504C452E54455354A511180F32303337303931333032343830355AA70502030BDF11A8053003020112",
+     "offset": 42,
+     "packet": 9
+    }
+   ],
+   "packet_count": 12
+  }
+ },
+ {
+  "id": "kerberos_pcap_nic_consistency",
+  "proto": "kerberos",
+  "summary": "PCAP/NIC 一致：方向/端口/88/record 外壳稳定",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "as_req",
+          "up": true
+         },
+         {
+          "kind": "as_rep",
+          "up": false
+         },
+         {
+          "error_code": 7,
+          "kind": "krb_error",
+          "up": false
+         },
+         {
+          "kind": "ap_req",
+          "up": true
+         },
+         {
+          "kind": "ap_rep",
+          "up": false
+         },
+         {
+          "kind": "tgs_req",
+          "up": true
+         },
+         {
+          "kind": "tgs_rep",
+          "up": false
+         },
+         {
+          "error_code": 25,
+          "kind": "krb_error",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "udp.dstport",
+     "packet": 1,
+     "value": "88"
+    },
+    {
+     "field": "udp.srcport",
+     "packet": 2,
+     "value": "88"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 1,
+     "value": "10"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 2,
+     "value": "11"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 4,
+     "value": "14"
+    },
+    {
+     "field": "kerberos.msg_type",
+     "packet": 6,
+     "value": "12"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "6A4A3048A103020105A20302010AA43C303AA00703050000000000A20E1B0C4558414D504C452E54455354A511180F32303337303931333032343830355AA70502030BDF11A8053003020112",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "6B81F03081EDA003020105A10302010BA30E1B0C4558414D504C452E54455354",
+     "offset": 42,
+     "packet": 2
+    },
+    {
+     "hex": "7E393037A003020105A10302011EA411180F32303236303932343132303030305AA503020100A603020107A90E1B0C4558414D504C452E54455354",
+     "offset": 42,
+     "packet": 3
+    },
+    {
+     "hex": "6F4D304BA003020105A10302010FA23F303DA003020112A2360434A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5",
+     "offset": 42,
+     "packet": 5
+    }
+   ],
+   "packet_count": 8
+  }
+ },
+ {
+  "id": "kerberos_neg_truncated_record",
+  "proto": "kerberos",
+  "summary": "消息/DER 头截断（wire_fault 注入）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "wire_fault": "record_truncated"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "record",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "kerberos_neg_tcp_length",
+  "proto": "kerberos",
+  "summary": "TCP 4-byte record 长度前缀错（wire_fault 注入）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "wire_fault": "record_length"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "tcp",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "kerberos_neg_message_tag",
+  "proto": "kerberos",
+  "summary": "顶层 tag/msg-type 不一致（声明 msg_type=11 于 as_req）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "as_req",
+          "msg_type": 11,
+          "up": true
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "tag",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "kerberos_neg_encrypted_boundary",
+  "proto": "kerberos",
+  "summary": "EncryptedData 外壳越界（wire_fault 注入）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "wire_fault": "encrypted_boundary"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "encrypted",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "kerberos_neg_time_nonce_replay",
+  "proto": "kerberos",
+  "summary": "skew/nonce/replay 状态错（wire_fault 注入）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {
+      "wire_fault": "replay"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "replay",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "kerberos_neg_udp_carrier",
+  "proto": "kerberos",
+  "summary": "双载体并存拒（一条 kerberos 流只骑单载体）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.59",
+      "src": "192.0.2.59"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 88,
+      "src_port": 40159
+     }
+    },
+    {
+     "kerberos": {}
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "udp",
+   "expect_error": true
+  }
+ }
 ]

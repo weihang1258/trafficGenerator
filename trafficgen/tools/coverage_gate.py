@@ -1143,6 +1143,91 @@ def check_bacnet(cases):
     return rows
 
 
+def check_kerberos(cases):
+    """D-KERBEROS-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 kerberos", '"kerberos"' in pg and 'true' in pg.split('"kerberos"')[1][:12], "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 kerberos（已准入）", '"kerberos"' not in pt[i_neg:i_neg + 500], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case kerberos（严格解码）", 'case "kerberos":' in tr and "DisallowUnknownFields" in tr, "在案"))
+    rows.append(("FlowMeta.Kerberos 直传（静默基线根修）", re.search(r"Kerberos:\s+spec\.Kerberos\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.Kerberos", re.search(r"Kerberos\s+\*core\.KerberosConfig", gen) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry kerberos 行 + udp/tcp 88 双契约",
+                 '"udp.dst_port": "88"' in rg and '"tcp.dst_port": "88"' in rg and '"kerberos"' in rg, "在案"))
+    rows.append(("registry TransportOn 双载体", re.search(r'"kerberos".*?TransportOn:\s*\[\]string\{"udp", "tcp"\}', rg, re.S) is not None, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    rows.append(("载体预检（缺载体/双载体并存/混合族）",
+                 "udp and tcp carriers both present" in vl and "missing udp/tcp carrier" in vl, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go ChainPlanner(kerberos) 接线", 'NewChainPlanner("kerberos")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("strategy_convert case kerberos + 88 缺省端口",
+                 'case "kerberos":' in sc and "setDefaultDstPort(&spec, cfg, 88)" in sc, "在案"))
+
+    # 2. 行为面（DER 原语/builder/planner 关键件）。
+    kb = (tg / "internal" / "core" / "kerberos.go").read_text()
+    _i = kb.index("anchors := map[string]string{")
+    _seg = kb[_i:kb.index("\n\t}", _i)]
+    _n = len(re.findall(r"KerberosWireFault[A-Za-z0-9]+:", _seg))
+    rows.append(("wire_fault 闭环 6 值锚词表", _n == 6, f"{_n} 值"))
+    fl = (tg / "internal" / "protocol" / "kerberos" / "der.go").read_text()
+    for prim, name in [
+        ("func derLen", "DER definite-length 短形/长形（裁定3）"),
+        ("func derApp", "[APPLICATION n] constructed 顶层 tag"),
+        ("func derCtx", "[n] 上下文构造型（pvno/msg-type 槽）"),
+        ("func derGeneralizedTime", "KerberosTime GeneralizedTime（RFC 4120 §5.2.2）"),
+        ("func derInteger", "INTEGER 最小补码（正数补 00）"),
+    ]:
+        rows.append((f"DER 原语：{name}", prim in fl, "在案"))
+    bl = (tg / "internal" / "protocol" / "kerberos" / "builder.go").read_text()
+    for prim, name in [
+        ("func principalName", "PrincipalName name-type+name-string（设计 §7）"),
+        ("func encryptedData", "EncryptedData etype/kvno/cipher（opaque 外壳）"),
+        ("func ticket", "Ticket tkt-vno=5/realm/sname/enc-part"),
+        ("func kdcReq", "KDC-REQ pvno[1] 槽（REQ 特有——REP 是 [0]）"),
+        ("func kdcRep", "KDC-REP pvno[0] 槽（RFC 4120 非对称）"),
+        ("func apReq", "AP-REQ ticket+authenticator 边界"),
+        ("func krbError", "KRB-ERROR error-code/ctime/stime/e-text"),
+        ("func tcpFrame", "TCP 4B BE record 长度（不含自身——裁定7）"),
+        ("fixtureFill", "opaque 填充确定性 0xA5（裁定5）"),
+        ("msg-kind", None) if False else ("kindTable", "kind→tag/msg-type 权威表（裁定6）"),
+        ("does not match kind", "msg-type↔tag 一致性守卫（裁定6）"),
+        ("no carrier layer before kerberos", "缺载体守卫"),
+    ]:
+        rows.append((f"关键件：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "kerberos" / "planner.go").read_text()
+    rows.append(("守卫：会话间端口一致性", "conflicts with earlier session dst_port" in pl, "在案"))
+    rows.append(("守卫：wire_fault 注入锚词出口", "negative-path injection rejected" in pl, "在案"))
+    rows.append(("守卫：krb_error 必带 error_code", "requires error_code" in bl, "在案"))
+    rows.append(("守卫：body hex 奇长/非 hex 拒", "odd length" in bl and "non-hex" in bl, "在案"))
+
+    # 3. 用例面（20 例）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "kerberos_ipv4_udp_as_basic", "kerberos_ipv6_udp_as_basic",
+        "kerberos_tcp_record_framing", "kerberos_as_req_as_rep",
+        "kerberos_tgs_req_tgs_rep", "kerberos_ap_req_ap_rep",
+        "kerberos_krb_error_preauth_required", "kerberos_preauth_rfc6113",
+        "kerberos_ticket_principal_realm", "kerberos_encrypteddata_opaque",
+        "kerberos_nonce_time_skew", "kerberos_replay_retransmission",
+        "kerberos_multi_session_flow", "kerberos_pcap_nic_consistency",
+        "kerberos_neg_truncated_record", "kerberos_neg_tcp_length",
+        "kerberos_neg_message_tag", "kerberos_neg_encrypted_boundary",
+        "kerberos_neg_time_nonce_replay", "kerberos_neg_udp_carrier",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    rows.append(("用例总数 20（14 正+6 负）", len(cases) == 20, f"{len(cases)} 例"))
+    return rows
+
+
 CHECKS = {
     "smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
@@ -2957,7 +3042,7 @@ def check_dtls(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos}
 
 
 def main(argv):
