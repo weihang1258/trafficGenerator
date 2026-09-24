@@ -2879,9 +2879,85 @@ def check_xmrmining(cases):
 
 
 
+def check_dtls(cases):
+    """D-DTLS-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 dtls", '"dtls"' in pg and 'true' in pg.split('"dtls"')[1][:12], "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 dtls（已准入）", '"dtls"' not in pt[i_neg:i_neg + 400], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case dtls（严格解码）", 'case "dtls":' in tr and "DisallowUnknownFields" in tr, "在案"))
+    rows.append(("FlowMeta.DTLS 直传（静默基线根修）", "DTLS: spec.DTLS" in tr, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.DTLS", "DTLS       *core.DTLSConfig" in gen, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry dtls 行 + udp/4433 契约", '"udp.dst_port": "4433"' in rg and '"dtls"' in rg, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    rows.append(("udp 载体预检（tcp 拒/缺 udp/混合族）", "dtls chain: tcp carrier is not supported" in vl and "missing udp carrier" in vl, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go ChainPlanner(dtls) 接线", 'NewChainPlanner("dtls")' in mn, "在案"))
+
+    # 2. 行为面（builder/planner 关键件）。
+    dc = (tg / "internal" / "core" / "dtls.go").read_text()
+    import re as _re
+    _i = dc.index("anchors := map[string]string{")
+    _seg = dc[_i:dc.index("\n\t}", _i)]
+    _n = len(_re.findall(r"DTLSWireFault[A-Za-z0-9]+:", _seg))
+    rows.append(("wire_fault 闭环 6 值锚词表", _n == 6, f"{_n} 值"))
+    bl = (tg / "internal" / "protocol" / "dtls" / "builder.go").read_text()
+    for prim, name in [
+        ("func versionBytes", "record version fefd/feff 权威（RFC 6347 §4.1）"),
+        ("func putRecord", "13B record 头全大端（ct+ver+epoch+seq48+len）"),
+        ("func handshakeBody", "12B 握手头（type+len24+msgseq+off24+fraglen24）"),
+        ("cookie_len(ck)", None) if False else ("byte(len(ck))", "HVR cookie 长度前缀=实际字节（不硬编码随机值）"),
+        ("type dtlsWalker", "epoch/seq/msg_seq 单解析权威"),
+        ("w.ctr[key] = seq + 1", "record seq 每方向每 epoch 独立计数"),
+        ("msgCtr  [2]int", "message_seq 每方向独立计数器（RFC 6347 §4.2.1）"),
+        ("h.FragOffset > 0 && w.msgHas[dir]", "续片复用 message_seq（§4.2.2 分片共享）"),
+        ("fragLen != len(body)", "声明 frag_len 必须=线上 body（wire 谎言拒）"),
+        ("func cipherFill", "opaque 填充确定性（不伪造密文语义）"),
+    ]:
+        rows.append((f"关键件：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "dtls" / "planner.go").read_text()
+    rows.append(("守卫：会话间端口一致性守卫", "conflicts with earlier session dst_port" in pl, "在案"))
+    rows.append(("守卫：wire_fault 注入锚词出口", "negative-path injection rejected" in pl, "在案"))
+    bl2 = (tg / "internal" / "protocol" / "dtls" / "builder.go").read_text()
+    for guard, name in [
+        ("regresses from current epoch", "epoch 回退守卫"),
+        ("regresses/reuses below next", "record seq 回退/复用守卫（重传不复用 seq）"),
+        ("beyond 48-bit range", "seq 48-bit 溢出守卫"),
+        ("only valid on hello_verify_request", "cookie 仅限 HVR（状态守卫）"),
+        ("exceeds handshake length", "分片越界守卫"),
+]:
+        rows.append((f"守卫：{name}", guard in bl2, "在案"))
+
+    # 3. 用例面（20 例）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "dtls_ipv4_v12_basic", "dtls_ipv6_v12_basic", "dtls_v10_legacy_record",
+        "dtls_v12_cookie_exchange", "dtls_handshake_fragmentation",
+        "dtls_handshake_reassembly", "dtls_epoch_sequence_transition",
+        "dtls_ccs_alert_application", "dtls_retransmission_timeout",
+        "dtls_multi_session_isolation", "dtls_multi_flow",
+        "dtls_record_boundary_lengths", "dtls_pcap_nic_consistency",
+        "dtls_encrypted_opaque_boundary",
+        "dtls_neg_record_truncated", "dtls_neg_version_epoch",
+        "dtls_neg_sequence_overflow", "dtls_neg_fragment_bounds",
+        "dtls_neg_cookie_state", "dtls_neg_carrier_udp",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    rows.append(("用例总数 20（14 正+6 负）", len(cases) == 20, f"{len(cases)} 例"))
+    return rows
+
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls}
 
 
 def main(argv):

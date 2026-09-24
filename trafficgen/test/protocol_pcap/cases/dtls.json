@@ -1,28 +1,2442 @@
 [
-  {
-    "id": "dtls_neg_unregistered",
-    "proto": "dtls",
-    "summary": "DTLS layer is not registered yet; reject at layer validation",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "dtls": {}
-        }
-      ],
-      "src_ip": "192.0.2.58",
-      "dst_ip": "198.51.100.58",
-      "src_port": 45058,
-      "dst_port": 4433
+ {
+  "id": "dtls_ipv4_v12_basic",
+  "proto": "dtls",
+  "summary": "IPv4/UDP 4433 DTLS 1.2 握手+应用+关闭基线",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "unknown layer",
-      "notes": [
-        "Design-only gate: dtls is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove it and add the 14 positive and 6 negative semantic cases in testcase order."
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000000002002F0100",
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000002F00",
+           "type": 2
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "000000",
+           "type": 11
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "0030414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141",
+           "type": 16
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": false
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 8,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 8,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": false
+         }
+        ]
+       }
       ]
+     }
     }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ip.proto",
+     "packet": 1,
+     "value": "17"
+    },
+    {
+     "field": "udp.dstport",
+     "packet": 1,
+     "value": "4433"
+    },
+    {
+     "field": "dtls.record.version",
+     "packet": 1,
+     "value": "0xfefd"
+    },
+    {
+     "field": "dtls.record.epoch",
+     "packet": 1,
+     "value": "0"
+    },
+    {
+     "field": "dtls.record.sequence_number",
+     "packet": 1,
+     "value": "0"
+    },
+    {
+     "field": "dtls.record.length",
+     "packet": 1,
+     "value": "54"
+    },
+    {
+     "field": "dtls.record.content_type",
+     "packet": 1,
+     "value": "22"
+    },
+    {
+     "field": "dtls.record.sequence_number",
+     "packet": 2,
+     "value": "0"
+    },
+    {
+     "field": "dtls.record.content_type",
+     "packet": 8,
+     "value": "23"
+    },
+    {
+     "field": "dtls.record.epoch",
+     "packet": 8,
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "16FEFD000000000000000000360100002A000000000000002AFEFD000000000000000000000000000000000000000000000000000000000000000000000002002F0100",
+     "offset": 42,
+     "packet": 1
+    }
+   ],
+   "packet_count": 12
   }
+ },
+ {
+  "id": "dtls_ipv6_v12_basic",
+  "proto": "dtls",
+  "summary": "IPv6/UDP 4433 DTLS 1.2 握手+应用+关闭基线",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "2001:db8:ffff::63",
+      "src": "2001:db8::63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000000002002F0100",
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000002F00",
+           "type": 2
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "000000",
+           "type": 11
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "0030414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141",
+           "type": 16
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": false
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 8,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 8,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ipv6.nxt",
+     "packet": 1,
+     "value": "17"
+    },
+    {
+     "field": "dtls.record.version",
+     "packet": 1,
+     "value": "0xfefd"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "16FEFD000000000000000000360100002A000000000000002AFEFD000000000000000000000000000000000000000000000000000000000000000000000002002F0100",
+     "offset": 62,
+     "packet": 1
+    }
+   ],
+   "packet_count": 12
+  }
+ },
+ {
+  "id": "dtls_v10_legacy_record",
+  "proto": "dtls",
+  "summary": "DTLS 1.0 legacy record version feff",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000000002002F0100",
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000002F00",
+           "type": 2
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "000000",
+           "type": 11
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "0030414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141",
+           "type": 16
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": false
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 8,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 8,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": false
+         }
+        ],
+        "version": "1.0"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dtls.record.version",
+     "packet": 1,
+     "value": "0xfeff"
+    }
+   ],
+   "frames": [],
+   "packet_count": 12
+  }
+ },
+ {
+  "id": "dtls_v12_cookie_exchange",
+  "proto": "dtls",
+  "summary": "DTLS 1.2 完整 cookie 交换 + 握手",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000000002002F0100",
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "cookie": "AABBCC",
+           "type": 3
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "FEFD00000000000000000000000000000000000000000000000000000000000000000003AABBCC0002002F0100",
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000002F00",
+           "type": 2
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "000000",
+           "type": 11
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "0030414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141",
+           "type": 16
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": false
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 8,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 8,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": false
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dtls.handshake.type",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "field": "dtls.handshake.type",
+     "packet": 2,
+     "value": "3"
+    },
+    {
+     "field": "dtls.handshake.cookie_length",
+     "packet": 2,
+     "value": "3"
+    },
+    {
+     "field": "dtls.handshake.type",
+     "packet": 3,
+     "value": "1"
+    }
+   ],
+   "frames": [],
+   "packet_count": 16
+  }
+ },
+ {
+  "id": "dtls_handshake_fragmentation",
+  "proto": "dtls",
+  "summary": "一个 handshake 消息跨 3 records 分片",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "handshake": {
+           "body": "0102030405060708",
+           "fragment_length": 8,
+           "length": 20,
+           "type": 16
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "1112131415161718",
+           "fragment_length": 8,
+           "fragment_offset": 8,
+           "length": 20,
+           "type": 16
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "21222324",
+           "fragment_length": 4,
+           "fragment_offset": 16,
+           "length": 20,
+           "type": 16
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000002F00",
+           "type": 2
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "000000",
+           "type": 11
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "0030414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141",
+           "type": 16
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": false
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dtls.handshake.fragment_offset",
+     "packet": 1,
+     "value": "0"
+    },
+    {
+     "field": "dtls.handshake.fragment_length",
+     "packet": 1,
+     "value": "8"
+    },
+    {
+     "field": "dtls.handshake.message_seq",
+     "packet": 1,
+     "value": "0"
+    },
+    {
+     "field": "dtls.handshake.fragment_offset",
+     "packet": 2,
+     "value": "8"
+    },
+    {
+     "field": "dtls.handshake.fragment_offset",
+     "packet": 3,
+     "value": "16"
+    },
+    {
+     "field": "dtls.record.sequence_number",
+     "packet": 4,
+     "value": "0"
+    }
+   ],
+   "frames": [],
+   "packet_count": 10
+  }
+ },
+ {
+  "id": "dtls_handshake_reassembly",
+  "proto": "dtls",
+  "summary": "乱序分片按 message_seq/offset 重组（续片共用 msg_seq）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "handshake": {
+           "body": "1112131415161718",
+           "fragment_offset": 8,
+           "length": 20,
+           "message_seq": 0,
+           "type": 16
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "0102030405060708",
+           "fragment_offset": 0,
+           "length": 20,
+           "message_seq": 0,
+           "type": 16
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "21222324",
+           "fragment_offset": 16,
+           "length": 20,
+           "message_seq": 0,
+           "type": 16
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": false
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 8,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dtls.handshake.message_seq",
+     "packet": 1,
+     "value": "0"
+    },
+    {
+     "field": "dtls.handshake.message_seq",
+     "packet": 2,
+     "value": "0"
+    },
+    {
+     "field": "dtls.handshake.message_seq",
+     "packet": 3,
+     "value": "0"
+    },
+    {
+     "field": "dtls.handshake.fragment_offset",
+     "packet": 2,
+     "value": "0"
+    },
+    {
+     "field": "dtls.handshake.fragment_offset",
+     "packet": 1,
+     "value": "8"
+    },
+    {
+     "field": "dtls.handshake.fragment_offset",
+     "packet": 3,
+     "value": "16"
+    },
+    {
+     "field": "dtls.record.content_type",
+     "packet": 4,
+     "value": "20"
+    },
+    {
+     "field": "dtls.record.epoch",
+     "packet": 6,
+     "value": "1"
+    }
+   ],
+   "frames": [],
+   "packet_count": 10
+  }
+ },
+ {
+  "id": "dtls_epoch_sequence_transition",
+  "proto": "dtls",
+  "summary": "epoch 0→1 切换、每方向 48-bit sequence 独立递增",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000000002002F0100",
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000002F00",
+           "type": 2
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "000000",
+           "type": 11
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "0030414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141",
+           "type": 16
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": false
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 8,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 8,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dtls.record.epoch",
+     "packet": 1,
+     "value": "0"
+    },
+    {
+     "field": "dtls.record.sequence_number",
+     "packet": 1,
+     "value": "0"
+    },
+    {
+     "field": "dtls.record.sequence_number",
+     "packet": 2,
+     "value": "0"
+    },
+    {
+     "field": "dtls.record.epoch",
+     "packet": 7,
+     "value": "1"
+    },
+    {
+     "field": "dtls.record.sequence_number",
+     "packet": 7,
+     "value": "0"
+    },
+    {
+     "field": "dtls.record.sequence_number",
+     "packet": 8,
+     "value": "0"
+    },
+    {
+     "field": "dtls.record.sequence_number",
+     "packet": 9,
+     "value": "1"
+    },
+    {
+     "field": "dtls.record.sequence_number",
+     "packet": 12,
+     "value": "2"
+    }
+   ],
+   "frames": [],
+   "packet_count": 14
+  }
+ },
+ {
+  "id": "dtls_ccs_alert_application",
+  "proto": "dtls",
+  "summary": "CCS→alert→加密 epoch appdata/关闭（外层类型混排）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "ccs",
+          "up": true
+         },
+         {
+          "alert_desc": 10,
+          "alert_level": 2,
+          "kind": "alert",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": false
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 8,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 8,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 32,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 32,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": false
+         },
+         {
+          "ciphertext_len": 8,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dtls.record.content_type",
+     "packet": 1,
+     "value": "20"
+    },
+    {
+     "field": "dtls.record.content_type",
+     "packet": 2,
+     "value": "21"
+    },
+    {
+     "field": "dtls.alert_message.level",
+     "packet": 2,
+     "value": "2"
+    },
+    {
+     "field": "dtls.alert_message.desc",
+     "packet": 2,
+     "value": "10"
+    },
+    {
+     "field": "dtls.record.content_type",
+     "packet": 5,
+     "value": "23"
+    },
+    {
+     "field": "dtls.record.epoch",
+     "packet": 5,
+     "value": "1"
+    },
+    {
+     "field": "dtls.record.content_type",
+     "packet": 13,
+     "value": "21"
+    },
+    {
+     "field": "dtls.record.epoch",
+     "packet": 13,
+     "value": "1"
+    },
+    {
+     "field": "dtls.record.length",
+     "packet": 13,
+     "value": "2"
+    }
+   ],
+   "frames": [],
+   "packet_count": 16
+  }
+ },
+ {
+  "id": "dtls_retransmission_timeout",
+  "proto": "dtls",
+  "summary": "flight 重传（同 msg_seq / 新 record seq）+ 超时关闭",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000000002002F0100",
+           "message_seq": 0,
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000000002002F0100",
+           "message_seq": 0,
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "cookie": "DD",
+           "message_seq": 0,
+           "type": 3
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "cookie": "DD",
+           "message_seq": 0,
+           "type": 3
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "FEFD00000000000000000000000000000000000000000000000000000000000000000001DD0002002F0100",
+           "message_seq": 1,
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "FEFD00000000000000000000000000000000000000000000000000000000000000000001DD0002002F0100",
+           "message_seq": 1,
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000002F00",
+           "type": 2
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "000000",
+           "type": 11
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "0030414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141",
+           "type": 16
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "0030414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141",
+           "message_seq": 2,
+           "type": 16
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": false
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": false
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dtls.handshake.message_seq",
+     "packet": 1,
+     "value": "0"
+    },
+    {
+     "field": "dtls.handshake.message_seq",
+     "packet": 2,
+     "value": "0"
+    },
+    {
+     "field": "dtls.handshake.cookie_length",
+     "packet": 3,
+     "value": "1"
+    },
+    {
+     "field": "dtls.record.sequence_number",
+     "packet": 5,
+     "value": "2"
+    },
+    {
+     "field": "dtls.record.sequence_number",
+     "packet": 6,
+     "value": "3"
+    },
+    {
+     "field": "dtls.handshake.message_seq",
+     "packet": 9,
+     "value": "2"
+    },
+    {
+     "field": "dtls.handshake.message_seq",
+     "packet": 10,
+     "value": "2"
+    },
+    {
+     "field": "dtls.record.content_type",
+     "packet": 15,
+     "value": "21"
+    }
+   ],
+   "frames": [],
+   "packet_count": 18
+  }
+ },
+ {
+  "id": "dtls_multi_session_isolation",
+  "proto": "dtls",
+  "summary": "双独立 session 各自 cookie/epoch/seq/关闭（不串用）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000000002002F0100",
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "cookie": "AABBCC",
+           "type": 3
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "FEFD00000000000000000000000000000000000000000000000000000000000000000003AABBCC0002002F0100",
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000002F00",
+           "type": 2
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "000000",
+           "type": 11
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "0030414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141",
+           "type": 16
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": false
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": false
+         }
+        ],
+        "src_port": 5001
+       },
+       {
+        "events": [
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000000002002F0100",
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "cookie": "DD",
+           "type": 3
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "FEFD00000000000000000000000000000000000000000000000000000000000000000001DD0002002F0100",
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000002F00",
+           "type": 2
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "000000",
+           "type": 11
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "0030414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141",
+           "type": 16
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": false
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": false
+         }
+        ],
+        "src_ip": "192.0.2.64",
+        "src_port": 5002
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "udp.srcport",
+     "packet": 1,
+     "value": "5001"
+    },
+    {
+     "field": "dtls.handshake.cookie_length",
+     "packet": 2,
+     "value": "3"
+    },
+    {
+     "field": "udp.srcport",
+     "packet": 13,
+     "value": "5002"
+    },
+    {
+     "field": "dtls.record.epoch",
+     "packet": 13,
+     "value": "0"
+    },
+    {
+     "field": "dtls.record.sequence_number",
+     "packet": 13,
+     "value": "0"
+    },
+    {
+     "field": "dtls.handshake.cookie_length",
+     "packet": 14,
+     "value": "1"
+    },
+    {
+     "distinct_exclude": [
+      "4433"
+     ],
+     "distinct_values": [
+      "5001",
+      "5002"
+     ],
+     "field": "udp.srcport",
+     "packet": 1,
+     "value": "5001"
+    }
+   ],
+   "frames": [],
+   "packet_count": 24
+  }
+ },
+ {
+  "id": "dtls_multi_flow",
+  "proto": "dtls",
+  "summary": "多四元组多流（src_ip/src_port 独立，状态不跨流拼接）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000000002002F0100",
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000002F00",
+           "type": 2
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "kind": "ccs",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": false
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": false
+         }
+        ],
+        "src_ip": "192.0.2.64",
+        "src_port": 5001
+       },
+       {
+        "events": [
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000000002002F0100",
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000002F00",
+           "type": 2
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "kind": "ccs",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": false
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": false
+         }
+        ],
+        "src_port": 5002
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ip.src",
+     "packet": 1,
+     "value": "192.0.2.64"
+    },
+    {
+     "field": "ip.src",
+     "packet": 7,
+     "value": "192.0.2.63"
+    },
+    {
+     "field": "ip.src",
+     "packet": 8,
+     "value": "198.51.100.63"
+    },
+    {
+     "field": "udp.srcport",
+     "packet": 7,
+     "value": "5002"
+    },
+    {
+     "field": "udp.srcport",
+     "packet": 1,
+     "value": "5001"
+    }
+   ],
+   "frames": [],
+   "packet_count": 12
+  }
+ },
+ {
+  "id": "dtls_record_boundary_lengths",
+  "proto": "dtls",
+  "summary": "record 长度边界（0/12/1/2/1400/0）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "ciphertext_len": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "0030414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141",
+           "type": 16
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": true
+         },
+         {
+          "kind": "alert",
+          "up": true
+         },
+         {
+          "ciphertext_len": 1400,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 1,
+          "kind": "appdata",
+          "up": true
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dtls.record.length",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "field": "dtls.record.length",
+     "packet": 2,
+     "value": "62"
+    },
+    {
+     "field": "dtls.handshake.length",
+     "packet": 2,
+     "value": "50"
+    },
+    {
+     "field": "dtls.record.length",
+     "packet": 3,
+     "value": "1"
+    },
+    {
+     "field": "dtls.record.length",
+     "packet": 4,
+     "value": "2"
+    },
+    {
+     "field": "dtls.record.length",
+     "packet": 5,
+     "value": "1400"
+    },
+    {
+     "field": "dtls.record.length",
+     "packet": 6,
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "17FEFD00000000000000000001A5",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "16FEFD0000000000000001003E1000003200000000000000320030414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 6
+  }
+ },
+ {
+  "id": "dtls_pcap_nic_consistency",
+  "proto": "dtls",
+  "summary": "PCAP/NIC 同 fixture：方向/4433/record 头一致",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000000002002F0100",
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "cookie": "AABBCC",
+           "type": 3
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "FEFD00000000000000000000000000000000000000000000000000000000000000000003AABBCC0002002F0100",
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000002F00",
+           "type": 2
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "000000",
+           "type": 11
+          },
+          "kind": "handshake",
+          "up": false
+         },
+         {
+          "handshake": {
+           "body": "0030414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141",
+           "type": 16
+          },
+          "kind": "handshake",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": false
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": false
+         },
+         {
+          "ciphertext_len": 8,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 8,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "udp.dstport",
+     "packet": 1,
+     "value": "4433"
+    },
+    {
+     "field": "udp.srcport",
+     "packet": 2,
+     "value": "4433"
+    },
+    {
+     "field": "dtls.record.content_type",
+     "packet": 1,
+     "value": "22"
+    },
+    {
+     "field": "dtls.record.content_type",
+     "packet": 2,
+     "value": "22"
+    },
+    {
+     "field": "dtls.record.epoch",
+     "packet": 2,
+     "value": "0"
+    },
+    {
+     "field": "dtls.record.sequence_number",
+     "packet": 2,
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "16FEFD000000000000000000360100002A000000000000002AFEFD000000000000000000000000000000000000000000000000000000000000000000000002002F0100",
+     "offset": 42,
+     "packet": 1
+    },
+    {
+     "hex": "16FEFD00000000000000000012030000060000000000000006FEFD03AABBCC",
+     "offset": 42,
+     "packet": 2
+    }
+   ],
+   "packet_count": 16
+  }
+ },
+ {
+  "id": "dtls_encrypted_opaque_boundary",
+  "proto": "dtls",
+  "summary": "加密 epoch 外层可见/明文不可声称（opaque 边界）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "ccs",
+          "up": true
+         },
+         {
+          "kind": "ccs",
+          "up": false
+         },
+         {
+          "ciphertext_len": 8,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 8,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": true
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": false
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": true
+         },
+         {
+          "ciphertext_len": 16,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         },
+         {
+          "ciphertext_len": 2,
+          "epoch": 1,
+          "kind": "alert",
+          "up": true
+         },
+         {
+          "ciphertext_len": 32,
+          "epoch": 1,
+          "kind": "appdata",
+          "up": false
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "dtls.record.content_type",
+     "packet": 3,
+     "value": "23"
+    },
+    {
+     "field": "dtls.record.epoch",
+     "packet": 3,
+     "value": "1"
+    },
+    {
+     "field": "dtls.record.length",
+     "packet": 3,
+     "value": "8"
+    },
+    {
+     "field": "dtls.record.content_type",
+     "packet": 5,
+     "value": "21"
+    },
+    {
+     "field": "dtls.record.length",
+     "packet": 5,
+     "value": "2"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "17FEFD00010000000000000008A5A5A5A5A5A5A5A5",
+     "offset": 42,
+     "packet": 3
+    }
+   ],
+   "packet_count": 10
+  }
+ },
+ {
+  "id": "dtls_neg_record_truncated",
+  "proto": "dtls",
+  "summary": "record Length 与实际 datagram 字节不符（wire_fault 注入）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "wire_fault": "record_length"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "record",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dtls_neg_version_epoch",
+  "proto": "dtls",
+  "summary": "非法版本/epoch（wire_fault 注入）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "wire_fault": "version_epoch"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "version",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dtls_neg_sequence_overflow",
+  "proto": "dtls",
+  "summary": "seq 超 48-bit 范围（wire_fault 注入）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "wire_fault": "sequence_overflow"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "sequence",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dtls_neg_fragment_bounds",
+  "proto": "dtls",
+  "summary": "分片超出 handshake length（fragment_offset+fraglen \u003e length）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "handshake": {
+           "body": "0102",
+           "fragment_length": 4,
+           "fragment_offset": 2,
+           "length": 2,
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "fragment",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dtls_neg_cookie_state",
+  "proto": "dtls",
+  "summary": "cookie 只能出现在 type 3 HVR 上",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 4433,
+      "src_port": 44330
+     }
+    },
+    {
+     "dtls": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "handshake": {
+           "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000000002002F0100",
+           "cookie": "AABBCC",
+           "type": 1
+          },
+          "kind": "handshake",
+          "up": true
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "cookie",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "dtls_neg_carrier_udp",
+  "proto": "dtls",
+  "summary": "DTLS 需要 UDP 载体，tcp 载体拒绝",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.63",
+      "src": "192.0.2.63"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 4433,
+      "src_port": 40063
+     }
+    },
+    {
+     "dtls": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "ccs",
+          "up": true
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "udp",
+   "expect_error": true
+  }
+ }
 ]
