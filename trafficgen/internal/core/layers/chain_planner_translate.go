@@ -141,17 +141,20 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		DCERPC: spec.DCERPC,
 		// D-DTLS-1：dtls 终结层同款（sessions[]/events[] 经 Meta 直传
 		// 生成器；每事件 = 一 record = 一 UDP 数据报）。
-		DTLS:  spec.DTLS,
-		CQL:   spec.CQL,
-		LDP:   spec.LDP,
-		PCEP:  spec.PCEP,
-		CFlow: spec.CFlow,
-		AMQP:  spec.AMQP,
-		RTMFP: spec.RTMFP,
-		IGMP:  spec.IGMP,
-		OSPF:  spec.OSPF,
-		PIM:   spec.PIM,
-		ISIS:  spec.ISIS,
+		DTLS: spec.DTLS,
+		// D-KERBEROS-1：kerberos 终结层同款（sessions[]/events[] 经 Meta
+		// 直传生成器；每事件 = 一消息 = 一 UDP datagram 或一 TCP record）。
+		Kerberos: spec.Kerberos,
+		CQL:      spec.CQL,
+		LDP:      spec.LDP,
+		PCEP:     spec.PCEP,
+		CFlow:    spec.CFlow,
+		AMQP:     spec.AMQP,
+		RTMFP:    spec.RTMFP,
+		IGMP:     spec.IGMP,
+		OSPF:     spec.OSPF,
+		PIM:      spec.PIM,
+		ISIS:     spec.ISIS,
 		// GBT 同款（B6）：sessions[]/events[] 配置经 Meta 直传 gbt 终结层
 		// 生成器（每事件一笔事务一侧的完整 HTTP 帧字节；http 层透传转发）。
 		GBT: spec.GBT,
@@ -2202,6 +2205,30 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.DTLS = &dcfg
+	case "kerberos":
+		if spec.Kerberos != nil {
+			return // flat 权威；二者并存时 flat 优先（dtls 同款——扁平入口
+			// 已由 CheckProtoFlat 判死，此处仅守 out-of-band 配置）
+		}
+		// D-KERBEROS-1：层 config 严格往返解码（KerberosConfig
+		// UnmarshalJSON——config 一级 DisallowUnknownFields；sessions/
+		// events 为值切片，未知键在 config 层即拒）。
+		cfgK := completedConfig(s, term.Config)
+		rawK, err := json.Marshal(cfgK)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("kerberos layer config encode: %v", err))
+			return
+		}
+		var kcfg core.KerberosConfig
+		decK := json.NewDecoder(bytes.NewReader(rawK))
+		decK.DisallowUnknownFields()
+		if err := decK.Decode(&kcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("kerberos layer config decode: %v", err))
+			return
+		}
+		spec.Kerberos = &kcfg
 	case "ftp":
 		// 只在扁平路径确实携带了业务内容（sessions/banner/commands/data_channel）
 		// 时才跳过翻译。mapToFlowSpec 对协议 ftp 总会创建一个 FTPConfig

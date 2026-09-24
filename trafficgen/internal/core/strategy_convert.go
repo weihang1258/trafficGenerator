@@ -781,6 +781,18 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// DTLS 标准端口 4433（tshark 自动解码依赖；显式声明合法）。
 		setDefaultDstPort(&spec, cfg, 4433)
+	case "kerberos":
+		// Kerberos V5 (RFC 4120): dual-carrier family (udp datagram / tcp
+		// 4B BE record framing). Config in kerberos layer sub-map
+		// (authoritative); a top-level kerberos sub-map alongside layers is
+		// tolerated with silent flat-wins (translateTerminalConfig early-
+		// returns when spec.Kerberos is already set). Strict decode via
+		// KerberosConfig UnmarshalJSON.
+		if sub, ok := cfg["kerberos"].(map[string]interface{}); ok {
+			parseSubconfigJSON[*KerberosConfig](&spec, sub, "kerberos", &spec.Kerberos)
+		}
+		// KDC 标准端口 88（tshark 自动解码依赖；显式声明合法）。
+		setDefaultDstPort(&spec, cfg, 88)
 	case "sip":
 		if sub, ok := cfg["sip"].(map[string]interface{}); ok {
 			spec.SIP = &SIPConfig{

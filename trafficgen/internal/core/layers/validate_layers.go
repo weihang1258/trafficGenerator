@@ -167,6 +167,64 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 			}
 		}
 	}
+	if protocol == "kerberos" {
+		// D-KERBEROS-1：双载体族预检（bacnet/dcerpc/dtls 预检同构——
+		// DependsOn udp 自动补全前拦，裸 kerberos 层不被补全掩盖）。
+		// udp 与 tcp 各自是合法载体（裁定1），但同链并存 = 载体冲突拒；
+		// 缺载体同面拒。混合地址族同 dtls/bacnet 面（IPv4/IPv6 均合法，
+		// 但 src/dst 必须同族——设计 §9）。
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			hasUDP, hasTCP := false, false
+			for _, item := range probe {
+				if _, ok := item["udp"]; ok {
+					hasUDP = true
+				}
+				if _, ok := item["tcp"]; ok {
+					hasTCP = true
+				}
+				if rawIP, ok := item["ip"]; ok && len(rawIP) > 0 {
+					var ipcfg map[string]interface{}
+					if err := json.Unmarshal(rawIP, &ipcfg); err == nil {
+						srcD, _ := ipcfg["src"].(string)
+						dstD, _ := ipcfg["dst"].(string)
+						if srcD != "" && dstD != "" && strings.Contains(srcD, ":") != strings.Contains(dstD, ":") {
+							return nil, fmt.Errorf("kerberos chain: mixed address family in ip layer (src %q / dst %q) — src and dst must be the same family (family)", srcD, dstD)
+						}
+					}
+				}
+			}
+			if hasUDP && hasTCP {
+				return nil, fmt.Errorf("kerberos chain: udp and tcp carriers both present — one kerberos flow rides a single carrier (carrier)")
+			}
+			if !hasUDP && !hasTCP {
+				return nil, fmt.Errorf("kerberos chain: missing udp/tcp carrier — kerberos requires an [ip,udp,kerberos] or [ip,tcp,kerberos] chain (carrier)")
+			}
+			// 会话 src_ip 覆盖是 UDP 面（datagram 端点覆盖——bacnet/dtls
+			// 先例）；TCP 连接身份 = 四元组 connKey，带 DstIP 覆盖的 down
+			// 事件会被折叠成第二条连接——tcp 载体 + src_ip 声明即拒。
+			// 守卫住同步预检面（生成期错误会被 Plan goroutine 吞成空流
+			// ——megaco 修轮⑨同教训）。
+			if hasTCP {
+				for _, item := range probe {
+					rawK, ok := item["kerberos"]
+					if !ok {
+						continue
+					}
+					var kcfg struct {
+						Sessions []map[string]json.RawMessage `json:"sessions"`
+					}
+					if json.Unmarshal(rawK, &kcfg) == nil {
+						for si, se := range kcfg.Sessions {
+							if v, ok := se["src_ip"]; ok && string(v) != `""` && string(v) != "null" {
+								return nil, fmt.Errorf("kerberos chain: sessions[%d].src_ip override rides the udp carrier only — tcp flow identity is the connection four-tuple (carrier)", si)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 	effective, err := ValidateLayers(layersJSON, protocol)
 	if err != nil {
 		return nil, err

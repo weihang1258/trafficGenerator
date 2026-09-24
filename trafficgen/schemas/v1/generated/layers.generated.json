@@ -1643,6 +1643,30 @@
         }
       }
     },
+    "kerberos": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "transport_on": [
+        "udp",
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "88",
+        "udp.dst_port": "88"
+      },
+      "fields": {
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "wire_fault": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
     "l2tp": {
       "category": "terminal",
       "depends_on": [

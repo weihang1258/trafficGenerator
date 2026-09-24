@@ -1816,6 +1816,7 @@ type FlowSpec struct {
 	BACNET      *BACNETConfig      `json:"bacnet,omitempty"`
 	DCERPC      *DCERPCConfig      `json:"dcerpc,omitempty"`
 	DTLS        *DTLSConfig        `json:"dtls,omitempty"`
+	Kerberos    *KerberosConfig    `json:"kerberos,omitempty"`
 	NTP         *NTPConfig         `json:"ntp,omitempty"`
 	OpenVPN     *OpenVPNConfig     `json:"openvpn,omitempty"`
 	PostgreSQL  *PostgreSQLConfig  `json:"postgresql,omitempty"`

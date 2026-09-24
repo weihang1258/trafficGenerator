@@ -766,6 +766,17 @@ func buildDefaultRegistry() {
 			"wire_fault": {Type: "string", Default: ""}, // 6 值枚举（D-DTLS-1 §10 表）；""=无故障
 		},
 	})
+	r.Register(LayerSchema{Name: "kerberos", Category: CategoryTerminal,
+		DependsOn:   []string{"udp"},
+		TransportOn: []string{"udp", "tcp"}, // 双载体：udp 一数据报一消息 / tcp 4B BE record 长度分帧（RFC 4120 §6，裁定1/7）——transport-dup 检查据此放行单载体、拒双载体并存
+		// D-KERBEROS-1：KDC 惯用端口 88 双载体同契约（tshark kerberos
+		// dissector 自动解码依赖）。
+		FieldContract: map[string]string{"udp.dst_port": "88", "tcp.dst_port": "88"},
+		Fields: map[string]FieldSchema{
+			"sessions":   {Type: "list", Default: []interface{}{}},
+			"wire_fault": {Type: "string", Default: ""}, // 6 值枚举（D-KERBEROS-1 §10 表）；""=无故障
+		},
+	})
 	r.Register(LayerSchema{Name: "cql", Category: CategoryTerminal, DependsOn: []string{"tcp"}})
 	r.Register(LayerSchema{Name: "iec104", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "2404"},
