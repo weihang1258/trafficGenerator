@@ -402,12 +402,20 @@ func (r *Registry) validateChain(chain []Layer) error {
 	// "非末层位置" 会把 [ip,tcp,http,dns] 的 http 也豁免掉（dns 不依赖
 	// http，http 是货真价实的第二个终结层），两个终结层被静默放行成
 	// dns-only 流。
+	//
+	// OptionalOn 一并计入底座关系：schema.go 声明 OptionalOn = "本层 MAY
+	// 坐在这些层上（系统不自动插入，用户显式写才启用）"。@ocsp-spnego-ntlm
+	// 双 profile：X 声明 DependsOn ["tcp"]+OptionalOn ["http"] 时，显式写了
+	// http 的链 [ip,tcp,http,X] 中 http 是 X 的底座而非第二个终结层 —— 此前
+	// 只查 DependsOn 导致该链被 dup 拒绝（声明与实现不一致）。存量零影响：
+	// 现有 OptionalOn 值只有 tls/eth，无终结层声明 http。
 	dependedOn := func(self int, name string) bool {
 		for k, inner := range chain {
 			if k == self || inner.Name == name {
 				continue
 			}
-			if s, ok := r.Get(inner.Name); ok && contains(s.DependsOn, name) {
+			if s, ok := r.Get(inner.Name); ok &&
+				(contains(s.DependsOn, name) || contains(s.OptionalOn, name)) {
 				return true
 			}
 		}
