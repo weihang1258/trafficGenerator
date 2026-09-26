@@ -2286,6 +2286,58 @@
       },
       "fields": {}
     },
+    "ntlm": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "transport_on": [
+        "tcp"
+      ],
+      "optional_on": [
+        "http"
+      ],
+      "fields": {
+        "encrypted_random_session_key": {
+          "type": "int",
+          "default": 0,
+          "max": 65535
+        },
+        "flags": {
+          "type": "object"
+        },
+        "mic": {
+          "type": "bool",
+          "default": false
+        },
+        "ntlmv2_response": {
+          "type": "object"
+        },
+        "outer": {
+          "type": "string",
+          "default": ""
+        },
+        "profile": {
+          "type": "string",
+          "default": ""
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "target_info": {
+          "type": "object"
+        },
+        "version": {
+          "type": "string",
+          "default": ""
+        },
+        "wire_fault": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
     "ntp": {
       "category": "terminal",
       "depends_on": [

@@ -25,6 +25,10 @@ var allowedProtocols = map[string]bool{
 	"dcerpc":   true,
 	"dtls":     true,
 	"kerberos": true,
+	// D-NTLM-1：ntlm 已注册 layer/planner（20 语义用例落地，占位例
+	// ntlm_neg_unregistered 随之移除——契约 §1）。与 _neg_unregistered
+	// 占位同批翻转：否则占位锚词由 unknown layer 漂移。
+	"ntlm": true,
 	"dhcp":     true, "dhcpv6": true, "dnp3": true, "dns": true,
 	"doip": true, "drda": true, "edp": true, "enip": true, "fins": true, "xmrmining": true,
 	"ftp": true, "gbt32960": true, "goose": true, "gre": true,

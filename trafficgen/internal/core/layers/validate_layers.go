@@ -225,6 +225,63 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 			}
 		}
 	}
+	if protocol == "ntlm" {
+		// D-NTLM-1 裁定 N1：tcp 是唯一载体（DependsOn tcp 自动补全前拦——
+		// 裸 ntlm 层不被补全掩盖，bacnet/dcerpc/dtls/kerberos 预检同构）；
+		// 链夹 udp = 载体错（TransportOn 纯 tcp）；混合地址族同 dtls/bacnet 面。
+		// profile↔底座一致性：smb2 自封 SMB2 帧，带 http 底座会二次成帧 → 拒；
+		// http-negotiate 允许显式 http 底座（透传变换器原样转发）。
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			hasTCP, hasUDP, hasHTTP := false, false, false
+			for _, item := range probe {
+				if _, ok := item["tcp"]; ok {
+					hasTCP = true
+				}
+				if _, ok := item["udp"]; ok {
+					hasUDP = true
+				}
+				if _, ok := item["http"]; ok {
+					hasHTTP = true
+				}
+				if rawIP, ok := item["ip"]; ok && len(rawIP) > 0 {
+					var ipcfg map[string]interface{}
+					if err := json.Unmarshal(rawIP, &ipcfg); err == nil {
+						srcN, _ := ipcfg["src"].(string)
+						dstN, _ := ipcfg["dst"].(string)
+						if srcN != "" && dstN != "" && strings.Contains(srcN, ":") != strings.Contains(dstN, ":") {
+							return nil, fmt.Errorf("ntlm chain: mixed address family in ip layer (src %q / dst %q) — src and dst must be the same family (family)", srcN, dstN)
+						}
+					}
+				}
+			}
+			if hasUDP {
+				return nil, fmt.Errorf("ntlm chain: udp carrier is not supported — NTLM rides tcp only ([ip,tcp,ntlm] or [ip,tcp,http,ntlm]) (transport)")
+			}
+			if !hasTCP {
+				return nil, fmt.Errorf("ntlm chain: missing tcp carrier — NTLM requires an [ip,tcp,ntlm] chain (carrier)")
+			}
+			if hasHTTP {
+				// profile 读层内声明（空 = 缺省档 smb2）。
+				profile := ""
+				for _, item := range probe {
+					rawN, ok := item["ntlm"]
+					if !ok {
+						continue
+					}
+					var ncfg struct {
+						Profile string `json:"profile"`
+					}
+					if json.Unmarshal(rawN, &ncfg) == nil {
+						profile = ncfg.Profile
+					}
+				}
+				if profile != "http-negotiate" {
+					return nil, fmt.Errorf("ntlm chain: http carrier layer requires profile %q — smb2 self-frames SMB2 SESSION_SETUP and must not carry an http layer (profile)", "http-negotiate")
+				}
+			}
+		}
+	}
 	effective, err := ValidateLayers(layersJSON, protocol)
 	if err != nil {
 		return nil, err

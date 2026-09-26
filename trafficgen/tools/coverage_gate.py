@@ -3040,9 +3040,168 @@ def check_dtls(cases):
     return rows
 
 
+def check_ntlm(cases):
+    """D-NTLM-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 ntlm", '"ntlm": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 ntlm（已准入）", '"ntlm"' not in pt[i_neg:i_neg + 500], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case ntlm（严格解码）", 'case "ntlm":' in tr and "DisallowUnknownFields" in tr, "在案"))
+    rows.append(("FlowMeta.NTLM 直传（Meta 字面量检查点）",
+                 re.search(r"NTLM:\s+spec\.NTLM\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.NTLM 字段", re.search(r"NTLM\s+\*core\.NTLMConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.NTLM 字段", re.search(r"NTLM\s+\*NTLMConfig", ty) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "ntlm"')
+    reg_block = rg[i_reg:rg.index('Name: "cql"', i_reg)]
+    rows.append(("registry ntlm 行（裁定 N1：DependsOn tcp + OptionalOn http + TransportOn tcp）",
+                 'DependsOn:   []string{"tcp"}' in reg_block
+                 and 'OptionalOn:  []string{"http"}' in reg_block
+                 and 'TransportOn: []string{"tcp"}' in reg_block, "在案"))
+    rows.append(("registry 无 FieldContract（双端口 profile；smb 先例）",
+                 "FieldContract" not in reg_block, "无（端口按 profile 两档）"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    i_vl = vl.index('if protocol == "ntlm" {')
+    vl_block = vl[i_vl:vl.index("effective, err := ValidateLayers", i_vl)]
+    rows.append(("载体预检（缺 tcp / 夹 udp / 混合族 / profile↔http 底座）",
+                 "missing tcp carrier" in vl_block and "udp carrier is not supported" in vl_block
+                 and "mixed address family in ip layer" in vl_block
+                 and "http carrier layer requires profile" in vl_block, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(ntlm)",
+                 "internal/protocol/ntlm" in mn and 'NewChainPlanner("ntlm")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("strategy_convert case ntlm + profile 端口缺省（445/80）",
+                 'case "ntlm":' in sc and "parseSubconfigJSON[*NTLMConfig]" in sc
+                 and "port := uint16(445)" in sc and "port = 80" in sc, "在案"))
+    rows.append(("CheckProtoFlat 顶层 ntlm 子映射 presence 判死",
+                 "protocol ntlm no longer accepts a top-level ntlm sub-config" in sc, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain_planner ntlm 目的端口按 profile 缺省",
+                 'case "ntlm":' in cp and 'spec.NTLM.Profile == "http-negotiate"' in cp, "在案"))
+    hl = (tg / "internal" / "protocol" / "http" / "layer_gen.go").read_text()
+    rows.append(("http 透传变换器（[ip,tcp,http,ntlm] 底座可用）",
+                 "meta.NTLM != nil" in hl, "在案"))
+
+    # 2. 行为面（原语/关键件）。
+    nb = (tg / "internal" / "core" / "ntlm.go").read_text()
+    for struct, name in [
+        ("type NTLMConfig struct", "NTLMConfig（宏配置）"),
+        ("type NTLMFlags struct", "NTLMFlags 指针三态（契约 §6）"),
+        ("type NTLMTargetInfo struct", "NTLMTargetInfo AV 声明（契约 §6）"),
+        ("type NTLMAVPair struct", "NTLMAVPair（AvId|AvLen|Value）"),
+        ("type NTLMType3Config struct", "NTLMType3Config（blob 形态）"),
+        ("type NTLMSession struct", "NTLMSession（多会话隔离）"),
+        ("type NTLMEvent struct", "NTLMEvent（载体事件）"),
+    ]:
+        rows.append((f"关键件：{name}", struct in nb, "在案"))
+    _i = nb.index("anchors := map[string]string{")
+    _seg = nb[_i:nb.index("\n\t}", _i)]
+    _n = len(re.findall(r"NTLMWireFault[A-Za-z0-9]+:", _seg))
+    rows.append(("wire_fault 闭环 6 值锚词表", _n == 6, f"{_n} 值"))
+    _n_un = nb.count("UnmarshalJSON(b []byte) error")
+    rows.append(("递归严格解码（strictUnmarshalJSON + 逐级 UnmarshalJSON）",
+                 "func strictUnmarshalJSON" in nb and _n_un >= 7, f"{_n_un} 级"))
+    bl = (tg / "internal" / "protocol" / "ntlm" / "builder.go").read_text()
+    for prim, name in [
+        ("func buildType1", "Type 1 NEGOTIATE 32/40B 固定头 + SecurityBuffer"),
+        ("func buildType2", "Type 2 CHALLENGE 48/56B + ServerChallenge(8B)"),
+        ("func buildType3", "Type 3 AUTHENTICATE 64/72/88B + 六类 buffer"),
+        ("func buildNTLMv2Blob", "NTLMv2 blob（Proof|RV|HRV|Res|TS|CC|Res2|AvPairs|EOL）"),
+        ("func buildTargetInfoAVs", "TargetInfo AV_PAIR 序列（AvLen 只计 value）"),
+        ("func avPair", "AV_PAIR 4-byte header 原语"),
+        ("func avEOL", "MsvAvEOL 收尾必须项"),
+        ("func putSecBuf", "SecurityBuffer Len|MaxLen|Offset little-endian"),
+        ("func versionField", "8-byte Version（NEGOTIATE_VERSION 置位才有）"),
+        ("func wrapSPNEGO", "SPNEGO 外层独立编码（RFC 4178 隔离）"),
+        ("func frameSMB2", "SMB2 SESSION_SETUP 成帧（MS-SMB2 §3.2.5.3）"),
+        ("func frameHTTP", "HTTP 401/Negotiate 成帧（RFC 4559）"),
+        ("fixtureFill", "proof/MIC/session key opaque 占位（无密钥不伪造）"),
+        ("smb2StatusMoreProcessing", "STATUS_MORE_PROCESSING_REQUIRED"),
+        ("smb2StatusLogonFailure", "STATUS_LOGON_FAILURE"),
+        ("smb2SessionSetupReqOffset", "SecurityBufferOffset 88/72（相对 SMB2 起点）"),
+        ("RegisterLayerGenerator", "init 注册生成器"),
+        ("RegisterLayerValidator", "init 注册校验器"),
+        ("func (g *NTLMGenerator) GenEvents", "事件生成器面（链驱动）"),
+        ("func profileOf", "profile 归一（空=缺省档 smb2）"),
+        ("func seedFor", "会话确定性种子（rand seed+序号可复现）"),
+    ]:
+        rows.append((f"关键件：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "ntlm" / "planner.go").read_text()
+    for prim, name in [
+        ("func validateSpec", "入口校验"),
+        ("func validateProfile", "profile/version/outer 值域"),
+        ("func validateType3Config", "Type3/blob 长度面"),
+        ("func validateAVPair", "AV 项 Text/ValueHex 互斥"),
+        ("func validateFlags", "flags↔TargetInfo 一致 + OEM 编码"),
+        ("func validateSession", "事件 kind/状态机/长度"),
+        ("func kindAllowed", "profile↔载体事件一致性"),
+        ("func advance", "状态机 Initial→…→Accepted/Rejected（契约 §9）"),
+        ("func validateWireFault", "wire_fault 注入拒 + 锚词出口"),
+    ]:
+        rows.append((f"关键件：{name}", prim in pl, "在案"))
+
+    # 3. 守卫锚词（负例通道）。
+    for anchor, name in [
+        ("(flags)", "flags/TargetInfo 协商不一致"),
+        ("(unicode)", "OEM 编码面（Unicode 关闭 + 非 latin-1）"),
+        ("(av)", "AV_PAIR 缺 EOL / 非法项"),
+        ("(length)", "长度面（负数/越界/非 8 字节 challenge）"),
+        ("(profile)", "profile↔事件 kind 混用"),
+        ("(version)", "NTLMv1/LM 方言明确不支持"),
+        ("(spnego)", "outer 值域"),
+        ("(kind)", "未知事件 kind"),
+        ("negative-path injection rejected", "wire_fault 注入拒"),
+    ]:
+        rows.append((f"守卫：{name}", anchor in pl or anchor in bl or anchor in nb, f"锚词 {anchor}"))
+    rows.append(("守卫：未知 wire_fault 值拒", "unknown wire_fault kind" in nb, "在案"))
+
+    # 4. 用例面（20 例，ID 权威=60-ntlm-testcase.md §2）。
+    idset = {c.get("id", "") for c in cases}
+    for cid in [
+        "ntlm_smb_ipv4_v2_basic", "ntlm_smb_ipv6_v2_basic",
+        "ntlm_http_negotiate_v2", "ntlm_negotiate_flags_version",
+        "ntlm_challenge_target_info", "ntlm_authenticate_security_buffers",
+        "ntlm_ntlmv2_blob_av_pairs", "ntlm_mic_session_key_opaque",
+        "ntlm_spnego_outer_separation", "ntlm_multi_session_isolation",
+        "ntlm_multi_flow_streams", "ntlm_retry_auth_failure",
+        "ntlm_record_boundary_offsets", "ntlm_pcap_nic_consistency",
+        "ntlm_neg_message_truncated", "ntlm_neg_security_buffer",
+        "ntlm_neg_offsets_overlap_overflow", "ntlm_neg_flags_target_info",
+        "ntlm_neg_v2_blob_av_pairs", "ntlm_neg_carrier_profile",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in idset, "在案"))
+    rows.append(("注册前置占位 ntlm_neg_unregistered 已移除",
+                 "ntlm_neg_unregistered" not in idset, "已移除"))
+    rows.append(("用例总数 20（14 正+6 负）", len(cases) == 20, f"{len(cases)} 例"))
+    pos = [c for c in cases if "expect_error" not in (c.get("expect") or {})]
+    neg = [c for c in cases if "expect_error" in (c.get("expect") or {})]
+    rows.append(("14 正 + 6 负", len(pos) == 14 and len(neg) == 6, f"{len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("正例均带 packet_count", all((c.get("expect") or {}).get("packet_count") for c in pos), "全部在案"))
+    bad_keys = [c.get("id") for c in neg
+                if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}", not bad_keys, bad_keys or "全部合规"))
+    code_anchors = set(re.findall(r'\(([a-z_]+)\)"', pl + bl))
+    code_anchors |= set(re.findall(r'\(([a-z_]+)\)"', vl_block))
+    code_anchors |= set(re.findall(r'NTLMWireFault[A-Za-z0-9]+:\s*"([a-z]+)"', nb))
+    bad_a = [f"{c.get('id')}:{ec}" for c in neg
+             for ec in [(c.get("expect") or {}).get("error_contains", "")]
+             if ec not in code_anchors]
+    rows.append(("6 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
+    return rows
+
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm}
 
 
 def main(argv):

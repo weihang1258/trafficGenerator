@@ -20,6 +20,9 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		"a2a", "amqp", "arp", "bacnet", "bgp", "cflow", "coap", "cql", "dameng",
 		"dcerpc", "dtls",
 		"dhcp", "dhcpv6", "dnp3", "dns", "doip", "drda", "enip", "fins",
+		// D-NTLM-1 #45：ntlm 已注册 layer/planner（20 语义用例落地，占位例
+		// ntlm_neg_unregistered 移除——契约 §1）。dtls/kerberos 先例。
+		"ntlm",
 		"ftp", "gbt32960", "goose", "gre", "grpc", "gtp", "h323", "hds",
 		"hl7", "hls", "http", "http_flv", "icmp", "icmpv6", "iec104", "igmp", "ike",
 		"ike_nat_t", "imap", "isis", "jt808", "jt809", "jtt905", "kerberos", "l2tp",
@@ -101,7 +104,9 @@ func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 		// 用例落地，占位例随之移除——契约 §1）。mmse/hl7/megaco 先例。
 		// D-MMSE-1：mmse 已注册 layer/planner，摘出 negativeOnly（100 语义
 		// 用例 P5 落地，占位例随之移除——契约 §1）。hl7/megaco 先例。
-		"ntlm", "ocsp",
+		// D-NTLM-1：ntlm 已注册 layer/planner，摘出 negativeOnly（20 语义
+		// 用例落地，占位例随之移除——契约 §1）。kerberos/dtls 先例。
+		"ocsp",
 		"spnego", "sstp",
 	}
 	for _, name := range negativeOnly {

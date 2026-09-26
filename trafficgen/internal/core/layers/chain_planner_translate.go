@@ -145,6 +145,11 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// D-KERBEROS-1：kerberos 终结层同款（sessions[]/events[] 经 Meta
 		// 直传生成器；每事件 = 一消息 = 一 UDP datagram 或一 TCP record）。
 		Kerberos: spec.Kerberos,
+		// D-NTLM-1：ntlm 终结层同款（sessions[]/events[] 经 Meta 直传生成器；
+		// 每事件 = 一 NTLMSSP 消息（按 profile 自封 SMB2/HTTP 帧）或一载体
+		// 终态响应；固定检查点——Meta 字面量漏传即生成器收 nil 配置，
+		// 链级红例逐项钉死（dcerpc/dtls/kerberos 三犯处教训）。
+		NTLM: spec.NTLM,
 		CQL:      spec.CQL,
 		LDP:      spec.LDP,
 		PCEP:     spec.PCEP,
@@ -2229,6 +2234,29 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.Kerberos = &kcfg
+	case "ntlm":
+		if spec.NTLM != nil {
+			return // flat 权威；二者并存时 flat 优先（kerberos/dtls 同款）
+		}
+		// D-NTLM-1：层 config 严格往返解码（NTLMConfig UnmarshalJSON——
+		// config/session/event/flags/target_info/ntlmv2_response 六级
+		// DisallowUnknownFields；未知键在解码层即拒）。
+		cfgN := completedConfig(s, term.Config)
+		rawN, err := json.Marshal(cfgN)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("ntlm layer config encode: %v", err))
+			return
+		}
+		var ncfg core.NTLMConfig
+		decN := json.NewDecoder(bytes.NewReader(rawN))
+		decN.DisallowUnknownFields()
+		if err := decN.Decode(&ncfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("ntlm layer config decode: %v", err))
+			return
+		}
+		spec.NTLM = &ncfg
 	case "ftp":
 		// 只在扁平路径确实携带了业务内容（sessions/banner/commands/data_channel）
 		// 时才跳过翻译。mapToFlowSpec 对协议 ftp 总会创建一个 FTPConfig

@@ -777,6 +777,33 @@ func buildDefaultRegistry() {
 			"wire_fault": {Type: "string", Default: ""}, // 6 值枚举（D-KERBEROS-1 §10 表）；""=无故障
 		},
 	})
+	// ntlm（MS-NLMP NTLMv2 三消息）：裁定 N1——`DependsOn ["tcp"]`（唯一载体；
+	// tcp 层管握手/seq-ack/挥手/MSS 分段，NTLMSSP 消息可跨 segment）+
+	// `OptionalOn ["http"]`（显式写 [ip,tcp,http,ntlm] 才启用可选底座；框架
+	// 0c355be 把 OptionalOn 计入终结层底座豁免）+ `TransportOn ["tcp"]`（NTLM
+	// 无 UDP 语义，udp 零值）。两 profile 均由 ntlm 层自封帧（smb2：SMB2
+	// SESSION_SETUP SecurityBuffer；http-negotiate：HTTP 401/Negotiate 头），
+	// http 底座仅作透传（http 层 isHTTPRPCInner 含 NTLM）。
+	// 无 FieldContract：目的端口按 profile 两档（smb2→445 / http-negotiate→80），
+	// 常量形对双端口 profile 不适用（smb 无 FieldContract 先例）——端口缺省
+	// 走 chain_planner/strategy_convert 的 profile 分支。
+	r.Register(LayerSchema{Name: "ntlm", Category: CategoryTerminal,
+		DependsOn:   []string{"tcp"},
+		OptionalOn:  []string{"http"},
+		TransportOn: []string{"tcp"},
+		Fields: map[string]FieldSchema{
+			"profile":                      {Type: "string", Default: ""}, // smb2（缺省档）/ http-negotiate
+			"version":                      {Type: "string", Default: ""}, // ntlmv2（正例唯一档）
+			"outer":                        {Type: "string", Default: ""}, // none（缺省）/ spnego
+			"flags":                        {Type: "object"},
+			"target_info":                  {Type: "object"},
+			"ntlmv2_response":              {Type: "object"},
+			"mic":                          {Type: "bool", Default: false},
+			"encrypted_random_session_key": {Type: "int", Default: 0, Min: 0, Max: 65535},
+			"sessions":                     {Type: "list", Default: []interface{}{}},
+			"wire_fault":                   {Type: "string", Default: ""}, // 6 值枚举（D-NTLM-1 §2/§10 表）；""=无故障
+		},
+	})
 	r.Register(LayerSchema{Name: "cql", Category: CategoryTerminal, DependsOn: []string{"tcp"}})
 	r.Register(LayerSchema{Name: "iec104", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "2404"},
