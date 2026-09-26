@@ -397,6 +397,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-SSTP-1：sstp 在库旧策略顶层 sstp → ValidationErrors（hl7/mmse 同款；
+	// 空 map 也死——契约 §16-P2 判死形状「层链+顶层空子映射并存」wired 面）。
+	if protocol == "sstp" {
+		if v, ok := cfg["sstp"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-HL7-1：hl7 在库旧策略顶层 hl7 → ValidationErrors（megaco 同款；
 	// 在库 0 行纯防御）。
 	if protocol == "hl7" {
@@ -806,6 +813,16 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			port = 80
 		}
 		setDefaultDstPort(&spec, cfg, port)
+	case "sstp":
+		// SSTP (MS-SSTP): terminal layer over the tls carrier ([ip, tcp,
+		// tls, sstp]); config lives in the sstp layer sub-map only
+		// (authoritative). A top-level sstp sub-map alongside layers is dead
+		// config — CheckProtoFlat judges it (presence), so nothing is parsed
+		// here: one truth (the layer chain), no second decode path. Strict
+		// decode via SSTPConfig UnmarshalJSON in translateTerminalConfig.
+		// HTTPS 载体端口 443（tls 层 FieldContract 同值；tshark tls
+		// dissector 自动解码依赖）。
+		setDefaultDstPort(&spec, cfg, 443)
 	case "sip":
 		if sub, ok := cfg["sip"].(map[string]interface{}); ok {
 			spec.SIP = &SIPConfig{
@@ -8389,6 +8406,14 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "pop3" {
 		if v, ok := cfg["pop3"]; ok && v != nil {
 			return "protocol pop3 no longer accepts a top-level pop3 sub-config (move it into the pop3 layer of an [ip,tcp,pop3] layers chain)"
+		}
+	}
+	// D-SSTP-1：sstp 顶层 sstp 子映射 presence 判死（kerberos 之后的 sstp
+	// 层链唯一真相；空 map 也死——契约 §16-P2 点名形状「层链+顶层空子映射
+	// 并存=判死负例」）。层链形状不触发。
+	if protocol == "sstp" {
+		if v, ok := cfg["sstp"]; ok && v != nil {
+			return "protocol sstp no longer accepts a top-level sstp sub-config (move it into the sstp layer of an [ip,tcp,tls,sstp] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-IMAP-1：imap 顶层 imap 子映射 presence 判死（pop3 先例；空 map 也

@@ -150,6 +150,11 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// 终态响应；固定检查点——Meta 字面量漏传即生成器收 nil 配置，
 		// 链级红例逐项钉死（dcerpc/dtls/kerberos 三犯处教训）。
 		NTLM: spec.NTLM,
+		// D-SSTP-1：sstp 终结层同款（sessions[]/transactions[] 或 events[]
+		// 经 Meta 直传生成器；每事务 = 一条 SSTP message，经 tls 层
+		// application-data 透传——record/TCP segment 边界 ≠ SSTP Length
+		// 边界，契约 §5/§8）。
+		SSTP:     spec.SSTP,
 		CQL:      spec.CQL,
 		LDP:      spec.LDP,
 		PCEP:     spec.PCEP,
@@ -2257,6 +2262,31 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.NTLM = &ncfg
+	case "sstp":
+		if spec.SSTP != nil {
+			return // flat 权威；二者并存时 flat 优先（kerberos/dtls 同款——
+			// 扁平入口已由 CheckProtoFlat 判死顶层 sstp 子映射，此处仅守
+			// out-of-band 配置）
+		}
+		// D-SSTP-1：层 config 严格往返解码（SSTPConfig UnmarshalJSON——
+		// DisallowUnknownFields 递归作用于 sessions[]/transactions[]/
+		// attributes[]/ppp 嵌套结构；未知键在 config 层即拒）。
+		cfgS := completedConfig(s, term.Config)
+		rawS, err := json.Marshal(cfgS)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("sstp layer config encode: %v", err))
+			return
+		}
+		var scfg core.SSTPConfig
+		decS := json.NewDecoder(bytes.NewReader(rawS))
+		decS.DisallowUnknownFields()
+		if err := decS.Decode(&scfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("sstp layer config decode: %v", err))
+			return
+		}
+		spec.SSTP = &scfg
 	case "ftp":
 		// 只在扁平路径确实携带了业务内容（sessions/banner/commands/data_channel）
 		// 时才跳过翻译。mapToFlowSpec 对协议 ftp 总会创建一个 FTPConfig

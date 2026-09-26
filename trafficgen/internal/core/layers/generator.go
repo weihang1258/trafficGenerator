@@ -381,6 +381,7 @@ type FlowMeta struct {
 	DTLS       *core.DTLSConfig     // D-DTLS-1：dtls 终结层（DTLS 1.0/1.2 records over UDP，4433 单载体）
 	Kerberos   *core.KerberosConfig // D-KERBEROS-1：kerberos 终结层（Kerberos V5 DER，UDP/TCP 88 双载体）
 	NTLM       *core.NTLMConfig     // D-NTLM-1：ntlm 终结层（NTLMv2 三消息，SMB2/HTTP Negotiate 双 profile 自封帧，TCP 单载体）
+	SSTP       *core.SSTPConfig     // D-SSTP-1：sstp 终结层（MS-SSTP over TLS/TCP 443，tls 变换器透传）
 	CQL        *core.CQLConfig
 	LDP        *core.LDPConfig
 	PCEP       *core.PCEPConfig

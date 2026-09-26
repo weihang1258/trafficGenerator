@@ -282,6 +282,78 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 			}
 		}
 	}
+
+	if protocol == "sstp" {
+		// D-SSTP-1：TLS 载体预检（bacnet/dcerpc/dtls/kerberos 预检同构——
+		// DependsOn tls 自动补全前拦，裸 TCP/UDP 形不被补全掩盖）。
+		//   - 缺 tls 层 → 拒（裸 TCP/明文形：SSTP 只在 TLS application-data
+		//     里承载，契约 §1/§5）；
+		//   - 有 udp 层 → 拒（SSTP 无 UDP 载体，契约 §2/§18）；
+		//   - 层链里 tls 的直接内层邻居不是 sstp（含明文 HTTP 冒充 SSTP）→ 拒；
+		//   - tcp 层显式 dst_port ≠ 443 → 拒（契约 §18"非 TCP/443"）；
+		//   - 混合地址族 → 拒（设计 §9 地址族一致性）。
+		// 锚词按契约 §11 第 18 行：transport / tls。
+		const sstpCarrierPort = 443
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil && len(probe) > 0 {
+			names := make([]string, 0, len(probe))
+			for _, item := range probe {
+				for name := range item {
+					names = append(names, name)
+					break
+				}
+				if rawIP, ok := item["ip"]; ok && len(rawIP) > 0 {
+					var ipcfg map[string]interface{}
+					if err := json.Unmarshal(rawIP, &ipcfg); err == nil {
+						srcS, _ := ipcfg["src"].(string)
+						dstS, _ := ipcfg["dst"].(string)
+						if srcS != "" && dstS != "" && strings.Contains(srcS, ":") != strings.Contains(dstS, ":") {
+							return nil, fmt.Errorf("sstp chain: mixed address family in ip layer (src %q / dst %q) — src and dst must be the same family (family)", srcS, dstS)
+						}
+					}
+				}
+				if rawTCP, ok := item["tcp"]; ok && len(rawTCP) > 0 {
+					var tcfg map[string]interface{}
+					if err := json.Unmarshal(rawTCP, &tcfg); err == nil {
+						if raw, has := tcfg["dst_port"]; has && raw != nil {
+							var port int
+							switch n := raw.(type) {
+							case float64:
+								port = int(n)
+							case int:
+								port = n
+							}
+							if port != 0 && port != sstpCarrierPort {
+								return nil, fmt.Errorf("sstp chain: transport carrier port %d is not the HTTPS carrier %d — SSTP rides TCP/%d through TLS only (transport)", port, sstpCarrierPort, sstpCarrierPort)
+							}
+						}
+					}
+				}
+			}
+			hasTLS := false
+			for i, name := range names {
+				if name == "udp" {
+					return nil, fmt.Errorf("sstp chain: udp carrier is not supported — SSTP rides TCP/%d through TLS only (transport)", sstpCarrierPort)
+				}
+				if name != "tls" {
+					continue
+				}
+				hasTLS = true
+				// tls 的直接内层邻居必须是 sstp（明文 HTTP/裸 TCP 冒充 SSTP
+				// 的形状在此拦下）。
+				if i+1 >= len(names) || names[i+1] != "sstp" {
+					inner := "<none>"
+					if i+1 < len(names) {
+						inner = names[i+1]
+					}
+					return nil, fmt.Errorf("sstp chain: layer inside tls is %s, not sstp — plaintext HTTP/bare TCP does not carry SSTP (tls)", inner)
+				}
+			}
+			if !hasTLS {
+				return nil, fmt.Errorf("sstp chain: missing tls carrier — SSTP requires an [ip,tcp,tls,sstp] chain (SSTP messages ride TLS application data) (tls)")
+			}
+		}
+	}
 	effective, err := ValidateLayers(layersJSON, protocol)
 	if err != nil {
 		return nil, err

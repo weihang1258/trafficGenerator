@@ -1,26 +1,1820 @@
 [
   {
-    "id": "sstp_neg_unregistered",
+    "expect": {
+      "directional": true,
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "443"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 4,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 10,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.length",
+          "nonzero": true,
+          "packet": 11
+        },
+        {
+          "field": "tcp.flags",
+          "packet": 1,
+          "value": "0x0002"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "10 01 00 0e 00 01 00 01",
+          "offset": 59,
+          "packet": 11
+        },
+        {
+          "hex": "10 01 00 30 00 02 00 01 00 04 00 28",
+          "offset": 59,
+          "packet": 12
+        }
+      ],
+      "has_handshake": true,
+      "notes": [
+        "证据红线：无解密密钥，只断言 TCP/443 + tls.record.* + frames hex（record 体内字节），不使用 sstp.*/ppp.* 字段。",
+        "packet_count 16 = 3 TCP 握手 + 7 TLS 握手 record + 2 application-data + 4 TCP 挥手。"
+      ],
+      "packet_count": 16,
+      "terminates": true
+    },
+    "id": "sstp_https_tls_handshake",
     "proto": "sstp",
-    "summary": "SSTP layer is not registered yet; reject at layer validation",
     "spec_json": {
       "layers": [
-        {"ip": {}},
-        {"tcp": {}},
-        {"tls": {}},
-        {"sstp": {}}
-      ],
-      "src_ip": "192.0.2.57",
-      "dst_ip": "198.51.100.57",
-      "src_port": 45057,
-      "dst_port": 443
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "unknown layer",
-      "notes": [
-        "Design-only gate: sstp is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove this placeholder and add the 14 positive and 6 negative semantic cases in testcase order."
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "events": [
+              {
+                "attributes": [
+                  {
+                    "id": 1
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connect_request"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 4
+                  }
+                ],
+                "direction": "s2c",
+                "kind": "call_connect_ack"
+              }
+            ]
+          }
+        }
       ]
-    }
+    },
+    "summary": "TCP/443 + TLS 握手 + application-data 载体（无密钥只断言 TLS）"
+  },
+  {
+    "expect": {
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "443"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 4,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 10,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.length",
+          "nonzero": true,
+          "packet": 11
+        }
+      ],
+      "frames": [
+        {
+          "hex": "10 01 00 0e 00 01 00 01 00 01 00 06 00 01",
+          "offset": 59,
+          "packet": 11
+        }
+      ],
+      "has_handshake": true,
+      "notes": [
+        "REQUEST 全长 14B = 4B common header（Length 覆盖整包）+ 2B Message Type + 2B Num Attributes + 6B 属性（LengthPacket 含 4B 属性头）。"
+      ],
+      "packet_count": 15,
+      "terminates": true
+    },
+    "id": "sstp_call_connect_request",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "events": [
+              {
+                "attributes": [
+                  {
+                    "id": 1
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connect_request"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "CALL CONNECT REQUEST：Length 0x000e、Type 0x0001、Num 1、Encapsulated Protocol ID"
+  },
+  {
+    "expect": {
+      "directional": true,
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "443"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 4,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 10,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.length",
+          "nonzero": true,
+          "packet": 11
+        },
+        {
+          "field": "tcp.srcport",
+          "packet": 12,
+          "value": "443"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "10 01 00 3c 00 02 00 02 00 04 00 28",
+          "offset": 59,
+          "packet": 12
+        },
+        {
+          "hex": "00 02 00 0c 00 00 00 01 00 00 00 00",
+          "offset": 107,
+          "packet": 12
+        }
+      ],
+      "has_handshake": true,
+      "notes": [
+        "ACK 不是 CONNECTED：Message Type 0x0002 与 0x0004 逐字节区别；Length 覆盖全部属性（40 + 12）。",
+        "Status Info value = Reserved1(3) + AttribID(1) + Status(4) + AttribValue(0) = 8B（MS-SSTP §2.2.8）。"
+      ],
+      "packet_count": 16,
+      "terminates": true
+    },
+    "id": "sstp_call_connect_ack",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "events": [
+              {
+                "attributes": [
+                  {
+                    "id": 1
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connect_request"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 4
+                  },
+                  {
+                    "attrib_id": 1,
+                    "id": 2,
+                    "status": 0
+                  }
+                ],
+                "direction": "s2c",
+                "kind": "call_connect_ack"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "CALL CONNECT ACK：Crypto Binding Request + Status Info、方向 s2c"
+  },
+  {
+    "expect": {
+      "directional": true,
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "443"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 4,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 10,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.length",
+          "nonzero": true,
+          "packet": 11
+        }
+      ],
+      "frames": [
+        {
+          "hex": "10 01 00 70 00 04 00 01 00 03 00 68 00 00 00 02",
+          "offset": 59,
+          "packet": 13
+        },
+        {
+          "hex": "10 00 00 20 ff 03 00 21",
+          "offset": 59,
+          "packet": 14
+        }
+      ],
+      "has_handshake": true,
+      "notes": [
+        "PPP data 在 CONNECTED 之后（越序走负例 sstp_neg_state_transition）。"
+      ],
+      "packet_count": 18,
+      "terminates": true
+    },
+    "id": "sstp_call_connected",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "events": [
+              {
+                "attributes": [
+                  {
+                    "id": 1
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connect_request"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 4
+                  }
+                ],
+                "direction": "s2c",
+                "kind": "call_connect_ack"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 3
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connected"
+              },
+              {
+                "direction": "c2s",
+                "kind": "ppp_data",
+                "ppp": {
+                  "payload_len": 24,
+                  "protocol": "ipv4"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "CONNECTED：Length 0x0070、Crypto Binding 0x0068（SHA-256 profile），其后才允许 PPP"
+  },
+  {
+    "expect": {
+      "directional": true,
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "443"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 4,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 10,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.length",
+          "nonzero": true,
+          "packet": 11
+        }
+      ],
+      "frames": [
+        {
+          "hex": "10 01 00 14 00 05 00 01 00 02 00 0c 00 00 00 01 00 00 00 06",
+          "offset": 59,
+          "packet": 15
+        }
+      ],
+      "has_handshake": true,
+      "notes": [
+        "Status 0x00000006 = ATTRIB_STATUS_RETRY_COUNT_EXCEEDED（MS-SSTP §2.2.8 枚举）。",
+        "ABORT 是最后一条 application-data（其后为 TCP 挥手）；续发走负例 state。"
+      ],
+      "packet_count": 19,
+      "terminates": true
+    },
+    "id": "sstp_call_abort",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "events": [
+              {
+                "attributes": [
+                  {
+                    "id": 1
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connect_request"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 4
+                  }
+                ],
+                "direction": "s2c",
+                "kind": "call_connect_ack"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 3
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connected"
+              },
+              {
+                "direction": "c2s",
+                "kind": "ppp_data",
+                "ppp": {
+                  "payload_len": 24,
+                  "protocol": "ipv4"
+                }
+              },
+              {
+                "attributes": [
+                  {
+                    "attrib_id": 1,
+                    "id": 2,
+                    "status": 6
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_abort"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "CALL ABORT：Type 0x0005 + Status Info，ABORT 后无任何后续消息且连接关闭"
+  },
+  {
+    "expect": {
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "443"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 4,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 10,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.length",
+          "nonzero": true,
+          "packet": 11
+        }
+      ],
+      "frames": [
+        {
+          "hex": "00 01 00 06 00 01",
+          "offset": 67,
+          "packet": 11
+        }
+      ],
+      "has_handshake": true,
+      "notes": [
+        "LengthPacket 含 4B 属性头（不是 value 长）：value 2B Protocol ID = 0x0001（PPP，RFC 1661）。",
+        "属性头 Reserved 发送时为 0；Message Type 0x0005/0x0006 不能出现在属性 ID 位（负例 attribute_length）。"
+      ],
+      "packet_count": 15,
+      "terminates": true
+    },
+    "id": "sstp_attribute_protocol_id",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "events": [
+              {
+                "attributes": [
+                  {
+                    "id": 1
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connect_request"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "Encapsulated Protocol ID 属性：Attribute ID 0x01 / LengthPacket 0x0006 / Value 0x0001"
+  },
+  {
+    "expect": {
+      "directional": true,
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "443"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 4,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 10,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.length",
+          "nonzero": true,
+          "packet": 11
+        }
+      ],
+      "frames": [
+        {
+          "hex": "00 02 00 10 00 00 00 02 00 00 00 00 00 00 00 00",
+          "offset": 107,
+          "packet": 12
+        },
+        {
+          "hex": "00 03 00 68 00 00 00 02 5a 5a 5a 5a 5a 5a 5a 5a",
+          "offset": 67,
+          "packet": 13
+        },
+        {
+          "hex": "00 04 00 28 00 00 00 02 5a 5a 5a 5a 5a 5a 5a 5a",
+          "offset": 67,
+          "packet": 12
+        }
+      ],
+      "has_handshake": true,
+      "notes": [
+        "Crypto Binding 总长 104（0x0068）不得截断；Binding Request 总长 40（0x0028）。",
+        "nonce/cert hash/compound MAC 是确定性 fixture（0x5A/0xC3/0xCA 填充），不伪造密码学语义；运行期可动态。"
+      ],
+      "packet_count": 17,
+      "terminates": true
+    },
+    "id": "sstp_attribute_status_crypto",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "events": [
+              {
+                "attributes": [
+                  {
+                    "id": 1
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connect_request"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 4
+                  },
+                  {
+                    "attrib_id": 2,
+                    "id": 2,
+                    "status": 0,
+                    "value_len": 4
+                  }
+                ],
+                "direction": "s2c",
+                "kind": "call_connect_ack"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 3
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connected"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "Status Info（0x02）+ Crypto Binding（0x03）：总长 0x0068/变长，ACK 与 CONNECTED 的 nonce 同值"
+  },
+  {
+    "expect": {
+      "directional": true,
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "443"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 4,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 10,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.length",
+          "nonzero": true,
+          "packet": 11
+        }
+      ],
+      "frames": [
+        {
+          "hex": "10 00 00 30 ff 03 00 21 45 00 00 28 00 00 00 00 40 01",
+          "offset": 59,
+          "packet": 14
+        },
+        {
+          "hex": "0a 00 00 01 0a 00 00 02",
+          "offset": 79,
+          "packet": 14
+        }
+      ],
+      "has_handshake": true,
+      "notes": [
+        "PPP protocol 由 sstp 层声明（ipv4→0x0021），不由 outer IP 地址族推导（契约 §7）。",
+        "IPv4 头校验和按 RFC 1071 在合成载荷上实算（frame hex 钉前 20B）。"
+      ],
+      "packet_count": 18,
+      "terminates": true
+    },
+    "id": "sstp_ppp_ipv4",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "events": [
+              {
+                "attributes": [
+                  {
+                    "id": 1
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connect_request"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 4
+                  }
+                ],
+                "direction": "s2c",
+                "kind": "call_connect_ack"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 3
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connected"
+              },
+              {
+                "direction": "c2s",
+                "kind": "ppp_data",
+                "ppp": {
+                  "payload_len": 40,
+                  "protocol": "ipv4"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "C=0 PPP IPv4：ff 03 00 21 + IPv4 头（version/length/checksum 实算）"
+  },
+  {
+    "expect": {
+      "directional": true,
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "443"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 4,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 10,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.length",
+          "nonzero": true,
+          "packet": 11
+        }
+      ],
+      "frames": [
+        {
+          "hex": "10 00 00 44 ff 03 00 57 60 00 00 00 00 14 3b 40",
+          "offset": 59,
+          "packet": 14
+        },
+        {
+          "hex": "20 01 0d b8 00 00 00 00 00 00 00 00 00 00 00 01",
+          "offset": 75,
+          "packet": 14
+        }
+      ],
+      "has_handshake": true,
+      "notes": [
+        "IPv6 独立 fixture：地址族与 IPv4 例互不改写（outer 仍为 IPv4/443 载体）。"
+      ],
+      "packet_count": 18,
+      "terminates": true
+    },
+    "id": "sstp_ppp_ipv6",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "events": [
+              {
+                "attributes": [
+                  {
+                    "id": 1
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connect_request"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 4
+                  }
+                ],
+                "direction": "s2c",
+                "kind": "call_connect_ack"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 3
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connected"
+              },
+              {
+                "direction": "c2s",
+                "kind": "ppp_data",
+                "ppp": {
+                  "payload_len": 60,
+                  "protocol": "ipv6"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "C=0 PPP IPv6：ff 03 00 57 + IPv6 头（version/payload length/Next Header 59）"
+  },
+  {
+    "expect": {
+      "directional": true,
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "443"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 4,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 10,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.length",
+          "nonzero": true,
+          "packet": 11
+        }
+      ],
+      "frames": [
+        {
+          "hex": "10 00 00 18 ff 03 00 fd 5a 5a 5a 5a",
+          "offset": 59,
+          "packet": 14
+        },
+        {
+          "hex": "10 00 00 1c ff 03 00 fd 5a 5a 5a 5a",
+          "offset": 59,
+          "packet": 15
+        }
+      ],
+      "has_handshake": true,
+      "notes": [
+        "MPPE 只改 information 的加密表示，不改 SSTP Length 或 PPP protocol 语义边界（契约 §7）。",
+        "无解密密钥：只断言 C=0 + SSTP Length + TLS application-data 长度，不把密文识别为 IPv4/IPv6。"
+      ],
+      "packet_count": 19,
+      "terminates": true
+    },
+    "id": "sstp_ppp_mppe_boundary",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "events": [
+              {
+                "attributes": [
+                  {
+                    "id": 1
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connect_request"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 4
+                  }
+                ],
+                "direction": "s2c",
+                "kind": "call_connect_ack"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 3
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connected"
+              },
+              {
+                "direction": "c2s",
+                "kind": "ppp_data",
+                "ppp": {
+                  "mppe": true,
+                  "payload_len": 16,
+                  "protocol": "ipv4"
+                }
+              },
+              {
+                "direction": "c2s",
+                "kind": "ppp_data",
+                "ppp": {
+                  "mppe": true,
+                  "payload_len": 20,
+                  "protocol": "ipv4"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "MPPE 边界：information 恰好 16B（block 对齐）与 20B（跨 boundary），密文 opaque"
+  },
+  {
+    "expect": {
+      "directional": true,
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "443"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 4,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.length",
+          "nonzero": true,
+          "packet": 11
+        },
+        {
+          "field": "tls.record.length",
+          "nonzero": true,
+          "packet": 29
+        }
+      ],
+      "has_handshake": true,
+      "notes": [
+        "flows=2：两条独立 TLS/TCP/SSTP connection（每流各自 REQUEST→ACK→CONNECTED→PPP），不跨连接串流（契约 §8）。",
+        "src_port 未写 → worker 保底递增（12345+i），两条流四元组互异（CORE_MEMORY 9.39/2.8）。"
+      ],
+      "packet_count": 36,
+      "terminates": true
+    },
+    "id": "sstp_multi_connection",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": {
+              "range": [
+                41000,
+                41001
+              ],
+              "strategy": "inc"
+            }
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "events": [
+              {
+                "attributes": [
+                  {
+                    "id": 1
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connect_request"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 4
+                  }
+                ],
+                "direction": "s2c",
+                "kind": "call_connect_ack"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 3
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connected"
+              },
+              {
+                "direction": "c2s",
+                "kind": "ppp_data",
+                "ppp": {
+                  "payload_len": 24,
+                  "protocol": "ipv4"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "summary": "多连接隔离：flows=2 两条独立 TCP/443 + TLS session，各自完成控制序与 PPP"
+  },
+  {
+    "expect": {
+      "directional": true,
+      "fields": [
+        {
+          "field": "tls.record.length",
+          "nonzero": true,
+          "packet": 11
+        },
+        {
+          "field": "tls.record.length",
+          "nonzero": true,
+          "packet": 29
+        }
+      ],
+      "frames": [
+        {
+          "hex": "00 01",
+          "offset": 63,
+          "packet": 11
+        },
+        {
+          "hex": "00 02",
+          "offset": 63,
+          "packet": 12
+        },
+        {
+          "hex": "00 04",
+          "offset": 63,
+          "packet": 13
+        },
+        {
+          "hex": "00 08",
+          "offset": 63,
+          "packet": 15
+        },
+        {
+          "hex": "00 09",
+          "offset": 63,
+          "packet": 16
+        }
+      ],
+      "has_handshake": true,
+      "notes": [
+        "ECHO REQ/RSP 只在 CONNECTED 之后（保活，MS-SSTP §3.4）；不假设并行到达的全局包序。",
+        "重连 = 新 TLS/TCP connection（第 2 流整体重走），旧连接不再接收新状态。"
+      ],
+      "packet_count": 40,
+      "terminates": true
+    },
+    "id": "sstp_session_ordering",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": {
+              "range": [
+                41000,
+                41001
+              ],
+              "strategy": "inc"
+            }
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "events": [
+              {
+                "attributes": [
+                  {
+                    "id": 1
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connect_request"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 4
+                  }
+                ],
+                "direction": "s2c",
+                "kind": "call_connect_ack"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 3
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connected"
+              },
+              {
+                "direction": "c2s",
+                "kind": "ppp_data",
+                "ppp": {
+                  "payload_len": 24,
+                  "protocol": "ipv4"
+                }
+              },
+              {
+                "direction": "c2s",
+                "kind": "echo_request"
+              },
+              {
+                "direction": "s2c",
+                "kind": "echo_response"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "summary": "同连接严格顺序 + ECHO 保活 + 关闭后新 TLS/TCP 连接重连（flows=2）"
+  },
+  {
+    "expect": {
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "443"
+        },
+        {
+          "field": "tls.record.length",
+          "nonzero": true,
+          "packet": 11
+        },
+        {
+          "field": "tls.record.length",
+          "packet": 14,
+          "value": "8"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "10 00 07 d8 ff",
+          "offset": 59,
+          "packet": 14
+        },
+        {
+          "hex": "45 00 07 d0",
+          "offset": 59,
+          "packet": 15
+        }
+      ],
+      "has_handshake": true,
+      "min_packets": 269,
+      "notes": [
+        "record/TCP segment 边界 ≠ SSTP message 边界：单条 message（Length 0x07d8 = 2008）切 251 条 8B record 后仍可按 Length 还原（契约 §5/§8）。",
+        "实测 269 包 = 3 TCP 握手 + 7 TLS 握手 record + 3 控制消息 + 251 分片 + 1 IPv6 data + 4 TCP 挥手；跨 TCP segment 面由同数据形状的 MSS 切段覆盖。"
+      ],
+      "packet_count": 269,
+      "terminates": true
+    },
+    "id": "sstp_length_record_segmentation",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "events": [
+              {
+                "attributes": [
+                  {
+                    "id": 1
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connect_request"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 4
+                  }
+                ],
+                "direction": "s2c",
+                "kind": "call_connect_ack"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 3
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connected"
+              },
+              {
+                "chunk": 8,
+                "direction": "c2s",
+                "kind": "ppp_data",
+                "ppp": {
+                  "payload_len": 2000,
+                  "protocol": "ipv4"
+                }
+              },
+              {
+                "direction": "c2s",
+                "kind": "ppp_data",
+                "ppp": {
+                  "payload_len": 60,
+                  "protocol": "ipv6"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "SSTP Length 跨 TLS record/TCP segment：单 message 切多 record + 大帧跨 TCP 段"
+  },
+  {
+    "expect": {
+      "directional": true,
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "443"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 4,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 10,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.length",
+          "nonzero": true,
+          "packet": 11
+        },
+        {
+          "field": "tcp.flags",
+          "packet": 1,
+          "value": "0x0002"
+        },
+        {
+          "field": "tcp.flags",
+          "packet": 15,
+          "value": "0x0011"
+        }
+      ],
+      "has_handshake": true,
+      "notes": [
+        "NIinterface=netif:enp135s0f0np0；建议过滤器 tcp port 443；checksum offload 下 NIC 侧校验和可能显示为 0/非法（记录观察边界，不算失败）。",
+        "未解密捕获不要求 SSTP/PPP 字段；PCAP 与 NIC 两侧断言同一载体口径（契约 §9/§14）。"
+      ],
+      "packet_count": 16,
+      "terminates": true
+    },
+    "id": "sstp_pcap_nic_consistency",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "events": [
+              {
+                "attributes": [
+                  {
+                    "id": 1
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connect_request"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 4
+                  }
+                ],
+                "direction": "s2c",
+                "kind": "call_connect_ack"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "PCAP/NIC 载体一致：TCP/443 + TLS 握手/应用数据 + 方向 + 握挥手数量"
+  },
+  {
+    "expect": {
+      "error_contains": "header",
+      "expect_error": true
+    },
+    "id": "sstp_neg_header_length",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "wire_fault": "header_length"
+          }
+        }
+      ]
+    },
+    "summary": "common/control header 长度或 Length 不一致（wire_fault 注入）"
+  },
+  {
+    "expect": {
+      "error_contains": "attribute",
+      "expect_error": true
+    },
+    "id": "sstp_neg_attribute_length",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "wire_fault": "attribute_length"
+          }
+        }
+      ]
+    },
+    "summary": "属性头截断/LengthPacket 越界或把 Message Type 0x0005/0x0006 当属性（wire_fault 注入）"
+  },
+  {
+    "expect": {
+      "error_contains": "state",
+      "expect_error": true,
+      "notes": [
+        "自然配置通道（非注入）：状态机在 planner 同步面拒，任务 error 而非 0 包假成功。"
+      ]
+    },
+    "id": "sstp_neg_state_transition",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "events": [
+              {
+                "attributes": [
+                  {
+                    "id": 1
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connect_request"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 3
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connected"
+              },
+              {
+                "direction": "c2s",
+                "kind": "ppp_data",
+                "ppp": {
+                  "payload_len": 24,
+                  "protocol": "ipv4"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "越序：未 ACK 即 CONNECTED / 未 CONNECTED 即 PPP / ABORT 后续发"
+  },
+  {
+    "expect": {
+      "error_contains": "tls",
+      "expect_error": true,
+      "notes": [
+        "预检在链补全前拦（DependsOn tls 会自动补 tls 层，不拦即被补全掩盖）。"
+      ]
+    },
+    "id": "sstp_neg_transport_carrier",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "sstp": {
+            "events": [
+              {
+                "attributes": [
+                  {
+                    "id": 1
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connect_request"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "裸 TCP 载体缺 TLS（SSTP 只能经 TLS application-data 承载）"
+  },
+  {
+    "expect": {
+      "error_contains": "framing",
+      "expect_error": true,
+      "notes": [
+        "本版不产 address/control 压缩形 profile（契约 §7：显式声明才可用）。"
+      ]
+    },
+    "id": "sstp_neg_ppp_framing",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "events": [
+              {
+                "attributes": [
+                  {
+                    "id": 1
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connect_request"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 4
+                  }
+                ],
+                "direction": "s2c",
+                "kind": "call_connect_ack"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 3
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connected"
+              },
+              {
+                "direction": "c2s",
+                "kind": "ppp_data",
+                "ppp": {
+                  "framing": "none",
+                  "protocol": "ipv4"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "PPP framing 错：缺 address/control（ff 03）压缩形"
+  },
+  {
+    "expect": {
+      "error_contains": "tls",
+      "expect_error": true
+    },
+    "id": "sstp_neg_tls_boundary",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "wire_fault": "tls_boundary"
+          }
+        }
+      ]
+    },
+    "summary": "TLS record 截断/明文 SSTP 越过 TLS/跨连接拼接（wire_fault 注入）"
   }
 ]
