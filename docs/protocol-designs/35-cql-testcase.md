@@ -1,10 +1,10 @@
 # CQL/Cassandra Native Protocol（CQL/Cassandra 原生协议）测试用例设计
 
-> 版本：v1.0.0（设计阶段）  
-> 日期：2026-08-20  
-> 配套设计：`docs/protocol-designs/35-cql-design.md`  
+> 版本：v2.0.0（P1–P3 完整产物）  
+> 日期：2026-09-26  
+> 配套设计：`docs/protocol-designs/35-cql-design.md`（v2.0.0，P1 矩阵 §9 + 门1 表 §11 + D-CQL-1 §12）  
 > 机器契约：`trafficgen/test/protocol_pcap/cases/cql.json`  
-> 状态：`cql` 层尚未实现；本文定义实现后的 PCAP（抓包文件）断言，不宣称当前套件可运行。
+> 状态：`cql` 层已注册（`registry.go:807`）、builder/planner/layer_gen 已落码（`internal/protocol/cql/` 770 行）；17 例存量仍为旧扁平形（17/17 顶层 `src_ip/dst_ip/src_port/dst_port/cql`，0/17 有 `ip` 层，0/17 有 `flow_control`），纯 layers 目标形**今天跑不通**（层 Fields 空，G-CQL-1）；P1 实测 2 处线格式违规范（W1 v4 QUERY flags 宽度、W2 v5 envelope，design §9.6）。运行态由 B 轨 lane 校准，本文不宣称当前 suite 可运行。
 
 ## 1. 测试原则
 
@@ -130,4 +130,75 @@ v5 profile，STARTUP（`CQL_VERSION=5.0.0`）→READY→QUERY→RESULT VOID，11
 
 ## 7. 修订记录
 
+- v2.0.0（2026-09-26）：P1–P3 完整产物。新增 §8 存量 17 例逐条去向审计（9.14）与 §9 P3 固定动作（§3.15 三项 / A′·B′ 两分类 / 9.52 对账两行 / 3.14 豁免审计 / 三源回指 / 断言通道实测）；§1–§6 正文保留（旧文逐条核对见 design §14.2）；状态行按注册/落码实测改写。
 - v1.0.0（2026-08-20）：建立 11 个正例和 6 个负例；覆盖 CQL v4/v5、STARTUP/OPTIONS/READY/SUPPORTED、认证 bytes 边界、QUERY/PREPARE/EXECUTE/RESULT/ERROR、IPv4/IPv6、多会话、frame length/非法 opcode/状态/UDP/上限负例。
+
+## 8. 存量 17 例逐条去向审计（§9.14；P1 存量实测，P4 按本表执行）
+
+实测口径：17 例（11 正 6 负）；17/17 顶层键 = `['cql','dst_ip','dst_port','layers','src_ip','src_port']`；`layers` = `[{"tcp":{}},{"cql":{}}]` 16 例 + `[{"udp":{}},{"cql":{}}]` 1 例（N1）；0/17 有 `ip` 层、0/17 有 `flow_control`、0/17 有 `count`（缺键补齐非迁移）；负例 `expect` 6/6 恰为 `{expect_error, error_contains}` ✓；正例断言字段用量 = `tcp.dstport`×7 / `tcp.srcport`×4 / `tcp.len`×8 / `ipv6.version`×2，**`cql.*` 协议字段 0 条**；frames hex 9 例。
+
+| # | id | 类型 | 形状现状 | 去向（P4 改写） |
+|---:|---|---|---|---|
+| 1 | `cql_v4_startup_ready` | 正 | 旧扁平 + frames 2 帧钉 | **保留改写**：加 ip 层/端口进 tcp/cql 4 键迁层条目/补 `flow_control.flows=1`；帧钉值不变（STARTUP/READY 无 flags 面） |
+| 2 | `cql_options_supported` | 正 | 旧扁平 + frames 2 帧钉 | 保留改写；帧钉值不变（空 body/multimap 无 flags） |
+| 3 | `cql_auth_empty_sasl` | 正 | 旧扁平 + frames 3 帧钉 | 保留改写；帧钉值不变 |
+| 4 | `cql_query_void` | 正 | 旧扁平 + frames 2 帧钉（packet 6 QUERY 带 4 字节 flags） | **保留改写 + 帧重钉**：W1 修后 v4 QUERY flags=1 字节，packet 6 hex 与 `tcp.len` 50→47 重钉（14.6 先跑后钉） |
+| 5 | `cql_prepare_execute` | 正 | 旧扁平 + frames 2 帧钉（packet 5 EXECUTE 带 4 字节 flags） | **保留改写 + 帧重钉**：同 W1，packet 5 重钉 |
+| 6 | `cql_error_server` | 正 | 旧扁平 + frames 1 帧钉 | 保留改写；帧钉值不变 |
+| 7 | `cql_ipv6` | 正 | 旧扁平（v6 地址）+ frames 2 帧（startup/ready） | 保留改写；ip 层填 v6 地址，offset 74 不变；QUERY 帧未钉不受 W1 影响 |
+| 8 | `cql_v5_tracing` | 正 | 旧扁平 + frames 3 帧钉（QUERY/RESULT 握手后裸帧） | **保留改形**：W2 过渡档下 v5 握手后事件拒——改形为握手前 3 事件（OPTIONS/STARTUP/READY）或降 v4 profile + 注记，帧钉随形重钉（G-CQL-3） |
+| 9 | `cql_multi_session` | 正 | 旧扁平 + sessions[] 双源端口 | 保留改写；**多流展开相容性 B 轨首跑即验**（mongodb "one flow per chain" 裁定），撞拒则改形上报 |
+| 10 | `cql_length_boundary` | 正 | 旧扁平 + frames 1 帧 | 保留改写；帧钉值不变 |
+| 11 | `cql_connect` | 正 | 旧扁平 + 无 payload | 保留改写；`has_payload=false` 保持 |
+| 12 | `cql_neg_udp` | 负 | `layers=[{udp},{cql}]` 旧扁平 | **改形负例**：纯 layers `[ip,udp,cql]` + 非法内容（载体族错），锚词 `tcp` 保持 |
+| 13 | `cql_neg_version` | 负 | 旧扁平 + `wire_profile=cql_v3` | 改形负例（业务键迁层条目），锚词 `version` 保持 |
+| 14 | `cql_neg_opcode` | 负 | 旧扁平 + wire_fault | 改形负例（wire_fault 迁层条目），锚词 `opcode` 保持 |
+| 15 | `cql_neg_length` | 负 | 旧扁平 + wire_fault | 改形负例，锚词 `length` 保持 |
+| 16 | `cql_neg_state` | 负 | 旧扁平 + 首事件 QUERY | 改形负例，锚词 `state` 保持 |
+| 17 | `cql_neg_limit` | 负 | 旧扁平 + wire_fault | 改形负例，锚词 `limit` 保持 |
+| — | （新增）presence 负例 | 负 | 无 | **P4 新增**：`{"layers":[{"ip":{}},{"tcp":{}},{"cql":{}}],"cql":{}}` 判死，锚词 `top-level`（design §11.4） |
+| — | （新增）游离键负例 | 负 | 无 | **P4 新增**：顶层游离键（如 `src_mac`）判死 |
+| — | （新增）A′ 补例批 | 正 | 无 | **P4/P5 新增**：stream 非零关联例、consistency 逐值、同连接多轮 QUERY、`cql.*` 字段断言批（§9.6 十字段）、STARTUP 缺 CQL_VERSION 负例（G-CQL-6/7） |
+
+合计：17 保留（其中 3 例帧重钉/改形）+ 0 作废 + 新增 ≥4 例（2 链级红例 + A′ 批）；17/17 逐条有去向，无静默丢弃。
+
+## 9. P3 固定动作（CORE_MEMORY §3.15 / §9.52 / §9.14 / 覆盖审计要求面）
+
+### 9.1 §3.15 三项逐项一例或立项（无例无项即缺口）
+
+| 项 | 结论 | 用例/立项 |
+|---|---|---|
+| 同连接/同流内多轮操作 | **部分覆**：S4 单轮 QUERY→RESULT→READY；多轮 QUERY 同连接无例 | A′ 补例（G-CQL-7：两轮 QUERY 不同 stream + RESULT 乱序归并形状） |
+| 非正常结束 | **已覆**：N1–N6 六负例 + S6 合法 ERROR 应用响应；认证失败分支（AUTH_ERROR 0x0100）无例 | 认证失败码面 → G-CQL-5 |
+| 长保活 | **明确不适用**：CQL 无协议级心跳/保活消息（design §9.1 行6）；TCP keepalive 归 tcp 层 | 无缺口（显式不适用） |
+
+### 9.2 A′/B′ 两分类表（要求面反推）
+
+| 分类 | 本协议条目 |
+|---|---|
+| **A′（纯用例/断言面可表达，不动代码）** | ①`cql.*` 字段断言批（§9.6 十字段，0→10）；②stream 非零 + 响应 stream 回填关联例（v4 §2.3）；③consistency 11 值中 10 值补例；④同连接多轮 QUERY；⑤frame flags 位（0x01/0x02/0x04/0x08）显式钉；⑥STARTUP NO_COMPACT/THROW_ON_OVERLOAD 选项面；⑦超长/截断 long string 边界（maxFrameBytes 256KiB 内） |
+| **B′（需代码或框架改动，另立项）** | G-CQL-1（纯 layers 收口 + 多流展开实测）、G-CQL-2（W1 flags 宽度）、G-CQL-3（W2 v5 面）、G-CQL-4（result_kind 死字段）、G-CQL-5（4 opcode + 4 result kind + 17 码）、G-CQL-6（校验补面） |
+
+### 9.3 9.52 对账两行 + 清单出处声明
+
+- **行 1**：规范逻辑点总数 = **97 枚举点（9 面）**：opcode 16 + frame flags 4 + QUERY/EXECUTE flags 7 + consistency 11 + result kinds 5 + error codes 17 + 数据类型 23 + STARTUP 选项 4 + v5 差异 10。清单出处 = native_protocol_v4.spec（1219 行）/ v5.spec（1537 行）**原文反推**（2026-09-26 自 apache/cassandra trunk 取），非从用例或引擎能力反推。
+- **行 2**：用例覆盖数 = 存量 **17 例**（11 正 6 负，实测）；枚举点已覆 **20/97**（opcode 12 + flags 2 形 + query flags 2 形 + consistency 1 + result kind 1 + error code 1 + STARTUP 选项 1），未覆 77 点全部归 G-CQL-2/3/5/6/7/8 或"明确不支持"，无留白。
+
+### 9.4 3.14 豁免边界审计
+
+CQL 是 TCP 长连接协议 → 3.14"无长连接协议"豁免**不适用**，不主张任何豁免：多会话 = `sessions[]` 双源端口（#9 已覆）；多事务 = §9.1 行1（A′ 补）；单包多载荷 = **不适用**（CQL 一帧一消息，无多 question/多 RR 形态——与 DNS 族差异显式声明）。
+
+### 9.5 三源回指行（§9.2–9.4）
+
+| 源 | 回指 |
+|---|---|
+| 规范（v4/v5 spec 原文） | §2 frame header ↔ #1–#11 frames hex；§4.1.1 STARTUP ↔ #1；§4.1.4 QUERY ↔ #4；§4.2.5 RESULT ↔ #4/#7/#8；§4.2.1 ERROR ↔ #6 |
+| 设计（D-CQL-1） | design §9 矩阵行 ↔ 本文用例号；design §12 文件清单 ↔ #1–#17 改写 |
+| 现网行为 | Cassandra 4.x/5.x + DataStax driver 形态 ↔ #1/#4（同构）；**未确认级 → G-CQL-8**（抓 cqlsh/docker Cassandra 回环包确认） |
+
+### 9.6 断言通道核对（tshark 3.6.14 实测）
+
+- `cql.*` 唯一字段 **83 个**（`tshark -G fields` 实测）；合成 pcap 探针（TCP seq 对齐 + 端口 9042）实测 **10 字段可解**：`cql.version`（0x04/0x84/0x05/0x85）、`cql.direction`、`cql.opcode`、`cql.stream`、`cql.message_length`、`cql.flags`、`cql.consistency`、`cql.query.flags`（FT_UINT8，W1 佐证）、`cql.result.kind`、`cql.error_code`。
+- **端口前提**：必须 9042 才挂 CQL dissector（非标端口不解码，实测）——断言用例一律钉 9042。
+- **TCP 流前提**：seq/ack 必须真实衔接（探针首轮 seq 未对齐致 RESULT 帧不解码——断言 pcap 由引擎真实生成，天然满足；人工合成探针须自证）。
+- 存量 17 例断言字段用量：`tcp.dstport`×7 / `tcp.srcport`×4 / `tcp.len`×8 / `ipv6.version`×2 / frames 9 例 / **`cql.*` 0 条** → A′ 补钉面（G-CQL-7）。
