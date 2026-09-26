@@ -3524,7 +3524,7 @@ def check_smb(cases):
                  not any(i.startswith("probe_") for i in ids), "无 probe_ 前缀"))
     # 层内 smb 键全注册面（38 字段逐键在 registry 行内）。
     missing = [k for k in {kk for c in pos for kk in ((c.get("spec_json") or {}).get("layers") or [{}])[-1].get("smb", {}).keys()}
-               if k not in reg_block and k != "impersonation_level"]
+               if k not in reg_block]
     rows.append(("层内 smb 键 ∈ registry 38 字段", not missing, missing or "全命中"))
     return rows
 

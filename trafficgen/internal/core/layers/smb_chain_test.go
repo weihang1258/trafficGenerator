@@ -224,6 +224,11 @@ func TestSMBChain_StrictDecode(t *testing.T) {
 	}); err == nil {
 		t.Fatal("nested op unknown key must be rejected")
 	}
+	// 裁定(1)：impersonation_level 是死键（SMBConfig/registry/parse 均无
+	// 此键，wire 硬编码 2）——严格门按未知键拒，不得豁免。
+	if _, err := core.TranslateSMBConfigFromMap(map[string]interface{}{"impersonation_level": 2}); err == nil {
+		t.Fatal("impersonation_level must be rejected as unknown key")
+	}
 	// 宽容值（hex 字符串/error 码）必须通过。
 	if _, err := core.TranslateSMBConfigFromMap(map[string]interface{}{
 		"error_on_command": "create", "error_response_status": "0xC0000034",

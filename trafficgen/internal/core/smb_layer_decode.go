@@ -35,16 +35,12 @@ func TranslateSMBConfigFromMap(m map[string]interface{}) (*SMBConfig, error) {
 // type encoding/json cannot hit ([]uint16 from []interface{} etc.). String,
 // bool, and opaque-list keys (dialects/security_blob/operations) pass through
 // natively; operations[] items get per-item data/file_id placeholders.
-// tpos064 note: impersonation_level is a dead key (no SMBConfig field,
-// generator hardcodes 2) — dropped here so the strict gate passes; P5 drops
-// it from the case file with a notes entry.
+// impersonation_level has no SMBConfig field (ruling 1: dropped from cases,
+// wire stays hardcoded 2) — no exemption here, the strict gate rejects it
+// as an unknown key like any other dead key.
 func normalizeSMBLayerMap(m map[string]interface{}) map[string]interface{} {
 	out := make(map[string]interface{}, len(m))
 	for k, v := range m {
-		// tpos064 dead key (see header note).
-		if k == "impersonation_level" {
-			continue
-		}
 		switch k {
 		case "transport", "selected_dialect",
 			"auth_mechanism", "username", "domain", "password",

@@ -12739,7 +12739,8 @@
     }
    ],
    "notes": [
-    "T064: ImpersonationLevel @126 (\u547d\u4ee4\u4f53\u504f\u79fb 4-7) = 02 00 00 00 (Impersonation)"
+    "T064: ImpersonationLevel @126 (\u547d\u4ee4\u4f53\u504f\u79fb 4-7) = 02 00 00 00 (Impersonation)",
+    "\u88c1\u5b9a(1): impersonation_level \u914d\u7f6e\u952e\u5df2\u5220\uff08SMBConfig/registry/parse \u5747\u65e0\u6b64\u952e\uff0cwire \u6052\u4e3a\u786c\u7f16\u7801 2\uff1b\u82e5 D-SMB-1 \u67d0\u884c\u8981\u6c42\u975e 2 \u503c\u518d\u7acb gap \u914d MS-SMB2 \u00a72.2.13 \u884c\u53f7\uff09"
    ]
   }
  },
