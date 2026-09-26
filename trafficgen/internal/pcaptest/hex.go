@@ -36,16 +36,17 @@ func ParseTsharkHex(out string) []HexInfo {
 		}
 		// Non-dump lines (e.g. "Frame 1: ...") separate frames.
 		if !isHexDumpLine(trimmed) {
-			// tshark -x can append extra hex blocks after a frame's own dump:
-			// "Reassembled TCP (N bytes):" (desegmented payload), "Decompressed
-			// Header (N bytes):" (HPACK-decompressed HTTP/2 headers) and
-			// "Unchunked RTMP (N bytes):" (RTMP chunk re-assembly) are followed
-			// by a 0000-prefixed hex block that does NOT represent a new frame.
-			// Skip their hex lines until the next real frame separator (blank
-			// line or "Frame ...").
-			if strings.HasPrefix(trimmed, "Reassembled ") ||
-				strings.HasPrefix(trimmed, "Decompressed ") ||
-				strings.HasPrefix(trimmed, "Unchunked ") {
+			// tshark -x appends extra hex blocks after a frame's own dump:
+			// dissector extraction labels like "Reassembled TCP (N bytes):"
+			// (desegmented payload), "Decompressed Header (N bytes):" (HPACK),
+			// "Unchunked RTMP (N bytes):" (RTMP chunk re-assembly) and
+			// "NTLMSSP / GSSAPI Data (N bytes):" (HTTP auth token extraction)
+			// are each followed by a 0000-prefixed hex block that does NOT
+			// represent a new frame. They all share the generic "<text>
+			// (N bytes):" label form — match that, not per-dissector prefixes.
+			// The packet boundary label "Frame (N bytes):" starts a REAL
+			// frame's dump, so it resets (never triggers) the skip.
+			if isExtractBlockLabel(trimmed) && !strings.HasPrefix(trimmed, "Frame ") {
 				cur = nil
 				skipUntilNewFrame = true
 				continue
@@ -112,6 +113,38 @@ func isHexDumpLine(s string) bool {
 	// end of the line can contain arbitrary characters (e.g. a 2-char "..").
 	_, err := strconv.ParseUint(fields[1], 16, 8)
 	return err == nil
+}
+
+// isExtractBlockLabel reports whether the line is a dissector extraction
+// block label of the generic form "<text> (N bytes):" (N ≥ 0, unit "byte"
+// or "bytes"): Reassembled TCP / Decompressed Header / Unchunked RTMP /
+// NTLMSSP / GSSAPI Data all share this shape.
+func isExtractBlockLabel(s string) bool {
+	if !strings.HasSuffix(s, "):") {
+		return false
+	}
+	open := strings.LastIndexByte(s, '(')
+	if open < 0 {
+		return false
+	}
+	inner := s[open+1 : len(s)-2] // between "(" and "):"
+	sp := strings.IndexByte(inner, ' ')
+	if sp <= 0 {
+		return false
+	}
+	num, unit := inner[:sp], inner[sp+1:]
+	if unit != "byte" && unit != "bytes" {
+		return false
+	}
+	if num == "" {
+		return false
+	}
+	for i := 0; i < len(num); i++ {
+		if num[i] < '0' || num[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // HexDumpAll returns one HexInfo per frame in the pcap.
