@@ -1820,6 +1820,7 @@ type FlowSpec struct {
 	NTLM        *NTLMConfig        `json:"ntlm,omitempty"`
 	SSTP        *SSTPConfig        `json:"sstp,omitempty"`
 	OCSP        *OCSPConfig        `json:"ocsp,omitempty"`
+	SPNEGO      *SPNEGOConfig      `json:"spnego,omitempty"`
 	NTP         *NTPConfig         `json:"ntp,omitempty"`
 	OpenVPN     *OpenVPNConfig     `json:"openvpn,omitempty"`
 	PostgreSQL  *PostgreSQLConfig  `json:"postgresql,omitempty"`

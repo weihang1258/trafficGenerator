@@ -420,6 +420,65 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 		}
 	}
 
+	if protocol == "spnego" {
+		// D-SPNEGO-1 §12 接线件：tcp 是唯一载体（DependsOn tcp 自动补全前拦
+		// ——裸 spnego 层不被补全掩盖，bacnet/dcerpc/dtls/kerberos/ntlm 预检
+		// 同构）；链夹 udp = 载体错（TransportOn 纯 tcp，§11-P2 判死负例）；
+		// 混合地址族同 dtls/bacnet 面；profile↔http 层有无一致性：http profile
+		// 要求 http 层在链、tcp profile 要求不在（ntlm 同构，方向相反）。
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			hasTCP, hasUDP, hasHTTP := false, false, false
+			for _, item := range probe {
+				if _, ok := item["tcp"]; ok {
+					hasTCP = true
+				}
+				if _, ok := item["udp"]; ok {
+					hasUDP = true
+				}
+				if _, ok := item["http"]; ok {
+					hasHTTP = true
+				}
+				if rawIP, ok := item["ip"]; ok && len(rawIP) > 0 {
+					var ipcfg map[string]interface{}
+					if err := json.Unmarshal(rawIP, &ipcfg); err == nil {
+						srcS, _ := ipcfg["src"].(string)
+						dstS, _ := ipcfg["dst"].(string)
+						if srcS != "" && dstS != "" && strings.Contains(srcS, ":") != strings.Contains(dstS, ":") {
+							return nil, fmt.Errorf("spnego chain: mixed address family in ip layer (src %q / dst %q) — src and dst must be the same family (family)", srcS, dstS)
+						}
+					}
+				}
+			}
+			if hasUDP {
+				return nil, fmt.Errorf("spnego chain: udp carrier is not supported — SPNEGO rides tcp only ([ip,tcp,spnego] or [ip,tcp,http,spnego]) (transport)")
+			}
+			if !hasTCP {
+				return nil, fmt.Errorf("spnego chain: missing tcp carrier — SPNEGO requires an [ip,tcp,spnego] chain (carrier)")
+			}
+			// profile 读层内声明（空 = 缺省档 tcp）。
+			profileS := ""
+			for _, item := range probe {
+				rawS, ok := item["spnego"]
+				if !ok {
+					continue
+				}
+				var scfg struct {
+					Profile string `json:"profile"`
+				}
+				if json.Unmarshal(rawS, &scfg) == nil {
+					profileS = scfg.Profile
+				}
+			}
+			isHTTP := strings.EqualFold(strings.TrimSpace(profileS), "http")
+			if hasHTTP && !isHTTP {
+				return nil, fmt.Errorf("spnego chain: http carrier layer requires profile %q — the tcp profile sends raw DER and must not carry an http layer (profile)", "http")
+			}
+			if !hasHTTP && isHTTP {
+				return nil, fmt.Errorf("spnego chain: profile %q requires an http carrier layer — add {\"http\": {...}} before the spnego layer (profile)", "http")
+			}
+		}
+	}
 	effective, err := ValidateLayers(layersJSON, protocol)
 	if err != nil {
 		return nil, err

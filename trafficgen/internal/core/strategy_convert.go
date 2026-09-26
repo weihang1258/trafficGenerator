@@ -849,6 +849,20 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// OCSP 明文 HTTP 惯用端口 80（tshark 自动解码依赖；裸 TCP 8080
 		// fixture 与显式声明合法——D-OCSP-1 §8.7）。
 		setDefaultDstPort(&spec, cfg, 80)
+	case "spnego":
+		// SPNEGO（RFC 4178）：配置住 spnego 层子映射（顶层 spnego 子映射由
+		// CheckProtoFlat 判死）；严格解码经 SPNEGOConfig UnmarshalJSON。
+		if sub, ok := cfg["spnego"].(map[string]interface{}); ok {
+			parseSubconfigJSON[*SPNEGOConfig](&spec, sub, "spnego", &spec.SPNEGO)
+		}
+		// 端口按 profile 缺省：tcp → 445（契约 §11.1：445 是 SMB/SPNEGO 惯用
+		// 端口，本协议裸 TCP fixture 沿用）、http → 80（tshark http dissector
+		// 自动解码依赖）；显式声明合法（门1 §13）。
+		portS := uint16(445)
+		if spec.SPNEGO != nil && strings.EqualFold(strings.TrimSpace(spec.SPNEGO.Profile), "http") {
+			portS = 80
+		}
+		setDefaultDstPort(&spec, cfg, portS)
 	case "sip":
 		if sub, ok := cfg["sip"].(map[string]interface{}); ok {
 			spec.SIP = &SIPConfig{
@@ -8408,6 +8422,14 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "ocsp" {
 		if v, ok := cfg["ocsp"]; ok && v != nil {
 			return "protocol ocsp no longer accepts a top-level ocsp sub-config (move it into the ocsp layer of an [ip,tcp,http,ocsp] layers chain; RFC 6960/8954 OCSP config lives in the ocsp layer)"
+		}
+	}
+	// D-SPNEGO-1：spnego 顶层 spnego 子映射 presence 判死（ntlm 先例；空
+	// map 也死——1.11–1.13 白名单制：顶层只允许 layers/flow_control 家族/
+	// output）。层链形状不触发。
+	if protocol == "spnego" {
+		if v, ok := cfg["spnego"]; ok && v != nil {
+			return "protocol spnego no longer accepts a top-level spnego sub-config (move it into the spnego layer of an [ip,tcp,spnego] layers chain)"
 		}
 	}
 	// D-EDP-1：edp 顶层 edp 子映射 presence 判死（mmse 先例；空 map 也

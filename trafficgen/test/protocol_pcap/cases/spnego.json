@@ -1,28 +1,1354 @@
 [
   {
-    "id": "spnego_neg_unregistered",
-    "proto": "spnego",
-    "summary": "SPNEGO layer is not registered yet; reject at layer validation",
-    "spec_json": {
-      "layers": [
+    "expect": {
+      "fields": [
         {
-          "tcp": {}
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "80"
         },
         {
-          "spnego": {}
+          "field": "ip.proto",
+          "packet": 1,
+          "value": "6"
+        },
+        {
+          "field": "http.response.code",
+          "packet": 4,
+          "value": "401"
+        },
+        {
+          "field": "http.www_authenticate",
+          "nonzero": true,
+          "packet": 4
+        },
+        {
+          "field": "http.authorization",
+          "nonzero": true,
+          "packet": 5
+        },
+        {
+          "field": "spnego.negTokenInit_element",
+          "packet": 5,
+          "value": "1"
+        },
+        {
+          "field": "spnego.mechTypes",
+          "packet": 5,
+          "value": "2"
+        },
+        {
+          "field": "http.response.code",
+          "packet": 7,
+          "value": "200"
         }
       ],
-      "src_ip": "192.0.2.61",
-      "dst_ip": "198.51.100.61",
-      "src_port": 45061,
-      "dst_port": 445
+      "packet_count": 11
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "unknown layer",
-      "notes": [
-        "Design-only gate: spnego is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove it and add the 14 positive and 6 negative semantic cases in testcase order."
+    "id": "spnego_http_ipv4_init",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.61",
+            "src": "192.0.2.61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 80,
+            "src_port": 45062
+          }
+        },
+        {
+          "http": {
+            "keep_alive": true,
+            "method": "GET",
+            "uri": "/"
+          }
+        },
+        {
+          "spnego": {
+            "mech_token": {
+              "opaque": true
+            },
+            "mech_types": [
+              "1.2.840.113554.1.2.2",
+              "1.2.840.48018.1.2.2"
+            ],
+            "negotiation": "init_resp",
+            "profile": "http",
+            "sessions": [
+              {
+                "events": [
+                  {
+                    "kind": "challenge"
+                  },
+                  {
+                    "kind": "init"
+                  },
+                  {
+                    "kind": "resp"
+                  },
+                  {
+                    "kind": "http_success"
+                  }
+                ],
+                "id": "s1"
+              }
+            ]
+          }
+        }
       ]
-    }
+    },
+    "summary": "HTTP Negotiate/IPv4：401→Authorization(init)→WWW-Authenticate(resp)→200 + InitialContextToken/negTokenInit"
+  },
+  {
+    "expect": {
+      "fields": [
+        {
+          "field": "ipv6.nxt",
+          "packet": 1,
+          "value": "6"
+        },
+        {
+          "field": "http.response.code",
+          "packet": 4,
+          "value": "401"
+        },
+        {
+          "field": "spnego.negTokenInit_element",
+          "packet": 5,
+          "value": "1"
+        },
+        {
+          "field": "http.response.code",
+          "packet": 7,
+          "value": "200"
+        }
+      ],
+      "packet_count": 11
+    },
+    "id": "spnego_http_ipv6_init",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "2001:db8:ffff::61",
+            "src": "2001:db8::61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 80,
+            "src_port": 45062
+          }
+        },
+        {
+          "http": {
+            "keep_alive": true,
+            "method": "GET",
+            "uri": "/"
+          }
+        },
+        {
+          "spnego": {
+            "mech_token": {
+              "opaque": true
+            },
+            "mech_types": [
+              "1.2.840.113554.1.2.2",
+              "1.2.840.48018.1.2.2"
+            ],
+            "negotiation": "init_resp",
+            "profile": "http",
+            "sessions": [
+              {
+                "events": [
+                  {
+                    "kind": "challenge"
+                  },
+                  {
+                    "kind": "init"
+                  },
+                  {
+                    "kind": "resp"
+                  },
+                  {
+                    "kind": "http_success"
+                  }
+                ],
+                "id": "s1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "HTTP Negotiate/IPv6 独立 fixture：ipv6.nxt=6 + 地址族 + HTTP Negotiate 方向与 DER 外层"
+  },
+  {
+    "expect": {
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "445"
+        },
+        {
+          "field": "ip.proto",
+          "packet": 1,
+          "value": "6"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "605606062B0601050502A04C304AA024302206092A864886F71201020206092A864882F712010202060A2B06010401823702020AA2220420A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5",
+          "offset": 54,
+          "packet": 4
+        }
+      ],
+      "packet_count": 9
+    },
+    "id": "spnego_tcp_ipv4_init",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.61",
+            "src": "192.0.2.61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 445,
+            "src_port": 45061
+          }
+        },
+        {
+          "spnego": {
+            "mech_token": {
+              "opaque": true
+            },
+            "mech_types": [
+              "1.2.840.113554.1.2.2",
+              "1.2.840.48018.1.2.2",
+              "1.3.6.1.4.1.311.2.2.10"
+            ],
+            "negotiation": "init_resp",
+            "profile": "tcp",
+            "sessions": [
+              {
+                "events": [
+                  {
+                    "kind": "init"
+                  },
+                  {
+                    "kind": "resp"
+                  }
+                ],
+                "id": "s1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "裸 TCP/IPv4 stream 携带 InitialContextToken/negTokenInit：重组 stream + DER 父长度 + SPNEGO OID"
+  },
+  {
+    "expect": {
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "445"
+        },
+        {
+          "field": "ipv6.nxt",
+          "packet": 1,
+          "value": "6"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "605606062B0601050502A04C304AA024302206092A864886F71201020206092A864882F712010202060A2B06010401823702020AA2220420A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5",
+          "offset": 74,
+          "packet": 4
+        }
+      ],
+      "packet_count": 9
+    },
+    "id": "spnego_tcp_ipv6_init",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "2001:db8:ffff::61",
+            "src": "2001:db8::61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 445,
+            "src_port": 45061
+          }
+        },
+        {
+          "spnego": {
+            "mech_token": {
+              "opaque": true
+            },
+            "mech_types": [
+              "1.2.840.113554.1.2.2",
+              "1.2.840.48018.1.2.2",
+              "1.3.6.1.4.1.311.2.2.10"
+            ],
+            "negotiation": "init_resp",
+            "profile": "tcp",
+            "sessions": [
+              {
+                "events": [
+                  {
+                    "kind": "init"
+                  },
+                  {
+                    "kind": "resp"
+                  }
+                ],
+                "id": "s1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "裸 TCP/IPv6 stream 携带 token：ipv6.nxt=6 + IPv6 checksum + token 重组"
+  },
+  {
+    "expect": {
+      "fields": [
+        {
+          "field": "spnego.negTokenInit_element",
+          "packet": 5,
+          "value": "1"
+        },
+        {
+          "field": "spnego.reqFlags",
+          "packet": 5,
+          "value": "c0"
+        },
+        {
+          "field": "spnego.mechToken",
+          "nonzero": true,
+          "packet": 5
+        }
+      ],
+      "packet_count": 11
+    },
+    "id": "spnego_neg_token_init_hints",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.61",
+            "src": "192.0.2.61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 80,
+            "src_port": 45062
+          }
+        },
+        {
+          "http": {
+            "keep_alive": true,
+            "method": "GET",
+            "uri": "/"
+          }
+        },
+        {
+          "spnego": {
+            "mech_token": {
+              "len": 4,
+              "opaque": true
+            },
+            "mech_types": [
+              "1.2.840.113554.1.2.2",
+              "1.2.840.48018.1.2.2"
+            ],
+            "neg_hints": {
+              "carry": "dissector",
+              "hint_address": "C0000201",
+              "hint_name": "hint.example"
+            },
+            "negotiation": "init_resp",
+            "profile": "http",
+            "req_flags": 192,
+            "sessions": [
+              {
+                "events": [
+                  {
+                    "kind": "challenge"
+                  },
+                  {
+                    "kind": "init"
+                  },
+                  {
+                    "kind": "resp"
+                  },
+                  {
+                    "kind": "http_success"
+                  }
+                ],
+                "id": "s1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "negTokenInit：有序 mechTypes + reqFlags + negHints([3] dissector 形) + mechToken；RFC 形 MIC 不共存"
+  },
+  {
+    "expect": {
+      "fields": [
+        {
+          "field": "spnego.negResult",
+          "packet": 6,
+          "value": "1"
+        },
+        {
+          "field": "spnego.supportedMech",
+          "packet": 6,
+          "value": "1.2.840.48018.1.2.2"
+        },
+        {
+          "field": "spnego.responseToken",
+          "nonzero": true,
+          "packet": 6
+        },
+        {
+          "field": "http.response.code",
+          "packet": 7,
+          "value": "200"
+        }
+      ],
+      "packet_count": 11
+    },
+    "id": "spnego_neg_token_resp_selection",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.61",
+            "src": "192.0.2.61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 80,
+            "src_port": 45062
+          }
+        },
+        {
+          "http": {
+            "keep_alive": true,
+            "method": "GET",
+            "uri": "/"
+          }
+        },
+        {
+          "spnego": {
+            "mech_token": {
+              "opaque": true
+            },
+            "mech_types": [
+              "1.2.840.113554.1.2.2",
+              "1.2.840.48018.1.2.2"
+            ],
+            "neg_result": 1,
+            "negotiation": "init_resp",
+            "profile": "http",
+            "response_token": {
+              "opaque": true
+            },
+            "sessions": [
+              {
+                "events": [
+                  {
+                    "kind": "challenge"
+                  },
+                  {
+                    "kind": "init"
+                  },
+                  {
+                    "kind": "resp"
+                  },
+                  {
+                    "kind": "http_success"
+                  }
+                ],
+                "id": "s1"
+              }
+            ],
+            "supported_mech": "1.2.840.48018.1.2.2"
+          }
+        }
+      ]
+    },
+    "summary": "negTokenResp：negResult + supportedMech(∈列表) + responseToken；accept_incomplete(1)→completed"
+  },
+  {
+    "expect": {
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "445"
+        },
+        {
+          "field": "ip.proto",
+          "packet": 1,
+          "value": "6"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "604A06062B0601050502A040303EA018301606092A864886F71201020206092A864882F712010202A2220420A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5",
+          "offset": 54,
+          "packet": 4
+        }
+      ],
+      "packet_count": 9
+    },
+    "id": "spnego_neg_token_targ_legacy",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.61",
+            "src": "192.0.2.61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 445,
+            "src_port": 45061
+          }
+        },
+        {
+          "spnego": {
+            "mech_types": [
+              "1.2.840.113554.1.2.2",
+              "1.2.840.48018.1.2.2"
+            ],
+            "neg_result": 0,
+            "negotiation": "init_targ",
+            "profile": "tcp",
+            "sessions": [
+              {
+                "events": [
+                  {
+                    "kind": "init"
+                  },
+                  {
+                    "kind": "targ"
+                  }
+                ],
+                "id": "s1"
+              }
+            ],
+            "supported_mech": "1.2.840.48018.1.2.2"
+          }
+        }
+      ]
+    },
+    "summary": "旧式 negTokenTarg：显式 init_targ 声明 + [0]negResult/[1]supportedMech/[2]responseToken 字段序"
+  },
+  {
+    "expect": {
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "445"
+        },
+        {
+          "field": "ip.proto",
+          "packet": 1,
+          "value": "6"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "605606062B0601050502A04C304AA024302206092A864886F71201020206092A864882F712010202060A2B06010401823702020AA2220420A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5",
+          "offset": 54,
+          "packet": 4
+        }
+      ],
+      "packet_count": 9
+    },
+    "id": "spnego_mech_oid_variants",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.61",
+            "src": "192.0.2.61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 445,
+            "src_port": 45061
+          }
+        },
+        {
+          "spnego": {
+            "mech_token": {
+              "opaque": true
+            },
+            "mech_types": [
+              "1.2.840.113554.1.2.2",
+              "1.2.840.48018.1.2.2",
+              "1.3.6.1.4.1.311.2.2.10"
+            ],
+            "negotiation": "init_resp",
+            "profile": "tcp",
+            "sessions": [
+              {
+                "events": [
+                  {
+                    "kind": "init"
+                  },
+                  {
+                    "kind": "resp"
+                  }
+                ],
+                "id": "s1"
+              }
+            ],
+            "supported_mech": "1.3.6.1.4.1.311.2.2.10"
+          }
+        }
+      ]
+    },
+    "summary": "三机制 OID 变体：Kerberos/msKrb5/NTLM 逐字节 DER + supportedMech 列表绑定"
+  },
+  {
+    "expect": {
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "445"
+        },
+        {
+          "field": "ip.proto",
+          "packet": 1,
+          "value": "6"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "601F06062B0601050502A0153013A00D300B06092A864886F712010202A2020400",
+          "offset": 54,
+          "packet": 4
+        }
+      ],
+      "packet_count": 9
+    },
+    "id": "spnego_mech_token_opaque",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.61",
+            "src": "192.0.2.61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 445,
+            "src_port": 45061
+          }
+        },
+        {
+          "spnego": {
+            "mech_token": {
+              "len": 0,
+              "opaque": true
+            },
+            "mech_types": [
+              "1.2.840.113554.1.2.2"
+            ],
+            "negotiation": "init_resp",
+            "profile": "tcp",
+            "response_token": {
+              "opaque": true
+            },
+            "sessions": [
+              {
+                "events": [
+                  {
+                    "kind": "init"
+                  },
+                  {
+                    "kind": "resp"
+                  }
+                ],
+                "id": "s1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "不透明 token：零长占位 + 非零负载 + OCTET STRING length/nonzero（内层不解析）"
+  },
+  {
+    "expect": {
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "445"
+        },
+        {
+          "field": "ip.proto",
+          "packet": 1,
+          "value": "6"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "605E06062B0601050502A0543052A018301606092A864886F71201020206092A864882F712010202A2220420A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A3120410A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5",
+          "offset": 54,
+          "packet": 6
+        }
+      ],
+      "packet_count": 10
+    },
+    "id": "spnego_mechlist_mic",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.61",
+            "src": "192.0.2.61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 445,
+            "src_port": 45061
+          }
+        },
+        {
+          "spnego": {
+            "mech_list_mic": {
+              "layout": "rfc4178",
+              "opaque": true
+            },
+            "mech_token": {
+              "opaque": true
+            },
+            "mech_types": [
+              "1.2.840.113554.1.2.2",
+              "1.2.840.48018.1.2.2"
+            ],
+            "neg_result": 3,
+            "negotiation": "init_resp",
+            "profile": "tcp",
+            "sessions": [
+              {
+                "events": [
+                  {
+                    "kind": "init"
+                  },
+                  {
+                    "kind": "resp"
+                  },
+                  {
+                    "kind": "mic"
+                  }
+                ],
+                "id": "s1"
+              }
+            ],
+            "supported_mech": "1.2.840.48018.1.2.2"
+          }
+        }
+      ]
+    },
+    "summary": "mechListMIC：request-mic(3)→补 MIC；验证输入=原始 DER mechTypes；线位 RFC [3]"
+  },
+  {
+    "expect": {
+      "fields": [
+        {
+          "field": "ip.proto",
+          "packet": 4,
+          "value": "6"
+        },
+        {
+          "field": "tcp.dstport",
+          "packet": 4,
+          "value": "445"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "6082010206062B0601050502A081F73081F4A024302206092A864886F71201020206092A864882F712010202060A2B06010401823702020AA281CB0481C8A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5",
+          "offset": 54,
+          "packet": 4
+        }
+      ],
+      "packet_count": 9
+    },
+    "id": "spnego_der_canonical_boundaries",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.61",
+            "src": "192.0.2.61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 445,
+            "src_port": 45061
+          }
+        },
+        {
+          "spnego": {
+            "mech_token": {
+              "len": 200,
+              "opaque": true
+            },
+            "mech_types": [
+              "1.2.840.113554.1.2.2",
+              "1.2.840.48018.1.2.2",
+              "1.3.6.1.4.1.311.2.2.10"
+            ],
+            "negotiation": "init_resp",
+            "profile": "tcp",
+            "sessions": [
+              {
+                "events": [
+                  {
+                    "kind": "init"
+                  },
+                  {
+                    "kind": "resp"
+                  }
+                ],
+                "id": "s1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "DER 边界：空可选字段 + 短/长 length（200B token 长形 0x82 档）+ 父长度覆盖子 TLV"
+  },
+  {
+    "expect": {
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "445"
+        },
+        {
+          "field": "ip.proto",
+          "packet": 1,
+          "value": "6"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "A1383036A0030A0102A10B06092A864882F712010202A2220420A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5",
+          "offset": 54,
+          "packet": 5
+        }
+      ],
+      "packet_count": 9
+    },
+    "id": "spnego_downgrade_prevention",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.61",
+            "src": "192.0.2.61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 445,
+            "src_port": 45061
+          }
+        },
+        {
+          "spnego": {
+            "mech_types": [
+              "1.2.840.113554.1.2.2",
+              "1.2.840.48018.1.2.2"
+            ],
+            "negotiation": "init_resp",
+            "profile": "tcp",
+            "sessions": [
+              {
+                "events": [
+                  {
+                    "kind": "init"
+                  },
+                  {
+                    "kind": "resp"
+                  }
+                ],
+                "id": "s1",
+                "neg_result": 2,
+                "supported_mech": "1.2.840.48018.1.2.2"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "降级防护：selectedMech ∈ 列表 + reject(2)→终止；supportedMech 由会话级覆盖钉死"
+  },
+  {
+    "expect": {
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "80"
+        },
+        {
+          "field": "ip.proto",
+          "packet": 1,
+          "value": "6"
+        }
+      ],
+      "packet_count": 15
+    },
+    "id": "spnego_multi_session_stream",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.61",
+            "src": "192.0.2.61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 80,
+            "src_port": 45062
+          }
+        },
+        {
+          "http": {
+            "keep_alive": true,
+            "method": "GET",
+            "uri": "/"
+          }
+        },
+        {
+          "spnego": {
+            "mech_token": {
+              "opaque": true
+            },
+            "mech_types": [
+              "1.2.840.113554.1.2.2",
+              "1.2.840.48018.1.2.2"
+            ],
+            "negotiation": "init_resp",
+            "profile": "http",
+            "sessions": [
+              {
+                "events": [
+                  {
+                    "kind": "challenge"
+                  },
+                  {
+                    "kind": "init"
+                  },
+                  {
+                    "kind": "resp"
+                  },
+                  {
+                    "kind": "http_success"
+                  }
+                ],
+                "id": "s1"
+              },
+              {
+                "events": [
+                  {
+                    "kind": "challenge"
+                  },
+                  {
+                    "kind": "init"
+                  },
+                  {
+                    "kind": "resp"
+                  },
+                  {
+                    "kind": "http_success"
+                  }
+                ],
+                "id": "s2http",
+                "mech_types": [
+                  "1.3.6.1.4.1.311.2.2.10"
+                ],
+                "supported_mech": "1.3.6.1.4.1.311.2.2.10"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "多会话隔离：s1(HTTP profile/80) + s2(裸 TCP/445) 并行；OID/token/MIC/状态/四元组隔离"
+  },
+  {
+    "expect": {
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "80"
+        },
+        {
+          "field": "ip.proto",
+          "packet": 4,
+          "value": "6"
+        },
+        {
+          "field": "spnego.negTokenInit_element",
+          "packet": 5,
+          "value": "1"
+        }
+      ],
+      "packet_count": 11
+    },
+    "id": "spnego_pcap_nic_consistency",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.61",
+            "src": "192.0.2.61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 80,
+            "src_port": 45062
+          }
+        },
+        {
+          "http": {
+            "keep_alive": true,
+            "method": "GET",
+            "uri": "/"
+          }
+        },
+        {
+          "spnego": {
+            "mech_token": {
+              "len": 32,
+              "opaque": true
+            },
+            "mech_types": [
+              "1.2.840.113554.1.2.2",
+              "1.2.840.48018.1.2.2"
+            ],
+            "negotiation": "init_resp",
+            "profile": "http",
+            "sessions": [
+              {
+                "events": [
+                  {
+                    "kind": "challenge"
+                  },
+                  {
+                    "kind": "init"
+                  },
+                  {
+                    "kind": "resp"
+                  },
+                  {
+                    "kind": "http_success"
+                  }
+                ],
+                "id": "s1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "PCAP/NIC 双路一致：TCP carrier/方向/端口/HTTP header/DER 外层/OID/token 长度一致"
+  },
+  {
+    "expect": {
+      "error_contains": "der",
+      "expect_error": true
+    },
+    "id": "spnego_neg_der_truncated",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.61",
+            "src": "192.0.2.61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 445,
+            "src_port": 45061
+          }
+        },
+        {
+          "spnego": {
+            "wire_fault": "der_truncated"
+          }
+        }
+      ]
+    },
+    "summary": "DER tag/length/子 TLV 截断（wire_fault 注入）"
+  },
+  {
+    "expect": {
+      "error_contains": "length",
+      "expect_error": true
+    },
+    "id": "spnego_neg_der_length_overflow",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.61",
+            "src": "192.0.2.61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 445,
+            "src_port": 45061
+          }
+        },
+        {
+          "spnego": {
+            "wire_fault": "der_length"
+          }
+        }
+      ]
+    },
+    "summary": "长形式溢出/父子长度不一致/非最短编码（wire_fault 注入）"
+  },
+  {
+    "expect": {
+      "error_contains": "choice",
+      "expect_error": true
+    },
+    "id": "spnego_neg_invalid_token_choice",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.61",
+            "src": "192.0.2.61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 445,
+            "src_port": 45061
+          }
+        },
+        {
+          "spnego": {
+            "wire_fault": "choice"
+          }
+        }
+      ]
+    },
+    "summary": "未知 choice/错误 tag class/init-resp-targ 混用（wire_fault 注入）"
+  },
+  {
+    "expect": {
+      "error_contains": "oid",
+      "expect_error": true
+    },
+    "id": "spnego_neg_mech_oid_selection",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.61",
+            "src": "192.0.2.61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 445,
+            "src_port": 45061
+          }
+        },
+        {
+          "spnego": {
+            "wire_fault": "mech_oid"
+          }
+        }
+      ]
+    },
+    "summary": "非法 OID/选定机制绑定错误（wire_fault 注入）"
+  },
+  {
+    "expect": {
+      "error_contains": "mic",
+      "expect_error": true
+    },
+    "id": "spnego_neg_mic_downgrade",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.61",
+            "src": "192.0.2.61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 445,
+            "src_port": 45061
+          }
+        },
+        {
+          "spnego": {
+            "wire_fault": "mic"
+          }
+        }
+      ]
+    },
+    "summary": "MIC 缺失/不匹配/列表改写或降级选择（wire_fault 注入）"
+  },
+  {
+    "expect": {
+      "error_contains": "carrier",
+      "expect_error": true
+    },
+    "id": "spnego_neg_carrier_profile",
+    "proto": "spnego",
+    "spec_json": {
+      "flow_control": {
+        "flows": 1
+      },
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.61",
+            "src": "192.0.2.61"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 445,
+            "src_port": 45061
+          }
+        },
+        {
+          "spnego": {
+            "wire_fault": "carrier"
+          }
+        }
+      ]
+    },
+    "summary": "HTTP/TCP profile/端口/stream 边界错误（wire_fault 注入）"
   }
 ]

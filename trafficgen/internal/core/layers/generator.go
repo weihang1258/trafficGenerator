@@ -383,6 +383,7 @@ type FlowMeta struct {
 	NTLM       *core.NTLMConfig     // D-NTLM-1：ntlm 终结层（NTLMv2 三消息，SMB2/HTTP Negotiate 双 profile 自封帧，TCP 单载体）
 	SSTP       *core.SSTPConfig     // D-SSTP-1：sstp 终结层（MS-SSTP over TLS/TCP 443，tls 变换器透传）
 	OCSP       *core.OCSPConfig     // D-OCSP-1：ocsp 终结层（RFC 6960/8954 OCSP，tcp 载体 + 可选 http 层双 profile）
+	SPNEGO     *core.SPNEGOConfig   // D-SPNEGO-1：spnego 终结层（RFC 4178 DER，裸 TCP/HTTP Negotiate 双 profile 自封帧，TCP 单载体）
 	CQL        *core.CQLConfig
 	LDP        *core.LDPConfig
 	PCEP       *core.PCEPConfig

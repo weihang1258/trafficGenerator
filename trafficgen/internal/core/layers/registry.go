@@ -851,6 +851,35 @@ func buildDefaultRegistry() {
 			"wire_fault":          {Type: "string", Default: ""}, // 6 值枚举（62-ocsp §2 表）；""=无故障
 		},
 	})
+	// spnego（RFC 4178 GSS-API 协商，D-SPNEGO-1 裁定1）：`DependsOn ["tcp"]`
+	// （唯一载体；tcp 层管握手/seq-ack/挥手/MSS 分段，DER token 可跨
+	// segment）+ `OptionalOn ["http"]`（显式写 [ip,tcp,http,spnego] 才启
+	// 用可选底座；框架 0c355be 把 OptionalOn 计入终结层底座豁免；ntlm
+	// 同构）+ `TransportOn ["tcp"]`（SPNEGO 无 UDP 语义，udp 零值——
+	// kerberos 双载体的区别点）。FieldContract `tcp.dst_port`=445（裸
+	// TCP 档缺省；HTTP 档 80 由 http 层 FieldContract 供给；fixture 显式
+	// 写端口时均不生效——门1 §13）。
+	// http 底座仅作透传（http 层 isHTTPRPCInner 含 SPNEGO）。
+	r.Register(LayerSchema{Name: "spnego", Category: CategoryTerminal,
+		DependsOn:     []string{"tcp"},
+		OptionalOn:    []string{"http"},
+		TransportOn:   []string{"tcp"},
+		FieldContract: map[string]string{"tcp.dst_port": "445"},
+		Fields: map[string]FieldSchema{
+			"profile":        {Type: "string", Default: ""}, // tcp（缺省档）/ http
+			"negotiation":    {Type: "string", Default: ""}, // init_resp（缺省）/ init_targ
+			"mech_types":     {Type: "list", Default: []interface{}{}},
+			"supported_mech": {Type: "string", Default: ""},
+			"neg_result":     {Type: "int", Default: 0}, // 0..3（RFC 4178 §4.2.2）；targ 档 0..2 由 validator 按 negotiation 档校验（层 schema 不按档分支）
+			"req_flags":      {Type: "int", Default: 0}, // ContextFlags 32-bit 位掩码（RFC 4178 §4.2.1 bit0..bit6； §12 只作结构覆盖面，不建行为面）
+			"neg_hints":      {Type: "object"},
+			"mech_token":     {Type: "object"},
+			"response_token": {Type: "object"},
+			"mech_list_mic":  {Type: "object"},
+			"sessions":       {Type: "list", Default: []interface{}{}},
+			"wire_fault":     {Type: "string", Default: ""}, // 6 值枚举（D-SPNEGO-1 §2/§12 表）；""=无故障
+		},
+	})
 	r.Register(LayerSchema{Name: "cql", Category: CategoryTerminal, DependsOn: []string{"tcp"}})
 	r.Register(LayerSchema{Name: "iec104", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "2404"},
@@ -1146,7 +1175,7 @@ func buildDefaultRegistry() {
 	// tds case 搬层条目 JSON 进 spec.Payload，生成器只读
 	// FlowMeta.Payload）；目的端口默认 1433（validateSpecBase）。
 	r.Register(LayerSchema{Name: "tds", Category: CategoryTerminal,
-		DependsOn: []string{"tcp"},
+		DependsOn:   []string{"tcp"},
 		TransportOn: []string{"tcp"},
 		Fields: map[string]FieldSchema{
 			"version":       {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},

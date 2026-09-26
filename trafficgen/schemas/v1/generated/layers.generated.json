@@ -3359,6 +3359,67 @@
       ],
       "fields": {}
     },
+    "spnego": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "transport_on": [
+        "tcp"
+      ],
+      "optional_on": [
+        "http"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "445"
+      },
+      "fields": {
+        "mech_list_mic": {
+          "type": "object"
+        },
+        "mech_token": {
+          "type": "object"
+        },
+        "mech_types": {
+          "type": "list",
+          "default": []
+        },
+        "neg_hints": {
+          "type": "object"
+        },
+        "neg_result": {
+          "type": "int",
+          "default": 0
+        },
+        "negotiation": {
+          "type": "string",
+          "default": ""
+        },
+        "profile": {
+          "type": "string",
+          "default": ""
+        },
+        "req_flags": {
+          "type": "int",
+          "default": 0
+        },
+        "response_token": {
+          "type": "object"
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "supported_mech": {
+          "type": "string",
+          "default": ""
+        },
+        "wire_fault": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
     "srv6": {
       "category": "terminal",
       "depends_on": [

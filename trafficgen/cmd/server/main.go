@@ -148,6 +148,7 @@ import (
 	// 空导入：sip 包 init 注册层生成器 + 校验器（D-SIP-1）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/sip"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/smb"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/spnego" // init 注册 spnego 终结层生成器+校验器（D-SPNEGO-1，RFC 4178 DER TCP 裸/HTTP Negotiate 双 profile）
 	// 空导入：smtp 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/smtp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/snmp"
@@ -526,6 +527,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ntlm"))      // D-NTLM-1：NTLMv2 三消息（TCP 单载体，SMB2/HTTP Negotiate 自封帧）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("sstp"))      // D-SSTP-1：SSTP over TLS/TCP 443（tls 载体）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ocsp"))      // D-OCSP-1：OCSP DER（TCP 载体 + 可选 http 层双 profile，HTTP-80）
+	app.engine.RegisterPlanner(layers.NewChainPlanner("spnego"))    // D-SPNEGO-1：RFC 4178 DER 协商（TCP 单载体，裸 TCP/HTTP Negotiate 双 profile 自封帧）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("cql"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("someip"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("stun"))

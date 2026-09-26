@@ -3487,9 +3487,169 @@ def check_tds(cases):
         rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
     return rows
 
+def check_spnego(cases):
+    """D-SPNEGO-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 spnego", '"spnego": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 spnego（已准入）", '"spnego"' not in pt[i_neg:i_neg + 1500], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case spnego（严格解码）", 'case "spnego":' in tr and "DisallowUnknownFields" in tr, "在案"))
+    rows.append(("FlowMeta.SPNEGO 直传（Meta 字面量检查点）",
+                 re.search(r"SPNEGO:\s+spec\.SPNEGO\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.SPNEGO 字段", re.search(r"SPNEGO\s+\*core\.SPNEGOConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.SPNEGO 字段", re.search(r"SPNEGO\s+\*SPNEGOConfig", ty) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "spnego"')
+    reg_block = rg[i_reg:rg.index('Name: "cql"', i_reg)]
+    rows.append(("registry spnego 行（裁定1：DependsOn tcp + OptionalOn http + TransportOn tcp + 445 契约）",
+                 'DependsOn:     []string{"tcp"}' in reg_block
+                 and 'OptionalOn:    []string{"http"}' in reg_block
+                 and 'TransportOn:   []string{"tcp"}' in reg_block
+                 and '"tcp.dst_port": "445"' in reg_block, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    i_vl = vl.index('if protocol == "spnego" {')
+    vl_block = vl[i_vl:vl.index("effective, err := ValidateLayers", i_vl)]
+    rows.append(("载体预检（缺 tcp / 夹 udp / 混合族 / profile↔http 底座）",
+                 "missing tcp carrier" in vl_block and "udp carrier is not supported" in vl_block
+                 and "mixed address family in ip layer" in vl_block
+                 and "http carrier layer requires profile" in vl_block, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(spnego)",
+                 "internal/protocol/spnego" in mn and 'NewChainPlanner("spnego")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("strategy_convert case spnego + profile 端口缺省（445/80）",
+                 'case "spnego":' in sc and "parseSubconfigJSON[*SPNEGOConfig]" in sc
+                 and "portS := uint16(445)" in sc and "portS = 80" in sc, "在案"))
+    rows.append(("CheckProtoFlat 顶层 spnego 子映射 presence 判死",
+                 "protocol spnego no longer accepts a top-level spnego sub-config" in sc, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain_planner spnego 目的端口按 profile 缺省",
+                 'case "spnego":' in cp and 'spec.SPNEGO.Profile' in cp and '"http"' in cp, "在案"))
+    hl = (tg / "internal" / "protocol" / "http" / "layer_gen.go").read_text()
+    rows.append(("http 透传变换器（[ip,tcp,http,spnego] 底座可用）",
+                 "meta.SPNEGO != nil" in hl, "在案"))
+
+    # 2. 行为面（原语/关键件）。
+    nb = (tg / "internal" / "core" / "spnego.go").read_text()
+    for struct, name in [
+        ("type SPNEGOConfig struct", "SPNEGOConfig（宏配置）"),
+        ("type SPNEGONegHints struct", "SPNEGONegHints（[3] 槽声明）"),
+        ("type SPNEGOToken struct", "SPNEGOToken（opaque 外壳三态）"),
+        ("type SPNEGOMIC struct", "SPNEGOMIC（RFC 形 MIC 声明）"),
+        ("type SPNEGOSession struct", "SPNEGOSession（多会话隔离）"),
+        ("type SPNEGOEvent struct", "SPNEGOEvent（载体事件）"),
+    ]:
+        rows.append((f"关键件：{name}", struct in nb, "在案"))
+    _i = nb.index("anchors := map[string]string{")
+    _seg = nb[_i:nb.index("\n\t}", _i)]
+    _n = len(re.findall(r"SPNEGOWireFault[A-Za-z0-9]+:", _seg))
+    rows.append(("wire_fault 闭环 6 值锚词表", _n == 6, f"{_n} 值"))
+    _n_un = nb.count("UnmarshalJSON(b []byte) error")
+    rows.append(("递归严格解码（strictUnmarshalJSON + 逐级 UnmarshalJSON）",
+                 "strictUnmarshalJSON(b, &a)" in nb and _n_un >= 6, f"{_n_un} 级"))
+    bl = (tg / "internal" / "protocol" / "spnego" / "builder.go").read_text()
+    for prim, name in [
+        ("func buildInitialContextToken", "InitialContextToken 0x60 外层（RFC 2743 §3.1）"),
+        ("func buildNegTokenInit", "NegTokenInit [0]/[1]/[2]/[3] 槽（RFC 4178 §4.2.1）"),
+        ("func buildNegTokenResp", "NegTokenResp [1] 枝（RFC 4178 §4.2.2）"),
+        ("func buildNegTokenTarg", "negTokenTarg 旧式三值（RFC 2478 §3.2.1）"),
+        ("func buildNegHints", "negHints [3] 槽（hintName/hintAddress）"),
+        ("func frameTCP", "裸 TCP 自封帧（整 DER 直发）"),
+        ("func frameHTTP", "HTTP 401/Negotiate 成帧（RFC 4559）"),
+        ("func renderInit", "init 渲染（up，InitialContextToken 外层）"),
+        ("func renderResp", "resp 渲染（down，选择枝）"),
+        ("func renderMIC", "MIC 续渲染（up，补 mechListMIC）"),
+        ("func slot3", "[3] 槽互斥（MIC/hints 二选一）"),
+        ("func profileOf", "profile 归一（空=缺省档 tcp）"),
+        ("RegisterLayerGenerator", "init 注册生成器"),
+        ("RegisterLayerValidator", "init 注册校验器"),
+        ("func (g *SPNEGOGenerator) GenEvents", "事件生成器面（链驱动）"),
+    ]:
+        rows.append((f"关键件：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "spnego" / "planner.go").read_text()
+    for prim, name in [
+        ("func validateSpec", "入口校验（bare 层缺省基线）"),
+        ("func validateConfig", "profile/negotiation/req_flags/neg_hints/layout 值域"),
+        ("func validateSession", "事件 kind/状态机/降级守卫"),
+        ("func kindAllowed", "profile↔载体事件一致性"),
+        ("func advance", "状态机 initial→init→responded→(mic)→terminal"),
+        ("func validateWireFault", "wire_fault 注入拒 + 锚词出口"),
+    ]:
+        rows.append((f"关键件：{name}", prim in pl, "在案"))
+
+    # 3. 守卫锚词（负例通道；transport/family 住 validate_layers 链预检，
+    # 其余住 planner/builder/core——ntlm 同款三分）。
+    for anchor, name in [
+        ("(profile)", "profile↔事件 kind 混用"),
+        ("(sequence)", "negotiation/事件顺序（targ 显式声明）"),
+        ("(oid)", "OID 编码/别名/选定绑定"),
+        ("(selection)", "supportedMech ∈ 列表降级守卫"),
+        ("(neg_result)", "negResult 值域（resp 0..3/targ 0..2）"),
+        ("(neg_hints)", "neg_hints carry 值域"),
+        ("(layout)", "mech_list_mic layout 值域"),
+        ("(length)", "长度面（负数/token/MIC/hint hex）"),
+        ("(mic)", "[3] 槽二义（hints/MIC 互斥）"),
+        ("(port)", "会话 dst_port 冲突"),
+        ("(carrier)", "端点覆盖/tcp 单载体"),
+        ("(kind)", "未知事件 kind"),
+        ("negative-path injection rejected", "wire_fault 注入拒"),
+    ]:
+        rows.append((f"守卫：{name}", anchor in pl or anchor in bl or anchor in nb, f"锚词 {anchor}"))
+    for anchor, name in [
+        ("(transport)", "udp 载体拒"),
+        ("(family)", "混合地址族拒"),
+    ]:
+        rows.append((f"守卫：{name}", anchor in vl_block, f"锚词 {anchor}"))
+    rows.append(("守卫：未知 wire_fault 值拒", "unknown wire_fault kind" in nb, "在案"))
+
+    # 4. 用例面（20 例，ID 权威=61-spnego-testcase.md §2）。
+    idset = {c.get("id", "") for c in cases}
+    for cid in [
+        "spnego_http_ipv4_init", "spnego_http_ipv6_init",
+        "spnego_tcp_ipv4_init", "spnego_tcp_ipv6_init",
+        "spnego_neg_token_init_hints", "spnego_neg_token_resp_selection",
+        "spnego_neg_token_targ_legacy", "spnego_mech_oid_variants",
+        "spnego_mech_token_opaque", "spnego_mechlist_mic",
+        "spnego_der_canonical_boundaries", "spnego_downgrade_prevention",
+        "spnego_multi_session_stream", "spnego_pcap_nic_consistency",
+        "spnego_neg_der_truncated", "spnego_neg_der_length_overflow",
+        "spnego_neg_invalid_token_choice", "spnego_neg_mech_oid_selection",
+        "spnego_neg_mic_downgrade", "spnego_neg_carrier_profile",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in idset, "在案"))
+    rows.append(("注册前置占位 spnego_neg_unregistered 已移除",
+                 "spnego_neg_unregistered" not in idset, "已移除"))
+    rows.append(("用例总数 20（14 正+6 负）", len(cases) == 20, f"{len(cases)} 例"))
+    pos = [c for c in cases if "expect_error" not in (c.get("expect") or {})]
+    neg = [c for c in cases if "expect_error" in (c.get("expect") or {})]
+    rows.append(("14 正 + 6 负", len(pos) == 14 and len(neg) == 6, f"{len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("正例均带 packet_count", all((c.get("expect") or {}).get("packet_count") for c in pos), "全部在案"))
+    bad_keys = [c.get("id") for c in neg
+                if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}", not bad_keys, bad_keys or "全部合规"))
+    code_anchors = set(re.findall(r'\(([a-z_]+)\)"', pl + bl))
+    code_anchors |= set(re.findall(r'\(([a-z_]+)\)"', vl_block))
+    code_anchors |= set(re.findall(r'SPNEGOWireFault[A-Za-z0-9]+:\s*"([a-z_]+)"', nb))
+    bad_a = [f"{c.get('id')}:{ec}" for c in neg
+             for ec in [(c.get("expect") or {}).get("error_contains", "")]
+             if ec not in code_anchors]
+    rows.append(("6 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
+    return rows
+
+
+
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego}
 
 
 def main(argv):

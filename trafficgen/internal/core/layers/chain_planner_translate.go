@@ -155,7 +155,10 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// application-data 透传——record/TCP segment 边界 ≠ SSTP Length
 		// 边界，契约 §5/§8）。
 		SSTP: spec.SSTP,
-		CQL:  spec.CQL,
+		// D-SPNEGO-1：spnego 终结层同款（sessions[]/events[] 经 Meta 直传
+		// 生成器；固定检查点——Meta 字面量漏传即生成器收 nil 配置）。
+		SPNEGO: spec.SPNEGO,
+		CQL:    spec.CQL,
 		// D-OCSP-1：ocsp 终结层同款（sessions[]/transactions[] 经 Meta 直传
 		// 生成器；每事务 = request→response 两条消息 = HTTP 帧或整 DER）。
 		OCSP:  spec.OCSP,
@@ -2274,22 +2277,45 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		// D-SSTP-1：层 config 严格往返解码（SSTPConfig UnmarshalJSON——
 		// DisallowUnknownFields 递归作用于 sessions[]/transactions[]/
 		// attributes[]/ppp 嵌套结构；未知键在 config 层即拒）。
-		cfgS := completedConfig(s, term.Config)
-		rawS, err := json.Marshal(cfgS)
+		cfgSSTP := completedConfig(s, term.Config)
+		rawSSTP, err := json.Marshal(cfgSSTP)
 		if err != nil {
 			spec.ValidationErrors = append(spec.ValidationErrors,
 				fmt.Sprintf("sstp layer config encode: %v", err))
 			return
 		}
-		var scfg core.SSTPConfig
-		decS := json.NewDecoder(bytes.NewReader(rawS))
-		decS.DisallowUnknownFields()
-		if err := decS.Decode(&scfg); err != nil {
+		var scfgSSTP core.SSTPConfig
+		decSSTP := json.NewDecoder(bytes.NewReader(rawSSTP))
+		decSSTP.DisallowUnknownFields()
+		if err := decSSTP.Decode(&scfgSSTP); err != nil {
 			spec.ValidationErrors = append(spec.ValidationErrors,
 				fmt.Sprintf("sstp layer config decode: %v", err))
 			return
 		}
-		spec.SSTP = &scfg
+		spec.SSTP = &scfgSSTP
+	case "spnego":
+		if spec.SPNEGO != nil {
+			return // flat 权威；二者并存时 flat 优先（kerberos/dtls/ntlm 同款）
+		}
+		// D-SPNEGO-1：层 config 严格往返解码（SPNEGOConfig UnmarshalJSON——
+		// config/session/event/neg_hints/mech_token/mech_list_mic 六级
+		// DisallowUnknownFields；未知键在解码层即拒）。
+		cfgSPNEGO := completedConfig(s, term.Config)
+		rawSPNEGO, err := json.Marshal(cfgSPNEGO)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("spnego layer config encode: %v", err))
+			return
+		}
+		var scfgSPNEGO core.SPNEGOConfig
+		decSPNEGO := json.NewDecoder(bytes.NewReader(rawSPNEGO))
+		decSPNEGO.DisallowUnknownFields()
+		if err := decSPNEGO.Decode(&scfgSPNEGO); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("spnego layer config decode: %v", err))
+			return
+		}
+		spec.SPNEGO = &scfgSPNEGO
 	case "ocsp":
 		if spec.OCSP != nil {
 			return // flat 权威；二者并存时 flat 优先（dtls 同款——扁平入口

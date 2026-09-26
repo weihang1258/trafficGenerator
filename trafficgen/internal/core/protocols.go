@@ -31,7 +31,11 @@ var allowedProtocols = map[string]bool{
 	"ntlm": true,
 	"sstp": true,
 	"ocsp": true,
-	"dhcp": true, "dhcpv6": true, "dnp3": true, "dns": true,
+	// D-SPNEGO-1：spnego 已注册 layer/planner（20 语义用例落地，占位例
+	// spnego_neg_unregistered 随之移除——契约 §1）。与 _neg_unregistered
+	// 占位同批翻转：否则占位锚词由 unknown layer 漂移（ntlm 同款）。
+	"spnego": true,
+	"dhcp":   true, "dhcpv6": true, "dnp3": true, "dns": true,
 	"doip": true, "drda": true, "edp": true, "enip": true, "fins": true, "xmrmining": true,
 	"ftp": true, "gbt32960": true, "goose": true, "gre": true,
 	"grpc": true, "gtp": true, "h323": true, "hds": true,

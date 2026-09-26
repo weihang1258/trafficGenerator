@@ -77,7 +77,8 @@ func isHTTPRPCInner(meta layers.FlowMeta) bool {
 	return meta.GBT != nil || meta.GetWork != nil || meta.CWMP != nil || meta.DOH != nil ||
 		meta.ONVIF != nil || meta.MMSE != nil || // D-MMSE-1：http 族第 5 协议（WAP-209 PDU 是完整 HTTP 帧）
 		meta.NTLM != nil || // D-NTLM-1：http 族第 6 协议（http-negotiate profile 的 401/Negotiate 帧由 ntlm 层自封，http 层透传）
-		meta.OCSP != nil // D-OCSP-1：http 族第 7 协议（OCSP 请求/响应是完整 HTTP 帧，裸 TCP 整 DER 直发）
+		meta.OCSP != nil || // D-OCSP-1：http 族第 7 协议（OCSP 请求/响应是完整 HTTP 帧，裸 TCP 整 DER 直发）
+		meta.SPNEGO != nil // D-SPNEGO-1：http 族第 8 协议（http profile 的 401/Negotiate 帧由 spnego 层自封，http 层透传）
 }
 
 // generateForwardTransformer forwards the inner terminal stream's events
