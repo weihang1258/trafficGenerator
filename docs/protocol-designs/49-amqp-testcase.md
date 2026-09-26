@@ -1,121 +1,186 @@
 # AMQP（高级消息队列协议，Advanced Message Queuing Protocol）测试用例契约
 
-> 版本：v1.0.0（设计阶段）
-> 日期：2026-08-20
-> 配套设计：`docs/protocol-designs/49-amqp-design.md`
-> 机器契约：`trafficgen/test/protocol_pcap/cases/amqp.json`
-> 状态：`amqp` 层尚未注册；本文定义实现后的 PCAP（抓包文件）断言，不宣称当前 suite（测试套件）可运行。
+> 版本：v2.0.0（P3 完整产物）
+> 日期：2026-09-26
+> 配套设计：`docs/protocol-designs/49-amqp-design.md` v2.0.0（D-AMQP-1 草稿 §14；门1 获批=定稿）
+> 机器契约：`trafficgen/test/protocol_pcap/cases/amqp.json`（20 例，3682 行）
+> 状态：`amqp` 层已注册、builder/planner/generator 已落码（`registry.go:446`，`internal/protocol/amqp/` 共 1902 行，29 个单元测试函数），D-AMQP-1 未定稿——P4 落码前以门1 获批版为准，不宣称当前 suite 可运行。
 
-## 1. 测试原则和未注册边界
+## 1. 测试原则
 
-用例从设计 §2–§10 逐项派生，共 21 个唯一标识：14 个目标正例、6 个目标负例，以及 1 个注册前置占位。当前 JSON 只保留 `amqp_neg_unregistered`，其 `expect` 必须为 `expect_error=true`、`error_contains="unknown layer"`；占位不计入 20 个 AMQP 语义 ID，不能用拒绝、0 包或空 PCAP 冒充 AMQP 帧行为通过。注册后移除占位，再按本文索引顺序加入 14 个正例和 6 个负例。
+用例从设计 §2–§10 逐项派生，共 20 个唯一标识：14 个正例、6 个负例（v1.0.0 所述 `amqp_neg_unregistered` 占位在存量 JSON 中**不存在**——20/20 均为语义 ID，见 §5 实测）。AMQP 是 TCP 应用层协议，只做 AMQP 0-9-1（AMQP 1.0 是另一套 framing，明确不支持）；链形 `[ip,tcp,amqp]`，目的端口 5672。无 VLAN/IP options/TCP options 时，IPv4 TCP payload 起点 offset（偏移）54，IPv6 为 74。TCP MSS 分段后必须按 frame-size 重组 AMQP frame（帧）；正例每条已有 `min_packets`、可观测 `fields`（字段）和非空 `frames`（帧字节）。负例 `expect` 严格只有 `expect_error` 与 `error_contains`。
 
-AMQP 是 TCP 应用层协议。无 VLAN（虚拟局域网）、IP options（IP 选项）和 TCP options 时，IPv4 TCP payload（载荷）起点为 offset（偏移）54，IPv6 为 74。TCP MSS（最大报文段长度）分段后必须先按 frame-size（帧长度）重组 AMQP frame（帧）；正例实现后每条至少有 `packet_count` 或 `min_packets`、可观测 `fields`（字段）和稳定 `frames`（帧字节）。负例 `expect` 严格只有 `expect_error` 与 `error_contains`。
+- 每个正例都有 `min_packets`、非空 `fields`、非空 `frames`、`has_handshake=true`、`terminates=true`（TCP 真握手由 tcp 层承载，14/14 正例存量断言齐全）。
+- 正例字段全部来自 `tshark -G fields` 已注册的 `amqp.*` / `tcp.*` / `ipv6.*` 字段（本机 3.6.14，`amqp.*` 精确口径 493 个；本套件去重 8 个 1/1 精确命中）。
+- frames 只固定 protocol header（`41 4d 51 50 00 00 09 01`）与 heartbeat（`08 00 00 00 00 00 00 ce`）等可复算前缀；动态 TCP sequence、协商值、consumer tag、delivery tag 不写死。
+- **严格解码边界（P1 实测，诚实声明）**：`amqp` 子映射经 `parseSubconfigJSON`（`strategy_convert_helpers.go:21-30`）普通 `json.Unmarshal`（无 `DisallowUnknownFields`）解码——未知键静默忽略；负例不得依赖"未知键被拒"，必须走 `wire_fault`（9 值，`planner.go:432-455`）或自然守卫。
+- **负例 expect 形状缺口（P1 实测）**：存量 6 负例 `expect` 含空 `fields: []`（6/6）——不合"只有两键"契约，P4 改写时删除（§5 去向表）。
+- 多连接/多 channel 用 `tcp.srcport` distinct、channel/delivery/consumer 关联断言，不假设跨流调度顺序。
 
-协议头、frame header 和 AMQP frame end 的稳定字节可用 `frames` 断言；动态 TCP sequence、协商值、consumer tag、delivery tag 和调度顺序不写死，除非 fixture（固定样本）显式固定。未解密 TLS 只观察 TLS/TCP 外层，不能声称看见 AMQP 方法或正文。
+## 2. 原子用例索引（与设计、JSON 同序）
 
-## 2. 原子用例索引
+| # | ID | 类型 | 覆盖 | min_packets |
+|---:|---|---|---|---:|
+| 1 | `amqp_protocol_header_ipv4` | 正 | AMQP 0-9-1 8-byte protocol header、TCP/IPv4 | 4 |
+| 2 | `amqp_connection_handshake` | 正 | start/start-ok/tune/tune-ok/open/open-ok | 10 |
+| 3 | `amqp_channel_open_close` | 正 | channel 1 open/close 全序 + connection close | 16 |
+| 4 | `amqp_heartbeat` | 正 | type 8、channel 0、size 0、CE（双向双包） | 12 |
+| 5 | `amqp_exchange_queue_declare` | 正 | exchange/queue declare 参数和响应 | 16 |
+| 6 | `amqp_basic_publish` | 正 | publish→HEADER→BODY、BodySize=6 | 15 |
+| 7 | `amqp_basic_body_segmentation` | 正 | 200B body、frame_max=128 多 BODY 拆分 | 16 |
+| 8 | `amqp_basic_consume_deliver_ack` | 正 | consumer/deliver/header/body/ack 关联 | 18 |
+| 9 | `amqp_basic_get_empty` | 正 | basic.get(70) 与显式 get-empty(72) | 14 |
+| 10 | `amqp_confirm_transaction` | 正 | tx.select/commit/rollback 六方法（class 90） | 18 |
+| 11 | `amqp_keepalive_multi_channel` | 正 | 双 channel + heartbeat 隔离 | 17 |
+| 12 | `amqp_multi_connection` | 正 | 两个 TCP 连接（src_port 12345/12346） | 17 |
+| 13 | `amqp_ipv6` | 正 | IPv6/TCP、应用 bytes 不变、offset 74 | 4 |
+| 14 | `amqp_frame_boundary` | 正 | frame_max=4096、heartbeat 与 content 混排 | 16 |
+| 15 | `amqp_neg_protocol_header` | 负 | wire_fault protocol_version | — |
+| 16 | `amqp_neg_frame_encoding` | 负 | wire_fault bad_frame_type | — |
+| 17 | `amqp_neg_handshake_state` | 负 | wire_fault handshake_state | — |
+| 18 | `amqp_neg_channel_state` | 负 | channel 0 上 basic.publish（自然守卫） | — |
+| 19 | `amqp_neg_content_length` | 负 | body_size_override=100 vs body=5（自然守卫） | — |
+| 20 | `amqp_neg_session_reference` | 负 | wire_fault session_reference | — |
 
-| # | ID | 类型 | 覆盖 | 实现后证据 |
+min_packets 序列（正例 14 个，按序）：`[4,10,16,12,16,15,16,18,14,18,17,17,4,16]`。**profile 分布实测**：amqp091_minimal 10 例 / amqp091_rabbitmq 10 例。
+
+## 3. 正例断言契约
+
+- **断言通道**：`amqp.method.class`/`amqp.method.method`/`amqp.channel`/`amqp.type`/`amqp.length`/`amqp.header.class`/`amqp.header.body-size`（7 个 `amqp.*`）+ `tcp.dstport`/`ipv6.nxt`（载体面）——去重 9 字段，逐个对 `tshark -G fields`（本机 3.6.14，`amqp.*` 精确口径 493 个）**命中 9/9，零自创**。
+- frames 实测两档 offset：**54**（IPv4 TCP payload 起点，#1–#12/#14 protocol header `41 4d 51 50 00 00 09 01`；#4/#14 另钉 heartbeat `08 00 00 00 00 00 00 ce`；#12 第二连接 packet 11 同 header）、**74**（IPv6，#13）。
+- 逐例要点：
+  1. `amqp_protocol_header_ipv4`：断言 TCP dstport 5672 + packet 4 offset 54 protocol header；TCP 握手 3 包 + 1 数据包。
+  2. `amqp_connection_handshake`：六方法 class/method/方向逐包断言（packet 5–10），全部 channel 0；packet 索引为近似值，依实现可有偏移（先跑后钉）。
+  3. `amqp_channel_open_close`：channel.open(20/10)→open-ok(20/11)→close(20/40)→close-ok(20/41)→connection.close(10/50)→close-ok(10/51)，业务 channel 1。
+  4. `amqp_heartbeat`：`amqp.type=8` 双包（packet 11/12）+ `amqp.channel=0` + `amqp.length=0` + frame hex 钉死。
+  5. `amqp_exchange_queue_declare`：exchange.declare(40/10)→declare-ok(40/11)→queue.declare(50/10)→declare-ok(50/11)，direct 类型 + 名称参数。
+  6. `amqp_basic_publish`：basic.publish(60/40)→HEADER（`amqp.type=2`、`amqp.header.class=60`、`amqp.header.body-size=6`）→BODY（`amqp.type=3`）；BodySize 由生成器按 body 事件自动累加。
+  7. `amqp_basic_body_segmentation`：frame_max=128、body 200B → 自动拆多 BODY frame；断言 Header BodySize=200 与重组 body 总长相等、单帧线上长 `7+Size+1≤frame_max`；不按单个 TCP packet 断言。
+  8. `amqp_basic_consume_deliver_ack`：consume(60/20)→deliver(60/60)→HEADER→BODY→ack(60/80)；同 channel 同 delivery_tag/consumer_tag 关联（fixture 显式 `ctag1`/`delivery_tag=1`）。
+  9. `amqp_basic_get_empty`：basic.get(60/70)→get-empty(60/72)；不自动生成 HEADER/BODY。
+  10. `amqp_confirm_transaction`：tx.select(90/10)→select-ok→tx.commit(90/20)→commit-ok→tx.rollback(90/30)→rollback-ok；confirm.select（85/10）无用例 → A′ T-21（design §16 G-AMQP-3）。
+  11. `amqp_keepalive_multi_channel`：channel 1/2 各自 open + 各自 basic.publish(60/40)（packet 16/17 断言 channel 1/2 隔离）+ heartbeat（`amqp.type=8` packet 15）；一个 channel 的 close 不重置另一个。
+  12. `amqp_multi_connection`：两连接各自 protocol header + 完整握手（frames packet 4/11 双 header）；`connections[].src_port` 12345/12346；**notes 声称 `tcp.srcport distinct` 但存量 fields 未实际断言 → P5 补钉**（G-AMQP-2）。
+  13. `amqp_ipv6`：`ipv6.nxt=6` + dstport 5672 + offset 74 同 protocol header；应用 bytes 不因地址族改变。
+  14. `amqp_frame_boundary`：frame_max=4096 + 空 properties header（BodySize=0 仍有 HEADER）+ heartbeat c2s/s2c 混排。
+
+## 4. 负例契约
+
+负例必须以任务错误终止，不输出成功 PCAP、completed/0 packet 或仅有 ACK。`error_contains` 逐字对已落码锚词（P1 实测 `planner.go:432-455`，非设计臆造）：
+
+| # | ID | 故障输入（存量形状） | `error_contains` | 代码锚点（实测） |
 |---:|---|---|---|---|
-| 1 | `amqp_protocol_header_ipv4` | 正 | AMQP 0-9-1 8-byte protocol header、TCP/IPv4 | TCP 5672、offset 54 `AMQP\\0\\0\\9\\1` |
-| 2 | `amqp_connection_handshake` | 正 | start/start-ok/tune/tune-ok/open/open-ok | method class/id、方向和顺序 |
-| 3 | `amqp_channel_open_close` | 正 | channel 1 open/open-ok/close/close-ok | channel、method type、终止 |
-| 4 | `amqp_heartbeat` | 正 | type 8、channel 0、size 0、CE | `08 00 00 00 00 00 00 ce` |
-| 5 | `amqp_exchange_queue_declare` | 正 | exchange/queue 参数 | class/method、shortstr、响应 |
-| 6 | `amqp_basic_publish` | 正 | publish→HEADER→BODY、BodySize | content class、body size、属性 |
-| 7 | `amqp_basic_body_segmentation` | 正 | 多 BODY frame、frame_max 和重组 | body 总长与 frame size |
-| 8 | `amqp_basic_consume_deliver_ack` | 正 | consumer/deliver/header/body/ack | delivery/consumer/channel 关联 |
-| 9 | `amqp_basic_get_empty` | 正 | basic.get 与显式 get-empty | get method 类型和空响应 |
-| 10 | `amqp_confirm_transaction` | 正 | confirm.select 或 tx select/commit/rollback | 显式扩展方法顺序 |
-| 11 | `amqp_keepalive_multi_channel` | 正 | 单连接多 channel、heartbeat | channel distinct、heartbeat |
-| 12 | `amqp_multi_connection` | 正 | 两个 TCP 连接、状态隔离 | tcp.stream/端口 distinct |
-| 13 | `amqp_ipv6` | 正 | IPv6/TCP、应用 bytes 不变 | `ipv6.nxt=6`、offset 74 |
-| 14 | `amqp_frame_boundary` | 正 | frame_max、空 body、shortstr/size 边界 | frame size、CE、边界值 |
-| 15 | `amqp_neg_protocol_header` | 负 | 缺失或错误 protocol header | `protocol`/`version` |
-| 16 | `amqp_neg_frame_encoding` | 负 | 未知 type、非 CE、size 越界 | `frame`/`size` |
-| 17 | `amqp_neg_handshake_state` | 负 | method 顺序、方向或 tune/open 状态错误 | `handshake`/`tune` |
-| 18 | `amqp_neg_channel_state` | 负 | 未打开 channel、channel 0/limit 误用 | `channel`/`session` |
-| 19 | `amqp_neg_content_length` | 负 | Header BodySize 与 BODY/size 不一致 | `body`/`length` |
-| 20 | `amqp_neg_session_reference` | 负 | delivery/consumer/channel 跨连接引用 | `delivery`/`consumer`/`session` |
-| 21 | `amqp_neg_unregistered` | 占位 | 当前层注册前置 | `unknown layer`，不计语义覆盖 |
+| 15 | `amqp_neg_protocol_header` | `amqp.wire_fault="protocol_version"` | `protocol` | `planner.go:434-435`（`protocol version mismatch`） |
+| 16 | `amqp_neg_frame_encoding` | `amqp.wire_fault="bad_frame_type"` | `frame` | `planner.go:436-437`（`bad frame type`） |
+| 17 | `amqp_neg_handshake_state` | `amqp.wire_fault="handshake_state"` + open-before-tune-ok 事件序 | `handshake` | `planner.go:442-443`（`handshake state violation`）；事件序本身亦触发自然守卫 `:272`（`connection.open before tune-ok`） |
+| 18 | `amqp_neg_channel_state` | 无 wire_fault——channel 0 上 basic.publish（channel.open 先行拒 `:292`，publish 未开 channel 拒 `:306`） | `channel` | `planner.go:292/306`（`channel 0 (reserved)` / `unopened channel`） |
+| 19 | `amqp_neg_content_length` | 无 wire_fault——`body_size_override=100` + body 5B | `body` | `planner.go:422-426`（`body size mismatch: declared 100, sent 5`） |
+| 20 | `amqp_neg_session_reference` | `amqp.wire_fault="session_reference"` | `session` | `planner.go:448-449`（`session reference violation`） |
 
-## 3. 线上编码和偏移断言
+wire_fault 9 值中未用值 5 个（`shortstr_overflow`/`bad_frame_end`/`frame_size_overflow`/`channel_state`/`body_length`）→ G-AMQP-3（P4/P5 补例）。**P4 改写纪律**：负例 `expect` 删除空 `fields: []`，只留 `{expect_error, error_contains}` 两键。
 
-AMQP protocol header（协议头）必须是 TCP stream 首个 8 字节：`41 4d 51 50 00 00 09 01`。每个 frame 为 `FrameType(1)|Channel(2)|Size(4)|Payload(Size)|FrameEnd(1)`，整数使用大端序，end marker 固定 `ce`。METHOD payload 开头为 class-id/method-id 各 2 字节；HEARTBEAT 固定 type=8、channel=0、size=0、end=`ce`。
+## 5. 存量 20 例逐条去向审计（§9.14；P1 存量实测，P4 按本表执行）
 
-`amqp_protocol_header_ipv4` 在 IPv4 payload offset 54 固定 `41 4d 51 50 00 00 09 01`，并断言 TCP destination port 5672。`amqp_ipv6` 在 offset 74 固定相同 protocol header，断言 `ipv6.nxt=6`；不因外层地址族改变 frame bytes。
+存量现状（2026-09-26 实测，`cases/amqp.json` 3682 行）：20/20 同一旧扁平形——`spec_json` 顶层键 `['amqp','dst_ip','dst_port','layers','src_ip','src_port']`（白名单外 5 键：4 地址端口键 + 顶层 `amqp` 子映射）；`layers=[{"tcp":{}},{"amqp":{}}]` 空条目（无 `ip` 层、无层内地址端口）；20/20 无 `flow_control` 键；6/6 负例 expect 多空 `fields: []`。去向：14 正例全部**合入**（层链整形后保留语义，min_packets/包号先跑后钉）；6 负例全部**合入**（锚词已对真实代码行）。
 
-`amqp_heartbeat` 固定 frame offset 的 8 字节 `08 00 00 00 00 00 00 ce`。`amqp_basic_publish` 和 `amqp_basic_consume_deliver_ack` 必须按 METHOD→HEADER→BODY 顺序验证；HEADER class-id=60、BodySize 为所有 BODY payload 长度之和，BODY channel 与 METHOD/HEADER 相同。多 BODY frame 必须满足 negotiated `frame_max` 的完整线上长度约束（`7 + Size + 1`），重组后 body bytes 和 BodySize 相等。
+| # | ID | 去向 | 改写要点 |
+|---:|---|---|---|
+| 1 | `amqp_protocol_header_ipv4` | 合入 | 顶层四键→`ip`/`tcp` 层；`amqp` 子映射→`layers[2].amqp`；补 `flow_control.flows=1`；min_packets=4 先跑后钉 |
+| 2 | `amqp_connection_handshake` | 合入 | 同上；六方法断言保留，packet 索引 P5 校准 |
+| 3 | `amqp_channel_open_close` | 合入 | 同上；min_packets=16 先跑后钉 |
+| 4 | `amqp_heartbeat` | 合入 | 同上；`heartbeat: 30` 配置键随层迁入；frames 双 hex 保持 |
+| 5 | `amqp_exchange_queue_declare` | 合入 | 同上；exchange/queue 参数面保留 |
+| 6 | `amqp_basic_publish` | 合入 | 同上；BodySize=6 先跑后钉 |
+| 7 | `amqp_basic_body_segmentation` | 合入 | 同上；`frame_max: 128` 随层迁入；body 200B 保留 |
+| 8 | `amqp_basic_consume_deliver_ack` | 合入 | 同上；tag 关联 fixture 保留 |
+| 9 | `amqp_basic_get_empty` | 合入 | 同上；get(70)/get-empty(72) 断言保留 |
+| 10 | `amqp_confirm_transaction` | 合入 | 同上；tx 六方法保留（confirm.select 面 → A′ T-21） |
+| 11 | `amqp_keepalive_multi_channel` | 合入 | 同上；`heartbeat: 30` 迁入；channel 1/2 隔离断言保留 |
+| 12 | `amqp_multi_connection` | 合入 | 同上；`connections[].src_port` 12345/12346 保留；`tcp.srcport distinct` 断言 P5 补钉（G-AMQP-2） |
+| 13 | `amqp_ipv6` | 合入 | `ip` 层填 v6 地址 `2001:db8::1→::2`；offset 74 保持 |
+| 14 | `amqp_frame_boundary` | 合入 | 同上；`frame_max: 4096` 迁入；空 properties header 保留 |
+| 15 | `amqp_neg_protocol_header` | 合入 | 负例改写同正例形状；**删 expect 空 `fields: []`**；锚词 `protocol` 已对 `planner.go:435` |
+| 16 | `amqp_neg_frame_encoding` | 合入 | 同上；`frame` 对 `:437` |
+| 17 | `amqp_neg_handshake_state` | 合入 | 同上；`handshake` 对 `:443` |
+| 18 | `amqp_neg_channel_state` | 合入 | 同上；`channel` 对 `:292/:306`（自然守卫，无 wire_fault） |
+| 19 | `amqp_neg_content_length` | 合入 | 同上；`body` 对 `:425`（自然守卫） |
+| 20 | `amqp_neg_session_reference` | 合入 | 同上；`session` 对 `:449` |
 
-AMQP shortstr 是 `uint8 length + bytes`，长度 255 合法，256 必须拒绝；longstr 使用 UI32 长度。Frame size 只计 payload，不含 8-byte frame header/end；FrameEnd 非 `ce`、size 越过 stream 或未知 type 必须失败。channel 0 仅用于 connection methods/heartbeat；业务方法必须使用已打开的非零 channel。
+作废 0 例，等价覆盖 0 例（无重复语义可合并）。
 
-## 4. 正例逐项断言契约
+## 6. 三方一致性清单
 
-1. **`amqp_protocol_header_ipv4`**：TCP/IPv4/5672 完整握手后客户端发送 AMQP 0-9-1 protocol header；断言 TCP destination port、payload presence 和 offset 54 稳定 8 字节。不能将 TCP SYN payload 当 protocol header。
-2. **`amqp_connection_handshake`**：显式 start→start-ok→tune→tune-ok→open→open-ok；断言每个 METHOD 的 class 10、method ID、方向和协商 frame_max/channel_max/heartbeat。planner 不自动插入遗漏响应。
-3. **`amqp_channel_open_close`**：握手后 channel 1 open/open-ok，再 channel.close/close-ok，最后 connection.close/close-ok 或显式终止；断言 channel 与 method 顺序、handshake 和 termination。
-4. **`amqp_heartbeat`**：连接 open 后发送一个或多个 heartbeat，断言 type 8、channel 0、size 0、end CE；不能用 TCP keepalive 替代 AMQP heartbeat。
-5. **`amqp_exchange_queue_declare`**：channel 1 显式 exchange.declare 与 queue.declare，再分别接对应 ok；断言 direct/fanout/topic type、name/flags 的 shortstr 和方向，不断言 broker 自动路由结果。
-6. **`amqp_basic_publish`**：basic.publish 后同 channel 的 class 60 content header、BodySize 和一个 BODY；断言 method→header→body 顺序、BodySize 等于 body bytes、FrameEnd CE。
-7. **`amqp_basic_body_segmentation`**：设置小于 body 的 frame_max，生成多个 BODY frame；断言每 frame 的完整线上长度 `7 + Size + 1` 不越 negotiated frame_max，重组 body 长度恰等于 Header BodySize，不能按单个 TCP packet 断言。
-8. **`amqp_basic_consume_deliver_ack`**：basic.consume/open-ok 后 server basic.deliver→HEADER→BODY，client basic.ack；断言同 channel、delivery tag 关联和 consumer tag 非空，不固定运行期随机 tag。
-9. **`amqp_basic_get_empty`**：basic.get 后显式 basic.get-empty response，断言 class 60/method 72（get-empty）和空队列语义；不自动生成 HEADER/BODY。
-10. **`amqp_confirm_transaction`**：显式 confirm.select/confirm.select-ok 或 tx.select→tx.commit/rollback，profile 未开启时不得静默接受；断言方法顺序和 channel。
-11. **`amqp_keepalive_multi_channel`**：同连接先打开 channel 1/2，分别发送业务方法和 heartbeat；断言业务 channel 非零、heartbeat channel 0、一个 channel 的 close 不重置另一个 channel。
-12. **`amqp_multi_connection`**：两个独立 TCP 四元组分别完成 protocol header/handshake，且各自 publish 或 consume；断言 tcp.stream 或源端口 distinct，delivery/consumer/channel 状态不串用。
-13. **`amqp_ipv6`**：IPv6/TCP/5672 使用与 IPv4 相同的 protocol header 和显式握手最小帧；断言 `ipv6.nxt=6`、offset 74 和应用 bytes 不变。
-14. **`amqp_frame_boundary`**：覆盖 heartbeat/size=0、BodySize=0 仍有 HEADER、shortstr=255、frame_max 上界和可分配 payload；不得默认分配 uint32 最大长度，需断言 size/end marker 和长度回填。
+1. 设计 §10、本文 §2 和 JSON 必须保持同一 20 个语义 ID、同一顺序；正例 14、负例 6（实测 20/20 全为语义 ID，v1.0.0 占位形不存在）。
+2. 正例 min_packets 序列 `[4,10,16,12,16,15,16,18,14,18,17,17,4,16]`；负例无 min_packets。
+3. 每个正例断言 `has_handshake=true`（TCP 真握手）+ `terminates=true`；`amqp.*` 字段全部注册命中。
+4. IPv4 frame offset=54、IPv6=74；动态 TCP sequence/协商值不进 frames。
+5. multi-connection 用 `tcp.srcport` distinct、multi-channel 用 `amqp.channel` 区分；不硬编码跨流 packet index（先跑后钉校准）。
+6. 负例 `expect` 改写后只有 `expect_error`、`error_contains` 两键（存量空 `fields` 删除）。
 
-## 5. 负例契约
+## 7. 实现后执行顺序
 
-负例必须在 planner/validator 处失败并传播为 task error，不得输出成功 PCAP、completed/0 packet 或仅有 ACK。每个负例的执行期 `expect` 只允许 `expect_error` 与 `error_contains`。
-
-| ID | 故障输入 | 目标 `error_contains` |
-|---|---|---|
-| `amqp_neg_protocol_header` | 缺 AMQP header、版本非 `0.9.1` 或首个 bytes 错误 | `protocol` 或 `version` |
-| `amqp_neg_frame_encoding` | 未知 frame type、FrameEnd 非 `0xCE`、size 越过 stream | `frame` 或 `size` |
-| `amqp_neg_handshake_state` | start/start-ok/tune/open 顺序或方向错误 | `handshake` 或 `tune` |
-| `amqp_neg_channel_state` | 未打开 channel、业务方法使用 channel 0、超过 channel_max | `channel` 或 `session` |
-| `amqp_neg_content_length` | Header BodySize 与 BODY 总长、frame size 或 channel 不一致 | `body` 或 `length` |
-| `amqp_neg_session_reference` | delivery/consumer/channel 引用另一连接或已关闭 session | `delivery`、`consumer` 或 `session` |
-| `amqp_neg_unregistered` | `proto=amqp` 且 layers 含未注册 `amqp` | **`unknown layer`** |
-
-## 6. 机器契约与静态检查
-
-1. 运行 `python3 -m json.tool trafficgen/test/protocol_pcap/cases/amqp.json`，确认当前 JSON 恰有一个 `amqp_neg_unregistered` 条目，`proto=amqp`，`expect_error=true`，`error_contains` 精确为 `unknown layer`。
-2. 当前机器 ID 集合仅包含占位；占位不计入 20 个语义 ID。注册后 JSON 必须按本文 §2 顺序补入 14 正例和 6 负例。
-3. 正例实现后每条应有 `packet_count`/`min_packets`、已注册 TCP/IP/IPv6 字段和稳定 `frames`；不得伪造未注册的 `amqp.*` tshark 字段。AMQP frame bytes 使用重组后的 payload offset 54/74。
-4. 多连接/多 channel 用 tcp.stream、方向、端口 distinct 和 channel/delivery/consumer 关联断言，不假设多流调度顺序。
-5. 负例 `expect` 只能包含 `expect_error`、`error_contains`；占位的 unknown layer 不得冒充协议语义负例已执行。
-
-## 7. 三方一致性表
-
-设计 §10、本文 §2 和未来 JSON 必须保持同一 20 个语义 ID、同一顺序；当前 JSON 另有一个不计入语义覆盖的注册前置占位。
-
-```text
-amqp_protocol_header_ipv4
-amqp_connection_handshake
-amqp_channel_open_close
-amqp_heartbeat
-amqp_exchange_queue_declare
-amqp_basic_publish
-amqp_basic_body_segmentation
-amqp_basic_consume_deliver_ack
-amqp_basic_get_empty
-amqp_confirm_transaction
-amqp_keepalive_multi_channel
-amqp_multi_connection
-amqp_ipv6
-amqp_frame_boundary
-amqp_neg_protocol_header
-amqp_neg_frame_encoding
-amqp_neg_handshake_state
-amqp_neg_channel_state
-amqp_neg_content_length
-amqp_neg_session_reference
-```
+先执行 JSON 语法、ID 顺序、正负 expect 结构、字段注册名、offset/hex 静态检查；再按 1–14 验证 IPv4/IPv6 载体、六步握手、channel/content/heartbeat 帧；最后按 15–20 验证每个拒绝路径和错误传播。tshark 对 `amqp.method.class/method`、`amqp.type/channel/length`、`amqp.header.*` 已实测可读；不能以"任务完成但 0 包"作为通过。服务器二进制与 HEAD 同代后跑全量（`CASE_PROTO=amqp`），不以增量绿充数。
 
 ## 8. 修订记录
 
-- v1.0.0（2026-08-20）：建立 14 个 AMQP 0-9-1 正例、6 个严格负例和 1 个未注册占位，覆盖 protocol header、METHOD/HEADER/BODY/HEARTBEAT frame、握手/channel/content 状态、exchange/queue/basic、IPv4/IPv6、多连接、多 channel、MSS/长度边界和错误传播；不修改 Go 实现。
+- v2.0.0（2026-09-26）：P3 完整产物。新增 §5 存量 20 例逐条去向审计表（旧扁平形→层链目标形，P4 执行）、§9 固定动作（§3.15 三项 / A′B′ 两分类 / 9.52 对账 / 3.14 豁免审计 / 三源回指 / 断言契约核对 / 性能验收）；§4 锚词表改为对已落码行号实测；§1 状态与严格解码边界更正（层已注册、占位形不存在、负例空 fields 缺口）；§3 补 offset 两档与字段 9/9 命中实测。
+- v1.0.0（2026-08-20）：建立 14 个正例、6 个严格负例和 1 个未注册占位；不修改 Go 实现。
+
+## 9. P3 固定动作（CORE_MEMORY §3.15 / §9.52 / §9.14 / 覆盖审计要求面）
+
+### 9.1 §3.15 三项逐项一例或立项（无例无项即缺口）
+
+| # | 三项 | 本协议对照 | 用例/立项 |
+|---|---|---|---|
+| ① | 同连接/同流内的多轮操作 | 单 TCP 连接多事务编排：六步握手→拓扑声明→publish→consume/deliver/ack→tx 三轮→close（#3/#5/#6/#8/#10 全序覆盖；#10 tx select/commit/rollback 三轮） | 已覆：#3–#10 多轮 + #11 多 channel |
+| ② | 非正常结束 | protocol/frame/handshake/channel/body/session 六类拒收（#15–#20），全部 task error 终态 | 已覆：#15–#20（6 负例，锚词逐字见 §4） |
+| ③ | 长保活 | heartbeat 事件（channel 0，#4/#11/#14 已覆）；**周期自动心跳调度明确不支持**（design §12.1 #6，声明式回放族，heartbeat 是显式事件） | 已覆（显式事件面）+ 明确不支持（周期调度，不用"待确认"逃逸） |
+
+无空项。
+
+### 9.2 A′/B′ 两分类表（要求面反推：数据/业务/现网/多流/地址族/断言通道六类）
+
+A′（引擎可构建 → 20 ID 内已覆；**A′ 补例建议 = T-20/T-21**，并入与否由主线程定，不影响 §2 的 20 ID 权威口径）：
+
+| 面 | 要求点 | 去向 |
+|---|---|---|
+| 数据 | frame 四类型/channel 0 与业务 channel/shortstr/longstr/table/properties flags/BodySize/frame_max 分段 | #1–#14 已覆；**shortstr 255/256 边界无用例 → A′ T-20**；14 property 全集子面 → G-AMQP-3 |
+| 业务 | 六步握手顺序/方向、channel 开关、content 序列 method→header→body、delivery/consumer 关联、tx/confirm | #2/#3/#6/#8/#10 已覆；**confirm.select（85/10）无用例 → A′ T-21** |
+| 现网 | RabbitMQ 连接/发布/消费/拓扑声明/心跳形态 | #1–#11 已覆外壳；**抓包级确认 → G-AMQP-1**（确认方式：抓 client-broker 回环包）；tune 协商差异面 → G-AMQP-1 |
+| 多流 | 双 TCP 连接（#12）+ 单连接双 channel（#11）+ heartbeat 交织（#11/#14） | 已覆；**`tcp.srcport distinct` 断言存量未实钉 → P5 补钉（G-AMQP-2）**；校验器单连接面 → G-AMQP-2 |
+| 地址族 | IPv4（13 例）/IPv6（#13）对称 | #13 已覆；无缺格（应用 bytes 不变断言双族） |
+| 断言通道 | `amqp.*` 去重 7 + `tcp.dstport`/`ipv6.nxt` = 9 字段（9/9 实测命中）+ frames hex（offset 54/74 两档） | 全正例双通道；动态值不进 frames |
+
+B′（引擎结构缺口 → D-AMQP-1「明确不解决 + 迁入计划」，见 design §16 G-AMQP-2/G-AMQP-4）：validateAMQPConfig 只扫 Connections[0]（第 2+ 连接事件不校验）、未知 amqp 键拒绝守卫（跨协议共享面上报主线程）、AMQP 1.0 framing（明确不支持）、AMQPS/TLS 5671 载体（→ G-AMQP-1）。
+
+### 9.3 9.52 对账两行 + 清单出处声明
+
+- **清单出处声明**：本清单来源 = **规范反推**（AMQP 0-9-1 wire-level specification；精确章节号待 G-AMQP-1），**非**引擎能力面反推。引擎侧只作现状取证：`amqp` 已注册（`registry.go:446`）/白名单（`protocols.go:22`）/builder+planner+generator 已落码（`internal/protocol/amqp/` 1902 行）/`cases/amqp.json` 20 例（旧扁平形）/tshark `amqp.*` 493 字段实测。第三源"已确认现网行为"当前=未确认级，挂 G-AMQP-1。
+- **对账两行**：**规范逻辑点总数 = 50**（design §12.1 八项 8 行 + §12.2 事件×状态矩阵 28 格 + §12.3 数据形态变体表 14 行）；**用例覆盖数 = 30**（八项 8 行全有结论 + 矩阵 8 格已覆 + 变体 14 行，全部由 20 个语义 ID 承载）；**不适用 = 8**（矩阵 R1c2/R1c4/R3c3 注记列/R5c3/R5c4/R6c2/R6c3/R6c4/R7c3/R7c4 计 8，显式声明不适用≠缺口）；**A′/B′/立项 = 12**（矩阵缺口→用例通道 11 格由 #15–#20 负例+A′ T-20/T-21 承载 + R6c1 confirm 半格 → T-21；合计 12 点挂 T-20/T-21/G-AMQP-2/G-AMQP-3）。30 + 8 + 12 = 50 ✓ 无遗漏。**反查 20/20 绿 ≠ 覆盖全**——反查只证明清单内的点有例，本对账才证明清单本身全（§9.52 原文）。
+- **粒度声明（防误读）**：按 design §12 的行/格粒度计数；变体表 wire_fault 行的部分子值（5 个未用值）另登 G-AMQP-3，不折进 50 点、也不冒充覆盖。
+
+### 9.4 3.14 豁免边界审计
+
+- 本协议**单 TCP 长连接多路复用**（channel 复用而非多连接）——但 §3.14 明示"豁免 `sessions[]` 不等于豁免多流覆盖"。本文**不主张任何豁免**：`connections[]` 显式声明（design §13.3 会话表），#12 覆盖双连接扇出。
+- **多流并发**：已覆 #12（双 TCP 四元组独立握手）。
+- **单包多载荷**：单连接多 channel（#11 双 channel 各自业务）+ 单 publish 多 BODY（#7 分段）已覆 → 显式记已覆；无逃逸。
+- **多事务**：同连接内握手→拓扑→content→ack→tx→close 多轮（#3–#10）已覆。
+- 结论：多流、单包多载荷、多包序列三项各有结论，无逃逸。
+
+### 9.5 三源回指行
+
+AMQP 0-9-1 wire-level specification（frame/class/状态机/编码）→ **D-AMQP-1**（design §14）→ `trafficgen/test/protocol_pcap/cases/amqp.json`（20 例）。第三源"已确认的现网行为"当前为**未确认级**（design §12.4 ②），挂 G-AMQP-1 且按 §5.5 不写死进实现。ID 权威 = 本文 §2（14 正 + 6 负）。
+
+### 9.6 断言契约核对结论（与 design §10/§13 一致）
+
+1. **20 ID 契约核对**：本文 §2 与 design §10 逐 ID、逐序、逐类型一致——14 正例（min_packets `[4,10,16,12,16,15,16,18,14,18,17,17,4,16]`，先跑后钉）+ 6 负例（锚词 `protocol/frame/handshake/channel/body/session` 逐字对 `planner.go:432-455` 及 `:292/:306/:425` 真实字符串）。
+2. **存量审计（§9.14）**：见 §5 去向表。20 例同一旧扁平形（`layers=[{tcp:{}},{amqp:{}}]` 空条目 + 顶层四键 + 顶层 `amqp` 子映射 + 无 `flow_control`；负例多空 `fields`），P4 按去向表逐例改写，**不搬运旧期望值**（min_packets/包号先跑后钉）。
+3. **断言通道核对**：9 个字段（`amqp.*` 7 + `tcp.dstport` + `ipv6.nxt`）逐个注册命中（`tshark -G fields` 精确口径 493 个中的 7 个 `amqp.*` 1/1 命中）；frames hex 两档 offset（54/74）实测。
+4. **min_packets 纪律**：§2 的约定值随 P4 **先跑后钉**（§9.31/§14.6），以落盘 pcap 实测校准；#2 断言注记已自认"packet 索引为近似值"，P5 校准时不照抄存量。
+
+### 9.7 性能设计与验收（§6.1–6.8 要素；细目见 design §14）
+
+- 目标口径：O(n) 流式——`Generate` 逐事件渲染直发 `EmitMsg`，body 分段即时 Emit，无按包增长结构、无全量聚合（design §14 主流程）；无锁无 sleep（事件驱动，无心跳定时器）。
+- 两路验收（§6.3）：**pcap 路**——suite 全量落盘 `/tmp/mcp-pcaps/amqp/`，tshark 逐字段校对；**NIC 路**——过滤器 `tcp port 5672`，测试网口按 testing-interface 记忆（`enp135s0f0np0`），关注 frame 序列在线上可见与 TCP 分段重组正确。
+- 六类场景（§6.6）P5 跑测覆盖：基线（#1 单包）/目标规模（#8 十八包全编排）/压力上限（`flows=N` 大 N × 长事件序）/长时间运行/并发交错（#12 多连接）/资源耗尽背压（队列满走既有 pipeline 语义）。
+- 失败边界（§6.5 诚实待确认）：吞吐/并发/内存目标数字待 P4 基准后定，本契约不写承诺数字；功能正确但超预算按 §6.8 视为不合格。
