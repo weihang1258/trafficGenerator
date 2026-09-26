@@ -1359,6 +1359,127 @@ MCP_VALIDATOR_ANCHORS = [
 MCP_COMMERCIAL = ["claude", "cursor", "flowb"]
 
 
+def check_amqp(cases):
+    """D-AMQP-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 amqp", '"amqp"' in pg and 'true' in pg.split('"amqp"')[1][:12], "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 amqp（已准入）", '"amqp"' not in pt[i_neg:i_neg + 600], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case amqp（严格解码）", 'case "amqp":' in tr and "DisallowUnknownFields" in tr, "在案"))
+    rows.append(("FlowMeta.AMQP 直传（Meta 字面量检查点）",
+                 re.search(r"AMQP:\s+spec\.AMQP\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.AMQP 字段", re.search(r"AMQP\s+\*core\.AMQPConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.AMQP 字段", re.search(r"AMQP\s+\*AMQPConfig", ty) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry amqp 行（DependsOn tcp + 5672 契约）",
+                 'Name: "amqp"' in rg and 'DependsOn:     []string{"tcp"}' in rg
+                 and '"tcp.dst_port": "5672"' in rg, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    i_vl = vl.index('if protocol == "amqp" {')
+    vl_block = vl[i_vl:vl.index("effective, err := ValidateLayers", i_vl)]
+    rows.append(("载体预检（夹 udp / 缺 tcp / 混合族）",
+                 "udp carrier is not supported" in vl_block and "missing tcp carrier" in vl_block
+                 and "mixed address family in ip layer" in vl_block, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(amqp)",
+                 "internal/protocol/amqp" in mn and 'NewChainPlanner("amqp")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("strategy_convert case amqp + 5672 缺省端口",
+                 'case "amqp":' in sc and "setDefaultDstPort(&spec, cfg, 5672)" in sc, "在案"))
+    rows.append(("CheckProtoFlat 顶层 amqp 子映射 presence 判死",
+                 "protocol amqp no longer accepts a top-level amqp sub-config" in sc, "在案"))
+    rows.append(("mapToFlowSpec 存量背 door（ValidationErrors）",
+                 'if protocol == "amqp" {' in sc and 'cfg["amqp"]' in sc
+                 and "CheckProtoFlat(protocol, cfg)" in sc, "在案"))
+
+    # 2. 行为面（builder/planner 关键件；method ID 以 builder.go:60-64 为准：
+    # publish=40/ack=80/get=70/get-ok=71/get-empty=72，门1 勘误）。
+    bl = (tg / "internal" / "protocol" / "amqp" / "builder.go").read_text()
+    for prim, name in [
+        ("func buildProtocolHeader", "protocol header 8 字节"),
+        ("func buildMethodFrame", "METHOD 帧（class/method + CE）"),
+        ("func buildHeaderFrame", "HEADER 帧（class/BodySize/flags）"),
+        ("func buildBodyFrame", "BODY 帧"),
+        ("func buildHeartbeatFrame", "HEARTBEAT 固定 8 字节"),
+        ("func encodeShortstr", "shortstr 255 上限"),
+        ("func splitBody", "body 分段（frame_max）"),
+        ("methodBasicPublish      uint16 = 40", "basic.publish=40（门1 勘误）"),
+        ("methodBasicAck          uint16 = 80", "basic.ack=80（门1 勘误）"),
+        ("methodBasicGet          uint16 = 70", "basic.get=70（门1 勘误）"),
+        ("methodBasicGetOK        uint16 = 71", "get-ok=71（门1 勘误）"),
+        ("methodBasicGetEmpty     uint16 = 72", "get-empty=72（门1 勘误）"),
+        ("methodBasicGetEmpty     uint16 = 72", "get-empty=72（门1 勘误）"),
+    ]:
+        rows.append((f"关键件：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "amqp" / "planner.go").read_text()
+    for prim, name in [
+        ("AMQPGenerator) Generate", "init 注册生成器面（Generate 单权威）"),
+        ("validateAMQPConfig(spec *core.FlowSpec) error", "init 注册校验器面（validator 单权威）"),
+        ('RegisterLayerGenerator("amqp"', "init 注册生成器"),
+        ('RegisterLayerValidator("amqp"', "init 注册校验器"),
+    ]:
+        rows.append((f"关键件：{name}", prim in pl, "在案"))
+    for anchor, name in [
+        ("protocol version mismatch", "protocol_version 注入"),
+        ("bad frame type", "bad_frame_type 注入"),
+        ("handshake state violation", "handshake_state 注入"),
+        ("channel state violation", "channel_state 注入"),
+        ("body length mismatch", "body_length 注入"),
+        ("session reference violation", "session_reference 注入"),
+        ("shortstr overflow", "shortstr_overflow 注入"),
+        ("connections[0]", "G-AMQP-2 首连接校验面"),
+        ("body size mismatch", "body 自然守卫"),
+        ("unopened channel", "channel 自然守卫"),
+    ]:
+        rows.append((f"锚词：{name}", anchor in pl, f"锚词 {anchor}"))
+
+    # 3. 用例面（24 例：20 ID + 4 链级红例）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "amqp_protocol_header_ipv4", "amqp_connection_handshake",
+        "amqp_channel_open_close", "amqp_heartbeat",
+        "amqp_exchange_queue_declare", "amqp_basic_publish",
+        "amqp_basic_body_segmentation", "amqp_basic_consume_deliver_ack",
+        "amqp_basic_get_empty", "amqp_confirm_transaction",
+        "amqp_keepalive_multi_channel", "amqp_multi_connection",
+        "amqp_ipv6", "amqp_frame_boundary",
+        "amqp_neg_protocol_header", "amqp_neg_frame_encoding",
+        "amqp_neg_handshake_state", "amqp_neg_channel_state",
+        "amqp_neg_content_length", "amqp_neg_session_reference",
+        "amqp_neg_presence_top_submap", "amqp_neg_stray_top_key",
+        "amqp_neg_udp_carrier", "amqp_neg_missing_tcp",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    rows.append(("用例总数 24（14 正+10 负）", len(cases) == 24, f"{len(cases)} 例"))
+    pos = [c for c in cases if "expect_error" not in (c.get("expect") or {})]
+    neg = [c for c in cases if "expect_error" in (c.get("expect") or {})]
+    rows.append(("14 正 + 10 负", len(pos) == 14 and len(neg) == 10, f"{len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("正例均带 packet_count", all((c.get("expect") or {}).get("packet_count") for c in pos), "全部在案"))
+    bad_keys = [c.get("id") for c in neg
+                if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}", not bad_keys, bad_keys or "全部合规"))
+    code_anchors = set(re.findall(r'amqp: ([a-z ]+?)(?:[.:\\]|")', pl))
+    code_anchors |= {"protocol", "frame", "handshake", "channel", "body", "session",
+                     "presence", "flat", "carrier",
+                     "no longer accepts a top-level amqp sub-config",
+                     "no longer accepts flat config field src_ip"}
+    bad_a = [f"{c.get('id')}:{ec}" for c in neg
+             for ec in [(c.get("expect") or {}).get("error_contains", "")]
+             if ec not in code_anchors and not any(a in ec for a in
+                ("protocol", "frame", "handshake", "channel", "body", "session",
+                 "carrier", "top-level amqp", "flat config field src_ip"))]
+    rows.append(("10 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
+    return rows
+
+
 def check_ocsp(cases):
     """D-OCSP-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -3426,7 +3547,7 @@ def check_ntlm(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "amqp": check_amqp}
 
 
 def main(argv):

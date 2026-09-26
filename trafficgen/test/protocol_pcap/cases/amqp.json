@@ -1,3682 +1,2667 @@
 [
-  {
-    "id": "amqp_protocol_header_ipv4",
-    "proto": "amqp",
-    "summary": "AMQP 0-9-1 8-byte protocol header over TCP/IPv4, port 5672",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_minimal",
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              }
-            ]
-          }
-        ]
-      }
+ {
+  "id": "amqp_protocol_header_ipv4",
+  "proto": "amqp",
+  "summary": "AMQP 0-9-1 8-byte protocol header over TCP/IPv4, port 5672",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
     },
-    "expect": {
-      "has_handshake": true,
-      "terminates": true,
-      "min_packets": 4,
-      "fields": [
-        {
-          "packet": 4,
-          "field": "tcp.dstport",
-          "value": "5672"
-        }
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         }
+        ]
+       }
       ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "41 4d 51 50 00 00 09 01"
-        }
-      ],
-      "notes": [
-        "TCP \u63e1\u624b 3 \u5305 + 1 \u6570\u636e\u5305(protocol header); \u516d\u4e2a amqp.init.* \u5b57\u6bb5\u9a8c\u8bc1\u534f\u8bae\u5934\u7f16\u7801",
-        "f4 offset 54 = IPv4 \u65e0 options TCP payload \u8d77\u70b9"
-      ]
+      "profile": "amqp091_minimal"
+     }
     }
+   ]
   },
-  {
-    "id": "amqp_connection_handshake",
-    "proto": "amqp",
-    "summary": "Full connection handshake: protocol header -> start/start-ok/tune/tune-ok/open/open-ok",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_minimal",
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 10,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 11,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 30,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 31,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 40,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 41,
-                "channel": 0
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "has_handshake": true,
-      "negotiated": true,
-      "terminates": true,
-      "has_payload": false,
-      "directional": true,
-      "min_packets": 10,
-      "fields": [
-        {
-          "packet": 5,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 5,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.method",
-          "value": "30"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.method",
-          "value": "31"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.method",
-          "value": "40"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.method",
-          "value": "41"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "41 4d 51 50 00 00 09 01"
-        }
-      ],
-      "notes": [
-        "\u516d\u4e2a connection.method \u5e27: start(10)/start-ok(11)/tune(30)/tune-ok(31)/open(40)/open-ok(41)",
-        "\u6240\u6709 connection \u65b9\u6cd5 channel=0; packet \u7d22\u5f15\u4e3a\u8fd1\u4f3c\u503c,\u4f9d\u5b9e\u73b0\u53ef\u6709\u504f\u79fb"
-      ]
+  "expect": {
+   "fields": [
+    {
+     "field": "tcp.dstport",
+     "packet": 4,
+     "value": "5672"
     }
-  },
-  {
-    "id": "amqp_channel_open_close",
-    "proto": "amqp",
-    "summary": "Channel 1 open/open-ok then channel.close/close-ok then connection.close/close-ok",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_minimal",
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 10,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 11,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 30,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 31,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 40,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 41,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 20,
-                "method_id": 10,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 20,
-                "method_id": 11,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 20,
-                "method_id": 40,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 20,
-                "method_id": 41,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 50,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 51,
-                "channel": 0
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "has_handshake": true,
-      "negotiated": true,
-      "terminates": true,
-      "has_payload": false,
-      "directional": true,
-      "min_packets": 16,
-      "fields": [
-        {
-          "packet": 5,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 5,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.method",
-          "value": "30"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.method",
-          "value": "31"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.method",
-          "value": "40"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.method",
-          "value": "41"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.method.method",
-          "value": "40"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.method.method",
-          "value": "41"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.method.method",
-          "value": "50"
-        },
-        {
-          "packet": 16,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 16,
-          "field": "amqp.method.method",
-          "value": "51"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "41 4d 51 50 00 00 09 01"
-        }
-      ],
-      "notes": [
-        "channel.open(20/10)->open-ok(20/11)->channel.close(20/40)->close-ok(20/41)->connection.close(10/50)->close-ok(10/51)",
-        "amqp.session.method \u5bf9\u5e94 class 20 (channel); \u4e1a\u52a1 channel 1"
-      ]
+   ],
+   "frames": [
+    {
+     "hex": "414D515000000901",
+     "offset": 54,
+     "packet": 4
     }
-  },
-  {
-    "id": "amqp_heartbeat",
-    "proto": "amqp",
-    "summary": "Heartbeat frame: type=8, channel=0, size=0, end=CE",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_minimal",
-        "heartbeat": 10,
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 10,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 11,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 30,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 31,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 40,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 41,
-                "channel": 0
-              },
-              {
-                "kind": "heartbeat",
-                "direction": "c2s"
-              },
-              {
-                "kind": "heartbeat",
-                "direction": "s2c"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "has_handshake": true,
-      "negotiated": true,
-      "terminates": true,
-      "has_payload": false,
-      "directional": true,
-      "min_packets": 12,
-      "fields": [
-        {
-          "packet": 5,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 5,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.method",
-          "value": "30"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.method",
-          "value": "31"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.method",
-          "value": "40"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.method",
-          "value": "41"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.type",
-          "value": "8"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.channel",
-          "value": "0"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.length",
-          "value": "0"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.type",
-          "value": "8"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.channel",
-          "value": "0"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.length",
-          "value": "0"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "41 4d 51 50 00 00 09 01"
-        },
-        {
-          "packet": 11,
-          "offset": 54,
-          "hex": "08 00 00 00 00 00 00 ce"
-        }
-      ],
-      "notes": [
-        "Heartbeat \u56fa\u5b9a 8 \u5b57\u8282: 08(type=8) 00 00(channel=0) 00 00 00 00(size=0) ce(end)",
-        "amqp.type=8, amqp.channel=0, amqp.length=0; \u5fc3\u8df3\u5728\u8fde\u63a5 open \u540e\u53d1\u9001"
-      ]
-    }
-  },
-  {
-    "id": "amqp_exchange_queue_declare",
-    "proto": "amqp",
-    "summary": "exchange.declare (direct) + queue.declare with respective ok responses",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_rabbitmq",
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 10,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 11,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 30,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 31,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 40,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 41,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 20,
-                "method_id": 10,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 20,
-                "method_id": 11,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 40,
-                "method_id": 10,
-                "channel": 1,
-                "arguments": {
-                  "exchange": "amq.direct",
-                  "type": "direct",
-                  "passive": false,
-                  "durable": false,
-                  "auto_delete": false
-                }
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 40,
-                "method_id": 11,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 50,
-                "method_id": 10,
-                "channel": 1,
-                "arguments": {
-                  "queue": "q1",
-                  "durable": false,
-                  "exclusive": false,
-                  "auto_delete": false
-                }
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 50,
-                "method_id": 11,
-                "channel": 1
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "has_handshake": true,
-      "negotiated": true,
-      "terminates": true,
-      "has_payload": false,
-      "directional": true,
-      "min_packets": 16,
-      "fields": [
-        {
-          "packet": 5,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 5,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.method",
-          "value": "30"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.method",
-          "value": "31"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.method",
-          "value": "40"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.method",
-          "value": "41"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.method.class",
-          "value": "40"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.method.class",
-          "value": "40"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.method.class",
-          "value": "50"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 16,
-          "field": "amqp.method.class",
-          "value": "50"
-        },
-        {
-          "packet": 16,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 16,
-          "field": "amqp.channel",
-          "value": "1"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "41 4d 51 50 00 00 09 01"
-        }
-      ],
-      "notes": [
-        "exchange.declare(40/10)->declare-ok(40/11)->queue.declare(50/10)->declare-ok(50/11)",
-        "amqp.exchange.method / amqp.queue.method \u9a8c\u8bc1\u5bf9\u5e94 class \u7684 method ID"
-      ]
-    }
-  },
-  {
-    "id": "amqp_basic_publish",
-    "proto": "amqp",
-    "summary": "basic.publish -> HEADER (class=60) -> BODY with BodySize match",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_rabbitmq",
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 10,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 11,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 30,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 31,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 40,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 41,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 20,
-                "method_id": 10,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 20,
-                "method_id": 11,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 60,
-                "method_id": 40,
-                "channel": 1,
-                "arguments": {
-                  "exchange": "",
-                  "routing_key": "test",
-                  "mandatory": false
-                }
-              },
-              {
-                "kind": "header",
-                "direction": "c2s",
-                "channel": 1,
-                "class_id": 60,
-                "properties": {
-                  "content_type": "text/plain",
-                  "delivery_mode": 1
-                }
-              },
-              {
-                "kind": "body",
-                "direction": "c2s",
-                "channel": 1,
-                "body": "Hello!"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "has_handshake": true,
-      "negotiated": true,
-      "terminates": true,
-      "has_payload": false,
-      "directional": true,
-      "min_packets": 15,
-      "fields": [
-        {
-          "packet": 5,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 5,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.method",
-          "value": "30"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.method",
-          "value": "31"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.method",
-          "value": "40"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.method",
-          "value": "41"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.method.class",
-          "value": "60"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.method.method",
-          "value": "40"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.type",
-          "value": "2"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.header.class",
-          "value": "60"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.header.body-size",
-          "value": "6"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.type",
-          "value": "3"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.channel",
-          "value": "1"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "41 4d 51 50 00 00 09 01"
-        }
-      ],
-      "notes": [
-        "basic.publish(60/70)->HEADER(class=60)->BODY('Hello!' 6B); BodySize=6 \u7531\u751f\u6210\u5668\u6309 body \u4e8b\u4ef6\u81ea\u52a8\u7d2f\u52a0",
-        "amqp.message.method=80 \u5bf9\u5e94 basic.publish; amqp.type=2=HEADER, 3=BODY"
-      ]
-    }
-  },
-  {
-    "id": "amqp_basic_body_segmentation",
-    "proto": "amqp",
-    "summary": "Body > frame_max auto-split into multiple BODY frames; reassembled length equals BodySize",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_rabbitmq",
-        "frame_max": 128,
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 10,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 11,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 30,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 31,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 40,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 41,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 20,
-                "method_id": 10,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 20,
-                "method_id": 11,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 60,
-                "method_id": 40,
-                "channel": 1,
-                "arguments": {
-                  "exchange": "",
-                  "routing_key": "seg"
-                }
-              },
-              {
-                "kind": "header",
-                "direction": "c2s",
-                "channel": 1,
-                "class_id": 60,
-                "properties": {
-                  "content_type": "application/octet-stream"
-                }
-              },
-              {
-                "kind": "body",
-                "direction": "c2s",
-                "channel": 1,
-                "body": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "has_handshake": true,
-      "negotiated": true,
-      "terminates": true,
-      "has_payload": true,
-      "directional": true,
-      "min_packets": 16,
-      "fields": [
-        {
-          "packet": 5,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 5,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.method",
-          "value": "30"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.method",
-          "value": "31"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.method",
-          "value": "40"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.method",
-          "value": "41"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.method.class",
-          "value": "60"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.method.method",
-          "value": "40"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.type",
-          "value": "2"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.header.class",
-          "value": "60"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.header.body-size",
-          "value": "200"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.type",
-          "value": "3"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 16,
-          "field": "amqp.type",
-          "value": "3"
-        },
-        {
-          "packet": 16,
-          "field": "amqp.channel",
-          "value": "1"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "41 4d 51 50 00 00 09 01"
-        }
-      ],
-      "notes": [
-        "frame_max=128, body 200B \u8d85 frame_max-8, \u751f\u6210\u5668\u81ea\u52a8\u62c6\u6210\u591a\u4e2a BODY frame, JSON \u4e0d\u5199\u5206\u6bb5",
-        "\u65ad\u8a00: \u81f3\u5c11\u51fa\u73b0 type=3 BODY frame (distinct), Header BodySize=200=\u91cd\u7ec4 body \u603b\u957f; \u5355\u5e27\u7ebf\u4e0a\u957f\u5ea6 7+Size+1<=frame_max"
-      ]
-    }
-  },
-  {
-    "id": "amqp_basic_consume_deliver_ack",
-    "proto": "amqp",
-    "summary": "basic.consume -> basic.deliver -> HEADER -> BODY -> basic.ack on same channel",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_rabbitmq",
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 10,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 11,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 30,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 31,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 40,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 41,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 20,
-                "method_id": 10,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 20,
-                "method_id": 11,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 60,
-                "method_id": 20,
-                "channel": 1,
-                "arguments": {
-                  "queue": "q1",
-                  "consumer_tag": "ctag1"
-                }
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 60,
-                "method_id": 21,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 60,
-                "method_id": 60,
-                "channel": 1,
-                "arguments": {
-                  "consumer_tag": "ctag1",
-                  "delivery_tag": 1,
-                  "redelivered": false,
-                  "exchange": "",
-                  "routing_key": "test"
-                }
-              },
-              {
-                "kind": "header",
-                "direction": "s2c",
-                "channel": 1,
-                "class_id": 60,
-                "properties": {
-                  "content_type": "text/plain"
-                }
-              },
-              {
-                "kind": "body",
-                "direction": "s2c",
-                "channel": 1,
-                "body": "data"
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 60,
-                "method_id": 80,
-                "channel": 1,
-                "arguments": {
-                  "delivery_tag": 1,
-                  "multiple": false
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "has_handshake": true,
-      "negotiated": true,
-      "terminates": true,
-      "has_payload": false,
-      "directional": true,
-      "min_packets": 18,
-      "fields": [
-        {
-          "packet": 5,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 5,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.method",
-          "value": "30"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.method",
-          "value": "31"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.method",
-          "value": "40"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.method",
-          "value": "41"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.method.class",
-          "value": "60"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.method.method",
-          "value": "20"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.method.class",
-          "value": "60"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.method.method",
-          "value": "21"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.method.class",
-          "value": "60"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.method.method",
-          "value": "60"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 16,
-          "field": "amqp.type",
-          "value": "2"
-        },
-        {
-          "packet": 16,
-          "field": "amqp.header.class",
-          "value": "60"
-        },
-        {
-          "packet": 17,
-          "field": "amqp.type",
-          "value": "3"
-        },
-        {
-          "packet": 17,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 18,
-          "field": "amqp.method.class",
-          "value": "60"
-        },
-        {
-          "packet": 18,
-          "field": "amqp.method.method",
-          "value": "80"
-        },
-        {
-          "packet": 18,
-          "field": "amqp.channel",
-          "value": "1"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "41 4d 51 50 00 00 09 01"
-        }
-      ],
-      "notes": [
-        "basic.consume(60/20)->consume-ok(60/21)->basic.deliver(60/60)->HEADER->BODY->basic.ack(60/80)",
-        "amqp.message.method \u5bf9\u5e94 class 60 (basic) \u65b9\u6cd5 ID; \u5168\u90e8\u5728\u540c\u4e00 channel 1"
-      ]
-    }
-  },
-  {
-    "id": "amqp_basic_get_empty",
-    "proto": "amqp",
-    "summary": "basic.get followed by explicit basic.get-empty response",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_rabbitmq",
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 10,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 11,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 30,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 31,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 40,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 41,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 20,
-                "method_id": 10,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 20,
-                "method_id": 11,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 60,
-                "method_id": 70,
-                "channel": 1,
-                "arguments": {
-                  "queue": "q1"
-                }
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 60,
-                "method_id": 72,
-                "channel": 1
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "has_handshake": true,
-      "negotiated": true,
-      "terminates": true,
-      "has_payload": false,
-      "directional": true,
-      "min_packets": 14,
-      "fields": [
-        {
-          "packet": 5,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 5,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.method",
-          "value": "30"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.method",
-          "value": "31"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.method",
-          "value": "40"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.method",
-          "value": "41"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.method.class",
-          "value": "60"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.method.method",
-          "value": "70"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.method.class",
-          "value": "60"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.method.method",
-          "value": "72"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.channel",
-          "value": "1"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "41 4d 51 50 00 00 09 01"
-        }
-      ],
-      "notes": [
-        "basic.get(60/70)->basic.get-empty(60/72); get-empty \u4e3a\u663e\u5f0f\u7a7a\u961f\u5217\u54cd\u5e94, \u4e0d\u81ea\u52a8\u751f\u6210 HEADER/BODY",
-        "amqp.message.method=40 \u5bf9\u5e94 basic.get; 50 \u5bf9\u5e94 get-ok/get-empty"
-      ]
-    }
-  },
-  {
-    "id": "amqp_confirm_transaction",
-    "proto": "amqp",
-    "summary": "tx.select -> tx.commit -> tx.rollback with select-ok/commit-ok/rollback-ok",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_rabbitmq",
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 10,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 11,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 30,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 31,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 40,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 41,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 20,
-                "method_id": 10,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 20,
-                "method_id": 11,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 90,
-                "method_id": 10,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 90,
-                "method_id": 11,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 90,
-                "method_id": 20,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 90,
-                "method_id": 21,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 90,
-                "method_id": 30,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 90,
-                "method_id": 31,
-                "channel": 1
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "has_handshake": true,
-      "negotiated": true,
-      "terminates": true,
-      "has_payload": false,
-      "directional": true,
-      "min_packets": 18,
-      "fields": [
-        {
-          "packet": 5,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 5,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.method",
-          "value": "30"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.method",
-          "value": "31"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.method",
-          "value": "40"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.method",
-          "value": "41"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.method.class",
-          "value": "90"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.method.class",
-          "value": "90"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.method.class",
-          "value": "90"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.method.method",
-          "value": "20"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 16,
-          "field": "amqp.method.class",
-          "value": "90"
-        },
-        {
-          "packet": 16,
-          "field": "amqp.method.method",
-          "value": "21"
-        },
-        {
-          "packet": 16,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 17,
-          "field": "amqp.method.class",
-          "value": "90"
-        },
-        {
-          "packet": 17,
-          "field": "amqp.method.method",
-          "value": "30"
-        },
-        {
-          "packet": 17,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 18,
-          "field": "amqp.method.class",
-          "value": "90"
-        },
-        {
-          "packet": 18,
-          "field": "amqp.method.method",
-          "value": "31"
-        },
-        {
-          "packet": 18,
-          "field": "amqp.channel",
-          "value": "1"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "41 4d 51 50 00 00 09 01"
-        }
-      ],
-      "notes": [
-        "tx.select(90/10)->select-ok(90/11)->tx.commit(90/20)->commit-ok(90/21)->tx.rollback(90/30)->rollback-ok(90/31)",
-        "amqp.tx.method \u5bf9\u5e94 class 90 (tx) \u65b9\u6cd5 ID; \u5168\u90e8\u5728 channel 1"
-      ]
-    }
-  },
-  {
-    "id": "amqp_keepalive_multi_channel",
-    "proto": "amqp",
-    "summary": "Single connection, channels 1 and 2 with heartbeat and state isolation",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_rabbitmq",
-        "heartbeat": 30,
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 10,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 11,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 30,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 31,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 40,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 41,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 20,
-                "method_id": 10,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 20,
-                "method_id": 11,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 20,
-                "method_id": 10,
-                "channel": 2
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 20,
-                "method_id": 11,
-                "channel": 2
-              },
-              {
-                "kind": "heartbeat",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 60,
-                "method_id": 40,
-                "channel": 1,
-                "arguments": {
-                  "exchange": "",
-                  "routing_key": "k1"
-                }
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 60,
-                "method_id": 40,
-                "channel": 2,
-                "arguments": {
-                  "exchange": "",
-                  "routing_key": "k2"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "has_handshake": true,
-      "negotiated": true,
-      "terminates": true,
-      "has_payload": false,
-      "directional": true,
-      "min_packets": 17,
-      "fields": [
-        {
-          "packet": 5,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 5,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.method",
-          "value": "30"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.method",
-          "value": "31"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.method",
-          "value": "40"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.method",
-          "value": "41"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.channel",
-          "value": "2"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.channel",
-          "value": "2"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.type",
-          "value": "8"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.channel",
-          "value": "0"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.length",
-          "value": "0"
-        },
-        {
-          "packet": 16,
-          "field": "amqp.method.class",
-          "value": "60"
-        },
-        {
-          "packet": 16,
-          "field": "amqp.method.method",
-          "value": "40"
-        },
-        {
-          "packet": 16,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 17,
-          "field": "amqp.method.class",
-          "value": "60"
-        },
-        {
-          "packet": 17,
-          "field": "amqp.method.method",
-          "value": "40"
-        },
-        {
-          "packet": 17,
-          "field": "amqp.channel",
-          "value": "2"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "41 4d 51 50 00 00 09 01"
-        }
-      ],
-      "notes": [
-        "channel 1/2 \u5206\u522b open; heartbeat(channel=0) \u4e0e\u4e1a\u52a1 channel \u9694\u79bb; \u6bcf channel \u72ec\u7acb basic.publish",
-        "amqp.channel distinct: 0(heartbeat/connection), 1(ch1), 2(ch2)"
-      ]
-    }
-  },
-  {
-    "id": "amqp_multi_connection",
-    "proto": "amqp",
-    "summary": "Two independent TCP connections with separate protocol header and handshake",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_minimal",
-        "connections": [
-          {
-            "src_port": 12345,
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 10,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 11,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 30,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 31,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 40,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 41,
-                "channel": 0
-              }
-            ]
-          },
-          {
-            "src_port": 12346,
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 10,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 11,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 30,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 31,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 40,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 41,
-                "channel": 0
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "has_handshake": true,
-      "negotiated": true,
-      "terminates": true,
-      "has_payload": false,
-      "directional": true,
-      "min_packets": 17,
-      "fields": [
-        {
-          "field": "tcp.dstport",
-          "value": "5672",
-          "packet": 4
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "41 4d 51 50 00 00 09 01"
-        },
-        {
-          "packet": 11,
-          "offset": 54,
-          "hex": "41 4d 51 50 00 00 09 01"
-        }
-      ],
-      "notes": [
-        "\u4e24\u4e2a\u72ec\u7acb TCP \u8fde\u63a5(src_port 12345/12346) \u5404\u81ea\u5b8c\u6210 protocol header + \u5b8c\u6574\u63e1\u624b",
-        "tcp.srcport distinct_values \u9a8c\u8bc1\u4e24\u4e2a\u8fde\u63a5; \u4e0d\u786c\u7f16\u7801\u8de8\u6d41 packet index"
-      ]
-    }
-  },
-  {
-    "id": "amqp_ipv6",
-    "proto": "amqp",
-    "summary": "AMQP 0-9-1 protocol header over TCP/IPv6, application bytes unchanged",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "2001:db8::1",
-      "dst_ip": "2001:db8::2",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_minimal",
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "has_handshake": true,
-      "terminates": true,
-      "min_packets": 4,
-      "fields": [
-        {
-          "packet": 4,
-          "field": "ipv6.nxt",
-          "value": "6"
-        },
-        {
-          "packet": 4,
-          "field": "tcp.dstport",
-          "value": "5672"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 74,
-          "hex": "41 4d 51 50 00 00 09 01"
-        }
-      ],
-      "notes": [
-        "IPv6 \u5916\u5c42: TCP payload \u8d77\u70b9 offset 74 (14 Eth+40 IPv6+20 TCP); \u534f\u8bae\u5934\u5b57\u8282\u4e0e IPv4 \u76f8\u540c",
-        "ipv6.nxt=6 \u9a8c\u8bc1 TCP Next Header; \u5e94\u7528\u5c42 bytes \u4e0d\u53d8"
-      ]
-    }
-  },
-  {
-    "id": "amqp_frame_boundary",
-    "proto": "amqp",
-    "summary": "Frame boundary: heartbeat size=0, BodySize=0 with HEADER, frame_max edge",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_rabbitmq",
-        "frame_max": 4096,
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 10,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 11,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 30,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 31,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 40,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 41,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 20,
-                "method_id": 10,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 20,
-                "method_id": 11,
-                "channel": 1
-              },
-              {
-                "kind": "heartbeat",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 60,
-                "method_id": 40,
-                "channel": 1,
-                "arguments": {
-                  "exchange": "",
-                  "routing_key": "boundary"
-                }
-              },
-              {
-                "kind": "header",
-                "direction": "c2s",
-                "channel": 1,
-                "class_id": 60,
-                "properties": {}
-              },
-              {
-                "kind": "heartbeat",
-                "direction": "s2c"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "has_handshake": true,
-      "negotiated": true,
-      "terminates": true,
-      "has_payload": false,
-      "directional": true,
-      "min_packets": 16,
-      "fields": [
-        {
-          "packet": 5,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 5,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 6,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 7,
-          "field": "amqp.method.method",
-          "value": "30"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 8,
-          "field": "amqp.method.method",
-          "value": "31"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 9,
-          "field": "amqp.method.method",
-          "value": "40"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.class",
-          "value": "10"
-        },
-        {
-          "packet": 10,
-          "field": "amqp.method.method",
-          "value": "41"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.method.method",
-          "value": "10"
-        },
-        {
-          "packet": 11,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.method.class",
-          "value": "20"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.method.method",
-          "value": "11"
-        },
-        {
-          "packet": 12,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.type",
-          "value": "8"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.channel",
-          "value": "0"
-        },
-        {
-          "packet": 13,
-          "field": "amqp.length",
-          "value": "0"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.method.class",
-          "value": "60"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.method.method",
-          "value": "40"
-        },
-        {
-          "packet": 14,
-          "field": "amqp.channel",
-          "value": "1"
-        },
-        {
-          "packet": 16,
-          "field": "amqp.type",
-          "value": "8"
-        },
-        {
-          "packet": 16,
-          "field": "amqp.channel",
-          "value": "0"
-        },
-        {
-          "packet": 16,
-          "field": "amqp.length",
-          "value": "0"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.type",
-          "value": "2"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.header.class",
-          "value": "60"
-        },
-        {
-          "packet": 15,
-          "field": "amqp.header.body-size",
-          "value": "0"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "41 4d 51 50 00 00 09 01"
-        },
-        {
-          "packet": 13,
-          "offset": 54,
-          "hex": "08 00 00 00 00 00 00 ce"
-        }
-      ],
-      "notes": [
-        "\u8986\u76d6: heartbeat size=0, BodySize=0 \u4ecd\u6709 HEADER, frame_max \u4e0a\u754c",
-        "BodySize=0 \u65f6 content header \u4ecd\u5fc5\u987b\u5b58\u5728 (class=60, body-size=0); header \u65e0 body \u4e8b\u4ef6\u8ddf\u968f => BodySize \u81ea\u52a8\u4e3a 0"
-      ]
-    }
-  },
-  {
-    "id": "amqp_neg_protocol_header",
-    "proto": "amqp",
-    "summary": "Missing or incorrect AMQP protocol header rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_minimal",
-        "wire_fault": "protocol_version",
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "protocol",
-      "fields": []
-    }
-  },
-  {
-    "id": "amqp_neg_frame_encoding",
-    "proto": "amqp",
-    "summary": "Unknown frame type, non-CE end marker, or size overflow rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_minimal",
-        "wire_fault": "bad_frame_type",
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 10,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 11,
-                "channel": 0
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "frame",
-      "fields": []
-    }
-  },
-  {
-    "id": "amqp_neg_handshake_state",
-    "proto": "amqp",
-    "summary": "Wrong method order, direction, or tune/open state rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_minimal",
-        "wire_fault": "handshake_state",
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 40,
-                "channel": 0
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "handshake",
-      "fields": []
-    }
-  },
-  {
-    "id": "amqp_neg_channel_state",
-    "proto": "amqp",
-    "summary": "Business method on unopened channel or channel 0 misuse rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_minimal",
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 10,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 11,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 30,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 31,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 40,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 41,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 60,
-                "method_id": 40,
-                "channel": 0
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "channel",
-      "fields": []
-    }
-  },
-  {
-    "id": "amqp_neg_content_length",
-    "proto": "amqp",
-    "summary": "Header BodySize does not match total BODY frame lengths rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_rabbitmq",
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 10,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 11,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 30,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 31,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 40,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 41,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 20,
-                "method_id": 10,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 20,
-                "method_id": 11,
-                "channel": 1
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 60,
-                "method_id": 40,
-                "channel": 1
-              },
-              {
-                "kind": "header",
-                "direction": "c2s",
-                "channel": 1,
-                "class_id": 60,
-                "body_size_override": 100
-              },
-              {
-                "kind": "body",
-                "direction": "c2s",
-                "channel": 1,
-                "body": "short"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "body",
-      "fields": []
-    }
-  },
-  {
-    "id": "amqp_neg_session_reference",
-    "proto": "amqp",
-    "summary": "Delivery/consumer/channel reference across connections rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "amqp": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5672,
-      "amqp": {
-        "profile": "amqp091_rabbitmq",
-        "wire_fault": "session_reference",
-        "connections": [
-          {
-            "events": [
-              {
-                "kind": "protocol_header",
-                "direction": "c2s"
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 10,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 11,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 30,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 31,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "c2s",
-                "class_id": 10,
-                "method_id": 40,
-                "channel": 0
-              },
-              {
-                "kind": "method",
-                "direction": "s2c",
-                "class_id": 10,
-                "method_id": 41,
-                "channel": 0
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "session",
-      "fields": []
-    }
+   ],
+   "notes": [
+    "旧 min_packets=4（只数握手 3+1）；实测 8（3 握手 + 1 数据 + 4 挥手）"
+   ],
+   "packet_count": 8
   }
+ },
+ {
+  "id": "amqp_connection_handshake",
+  "proto": "amqp",
+  "summary": "Full connection handshake: protocol header -\u003e start/start-ok/tune/tune-ok/open/open-ok",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 30
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 31
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 41
+         }
+        ]
+       }
+      ],
+      "profile": "amqp091_minimal"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "amqp.method.class",
+     "packet": 5,
+     "value": "10"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 5,
+     "value": "10"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 6,
+     "value": "10"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 6,
+     "value": "11"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 7,
+     "value": "10"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 7,
+     "value": "30"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 8,
+     "value": "10"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 8,
+     "value": "31"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 9,
+     "value": "10"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 9,
+     "value": "40"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 10,
+     "value": "10"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 10,
+     "value": "41"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "41 4D 51 50 00 00 09 01",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "notes": [
+    "旧 min_packets=10；实测 14（3+7+4）；packet 5-10 逐包不断言跨包合并"
+   ],
+   "packet_count": 14
+  }
+ },
+ {
+  "id": "amqp_channel_open_close",
+  "proto": "amqp",
+  "summary": "channel 1 open/close 全序 + connection close",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 30
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 31
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 41
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 41
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 50
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 51
+         }
+        ]
+       }
+      ],
+      "profile": "amqp091_minimal"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "amqp.method.class",
+     "packet": 11,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 11,
+     "value": "10"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 11,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 12,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 12,
+     "value": "11"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 12,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 15,
+     "value": "10"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 15,
+     "value": "50"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 16,
+     "value": "10"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 16,
+     "value": "51"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "41 4D 51 50 00 00 09 01",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "notes": [
+    "旧 min_packets=16；实测 20（3+13+4）"
+   ],
+   "packet_count": 20
+  }
+ },
+ {
+  "id": "amqp_heartbeat",
+  "proto": "amqp",
+  "summary": "HEARTBEAT type 8/channel 0/size 0 双向双包",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 30
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 31
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 41
+         },
+         {
+          "direction": "c2s",
+          "kind": "heartbeat"
+         },
+         {
+          "direction": "s2c",
+          "kind": "heartbeat"
+         }
+        ]
+       }
+      ],
+      "heartbeat": 30,
+      "profile": "amqp091_minimal"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "amqp.type",
+     "packet": 11,
+     "value": "8"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 11,
+     "value": "0"
+    },
+    {
+     "field": "amqp.length",
+     "packet": 11,
+     "value": "0"
+    },
+    {
+     "field": "amqp.type",
+     "packet": 12,
+     "value": "8"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 12,
+     "value": "0"
+    },
+    {
+     "field": "amqp.length",
+     "packet": 12,
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "41 4D 51 50 00 00 09 01",
+     "offset": 54,
+     "packet": 4
+    },
+    {
+     "hex": "08000000000000CE",
+     "offset": 54,
+     "packet": 11
+    }
+   ],
+   "notes": [
+    "旧 min_packets=12；实测 16（3+9+4）"
+   ],
+   "packet_count": 16
+  }
+ },
+ {
+  "id": "amqp_exchange_queue_declare",
+  "proto": "amqp",
+  "summary": "exchange/queue declare 参数和响应",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 30
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 31
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 41
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "arguments": {
+           "auto_delete": false,
+           "durable": false,
+           "exchange": "amq.direct",
+           "passive": false,
+           "type": "direct"
+          },
+          "channel": 1,
+          "class_id": 40,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 1,
+          "class_id": 40,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "arguments": {
+           "auto_delete": false,
+           "durable": false,
+           "exclusive": false,
+           "queue": "q1"
+          },
+          "channel": 1,
+          "class_id": 50,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 1,
+          "class_id": 50,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 11
+         }
+        ]
+       }
+      ],
+      "profile": "amqp091_rabbitmq"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "amqp.method.class",
+     "packet": 13,
+     "value": "40"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 13,
+     "value": "10"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 13,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 15,
+     "value": "50"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 15,
+     "value": "10"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 16,
+     "value": "50"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 16,
+     "value": "11"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "41 4D 51 50 00 00 09 01",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "notes": [
+    "旧 min_packets=16；实测 20（3+13+4）"
+   ],
+   "packet_count": 20
+  }
+ },
+ {
+  "id": "amqp_basic_publish",
+  "proto": "amqp",
+  "summary": "publish→HEADER→BODY、BodySize=6",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 30
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 31
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 41
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "arguments": {
+           "exchange": "",
+           "mandatory": false,
+           "routing_key": "test"
+          },
+          "channel": 1,
+          "class_id": 60,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 1,
+          "class_id": 60,
+          "direction": "c2s",
+          "kind": "header",
+          "properties": {
+           "content_type": "text/plain",
+           "delivery_mode": 1
+          }
+         },
+         {
+          "body": "Hello!",
+          "channel": 1,
+          "direction": "c2s",
+          "kind": "body"
+         }
+        ]
+       }
+      ],
+      "profile": "amqp091_rabbitmq"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "amqp.method.class",
+     "packet": 13,
+     "value": "60"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 13,
+     "value": "40"
+    },
+    {
+     "field": "amqp.type",
+     "packet": 14,
+     "value": "2"
+    },
+    {
+     "field": "amqp.header.class",
+     "packet": 14,
+     "value": "60"
+    },
+    {
+     "field": "amqp.header.body-size",
+     "packet": 14,
+     "value": "6"
+    },
+    {
+     "field": "amqp.type",
+     "packet": 15,
+     "value": "3"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 15,
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "41 4D 51 50 00 00 09 01",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "notes": [
+    "旧 min_packets=15；实测 19（3+12+4）；BodySize 由生成器自动累加"
+   ],
+   "packet_count": 19
+  }
+ },
+ {
+  "id": "amqp_basic_body_segmentation",
+  "proto": "amqp",
+  "summary": "200B body frame_max=128 多 BODY 拆分",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 30
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 31
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 41
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "arguments": {
+           "exchange": "",
+           "routing_key": "seg"
+          },
+          "channel": 1,
+          "class_id": 60,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 1,
+          "class_id": 60,
+          "direction": "c2s",
+          "kind": "header",
+          "properties": {
+           "content_type": "application/octet-stream"
+          }
+         },
+         {
+          "body": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+          "channel": 1,
+          "direction": "c2s",
+          "kind": "body"
+         }
+        ]
+       }
+      ],
+      "frame_max": 128,
+      "profile": "amqp091_rabbitmq"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "amqp.header.body-size",
+     "packet": 14,
+     "value": "200"
+    },
+    {
+     "field": "amqp.type",
+     "packet": 15,
+     "value": "3"
+    },
+    {
+     "field": "amqp.type",
+     "packet": 16,
+     "value": "3"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "41 4D 51 50 00 00 09 01",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "notes": [
+    "旧 min_packets=16；实测 20（3+13+4，body 拆 2 段）；单帧线上长 7+Size+1≤frame_max"
+   ],
+   "packet_count": 20
+  }
+ },
+ {
+  "id": "amqp_basic_consume_deliver_ack",
+  "proto": "amqp",
+  "summary": "consume→deliver→HEADER→BODY→ack 关联",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 30
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 31
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 41
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "arguments": {
+           "consumer_tag": "ctag1",
+           "queue": "q1"
+          },
+          "channel": 1,
+          "class_id": 60,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 20
+         },
+         {
+          "channel": 1,
+          "class_id": 60,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 21
+         },
+         {
+          "arguments": {
+           "consumer_tag": "ctag1",
+           "delivery_tag": 1,
+           "exchange": "",
+           "redelivered": false,
+           "routing_key": "test"
+          },
+          "channel": 1,
+          "class_id": 60,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 60
+         },
+         {
+          "channel": 1,
+          "class_id": 60,
+          "direction": "s2c",
+          "kind": "header",
+          "properties": {
+           "content_type": "text/plain"
+          }
+         },
+         {
+          "body": "data",
+          "channel": 1,
+          "direction": "s2c",
+          "kind": "body"
+         },
+         {
+          "arguments": {
+           "delivery_tag": 1,
+           "multiple": false
+          },
+          "channel": 1,
+          "class_id": 60,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 80
+         }
+        ]
+       }
+      ],
+      "profile": "amqp091_rabbitmq"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "amqp.method.class",
+     "packet": 15,
+     "value": "60"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 15,
+     "value": "60"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 18,
+     "value": "60"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 18,
+     "value": "80"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "41 4D 51 50 00 00 09 01",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "notes": [
+    "旧 min_packets=18；实测 22（3+15+4）；同 channel 同 tag 关联"
+   ],
+   "packet_count": 22
+  }
+ },
+ {
+  "id": "amqp_basic_get_empty",
+  "proto": "amqp",
+  "summary": "basic.get(70) 与显式 get-empty(72)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 30
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 31
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 41
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "arguments": {
+           "queue": "q1"
+          },
+          "channel": 1,
+          "class_id": 60,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 70
+         },
+         {
+          "channel": 1,
+          "class_id": 60,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 72
+         }
+        ]
+       }
+      ],
+      "profile": "amqp091_rabbitmq"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "amqp.method.class",
+     "packet": 13,
+     "value": "60"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 13,
+     "value": "70"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 14,
+     "value": "60"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 14,
+     "value": "72"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "41 4D 51 50 00 00 09 01",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "notes": [
+    "旧 min_packets=14；实测 18（3+11+4）；不自动生成 HEADER/BODY"
+   ],
+   "packet_count": 18
+  }
+ },
+ {
+  "id": "amqp_confirm_transaction",
+  "proto": "amqp",
+  "summary": "tx.select/commit/rollback 六方法（class 90）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 30
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 31
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 41
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 1,
+          "class_id": 90,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 1,
+          "class_id": 90,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 1,
+          "class_id": 90,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 20
+         },
+         {
+          "channel": 1,
+          "class_id": 90,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 21
+         },
+         {
+          "channel": 1,
+          "class_id": 90,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 30
+         },
+         {
+          "channel": 1,
+          "class_id": 90,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 31
+         }
+        ]
+       }
+      ],
+      "profile": "amqp091_rabbitmq"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "amqp.method.class",
+     "packet": 13,
+     "value": "90"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 13,
+     "value": "10"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 15,
+     "value": "90"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 15,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 17,
+     "value": "90"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 17,
+     "value": "30"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "41 4D 51 50 00 00 09 01",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "notes": [
+    "旧 min_packets=18；实测 22（3+15+4）；confirm.select（85/10）→ A′ T-21"
+   ],
+   "packet_count": 22
+  }
+ },
+ {
+  "id": "amqp_keepalive_multi_channel",
+  "proto": "amqp",
+  "summary": "双 channel + heartbeat 隔离",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 30
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 31
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 41
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 2,
+          "class_id": 20,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 2,
+          "class_id": 20,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "direction": "c2s",
+          "kind": "heartbeat"
+         },
+         {
+          "arguments": {
+           "exchange": "",
+           "routing_key": "k1"
+          },
+          "channel": 1,
+          "class_id": 60,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "arguments": {
+           "exchange": "",
+           "routing_key": "k2"
+          },
+          "channel": 2,
+          "class_id": 60,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         }
+        ]
+       }
+      ],
+      "heartbeat": 30,
+      "profile": "amqp091_rabbitmq"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "amqp.type",
+     "packet": 15,
+     "value": "8"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 16,
+     "value": "60"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 16,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 17,
+     "value": "60"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 17,
+     "value": "2"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "41 4D 51 50 00 00 09 01",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "notes": [
+    "旧 min_packets=17；实测 21（3+14+4）"
+   ],
+   "packet_count": 21
+  }
+ },
+ {
+  "id": "amqp_multi_connection",
+  "proto": "amqp",
+  "summary": "Two independent TCP connections with separate protocol header and handshake",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 30
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 31
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 41
+         }
+        ],
+        "src_port": 12345
+       },
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 30
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 31
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 41
+         }
+        ],
+        "src_port": 12346
+       }
+      ],
+      "profile": "amqp091_minimal"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "tcp.dstport",
+     "packet": 4,
+     "value": "5672"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "41 4D 51 50 00 00 09 01",
+     "offset": 54,
+     "packet": 4
+    },
+    {
+     "hex": "414D515000000901",
+     "offset": 54,
+     "packet": 11
+    }
+   ],
+   "notes": [
+    "旧 min_packets=17；实测 21（3+14+4，双连接同流直发）；G-AMQP-2 注记：校验器只扫首连接"
+   ],
+   "packet_count": 21
+  }
+ },
+ {
+  "id": "amqp_ipv6",
+  "proto": "amqp",
+  "summary": "AMQP 0-9-1 protocol header over TCP/IPv6, application bytes unchanged",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "2001:db8::2",
+      "src": "2001:db8::1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         }
+        ]
+       }
+      ],
+      "profile": "amqp091_minimal"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ipv6.nxt",
+     "packet": 4,
+     "value": "6"
+    },
+    {
+     "field": "tcp.dstport",
+     "packet": 4,
+     "value": "5672"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "41 4D 51 50 00 00 09 01",
+     "offset": 74,
+     "packet": 4
+    }
+   ],
+   "notes": [
+    "旧 min_packets=4；实测 8；应用 bytes 与 IPv4 一致"
+   ],
+   "packet_count": 8
+  }
+ },
+ {
+  "id": "amqp_frame_boundary",
+  "proto": "amqp",
+  "summary": "frame_max=4096 + 空 properties header + heartbeat 混排",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 30
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 31
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 41
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "direction": "c2s",
+          "kind": "heartbeat"
+         },
+         {
+          "arguments": {
+           "exchange": "",
+           "routing_key": "boundary"
+          },
+          "channel": 1,
+          "class_id": 60,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 1,
+          "class_id": 60,
+          "direction": "c2s",
+          "kind": "header",
+          "properties": {}
+         },
+         {
+          "direction": "s2c",
+          "kind": "heartbeat"
+         }
+        ]
+       }
+      ],
+      "frame_max": 4096,
+      "profile": "amqp091_minimal"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "amqp.type",
+     "packet": 11,
+     "value": "8"
+    },
+    {
+     "field": "amqp.type",
+     "packet": 14,
+     "value": "8"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "41 4D 51 50 00 00 09 01",
+     "offset": 54,
+     "packet": 4
+    },
+    {
+     "hex": "010001000000050014000A00CE",
+     "offset": 54,
+     "packet": 11
+    }
+   ],
+   "notes": [
+    "旧 min_packets=16；实测 20（3+13+4）"
+   ],
+   "packet_count": 20
+  }
+ },
+ {
+  "id": "amqp_neg_protocol_header",
+  "proto": "amqp",
+  "summary": "wire_fault protocol_version 注入",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         }
+        ]
+       }
+      ],
+      "profile": "amqp091_minimal",
+      "wire_fault": "protocol_version"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "protocol",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "amqp_neg_frame_encoding",
+  "proto": "amqp",
+  "summary": "wire_fault bad_frame_type 注入",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 11
+         }
+        ]
+       }
+      ],
+      "profile": "amqp091_minimal",
+      "wire_fault": "bad_frame_type"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "frame",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "amqp_neg_handshake_state",
+  "proto": "amqp",
+  "summary": "wire_fault handshake_state 注入 + open-before-tune-ok 事件序",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         }
+        ]
+       }
+      ],
+      "profile": "amqp091_minimal",
+      "wire_fault": "handshake_state"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "handshake",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "amqp_neg_channel_state",
+  "proto": "amqp",
+  "summary": "channel 0 上 basic.publish（自然守卫）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 30
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 31
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 41
+         },
+         {
+          "channel": 0,
+          "class_id": 60,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         }
+        ]
+       }
+      ],
+      "profile": "amqp091_minimal"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "channel",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "amqp_neg_content_length",
+  "proto": "amqp",
+  "summary": "body_size_override=100 vs body=5（自然守卫）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 30
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 31
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 41
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 1,
+          "class_id": 20,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 1,
+          "class_id": 60,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "body_size_override": 100,
+          "channel": 1,
+          "class_id": 60,
+          "direction": "c2s",
+          "kind": "header"
+         },
+         {
+          "body": "short",
+          "channel": 1,
+          "direction": "c2s",
+          "kind": "body"
+         }
+        ]
+       }
+      ],
+      "profile": "amqp091_minimal"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "body",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "amqp_neg_session_reference",
+  "proto": "amqp",
+  "summary": "wire_fault session_reference 注入",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 10
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 11
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 30
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 31
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "c2s",
+          "kind": "method",
+          "method_id": 40
+         },
+         {
+          "channel": 0,
+          "class_id": 10,
+          "direction": "s2c",
+          "kind": "method",
+          "method_id": 41
+         }
+        ]
+       }
+      ],
+      "profile": "amqp091_minimal",
+      "wire_fault": "session_reference"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "session",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "amqp_neg_presence_top_submap",
+  "proto": "amqp",
+  "summary": "层链+顶层空 amqp 子映射并存判死（presence 负例形状）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         }
+        ]
+       }
+      ],
+      "profile": "amqp091_minimal"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "no longer accepts a top-level amqp sub-config",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "amqp_neg_stray_top_key",
+  "proto": "amqp",
+  "summary": "顶层游离键 src_ip 判死（白名单外）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         }
+        ]
+       }
+      ],
+      "profile": "amqp091_minimal"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "no longer accepts flat config field src_ip",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "amqp_neg_udp_carrier",
+  "proto": "amqp",
+  "summary": "链中夹 udp 层判死（单 TCP 载体）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "dst_port": 5672,
+      "src_port": 12345
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         }
+        ]
+       }
+      ],
+      "profile": "amqp091_minimal"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "carrier",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "amqp_neg_missing_tcp",
+  "proto": "amqp",
+  "summary": "链缺 tcp 直连判死（[ip,amqp]）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "20.0.0.1",
+      "src": "10.0.0.1"
+     }
+    },
+    {
+     "amqp": {
+      "connections": [
+       {
+        "events": [
+         {
+          "direction": "c2s",
+          "kind": "protocol_header"
+         }
+        ]
+       }
+      ],
+      "profile": "amqp091_minimal"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "carrier",
+   "expect_error": true
+  }
+ }
 ]
