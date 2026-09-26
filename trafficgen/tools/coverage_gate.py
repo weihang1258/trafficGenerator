@@ -1420,6 +1420,1742 @@ def check_smb(cases):
     rows.append(("层内 smb 键 ∈ registry 38 字段", not missing, missing or "全命中"))
     return rows
 
+def check_amqp(cases):
+    """D-AMQP-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 amqp", '"amqp"' in pg and 'true' in pg.split('"amqp"')[1][:12], "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 amqp（已准入）", '"amqp"' not in pt[i_neg:i_neg + 600], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case amqp（严格解码）", 'case "amqp":' in tr and "DisallowUnknownFields" in tr, "在案"))
+    rows.append(("FlowMeta.AMQP 直传（Meta 字面量检查点）",
+                 re.search(r"AMQP:\s+spec\.AMQP\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.AMQP 字段", re.search(r"AMQP\s+\*core\.AMQPConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.AMQP 字段", re.search(r"AMQP\s+\*AMQPConfig", ty) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry amqp 行（DependsOn tcp + 5672 契约）",
+                 'Name: "amqp"' in rg and 'DependsOn:     []string{"tcp"}' in rg
+                 and '"tcp.dst_port": "5672"' in rg, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    i_vl = vl.index('if protocol == "amqp" {')
+    vl_block = vl[i_vl:vl.index("effective, err := ValidateLayers", i_vl)]
+    rows.append(("载体预检（夹 udp / 缺 tcp / 混合族）",
+                 "udp carrier is not supported" in vl_block and "missing tcp carrier" in vl_block
+                 and "mixed address family in ip layer" in vl_block, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(amqp)",
+                 "internal/protocol/amqp" in mn and 'NewChainPlanner("amqp")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("strategy_convert case amqp + 5672 缺省端口",
+                 'case "amqp":' in sc and "setDefaultDstPort(&spec, cfg, 5672)" in sc, "在案"))
+    rows.append(("CheckProtoFlat 顶层 amqp 子映射 presence 判死",
+                 "protocol amqp no longer accepts a top-level amqp sub-config" in sc, "在案"))
+    rows.append(("mapToFlowSpec 存量背 door（ValidationErrors）",
+                 'if protocol == "amqp" {' in sc and 'cfg["amqp"]' in sc
+                 and "CheckProtoFlat(protocol, cfg)" in sc, "在案"))
+
+    # 2. 行为面（builder/planner 关键件；method ID 以 builder.go:60-64 为准：
+    # publish=40/ack=80/get=70/get-ok=71/get-empty=72，门1 勘误）。
+    bl = (tg / "internal" / "protocol" / "amqp" / "builder.go").read_text()
+    for prim, name in [
+        ("func buildProtocolHeader", "protocol header 8 字节"),
+        ("func buildMethodFrame", "METHOD 帧（class/method + CE）"),
+        ("func buildHeaderFrame", "HEADER 帧（class/BodySize/flags）"),
+        ("func buildBodyFrame", "BODY 帧"),
+        ("func buildHeartbeatFrame", "HEARTBEAT 固定 8 字节"),
+        ("func encodeShortstr", "shortstr 255 上限"),
+        ("func splitBody", "body 分段（frame_max）"),
+        ("methodBasicPublish      uint16 = 40", "basic.publish=40（门1 勘误）"),
+        ("methodBasicAck          uint16 = 80", "basic.ack=80（门1 勘误）"),
+        ("methodBasicGet          uint16 = 70", "basic.get=70（门1 勘误）"),
+        ("methodBasicGetOK        uint16 = 71", "get-ok=71（门1 勘误）"),
+        ("methodBasicGetEmpty     uint16 = 72", "get-empty=72（门1 勘误）"),
+        ("methodBasicGetEmpty     uint16 = 72", "get-empty=72（门1 勘误）"),
+    ]:
+        rows.append((f"关键件：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "amqp" / "planner.go").read_text()
+    for prim, name in [
+        ("AMQPGenerator) Generate", "init 注册生成器面（Generate 单权威）"),
+        ("validateAMQPConfig(spec *core.FlowSpec) error", "init 注册校验器面（validator 单权威）"),
+        ('RegisterLayerGenerator("amqp"', "init 注册生成器"),
+        ('RegisterLayerValidator("amqp"', "init 注册校验器"),
+    ]:
+        rows.append((f"关键件：{name}", prim in pl, "在案"))
+    for anchor, name in [
+        ("protocol version mismatch", "protocol_version 注入"),
+        ("bad frame type", "bad_frame_type 注入"),
+        ("handshake state violation", "handshake_state 注入"),
+        ("channel state violation", "channel_state 注入"),
+        ("body length mismatch", "body_length 注入"),
+        ("session reference violation", "session_reference 注入"),
+        ("shortstr overflow", "shortstr_overflow 注入"),
+        ("connections[0]", "G-AMQP-2 首连接校验面"),
+        ("body size mismatch", "body 自然守卫"),
+        ("unopened channel", "channel 自然守卫"),
+    ]:
+        rows.append((f"锚词：{name}", anchor in pl, f"锚词 {anchor}"))
+
+    # 3. 用例面（24 例：20 ID + 4 链级红例）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "amqp_protocol_header_ipv4", "amqp_connection_handshake",
+        "amqp_channel_open_close", "amqp_heartbeat",
+        "amqp_exchange_queue_declare", "amqp_basic_publish",
+        "amqp_basic_body_segmentation", "amqp_basic_consume_deliver_ack",
+        "amqp_basic_get_empty", "amqp_confirm_transaction",
+        "amqp_keepalive_multi_channel", "amqp_multi_connection",
+        "amqp_ipv6", "amqp_frame_boundary",
+        "amqp_neg_protocol_header", "amqp_neg_frame_encoding",
+        "amqp_neg_handshake_state", "amqp_neg_channel_state",
+        "amqp_neg_content_length", "amqp_neg_session_reference",
+        "amqp_neg_presence_top_submap", "amqp_neg_stray_top_key",
+        "amqp_neg_udp_carrier", "amqp_neg_missing_tcp",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    rows.append(("用例总数 24（14 正+10 负）", len(cases) == 24, f"{len(cases)} 例"))
+    pos = [c for c in cases if "expect_error" not in (c.get("expect") or {})]
+    neg = [c for c in cases if "expect_error" in (c.get("expect") or {})]
+    rows.append(("14 正 + 10 负", len(pos) == 14 and len(neg) == 10, f"{len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("正例均带 packet_count", all((c.get("expect") or {}).get("packet_count") for c in pos), "全部在案"))
+    bad_keys = [c.get("id") for c in neg
+                if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}", not bad_keys, bad_keys or "全部合规"))
+    code_anchors = set(re.findall(r'amqp: ([a-z ]+?)(?:[.:\\]|")', pl))
+    code_anchors |= {"protocol", "frame", "handshake", "channel", "body", "session",
+                     "presence", "flat", "carrier",
+                     "no longer accepts a top-level amqp sub-config",
+                     "no longer accepts flat config field src_ip"}
+    bad_a = [f"{c.get('id')}:{ec}" for c in neg
+             for ec in [(c.get("expect") or {}).get("error_contains", "")]
+             if ec not in code_anchors and not any(a in ec for a in
+                ("protocol", "frame", "handshake", "channel", "body", "session",
+                 "carrier", "top-level amqp", "flat config field src_ip"))]
+    rows.append(("10 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
+    return rows
+
+
+def check_ocsp(cases):
+    """D-OCSP-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 ocsp", '"ocsp"' in pg and 'true' in pg.split('"ocsp"')[1][:12], "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 ocsp（已准入）", '"ocsp"' not in pt[i_neg:i_neg + 600], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case ocsp（严格解码）", 'case "ocsp":' in tr and "DisallowUnknownFields" in tr, "在案"))
+    rows.append(("FlowMeta.OCSP 直传（静默基线根修）", re.search(r"OCSP:\s+spec\.OCSP\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.OCSP", re.search(r"OCSP\s+\*core\.OCSPConfig", gen) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry ocsp 行 + tcp 80 契约",
+                 '"tcp.dst_port": "80"' in rg and '"ocsp"' in rg, "在案"))
+    rows.append(("registry 裁定1 依赖（DependsOn tcp + OptionalOn http + TransportOn tcp）",
+                 re.search(r'"ocsp".*?DependsOn:\s*\[\]string\{"tcp"\}.*?OptionalOn:\s*\[\]string\{"http"\}.*?TransportOn:\s*\[\]string\{"tcp"\}', rg, re.S) is not None, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    rows.append(("载体预检（缺 tcp 载体/http-profile 无 http 层/tcp-profile 有 http 层/混合族）",
+                 "missing tcp carrier" in vl and "http profile requires" in vl
+                 and "tcp profile requires" in vl and "mixed address family" in vl, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go ChainPlanner(ocsp) 接线", 'NewChainPlanner("ocsp")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("strategy_convert case ocsp + 80 缺省端口",
+                 'case "ocsp":' in sc and "setDefaultDstPort(&spec, cfg, 80)" in sc, "在案"))
+    hl = (tg / "internal" / "protocol" / "http" / "layer_gen.go").read_text()
+    rows.append(("http 层透传放行 ocsp（isHTTPRPCInner）",
+                 re.search(r"isHTTPRPCInner[\s\S]{0,600}meta\.OCSP != nil", hl) is not None, "在案"))
+
+    # 2. 行为面（DER 原语/builder/planner 关键件）。
+    oc = (tg / "internal" / "core" / "ocsp.go").read_text()
+    _i = oc.index("anchors := map[string]string{")
+    _seg = oc[_i:oc.index("\n\t}", _i)]
+    _n = len(re.findall(r"OCSPWireFault[A-Za-z0-9]+:", _seg))
+    rows.append(("wire_fault 闭环 6 值锚词表", _n == 6, f"{_n} 值"))
+    fl = (tg / "internal" / "protocol" / "ocsp" / "der.go").read_text()
+    for prim, name in [
+        ("func derLen", "DER definite-length 最短长形（短形/0x81/0x82）"),
+        ("func derInteger", "INTEGER 最小补码（正数补 00）"),
+        ("func derCtxExplicit", "[n] EXPLICIT 包装（响应槽——裁定1）"),
+        ("func derCtxImplicitPrim", "[n] IMPLICIT 基本型（CertStatus good/unknown）"),
+        ("func derCtxImplicitCons", "[n] IMPLICIT 构造型（revoked RevokedInfo 无内层 0x30）"),
+    ]:
+        rows.append((f"DER 原语：{name}", prim in fl, "在案"))
+    bl = (tg / "internal" / "protocol" / "ocsp" / "builder.go").read_text()
+    for prim, name in [
+        ("func renderCertID", "CertID hashAlgorithm+双 hash+serial"),
+        ("func algorithmIdentifier", "AlgorithmIdentifier（SHA-1 带 NULL / SHA-256 无参——RFC 8954 §2）"),
+        ("func extensions", "nonce 双层 OCTET STRING（RFC 6960 §4.4.1）"),
+        ("func renderCertStatus", "CertStatus 三分支 good[0]/revoked[1]/unknown[2]"),
+        ("func renderResponderID", "ResponderID byKey [2] EXPLICIT（RFC 6960 模块 EXPLICIT TAGS）"),
+        ("derCtxExplicit(2, derOctet(", "byKey 显式包 OCTET STRING（primitive 82 14 会令 dissector 中止）"),
+        ("func httpPostFrame", "A.1 POST 帧（Content-Type application/ocsp-request）"),
+        ("func httpGetFrame", "RFC 5019 GET 帧（base64url 无 padding URI）"),
+        ("func httpResponseFrame", "200/503 帧 + Retry-After（tryLater 重试）"),
+        ('"503 Service Unavailable"', "tryLater(3) → HTTP 503（不静默成功）"),
+    ]:
+        rows.append((f"关键件：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "ocsp" / "planner.go").read_text()
+    rows.append(("守卫：会话间端口一致性", "conflicts with earlier session dst_port" in pl, "在案"))
+    rows.append(("守卫：wire_fault 注入锚词出口", "negative-path injection rejected" in pl, "在案"))
+    rows.append(("守卫：算法↔hash 长度绑定", "(hash)" in bl and "hash length mismatch" in bl, "在案"))
+    rows.append(("守卫：request_count↔certs 长度匹配", "does not match request.certs length" in bl, "在案"))
+    rows.append(("守卫：version v1 DEFAULT 不编码（X.690 §11.5）", "*p.version == 0" in bl, "在案"))
+    gnt = (tg / "test" / "protocol_pcap" / "cases" / "ocsp.json")
+    rows.append(("用例文件在案", gnt.exists(), "在案"))
+
+    # 3. 用例面（20 例）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "ocsp_http_ipv4_request_response", "ocsp_http_ipv6_request_response",
+        "ocsp_tcp_record_framing", "ocsp_request_certid_sha1",
+        "ocsp_request_certid_sha256_rfc8954", "ocsp_batch_multi_request",
+        "ocsp_nonce_extension", "ocsp_signed_request",
+        "ocsp_basic_response_status", "ocsp_single_response_statuses",
+        "ocsp_response_signature_extensions", "ocsp_time_validity_windows",
+        "ocsp_multi_session_stream", "ocsp_pcap_nic_consistency",
+        "ocsp_neg_der_truncated", "ocsp_neg_certid_hash_length",
+        "ocsp_neg_request_response_mismatch", "ocsp_neg_nonce_extension",
+        "ocsp_neg_signature", "ocsp_neg_carrier_profile",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    rows.append(("用例总数 20（14 正+6 负）", len(cases) == 20, f"{len(cases)} 例"))
+    return rows
+
+
+CHECKS = {
+    "smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
+
+
+# --------------------------------------------------------------------------
+# MCP 检查表（D-MCP-1 P3 清单机器版：方法表 + 通知族 + 错误码 + 传输×版本 +
+# state 终态 + content 类型 + validator 锚词 + 多会话 + 组合流 + 双向方法 +
+# 现网三家；回放语义下错误响应是用户写的 responses 原文，台词版也算——
+# C 类边界见 D 条目）
+# --------------------------------------------------------------------------
+
+MCP_METHODS = ["ping", "tools/list", "tools/call", "resources/list",
+               "resources/read", "resources/subscribe",
+               "resources/templates/list", "resources/unsubscribe",
+               "prompts/list", "prompts/get", "completion/complete",
+               "logging/setLevel", "roots/list", "sampling/createMessage"]
+MCP_NOTIFICATIONS = ["notifications/progress", "notifications/message",
+                     "notifications/cancelled",
+                     "notifications/roots/list_changed",
+                     "notifications/resources/updated",
+                     "notifications/resources/list_changed"]
+MCP_ERROR_CODES = ["-32700", "-32600", "-32601", "-32602", "-32603",
+                   "-32002", "-1"]
+MCP_TRANSPORTS = ["stdio", "http_sse", "streamable"]
+MCP_VERSIONS = ["2024-11-05", "2025-03-26", "2025-06-18"]
+MCP_STATE_FINALS = ["completed", "input_required", "failed", "canceled"]
+MCP_CONTENT_TYPES = ["text", "image", "audio", "resource", "resource_link"]
+MCP_VALIDATOR_ANCHORS = [
+    ("invalid transport", "非法 transport 拒"),
+    ("invalid protocol_version", "非法版本拒"),
+    ("invalid auth scheme", "非法 auth 拒"),
+    ("invalid state.initial", "非法 state 拒"),
+    ("must be a JSON object", "caps 形状拒"),
+    (".method is required", "空 method 拒"),
+    ("must be >= 0", "负计数器拒"),
+    (".role", "parts role 拒"),
+    (".step=", "通知 Step 越界拒"),
+    ("error.code=", "错误码越界拒"),
+    ("mixed auto and explicit id assignment", "id 混用拒"),
+    ("no longer accepts a top-level mcp sub-config", "顶层 mcp presence 拒"),
+    ("static four-tuple", "静态复制拒"),
+]
+MCP_COMMERCIAL = ["claude", "cursor", "flowb"]
+
+
+def _mcp_layers(cases):
+    """逐个产出 (case_id, mcp层dict)。顶层 mcp 键（presence 负例）不算。"""
+    for c in cases:
+        spec = c.get("spec_json", {}) or {}
+        for layer in spec.get("layers", []) or []:
+            mcp = (layer or {}).get("mcp")
+            if isinstance(mcp, dict):
+                yield c.get("id", "?"), mcp
+
+
+def check_mcp(cases):
+    """返回 [(检查名, 通过?, 证据case_id或缺口说明)]。"""
+    rows = []
+    lays = list(_mcp_layers(cases))
+
+    # 1. 方法表 14 个（notifications/initialized 由生成器固定注入，t064 帧
+    # 断言锁，不入 requests 扫描面）。
+    def methods_of(mcp):
+        return [(r.get("method") or "") for r in (mcp.get("requests") or [])
+                if isinstance(r, dict)]
+    for method in MCP_METHODS:
+        hit = next((cid for cid, m in lays if method in methods_of(m)), None)
+        rows.append((f"方法 {method}", hit is not None, hit or "无用例"))
+
+    # 2. 通知族 6 形各至少 1 例。
+    for n in MCP_NOTIFICATIONS:
+        hit = next((cid for cid, m in lays
+                    for item in (m.get("notifications") or [])
+                    if isinstance(item, dict) and item.get("method") == n),
+                   None)
+        rows.append((f"通知 {n}", hit is not None, hit or "无用例"))
+
+    # 3. 错误码 7 个（responses[].error.code 字面；台词版也算）。
+    blob = json.dumps([(m.get("responses") or []) for _, m in lays],
+                      ensure_ascii=False)
+    for code in MCP_ERROR_CODES:
+        hit = re.search(r'"code":\s*' + re.escape(code) + r'(?![0-9])',
+                        blob) is not None
+        rows.append((f"错误码 {code}", hit, "台词出现" if hit else "无用例"))
+
+    # 4. 传输 3 × 版本 3（版本含显式三值各 1 例；缺省=2024-11-05 由生成器
+    # 承担，t011 降级例附带）。
+    for t in MCP_TRANSPORTS:
+        hit = next((cid for cid, m in lays if m.get("transport") == t), None)
+        rows.append((f"传输 {t}", hit is not None, hit or "无用例"))
+    for v in MCP_VERSIONS:
+        # 证据两路：层配置显式 protocol_version，或 expect 帧十六进制解码后
+        # 出现 "protocolVersion":"<v>"（t011 降级例：客户端 2025-06-18，
+        # 服务端响应 2024-11-05 钉在 wire——wire 钉死比配置回显更强）。
+        frame_hit = any(
+            any('"protocolVersion":"' + v + '"' in bytes.fromhex(
+                f.get("hex", "").replace(" ", "")
+            ).decode("ascii", errors="ignore")
+            for f in (c.get("expect") or {}).get("frames") or [])
+            for c in cases)
+        hit = next((cid for cid, m in lays
+                    if m.get("protocol_version") == v), None)
+        ok = hit is not None or frame_hit
+        rows.append((f"版本 {v}", ok, hit or ("帧钉死" if frame_hit else "无用例")))
+
+    # 5. state 终态 4（state.final 字段面；initial/final 同枚举面，一例代表）。
+    for f in MCP_STATE_FINALS:
+        hit = next((cid for cid, m in lays
+                    if (m.get("state") or {}).get("final") == f), None)
+        rows.append((f"state 终态 {f}", hit is not None, hit or "无用例"))
+
+    # 6. content 类型 5（requests/responses 内 content.type 字面）。
+    for ct in MCP_CONTENT_TYPES:
+        hit = re.search(r'"type":\s*"' + ct + r'"', blob) is not None
+        rows.append((f"content {ct}", hit, "字面出现" if hit else "无用例"))
+
+    # 7. validator 锚词收口（错误锚词 + presence/静态复制负例，字面出现）。
+    blob_exp = json.dumps([(c.get("id"), c.get("spec_json", {}),
+                            (c.get("expect") or {}).get("error_contains"),
+                            (c.get("expect") or {}).get("notes"))
+                           for c in cases], ensure_ascii=False)
+    for needle, name in MCP_VALIDATOR_ANCHORS:
+        hit = needle in blob_exp
+        rows.append((name, hit, "锚词出现" if hit else "无用例"))
+
+    # 8. 多会话（flows>=2 至少 2 例：独立 4-tuple 聚合 + id 独立）。
+    multi = [c.get("id", "?") for c in cases
+             if ((c.get("strategy_fc") or {}).get("value") or 0) >= 2]
+    rows.append(("多会话（flows>=2）", len(multi) >= 1,
+                 multi[0] if multi else "无用例"))
+    rows.append(("多会话（第二条）", len(multi) >= 2,
+                 multi[1] if len(multi) >= 2 else "无用例"))
+
+    # 9. 双组合流（§9：至少两条、每条会话内 >=3 不同业务方法）。
+    def composite(mcp):
+        ms = {x for x in methods_of(mcp)
+              if x not in ("notifications/initialized",)}
+        return len(ms) >= 3
+    comp = [cid for cid, m in lays if composite(m)]
+    rows.append(("组合流 A（>=3 方法）", len(comp) >= 1,
+                 comp[0] if comp else "无用例"))
+    rows.append(("组合流 B（第二条）", len(comp) >= 2,
+                 comp[1] if len(comp) >= 2 else "无用例"))
+
+    # 10. 双向方法（S→C 反查：roots/list + sampling/createMessage 已在方法
+    # 表逐个点名；此处锁"响应侧带 capability 声明"的协商例至少 1）。
+    hit = next((cid for cid, m in lays
+                if isinstance(m.get("client_capabilities"), (dict, str))
+                and isinstance(m.get("server_capabilities"), (dict, str))
+                and methods_of(m)), None)
+    rows.append(("双向能力协商", hit is not None, hit or "无用例"))
+
+    # 11. shutdown 双形（缺省挥手 + shutdown:false 无挥手）。
+    hit = next((cid for cid, m in lays if m.get("shutdown") is False), None)
+    rows.append(("shutdown:false 无挥手", hit is not None, hit or "无用例"))
+
+    # 12. rounds 多轮至少 1 例。
+    hit = next((cid for cid, m in lays
+                if (m.get("rounds") or 0) > 1), None)
+    rows.append(("rounds>1 多轮", hit is not None, hit or "无用例"))
+
+    # 13. 现网三家映射（id/summary/notes 关键字，地板线：Claude Desktop /
+    # Cursor / flowB 自家服务端形）。
+    texts = {c.get("id", "?"): json.dumps(
+        [c.get("id"), c.get("summary"),
+         (c.get("expect") or {}).get("notes")], ensure_ascii=False).lower()
+             for c in cases}
+    for kw in MCP_COMMERCIAL:
+        hit = next((cid for cid, t in texts.items() if kw in t), None)
+        rows.append((f"现网映射 {kw}", hit is not None, hit or "无用例"))
+
+    return rows
+
+
+def check_srv6(cases):
+    """D-SRV6-1 P5R 反查表。返回 [(检查名, 通过?, 证据case_id或缺口说明)]。"""
+    rows = []
+    lays = []  # (cid, srv6子映射)
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("srv6"), dict):
+                lays.append((c.get("id", "?"), l["srv6"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. seg_type 枚举（重点 9 + end.un + 缺省=end + 非法 vn08，设计 §3.4 口径）。
+    for st in ["", "end", "end.x", "end.dx6", "end.dx4", "end.dt4", "end.dt6",
+               "end.b6", "end.b6.encaps", "end.b6.encaps.red", "end.un",
+               "end.zzz"]:
+        hit = next((cid for cid, m in lays
+                    if m.get("seg_type", "") == st), None)
+        name = "seg_type 缺省(=end)" if st == "" else f"seg_type {st}"
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. payload_protocol 7 值（含缺省=udp）。
+    for pp in ["", "udp", "tcp", "icmpv6", "ipv6", "ipv4", "none"]:
+        hit = next((cid for cid, m in lays
+                    if m.get("payload_protocol", "") == pp), None)
+        name = "payload 缺省(=udp)" if pp == "" else f"payload {pp}"
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 3. TLV 类型面：正面 4(padn 自动)/5(HMAC)/200(实验) 出现 + 负面保留
+    #    1/2/3/6 锚词（3→T-71）。
+    for t in [4, 5, 200]:
+        hit = next((cid for cid, m in lays
+                    for tlv in m.get("tlv") or []
+                    if isinstance(tlv, dict) and tlv.get("type") == t), None)
+        rows.append((f"TLV type {t}", hit is not None, hit or "无用例"))
+    for t in [1, 2, 3, 6]:
+        hit = f"reserved TLV type {t} must not be set" in blob
+        rows.append((f"TLV 保留 {t} 拒", hit, "锚词出现" if hit else "无用例"))
+
+    # 4. reduced 三态（缺省/true/显式 false→T-70）。
+    for red, name in [(None, "reduced 缺省"), (True, "reduced true"),
+                      (False, "reduced 显式 false")]:
+        hit = next((cid for cid, m in lays
+                    if (m.get("reduced", None) == red)), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 5. tag 三值 + direction 双向 + frames 四形。
+    for tag, name in [(0, "tag 零"), (43981, "tag 中值"), (65535, "tag 最大")]:
+        hit = next((cid for cid, m in lays if m.get("tag") == tag), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+    for d, name in [(None, "direction 缺省(up)"), ("down", "direction down")]:
+        hit = next((cid for cid, m in lays
+                    if m.get("direction", None) == d), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+    for f, name in [(None, "frames 缺省(=1)"), (5, "frames 5"),
+                    (1000, "frames 1000"), (-1, "frames 负拒")]:
+        hit = next((cid for cid, m in lays
+                    if m.get("frames", None) == f), None)
+        if name == "frames 负拒":
+            # 实际执法门是 registry V9 范围（先于 validator VR-21），锚词对真实门。
+            hit = "not a numeric value in [0,1000000]" in blob
+            rows.append((name, hit, "锚词出现" if hit else "无用例"))
+        else:
+            rows.append((name, hit is not None, hit or "无用例"))
+
+    # 6. 段数边界 0/1/2/3/126/127/128。
+    for n in [0, 1, 2, 3, 126, 127, 128]:
+        hit = next((cid for cid, m in lays
+                    if len(m.get("segment_list") or []) == n), None)
+        rows.append((f"段数 {n}", hit is not None, hit or "无用例"))
+
+    # 7. VR 锚词收口（链可达 17 支 + presence/静态复制负例；VR-01/14/16/17
+    #    =C 类，Go 单测覆盖，D-SRV6-1 §5 登记）。
+    anchors = [
+        ("segment_list must not be empty", "VR-02 list 非空"),
+        ("segment_list too large", "VR-03 段数上限"),
+        ("segment_list[0] must be IPv6", "VR-04 段 IPv6"),
+        ("is not IPv6", "VR-05/06 地址族"),
+        ("srv6 requires IPv6", "VR-06 外层 IPv6"),
+        ("unknown seg_type", "VR-07 行为枚举"),
+        ("flags must be 0", "VR-08 flags 全零"),
+        ("last_entry+1", "VR-09 SL/LE 关系"),
+        ("exceeds 255 bytes", "VR-10 TLV 长度"),
+        ("pad1 must not be set manually", "VR-11 Pad1 禁设"),
+        ("padN must not be set manually", "VR-12 PadN 禁设"),
+        ("requires inner_payload >= 40 bytes", "VR-15 内层长度"),
+        ("requires payload_protocol=", "VR-15 行为×载荷"),
+        ("hdr_ext_len overflow", "VR-18/19/20 溢出"),
+        ("not a numeric value in [0,1000000]", "V9 frames 范围（覆盖 VR-21）"),
+        ("payload_protocol=none with non-empty inner_payload", "VR-22 none 非空载荷（T-69）"),
+        ("direction=down requires source-node view", "VR-23 down 源节点视角"),
+        ("top-level srv6 sub-config", "presence 判死（T-74）"),
+        ("static four-tuple", "静态复制拒（T-75）"),
+    ]
+    for needle, name in anchors:
+        hit = needle in blob
+        rows.append((name, hit, "锚词出现" if hit else "无用例"))
+
+    # 8. 多流（flows>=2 ≥2 例）。
+    multi = [c.get("id", "?") for c in cases
+             if ((c.get("strategy_fc") or {}).get("value") or 0) >= 2]
+    rows.append(("多流（flows>=2）", len(multi) >= 1,
+                 multi[0] if multi else "无用例"))
+    rows.append(("多流（第二条）", len(multi) >= 2,
+                 multi[1] if len(multi) >= 2 else "无用例"))
+
+    # 9. 组合流 2 条（HBH 链 T-72 / down+HMAC+内层端口 T-73，notes 关键字）。
+    for kw, name in [("组合流 A", "组合流 A（HBH+TLV+多段）"),
+                     ("组合流 B", "组合流 B（down+HMAC+内层端口）")]:
+        hit = next((c.get("id") for c in cases
+                    if kw in json.dumps(c.get("summary", ""), ensure_ascii=False)
+                    or kw in json.dumps((c.get("expect") or {}).get("notes") or [],
+                                        ensure_ascii=False)), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 10. HBH 链 + dst_mac（End.X 改写面）+ 内层端口 回退/覆盖。
+    hit = next((cid for cid in (c.get("id") for c in cases)
+                if "hop_by_hop" in blob), None)
+    rows.append(("HBH 链", "hop_by_hop" in blob,
+                 hit or "无用例"))
+    hit = next((c.get("id") for c in cases if "dst_mac" in json.dumps(
+        c.get("spec_json", {}), ensure_ascii=False)), None)
+    rows.append(("End.X dst_mac", hit is not None, hit or "无用例"))
+    hit = next((cid for cid, m in lays if m.get("inner_src_port")), None)
+    rows.append(("内层端口 覆盖", hit is not None, hit or "无用例"))
+    # 回退执法例：无 inner_src_port 且 notes 标记 inner_src_port_fallback
+    # （帧 pin 断言回退值 12345，即真实执法断言）。
+    hit = next((c.get("id") for c in cases
+                if "inner_src_port_fallback" in json.dumps(
+                    (c.get("expect") or {}).get("notes") or [], ensure_ascii=False)
+                and not next((m.get("inner_src_port") for cid, m in lays
+                              if cid == c.get("id")), None)), None)
+    rows.append(("内层端口 回退", hit is not None, hit or "无用例"))
+
+    # 11. DstIP=首段 帧断言（new08 字节面）。
+    hit = next((c.get("id") for c in cases
+                if "dstip_byte_match" in c.get("id", "")), None)
+    rows.append(("DstIP=首段 字节断言", hit is not None, hit or "无用例"))
+
+    # 12. 商业映射（子表③ 全待确认：登记说明行，恒过不冒充）。
+    rows.append(("现网映射", True, "D-SRV6-1 子表③ 待确认（Linux seg6 抓包/厂商文档）"))
+
+    return rows
+
+
+def check_fins(cases):
+    """D-FINS-1 P5R 反查表（T-FINS-1…44）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []  # (cid, fins子映射)
+    tops = []  # (cid, layers数组)
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        ls = sj.get("layers") or []
+        tops.append((c.get("id", "?"), ls))
+        for l in ls:
+            if isinstance(l, dict) and isinstance(l.get("fins"), dict):
+                lays.append((c.get("id", "?"), l["fins"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+    flatcases = json.dumps([c.get("spec_json", {}) for c in cases], ensure_ascii=False)
+
+    def cmd_of(m):
+        cmds = m.get("commands") or []
+        return [x.get("command") for x in cmds if isinstance(x, dict)]
+
+    def areas_of(cid):
+        for cid2, m in lays:
+            if cid2 != cid:
+                continue
+            for x in m.get("commands") or []:
+                if isinstance(x, dict) and x.get("command") == 0x0104:
+                    return x.get("read_areas") or []
+        return None
+
+    # 1. 载体 2（tcp 例须有 tcp 层）。
+    rows.append(("载体 udp", any("udp" in [list(x)[0] for x in ls] for _, ls in tops), "udp 层"))
+    tcp_hit = next((cid for cid, ls in tops
+                    if "tcp" in [list(x)[0] for x in ls]), None)
+    rows.append(("载体 tcp", tcp_hit is not None, tcp_hit or "无用例"))
+
+    # 2. 地址族（v6 代表；单/双族口径见 T-FINS 矩阵登记）。
+    v6 = any("2001:db8::" in flatcases for _ in [0])
+    rows.append(("地址族 v6", v6, "2001:db8::" if v6 else "无用例"))
+
+    # 3. 命令码 5 值正例 + 未知码负例。
+    for code, name in [(0x0101, "0101 读"), (0x0102, "0102 写"),
+                       (0x0103, "0103 Fill"), (0x0104, "0104 多区读"),
+                       (0x0701, "0701 校时")]:
+        hit = next((cid for cid, m in lays if code in cmd_of(m)), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+    rows.append(("未知命令负例", "unsupported command" in blob, "锚词出现" if "unsupported command" in blob else "无用例"))
+
+    # 4. 区名×口径组合（9.20-9.22 扫描）。
+    area_seen = set()
+    for _, m in lays:
+        for x in m.get("commands") or []:
+            if not isinstance(x, dict):
+                continue
+            bit = "bit" in x
+            area_seen.add((x.get("memory_area", ""), bit))
+        for ra in (x.get("read_areas") or [] for x in m.get("commands") or [] if isinstance(x, dict)):
+            for a in ra:
+                if isinstance(a, dict):
+                    area_seen.add((a.get("memory_area", ""), "bit" in a))
+    for area, bit, name in [("dm", False, "dm 字"), ("cio", False, "cio 字"), ("wr", False, "wr 字"),
+                            ("hr", False, "hr 字"), ("tc_pv", False, "tc_pv 字"), ("ir", False, "ir 字"),
+                            ("tc_bit", False, "tc_bit 字(0x09)"), ("cio", True, "cio 位(0x30)"),
+                            ("wr", True, "wr 位(0x31)"), ("hr", True, "hr 位(0x32)")]:
+        hit = (area, bit) in area_seen
+        rows.append((f"区码 {name}", hit, "已覆" if hit else "无用例"))
+
+    # 5. 会话/SID/关回包/结束码面。
+    rows.append(("sessions≥2", any((m.get("sessions") or 0) >= 2 for _, m in lays), "sessions"))
+    rows.append(("SID 递增", "fins_sid_auto_incr" in blob, "fins_sid_auto_incr"))
+    rows.append(("SID 固定", "fins_sid_fixed" in blob, "fins_sid_fixed"))
+    rows.append(("expect_response=false", "expect_response" in blob, "锚词出现"))
+    rows.append(("结束码响应面", "response_end_code" in blob, "锚词出现"))
+
+    # 6. E-01~E-10 锚词 + presence/static。
+    for needle, name in [
+        ("invalid memory area", "E-01 内存区"),
+        ("unsupported command", "E-02 命令码"),
+        ("dm does not support bit access", "E-03 DM 位"),
+        ("address exceeds range", "E-04 越界"),
+        ("items must be > 0", "E-05 元素数"),
+        ("icf request direction bit must be clear", "E-06 ICF cfg 级"),
+        ("icf response-required bit must be clear", "E-06 ICF bit0"),
+        ("data length", "E-07 数据长"),
+        ("clock field out of range", "E-09 BCD"),
+        ("invalid gct", "GCT"),
+        ("invalid dna", "DNA"),
+        ("invalid sna", "SNA"),
+        ("read_areas", "E-10 组面"),
+        ("fill data must be 2 bytes", "0103 模板"),
+        ("fill does not support bit access", "0103 位拒"),
+        ("invalid transport", "transport 枚举"),
+        ("invalid direction", "direction 枚举"),
+        ("sessions must be >= 0", "sessions 负值"),
+        ("top-level fins sub-config", "presence 判死"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    # 7. 组合流 2 条（T-FINS T-31/32）。
+    for kw, name in [("组合流 A", "组合流 A（TCP+多命令+SID 递增）"),
+                     ("组合流 B", "组合流 B（UDP+双会话+全键+结束码）")]:
+        hit = next((c.get("id") for c in cases
+                    if kw in json.dumps(c.get("summary", ""), ensure_ascii=False)
+                    or kw in json.dumps((c.get("expect") or {}).get("notes") or [], ensure_ascii=False)), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 8. 多流（strategy_fc flows>=2 ≥2 例：sessions 派生面 + 静态复制拒）。
+    multi = [c.get("id", "?") for c in cases
+             if ((c.get("spec_json") or {}).get("strategy_fc") or {}).get("value", 0) >= 2
+             or "flows" in json.dumps((c.get("spec_json") or {}).get("strategy_fc") or {})]
+    rows.append(("多流/静态复制面", len(multi) >= 1, multi[0] if multi else "无用例"))
+
+    return rows
+
+
+def check_goose(cases):
+    """D-GOOSE-1 P5R 反查表（T-GOOSE-1…30）。返回 [(检查名, 通过?, 证据)]。
+    层内 goose 子映射扫描（P5 改写后形状；P4 登记时旧顶层 goose 键例判 MISS，
+    P5 cases 落地后转绿）。
+    """
+    rows = []
+    lays = []  # (cid, goose层内子映射)
+    tops = []  # (cid, layers数组)
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        ls = sj.get("layers") or []
+        tops.append((c.get("id", "?"), ls))
+        for l in ls:
+            if isinstance(l, dict) and isinstance(l.get("goose"), dict):
+                lays.append((c.get("id", "?"), l["goose"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 场景 S1-S7（正例存在性）。
+    for kw, name in [("heartbeat", "S1 心跳"), ("retransmit", "S2 退避"),
+                     ("dataset_change", "S2 变化"), ("test_flag", "S3 test"),
+                     ("ndscom", "S3 ndsCom"), ("vlan", "S4 VLAN"),
+                     ("multitype", "S5 多类型"), ("multidataset", "S7 多数据集"),
+                     ("no_ip", "S6 无IP")]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. 数据类型 11 白名单（data[].type 字面；int64/uint64 分支代表）。
+    for t in ["boolean", "bit_string", "int32", "int64", "uint32", "uint64",
+              "float32", "octet_string", "visible_string", "binary_time",
+              "utc_time"]:
+        hit = next((cid for cid, m in lays
+                    for d in m.get("data") or []
+                    if isinstance(d, dict) and d.get("type") == t), None)
+        rows.append((f"类型 {t}", hit is not None, hit or "无用例"))
+
+    # 3. 可选键覆盖（go_id/start_stnum/start_sqnum/test/nds_com/vlan三键/
+    #    event_seq/count/dst_mac）。
+    for k, name in [("go_id", "go_id 显式"), ("start_stnum", "start_stnum"),
+                    ("start_sqnum", "start_sqnum"), ("test", "test 键"),
+                    ("nds_com", "nds_com 键"), ("vlan_enabled", "VLAN 开关"),
+                    ("vlan_id", "vlan_id"), ("vlan_priority", "vlan_priority"),
+                    ("event_seq", "event_seq"), ("count", "count 层内"),
+                    ("dst_mac", "dst_mac 层内")]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 4. event_seq 槽位四键。
+    for k, name in [("data_idx", "ev data_idx"), ("delay_ms", "ev delay_ms"),
+                    ("retransmits", "ev retransmits"),
+                    ("sqnum_step", "ev sqnum_step")]:
+        hit = next((cid for cid, m in lays
+                    for e in m.get("event_seq") or []
+                    if isinstance(e, dict) and k in e), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 5. 校验分支 13 锚词 + presence/static。
+    for needle, name in [
+        ("out of range [0,16383]", "appid 越界（V9 真实门）"),
+        ("gocb_ref and dat_set are required", "gocb_ref/dat_set 必填"),
+        ("exceed 255 bytes", "超长串"),
+        ("tal_ms must be in", "tal_ms"),
+        ("conf_rev must be non-zero", "conf_rev"),
+        ("stNum must not overflow", "stNum 回绕"),
+        ("sqNum must not overflow", "sqNum 上限"),
+        ("at least one", "空 data"),
+        ("unsupported data type", "非法 type"),
+        ("sqNum step", "sqNum 跳号"),
+        ("must not have an ip/transport carrier", "L2-only 载体门（V7b）"),
+        ("out of range [0,4095]", "VLAN 越界（V9 真实门）"),
+        ("top-level goose sub-config", "presence 判死"),
+        ("static four-tuple", "静态复制拒"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    # 6. 组合流 2 条（T-28/29，notes 关键字）。
+    for kw, name in [("组合流 A", "组合流 A（三旗同帧）"),
+                     ("组合流 B", "组合流 B（事件+多类型）")]:
+        hit = next((c.get("id") for c in cases
+                    if kw in json.dumps(c.get("summary", ""), ensure_ascii=False)
+                    or kw in json.dumps((c.get("expect") or {}).get("notes") or [], ensure_ascii=False)), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    return rows
+
+
+def check_radius(cases):
+    """D-RADIUS-1 P5 反查表（T-RADIUS-1…21）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("radius"), dict):
+                lays.append((c.get("id", "?"), l["radius"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 场景面（21 例逐点名）。
+    for kw, name in [("smoke", "S 基线改写例"), ("flat_presence", "presence 判死面"),
+                     ("flat_static_port", "静态端口拒面"), ("acct_1813", "Accounting 1813 顺序修正面"),
+                     ("challenge", "Challenge 显式响应码"), ("status", "Status-Server/Client"),
+                     ("code3", "请求码 3 枚举"), ("reject", "Reject 失败分支"),
+                     ("neg_no_auto", "无默认响应拒"), ("neg_reqcode", "请求码非法"),
+                     ("neg_rspcode", "响应码非法"), ("auth_fixed", "fixed authenticator 钉值"),
+                     ("neg_auth_hex", "authenticator 非法 hex"), ("neg_auth_len", "authenticator 长度错"),
+                     ("attr_formats", "属性四 format+VSA"), ("neg_attr_len", "属性超长"),
+                     ("neg_format", "format 非法"), ("rounds", "rounds 多轮"),
+                     ("_v6", "v6 正例面"), ("default_port", "缺省端口 1812 面"),
+                     ("port_dyn", "端口动态面"), ("neg_vsa_len", "VSA 超长拒面"),
+                     ("attr_boundary", "253 边界等值面"), ("nas_combo", "现网 NAS 组合面"),
+                     ("neg_coa", "CoA 白名单外拒面")]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. 键覆盖（业务 7 键 + 端口 2 键）。
+    for k in ["code", "identifier", "authenticator", "response_code",
+              "rounds", "attributes", "response_attributes", "src_port", "dst_port"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    # 3. 锚词面（9 负例全 legacy 真门）。
+    for needle, name in [
+        ("top-level radius sub-config", "presence 判死"),
+        ("static four-tuple", "静态端口拒"),
+        ("has no default response code", "无默认响应拒"),
+        ("invalid request code", "请求码非法"),
+        ("invalid response code", "响应码非法"),
+        ("invalid authenticator hex", "authenticator 非法 hex"),
+        ("must be 16 bytes", "authenticator 长度错"),
+        ("exceeds the 253-byte", "属性超长"),
+        ("unknown format", "format 非法"),
+        ("exceeds the 247-byte", "VSA 超长拒"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
+
+
+def check_pppoe(cases):
+    """D-PPPOE-1 P6 反查表（T-PPPOE-1…24，9.52 对账 45/45）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("pppoe"), dict):
+                lays.append((c.get("id", "?"), l["pppoe"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 场景面（24 例逐点名，T-PPPOE 清单）。
+    for kw, name in [
+        ("lifecycle_full", "T-1 全生命周期 8 帧（PADT 缺省真）"),
+        ("padt_suppressed", "T-2 padt=false 抑制"),
+        ("skip_discovery", "T-3 跳过发现+显式 ID"),
+        ("auth_none_lcp_len", "T-4 无 Auth-Proto 选项 LCP len 钉"),
+        ("auth_pap", "T-5 PAP c023 两帧"),
+        ("auth_chap", "T-6 CHAP c223 三帧"),
+        ("data_direction_down", "T-7 下行换向"),
+        ("data_frames_zero_default", "T-8 data_frames=0 缺省 1（勘误面）"),
+        ("service_name_any", "T-9 any-service 零长标签"),
+        ("bras_three_tags", "T-10 BRAS 三标签（现网）"),
+        ("mru_magic_explicit", "T-11 MRU+Magic 钉值"),
+        ("sessions_derived_ids", "T-12 派生 ID 1/2/3"),
+        ("sessions_explicit_ids", "T-13 显式 ID 100/200"),
+        ("composite_multi_session", "T-14 复合大场景（9.50）"),
+        ("inner_tcp_explicit", "T-15 内嵌 TCP"),
+        ("data_payload_bytes", "T-16 载荷字节钉"),
+        ("data_frames_two", "T-17 多帧+IPID 递增"),
+        ("inner_udp_explicit", "T-18 内嵌 UDP 显式"),
+        ("neg_auth_invalid", "T-19 auth 枚举拒"),
+        ("neg_inner_proto_invalid", "T-20 inner_proto 枚举拒"),
+        ("neg_data_frames_negative", "T-21 data_frames 负值拒"),
+        ("neg_ipv6_inner", "T-22 内嵌 IPv6 拒"),
+        ("neg_sessions_mutex", "T-23 sessions 互斥拒"),
+        ("neg_duplicate_session_id", "T-24 重复 ID 拒"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. 键覆盖（消费面 16 键中流程可写部分逐键）。
+    for k in ["session_id", "skip_discovery", "ac_name", "service_name", "cookie",
+              "mru", "magic_number", "auth", "username", "data_frames",
+              "data_payload", "inner_proto", "data_direction", "padt", "sessions"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    # 3. 锚词面（6 负例，真实拦截面文案）。
+    for needle, name in [
+        ("Auth", "T-19 auth 枚举锚"),
+        ("InnerProto", "T-20 inner_proto 锚"),
+        ("data_frames", "T-21 范围门锚"),
+        ("must be IPv4", "T-22 IPv6 拒锚"),
+        ("pppoe: sessions and top-level session config are mutually exclusive", "T-23 互斥锚"),
+        ("pppoe: duplicate session_id", "T-24 重复锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
+
+def check_ldap(cases):
+    """D-LDAP-1 P6 反查表（T-LDAP-1…22，9.52 对账 38/38）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("ldap"), dict):
+                lays.append((c.get("id", "?"), l["ldap"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 场景面（22 例逐点名，T-LDAP 清单）。
+    for kw, name in [
+        ("session_full", "T-1 全会话 13 包（六标签 BER 面钉）"),
+        ("ber_long_form_length", "T-2 BER 长形前缀专钉"),
+        ("message_id_increment", "T-3 messageID 递增实测钉"),
+        ("bind_anonymous", "T-4 匿名 bind"),
+        ("bind_simple", "T-5 simple bind"),
+        ("bind_version2", "T-6 version=2"),
+        ("scope_single_level", "T-7 scope=1"),
+        ("scope_whole_subtree", "T-8 scope=2"),
+        ("filter_equality", "T-9 equality CHOICE"),
+        ("result_invalid_credentials", "T-10 resultCode 49"),
+        ("rounds_two", "T-11 rounds=2 多轮"),
+        ("attributes_custom", "T-12 attributes 自定义"),
+        ("unbind_suppressed", "T-13 unbind 抑制"),
+        ("composite_multi_round", "T-14 复合大场景（9.50）"),
+        ("search_base_dn", "T-15 base DN 显式"),
+        ("size_time_limit", "T-16 size/time limit"),
+        ("neg_version_invalid", "T-17 version 拒"),
+        ("neg_scope_invalid", "T-18 scope 拒"),
+        ("neg_filter_type_invalid", "T-19 filter_type 拒"),
+        ("neg_result_code_range", "T-20 result_code 拒"),
+        ("neg_size_limit_negative", "T-21 size_limit 拒"),
+        ("neg_message_id_overflow", "T-22 messageID 超限拒"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. 键覆盖（15 键逐键）。
+    for k in ["rounds", "message_id_base", "version", "bind_dn", "bind_password",
+              "search_base_dn", "search_scope", "size_limit", "time_limit",
+              "filter_type", "search_filter", "filter_value", "attributes",
+              "result_code", "unbind"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    # 3. 锚词面（6 负例）。
+    for needle, name in [
+        ("invalid version", "T-17 version 锚"),
+        ("invalid scope", "T-18 scope 锚"),
+        ("invalid filter type", "T-19 filter_type 锚"),
+        ("out of ENUMERATED range", "T-20 result_code 锚"),
+        ("size_limit", "T-21 范围门锚"),
+        ("exceeds 0x7FFF", "T-22 messageID 锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
+
+def check_rtmp(cases):
+    """D-RTMP-1 P6 反查表（T-RTMP-1…16，9.52 对账 24/24）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("rtmp"), dict):
+                lays.append((c.get("id", "?"), l["rtmp"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 场景面（16 例逐点名，T-RTMP 清单）。
+    for kw, name in [
+        ("play_session_full", "T-1 play 全会话 20 包"),
+        ("handshake_segments", "T-2 握手分段数专钉"),
+        ("chunk_header_amf0_connect", "T-3 chunk 头+AMF0 connect"),
+        ("protocol_control_messages", "T-4 协议控制四消息"),
+        ("publish_mode", "T-5 publish 模式"),
+        ("stream_name_custom", "T-6 stream_name 自定义"),
+        ("app_tc_url_custom", "T-7 app/tc_url 自定义"),
+        ("data_audio", "T-8 数据面音频"),
+        ("data_video", "T-9 数据面视频"),
+        ("data_bidirectional", "T-10 数据面双向"),
+        ("data_payload_b64", "T-11 payload b64 双形"),
+        ("composite_publish_multi_data", "T-12 复合大场景（9.50）"),
+        ("neg_app_too_long", "T-13 App 超长拒"),
+        ("neg_command_invalid", "T-14 Command 拒"),
+        ("neg_msg_type_invalid", "T-15 MsgType 拒"),
+        ("data_payload_raw", "T-16 payload 原文串"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. 键覆盖（5 键 + data 项内 4 子键）。
+    for k in ["app", "tc_url", "command", "stream_name", "data",
+              "direction", "msg_type", "chunk_stream_id", "payload_b64", "payload"]:
+        hit = next((cid for cid, m in lays if k in json.dumps(m)), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    # 3. 锚词面（3 负例）。
+    for needle, name in [
+        ("App exceeds", "T-13 App 长度锚"),
+        ("invalid Command", "T-14 Command 锚"),
+        ("MsgType", "T-15 MsgType 锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
+
+def check_rtsp(cases):
+    """D-RTSP-1 P6 反查表（T-RTSP-1…12，9.52 对账 16/16）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("rtsp"), dict):
+                lays.append((c.get("id", "?"), l["rtsp"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    for kw, name in [
+        ("options_smoke", "T-1 OPTIONS 冒烟 9 包"),
+        ("play_session_full", "T-2 play 全序五方法（现网形）"),
+        ("describe_sdp_body", "T-3 DESCRIBE+SDP body"),
+        ("response_404", "T-4 404 响应面"),
+        ("pause_teardown", "T-5 PAUSE/TEARDOWN"),
+        ("uri_explicit_and_default", "T-6 URI 显式+缺省构造"),
+        ("headers_custom", "T-7 头显式覆盖+自动补 CSeq"),
+        ("emit_media_rtp", "T-8 RTP 媒面子流"),
+        ("direction_explicit", "T-9 direction 显式覆盖"),
+        ("composite_full_session_media", "T-10 复合大场景（9.50）"),
+        ("neg_dialog_required", "T-11 空 dialog 拒"),
+        ("status_text_default", "T-12 缺省 phrase"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    for k in ["dialog", "media"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+    sub = json.dumps([m for _, m in lays], ensure_ascii=False)
+    for k in ["method", "uri", "status_code", "status_text", "headers", "body", "direction", "emit_media"]:
+        rows.append((k, k in sub, "dialog 项键" if k in sub else "无用例"))
+
+    for needle, name in [
+        ("dialog is required", "T-11 dialog 必需锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
+
+def check_pptp(cases):
+    """D-PPTP-1 P6 反查表（T-PPTP-1…20，9.52 对账 27/27）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("pptp"), dict):
+                lays.append((c.get("id", "?"), l["pptp"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    for kw, name in [
+        ("full_session_ref", "T-1 full 26 帧参考形"),
+        ("control_header_magic", "T-2 控制头 magic 钉"),
+        ("scenario_control_only", "T-3 control_only"),
+        ("scenario_tunnel_only", "T-4 tunnel_only（P2 errata 勘误面）"),
+        ("scenario_data_only", "T-5 data_only 纯 GRE"),
+        ("role_pac", "T-6 role=pac 换向"),
+        ("calls_two", "T-7 calls=2 多 call"),
+        ("sli_count_three", "T-8 SLI 计数"),
+        ("echo_keepalive", "T-9 ECRQ/ECRP 保活"),
+        ("data_both_directions", "T-10 双数据方向 GRE 头"),
+        ("inner_ip_explicit", "T-11 inner_ip 显式"),
+        ("result_error_fields", "T-12 失败分支字段"),
+        ("composite_full_multi", "T-13 复合大场景（9.50 五类交织）"),
+        ("neg_role_invalid", "T-14 role 拒"),
+        ("neg_scenario_invalid", "T-15 scenario 拒"),
+        ("neg_calls_negative", "T-16 calls 拒"),
+        ("neg_sli_count_negative", "T-17 sli_count 拒"),
+        ("neg_sub_address_hex", "T-18 hex 拒"),
+        ("neg_host_name_long", "T-19 64B 拒"),
+        ("neg_inner_ip_invalid", "T-20 inner IP 拒"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    keys_seen = 0
+    for k in ["role", "scenario", "calls", "echo", "sli_count", "data_frames",
+              "down_data_frames", "inner_ip", "scrp_result", "ocrp_result",
+              "sub_address", "host_name"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+        if hit is not None:
+            keys_seen += 1
+
+    for needle, name in [
+        ("invalid pptp role", "T-14 role 锚"),
+        ("invalid pptp scenario", "T-15 scenario 锚"),
+        ("calls", "T-16 范围门锚"),
+        ("sli_count", "T-17 范围门锚"),
+        ("must be hex", "T-18 hex 锚"),
+        ("exceed 64 bytes", "T-19 64B 锚"),
+        ("invalid pptp inner src_ip", "T-20 inner IP 锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
+def check_sctp(cases):
+    """D-SCTP-1 P6 反查表（T-SCTP-1…10，9.52 对账 20/20）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("sctp"), dict):
+                lays.append((c.get("id", "?"), l["sctp"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    for kw, name in [
+        ("t1_baseline_assoc", "T-1 基线关联 7 帧"),
+        ("t2_handshake_bytes", "T-2 4 握手字节钉"),
+        ("t3_data_bidir", "T-3 DATA 双向"),
+        ("t4_fragment_flags", "T-4 分片三 flags"),
+        ("t5_heartbeat_primary", "T-5 HEARTBEAT 主路径"),
+        ("t6_altpath_multihoming", "T-6 AltPath 多宿主"),
+        ("t7_abort", "T-7 ABORT 突断"),
+        ("t8_explicit_tsn_sid", "T-8 显式 TSN/SID/PPID"),
+        ("t9_neg_altpath_v6", "T-9 AltPath IPv6 拒"),
+        ("t10_neg_frag_small", "T-10 fragment_size 下界拒"),
+        ("t11_neg_frag_upper", "T-11 fragment_size 上界拒"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    keys_seen = 0
+    for k in ["verification_tag", "initiate_tag", "chunks", "heartbeats",
+              "abort", "fragment_size", "src_port", "dst_port"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+        if hit is not None:
+            keys_seen += 1
+
+    for needle, name in [
+        ("only IPv4 multi-homing", "T-9 AltPath 锚"),
+        ("out of range [16,1000000]", "T-10 V9 区间锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
+def check_jt808(cases):
+    """D-JT808-1 P6 反查表（T-JT808-1…14，9.52 对账 22/22）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("jt808"), dict):
+                lays.append((c.get("id", "?"), l["jt808"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    for kw, name in [
+        ("t1_baseline_assoc", "T-1 基线关联 10 帧"),
+        ("t2_frame_header_bytes", "T-2 帧头字节钉"),
+        ("t3_dual_sn_autobind", "T-3 双 SN+自动绑定"),
+        ("t4_register_body_fields", "T-4 注册体字段钉"),
+        ("t5_location_bitmerge_escape", "T-5 位置+位合并+转义"),
+        ("t6_version2011_encrypt_bit", "T-6 版本方言+加密位"),
+        ("t7_down_tlv_trio", "T-7 down 面 TLV"),
+        ("t8_text_down_gbk", "T-8 GBK 文本"),
+        ("t9_property_response", "T-9 属性应答 17 字段"),
+        ("t10_fragmentation", "T-10 分包"),
+        ("t11_neg_phone_11digits", "T-11 phone 11 位拒"),
+        ("t12_neg_auth_missing_code", "T-12 auth 缺鉴权码拒"),
+        ("t13_neg_color0_plate", "T-13 车牌互斥拒"),
+        ("t14_neg_ackflag_99", "T-14 ACKFlag=99 拒"),
+        ("t15_identity_composite", "T-15 身份面复合例"),
+        ("t16_heartbeat", "T-16 终端心跳 0x0002"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    for k in ["phone", "version", "encrypt_flag", "license_color", "license_plate",
+              "province_id", "city_id", "manufacturer_id", "terminal_model", "terminal_id",
+              "terminal_type", "initial_sn", "platform_initial_sn", "auth_code", "imei",
+              "software_version", "registration_result", "procedures"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    for needle, name in [
+        ("must be 12 digits", "T-11 phone 锚"),
+        ("AuthCode is empty", "T-12 auth 锚"),
+        ("LicenseColor=0 but LicensePlate non-empty", "T-13 车牌锚"),
+        ("ACKFlag 99 invalid", "T-14 ACKFlag 锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+    return rows
+
+
+def check_jt809(cases):
+    """D-JT809-1 P6 反查表（T-JT809-1…13，9.52 对账 分项和 14=T-2 承载 2 项+建例 13）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("jt809"), dict):
+                lays.append((c.get("id", "?"), l["jt809"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    for kw, name in [
+        ("t1_baseline", "T-1 基线关联"),
+        ("t2_envelope_header", "T-2 信封+头字节钉"),
+        ("t3_login_body", "T-3 登录体 50B"),
+        ("t4_keepalive_pair", "T-4 keepalive 对"),
+        ("t5_disconnect", "T-5 断开通知 0x1007"),
+        ("t6_close_notify", "T-6 关闭通知 0x1008"),
+        ("t7_slave_dual_flow", "T-7 从链路双流"),
+        ("t8_slave_resp_negative", "T-8 从链应答负路径"),
+        ("t9_escape_bytes", "T-9 转义真字节"),
+        ("t10_logout", "T-10 注销 0x1003"),
+        ("t11_neg_gnss_overflow", "T-11 gnss 超界拒"),
+        ("t12_neg_version_flag", "T-12 version_flag=3 拒"),
+        ("t13_neg_error_code", "T-13 error_code=3 拒"),
+        ("t14_login_resp_body", "T-14 登录应答体 0x1002"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    for k in ["gnss_center_id", "user_id", "password", "version_flag", "version_bytes",
+              "encrypt_flag", "encrypt_key", "time_sec", "down_link_ip", "down_link_port",
+              "initial_sn", "platform_initial_sn", "procedures", "slave_procedures"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    for needle, name in [
+        ("out of range [0,999999999]", "T-11 gnss 锚（首拦截=registry V9 区间，schema 先于 planner）"),
+        ("out of range [0,2]", "T-12 version 锚（首拦截=registry V9 区间）"),
+        ("ErrorCode 3 > 2", "T-13 error_code 锚（嵌套不下探，planner 拦截）"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+    return rows
+
+
+def check_jtt905(cases):
+    """D-JTT905-1 P6 反查表（T-JTT905-1…14，9.52 对账 分项和 14=建例 13（T-2 承载 2）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("jtt905"), dict):
+                lays.append((c.get("id", "?"), l["jtt905"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    for kw, name in [
+        ("t1_baseline", "T-1 基线关联 12 帧"),
+        ("t2_envelope_header", "T-2 信封+头钉"),
+        ("t3_checkin_body", "T-3 签到体钉"),
+        ("t4_heartbeat_pair", "T-4 心跳对"),
+        ("t5_checkout_body", "T-5 签退体钉"),
+        ("t6_resp_pair", "T-6 应答对"),
+        ("t7_escape_bytes", "T-7 转义真字节"),
+        ("t9_position_block", "T-9 位置块"),
+        ("t10_neg_isu_11digits", "T-10 isu 11 位拒"),
+        ("t11_neg_plate_7ascii", "T-11 plate 7 ASCII 拒"),
+        ("t12_neg_result_3", "T-12 result=3 拒"),
+        ("t13_neg_bcd_digits", "T-13 BCD 位数拒"),
+        ("t14_result_enum", "T-14 Result 枚举正例"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    for k in ["isu_id", "initial_sn", "platform_initial_sn", "business_license",
+              "qualification_code", "plate_no", "position", "taximeter_k_value",
+              "on_duty_power_on_time", "on_duty_power_off_time", "on_duty_mileage",
+              "on_duty_operation_mileage", "train_number", "timing_time", "total_amount",
+              "card_amount", "card_count", "on_duty_mileage_between", "total_mileage",
+              "total_operation_mileage", "unit_price", "total_operations", "sign_type",
+              "procedures", "heartbeat_count"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    for needle, name in [
+        ("must be 12 digits", "T-10 isu 锚"),
+        ("PlateNo length 7 > 6", "T-11 plate 锚"),
+        ("Result 3 > 2", "T-12 result 锚"),
+        ("must be 12 digits (yyyyMMddHHmm)", "T-13 BCD 锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+    return rows
+
+
+def check_icmp(cases):
+    """D-ICMP-1 P6 反查表（T-ICMP-1…8，9.52 对账 分项和 8=建例 8。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("icmp"), dict):
+                lays.append((c.get("id", "?"), l["icmp"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    for kw, name in [
+        ("t1_smoke", "T-1 smoke 配对"),
+        ("t2_header_bytes", "T-2 头字节钉"),
+        ("t3_explicit", "T-3 显式 id/seq/data"),
+        ("t4_pattern", "T-4 Pattern 多轮"),
+        ("t5_neg_type", "T-5 type 区间拒"),
+        ("t6_neg_code", "T-6 code 拒"),
+        ("t7_neg_presence", "T-7 顶层 presence 判死"),
+        ("t8_neg_static_copy", "T-8 静态复制拒"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    for k in ["type", "code", "identifier", "sequence", "data", "pattern"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    for needle, name in [
+        ("icmp type must be 8 (Echo Request) or 0 (Echo Reply), got 3", "T-5 type 锚"),
+        ("icmp code must be 0 for Echo, got 1", "T-6 code 锚"),
+        ("no longer accepts a top-level icmp", "T-7 presence 锚"),
+        ("static four-tuple", "T-8 静态复制锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+    return rows
+
+
+def check_cwmp(cases):
+    """D-CWMP-1 P6 反查表（T-CWMP-1…153：150 存量等价迁移 + 3 新例）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("cwmp"), dict):
+                lays.append((c.get("id", "?"), l["cwmp"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 迁移面 + 行为面代表场景（150 存量 B6 契约枚举 + 3 新例）。
+    for kw, name in [
+        ("_inform_ipv4_2p", "T-1 Inform 基线（4 帧对）"),
+        ("multi_session_sequential", "多会话顺序"),
+        ("_concurrent", "多会话并发"),
+        ("connection_request_auth_challenge", "acs_cr/鉴权面"),
+        ("download_flow_correlation", "flows 流关联副连接"),
+        ("pres_kill_neg", "T-151 顶层 presence 判死"),
+        ("v9_unknown_field_neg", "T-152 未知字段 V9 拒"),
+        ("empty_layer_baseline", "T-153 空层 P0b 基线"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. 六键承载（层 config 迁移后，顶层不再承载）。auth 顶层键 B6 契约
+    # 登记但无用例（digest 重试面走 challenge kind 序列）——对 allowlist
+    # 生成表核键，不对用例核。
+    try:
+        gen = json.loads((Path(__file__).resolve().parent / ".." / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
+        allow = ((gen.get("layers") or {}).get("cwmp") or {}).get("fields") or {}
+    except Exception:
+        allow = {}
+    for k in ["profile", "namespace", "concurrent", "sessions", "flows"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "层内无用例"))
+    rows.append(("auth（allowlist 登记，B6 契约重试面）", "auth" in allow, "allowlist" if "auth" in allow else "allowlist 缺键"))
+    rows.append(("registry 六键对齐 allowlist", allow and set(allow) >= {"profile", "namespace", "concurrent", "sessions", "flows", "auth"}, "六键齐" if allow else "生成表不可读"))
+
+    # 3. 负例锚词（validator/B6 §7 契约 + 判死门文案）。
+    for needle, name in [
+        ("no longer accepts a top-level cwmp sub-config", "presence 判死锚"),
+        ("unknown field", "V9 未知字段锚"),
+        ("not six uppercase hex digits", "validator device_id 锚（oui 域具体文案，L4 升级）"),
+        ("correlation|no pending|invalid", "correlation/id 族锚"),
+    ]:
+        found = needle in blob
+        if "|" in needle:
+            found = any(n in blob for n in needle.split("|"))
+        rows.append((name, found, "锚词出现" if found else "无用例"))
+
+    # 4. 迁移完整性：非 presence 负例的用例顶层不得再出现 cwmp 键。
+    leaked = [c.get("id") for c in cases
+              if "cwmp" in (c.get("spec_json", {}) or {})
+              and "pres_kill" not in c.get("id", "")]
+    rows.append(("顶层残留为零（presence 负例豁免）", not leaked, leaked or "零残留"))
+    return rows
+
+
+
+def check_kingbase(cases):
+    """D-KINGBASE-1 P6 反查表（T-KINGBASE-1…15，退役口径：协议身份=postgresql dialect，
+    9.52 对账 分项和 15=建例 15。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent  # trafficgen/
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("postgresql"), dict):
+                lays.append((c.get("id", "?"), l["postgresql"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 退役面（G5）：白名单摘除 + negativeOnly 守卫 + 死遗留零残留。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单无 kingbase（退役：create→400）", '"kingbase": true' not in pg,
+                 "已摘除" if '"kingbase": true' not in pg else "白名单仍收"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    rows.append(("negativeOnly 收 kingbase（must remain rejected 守卫）",
+                 pt.count('"kingbase"') >= 1 and '"kingbase": true' not in pt,
+                 "守卫在列"))
+    rows.append(("protocol/kingbase 包已删", not (tg / "internal" / "protocol" / "kingbase").exists(), "包不存在"))
+    tys = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("types.go 死类型零残留（KingBaseConfig/Session/Event/FlowSpec.KingBase）",
+                 all(x not in tys for x in ("type KingBaseConfig", "type KingBaseSession", "type KingBaseEvent", "KingBase  *KingBaseConfig")),
+                 "零残留"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.KingBase 已删", "KingBase *core.KingBaseConfig" not in gen, "零残留"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate KingBase 行已删", "spec.KingBase" not in tr, "零残留"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空导入已删", "protocol/kingbase" not in mn, "零残留"))
+
+    # 2. dialect 面确认（零改动验收线）。
+    bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "postgresql"]
+    rows.append(("15 例 proto 全=postgresql（退役跑法 CASE_PROTO=postgresql）", not bad_proto, bad_proto or "全 postgresql"))
+    hit = next((cid for cid, m in lays if m.get("dialect") == "kingbase"), None)
+    rows.append(("dialect=kingbase 层键", hit is not None, hit or "无用例"))
+    reg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("FieldContract dialect 契约 54321 在案", '"kingbase": {"tcp.dst_port": "54321"}' in reg, "registry.go 在列"))
+    cps = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain_planner dialect 端口分支在案", 'dialect == "kingbase"' in cps, "chain_planner.go 在列"))
+
+    # 3. 负例锚词（六负例具体锚）。
+    for needle, name in [
+        ("54321", "neg_port 端口契约锚"),
+        ("length", "neg_truncated 长度锚"),
+        ("limit", "neg_oversize 上限锚"),
+    ]:
+        found = needle in blob
+        rows.append((name, found, "锚词出现" if found else "无用例"))
+    # neg_udp/neg_state 锚词为短值（"tcp"/"state"）——对 expect.error_contains
+    # 字段直读断言（blob 全文搜短词无判别力）。
+    def _err_anchor(kwid, want):
+        c = next((c for c in cases if kwid in c.get("id", "")), None)
+        got = (c.get("expect", {}) or {}).get("error_contains") if c else None
+        return got == want, got or "无用例"
+    ok, ev = _err_anchor("neg_udp", "tcp")
+    rows.append(("neg_udp 承载锚（error_contains=tcp）", ok, ev))
+    ok, ev = _err_anchor("neg_state", "state")
+    rows.append(("neg_state 状态机锚（error_contains=state）", ok, ev))
+
+    # 修轮复验残项3：负例触发源守卫（防"配置被清空仍全绿"的自满足面——
+    # 真跑真红由 suite 门2-2 兜，此处静态保证每负例的触发源键在位）。
+    # 每负例逐例直读（不经 lays 首个 pg 子映射，修 M1 漏检），触发源映射：
+    #   neg_udp=存在 udp 载体 / neg_port=tcp.dst_port 显式 / neg_profile=
+    #   wire_profile=unknown_profile / neg_state=events 含 query（before-ready
+    #   触发）/ neg_truncated·neg_oversize=wire_fault 在；且 events 每条
+    #   非空 dict（修 M2 空壳漏检）。
+    def _neg_case(c):
+        sj = c.get("spec_json", {}) or {}
+        pg = next((l["postgresql"] for l in sj.get("layers") or [] if isinstance(l, dict) and isinstance(l.get("postgresql"), dict)), None)
+        tcp = next((l["tcp"] for l in sj.get("layers") or [] if isinstance(l, dict) and isinstance(l.get("tcp"), dict)), None)
+        has_udp = any(isinstance(l, dict) and "udp" in l for l in sj.get("layers") or [])
+        return pg, tcp, has_udp
+    triggers = {
+        "neg_udp":       lambda pg, tcp, hu: hu,
+        "neg_port":      lambda pg, tcp, hu: bool(tcp and tcp.get("dst_port")),
+        "neg_profile":   lambda pg, tcp, hu: bool(pg and pg.get("wire_profile") == "unknown_profile"),
+        "neg_state":     lambda pg, tcp, hu: bool(pg and any(isinstance(e, dict) and e.get("kind") == "query" for e in pg.get("events") or [])),
+        "neg_truncated": lambda pg, tcp, hu: bool(pg and pg.get("wire_fault")),
+        "neg_oversize":  lambda pg, tcp, hu: bool(pg and pg.get("wire_fault")),
+    }
+    for kwid, fn in triggers.items():
+        c = next((c for c in cases if kwid in c.get("id", "")), None)
+        if c is None:
+            rows.append((f"触发源在位：{kwid}", False, "无用例"))
+            continue
+        pg, tcp, hu = _neg_case(c)
+        okk = fn(pg, tcp, hu)
+        evs = (pg or {}).get("events") or []
+        shell = not evs or any(not isinstance(e, dict) or not e for e in evs)
+        rows.append((f"触发源在位：{kwid}", okk and not shell, "在位" if okk and not shell else "触发源缺失或空壳"))
+
+    # 4. 顶层残留为零（退役口径：kingbase.json 只允许 layers）。
+    leaked = sorted({k for c in cases for k in (c.get("spec_json", {}) or {}) if k != "layers"})
+    rows.append(("顶层残留为零（仅 layers）", not leaked, leaked or "零残留"))
+    return rows
+
+
+def check_megaco(cases):
+    """D-MEGACO-1 P6 反查表（79 例=46 正+31 wire_fault 负+2 事务级 error 边界，
+    RFC 3525 / ITU-T H.248.1 文本编码。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 准入与接线（白名单收 megaco；translate/FlowMeta/planner 注册）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 megaco", '"megaco": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 megaco（已准入）", '"megaco"' not in pt[i_neg:i_neg + 400], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case megaco", 'case "megaco":' in tr, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.Megaco", "Megaco     *core.MegacoConfig" in gen, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry megaco 行+双 carrier 2944 契约",
+                 '"udp.dst_port": "2944", "tcp.dst_port": "2944"' in rg, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain carrier/端口域块", "Megaco carrier + port contract" in cp, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go ChainPlanner(megaco) 接线", 'NewChainPlanner("megaco")' in mn, "在案"))
+
+    # 2. 行为面（builder/validator 关键件）。
+    pl = (tg / "internal" / "protocol" / "megaco" / "planner.go").read_text()
+    import re as _re
+    _i = pl.index("wireFaultAnchors")
+    _seg = pl[_i:pl.index("\n}", _i)]
+    _n = len(_re.findall(r'"([a-z_0-9]+)":', _seg))
+    rows.append(("wire_fault 闭环 31 值锚词表", _n == 31, f"{_n} 值"))
+    bd = (tg / "internal" / "protocol" / "megaco" / "builder.go").read_text()
+    rows.append(("TPKT 成帧（RFC 1006）", "func WrapTPKT" in bd, "在案"))
+    rows.append(("长/缩 token 双形", "reverseTokens" in bd and "tokenToWire" in bd, "在案"))
+    rows.append(("八命令域", '"ServiceChange": true' in pl, "在案"))
+    lg = (tg / "internal" / "protocol" / "megaco" / "layer_gen.go").read_text()
+    rows.append(("空层 P0b 基线注册对", "defaultFlow" in lg, "在案"))
+
+    # 3. 用例面（46 正 + 33 负；proto=megaco；顶层仅 layers；端口域）。
+    pos = [c for c in cases if "packet_count" in (c.get("expect") or {})]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("79 例对账（46 正+33 负）", len(pos) == 46 and len(neg) == 33 and len(cases) == 79,
+                 f"{len(pos)}+{len(neg)}={len(cases)}"))
+    bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "megaco"]
+    rows.append(("proto 全=megaco（三名合一：mgcp/h248 不独立准入）", not bad_proto, bad_proto or "全 megaco"))
+    leaked = sorted({k for c in cases for k in (c.get("spec_json", {}) or {}) if k != "layers"})
+    rows.append(("顶层残留为零（仅 layers）", not leaked, leaked or "零残留"))
+    ports = {l.get("dst_port") for c in cases for l2 in (c["spec_json"].get("layers") or [])
+             if isinstance(l2, dict) for l in [list(l2.values())[0]] if isinstance(l, dict) and "dst_port" in l}
+    rows.append(("显式端口 ∈ {2944, 2427}", ports <= {2944, 2427, "2944", "2427"}, sorted(map(str, ports))))
+    for kw, name in [
+        ("megaco_udp_ipv4_registration", "T-1 注册基线"),
+        ("megaco_tcp_ipv4_mss_reassembly", "T-11 TPKT 跨段重组"),
+        ("megaco_udp_ipv4_concurrent_sessions", "T-45 并发会话"),
+        ("megaco_udp_2427_mgcp_alias", "T-14 mgcp 别名 2427"),
+        ("megaco_neg_encoding_text_as_ber", "T-47 编码负例"),
+        ("megaco_neg_pairing_ack_unconfirmed", "T-64 K 确认负例"),
+        ("megaco_neg_carrier_udp_mtu_exceeded", "T-76 UDP 超 MTU"),
+        ("megaco_neg_tx_error_with_actions", "事务级 error 互斥边界"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 4. 锚词面（九族主锚词在负例 expect 中）。
+    anchors = {"encoding", "message", "version", "mid", "command", "transaction", "length", "carrier", "port", "services"}
+    got = {(c.get("expect") or {}).get("error_contains") for c in neg}
+    rows.append(("负例锚词覆盖十族", anchors <= got, sorted(got)))
+    return rows
+
+def check_hl7(cases):
+    """D-HL7-1 P6 反查表（95 例=62 正+33 wire_fault 负，HL7 v2.x MLLP/TCP-2575。
+    返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 hl7", '"hl7": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 hl7（已准入）", '"hl7"' not in pt[i_neg:i_neg + 400], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case hl7", 'case "hl7":' in tr, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.HL7", "HL7        *core.HL7Config" in gen, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry hl7 行+tcp 2575 契约", '"tcp.dst_port": "2575"' in rg, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain 载体/地址族/端口块", "HL7 carrier + port + address-family contract" in cp, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    rows.append(("udp 载体预检（锚 carrier）", "hl7 rides tcp only" in vl, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go ChainPlanner(hl7) 接线", 'NewChainPlanner("hl7")' in mn, "在案"))
+
+    # 2. 行为面（validator 关键件：33 值锚词表 + 自然守卫集）。
+    pl = (tg / "internal" / "protocol" / "hl7" / "planner.go").read_text()
+    import re as _re
+    _i = pl.index("wireFaultAnchors")
+    _seg = pl[_i:pl.index("\n}", _i)]
+    _n = len(_re.findall(r'"([a-z_0-9]+)":', _seg))
+    rows.append(("wire_fault 闭环 33 值锚词表（契约枚举名）", _n == 33, f"{_n} 值"))
+    for guard, name in [
+        ("requiredSegmentsByStructure", "D-6 必需段集"),
+        ("knownMessageCodes", "MSH-9 值域"),
+        ("invalidHexEscape", "escape_invalid 自然面"),
+        ("duplicate control id", "控制 ID 会话内判重"),
+        ("EVN-1", "EVN-1↔MSH-9 一致性"),
+    ]:
+        rows.append((f"自然守卫：{name}", guard in pl, "在案"))
+    lg = (tg / "internal" / "protocol" / "hl7" / "layer_gen.go").read_text()
+    rows.append(("MLLP 成帧 0x0B/0x1C 0x0D", "0x0B" in lg and "0x1C" in lg, "在案"))
+    rows.append(("多帧粘连回放", "emitSessionEventsCoalesced" in lg, "在案"))
+
+    # 3. 用例面（62 正 + 33 负；proto=hl7；顶层仅 layers）。
+    pos = [c for c in cases if "packet_count" in (c.get("expect") or {})]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("95 例对账（62 正+33 负）", len(pos) == 62 and len(neg) == 33 and len(cases) == 95,
+                 f"{len(pos)}+{len(neg)}={len(cases)}"))
+    bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "hl7"]
+    rows.append(("proto 全=hl7（单准入名）", not bad_proto, bad_proto or "全 hl7"))
+    leaked = sorted({k for c in cases for k in (c.get("spec_json", {}) or {}) if k != "layers"})
+    rows.append(("顶层残留为零（仅 layers）", not leaked, leaked or "零残留"))
+    # 载体面：无 udp 层（TCP-only）——唯一例外 = carrier_udp 负例（udp 层
+    # 即契约指定的故障输入本身，自然面负例）。
+    udp_cases = [c.get("id") for c in cases
+                 if any(isinstance(l2, dict) and "udp" in l2 for l2 in (c["spec_json"].get("layers") or []))]
+    rows.append(("udp 层仅存在于 carrier_udp 自然面负例", udp_cases in ([], ["hl7_neg_carrier_udp"]), udp_cases or "零 udp"))
+    for kw, name in [
+        ("hl7_adt_a01_ipv4", "T-1 ADT^A01 基线"),
+        ("hl7_tcp_mss_reassembly", "T-22 跨段重组"),
+        ("hl7_ipv6_transport", "T-23 IPv6 承载"),
+        ("hl7_concurrent_sessions", "T-26 并发会话"),
+        ("hl7_port_nondefault", "T-27 非默认端口"),
+        ("hl7_neg_framing_sob_missing", "T-63 SOB 缺失负例"),
+        ("hl7_neg_ack_msa2_mismatch", "T-80 MSA-2 配对负例"),
+        ("hl7_neg_required_segment_missing", "T-94 必需段集负例"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 4. 锚词面（八族主锚词在负例 expect 中）。
+    anchors = {"mllp", "msh", "separator", "escape", "ack", "carrier", "port", "length",
+               "event", "address", "segment", "z", "layer"}
+    got = {(c.get("expect") or {}).get("error_contains") for c in neg}
+    rows.append(("负例锚词覆盖十三族", anchors <= got, sorted(got)))
+    return rows
+
+def check_mmse(cases):
+    """D-MMSE-1 P6 反查表（100 例=45 正+55 负，WAP-209 HTTP 承载/TCP-80。
+    返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 mmse", '"mmse": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 mmse（已准入）", '"mmse"' not in pt[i_neg:i_neg + 400], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case mmse（严格解码）", 'case "mmse":' in tr and "DisallowUnknownFields" in tr, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.MMSE", "MMSE       *core.MMSEConfig" in gen, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry mmse 行+tcp 80 契约", '"tcp.dst_port": "80"' in rg, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    rows.append(("http 载体预检（carrier missing）", "requires the http carrier layer ([tcp, http, mmse]" in vl, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go ChainPlanner(mmse) 接线", 'NewChainPlanner("mmse")' in mn, "在案"))
+    hg = (tg / "internal" / "protocol" / "http" / "layer_gen.go").read_text()
+    rows.append(("http 透传族收 mmse", "meta.MMSE != nil" in hg, "在案"))
+
+    # 2. 行为面（validator/builder 关键件）。
+    pl = (tg / "internal" / "protocol" / "mmse" / "planner.go").read_text()
+    import re as _re
+    _i = pl.index("wireFaults = map[string]struct{ detail, anchor string }")
+    _seg = pl[_i:pl.index("\n}", _i)]
+    _n = len(_re.findall(r'"([a-z_0-9]+)":\s*\{', _seg))
+    rows.append(("wire_fault 闭环 55 值锚词表（契约枚举名）", _n == 55, f"{_n} 值"))
+    for guard, name in [
+        ("buildTxBindings", "sessionTx 唯一解析权威"),
+        ("isWSPBearerPort", "carrier_port 自然面"),
+        ("msgidUnsourced", "MsgID 回指断裂守卫"),
+        ("pendingRetrieveTID", "retrieve→ack 配对"),
+    ]:
+        rows.append((f"关键件：{name}", guard in pl, "在案"))
+    bl = (tg / "internal" / "protocol" / "mmse" / "builder.go").read_text()
+    for prim, name in [
+        ("func appendUintvar", "Uintvar LSB 组先"),
+        ("func appendValueLength", "Value-length 0x1F+Uintvar"),
+        ("func buildMultipartBody", "multipart 长度自洽编码"),
+        ("func appendTextString", "Text-string Quote 形态"),
+        ("isTextSeparator", "RFC 822 分隔符集"),
+    ]:
+        rows.append((f"builder：{name}", prim in bl, "在案"))
+    lg = (tg / "internal" / "protocol" / "mmse" / "layer_gen.go").read_text()
+    rows.append(("concurrent round-robin 交错", "round-robin" in lg, "在案"))
+
+    # 3. 用例面（45 正 + 55 负；proto=mmse；顶层仅 layers）。
+    pos = [c for c in cases if "packet_count" in (c.get("expect") or {})]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("100 例对账（45 正+55 负）", len(pos) == 45 and len(neg) == 55 and len(cases) == 100,
+                 f"{len(pos)}+{len(neg)}={len(cases)}"))
+    bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "mmse"]
+    rows.append(("proto 全=mmse（单准入名）", not bad_proto, bad_proto or "全 mmse"))
+    leaked = sorted({k for c in cases for k in (c.get("spec_json", {}) or {}) if k != "layers"})
+    rows.append(("顶层残留为零（仅 layers）", not leaked, leaked or "零残留"))
+    udp_cases = [c.get("id") for c in cases
+                 if any(isinstance(l2, dict) and "udp" in l2 for l2 in (c["spec_json"].get("layers") or []))]
+    rows.append(("udp 层零残留（TCP/HTTP-only）", not udp_cases, udp_cases or "零 udp"))
+    for kw, name in [
+        ("mmse_send_req_ipv4", "T-1 m-send-req 基线"),
+        ("mmse_notification_ind", "T-4 通知逐字节复算 99B"),
+        ("mmse_acknowledge_ind", "T-7 延迟链全链"),
+        ("mmse_concurrent_sessions", "T-28 并发会话"),
+        ("mmse_port_nondefault", "T-29 非默认端口"),
+        ("mmse_partnum_max_127", "T-34 partNum 恰等上界"),
+        ("mmse_neg_carrier_no_http", "T-46 载体缺失负例"),
+        ("mmse_neg_sequence_response_first", "T-73 响应先于请求负例"),
+        ("mmse_neg_value_notif_expiry_absolute", "T-100 通知绝对 expiry 负例"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 4. 锚词面（主锚词族在负例 expect 中）。
+    anchors = {"layer", "content-type", "port", "carrier", "order", "header", "message-type",
+               "unknown", "body", "mandatory", "response-status", "multipart", "data", "part",
+               "start", "overflow", "transaction", "message-id", "sequence", "length",
+               "long-integer", "uintvar", "value-length", "transaction-id", "priority",
+               "status", "message-class", "read-status", "delivery-report", "reply-charging",
+               "text-string", "application-header", "charset", "previously-sent", "expiry"}
+    got = {(c.get("expect") or {}).get("error_contains") for c in neg}
+    missing = sorted(anchors - got)
+    rows.append(("负例锚词覆盖三十五族", not missing, missing or sorted(got)))
+    return rows
+
+def check_arp(cases):
+    """D-ARP-1 P6 反查表（T-ARP-1…12，9.52 对账 分项和 12=建例 12。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("arp"), dict):
+                lays.append((c.get("id", "?"), l["arp"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    for kw, name in [
+        ("t1_baseline_pair", "T-1 基线配对"),
+        ("t2_bytes_full", "T-2 字节全钉"),
+        ("t3_explicit_addrs", "T-3 显式地址"),
+        ("t4_single_reply", "T-4 单发宣告"),
+        ("t5_neg_operation", "T-5 operation 区间拒"),
+        ("t6_neg_sender_ip", "T-6 sender_ip 格式拒"),
+        ("t7_neg_ip_carrier", "T-7 ip 承载混入拒"),
+        ("t8_neg_presence", "T-8 顶层 presence 判死"),
+        ("t9_neg_sender_mac", "T-9 sender_mac 格式拒"),
+        ("t10_neg_target_mac", "T-10 target_mac 格式拒"),
+        ("t11_neg_target_ip", "T-11 target_ip 格式拒"),
+        ("t12_neg_static_copy", "T-12 静态复制拒"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    for k in ["operation", "sender_mac", "sender_ip", "target_mac", "target_ip"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    for needle, name in [
+        ("out of range [1,2]", "T-5 V9 区间锚"),
+        ("invalid sender_ip", "T-6 sender_ip 锚"),
+        ("must not have an ip/transport carrier", "T-7 carrier 锚"),
+        ("no longer accepts a top-level arp", "T-8 presence 锚"),
+        ("static four-tuple", "T-12 静态复制锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+    return rows
+
+
 CHECKS = {
     "smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
@@ -3753,7 +5489,7 @@ def check_spnego(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp}
 
 
 def main(argv):
