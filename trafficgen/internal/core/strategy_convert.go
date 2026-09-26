@@ -793,6 +793,19 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// KDC 标准端口 88（tshark 自动解码依赖；显式声明合法）。
 		setDefaultDstPort(&spec, cfg, 88)
+	case "ntlm":
+		// NTLM（MS-NLMP）：配置住 ntlm 层子映射（顶层 ntlm 子映射由
+		// CheckProtoFlat 判死）；严格解码经 NTLMConfig UnmarshalJSON。
+		if sub, ok := cfg["ntlm"].(map[string]interface{}); ok {
+			parseSubconfigJSON[*NTLMConfig](&spec, sub, "ntlm", &spec.NTLM)
+		}
+		// 端口按 profile 缺省：smb2 → 445（Direct TCP）、http-negotiate → 80
+		// （tshark 自动解码依赖；显式声明合法）。
+		port := uint16(445)
+		if spec.NTLM != nil && spec.NTLM.Profile == "http-negotiate" {
+			port = 80
+		}
+		setDefaultDstPort(&spec, cfg, port)
 	case "sip":
 		if sub, ok := cfg["sip"].(map[string]interface{}); ok {
 			spec.SIP = &SIPConfig{
@@ -8333,6 +8346,14 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "mmse" {
 		if v, ok := cfg["mmse"]; ok && v != nil {
 			return "protocol mmse no longer accepts a top-level mmse sub-config (move it into the mmse layer of an [ip,tcp,http,mmse] layers chain; WAP-209 PDU config lives in the mmse layer)"
+		}
+	}
+	// D-NTLM-1：ntlm 顶层 ntlm 子映射 presence 判死（bacnet 先例；空 map
+	// 也死——1.11–1.13 白名单制：顶层只允许 layers/flow_control 家族/output）。
+	// 层链形状不触发。
+	if protocol == "ntlm" {
+		if v, ok := cfg["ntlm"]; ok && v != nil {
+			return "protocol ntlm no longer accepts a top-level ntlm sub-config (move it into the ntlm layer of an [ip,tcp,ntlm] layers chain)"
 		}
 	}
 	// D-EDP-1：edp 顶层 edp 子映射 presence 判死（mmse 先例；空 map 也

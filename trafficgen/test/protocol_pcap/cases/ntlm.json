@@ -1,30 +1,1589 @@
 [
-  {
-    "id": "ntlm_neg_unregistered",
-    "proto": "ntlm",
-    "summary": "NTLM layer is not registered yet; reject at layer validation",
-    "spec_json": {
-      "layers": [
-        {"ip": {}},
-        {"tcp": {}},
-        {"ntlm": {}}
-      ],
-      "src_ip": "192.0.2.60",
-      "dst_ip": "198.51.100.60",
-      "src_port": 45600,
-      "dst_port": 445,
-      "ntlm": {
-        "profile": "smb2",
-        "version": "ntlmv2",
-        "outer": "none"
-      }
+ {
+  "id": "ntlm_smb_ipv4_v2_basic",
+  "proto": "ntlm",
+  "summary": "P-SMB IPv4/TCP/445 Type 1→2→3 + STATUS_SUCCESS（NTLMv2）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "unknown layer",
-      "notes": [
-        "Design-only gate: ntlm is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove this placeholder and add the 14 positive and 6 negative semantic cases in testcase order."
+    {
+     "tcp": {
+      "dst_port": 445,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "profile": "smb2",
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "session_setup_success"
+         }
+        ],
+        "id": "s1"
+       }
       ]
+     }
     }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "tcp.dstport",
+     "packet": 1,
+     "value": "445"
+    },
+    {
+     "field": "ip.proto",
+     "packet": 1,
+     "value": "6"
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 4,
+     "value": "0x00000001"
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 5,
+     "value": "0x00000002"
+    },
+    {
+     "field": "ntlmssp.ntlmserverchallenge",
+     "nonzero": true,
+     "packet": 5
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 6,
+     "value": "0x00000003"
+    },
+    {
+     "field": "smb2.nt_status",
+     "packet": 7,
+     "value": "0x00000000"
+    },
+    {
+     "field": "smb2.nt_status",
+     "packet": 5,
+     "value": "0xc0000016"
+    },
+    {
+     "field": "ntlmssp.negotiateflags",
+     "nonzero": true,
+     "packet": 4
+    },
+    {
+     "field": "ntlmssp.auth.username",
+     "packet": 6,
+     "value": "user"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "0000009CFE534D42400001000000000001001F000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001900000100000000000000005800440000000000000000004E544C4D5353500001000000058289A00E000E0020000000160016002E0000004500580041004D0050004C00450057004F0052004B00530054004100540049004F004E00",
+     "offset": 54,
+     "packet": 4
+    },
+    {
+     "hex": "000000F0FE534D4240000100160000C001001F00010000000000000000000000000000000000000000000000F9775FFC04C5083F000000000000000000000000",
+     "offset": 54,
+     "packet": 5
+    },
+    {
+     "hex": "00000100FE534D42400001000000000001001F00000000000000000001000000000000000000000000000000F9775FFC04C5083F000000000000000000000000",
+     "offset": 54,
+     "packet": 6
+    },
+    {
+     "hex": "00000048FE534D42400001000000000001001F00010000000000000001000000",
+     "offset": 54,
+     "packet": 7
+    }
+   ],
+   "packet_count": 11
   }
+ },
+ {
+  "id": "ntlm_smb_ipv6_v2_basic",
+  "proto": "ntlm",
+  "summary": "P-SMB IPv6/TCP/445 独立地址族与会话（不复用 IPv4 challenge/stream）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "2001:db8:ffff::60",
+      "src": "2001:db8::60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 445,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "profile": "smb2",
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "session_setup_success"
+         }
+        ],
+        "id": "s1"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ipv6.nxt",
+     "packet": 1,
+     "value": "6"
+    },
+    {
+     "field": "tcp.dstport",
+     "packet": 1,
+     "value": "445"
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 4,
+     "value": "0x00000001"
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 5,
+     "value": "0x00000002"
+    },
+    {
+     "field": "ntlmssp.ntlmserverchallenge",
+     "nonzero": true,
+     "packet": 5
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 6,
+     "value": "0x00000003"
+    },
+    {
+     "field": "smb2.nt_status",
+     "packet": 7,
+     "value": "0x00000000"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "0000009CFE534D42400001000000000001001F000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001900000100000000000000005800440000000000000000004E544C4D5353500001000000058289A00E000E0020000000160016002E0000004500580041004D0050004C00450057004F0052004B00530054004100540049004F004E00",
+     "offset": 74,
+     "packet": 4
+    },
+    {
+     "hex": "00000100FE534D42400001000000000001001F00000000000000000001000000000000000000000000000000F9775FFC04C5083F000000000000000000000000",
+     "offset": 74,
+     "packet": 6
+    }
+   ],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "ntlm_http_negotiate_v2",
+  "proto": "ntlm",
+  "summary": "P-HTTP 明文 TCP/80：401 Negotiate → Type 1 → Type 2 → Type 3 → 2xx",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "profile": "http-negotiate",
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "http_success"
+         }
+        ],
+        "id": "s1"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "tcp.dstport",
+     "packet": 1,
+     "value": "80"
+    },
+    {
+     "field": "http.response.code",
+     "packet": 5,
+     "value": "401"
+    },
+    {
+     "field": "http.response.code",
+     "packet": 7,
+     "value": "200"
+    },
+    {
+     "field": "http.request.method",
+     "packet": 4,
+     "value": "POST"
+    },
+    {
+     "field": "http.request.method",
+     "packet": 6,
+     "value": "POST"
+    },
+    {
+     "field": "http.www_authenticate",
+     "nonzero": true,
+     "packet": 5
+    },
+    {
+     "field": "http.authorization",
+     "nonzero": true,
+     "packet": 6
+    }
+   ],
+   "frames": [
+    {
+     "hex": "504F5354202F20485454502F312E310D0A486F73743A203139382E35312E3130302E36300D0A557365722D4167656E743A207472616666696367656E2D6E746C6D0D0A436F6E6E656374696F6E3A206B6565702D616C6976650D0A436F6E74656E742D4C656E6774683A20300D0A417574686F72697A6174696F6E3A204E65676F746961746520546C524D54564E54554141424141414142594B4A6F4134414467416741414141466741574143344141414246414667415151424E414641415441424641466341547742534145734155774255414545415641424A414538415467413D0D0A0D0A",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "ntlm_negotiate_flags_version",
+  "proto": "ntlm",
+  "summary": "flags 交集一致：会话 A 声明 NEGOTIATE_VERSION（8-byte Version，major=10）/ 会话 B 省略（Version 缺席）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 445,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "flags": {
+       "version": true
+      },
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "session_setup_success"
+         }
+        ],
+        "id": "sA"
+       },
+       {
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "session_setup_success"
+         }
+        ],
+        "id": "sB",
+        "user": "bob"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ntlmssp.negotiateversion",
+     "packet": 4,
+     "value": "1"
+    },
+    {
+     "field": "ntlmssp.version.major",
+     "packet": 4,
+     "value": "10"
+    },
+    {
+     "field": "ntlmssp.negotiateflags",
+     "nonzero": true,
+     "packet": 4
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 8,
+     "value": "0x00000001"
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 9,
+     "value": "0x00000002"
+    },
+    {
+     "field": "ntlmssp.ntlmserverchallenge",
+     "nonzero": true,
+     "packet": 9
+    },
+    {
+     "field": "ntlmssp.negotiateflags",
+     "packet": 4,
+     "same_as_packet": 8
+    }
+   ],
+   "frames": [
+    {
+     "hex": "000000A4FE534D42400001000000000001001F0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000019000001000000000000000058004C0000000000000000004E544C4D5353500001000000058289A20E000E002800000016001600360000000A0000000000000F4500580041004D0050004C00450057004F0052004B00530054004100540049004F004E00",
+     "offset": 54,
+     "packet": 4
+    },
+    {
+     "hex": "000000A4FE534D42400001000000000001001F000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+     "offset": 54,
+     "packet": 8
+    }
+   ],
+   "packet_count": 15
+  }
+ },
+ {
+  "id": "ntlm_challenge_target_info",
+  "proto": "ntlm",
+  "summary": "Type 2：8-byte ServerChallenge nonzero + TargetInfo AV 序列（已知 1/2/3/4/5/6/7/9 + 扩展 10，EOL 收尾）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 445,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "session_setup_success"
+         }
+        ],
+        "id": "s1",
+        "target_name": "EXAMPLE"
+       }
+      ],
+      "target_info": {
+       "av_flags": 2,
+       "dns_computer_name": "dc01.example.test",
+       "dns_domain_name": "example.test",
+       "dns_tree_name": "example.test",
+       "extra": [
+        {
+         "id": 10,
+         "value_hex": "DEADBEEF"
+        }
+       ],
+       "nb_computer_name": "DC01",
+       "nb_domain_name": "EXAMPLE",
+       "target_name": "cifs/dc01.example.test"
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 5,
+     "value": "0x00000002"
+    },
+    {
+     "field": "ntlmssp.ntlmserverchallenge",
+     "nonzero": true,
+     "packet": 5
+    },
+    {
+     "field": "ntlmssp.challenge.target_name",
+     "packet": 5,
+     "value": "EXAMPLE"
+    },
+    {
+     "field": "ntlmssp.challenge.target_info.nb_domain_name",
+     "packet": 5,
+     "value": "EXAMPLE"
+    },
+    {
+     "field": "ntlmssp.challenge.target_info.timestamp",
+     "nonzero": true,
+     "packet": 5
+    },
+    {
+     "field": "ntlmssp.challenge.target_info.item.type",
+     "packet": 5,
+     "value": "0x0001,0x0002,0x0003,0x0004,0x0005,0x0006,0x0009,0x0007,0x000a,0x0000"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "00000152FE534D4240000100160000C001001F00010000000000000000000000000000000000000000000000F9775FFC04C5083F000000000000000000000000000000000900000048000A014E544C4D53535000020000000E000E0030000000058289A0B5CD6E1A0B90E4500000000000000000CC00CC003E00000045005800",
+     "offset": 54,
+     "packet": 5
+    }
+   ],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "ntlm_authenticate_security_buffers",
+  "proto": "ntlm",
+  "summary": "Type 3：LM/NT/domain/user/workstation/sessionkey 六类 Len/MaxLen/Offset（MaxLen\u003eLen 档，MaxLen=Len+8）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 445,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "ntlmv2_response": {
+       "lm_response_len": 24,
+       "max_len_pad": 8
+      },
+      "sessions": [
+       {
+        "domain": "EXAMPLE",
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "session_setup_success"
+         }
+        ],
+        "id": "s1",
+        "user": "alice-long-name",
+        "workstation": "WS01"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 6,
+     "value": "0x00000003"
+    },
+    {
+     "field": "ntlmssp.auth.username",
+     "packet": 6,
+     "value": "alice-long-name"
+    },
+    {
+     "field": "ntlmssp.auth.domain",
+     "packet": 6,
+     "value": "EXAMPLE"
+    },
+    {
+     "field": "ntlmssp.auth.hostname",
+     "packet": 6,
+     "value": "WS01"
+    },
+    {
+     "field": "ntlmssp.auth.lmresponse",
+     "nonzero": true,
+     "packet": 6
+    },
+    {
+     "field": "ntlmssp.auth.ntresponse",
+     "nonzero": true,
+     "packet": 6
+    },
+    {
+     "field": "ntlmssp.string.length",
+     "packet": 6,
+     "value": "14,30,8"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "00000120FE534D42400001000000000001001F00000000000000000001000000000000000000000000000000F9775FFC04C5083F000000000000000000000000000000001900000100000000000000005800C80000000000000000004E544C4D535350000300000018002000400000003C004400580000000E00160094000000",
+     "offset": 54,
+     "packet": 6
+    }
+   ],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "ntlm_ntlmv2_blob_av_pairs",
+  "proto": "ntlm",
+  "summary": "NTLMv2 response：16-byte proof + blob（RV/HRV=1，TS fixture，CC fixture，AV+EOL）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 445,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "ntlmv2_response": {
+       "av_pairs": [
+        {
+         "id": 7,
+         "value_hex": "0100000000000000"
+        },
+        {
+         "id": 2,
+         "text": "EXAMPLE"
+        }
+       ],
+       "client_challenge": "0203040506070809",
+       "hi_response_version": 1,
+       "response_version": 1,
+       "timestamp": "0100000000000000"
+      },
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "session_setup_success"
+         }
+        ],
+        "id": "s1"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ntlmssp.ntlmv2_response.rversion",
+     "packet": 6,
+     "value": "1"
+    },
+    {
+     "field": "ntlmssp.ntlmv2_response.hirversion",
+     "packet": 6,
+     "value": "1"
+    },
+    {
+     "field": "ntlmssp.ntlmv2_response.time",
+     "nonzero": true,
+     "packet": 6
+    },
+    {
+     "field": "ntlmssp.ntlmv2_response.chal",
+     "nonzero": true,
+     "packet": 6
+    },
+    {
+     "field": "ntlmssp.ntlmv2_response.ntproofstr",
+     "nonzero": true,
+     "packet": 6
+    },
+    {
+     "field": "ntlmssp.ntlmv2_response.chal",
+     "nonzero": true,
+     "packet": 6
+    }
+   ],
+   "frames": [
+    {
+     "hex": "00000112FE534D42400001000000000001001F00000000000000000001000000000000000000000000000000F9775FFC04C5083F000000000000000000000000000000001900000100000000000000005800BA0000000000000000004E544C4D535350000300000000000000400000004E004E00400000000E000E008E000000",
+     "offset": 54,
+     "packet": 6
+    }
+   ],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "ntlm_mic_session_key_opaque",
+  "proto": "ntlm",
+  "summary": "MIC（16B）/EncryptedRandomSessionKey（16B）长度与 opaque 边界（无密钥不比较值）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 445,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "encrypted_random_session_key": 16,
+      "mic": true,
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "session_setup_success"
+         }
+        ],
+        "id": "s1"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 6,
+     "value": "0x00000003"
+    },
+    {
+     "field": "ntlmssp.authenticate.mic",
+     "nonzero": true,
+     "packet": 6
+    },
+    {
+     "field": "ntlmssp.auth.sesskey",
+     "nonzero": true,
+     "packet": 6
+    }
+   ],
+   "frames": [
+    {
+     "hex": "00000120FE534D42400001000000000001001F00000000000000000001000000000000000000000000000000F9775FFC04C5083F000000000000000000000000",
+     "offset": 54,
+     "packet": 6
+    }
+   ],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "ntlm_spnego_outer_separation",
+  "proto": "ntlm",
+  "summary": "SPNEGO 外层（GSS InitialContextToken/negTokenResp）与内层 NTLMSSP signature/Type 分界",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 445,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "outer": "spnego",
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "session_setup_success"
+         }
+        ],
+        "id": "s1"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "spnego.supportedMech",
+     "packet": 5,
+     "value": "1.3.6.1.4.1.311.2.2.10"
+    },
+    {
+     "field": "spnego.negResult",
+     "packet": 5,
+     "value": "1"
+    },
+    {
+     "field": "spnego.negResult",
+     "packet": 6,
+     "value": "0"
+    },
+    {
+     "field": "spnego.responseToken",
+     "nonzero": true,
+     "packet": 5
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 5,
+     "value": "0x00000002"
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 6,
+     "value": "0x00000003"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "000000BCFE534D42400001000000000001001F00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000190000010000000000000000",
+     "offset": 54,
+     "packet": 4
+    },
+    {
+     "hex": "0000010FFE534D4240000100160000C001001F00010000000000000000000000000000000000000000000000F9775FFC04C5083F00000000000000000000000000000000090000004800C700A181C430",
+     "offset": 54,
+     "packet": 5
+    }
+   ],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "ntlm_multi_session_isolation",
+  "proto": "ntlm",
+  "summary": "多会话：独立 ServerChallenge/client challenge/SecurityBuffer/结果（跨 session 无 same_as）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 445,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "session_setup_success"
+         }
+        ],
+        "id": "s1",
+        "user": "alice"
+       },
+       {
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "session_setup_success"
+         }
+        ],
+        "id": "s2",
+        "user": "bob"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "tcp.dstport",
+     "packet": 1,
+     "value": "445"
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 5,
+     "value": "0x00000002"
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 9,
+     "value": "0x00000002"
+    },
+    {
+     "field": "ntlmssp.ntlmserverchallenge",
+     "nonzero": true,
+     "packet": 5
+    },
+    {
+     "field": "ntlmssp.ntlmserverchallenge",
+     "nonzero": true,
+     "packet": 9
+    },
+    {
+     "field": "ntlmssp.auth.username",
+     "packet": 6,
+     "value": "alice"
+    },
+    {
+     "field": "ntlmssp.auth.username",
+     "packet": 10,
+     "value": "bob"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "0000009CFE534D42400001000000000001001F000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001900000100000000000000005800440000000000000000004E544C4D5353500001000000058289A00E000E0020000000160016002E0000004500580041004D0050004C00450057004F0052004B00530054004100540049004F004E00",
+     "offset": 54,
+     "packet": 4
+    },
+    {
+     "hex": "0000009CFE534D42400001000000000001001F000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+     "offset": 54,
+     "packet": 8
+    }
+   ],
+   "packet_count": 15
+  }
+ },
+ {
+  "id": "ntlm_multi_flow_streams",
+  "proto": "ntlm",
+  "summary": "多 TCP stream/方向 + segmentation：分段后按 stream 重组 token（offset 相对 NTLMSSP 起点）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 445,
+      "mss": 536,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "session_setup_success"
+         }
+        ],
+        "id": "s1",
+        "user": "alice"
+       },
+       {
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "session_setup_success"
+         }
+        ],
+        "id": "s2",
+        "user": "bob"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "tcp.dstport",
+     "packet": 1,
+     "value": "445"
+    },
+    {
+     "field": "tcp.len",
+     "nonzero": true,
+     "packet": 4
+    }
+   ],
+   "frames": [
+    {
+     "hex": "0000009CFE534D42400001000000000001001F00000000000000000000000000",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "packet_count": 15
+  }
+ },
+ {
+  "id": "ntlm_retry_auth_failure",
+  "proto": "ntlm",
+  "summary": "challenge 重试（3 轮形态：Type 3 后仍 MORE）+ 最终 STATUS_LOGON_FAILURE（失败后无 authenticated data）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 445,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "session_setup_failure"
+         }
+        ],
+        "id": "s1"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "smb2.nt_status",
+     "packet": 5,
+     "value": "0xc0000016"
+    },
+    {
+     "field": "smb2.nt_status",
+     "packet": 7,
+     "value": "0xc0000016"
+    },
+    {
+     "field": "smb2.nt_status",
+     "packet": 9,
+     "value": "0xc000006d"
+    },
+    {
+     "field": "ntlmssp.ntlmserverchallenge",
+     "nonzero": true,
+     "packet": 5
+    },
+    {
+     "field": "ntlmssp.ntlmserverchallenge",
+     "nonzero": true,
+     "packet": 7
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 4,
+     "value": "0x00000001"
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 6,
+     "value": "0x00000003"
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 8,
+     "value": "0x00000003"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "0000009CFE534D42400001000000000001001F000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001900000100000000000000005800440000000000000000004E544C4D5353500001000000058289A00E000E0020000000160016002E0000004500580041004D0050004C00450057004F0052004B00530054004100540049004F004E00",
+     "offset": 54,
+     "packet": 4
+    },
+    {
+     "hex": "00000048FE534D42400001006D0000C001001F00010000000000000002000000",
+     "offset": 54,
+     "packet": 9
+    }
+   ],
+   "packet_count": 13
+  }
+ },
+ {
+  "id": "ntlm_record_boundary_offsets",
+  "proto": "ntlm",
+  "summary": "最小/最大附近 token：600 字符用户名大包 + 全空身份会话（Offset+Len 不溢出且落在 token 内，UTF-16 偶数长度）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 445,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "session_setup_success"
+         }
+        ],
+        "id": "s1",
+        "user": "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu"
+       },
+       {
+        "domain": "",
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "session_setup_success"
+         }
+        ],
+        "id": "s2",
+        "user": "",
+        "workstation": ""
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ntlmssp.auth.username",
+     "packet": 6,
+     "value": "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu"
+    },
+    {
+     "field": "tcp.len",
+     "nonzero": true,
+     "packet": 6
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 4,
+     "value": "0x00000001"
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 8,
+     "value": "0x00000001"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "000005A8FE534D42400001000000000001001F00000000000000000001000000000000000000000000000000F9775FFC04C5083F000000000000000000000000000000001900000100000000000000005800500500000000000000004E544C4D535350000300000000000000400000003C003C00400000000E000E007C000000",
+     "offset": 54,
+     "packet": 6
+    }
+   ],
+   "packet_count": 15
+  }
+ },
+ {
+  "id": "ntlm_pcap_nic_consistency",
+  "proto": "ntlm",
+  "summary": "PCAP/NIC 一致：TCP profile 端口、方向、stream、NTLMSSP Type 与 token 长度一致（过滤器 tcp port 445）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 445,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "profile": "smb2",
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "session_setup_success"
+         }
+        ],
+        "id": "s1"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "tcp.dstport",
+     "packet": 1,
+     "value": "445"
+    },
+    {
+     "field": "ip.proto",
+     "packet": 1,
+     "value": "6"
+    },
+    {
+     "field": "tcp.flags.syn",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 4,
+     "value": "0x00000001"
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 5,
+     "value": "0x00000002"
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 6,
+     "value": "0x00000003"
+    },
+    {
+     "field": "ntlmssp.ntlmserverchallenge",
+     "nonzero": true,
+     "packet": 5
+    },
+    {
+     "field": "tcp.len",
+     "packet": 4,
+     "value": "160"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "0000009CFE534D42400001000000000001001F000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001900000100000000000000005800440000000000000000004E544C4D5353500001000000058289A00E000E0020000000160016002E0000004500580041004D0050004C00450057004F0052004B00530054004100540049004F004E00",
+     "offset": 54,
+     "packet": 4
+    },
+    {
+     "hex": "000000F0FE534D4240000100160000C001001F00010000000000000000000000000000000000000000000000F9775FFC04C5083F000000000000000000000000",
+     "offset": 54,
+     "packet": 5
+    },
+    {
+     "hex": "00000048FE534D42400001000000000001001F00010000000000000001000000",
+     "offset": 54,
+     "packet": 7
+    }
+   ],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "ntlm_neg_message_truncated",
+  "proto": "ntlm",
+  "summary": "通用头/三类消息固定字段截断（wire_fault 注入）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 445,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "wire_fault": "message_length"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "message",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "ntlm_neg_security_buffer",
+  "proto": "ntlm",
+  "summary": "Len/MaxLen 不一致、非偶数 Unicode、空字段伪造或 token 截断（wire_fault 注入）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 445,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "wire_fault": "security_buffer"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "buffer",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "ntlm_neg_offsets_overlap_overflow",
+  "proto": "ntlm",
+  "summary": "Offset+Len 溢出、越界、固定头重叠或字段重叠（wire_fault 注入）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 445,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "wire_fault": "offset_overflow"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "offset",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "ntlm_neg_flags_target_info",
+  "proto": "ntlm",
+  "summary": "flags 互不兼容、TargetInfo 缺失/越界、未知 reserved bits（wire_fault 注入）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 445,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "wire_fault": "flags_target_info"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "flags",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "ntlm_neg_v2_blob_av_pairs",
+  "proto": "ntlm",
+  "summary": "proof/blob 长度错误、AV_PAIR 越界/缺 EOL/重复非法（wire_fault 注入）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 445,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "wire_fault": "blob_av_pairs"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "blob",
+   "expect_error": true
+  }
+ },
+ {
+  "id": "ntlm_neg_carrier_profile",
+  "proto": "ntlm",
+  "summary": "SMB/HTTP 混用、非 TCP 载体、错误端口、SPNEGO 边界错误（wire_fault 注入）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.60",
+      "src": "192.0.2.60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 445,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "wire_fault": "carrier_profile"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "carrier",
+   "expect_error": true
+  }
+ }
 ]

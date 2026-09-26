@@ -1127,6 +1127,15 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			} else {
 				spec.DstPort = 445
 			}
+		case "ntlm":
+			// NTLM 目的端口按 profile 缺省（strategy_convert.go mapToFlowSpec
+			// 同款）：smb2 → 445（Direct TCP）、http-negotiate → 80。
+			// 用户显式写 dst_port 时已非零不落此分支。
+			if spec.NTLM != nil && spec.NTLM.Profile == "http-negotiate" {
+				spec.DstPort = 80
+			} else {
+				spec.DstPort = 445
+			}
 		case "tds":
 			// TDS 目的端口默认 1433（legacy Plan 用 DefaultPort，
 			// strategy_convert mapToFlowSpec 同款默认——用户显式写
