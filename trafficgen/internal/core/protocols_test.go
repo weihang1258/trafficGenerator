@@ -23,6 +23,9 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		// D-NTLM-1 #45：ntlm 已注册 layer/planner（20 语义用例落地，占位例
 		// ntlm_neg_unregistered 移除——契约 §1）。dtls/kerberos 先例。
 		"ntlm",
+		// D-SPNEGO-1 #47：spnego 已注册 layer/planner（20 语义用例落地，占位例
+		// spnego_neg_unregistered 移除——契约 §1）。ntlm/dtls/kerberos 先例。
+		"spnego",
 		"ftp", "gbt32960", "goose", "gre", "grpc", "gtp", "h323", "hds",
 		"hl7", "hls", "http", "http_flv", "icmp", "icmpv6", "iec104", "igmp", "ike",
 		"ike_nat_t", "imap", "isis", "jt808", "jt809", "jtt905", "kerberos", "l2tp",
@@ -106,8 +109,10 @@ func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 		// 用例 P5 落地，占位例随之移除——契约 §1）。hl7/megaco 先例。
 		// D-NTLM-1：ntlm 已注册 layer/planner，摘出 negativeOnly（20 语义
 		// 用例落地，占位例随之移除——契约 §1）。kerberos/dtls 先例。
+		// D-SPNEGO-1：spnego 已注册 layer/planner，摘出 negativeOnly（20 语义
+		// 用例落地，占位例随之移除——契约 §1）。ntlm/kerberos/dtls 先例。
 		"ocsp",
-		"spnego", "sstp",
+		"sstp",
 	}
 	for _, name := range negativeOnly {
 		if IsAllowedProtocol(name) {

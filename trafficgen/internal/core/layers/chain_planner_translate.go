@@ -150,6 +150,12 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// 终态响应；固定检查点——Meta 字面量漏传即生成器收 nil 配置，
 		// 链级红例逐项钉死（dcerpc/dtls/kerberos 三犯处教训）。
 		NTLM: spec.NTLM,
+		// D-SPNEGO-1：spnego 终结层同款（sessions[]/events[] 经 Meta 直传
+		// 生成器；每事件 = 一条完整 negotiationToken 消息（按 profile 自封
+		// 裸 TCP payload 或 HTTP Negotiate header）或一载体终态响应；固定
+		// 检查点——Meta 字面量漏传即生成器收 nil 配置，链级红例逐项钉死
+		// （dcerpc/dtls/kerberos/ntlm 犯处教训）。
+		SPNEGO: spec.SPNEGO,
 		CQL:      spec.CQL,
 		LDP:      spec.LDP,
 		PCEP:     spec.PCEP,
@@ -2257,6 +2263,29 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.NTLM = &ncfg
+	case "spnego":
+		if spec.SPNEGO != nil {
+			return // flat 权威；二者并存时 flat 优先（kerberos/dtls/ntlm 同款）
+		}
+		// D-SPNEGO-1：层 config 严格往返解码（SPNEGOConfig UnmarshalJSON——
+		// config/session/event/neg_hints/mech_token/mech_list_mic 六级
+		// DisallowUnknownFields；未知键在解码层即拒）。
+		cfgS := completedConfig(s, term.Config)
+		rawS, err := json.Marshal(cfgS)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("spnego layer config encode: %v", err))
+			return
+		}
+		var scfg core.SPNEGOConfig
+		decS := json.NewDecoder(bytes.NewReader(rawS))
+		decS.DisallowUnknownFields()
+		if err := decS.Decode(&scfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("spnego layer config decode: %v", err))
+			return
+		}
+		spec.SPNEGO = &scfg
 	case "ftp":
 		// 只在扁平路径确实携带了业务内容（sessions/banner/commands/data_channel）
 		// 时才跳过翻译。mapToFlowSpec 对协议 ftp 总会创建一个 FTPConfig
