@@ -84,6 +84,9 @@ type anegCase struct {
 	layers  []interface{}
 	anchor  string
 	notes   []string
+	// extra 顶层附加键（presence/游离键红例：与 layers 并存的判死形状；
+	// smtp/fins 同构——spec_json 顶层必须真实携带该键，suite 才能走到拒绝路径）。
+	extra map[string]interface{}
 }
 
 const (
@@ -534,8 +537,10 @@ func TestGenerateAMQPCases(t *testing.T) {
 			"frame_max=4096 + 空 properties header + heartbeat 混排",
 			aChain(cfg), 20,
 			[]afld{
-				{11, "amqp.type", "8", 0, false, nil, nil},
-				{14, "amqp.type", "8", 0, false, nil, nil},
+				{13, "amqp.type", "8", 0, false, nil, nil},
+				{13, "amqp.channel", "0", 0, false, nil, nil},
+				{16, "amqp.type", "8", 0, false, nil, nil},
+				{16, "amqp.channel", "0", 0, false, nil, nil},
 			},
 			[]afr{
 				{Packet: 4, Offset: 54, Hex: "41 4D 51 50 00 00 09 01"},
@@ -635,7 +640,8 @@ func TestGenerateAMQPCases(t *testing.T) {
 	negatives = append(negatives, anegCase{id: "amqp_neg_presence_top_submap",
 		summary: "层链+顶层空 amqp 子映射并存判死（presence 负例形状）",
 		layers:  aChain(pres21cfg),
-		anchor:  "no longer accepts a top-level amqp sub-config"})
+		anchor:  "no longer accepts a top-level amqp sub-config",
+		extra:   map[string]interface{}{"amqp": map[string]interface{}{}}})
 	// ㉒ 白名单外游离键红例（M5 清单②：1.11–1.13）。
 	// 顶层 src_ip + layers 并存走 CheckProtoFlat 四元组面（fins/smtp 同构
 	// presence 形）——shape 门 400，锚词 "no longer accepts ... src_ip"。
@@ -658,7 +664,8 @@ func TestGenerateAMQPCases(t *testing.T) {
 	negatives = append(negatives, anegCase{id: "amqp_neg_stray_top_key",
 		summary: "顶层游离键 src_ip 判死（白名单外）",
 		layers:  aChain(stray22cfg),
-		anchor:  "no longer accepts flat config field src_ip"})
+		anchor:  "no longer accepts flat config field src_ip",
+		extra:   map[string]interface{}{"src_ip": aCli}})
 	// ㉓ udp 载体红例（M5 清单；carrier 锚词，§13-P2）。
 	addNeg("amqp_neg_udp_carrier",
 		"链中夹 udp 层判死（单 TCP 载体）",
@@ -712,8 +719,12 @@ func TestGenerateAMQPCases(t *testing.T) {
 		if len(nc.notes) > 0 {
 			expect["notes"] = nc.notes
 		}
+		spec := map[string]interface{}{"layers": nc.layers}
+		for k, v := range nc.extra {
+			spec[k] = v
+		}
 		out = append(out, outCase{ID: nc.id, Proto: "amqp", Summary: nc.summary,
-			Spec:   map[string]interface{}{"layers": nc.layers},
+			Spec:   spec,
 			Expect: expect})
 	}
 	if len(out) != 24 {
