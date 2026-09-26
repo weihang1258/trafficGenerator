@@ -3547,6 +3547,9 @@
       "depends_on": [
         "tcp"
       ],
+      "transport_on": [
+        "tcp"
+      ],
       "fields": {
         "app_name": {
           "type": "string",

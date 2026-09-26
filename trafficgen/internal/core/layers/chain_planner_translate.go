@@ -2578,6 +2578,29 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if err := json.Unmarshal(raw, &sc); err == nil {
 			spec.Socks = &sc
 		}
+	case "tds":
+		// D-TDS-1：层条目 layers[].tds 经 JSON 搬进 spec.Payload（生成器经
+		// FlowMeta.Payload 消费，drive :48 直传——无 Payload 字面量漏传位）。
+		// 只搬用户显式键（term.Config 原样，不经 completedConfig）：补全后
+		// 的 schema 默认（app_name:"" 等零值）会压住 configFromSpec 的
+		// presence 默认（显式空串保留语义——T-026 password:"" 注记），导致
+		// 缺省 LOGIN7 字段全空（login7_default 实证红）。层优先：
+		// spec.Payload 已存在（引擎直调/单测路径）则不覆盖（goose/dns
+		// 同款）；扁平入口已由 CheckProtoFlat 判死顶层 tds 子映射（存量行
+		// 经 strategy_convert 兼容块记 ValidationErrors）。
+		if len(spec.Payload) > 0 {
+			return
+		}
+		if len(term.Config) == 0 {
+			return
+		}
+		rawT, err := json.Marshal(term.Config)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("tds layer config encode: %v", err))
+			return
+		}
+		spec.Payload = rawT
 	}
 }
 
