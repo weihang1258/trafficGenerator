@@ -916,14 +916,13 @@ func profileOf(cfg *core.NTLMConfig) string {
 
 type ntlmWalker struct {
 	cfg     *core.NTLMConfig
-	flags   uint32
 	srcPort uint16
 	dstPort uint16
 	host    string
 }
 
 func newWalker(cfg *core.NTLMConfig, srcPort, dstPort uint16, host string) *ntlmWalker {
-	return &ntlmWalker{cfg: cfg, flags: resolveFlags(nil), srcPort: srcPort, dstPort: dstPort, host: host}
+	return &ntlmWalker{cfg: cfg, srcPort: srcPort, dstPort: dstPort, host: host}
 }
 
 // resolveSession 求会话事件的实际参数（方向/Version/MIC/session key 覆盖）。

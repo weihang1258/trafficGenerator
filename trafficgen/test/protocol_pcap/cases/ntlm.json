@@ -305,6 +305,21 @@
      "hex": "504F5354202F20485454502F312E310D0A486F73743A203139382E35312E3130302E36300D0A557365722D4167656E743A207472616666696367656E2D6E746C6D0D0A436F6E6E656374696F6E3A206B6565702D616C6976650D0A436F6E74656E742D4C656E6774683A20300D0A417574686F72697A6174696F6E3A204E65676F746961746520546C524D54564E54554141424141414142594B4A6F4134414467416741414141466741574143344141414246414667415151424E414641415441424641466341547742534145734155774255414545415641424A414538415467413D0D0A0D0A",
      "offset": 54,
      "packet": 4
+    },
+    {
+     "hex": "485454502F312E312034303120556E617574686F72697A65640D0A5757572D41757468656E7469636174653A204E65676F746961746520546C524D54564E5455",
+     "offset": 54,
+     "packet": 5
+    },
+    {
+     "hex": "504F5354202F20485454502F312E310D0A486F73743A203139382E35312E3130302E36300D0A557365722D4167656E743A207472616666696367656E2D6E746C",
+     "offset": 54,
+     "packet": 6
+    },
+    {
+     "hex": "485454502F312E3120323030204F4B0D0A436F6E74656E742D4C656E6774683A",
+     "offset": 54,
+     "packet": 7
     }
    ],
    "packet_count": 11
@@ -1047,7 +1062,7 @@
          }
         ],
         "id": "s1",
-        "user": "alice"
+        "user": "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu"
        },
        {
         "events": [
@@ -1083,6 +1098,16 @@
      "field": "tcp.len",
      "nonzero": true,
      "packet": 4
+    },
+    {
+     "field": "ntlmssp.messagetype",
+     "packet": 8,
+     "value": "0x00000003"
+    },
+    {
+     "field": "ntlmssp.auth.username",
+     "packet": 8,
+     "value": "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu"
     }
    ],
    "frames": [
@@ -1090,9 +1115,14 @@
      "hex": "0000009CFE534D42400001000000000001001F00000000000000000000000000",
      "offset": 54,
      "packet": 4
+    },
+    {
+     "hex": "000005A8FE534D42400001000000000001001F00000000000000000001000000000000000000000000000000F9775FFC04C5083F000000000000000000000000000000001900000100000000000000005800500500000000000000004E544C4D535350000300000000000000400000003C003C00400000000E000E007C000000",
+     "offset": 54,
+     "packet": 6
     }
    ],
-   "packet_count": 15
+   "packet_count": 17
   }
  },
  {
@@ -1401,6 +1431,103 @@
      "hex": "00000048FE534D42400001000000000001001F00010000000000000001000000",
      "offset": 54,
      "packet": 7
+    }
+   ],
+   "packet_count": 11
+  }
+ },
+ {
+  "id": "ntlm_http_negotiate_v6",
+  "proto": "ntlm",
+  "summary": "P-HTTP IPv6 对称：TCP/80 401 Negotiate → Type 1 → Type 2 → Type 3 → 2xx（T-21，地址族×profile 第 4 格）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "2001:db8:ffff::60",
+      "src": "2001:db8::60"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 45600
+     }
+    },
+    {
+     "ntlm": {
+      "profile": "http-negotiate",
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "negotiate"
+         },
+         {
+          "kind": "challenge"
+         },
+         {
+          "kind": "authenticate"
+         },
+         {
+          "kind": "http_success"
+         }
+        ],
+        "id": "s1"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "tcp.dstport",
+     "packet": 1,
+     "value": "80"
+    },
+    {
+     "field": "ipv6.nxt",
+     "packet": 1,
+     "value": "6"
+    },
+    {
+     "field": "http.response.code",
+     "packet": 5,
+     "value": "401"
+    },
+    {
+     "field": "http.response.code",
+     "packet": 7,
+     "value": "200"
+    },
+    {
+     "field": "http.request.method",
+     "packet": 4,
+     "value": "POST"
+    },
+    {
+     "field": "http.request.method",
+     "packet": 6,
+     "value": "POST"
+    },
+    {
+     "field": "http.www_authenticate",
+     "nonzero": true,
+     "packet": 5
+    },
+    {
+     "field": "http.authorization",
+     "nonzero": true,
+     "packet": 6
+    }
+   ],
+   "frames": [
+    {
+     "hex": "504F5354202F20485454502F312E310D0A486F73743A20323030313A6462383A666666663A3A36300D0A557365722D4167656E743A207472616666696367656E2D6E746C6D0D0A436F6E6E656374696F6E3A206B6565702D616C6976650D0A436F6E74656E742D4C656E6774683A20300D0A417574686F72697A6174696F6E3A204E65676F746961746520546C524D54564E54554141424141414142594B4A6F4134414467416741414141466741574143344141414246414667415151424E414641415441424641466341547742534145734155774255414545415641424A414538415467413D0D0A0D0A",
+     "offset": 74,
+     "packet": 4
     }
    ],
    "packet_count": 11

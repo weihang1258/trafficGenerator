@@ -19,7 +19,7 @@
 //	⑧ #8 设计 12 / 实测 11（4 事件）
 //	⑨ #9 设计 14 / 实测 11（4 事件，SPNEGO 外层）
 //	⑩ #10 设计 28 / 实测 15（两会话各 4 事件，一条流：3+8+4）
-//	⑪ #11 设计 18 / 实测 28（两会话×（4 事件）+ 多流交织：3+21+4，mss 536）
+//	⑪ #11 设计 18 / 实测 17（两会话各 4 事件 + 长用户名 Type-3 真分段：3+10+4，mss 536，max payload 536；终审 M1 修轮）
 //	⑫ #12 设计 18 / 实测 13（6 事件重试链：3+6+4）
 //	⑬ #13 设计 8 / 实测 15（两会话各 4 事件：3+8+4；长用户名大包）
 //	⑭ #14 设计 16 / 实测 11（4 事件稳定 fixture）
@@ -304,12 +304,9 @@ func TestGenerateNTLMCases(t *testing.T) {
 			{5, "http.www_authenticate", "", true, 0, nil, nil},
 			{6, "http.authorization", "", true, 0, nil, nil},
 		},
-		// frames 钉只覆盖 packet 4（请求帧）：tshark -x 对"HTTP 帧内嵌 NTLMSSP"
-		// 追加 "NTLMSSP / GSSAPI Data (N bytes):" 提取块，harness 的 hex 解析器
-		// （internal/pcaptest/hex.go ParseTsharkHex）只跳过 Reassembled/
-		// Decompressed/Unchunked 三种标签，该提取块被误计为独立帧 → packet 5+
-		// 的帧索引漂移。**上报主线程**（跨协议 harness 文件，车道不自改）；
-		// 5/6/7 的载体面由 tshark http.* 字段断言覆盖（scheme/状态码/头）。
+		// frames 钉 4-7 全钉（终审 n2 回补）：hex.go 解析器已按通用标签形跳过
+		// "NTLMSSP / GSSAPI Data (N bytes):" 提取块（commit 7cb82de），
+		// 包 5+ 的帧索引不再漂移。
 		func() []nfr {
 			arr := []interface{}{nIP(), nTCP(nSport, nHTTPP), nL(map[string]interface{}{
 				"profile":  "http-negotiate",
@@ -318,6 +315,9 @@ func TestGenerateNTLMCases(t *testing.T) {
 			pkts := nPlanChain(t, arr)
 			return []nfr{
 				{4, 54, nWirePin(t, pkts, 4)},
+				{5, 54, nWirePin(t, pkts, 5)[:128]},
+				{6, 54, nWirePin(t, pkts, 6)[:128]},
+				{7, 54, nWirePin(t, pkts, 7)[:64]},
 			}
 		}())
 
@@ -532,9 +532,10 @@ func TestGenerateNTLMCases(t *testing.T) {
 
 	// ⑪ ntlm_multi_flow_streams（28）:两会话 + mss 536 多流分段（重组后消息顺序）。
 	{
+		longUser := strings.Repeat("u", 600) // #13 同款：Type-3 ≈1.4KB > mss 536 → 真分段
 		cfg := map[string]interface{}{
 			"sessions": []interface{}{
-				nSess("s1", map[string]interface{}{"user": "alice"}, "negotiate", "challenge", "authenticate", "session_setup_success"),
+				nSess("s1", map[string]interface{}{"user": longUser}, "negotiate", "challenge", "authenticate", "session_setup_success"),
 				nSess("s2", map[string]interface{}{"user": "bob"}, "negotiate", "challenge", "authenticate", "session_setup_success"),
 			},
 		}
@@ -545,10 +546,14 @@ func TestGenerateNTLMCases(t *testing.T) {
 			[]nfld{
 				{1, "tcp.dstport", "445", false, 0, nil, nil},
 				{4, "tcp.len", "", true, 0, nil, nil},
+				// Type-3（alice）跨包 6-8（536+536+380）；dissector 在重组末包 8
+				// 才解出字段——先跑后钉，断言钉包 8，包 6 只钉原始分段字节。
+				{8, "ntlmssp.messagetype", "0x00000003", false, 0, nil, nil},
+				{8, "ntlmssp.auth.username", longUser, false, 0, nil, nil},
 			},
-			[]nfr{{4, 54, nWirePin(t, pkts, 4)[:64]}})
-		if len(pkts) < 15 {
-			t.Fatalf("ntlm_multi_flow_streams: %d packets, want at least 15 (multi-flow)", len(pkts))
+			[]nfr{{4, 54, nWirePin(t, pkts, 4)[:64]}, {6, 54, nWirePin(t, pkts, 6)[:256]}})
+		if len(pkts) != 17 {
+			t.Fatalf("ntlm_multi_flow_streams: %d packets, want 17 (TCP 3+10+4，真分段)", len(pkts))
 		}
 	}
 
@@ -627,6 +632,34 @@ func TestGenerateNTLMCases(t *testing.T) {
 				{7, 54, nWirePin(t, pkts, 7)[:64]},
 			}
 		}())
+
+	// ㉑ ntlm_http_negotiate_v6（T-21，A′ 补例：IPv6×HTTP 格——终审 M2 修轮。
+	// #3 的 IPv6 对称形：P-HTTP 明文 TCP/80，401→Type 3→2xx）。
+	{
+		arr := []interface{}{nIP6(), nTCP(nSport, nHTTPP), nL(map[string]interface{}{
+			"profile": "http-negotiate",
+			"sessions": []interface{}{
+				nSess("s1", nil, "negotiate", "challenge", "authenticate", "http_success"),
+			},
+		})}
+		pkts := nPlanChain(t, arr)
+		add("ntlm_http_negotiate_v6", "P-HTTP IPv6 对称：TCP/80 401 Negotiate → Type 1 → Type 2 → Type 3 → 2xx（T-21，地址族×profile 第 4 格）",
+			arr, len(pkts),
+			[]nfld{
+				{1, "tcp.dstport", "80", false, 0, nil, nil},
+				{1, "ipv6.nxt", "6", false, 0, nil, nil},
+				{5, "http.response.code", "401", false, 0, nil, nil},
+				{7, "http.response.code", "200", false, 0, nil, nil},
+				{4, "http.request.method", "POST", false, 0, nil, nil},
+				{6, "http.request.method", "POST", false, 0, nil, nil},
+				{5, "http.www_authenticate", "", true, 0, nil, nil},
+				{6, "http.authorization", "", true, 0, nil, nil},
+			},
+			[]nfr{{4, 74, nWirePin(t, pkts, 4)}})
+		if len(pkts) != 11 {
+			t.Fatalf("ntlm_http_negotiate_v6: %d packets, want 11 (TCP 3+4+4, #3 IPv6 对称)", len(pkts))
+		}
+	}
 
 	// ============================================================
 	//  负例（6 例）——锚词逐例实测通过才落盘（t.Fatalf 守）
@@ -713,8 +746,8 @@ func TestGenerateNTLMCases(t *testing.T) {
 			Spec:   map[string]interface{}{"layers": nc.layers},
 			Expect: map[string]interface{}{"expect_error": true, "error_contains": nc.anchor}})
 	}
-	if len(out) != 20 {
-		t.Fatalf("want 20 cases, built %d", len(out))
+	if len(out) != 21 {
+		t.Fatalf("want 21 cases (20 ID + T-21 A′ 补例), built %d", len(out))
 	}
 	b, err := json.MarshalIndent(out, "", " ")
 	if err != nil {

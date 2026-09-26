@@ -919,8 +919,8 @@ func TestNTLMChain_CaseFileAudit(t *testing.T) {
 	if err := json.Unmarshal(raw, &cases); err != nil {
 		t.Fatalf("parse cases: %v", err)
 	}
-	if len(cases) != 20 {
-		t.Fatalf("want 20 cases, got %d", len(cases))
+	if len(cases) != 21 {
+		t.Fatalf("want 21 cases (20 ID + T-21 A′ 补例), got %d", len(cases))
 	}
 	allowed := map[string]bool{"layers": true, "flow_control": true, "output": true}
 	for _, c := range cases {
@@ -950,10 +950,14 @@ func TestNTLMChain_CaseFileAudit(t *testing.T) {
 			t.Fatalf("%s: positive case must carry packet_count", id)
 		}
 	}
-	if cases[0]["id"] != "ntlm_smb_ipv4_v2_basic" || cases[19]["id"] != "ntlm_neg_carrier_profile" {
-		t.Fatalf("case order/ID mismatch: first=%v last=%v", cases[0]["id"], cases[19]["id"])
+	// 21 例 = 20 ID（14 正 + 6 负）+ T-21（A′ 补例，插在 #14 正例之后、负例之前）。
+	if cases[0]["id"] != "ntlm_smb_ipv4_v2_basic" || cases[20]["id"] != "ntlm_neg_carrier_profile" {
+		t.Fatalf("case order/ID mismatch: first=%v last=%v", cases[0]["id"], cases[20]["id"])
 	}
-	if cases[14]["id"] != "ntlm_neg_message_truncated" {
-		t.Fatalf("negatives must start at index 14 (14 positives first), got %v", cases[14]["id"])
+	if cases[15]["id"] != "ntlm_neg_message_truncated" {
+		t.Fatalf("negatives must start at index 15 (15 positives first), got %v", cases[15]["id"])
+	}
+	if cases[14]["id"] != "ntlm_http_negotiate_v6" {
+		t.Fatalf("T-21 must sit at index 14 (after #14), got %v", cases[14]["id"])
 	}
 }
