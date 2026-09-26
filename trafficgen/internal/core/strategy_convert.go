@@ -404,6 +404,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-TDS-1：tds 在库旧策略顶层 tds → ValidationErrors（sstp 同款；空
+	// map 也死——顶层 tds 子映射 presence 判死，层链形状不触发）。
+	if protocol == "tds" {
+		if v, ok := cfg["tds"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-HL7-1：hl7 在库旧策略顶层 hl7 → ValidationErrors（megaco 同款；
 	// 在库 0 行纯防御）。
 	if protocol == "hl7" {
@@ -1356,9 +1363,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.MCP = parseMCPConfig(sub)
 		}
 	case "tds":
-		// TDS carries its config as TDSConfig JSON in spec.Payload; the
-		// planner unmarshals it (protocol/tds configFromSpec).
-		if sub, ok := cfg["tds"].(map[string]interface{}); ok {
+		// D-TDS-1：存量兼容路径（在库旧策略仍带顶层 tds → 上方
+		// `if protocol == "tds"` 块已记 ValidationErrors，此处只填
+		// Payload 供 planner 消费；mqtt 同款分工）。层链形状（纯
+		// layers）走 translateTerminalConfig 的 tds case 搬层条目进
+		// spec.Payload。planner 从 spec.Payload unmarshal（protocol/tds
+		// configFromSpec）。
+		if sub, ok := cfg["tds"].(map[string]interface{}); ok && sub != nil {
 			if raw, err := json.Marshal(sub); err == nil {
 				spec.Payload = raw
 			}
@@ -8531,6 +8542,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "radius" {
 		if v, ok := cfg["radius"]; ok && v != nil {
 			return "protocol radius no longer accepts a top-level radius sub-config (move it into the radius layer of an [ip,radius] layers chain)"
+		}
+	}
+	// D-TDS-1：tds 顶层 tds 子映射 presence 判死（mqtt 先例；空 map 也
+	// 死——B6 扁平注入形退役，配置迁 tds 层十六键）。层链形状不触发。
+	if protocol == "tds" {
+		if v, ok := cfg["tds"]; ok && v != nil {
+			return "protocol tds no longer accepts a top-level tds sub-config (move it into the tds layer of an [ip,tcp,tds] layers chain)"
 		}
 	}
 	// D-*-1 raw 自驱八协议：顶层同名子映射 presence 判死（mcp 先例；空

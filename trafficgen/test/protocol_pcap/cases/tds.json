@@ -6,29 +6,32 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -87,30 +90,33 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "encrypt_mode": 1,
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "encrypt_mode": 1,
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -151,29 +157,32 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -239,36 +248,39 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "server_name": "sqlsrv01",
-    "client_name": "host-x",
-    "user_name": "admin",
-    "password": "secret1",
-    "database": "testdb",
-    "language": "us_english",
-    "interface_lib": "ODBC",
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "server_name": "sqlsrv01",
+      "client_name": "host-x",
+      "user_name": "admin",
+      "password": "secret1",
+      "database": "testdb",
+      "language": "us_english",
+      "interface_lib": "ODBC",
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -310,36 +322,39 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 'foo' as 'bar'"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 'foo' as 'bar'"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -414,47 +429,50 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1",
-           "expect_rows": 1,
-           "expect_done_more": true
-          },
-          {
-           "text": "select 2",
-           "expect_rows": 1,
-           "expect_done_more": true
-          },
-          {
-           "text": "select 3",
-           "expect_rows": 1
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1",
+             "expect_rows": 1,
+             "expect_done_more": true
+            },
+            {
+             "text": "select 2",
+             "expect_rows": 1,
+             "expect_done_more": true
+            },
+            {
+             "text": "select 3",
+             "expect_rows": 1
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -502,37 +520,40 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "update t set c=c",
-           "expect_rows": 5
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "update t set c=c",
+             "expect_rows": 5
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -568,32 +589,35 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10
-        }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10
+          }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -665,44 +689,47 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@stmt",
-           "type": "varchar",
-           "value": "SELECT 1"
-          },
-          {
-           "name": "@n",
-           "type": "int",
-           "value": "42"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@stmt",
+             "type": "varchar",
+             "value": "SELECT 1"
+            },
+            {
+             "name": "@n",
+             "type": "int",
+             "value": "42"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -747,32 +774,35 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_name": "foo3"
-        }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_name": "foo3"
+          }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -809,38 +839,41 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "trans_mgr",
-        "trans_mgr": {
-         "request_type": 5
-        }
-       },
-       {
-        "type": "trans_mgr",
-        "trans_mgr": {
-         "request_type": 7
-        }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "trans_mgr",
+          "trans_mgr": {
+           "request_type": 5
+          }
+         },
+         {
+          "type": "trans_mgr",
+          "trans_mgr": {
+           "request_type": 7
+          }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 15,
@@ -903,29 +936,32 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -971,52 +1007,55 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "mars": true,
-    "sessions": [
-     {
-      "id": "a",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "mars": true,
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1"
+        "id": "a",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1"
+            }
+           ]
           }
-         ]
-        }
-       }
-      ]
-     },
-     {
-      "id": "b",
-      "requests": [
+         }
+        ]
+       },
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 2"
+        "id": "b",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 2"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 15,
@@ -1073,30 +1112,33 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "version": 113,
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "version": 113,
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -1132,40 +1174,43 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@p",
-           "type": "int",
-           "default_value": true,
-           "value": "0"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@p",
+             "type": "int",
+             "default_value": true,
+             "value": "0"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -1197,40 +1242,43 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@p",
-           "type": "int",
-           "by_ref": true,
-           "value": "42"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@p",
+             "type": "int",
+             "by_ref": true,
+             "value": "42"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -1262,39 +1310,42 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@big",
-           "type": "bigint",
-           "value": "9223372036854775807"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@big",
+             "type": "bigint",
+             "value": "9223372036854775807"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -1327,39 +1378,42 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@n",
-           "type": "int",
-           "null": true
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@n",
+             "type": "int",
+             "null": true
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -1392,39 +1446,42 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@s",
-           "type": "varchar",
-           "null": true
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@s",
+             "type": "varchar",
+             "null": true
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -1456,40 +1513,43 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@big",
-           "type": "varchar",
-           "max": true,
-           "value": "test data for plp"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@big",
+             "type": "varchar",
+             "max": true,
+             "value": "test data for plp"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -1521,29 +1581,32 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -1590,39 +1653,42 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@guid",
-           "type": "uniqueidentifier",
-           "value": "00112233445566778899aabbccddeeff"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@guid",
+             "type": "uniqueidentifier",
+             "value": "00112233445566778899aabbccddeeff"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -1654,30 +1720,33 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "version": 33556850,
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "version": 33556850,
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -1718,30 +1787,33 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "version": 50334323,
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "version": 50334323,
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -1783,30 +1855,33 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "password": "",
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "password": "",
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -1849,37 +1924,40 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "version": 113,
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "version": 113,
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -1917,36 +1995,39 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "version": 67108980,
-    "feature_exts": [
-     {
-      "id": 1,
-      "data": "0000"
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
      }
-    ],
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+    },
+    {
+     "tds": {
+      "version": 67108980,
+      "feature_exts": [
        {
-        "type": "attention"
+        "id": 1,
+        "data": "0000"
+       }
+      ],
+      "sessions": [
+       {
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -1982,24 +2063,35 @@
   "proto": "tds",
   "summary": "T-021: Validate 负向 — LOGIN7 Length > 128K-1 (MaxLoginLen) → 应报错 (V-TDS-007 字段超长)",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "app_name": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "app_name": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "expect_error": true,
@@ -2016,26 +2108,37 @@
   "proto": "tds",
   "summary": "T-117: Validate 负向 — RPC ProcName > MaxProcNameBytes (1046) → 应报错 (V-TDS-022)",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "expect_error": true,
@@ -2053,43 +2156,46 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "SELECT FROM",
-           "error": {
-            "number": 102,
-            "class": 15,
-            "state": 1,
-            "message": "Incorrect syntax near 'FROM'.",
-            "line_number": 1
-           }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "SELECT FROM",
+             "error": {
+              "number": 102,
+              "class": 15,
+              "state": 1,
+              "message": "Incorrect syntax near 'FROM'.",
+              "line_number": 1
+             }
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -2149,43 +2255,46 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "SELECT FROM",
-           "error": {
-            "number": 229,
-            "class": 14,
-            "state": 1,
-            "message": "permission denied",
-            "line_number": 1
-           }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "SELECT FROM",
+             "error": {
+              "number": 229,
+              "class": 14,
+              "state": 1,
+              "message": "permission denied",
+              "line_number": 1
+             }
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -2226,43 +2335,46 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "SELECT FROM",
-           "error": {
-            "number": 1205,
-            "class": 13,
-            "state": 1,
-            "message": "deadlock",
-            "line_number": 1
-           }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "SELECT FROM",
+             "error": {
+              "number": 1205,
+              "class": 13,
+              "state": 1,
+              "message": "deadlock",
+              "line_number": 1
+             }
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -2292,46 +2404,49 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "SELECT FROM",
-           "error": {
-            "number": 102,
-            "class": 15,
-            "state": 1,
-            "message": "err",
-            "line_number": 1
-           }
-          },
-          {
-           "text": "select 'ok'"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "SELECT FROM",
+             "error": {
+              "number": 102,
+              "class": 15,
+              "state": 1,
+              "message": "err",
+              "line_number": 1
+             }
+            },
+            {
+             "text": "select 'ok'"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -2376,44 +2491,47 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "packet_size": 512,
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "packet_size": 512,
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "SELECT FROM",
-           "error": {
-            "number": 102,
-            "class": 15,
-            "state": 1,
-            "message": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-            "line_number": 1
-           }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "SELECT FROM",
+             "error": {
+              "number": 102,
+              "class": 15,
+              "state": 1,
+              "message": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "line_number": 1
+             }
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 17,
@@ -2465,45 +2583,48 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
-    },
-    {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "login": {
-     "error": {
-      "number": 18456,
-      "class": 14,
-      "state": 1,
-      "message": "Login failed for user 'sa'.",
-      "line_number": 1
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
      }
     },
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "login": {
+       "error": {
+        "number": 18456,
+        "class": 14,
+        "state": 1,
+        "message": "Login failed for user 'sa'.",
+        "line_number": 1
+       }
+      },
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 11,
@@ -2548,45 +2669,48 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "USE master",
-           "info": {
-            "number": 5701,
-            "class": 0,
-            "state": 2,
-            "message": "x",
-            "server_name": "MSSQLServer",
-            "proc_name": "sp_test",
-            "line_number": 0
-           }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "USE master",
+             "info": {
+              "number": 5701,
+              "class": 0,
+              "state": 2,
+              "message": "x",
+              "server_name": "MSSQLServer",
+              "proc_name": "sp_test",
+              "line_number": 0
+             }
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -2654,48 +2778,51 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "SELECT FROM",
-           "info": {
-            "number": 5701,
-            "class": 0,
-            "state": 1,
-            "message": "info"
-           },
-           "error": {
-            "number": 102,
-            "class": 15,
-            "state": 1,
-            "message": "err"
-           }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "SELECT FROM",
+             "info": {
+              "number": 5701,
+              "class": 0,
+              "state": 1,
+              "message": "info"
+             },
+             "error": {
+              "number": 102,
+              "class": 15,
+              "state": 1,
+              "message": "err"
+             }
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -2729,40 +2856,43 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@big",
-           "type": "varchar",
-           "max": true,
-           "value": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@big",
+             "type": "varchar",
+             "max": true,
+             "value": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 16,
@@ -2787,37 +2917,40 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "update t set c=c",
-           "expect_rows": 5000000000
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "update t set c=c",
+             "expect_rows": 5000000000
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -2853,38 +2986,41 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10
-        }
-       },
-       {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 11
-        }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10
+          }
+         },
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 11
+          }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 15,
@@ -2929,30 +3065,41 @@
   "proto": "tds",
   "summary": "T-076: Validate 负向 — 空 SQL 文本 → 应报错 (V-TDS-020 空批拒绝)",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": ""
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": ""
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "expect_error": true,
@@ -2968,45 +3115,56 @@
   "proto": "tds",
   "summary": "T-195: Validate 负向 — 多会话未协商 MARS → 应报错 (V-TDS-038 前置条件)",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1"
+            }
+           ]
           }
-         ]
-        }
-       }
-      ]
-     },
-     {
-      "id": "s2",
-      "requests": [
+         }
+        ]
+       },
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 2"
+        "id": "s2",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 2"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "expect_error": true,
@@ -3024,49 +3182,52 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@x",
-           "type": "xml",
-           "value": "abc"
-          },
-          {
-           "name": "@j",
-           "type": "json",
-           "value": "{}"
-          },
-          {
-           "name": "@u",
-           "type": "udt",
-           "value": "0102"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@x",
+             "type": "xml",
+             "value": "abc"
+            },
+            {
+             "name": "@j",
+             "type": "json",
+             "value": "{}"
+            },
+            {
+             "name": "@u",
+             "type": "udt",
+             "value": "0102"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -3120,36 +3281,39 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 'foo' as 'bar'"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 'foo' as 'bar'"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -3202,59 +3366,62 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "mars": true,
-    "sessions": [
-     {
-      "id": "A",
-      "transaction_id": 5,
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "mars": true,
+      "sessions": [
        {
-        "type": "trans_mgr",
-        "trans_mgr": {
-         "request_type": 5
-        }
+        "id": "A",
+        "transaction_id": 5,
+        "requests": [
+         {
+          "type": "trans_mgr",
+          "trans_mgr": {
+           "request_type": 5
+          }
+         },
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1"
+            }
+           ]
+          }
+         }
+        ]
        },
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1"
+        "id": "B",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 2"
+            }
+           ]
           }
-         ]
-        }
-       }
-      ]
-     },
-     {
-      "id": "B",
-      "requests": [
-       {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 2"
-          }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 17,
@@ -3289,44 +3456,47 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "version": 113,
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "version": 113,
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "SELECT FROM",
-           "error": {
-            "number": 102,
-            "class": 15,
-            "state": 1,
-            "message": "Incorrect syntax near 'FROM'.",
-            "line_number": 1
-           }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "SELECT FROM",
+             "error": {
+              "number": 102,
+              "class": 15,
+              "state": 1,
+              "message": "Incorrect syntax near 'FROM'.",
+              "line_number": 1
+             }
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -3363,43 +3533,46 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "USE master",
-           "info": {
-            "number": 5701,
-            "class": 10,
-            "state": 2,
-            "message": "x",
-            "line_number": 0
-           }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "USE master",
+             "info": {
+              "number": 5701,
+              "class": 10,
+              "state": 2,
+              "message": "x",
+              "line_number": 0
+             }
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -3435,29 +3608,32 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -3504,42 +3680,45 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1",
-           "expect_rows": 1,
-           "expect_done_more": true
-          },
-          {
-           "text": "select 2",
-           "expect_rows": 1
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1",
+             "expect_rows": 1,
+             "expect_done_more": true
+            },
+            {
+             "text": "select 2",
+             "expect_rows": 1
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -3581,37 +3760,40 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "insert into t values(1)",
-           "expect_rows": 0
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "insert into t values(1)",
+             "expect_rows": 0
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -3643,37 +3825,40 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "delete from t",
-           "expect_rows": 1099511627776
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "delete from t",
+             "expect_rows": 1099511627776
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -3709,37 +3894,40 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "insert into t select 1",
-           "expect_rows": 4294967295
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "insert into t select 1",
+             "expect_rows": 4294967295
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -3775,36 +3963,39 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "DECLARE @x int"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "DECLARE @x int"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -3835,43 +4026,46 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "insert into t values(1)",
-           "error": {
-            "number": 2627,
-            "class": 16,
-            "state": 1,
-            "message": "Violation of UNIQUE KEY constraint.",
-            "line_number": 1
-           }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "insert into t values(1)",
+             "error": {
+              "number": 2627,
+              "class": 16,
+              "state": 1,
+              "message": "Violation of UNIQUE KEY constraint.",
+              "line_number": 1
+             }
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -3912,43 +4106,46 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "bad statement",
-           "error": {
-            "number": 50000,
-            "class": 20,
-            "state": 1,
-            "message": "Severe error",
-            "line_number": 1
-           }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "bad statement",
+             "error": {
+              "number": 50000,
+              "class": 20,
+              "state": 1,
+              "message": "Severe error",
+              "line_number": 1
+             }
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -3984,42 +4181,45 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1",
-           "expect_rows": 1,
-           "expect_done_more": true
-          },
-          {
-           "text": "select 2",
-           "expect_rows": 1
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1",
+             "expect_rows": 1,
+             "expect_done_more": true
+            },
+            {
+             "text": "select 2",
+             "expect_rows": 1
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -4056,52 +4256,55 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1",
-           "expect_rows": 1,
-           "expect_done_more": true
-          },
-          {
-           "text": "bad",
-           "error": {
-            "number": 102,
-            "class": 15,
-            "state": 1,
-            "message": "err2",
-            "line_number": 1
-           }
-          },
-          {
-           "text": "select 3",
-           "expect_rows": 1
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1",
+             "expect_rows": 1,
+             "expect_done_more": true
+            },
+            {
+             "text": "bad",
+             "error": {
+              "number": 102,
+              "class": 15,
+              "state": 1,
+              "message": "err2",
+              "line_number": 1
+             }
+            },
+            {
+             "text": "select 3",
+             "expect_rows": 1
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "packet_count": 13,
@@ -4147,39 +4350,42 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1"
-          },
-          {
-           "text": "select 2"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1"
+            },
+            {
+             "text": "select 2"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -4208,39 +4414,42 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1"
-          },
-          {
-           "text": "select 2"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1"
+            },
+            {
+             "text": "select 2"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -4263,40 +4472,43 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "update t set c=c",
-           "expect_rows": 5
-          },
-          {
-           "text": "select 2"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "update t set c=c",
+             "expect_rows": 5
+            },
+            {
+             "text": "select 2"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -4331,47 +4543,50 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "UPDATE t SET c=1",
-           "error": {
-            "number": 2627,
-            "class": 16,
-            "state": 1,
-            "message": "duplicate key"
-           },
-           "expect_rows": 5
-          },
-          {
-           "text": "select 3",
-           "expect_rows": 3
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "UPDATE t SET c=1",
+             "error": {
+              "number": 2627,
+              "class": 16,
+              "state": 1,
+              "message": "duplicate key"
+             },
+             "expect_rows": 5
+            },
+            {
+             "text": "select 3",
+             "expect_rows": 3
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -4405,42 +4620,45 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select from",
-           "error": {
-            "number": 50000,
-            "class": 20,
-            "state": 1,
-            "message": "severe"
-           }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select from",
+             "error": {
+              "number": 50000,
+              "class": 20,
+              "state": 1,
+              "message": "severe"
+             }
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -4473,36 +4691,39 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1;;select 2"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1;;select 2"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -4530,39 +4751,42 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "",
-           "type": "int",
-           "value": "42"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "",
+             "type": "int",
+             "value": "42"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -4585,39 +4809,42 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@b",
-           "type": "bit",
-           "null": true
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@b",
+             "type": "bit",
+             "null": true
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -4639,40 +4866,43 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@s",
-           "type": "varchar",
-           "max": true,
-           "null": true
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@s",
+             "type": "varchar",
+             "max": true,
+             "null": true
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -4695,39 +4925,42 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@t",
-           "type": "tinyint",
-           "value": "255"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@t",
+             "type": "tinyint",
+             "value": "255"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -4750,41 +4983,44 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@d",
-           "type": "decimal",
-           "value": "123450",
-           "precision": 10,
-           "scale": 2
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@d",
+             "type": "decimal",
+             "value": "123450",
+             "precision": 10,
+             "scale": 2
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -4808,40 +5044,43 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "",
-           "type": "int",
-           "default_value": true,
-           "value": "0"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "",
+             "type": "int",
+             "default_value": true,
+             "value": "0"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -4863,29 +5102,32 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -4926,32 +5168,35 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "trans_mgr",
-        "trans_mgr": {
-         "request_type": 8
-        }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "trans_mgr",
+          "trans_mgr": {
+           "request_type": 8
+          }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -4983,33 +5228,36 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "trans_mgr",
-        "trans_mgr": {
-         "request_type": 9,
-         "payload": "4e616d65"
-        }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "trans_mgr",
+          "trans_mgr": {
+           "request_type": 9,
+           "payload": "4e616d65"
+          }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -5039,33 +5287,36 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "trans_mgr",
-        "trans_mgr": {
-         "request_type": 5,
-         "payload": "0102064e616d65"
-        }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "trans_mgr",
+          "trans_mgr": {
+           "request_type": 5,
+           "payload": "0102064e616d65"
+          }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -5094,32 +5345,35 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "trans_mgr",
-        "trans_mgr": {
-         "request_type": 6
-        }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "trans_mgr",
+          "trans_mgr": {
+           "request_type": 6
+          }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -5153,67 +5407,70 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "mars": true,
-    "sessions": [
-     {
-      "id": "a",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "mars": true,
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1"
+        "id": "a",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1"
+            }
+           ]
           }
-         ]
-        }
-       }
-      ]
-     },
-     {
-      "id": "b",
-      "requests": [
+         }
+        ]
+       },
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 2"
+        "id": "b",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 2"
+            }
+           ]
           }
-         ]
-        }
-       }
-      ]
-     },
-     {
-      "id": "c",
-      "requests": [
+         }
+        ]
+       },
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 3"
+        "id": "c",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 3"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -5256,58 +5513,61 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "mars": true,
-    "sessions": [
-     {
-      "id": "a",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "mars": true,
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "bad sql",
-           "error": {
-            "number": 102,
-            "class": 15,
-            "state": 1,
-            "message": "syntax error"
-           }
+        "id": "a",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "bad sql",
+             "error": {
+              "number": 102,
+              "class": 15,
+              "state": 1,
+              "message": "syntax error"
+             }
+            }
+           ]
           }
-         ]
-        }
-       }
-      ]
-     },
-     {
-      "id": "b",
-      "requests": [
+         }
+        ]
+       },
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 2"
+        "id": "b",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 2"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -5344,37 +5604,40 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "delete from t",
-           "expect_rows": 2147483647
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "delete from t",
+             "expect_rows": 2147483647
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -5396,39 +5659,42 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@v",
-           "type": "varbinary",
-           "null": true
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@v",
+             "type": "varbinary",
+             "null": true
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -5448,24 +5714,35 @@
   "proto": "tds",
   "summary": "V-TDS-001: version 非法 (0x12345678) → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "version": 305419896,
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "version": 305419896,
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -5480,24 +5757,35 @@
   "proto": "tds",
   "summary": "V-TDS-002: packet_size=128 超下限 → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "packet_size": 128,
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "packet_size": 128,
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -5512,14 +5800,25 @@
   "proto": "tds",
   "summary": "V-TDS-003: sessions 为空 → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": []
-   }
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": []
+     }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -5534,19 +5833,30 @@
   "proto": "tds",
   "summary": "V-TDS-004: requests 为空 → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": []
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
      }
-    ]
-   }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
+       {
+        "id": "s1",
+        "requests": []
+       }
+      ]
+     }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -5561,23 +5871,34 @@
   "proto": "tds",
   "summary": "V-TDS-005: type 非法 ('bogus') → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "bogus"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "bogus"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -5592,23 +5913,34 @@
   "proto": "tds",
   "summary": "V-TDS-006: type=sql_batch 但 sql 缺失 → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -5623,28 +5955,39 @@
   "proto": "tds",
   "summary": "V-TDS-016: FeatureId=0x77 未知 → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "feature_exts": [
-     {
-      "id": 119
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
      }
-    ],
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "feature_exts": [
        {
-        "type": "attention"
+        "id": 119
+       }
+      ],
+      "sessions": [
+       {
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -5659,26 +6002,37 @@
   "proto": "tds",
   "summary": "V-TDS-023: ProcId=20 > 15 → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 20
-        }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 20
+          }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -5693,27 +6047,38 @@
   "proto": "tds",
   "summary": "V-TDS-024: ProcName 与 ProcId 同时指定 → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_name": "foo",
-         "proc_id": 10
-        }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_name": "foo",
+           "proc_id": 10
+          }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -5728,33 +6093,44 @@
   "proto": "tds",
   "summary": "V-TDS-025: 参数类型 'datetime' 不在白名单 → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@d",
-           "type": "datetime",
-           "value": "2020-01-01"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@d",
+             "type": "datetime",
+             "value": "2020-01-01"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -5769,34 +6145,45 @@
   "proto": "tds",
   "summary": "V-TDS-026: varchar max_len=9000 非 max → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@s",
-           "type": "varchar",
-           "value": "x",
-           "max_len": 9000
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@s",
+             "type": "varchar",
+             "value": "x",
+             "max_len": 9000
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -5811,34 +6198,45 @@
   "proto": "tds",
   "summary": "V-TDS-027: decimal precision=40 > 38 → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@d",
-           "type": "decimal",
-           "value": "1",
-           "precision": 40
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@d",
+             "type": "decimal",
+             "value": "1",
+             "precision": 40
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -5853,35 +6251,46 @@
   "proto": "tds",
   "summary": "V-TDS-028: decimal scale=20 > precision=10 → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@d",
-           "type": "decimal",
-           "value": "1",
-           "precision": 10,
-           "scale": 20
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@d",
+             "type": "decimal",
+             "value": "1",
+             "precision": 10,
+             "scale": 20
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -5896,26 +6305,37 @@
   "proto": "tds",
   "summary": "V-TDS-034: trans_mgr request_type=99 未知 → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "trans_mgr",
-        "trans_mgr": {
-         "request_type": 99
-        }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "trans_mgr",
+          "trans_mgr": {
+           "request_type": 99
+          }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -5930,26 +6350,37 @@
   "proto": "tds",
   "summary": "V-TDS-035: TM_SAVE_XACT (9) payload 空 → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "trans_mgr",
-        "trans_mgr": {
-         "request_type": 9
-        }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "trans_mgr",
+          "trans_mgr": {
+           "request_type": 9
+          }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -5964,31 +6395,42 @@
   "proto": "tds",
   "summary": "V-TDS-036: transaction_id=5 但无 BEGIN 前置 → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "transaction_id": 5,
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1"
+        "id": "s1",
+        "transaction_id": 5,
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -6003,36 +6445,47 @@
   "proto": "tds",
   "summary": "V-TDS-060: ERROR 注入 class=5 < 11 → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1",
-           "error": {
-            "number": 100,
-            "class": 5,
-            "state": 1,
-            "message": "low"
-           }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1",
+             "error": {
+              "number": 100,
+              "class": 5,
+              "state": 1,
+              "message": "low"
+             }
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -6047,36 +6500,47 @@
   "proto": "tds",
   "summary": "V-TDS-061: INFO 注入 class=15 > 10 → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1",
-           "info": {
-            "number": 100,
-            "class": 15,
-            "state": 1,
-            "message": "high"
-           }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1",
+             "info": {
+              "number": 100,
+              "class": 15,
+              "state": 1,
+              "message": "high"
+             }
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -6093,29 +6557,32 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -6137,30 +6604,33 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "encrypt_mode": 3,
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "encrypt_mode": 3,
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -6187,30 +6657,33 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "encrypt_mode": 2,
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "encrypt_mode": 2,
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -6232,32 +6705,35 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "login": {
-     "option_flags1": 224
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
     },
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+    {
+     "tds": {
+      "login": {
+       "option_flags1": 224
+      },
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -6280,32 +6756,35 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "login": {
-     "type_flags": 1
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
     },
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+    {
+     "tds": {
+      "login": {
+       "type_flags": 1
+      },
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -6328,36 +6807,39 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -6380,39 +6862,42 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@v",
-           "type": "varbinary",
-           "value": "00ff10"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@v",
+             "type": "varbinary",
+             "value": "00ff10"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -6434,40 +6919,43 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@n",
-           "type": "nvarchar",
-           "max": true,
-           "value": "ab"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@n",
+             "type": "nvarchar",
+             "max": true,
+             "value": "ab"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -6490,43 +6978,46 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "mars": true,
-    "sessions": [
-     {
-      "id": "a",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "mars": true,
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1"
-          },
-          {
-           "text": "select 2"
-          },
-          {
-           "text": "select 3"
+        "id": "a",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1"
+            },
+            {
+             "text": "select 2"
+            },
+            {
+             "text": "select 3"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -6548,39 +7039,42 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@b",
-           "type": "bigint",
-           "null": true
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@b",
+             "type": "bigint",
+             "null": true
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -6600,29 +7094,40 @@
   "proto": "tds",
   "summary": "V-TDS-015: FeatureExt 非 7.4 版本 → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "version": 113,
-    "feature_exts": [
-     {
-      "id": 1
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
      }
-    ],
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "version": 113,
+      "feature_exts": [
        {
-        "type": "attention"
+        "id": 1
+       }
+      ],
+      "sessions": [
+       {
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -6639,30 +7144,33 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "client_lcid": 1033,
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "client_lcid": 1033,
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -6686,31 +7194,34 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "database": "mydb",
-    "language": "us_english",
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "database": "mydb",
+      "language": "us_english",
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -6744,32 +7255,35 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "login": {
-     "password": "password"
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
     },
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+    {
+     "tds": {
+      "login": {
+       "password": "password"
+      },
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -6792,37 +7306,40 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "update t set c=c where 1=0",
-           "expect_rows": 0
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "update t set c=c where 1=0",
+             "expect_rows": 0
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -6853,36 +7370,39 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -6905,40 +7425,43 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "BEGIN TRAN"
-          },
-          {
-           "text": "update t set c=c",
-           "expect_rows": 1
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "BEGIN TRAN"
+            },
+            {
+             "text": "update t set c=c",
+             "expect_rows": 1
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -6966,36 +7489,39 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -7018,40 +7544,43 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@o",
-           "type": "int",
-           "value": "42",
-           "by_ref": true
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@o",
+             "type": "int",
+             "value": "42",
+             "by_ref": true
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -7074,45 +7603,48 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "trans_mgr",
-        "trans_mgr": {
-         "request_type": 5
-        }
-       },
-       {
-        "type": "trans_mgr",
-        "trans_mgr": {
-         "request_type": 7,
-         "payload": "01"
-        }
-       },
-       {
-        "type": "trans_mgr",
-        "trans_mgr": {
-         "request_type": 5
-        }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "trans_mgr",
+          "trans_mgr": {
+           "request_type": 5
+          }
+         },
+         {
+          "type": "trans_mgr",
+          "trans_mgr": {
+           "request_type": 7,
+           "payload": "01"
+          }
+         },
+         {
+          "type": "trans_mgr",
+          "trans_mgr": {
+           "request_type": 5
+          }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -7150,49 +7682,52 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "BEGIN TRAN"
-          },
-          {
-           "text": "select 1"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "BEGIN TRAN"
+            },
+            {
+             "text": "select 1"
+            }
+           ]
           }
-         ]
-        }
-       },
-       {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "COMMIT"
+         },
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "COMMIT"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -7228,55 +7763,58 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "mars": true,
-    "sessions": [
-     {
-      "id": "a",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "mars": true,
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1"
+        "id": "a",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1"
+            }
+           ]
           }
-         ]
-        }
+         },
+         {
+          "type": "attention"
+         }
+        ]
        },
        {
-        "type": "attention"
-       }
-      ]
-     },
-     {
-      "id": "b",
-      "requests": [
-       {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 2"
+        "id": "b",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 2"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -7314,81 +7852,84 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "mars": true,
-    "sessions": [
-     {
-      "id": "A",
-      "transaction_id": 5,
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "mars": true,
+      "sessions": [
        {
-        "type": "trans_mgr",
-        "trans_mgr": {
-         "request_type": 5
-        }
+        "id": "A",
+        "transaction_id": 5,
+        "requests": [
+         {
+          "type": "trans_mgr",
+          "trans_mgr": {
+           "request_type": 5
+          }
+         },
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1"
+            }
+           ]
+          }
+         }
+        ]
        },
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1"
+        "id": "B",
+        "transaction_id": 7,
+        "requests": [
+         {
+          "type": "trans_mgr",
+          "trans_mgr": {
+           "request_type": 5
           }
-         ]
-        }
-       }
-      ]
-     },
-     {
-      "id": "B",
-      "transaction_id": 7,
-      "requests": [
-       {
-        "type": "trans_mgr",
-        "trans_mgr": {
-         "request_type": 5
-        }
+         },
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 2"
+            }
+           ]
+          }
+         }
+        ]
        },
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 2"
+        "id": "C",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 3"
+            }
+           ]
           }
-         ]
-        }
-       }
-      ]
-     },
-     {
-      "id": "C",
-      "requests": [
-       {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 3"
-          }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -7447,30 +7988,41 @@
   "proto": "tds",
   "summary": "V-TDS-017: FeatureExt data 非 hex → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "version": 67108980,
-    "feature_exts": [
-     {
-      "id": 1,
-      "data": "zzzz"
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
      }
-    ],
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "version": 67108980,
+      "feature_exts": [
        {
-        "type": "attention"
+        "id": 1,
+        "data": "zzzz"
+       }
+      ],
+      "sessions": [
+       {
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -7485,31 +8037,42 @@
   "proto": "tds",
   "summary": "V-TDS-018: FeatureExt ack_data 非 hex → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "version": 67108980,
-    "feature_exts": [
-     {
-      "id": 1,
-      "data": "0000",
-      "ack_data": "xyz"
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
      }
-    ],
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "version": 67108980,
+      "feature_exts": [
        {
-        "type": "attention"
+        "id": 1,
+        "data": "0000",
+        "ack_data": "xyz"
+       }
+      ],
+      "sessions": [
+       {
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -7524,24 +8087,35 @@
   "proto": "tds",
   "summary": "V-TDS-008: UserName 129 字符 → 拒绝",
   "spec_json": {
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "user_name": "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu",
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "user_name": "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu",
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -7559,30 +8133,33 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "database": "appdb",
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "database": "appdb",
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -7622,36 +8199,39 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1 as 数据"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1 as 数据"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -7675,37 +8255,40 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "update t set c=c",
-           "expect_rows": 0
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "update t set c=c",
+             "expect_rows": 0
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -7736,42 +8319,45 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1",
-           "error": {
-            "number": 229,
-            "class": 14,
-            "state": 1,
-            "message": "permission denied"
-           }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1",
+             "error": {
+              "number": 229,
+              "class": 14,
+              "state": 1,
+              "message": "permission denied"
+             }
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -7803,42 +8389,45 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "update t set c=c",
-           "error": {
-            "number": 1205,
-            "class": 13,
-            "state": 1,
-            "message": "deadlock victim"
-           }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "update t set c=c",
+             "error": {
+              "number": 1205,
+              "class": 13,
+              "state": 1,
+              "message": "deadlock victim"
+             }
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -7870,42 +8459,45 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1",
-           "error": {
-            "number": 19999,
-            "class": 15,
-            "state": 1,
-            "message": "reserved"
-           }
+        "id": "s1",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1",
+             "error": {
+              "number": 19999,
+              "class": 15,
+              "state": 1,
+              "message": "reserved"
+             }
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -7927,29 +8519,32 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "attention"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "attention"
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "frames": [
@@ -7978,40 +8573,43 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "sessions": [
-     {
-      "id": "s1",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "sessions": [
        {
-        "type": "rpc",
-        "rpc": {
-         "proc_id": 10,
-         "params": [
-          {
-           "name": "@s",
-           "type": "varchar",
-           "max": true,
-           "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        "id": "s1",
+        "requests": [
+         {
+          "type": "rpc",
+          "rpc": {
+           "proc_id": 10,
+           "params": [
+            {
+             "name": "@s",
+             "type": "varchar",
+             "max": true,
+             "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "notes": [
@@ -8064,52 +8662,55 @@
   "spec_json": {
    "layers": [
     {
-     "tcp": {}
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
     {
-     "tds": {}
-    }
-   ],
-   "count": 1,
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 54321,
-   "dst_port": 1433,
-   "tds": {
-    "mars": true,
-    "sessions": [
-     {
-      "id": "A",
-      "requests": [
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "mars": true,
+      "sessions": [
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 1"
+        "id": "A",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 1"
+            }
+           ]
           }
-         ]
-        }
-       }
-      ]
-     },
-     {
-      "id": "B",
-      "requests": [
+         }
+        ]
+       },
        {
-        "type": "sql_batch",
-        "sql": {
-         "statements": [
-          {
-           "text": "select 2"
+        "id": "B",
+        "requests": [
+         {
+          "type": "sql_batch",
+          "sql": {
+           "statements": [
+            {
+             "text": "select 2"
+            }
+           ]
           }
-         ]
-        }
+         }
+        ]
        }
       ]
      }
-    ]
-   }
+    }
+   ]
   },
   "expect": {
    "fields": [
@@ -8138,6 +8739,35 @@
     "T-216/A218: 字节流 A 请求(pkt8)→A 响应(pkt9)→B 请求(pkt10)→B 响应(pkt11) 交错; OutstandingRequestCount=2 (两会话均活动)",
     "每个会话 token 序列独立归并无串扰 — A 的 DONE RowCount=1 B 同"
    ]
+  }
+ },
+ {
+  "id": "tds_neg_top_tds_presence_reject",
+  "proto": "tds",
+  "summary": "D-TDS-1 presence: layers + top-level tds {} coexist = reject",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "tds": {}
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "no longer accepts a top-level tds sub-config"
   }
  }
 ]

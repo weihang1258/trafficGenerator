@@ -3426,9 +3426,70 @@ def check_ntlm(cases):
     return rows
 
 
+def check_tds(cases):
+    """D-TDS-1 P5 反查表（131 改写例 + 1 presence 负例 = 132）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("tds"), dict):
+                lays.append((c.get("id", "?"), l["tds"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 准入与接线。
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case tds（层条目→Payload）", 'case "tds":' in tr and "spec.Payload = rawT" in tr, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry tds 行 + TransportOn[tcp]",
+                 'Name: "tds"' in rg and 'TransportOn: []string{"tcp"}' in rg, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat presence 判死顶层 tds",
+                 "no longer accepts a top-level tds sub-config" in sc, "在案"))
+    rows.append(("strategy_convert 存量兼容块记 ValidationErrors",
+                 'if protocol == "tds" {' in sc, "在案"))
+
+    # 2. 用例面（132 例 = 131 改写 + 1 presence）。
+    rows.append(("用例总数 132", len(cases) == 132, f"{len(cases)} 例"))
+    pos = [c for c in cases if "expect_error" not in (c.get("expect") or {})]
+    neg = [c for c in cases if "expect_error" in (c.get("expect") or {})]
+    rows.append(("105 正 + 27 负", len(pos) == 105 and len(neg) == 27, f"{len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("presence 负例在案（layers+顶层tds）",
+                 "tds_neg_top_tds_presence_reject" in {c.get("id") for c in cases}, "在案"))
+    bad_top = [c.get("id") for c in pos
+               if set((c.get("spec_json") or {}).keys()) - {"layers", "flow_control", "output"}]
+    rows.append(("非负例顶层键=0（白名单制）", not bad_top, bad_top or "全部合规"))
+    for k in ["sessions", "mars", "version", "feature_exts", "login", "encrypt_mode",
+              "packet_size", "user_name", "password", "database", "language",
+              "app_name", "server_name", "client_name", "interface_lib", "client_lcid"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((f"层键覆盖：{k}", hit is not None, hit or "无用例"))
+
+    # 3. 锚词面（27 负例：26 V-TDS 真门 + 1 presence）。
+    for needle, name in [
+        ("top-level tds sub-config", "presence 判死"),
+        ("V-TDS-001", "version 非法"), ("V-TDS-002", "packet_size 越界"),
+        ("V-TDS-003", "无会话"), ("V-TDS-004", "无请求"),
+        ("V-TDS-005", "请求类型非法"), ("V-TDS-006", "sql 缺失"),
+        ("V-TDS-007", "登录字段超长"), ("V-TDS-015", "feature 非 7.4"),
+        ("V-TDS-016", "feature 未知 id"), ("V-TDS-017", "feature data 非法"),
+        ("V-TDS-018", "feature ack 非法"), ("V-TDS-020", "空 SQL"),
+        ("V-TDS-022", "procname 超长"), ("V-TDS-023", "procid 越界"),
+        ("V-TDS-024", "procname+id 互斥"), ("V-TDS-025", "param 类型"),
+        ("V-TDS-026", "param maxlen"), ("V-TDS-027", "param precision"),
+        ("V-TDS-028", "param scale"), ("V-TDS-034", "transmgr 类型"),
+        ("V-TDS-035", "savepoint"), ("V-TDS-036", "txn 未 begin"),
+        ("V-TDS-038", "MARS 前置"), ("V-TDS-060", "error class"),
+        ("V-TDS-061", "info class"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+    return rows
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds}
 
 
 def main(argv):

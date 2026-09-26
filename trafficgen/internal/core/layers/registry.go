@@ -1141,13 +1141,13 @@ func buildDefaultRegistry() {
 	// → sessions（SQL Batch / RPC / TransMgr / Attention）逐报文事件，wire
 	// 字节由 build* 纯函数产出；Login response 等 down 报文按 cfg.PacketSize
 	// 应用层分片（BuildTableResponsePackets，T-148）保留），TCP 语义
-	// （握手/seq-ack/挥手/MSS 分段）交给 tcp 层生成器；配置（version/
-	// packet_size/sessions/mars/login...）繁多不落层 config（layers 数组条目
-	// 零负载），经 spec.Payload（TDSConfig JSON，strategy_convert.go tds case
-	// 同款）携带、FlowMeta.Payload 直传生成器；目的端口默认 1433
-	// （validateSpecBase）。
+	// （握手/seq-ack/挥手/MSS 分段）交给 tcp 层生成器；层条目
+	// layers[].tds 是唯一配置住处（D-TDS-1：translateTerminalConfig 的
+	// tds case 搬层条目 JSON 进 spec.Payload，生成器只读
+	// FlowMeta.Payload）；目的端口默认 1433（validateSpecBase）。
 	r.Register(LayerSchema{Name: "tds", Category: CategoryTerminal,
 		DependsOn: []string{"tcp"},
+		TransportOn: []string{"tcp"},
 		Fields: map[string]FieldSchema{
 			"version":       {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
 			"packet_size":   {Type: "int", Default: 0, Min: 0, Max: 0},
