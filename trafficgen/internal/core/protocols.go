@@ -25,6 +25,7 @@ var allowedProtocols = map[string]bool{
 	"dcerpc":   true,
 	"dtls":     true,
 	"kerberos": true,
+	"sstp":     true,
 	"dhcp":     true, "dhcpv6": true, "dnp3": true, "dns": true,
 	"doip": true, "drda": true, "edp": true, "enip": true, "fins": true, "xmrmining": true,
 	"ftp": true, "gbt32960": true, "goose": true, "gre": true,

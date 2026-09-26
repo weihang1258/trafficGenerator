@@ -1228,6 +1228,92 @@ def check_kerberos(cases):
     return rows
 
 
+def check_sstp(cases):
+    """D-SSTP-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 sstp", '"sstp"' in pg and 'true' in pg.split('"sstp"')[1][:12], "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 sstp（已准入）", '"sstp"' not in pt[i_neg:i_neg + 500], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case sstp（严格解码）", 'case "sstp":' in tr and "DisallowUnknownFields" in tr, "在案"))
+    rows.append(("FlowMeta.SSTP 直传（静默基线根修）", re.search(r"SSTP:\s+spec\.SSTP\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.SSTP", re.search(r"SSTP\s+\*core\.SSTPConfig", gen) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry sstp 行 + tls 依赖 + 443 契约",
+                 'Name: "sstp"' in rg and 'DependsOn: []string{"tls"}' in rg and '"tcp.dst_port": "443"' in rg, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    rows.append(("载体预检（缺 tls/udp/错端口/混合族）",
+                 "missing tls carrier" in vl and "udp carrier is not supported" in vl, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go ChainPlanner(sstp) 接线", 'NewChainPlanner("sstp")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("strategy_convert case sstp + 443 缺省端口",
+                 'case "sstp":' in sc and "setDefaultDstPort(&spec, cfg, 443)" in sc, "在案"))
+    rows.append(("strategy_convert presence 判死顶层 sstp",
+                 "no longer accepts a top-level sstp sub-config" in sc, "在案"))
+
+    # 2. 行为面（header 原语/builder/planner 关键件）。
+    kb = (tg / "internal" / "core" / "sstp.go").read_text()
+    _i = kb.index("anchors := map[string]string{")
+    _seg = kb[_i:kb.index("\n\t}", _i)]
+    _n = len(re.findall(r"SSTPWireFault[A-Za-z0-9]+:", _seg))
+    rows.append(("wire_fault 闭环 6 值锚词表", _n == 6, f"{_n} 值"))
+    hd = (tg / "internal" / "protocol" / "sstp" / "header.go").read_text()
+    for prim, name in [
+        ("func encodeControlPacket", "控制包 8B 固定部 + 网络序 Length（覆盖整包）"),
+        ("func encodeDataPacket", "C=0 数据包：S+4 即 ff 03"),
+        ("func verifyControlPacket", "控制包双算复核（Length/Num↔实数）"),
+        ("func encodeAttribute", "属性头 4B：Reserved|ID|LengthPacket（含 4B 头）"),
+        ("func encodePPPFrame", "PPP 帧 ff 03 + Protocol"),
+        ("func cryptoBindingValue", "Crypto Binding 0x0068（SHA-256 profile）"),
+        ("func cryptoBindingRequestValue", "Crypto Binding Request 0x0028"),
+        ("func statusInfoValue", "Status Info Reserved1+AttribID+Status+AttribValue"),
+    ]:
+        rows.append((f"原语：{name}", prim in hd, "在案"))
+    bl = (tg / "internal" / "protocol" / "sstp" / "builder.go").read_text()
+    for prim, name in [
+        ("func walkSession", "会话状态单权威（校验与生成同路径）"),
+        ("func buildAttribute", "属性渲染 + 值域（0x0005/0x0006 冒充属性拒）"),
+        ("func buildControl", "C bit↔Message Type 一致性守卫"),
+        ("func buildPPP", "PPP protocol/ipv4-ipv6 地址族显式声明守卫"),
+        ("func (w *sstpWalker) step", "状态机：REQUEST→ACK→CONNECTED→PPP→ABORT"),
+        ("func synthIPv4Payload", "IPv4 合成载荷（checksum 实算）"),
+        ("func synthIPv6Payload", "IPv6 合成载荷"),
+        ("func (g *SSTPGenerator) Generate", "终结层事件流（经 tls 透传 application-data）"),
+    ]:
+        rows.append((f"关键件：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "sstp" / "planner.go").read_text()
+    rows.append(("关键件：直接外层必须是 tls（生成面第二道防线）", "func resolveCarrier(chain" in pl, "在案"))
+    rows.append(("守卫：版本唯一 0x10", "version" in pl and "0x10" not in pl or "versionByte" in pl, "在案"))
+    rows.append(("守卫：sessions[] 与 events[] 双权威拒", "both sessions[] and events[]" in pl, "在案"))
+    rows.append(("守卫：会话 ID/TLS session 独立", "duplicates an earlier session" in pl, "在案"))
+    rows.append(("守卫：wire_fault 注入锚词出口", "negative-path injection rejected" in pl, "在案"))
+
+    # 3. 用例面（20 例）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "sstp_https_tls_handshake", "sstp_call_connect_request",
+        "sstp_call_connect_ack", "sstp_call_connected", "sstp_call_abort",
+        "sstp_attribute_protocol_id", "sstp_attribute_status_crypto",
+        "sstp_ppp_ipv4", "sstp_ppp_ipv6", "sstp_ppp_mppe_boundary",
+        "sstp_multi_connection", "sstp_session_ordering",
+        "sstp_length_record_segmentation", "sstp_pcap_nic_consistency",
+        "sstp_neg_header_length", "sstp_neg_attribute_length",
+        "sstp_neg_state_transition", "sstp_neg_transport_carrier",
+        "sstp_neg_ppp_framing", "sstp_neg_tls_boundary",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    rows.append(("用例总数 20（14 正+6 负）", len(cases) == 20, f"{len(cases)} 例"))
+    rows.append(("无 sstp_neg_unregistered 占位", "sstp_neg_unregistered" not in ids, "已移除"))
+    return rows
+
+
 CHECKS = {
     "smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
@@ -3042,7 +3128,7 @@ def check_dtls(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "sstp": check_sstp}
 
 
 def main(argv):

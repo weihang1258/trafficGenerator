@@ -777,6 +777,22 @@ func buildDefaultRegistry() {
 			"wire_fault": {Type: "string", Default: ""}, // 6 值枚举（D-KERBEROS-1 §10 表）；""=无故障
 		},
 	})
+	r.Register(LayerSchema{Name: "sstp", Category: CategoryTerminal,
+		DependsOn: []string{"tls"}, // HTTPS 载体：缺 tls 层自动补全（[ip,tcp,sstp] → [ip,tcp,tls,sstp]）；validate_layers 预检在补全前拦裸 TCP/UDP 形
+		// D-SSTP-1：HTTPS 载体端口 443 同 tls 层 FieldContract 值（tshark
+		// tls dissector 自动解码依赖）；SSTP 不另用 UDP 端口（契约 §2/§5）。
+		FieldContract: map[string]string{"tcp.dst_port": "443"},
+		Fields: map[string]FieldSchema{
+			// version 无 schema 默认（指针三态：缺席 = 0x10；显式 0/他值拒）。
+			"version": {Type: "int"},
+			// events[] 单连接短形 / sessions[] 多连接形（sessions 优先；
+			// 二者并存且都非空 = 双权威拒）。值语义归 planner + 生成器
+			//（V9 只验层键形状，嵌套值走严格解码——dtls/kerberos 同款）。
+			"events":     {Type: "list", Default: []interface{}{}},
+			"sessions":   {Type: "list", Default: []interface{}{}},
+			"wire_fault": {Type: "string", Default: ""}, // 6 值枚举（契约 §2/§11）；""=无故障
+		},
+	})
 	r.Register(LayerSchema{Name: "cql", Category: CategoryTerminal, DependsOn: []string{"tcp"}})
 	r.Register(LayerSchema{Name: "iec104", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "2404"},

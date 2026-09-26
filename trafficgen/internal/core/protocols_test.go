@@ -60,6 +60,9 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		// 74-xmrmining（D-XMR-1）：layer/planner 注册后准入（占位用例同步
 		// 替换为 64 语义用例）。
 		"xmrmining",
+		// 48-sstp（D-SSTP-1）：layer/planner 注册后准入（占位用例
+		// sstp_neg_unregistered 同步移除，替换为 20 语义用例）。
+		"sstp",
 	}
 	sort.Strings(want)
 
@@ -101,8 +104,11 @@ func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 		// 用例落地，占位例随之移除——契约 §1）。mmse/hl7/megaco 先例。
 		// D-MMSE-1：mmse 已注册 layer/planner，摘出 negativeOnly（100 语义
 		// 用例 P5 落地，占位例随之移除——契约 §1）。hl7/megaco 先例。
+		// D-SSTP-1：sstp 已注册 layer/planner，摘出 negativeOnly（20 语义
+		// 用例 P5 落地，sstp_neg_unregistered 占位随之移除——契约 §1/§6）。
+		// mmse/edp 先例。
 		"ntlm", "ocsp",
-		"spnego", "sstp",
+		"spnego",
 	}
 	for _, name := range negativeOnly {
 		if IsAllowedProtocol(name) {

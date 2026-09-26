@@ -55,6 +55,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/pop3"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/snmp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/smtp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/sstp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ssdp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/syslog"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tls"
@@ -70,6 +71,7 @@ var chainSuiteProtos = map[string]bool{
 	"mdns": true, "mqtt": true, "nmea": true, "ntp": true, "onvif": true, "snmp": true,
 	"pop3": true,
 	"smtp": true,
+	"sstp": true,
 	"ssdp": true, "syslog": true, "tcp": true,
 }
 

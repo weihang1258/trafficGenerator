@@ -3301,6 +3301,32 @@
       },
       "fields": {}
     },
+    "sstp": {
+      "category": "terminal",
+      "depends_on": [
+        "tls"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "443"
+      },
+      "fields": {
+        "events": {
+          "type": "list",
+          "default": []
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "version": {
+          "type": "int"
+        },
+        "wire_fault": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
     "stratum": {
       "category": "terminal",
       "depends_on": [
