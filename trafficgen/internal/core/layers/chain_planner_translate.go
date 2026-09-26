@@ -2543,6 +2543,17 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.JTT905 == nil {
 			spec.JTT905 = core.ParseJTT905ConfigFromMap(completedConfig(s, term.Config))
 		}
+	case "tftp":
+		// D-TFTP-1：层 config 经 core.ParseTFTPConfigFromMap 复用扁平
+		// 解析单一真相（data_payload_pattern 原文字节/retransmit_blocks
+		// 数字数组/auto_append_final_block 指针三态由扁平 parse 承接，
+		// JSON 往返会误读——srv6 inner_payload 同陷阱）。
+		// 空层 config 也翻译出非 nil（validator 首命中 filename 必需，
+		// 不静默缺省流）。端口=validateSpecBase DstPort switch 69 缺省
+		// （chain_planner.go:956），无端口回填分支（tftp 层无端口字段）。
+		if spec.TFTP == nil {
+			spec.TFTP = core.ParseTFTPConfigFromMap(completedConfig(s, term.Config))
+		}
 	case "fins":
 		// D-FINS-1：层 config map 直存 Metadata（GetConfig map 分支既有
 		// types.go:159-168；Data []byte 经 JSON 数字数组无双语义，无 srv6

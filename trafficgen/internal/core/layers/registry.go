@@ -184,11 +184,38 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "rip", Category: CategoryTerminal,
 		DependsOn: []string{"udp"},
 	})
-	// ---- P4a：tftp（udp 终结层，配置经 FlowMeta 直传生成器——协议字段
-	// 繁多（mode/filename/blksize/error_code/server_tid...）不落层 config，
-	// ValidateLayerConfig 拒绝未知字段）。
+	// D-TFTP-1：tftp（udp 终结层；层 23 键对齐 core.TFTPConfig json
+	// 标签——键名=标签名。data_payload_pattern 实测为 hex 字符串
+	// （getByteSlice 原样字节）→ string；retransmit_blocks → list；
+	// 其余按 Go 类型：uint16/uint32/bool/*bool（*bool 无范围，显式
+	// 0=false/缺席=nil 语义走翻译侧 getBoolPtr）。
 	r.Register(LayerSchema{Name: "tftp", Category: CategoryTerminal,
 		DependsOn: []string{"udp"},
+		Fields: map[string]FieldSchema{
+			"mode":                       {Type: "string", Default: ""},
+			"filename":                   {Type: "string", Default: ""},
+			"transfer_mode":              {Type: "string", Default: ""},
+			"blksize":                    {Type: "uint16", Default: uint16(0), Min: 0, Max: 65464},
+			"timeout":                    {Type: "uint8", Default: uint8(0), Min: 0, Max: 255},
+			"client_tsize":               {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
+			"server_tsize":               {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
+			"server_tid":                 {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
+			"error_code":                 {Type: "uint8", Default: uint8(0), Min: 0, Max: 255},
+			"error_msg":                  {Type: "string", Default: ""},
+			"error_after_block":          {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
+			"error_side":                 {Type: "string", Default: ""},
+			"blocks_count":               {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
+			"auto_append_final_block":    {Type: "bool"},
+			"final_block_zero":           {Type: "bool", Default: false},
+			"wrap_block_number":          {Type: "bool", Default: false},
+			"data_payload_pattern":       {Type: "string", Default: ""},
+			"include_oack":               {Type: "bool", Default: false},
+			"retransmit_blocks":          {Type: "list", Default: []interface{}{}},
+			"server_tid_change":          {Type: "bool", Default: false},
+			"server_tid_change_at_block": {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
+			"server_tid_new":             {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
+			"windowsize":                 {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
+		},
 	})
 	// ---- P4a：enip（tcp 终结层，首个 tcp 载体协议。ENIP 命令即数据段
 	// （无握手/终止），TCP 语义（握手/seq-ack/挥手）交给 tcp 层生成器；

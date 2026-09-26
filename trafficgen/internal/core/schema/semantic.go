@@ -439,13 +439,28 @@ func checkStaticCopy(config map[string]any) string {
 
 // checkTFTPServerTID mirrors the handler batch rule: a pinned server_tid
 // collides when one strategy fans out to more than one flow.
+// D-TFTP-1：层链形读 layers[] 末位 tftp 层 config（flat 形读顶层 tftp
+// 子映射——迁层后纯层链形是唯一真相，双面兼容防静默失效）。
 func checkTFTPServerTID(config map[string]any, flows float64) string {
 	if int(flows) <= 1 {
 		return ""
 	}
 	sub, ok := config["tftp"].(map[string]any)
 	if !ok {
-		return ""
+		// 层链形：顶层 tftp 子映射已被 CheckProtoFlat 判死，server_tid
+		// 真相住 layers[] 的 tftp 层。
+		if arr, ok := config["layers"].([]any); ok {
+			for _, item := range arr {
+				layer, _ := item.(map[string]any)
+				if tcfg, _ := layer["tftp"].(map[string]any); tcfg != nil {
+					sub = tcfg
+					break
+				}
+			}
+		}
+		if sub == nil {
+			return ""
+		}
 	}
 	tv, ok := sub["server_tid"]
 	if !ok {

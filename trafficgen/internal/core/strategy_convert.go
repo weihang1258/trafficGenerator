@@ -404,6 +404,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-TFTP-1：tftp 在库旧策略顶层 tftp → ValidationErrors（sstp 同款；
+	// 空 map 也死——契约 §13-P2 判死形状「层链+顶层空子映射并存」wired 面）。
+	if protocol == "tftp" {
+		if v, ok := cfg["tftp"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-HL7-1：hl7 在库旧策略顶层 hl7 → ValidationErrors（megaco 同款；
 	// 在库 0 行纯防御）。
 	if protocol == "hl7" {
@@ -8414,6 +8421,14 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "sstp" {
 		if v, ok := cfg["sstp"]; ok && v != nil {
 			return "protocol sstp no longer accepts a top-level sstp sub-config (move it into the sstp layer of an [ip,tcp,tls,sstp] layers chain; the layer chain is the only config truth)"
+		}
+	}
+	// D-TFTP-1：tftp 顶层 tftp 子映射 presence 判死（sstp 先例；空 map 也
+	// 死——契约 §13-P2 点名形状「层链+顶层空子映射并存=判死负例」）。
+	// 层链形状不触发。
+	if protocol == "tftp" {
+		if v, ok := cfg["tftp"]; ok && v != nil {
+			return "protocol tftp no longer accepts a top-level tftp sub-config (move it into the tftp layer of an [ip,udp,tftp] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-IMAP-1：imap 顶层 imap 子映射 presence 判死（pop3 先例；空 map 也
