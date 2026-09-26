@@ -202,11 +202,11 @@ P-SMB 直接 NTLM 与 SPNEGO 包装分别计为不同 fixture；P-HTTP 的 `WWW-
 | `ntlm_neg_v2_blob_av_pairs` | proof/blob 长度错误、AV_PAIR 越界/缺 EOL/重复非法 | `response`、`blob` 或 `av` |
 | `ntlm_neg_carrier_profile` | SMB/HTTP 混用、非 TCP 载体、错误端口、SPNEGO 边界错误 | `carrier`、`profile`、`spnego` 或 `transport` |
 
-## 11. 20 个语义场景和 packet_count 映射
+## 11. 21 个语义场景和 packet_count 映射
 
-共 20 个唯一语义 ID：14 个正例、6 个负例；顺序必须与 `60-ntlm-testcase.md` §2 及未来注册后的 `ntlm.json` 完全一致。当前 JSON 只有不计数的注册前置占位。
+共 21 个唯一语义 ID：15 个正例、6 个负例；顺序必须与 `60-ntlm-testcase.md` §2 及注册后的 `ntlm.json` 完全一致。注册前置占位 `ntlm_neg_unregistered` 已随注册移除。
 
-| # | ID | 类型 | 覆盖 | 约定 packet_count |
+| # | ID | 类型 | 覆盖 | packet_count（P5 实测回修） |
 |---:|---|---|---|---:|
 | 1 | `ntlm_smb_ipv4_v2_basic` | 正 | P-SMB TCP/445、IPv4、Type 1→2→3、NTLMv2 成功 | 11 |
 | 2 | `ntlm_smb_ipv6_v2_basic` | 正 | P-SMB TCP/445、IPv6 独立地址族和会话 | 11 |
@@ -218,16 +218,17 @@ P-SMB 直接 NTLM 与 SPNEGO 包装分别计为不同 fixture；P-HTTP 的 `WWW-
 | 8 | `ntlm_mic_session_key_opaque` | 正 | MIC/session key 加密边界与无密钥 opaque 证据 | 11 |
 | 9 | `ntlm_spnego_outer_separation` | 正 | HTTP 或 SMB 的 SPNEGO 外层与 NTLMSSP 内层隔离 | 11 |
 | 10 | `ntlm_multi_session_isolation` | 正 | 多会话 challenge、blob、retry、结果独立 | 15 |
-| 11 | `ntlm_multi_flow_streams` | 正 | 多 TCP stream/方向和 segmentation 后重组 | 15 |
+| 11 | `ntlm_multi_flow_streams` | 正 | 多 TCP stream/方向和 segmentation 后重组 | 17 |
 | 12 | `ntlm_retry_auth_failure` | 正 | challenge 重试、最终 STATUS_LOGON_FAILURE/HTTP 401 | 13 |
 | 13 | `ntlm_record_boundary_offsets` | 正 | 最小/最大附近 token、SecurityBuffer 边界和分段 | 15 |
 | 14 | `ntlm_pcap_nic_consistency` | 正 | PCAP/NIC carrier、方向、端口和 token 长度一致 | 11 |
-| 15 | `ntlm_neg_message_truncated` | 负 | 通用头或三类消息固定字段截断 | — |
-| 16 | `ntlm_neg_security_buffer` | 负 | SecurityBuffer 长度/编码/承载不合法 | — |
-| 17 | `ntlm_neg_offsets_overlap_overflow` | 负 | offset 越界、溢出或字段重叠 | — |
-| 18 | `ntlm_neg_flags_target_info` | 负 | flags/TargetInfo 协商不一致 | — |
-| 19 | `ntlm_neg_v2_blob_av_pairs` | 负 | NTLMv2 response/blob/AV_PAIR 不合法 | — |
-| 20 | `ntlm_neg_carrier_profile` | 负 | SMB/HTTP/SPNEGO/TCP profile 载体错误 | — |
+| 15 | `ntlm_http_negotiate_v6` | 正 | IPv6×HTTP 格（地址族对称补齐，A′ 补例 T-21） | 11 |
+| 16 | `ntlm_neg_message_truncated` | 负 | 通用头或三类消息固定字段截断 | — |
+| 17 | `ntlm_neg_security_buffer` | 负 | SecurityBuffer 长度/编码/承载不合法 | — |
+| 18 | `ntlm_neg_offsets_overlap_overflow` | 负 | offset 越界、溢出或字段重叠 | — |
+| 19 | `ntlm_neg_flags_target_info` | 负 | flags/TargetInfo 协商不一致 | — |
+| 20 | `ntlm_neg_v2_blob_av_pairs` | 负 | NTLMv2 response/blob/AV_PAIR 不合法 | — |
+| 21 | `ntlm_neg_carrier_profile` | 负 | SMB/HTTP/SPNEGO/TCP profile 载体错误 | — |
 
 ## 12. PCAP/NIC 观察与实现完成定义
 
@@ -237,7 +238,7 @@ PCAP 正例必须断言 profile、TCP 端口、方向、TCP stream、NTLMSSP sig
 
 完成定义：注册 `ntlm` layer；逐字段验证三消息固定布局、little-endian security buffer、32-bit offset overflow、flags/TargetInfo、NTLMv2 blob/AV_PAIR、SPNEGO separation 和 SMB/HTTP 双 profile；planner→worker→TCP output 完整路径能传播正负结果；-race 和集成测试覆盖多会话/多流、重试/失败；未授权密钥下没有伪造 proof、MIC 或 session key。
 
-三方契约必须保持本文 §11、`60-ntlm-testcase.md` §2、未来 `ntlm.json` 同一组 20 个语义 ID、同一顺序、14 正例+6 负例；当前 JSON 另有一个不计数的 `ntlm_neg_unregistered`，且唯一预期为 `unknown layer`。
+三方契约必须保持本文 §11、`60-ntlm-testcase.md` §2、`ntlm.json` 同一组 21 个语义 ID、同一顺序、15 正例+6 负例。
 
 ## 13. 修订记录
 
@@ -466,7 +467,7 @@ PCAP 正例必须断言 profile、TCP 端口、方向、TCP stream、NTLMSSP sig
 | internal/core/ntlm.go（NEW） | NTLMConfig/Session/Event/Flags/TargetInfo 结构 + 严格 UnmarshalJSON（递归 DisallowUnknownFields）+ 6 wire_fault 常量与 DescribeNTLMWireFault 锚词表（kerberos.go/dtls.go 同范式） |
 | internal/protocol/ntlm/builder.go（NEW） | 三消息 builder（固定头 + SecurityBuffer `Len\|MaxLen\|Offset` 三元组 + flags 位域 + AV_PAIR 序列 + 可选 Version/MIC + NTLMv2 blob）+ 双 profile 成帧（`smb2`：SMB2 header(64B)+SESSION_SETUP body+SecurityBuffer；`http-negotiate`：请求行/状态行+`WWW-Authenticate`/`Authorization` 头+base64）+ SPNEGO 外层（`none`/`spnego` 独立编码）+ ntlmWalker 会话状态单权威 + init() 注册 generator/validator |
 | internal/protocol/ntlm/planner.go（NEW） | validateSpec/validateSession（walk renderEvent 同路径单权威）+ validateWireFault + 结构守卫（`Offset+Len` 32-bit 溢出/越界/重叠、UTF-16 偶数长度、`Len<=MaxLen`、flags 交集一致、AV_PAIR 的 `AvLen` 覆盖与 `MsvAvEOL` 收尾、blob 不超 NtChallengeResponse.Len）+ presence/白名单预检 |
-| internal/protocol/ntlm/casegen_test.go（NEW） | 一次性生成器：20 例（14 正+6 负）契约计数逐例 add()，落 test/protocol_pcap/cases/ntlm.json |
+| internal/protocol/ntlm/casegen_test.go（NEW） | 一次性生成器：21 例（15 正+6 负）契约计数逐例 add()，落 test/protocol_pcap/cases/ntlm.json |
 | 接线件 | types.go `NTLM *NTLMConfig`（对照 `DTLS/Kerberos` 字段 :1818-1819）；FlowMeta.NTLM；translate `case "ntlm"` + **Meta 字面量 `NTLM: spec.NTLM` 直传**（固定检查点——dcerpc/dtls/kerberos 三犯处，链级红例必钉）；strategy_convert `case "ntlm"` + 端口默认（`smb2`→445、`http-negotiate`→80；`setDefaultDstPort` 在 `strategy_convert_helpers.go:41`，按 profile 分支或走 `chain_planner.go` 的 `setDefaultDstPort` 同款 switch——smb 现成写法 `chain_planner.go:1119-1128`）；registry 行（裁定 N1）+ 无 FieldContract（端口按 profile 两档，`FieldContract` 常量形不适用，同 smb 无 FieldContract 先例 `registry.go:1028-1030`）；validate_layers 预检（缺 tcp 载体 / 链夹 udp / 混合地址族 / 顶层旧键-presence 并存拒 / profile↔外层层有无不一致拒）；`internal/core/protocols.go` allowedProtocols 增 `"ntlm"`（实测当前零命中，与 `_neg_unregistered` 用例的注册前置严格同步）；`cmd/server/main.go` 空白导入 + `NewChainPlanner("ntlm")`；`internal/core/layer_dyn.go` 动态字段接线（§16.12 清单）；schemagen 重跑（层数 123→124） |
 | tools/coverage_gate.py | check_ntlm（准入接线/关键件/守卫/用例面四段）+ 分发表增 `"ntlm": check_ntlm`（现表在 `:3045`，kerberos/dtls 为最新两项） |
 
@@ -482,7 +483,7 @@ PCAP 正例必须断言 profile、TCP 端口、方向、TCP stream、NTLMSSP sig
 ## 18. P3 测试对接清单（T-NTLM 草稿输入；正文落 testcase 文件）
 
 - §3.15 三项：①同连接/同流内多轮操作→#1/#2/#12（SMB2 同 TCP 连接 Type 1→2→3，含 3 轮「Type 3 后仍 MORE」）；②非正常结束→#12（最终 `LOGON_FAILURE`/401 拒，失败后不发 authenticated data）；载体会话中断形（服务端主动 FIN/RST mid-auth）→G-NTLM-5；③长保活→#11（分段/多流）+ A′ 补例 T-22（keep-alive 多认证事务）。逐项一例或立项，无空项。
-- A′/B′ 两分类表：见 testcase §8.2（A′ 四类要求面→20 ID 落点或 A′ 补例 T-21/T-22；B′=G-NTLM-1…6 进 D-NTLM-1「明确不解决+迁入计划」）。
+- A′/B′ 两分类表：见 testcase §8.2（A′ 四类要求面→21 ID 落点（含已并入的 T-21）；B′=G-NTLM-1…6 进 D-NTLM-1「明确不解决+迁入计划」）。
 - 9.52 对账两行：见 testcase §8.3（规范逻辑点总数 47 = §14.1 八项 8 行 + §14.2 矩阵 16 格 + §14.3 变体 23 行；用例覆盖数 40 + 不适用 2 + 台账内立项 5 = 47；清单出处=规范/官方文档反推）。台账粒度=行/格粒度，子面缺口（G-NTLM-1/2/3/4/6）另登 §19、不折进 47 点也不冒充覆盖。
 - 3.14 豁免边界审计：见 testcase §8.4（有长连接载体 → `sessions[]` 不豁免；多流并发 #10/#11 + 单消息多载荷 #5/#7 各至少一例）。
 - 三源回指行：见 testcase §8.5。

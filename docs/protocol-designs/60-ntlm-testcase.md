@@ -8,7 +8,7 @@
 
 ## 1. 测试原则和未注册边界
 
-用例从设计 §2–§12 逐项派生，共 20 个唯一语义 ID：14 个正例和 6 个负例。当前 JSON 只保留一个不计入语义覆盖的注册前置占位 `ntlm_neg_unregistered`，其 `expect` 必须为 `expect_error=true`、`error_contains="unknown layer"`；注册后移除占位，再按本文 §2 顺序加入 20 个语义用例。
+用例从设计 §2–§12 逐项派生，共 21 个唯一语义 ID：15 个正例和 6 个负例。原注册前置占位 `ntlm_neg_unregistered` 已随 `ntlm` 层注册移除（终审 scoped 复评 B2 修轮）。
 
 NTLMv2 必须显式选择 P-SMB 或 P-HTTP `Negotiate` profile。P-SMB 为 TCP/445 的 SMB2 Session Setup SecurityBuffer；P-HTTP 为 HTTP 401/407 challenge 与 Authorization/Proxy-Authorization token，可再选择 TLS。SPNEGO 外层 token 与 NTLMSSP 内层固定头分开验证。无授权密钥的 PCAP/NIC 只能断言固定头、类型、offset/length、flags、TargetInfo/AV_PAIR 边界及动态字段 presence/nonzero/same_as/长度；不能伪造 proof、MIC、时间戳、client challenge 或 session key 值。
 
@@ -28,16 +28,17 @@ NTLMv2 必须显式选择 P-SMB 或 P-HTTP `Negotiate` profile。P-SMB 为 TCP/4
 | 8 | `ntlm_mic_session_key_opaque` | 正 | MIC/session key 加密边界与无密钥 opaque 证据 | 11 |
 | 9 | `ntlm_spnego_outer_separation` | 正 | HTTP 或 SMB 的 SPNEGO 外层与 NTLMSSP 内层隔离 | 11 |
 | 10 | `ntlm_multi_session_isolation` | 正 | 多会话 challenge、blob、retry、结果独立 | 15 |
-| 11 | `ntlm_multi_flow_streams` | 正 | 多 TCP stream/方向和 segmentation 后重组 | 15 |
+| 11 | `ntlm_multi_flow_streams` | 正 | 多 TCP stream/方向和 segmentation 后重组 | 17 |
 | 12 | `ntlm_retry_auth_failure` | 正 | challenge 重试、最终 STATUS_LOGON_FAILURE/HTTP 401 | 13 |
 | 13 | `ntlm_record_boundary_offsets` | 正 | 最小/最大附近 token、SecurityBuffer 边界和分段 | 15 |
 | 14 | `ntlm_pcap_nic_consistency` | 正 | PCAP/NIC carrier、方向、端口和 token 长度一致 | 11 |
-| 15 | `ntlm_neg_message_truncated` | 负 | 通用头或三类消息固定字段截断 | — |
-| 16 | `ntlm_neg_security_buffer` | 负 | SecurityBuffer 长度/编码/承载不合法 | — |
-| 17 | `ntlm_neg_offsets_overlap_overflow` | 负 | offset 越界、溢出或字段重叠 | — |
-| 18 | `ntlm_neg_flags_target_info` | 负 | flags/TargetInfo 协商不一致 | — |
-| 19 | `ntlm_neg_v2_blob_av_pairs` | 负 | NTLMv2 response/blob/AV_PAIR 不合法 | — |
-| 20 | `ntlm_neg_carrier_profile` | 负 | SMB/HTTP/SPNEGO/TCP profile 载体错误 | — |
+| 15 | `ntlm_http_negotiate_v6` | 正 | IPv6×HTTP 格（地址族对称补齐，A′ 补例 T-21） | 11 |
+| 16 | `ntlm_neg_message_truncated` | 负 | 通用头或三类消息固定字段截断 | — |
+| 17 | `ntlm_neg_security_buffer` | 负 | SecurityBuffer 长度/编码/承载不合法 | — |
+| 18 | `ntlm_neg_offsets_overlap_overflow` | 负 | offset 越界、溢出或字段重叠 | — |
+| 19 | `ntlm_neg_flags_target_info` | 负 | flags/TargetInfo 协商不一致 | — |
+| 20 | `ntlm_neg_v2_blob_av_pairs` | 负 | NTLMv2 response/blob/AV_PAIR 不合法 | — |
+| 21 | `ntlm_neg_carrier_profile` | 负 | SMB/HTTP/SPNEGO/TCP profile 载体错误 | — |
 
 ## 3. 正例逐项断言契约
 
@@ -55,6 +56,7 @@ NTLMv2 必须显式选择 P-SMB 或 P-HTTP `Negotiate` profile。P-SMB 为 TCP/4
 12. **`ntlm_retry_auth_failure`**：覆盖 `STATUS_MORE_PROCESSING_REQUIRED`/HTTP 401 challenge 重试及最终 `STATUS_LOGON_FAILURE` 或 401 拒绝；重试不重复推进成功状态，失败后无 authenticated data/2xx，动态 challenge 使用 distinct/presence，`packet_count=13`。
 13. **`ntlm_record_boundary_offsets`**：覆盖 Type 1/2/3 最小合法头、Len=0 空字段和最大附近 token，断言 Offset+Len 不溢出且完全落在 token 内、UTF-16 长度为偶数、分段重组后长度一致，`packet_count=15`。
 14. **`ntlm_pcap_nic_consistency`**：同一 P-SMB 或 P-HTTP fixture 分别输出 PCAP 并在指定 NIC 捕获；两者断言 TCP profile 端口、方向、stream、NTLMSSP Type 和 token 长度一致。过滤器为 `tcp port 445` 或 `tcp port 80/443`，记录 checksum offload/TLS 加密边界，`packet_count=11`。
+15. **`ntlm_http_negotiate_v6`**（A′ 补例 T-21，终审 M2 修轮并入）：P-HTTP 明文形换用独立 IPv6 地址族（`2001:db8::60` 侧）/TCP/80，断言 IPv6 next-header、`WWW-Authenticate: Negotiate` 401 → Authorization Type 3 → 2xx 全序、双向 HTTP 消息，动态 token 只 presence/length，`packet_count=11`。
 
 ## 4. 负例契约
 
@@ -73,8 +75,8 @@ NTLMv2 必须显式选择 P-SMB 或 P-HTTP `Negotiate` profile。P-SMB 为 TCP/4
 
 ## 5. 三方一致性和静态检查
 
-1. 设计 §11、本文 §2、注册后的 JSON 和审计必须保持同一 20 个语义 ID、同一顺序；14 正例 + 6 负例，当前 JSON 另有一个 `ntlm_neg_unregistered` 占位。
-2. 未来 14 个正例均有 `packet_count`/`min_packets`、profile、方向和稳定 carrier/raw fields；6 个负例的 `expect` 只能有 `expect_error`、`error_contains`。当前未注册 JSON 只验证 placeholder（占位）结构。
+1. 设计 §11、本文 §2、注册后的 JSON 和审计必须保持同一 21 个语义 ID、同一顺序；15 正例 + 6 负例（`ntlm_neg_unregistered` 占位已随注册移除）。
+2. 15 个正例均有 `packet_count`/`min_packets`、profile、方向和稳定 carrier/raw fields；6 个负例的 `expect` 只能有 `expect_error`、`error_contains`。
 3. P-SMB 固定 TCP/445 + SMB2 Session Setup SecurityBuffer；P-HTTP 固定 HTTP 80/443 + Negotiate header；不能由端口猜 profile，也不能混用两种载体。
 4. Signature 为 8-byte `NTLMSSP\\0`，MessageType 为 little-endian 32-bit 1/2/3；SecurityBuffer 为 Len/MaxLen/Offset little-endian，Offset 相对 NTLMSSP 起点。
 5. `Offset+Len` 必须防 32-bit overflow、越界和重叠；Unicode field 长度为偶数；NT response 至少 16-byte proof + 完整 blob。
@@ -122,7 +124,7 @@ B′（引擎结构缺口 → D-NTLM-1「明确不解决 + 迁入计划」，见
 ### 8.3 9.52 对账两行 + 清单出处声明
 
 - 清单出处声明：本清单来源=**规范/官方文档反推**（MS-NLMP §2.2.1–§2.2.3、§2.2.2.1；MS-SMB2 §3.2.5.3/§3.3.5.2.4；RFC 4178；RFC 4559 §1/§4.2；RFC 2743），**非**引擎能力面反推（engine 侧仅作现状取证：`tshark -G fields` 实测 `ntlmssp.*` 147 字段 / `smb2.*` 533 / `spnego.*` 41；`smb` 层既有 NTLMSSP 实现 `emit_session.go:92-144`）。
-- 对账两行：**规范逻辑点总数 = 47**（design §14.1 八项 8 行 + §14.2 消息×载体终态矩阵 16 格 + §14.3 数据形态变体表 23 行）；**用例覆盖数 = 40**（八项 8 行落点 + 矩阵 10 格 + 变体 22 行，含 A′ 补例 **T-21=`ntlm_http_negotiate_v6` 已并入、非虚报**（终审 M2 修轮落盘）；另 **不适用 2 格**（三选一之一，非缺口）+ **B′ 立项 5 点**（G-NTLM-5 覆盖矩阵 4 格 + 变体 1 行）），40+2+5=47 无遗漏。反查 20/20 绿 ≠ 覆盖全；此对账为覆盖审计的有效口径。**台账粒度声明（防误读）**：47 点按 design §14 的行/格粒度计数（八项按行、矩阵按格、变体按行），即 §14.1 每行只计 1 点——该行下的子面缺口另登 design §19，**不折进 47 点**、也**不冒充覆盖**：G-NTLM-1/G-NTLM-2（链形不可达）、G-NTLM-3（与 smb 层权威重叠）、G-NTLM-4（现网抓包核对）、G-NTLM-6（NTLMv1/LM 方言面）四项为跨切面缺口；G-NTLM-5 为唯一落在台账内的立项（矩阵 4 格 + 变体 1 行）。
+- 对账两行：**规范逻辑点总数 = 47**（design §14.1 八项 8 行 + §14.2 消息×载体终态矩阵 16 格 + §14.3 数据形态变体表 23 行）；**用例覆盖数 = 40**（八项 8 行落点 + 矩阵 10 格 + 变体 22 行，含 A′ 补例 **T-21=`ntlm_http_negotiate_v6` 已并入、非虚报**（终审 M2 修轮落盘）；另 **不适用 2 格**（三选一之一，非缺口）+ **B′ 立项 5 点**（G-NTLM-5 覆盖矩阵 4 格 + 变体 1 行）），40+2+5=47 无遗漏。反查 21/21 绿 ≠ 覆盖全；此对账为覆盖审计的有效口径。**台账粒度声明（防误读）**：47 点按 design §14 的行/格粒度计数（八项按行、矩阵按格、变体按行），即 §14.1 每行只计 1 点——该行下的子面缺口另登 design §19，**不折进 47 点**、也**不冒充覆盖**：G-NTLM-1/G-NTLM-2（链形不可达）、G-NTLM-3（与 smb 层权威重叠）、G-NTLM-4（现网抓包核对）、G-NTLM-6（NTLMv1/LM 方言面）四项为跨切面缺口；G-NTLM-5 为唯一落在台账内的立项（矩阵 4 格 + 变体 1 行）。
 
 ### 8.4 3.14 豁免边界审计
 
@@ -130,8 +132,8 @@ B′（引擎结构缺口 → D-NTLM-1「明确不解决 + 迁入计划」，见
 
 ### 8.5 三源回指行
 
-MS-NLMP（三消息字段与 SecurityBuffer/AV_PAIR 语义）+ MS-SMB2 §3.2.5.3/§3.3.5.2.4（SESSION_SETUP 与 status trio）+ RFC 4178（SPNEGO 外层）/RFC 4559 §1/§4.2（HTTP Negotiate）/RFC 2743（GSS-API）→ D-NTLM-1（design §17）→ `test/protocol_pcap/cases/ntlm.json`（20 例）。ID 权威=本文 §2（14 正+6 负）；对账 20=14+6。
+MS-NLMP（三消息字段与 SecurityBuffer/AV_PAIR 语义）+ MS-SMB2 §3.2.5.3/§3.3.5.2.4（SESSION_SETUP 与 status trio）+ RFC 4178（SPNEGO 外层）/RFC 4559 §1/§4.2（HTTP Negotiate）/RFC 2743（GSS-API）→ D-NTLM-1（design §17）→ `test/protocol_pcap/cases/ntlm.json`（21 例）。ID 权威=本文 §2（15 正+6 负）；对账 21=15+6。
 
 ### 8.6 断言契约核对结论（与 design §11 一致）
 
-本文 §2 的 20 ID 与 design §11 逐 ID、逐序、逐类型核对一致：14 正 #1–#14 + 6 负 #15–#20，顺序相同，`packet_count` 约定值逐值相同（14/14/14/12/10/12/10/12/14/28/18/18/8/16）。存量审计（§9.14）：`ntlm_neg_unregistered` 注册前置占位随注册移除，**无存量语义用例**（当前 JSON 仅 1 例占位，实测 `spec_json.layers` 为 `[ip,tcp,ntlm]` 且带顶层 `src_ip/dst_ip/src_port/dst_port/ntlm` 五键=旧扁平形，注册时按 design §16.1 去向表改写为纯 layers 形）。断言通道：fields 用 `ntlmssp.*`（147 字段已实测：`ntlmssp.identifier`/`ntlmssp.messagetype`/`ntlmssp.negotiateflags`/`ntlmssp.negotiate.domain`/`ntlmserverchallenge`/`challenge.target_name`/`challenge.target_info.item.type`/`auth.username|domain|hostname|lmresponse|ntresponse|sesskey`/`string.length|maxlen|offset`/`ntlmv2_response.ntproofstr|time|chal`/`authenticate.mic`/`version.*`）+ 载体 `tcp.dstport`/`ip.proto`/`ipv6.nxt`/`smb2.security_blob`/`http.*`；固定头/offset/AV_PAIR 走 frames hex 钉；动态值用 presence/nonzero/distinct/same_as；不自创字段名。**未注册期纪律**：唯一 placeholder 的运行结果不得报告为 NTLM suite 通过。
+本文 §2 的 21 ID 与 design §11 逐 ID、逐序、逐类型核对一致：15 正 #1–#15 + 6 负 #16–#21，顺序相同，`packet_count` 约定值逐值相同（11/11/11/15/11/11/11/11/11/15/17/13/15/11/11）——P5 先跑后钉实测回修（#11 真分段 17；终审 M1 修轮）。存量审计（§9.14）：`ntlm_neg_unregistered` 注册前置占位已随注册移除，**无存量语义用例**。断言通道：fields 用 `ntlmssp.*`（147 字段已实测：`ntlmssp.identifier`/`ntlmssp.messagetype`/`ntlmssp.negotiateflags`/`ntlmssp.negotiate.domain`/`ntlmserverchallenge`/`challenge.target_name`/`challenge.target_info.item.type`/`auth.username|domain|hostname|lmresponse|ntresponse|sesskey`/`string.length|maxlen|offset`/`ntlmv2_response.ntproofstr|time|chal`/`authenticate.mic`/`version.*`）+ 载体 `tcp.dstport`/`ip.proto`/`ipv6.nxt`/`smb2.security_blob`/`http.*`；固定头/offset/AV_PAIR 走 frames hex 钉；动态值用 presence/nonzero/distinct/same_as；不自创字段名。**未注册期纪律**：唯一 placeholder 的运行结果不得报告为 NTLM suite 通过。

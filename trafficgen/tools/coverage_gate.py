@@ -3147,7 +3147,9 @@ def check_ntlm(cases):
     rows.append(("FlowSpec.NTLM 字段", re.search(r"NTLM\s+\*NTLMConfig", ty) is not None, "在案"))
     rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
     i_reg = rg.index('Name: "ntlm"')
-    reg_block = rg[i_reg:rg.index('Name: "cql"', i_reg)]
+    # 块窗口=下一个注册名（原写死 'Name: "cql"'，sstp 插入 ntlm/cql 之间后
+    # 窗口串入 sstp 块导致 FieldContract 误报；改为按下一个 Name 切）。
+    reg_block = rg[i_reg:rg.index('Name: "', i_reg + len('Name: "ntlm"'))]
     rows.append(("registry ntlm 行（裁定 N1：DependsOn tcp + OptionalOn http + TransportOn tcp）",
                  'DependsOn:   []string{"tcp"}' in reg_block
                  and 'OptionalOn:  []string{"http"}' in reg_block
@@ -3250,7 +3252,7 @@ def check_ntlm(cases):
         rows.append((f"守卫：{name}", anchor in pl or anchor in bl or anchor in nb, f"锚词 {anchor}"))
     rows.append(("守卫：未知 wire_fault 值拒", "unknown wire_fault kind" in nb, "在案"))
 
-    # 4. 用例面（20 例，ID 权威=60-ntlm-testcase.md §2）。
+    # 4. 用例面（21 例，ID 权威=60-ntlm-testcase.md §2）。
     idset = {c.get("id", "") for c in cases}
     for cid in [
         "ntlm_smb_ipv4_v2_basic", "ntlm_smb_ipv6_v2_basic",
@@ -3263,14 +3265,15 @@ def check_ntlm(cases):
         "ntlm_neg_message_truncated", "ntlm_neg_security_buffer",
         "ntlm_neg_offsets_overlap_overflow", "ntlm_neg_flags_target_info",
         "ntlm_neg_v2_blob_av_pairs", "ntlm_neg_carrier_profile",
+        "ntlm_http_negotiate_v6",
     ]:
         rows.append((f"用例在案：{cid}", cid in idset, "在案"))
     rows.append(("注册前置占位 ntlm_neg_unregistered 已移除",
                  "ntlm_neg_unregistered" not in idset, "已移除"))
-    rows.append(("用例总数 20（14 正+6 负）", len(cases) == 20, f"{len(cases)} 例"))
+    rows.append(("用例总数 21（15 正+6 负）", len(cases) == 21, f"{len(cases)} 例"))
     pos = [c for c in cases if "expect_error" not in (c.get("expect") or {})]
     neg = [c for c in cases if "expect_error" in (c.get("expect") or {})]
-    rows.append(("14 正 + 6 负", len(pos) == 14 and len(neg) == 6, f"{len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("15 正 + 6 负", len(pos) == 15 and len(neg) == 6, f"{len(pos)} 正 / {len(neg)} 负"))
     rows.append(("正例均带 packet_count", all((c.get("expect") or {}).get("packet_count") for c in pos), "全部在案"))
     bad_keys = [c.get("id") for c in neg
                 if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
