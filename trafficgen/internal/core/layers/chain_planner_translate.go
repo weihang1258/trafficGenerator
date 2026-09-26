@@ -145,7 +145,10 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// D-KERBEROS-1：kerberos 终结层同款（sessions[]/events[] 经 Meta
 		// 直传生成器；每事件 = 一消息 = 一 UDP datagram 或一 TCP record）。
 		Kerberos: spec.Kerberos,
-		CQL:      spec.CQL,
+		// D-OCSP-1：ocsp 终结层同款（sessions[]/transactions[] 经 Meta 直传
+		// 生成器；每事务 = request→response 两条消息 = HTTP 帧或整 DER）。
+		OCSP:  spec.OCSP,
+		CQL:   spec.CQL,
 		LDP:      spec.LDP,
 		PCEP:     spec.PCEP,
 		CFlow:    spec.CFlow,
@@ -2229,6 +2232,30 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.Kerberos = &kcfg
+	case "ocsp":
+		if spec.OCSP != nil {
+			return // flat 权威；二者并存时 flat 优先（dtls 同款——扁平入口
+			// 已由 CheckProtoFlat 判死，此处仅守 out-of-band 配置）
+		}
+		// D-OCSP-1：层 config 严格往返解码（OCSPConfig UnmarshalJSON——
+		// config 一级 DisallowUnknownFields；sessions/transactions/certs
+		// 为值切片，未知键在 config 层即拒）。
+		cfgO := completedConfig(s, term.Config)
+		rawO, err := json.Marshal(cfgO)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("ocsp layer config encode: %v", err))
+			return
+		}
+		var ocfg core.OCSPConfig
+		decO := json.NewDecoder(bytes.NewReader(rawO))
+		decO.DisallowUnknownFields()
+		if err := decO.Decode(&ocfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("ocsp layer config decode: %v", err))
+			return
+		}
+		spec.OCSP = &ocfg
 	case "ftp":
 		// 只在扁平路径确实携带了业务内容（sessions/banner/commands/data_channel）
 		// 时才跳过翻译。mapToFlowSpec 对协议 ftp 总会创建一个 FTPConfig

@@ -266,6 +266,14 @@ func isXMRChain(chain []Layer) bool {
 	return len(chain) > 0 && chain[len(chain)-1].Name == "xmrmining"
 }
 
+// isOCSPChain reports whether the chain's terminal layer is ocsp
+// (D-OCSP-1: [ip,]tcp[,http],ocsp 多会话 concurrent hook——多会话靠事件
+// SrcPort/DstPort 覆盖合成独立 connKey；concurrent=true 使 tcp 层按 key
+// 独立建连/恢复 seq/流末统一挥手。edp/xmr 同款)。
+func isOCSPChain(chain []Layer) bool {
+	return len(chain) > 0 && chain[len(chain)-1].Name == "ocsp"
+}
+
 func hasLayer(chain []Layer, name string) bool {
 	for _, l := range chain {
 		if l.Name == name {

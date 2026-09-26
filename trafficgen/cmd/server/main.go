@@ -95,6 +95,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/gnutella"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/hl7"      // init 注册 hl7 终结层生成器+校验器（D-HL7-1，HL7 v2.x MLLP/TCP-2575） // init 注册 megaco 终结层生成器+校验器（D-MEGACO-1，RFC 3525 文本编码）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/kerberos" // init 注册 kerberos 终结层生成器+校验器（D-KERBEROS-1，Kerberos V5 DER UDP/TCP-88）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ocsp" // init 注册 ocsp 终结层生成器+校验器（D-OCSP-1，RFC 6960/8954 OCSP TCP/HTTP-80）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/l2tp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ldap" // 空导入：ldap 包 init 注册层生成器 + 校验器（D-LDAP-1）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ldp"
@@ -520,6 +521,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("dcerpc"))    // D-DCERPC-1：DCE/RPC v5 over TCP（EPM 135+动态端口）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("dtls"))      // D-DTLS-1：DTLS records over UDP（4433 单载体）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("kerberos"))  // D-KERBEROS-1：Kerberos V5 DER（UDP/TCP 88 双载体）
+	app.engine.RegisterPlanner(layers.NewChainPlanner("ocsp"))      // D-OCSP-1：OCSP DER（TCP 载体 + 可选 http 层双 profile，HTTP-80）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("cql"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("someip"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("stun"))

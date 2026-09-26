@@ -412,6 +412,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-OCSP-1：ocsp 在库旧策略顶层 ocsp → ValidationErrors（mmse 同款；
+	// 在库 0 行纯防御——新协议无存量迁移面）。
+	if protocol == "ocsp" {
+		if v, ok := cfg["ocsp"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 
 	// D-FTP-3 §5: 扁平四键收动态对象（引擎直调路径，REST 形状层已先 400）→
 	// spec.ValidationErrors 拒绝并指路层字段，worker 预检终态 error，绝不
@@ -793,6 +800,18 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// KDC 标准端口 88（tshark 自动解码依赖；显式声明合法）。
 		setDefaultDstPort(&spec, cfg, 88)
+	case "ocsp":
+		// OCSP (RFC 6960/8954): TCP 载体 + 可选 http 层双 profile（D-OCSP-1）。
+		// Config in ocsp layer sub-map (authoritative); a top-level ocsp
+		// sub-map alongside layers is tolerated with silent flat-wins
+		// (translateTerminalConfig early-returns when spec.OCSP is already
+		// set). Strict decode via OCSPConfig UnmarshalJSON.
+		if sub, ok := cfg["ocsp"].(map[string]interface{}); ok {
+			parseSubconfigJSON[*OCSPConfig](&spec, sub, "ocsp", &spec.OCSP)
+		}
+		// OCSP 明文 HTTP 惯用端口 80（tshark 自动解码依赖；裸 TCP 8080
+		// fixture 与显式声明合法——D-OCSP-1 §8.7）。
+		setDefaultDstPort(&spec, cfg, 80)
 	case "sip":
 		if sub, ok := cfg["sip"].(map[string]interface{}); ok {
 			spec.SIP = &SIPConfig{
@@ -8333,6 +8352,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "mmse" {
 		if v, ok := cfg["mmse"]; ok && v != nil {
 			return "protocol mmse no longer accepts a top-level mmse sub-config (move it into the mmse layer of an [ip,tcp,http,mmse] layers chain; WAP-209 PDU config lives in the mmse layer)"
+		}
+	}
+	// D-OCSP-1：ocsp 顶层 ocsp 子映射 presence 判死（mmse 先例；空 map 也
+	// 死——新协议无扁平存量，配置迁 ocsp 层键，层链形状不触发）。
+	if protocol == "ocsp" {
+		if v, ok := cfg["ocsp"]; ok && v != nil {
+			return "protocol ocsp no longer accepts a top-level ocsp sub-config (move it into the ocsp layer of an [ip,tcp,http,ocsp] layers chain; RFC 6960/8954 OCSP config lives in the ocsp layer)"
 		}
 	}
 	// D-EDP-1：edp 顶层 edp 子映射 presence 判死（mmse 先例；空 map 也

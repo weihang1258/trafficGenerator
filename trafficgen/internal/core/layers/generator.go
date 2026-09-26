@@ -380,6 +380,7 @@ type FlowMeta struct {
 	DCERPC     *core.DCERPCConfig   // D-DCERPC-1：dcerpc 终结层（DCE/RPC v5 over TCP，EPM 135+动态端口）
 	DTLS       *core.DTLSConfig     // D-DTLS-1：dtls 终结层（DTLS 1.0/1.2 records over UDP，4433 单载体）
 	Kerberos   *core.KerberosConfig // D-KERBEROS-1：kerberos 终结层（Kerberos V5 DER，UDP/TCP 88 双载体）
+	OCSP       *core.OCSPConfig     // D-OCSP-1：ocsp 终结层（RFC 6960/8954 OCSP，tcp 载体 + 可选 http 层双 profile）
 	CQL        *core.CQLConfig
 	LDP        *core.LDPConfig
 	PCEP       *core.PCEPConfig

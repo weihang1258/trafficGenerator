@@ -1228,6 +1228,97 @@ def check_kerberos(cases):
     return rows
 
 
+def check_ocsp(cases):
+    """D-OCSP-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 ocsp", '"ocsp"' in pg and 'true' in pg.split('"ocsp"')[1][:12], "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 ocsp（已准入）", '"ocsp"' not in pt[i_neg:i_neg + 600], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case ocsp（严格解码）", 'case "ocsp":' in tr and "DisallowUnknownFields" in tr, "在案"))
+    rows.append(("FlowMeta.OCSP 直传（静默基线根修）", re.search(r"OCSP:\s+spec\.OCSP\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.OCSP", re.search(r"OCSP\s+\*core\.OCSPConfig", gen) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry ocsp 行 + tcp 80 契约",
+                 '"tcp.dst_port": "80"' in rg and '"ocsp"' in rg, "在案"))
+    rows.append(("registry 裁定1 依赖（DependsOn tcp + OptionalOn http + TransportOn tcp）",
+                 re.search(r'"ocsp".*?DependsOn:\s*\[\]string\{"tcp"\}.*?OptionalOn:\s*\[\]string\{"http"\}.*?TransportOn:\s*\[\]string\{"tcp"\}', rg, re.S) is not None, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    rows.append(("载体预检（缺 tcp 载体/http-profile 无 http 层/tcp-profile 有 http 层/混合族）",
+                 "missing tcp carrier" in vl and "http profile requires" in vl
+                 and "tcp profile requires" in vl and "mixed address family" in vl, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go ChainPlanner(ocsp) 接线", 'NewChainPlanner("ocsp")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("strategy_convert case ocsp + 80 缺省端口",
+                 'case "ocsp":' in sc and "setDefaultDstPort(&spec, cfg, 80)" in sc, "在案"))
+    hl = (tg / "internal" / "protocol" / "http" / "layer_gen.go").read_text()
+    rows.append(("http 层透传放行 ocsp（isHTTPRPCInner）",
+                 re.search(r"isHTTPRPCInner[\s\S]{0,600}meta\.OCSP != nil", hl) is not None, "在案"))
+
+    # 2. 行为面（DER 原语/builder/planner 关键件）。
+    oc = (tg / "internal" / "core" / "ocsp.go").read_text()
+    _i = oc.index("anchors := map[string]string{")
+    _seg = oc[_i:oc.index("\n\t}", _i)]
+    _n = len(re.findall(r"OCSPWireFault[A-Za-z0-9]+:", _seg))
+    rows.append(("wire_fault 闭环 6 值锚词表", _n == 6, f"{_n} 值"))
+    fl = (tg / "internal" / "protocol" / "ocsp" / "der.go").read_text()
+    for prim, name in [
+        ("func derLen", "DER definite-length 最短长形（短形/0x81/0x82）"),
+        ("func derInteger", "INTEGER 最小补码（正数补 00）"),
+        ("func derCtxExplicit", "[n] EXPLICIT 包装（响应槽——裁定1）"),
+        ("func derCtxImplicitPrim", "[n] IMPLICIT 基本型（CertStatus good/unknown）"),
+        ("func derCtxImplicitCons", "[n] IMPLICIT 构造型（revoked RevokedInfo 无内层 0x30）"),
+    ]:
+        rows.append((f"DER 原语：{name}", prim in fl, "在案"))
+    bl = (tg / "internal" / "protocol" / "ocsp" / "builder.go").read_text()
+    for prim, name in [
+        ("func renderCertID", "CertID hashAlgorithm+双 hash+serial"),
+        ("func algorithmIdentifier", "AlgorithmIdentifier（SHA-1 带 NULL / SHA-256 无参——RFC 8954 §2）"),
+        ("func extensions", "nonce 双层 OCTET STRING（RFC 6960 §4.4.1）"),
+        ("func renderCertStatus", "CertStatus 三分支 good[0]/revoked[1]/unknown[2]"),
+        ("func renderResponderID", "ResponderID byKey [2] EXPLICIT（RFC 6960 模块 EXPLICIT TAGS）"),
+        ("derCtxExplicit(2, derOctet(", "byKey 显式包 OCTET STRING（primitive 82 14 会令 dissector 中止）"),
+        ("func httpPostFrame", "A.1 POST 帧（Content-Type application/ocsp-request）"),
+        ("func httpGetFrame", "RFC 5019 GET 帧（base64url 无 padding URI）"),
+        ("func httpResponseFrame", "200/503 帧 + Retry-After（tryLater 重试）"),
+        ('"503 Service Unavailable"', "tryLater(3) → HTTP 503（不静默成功）"),
+    ]:
+        rows.append((f"关键件：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "ocsp" / "planner.go").read_text()
+    rows.append(("守卫：会话间端口一致性", "conflicts with earlier session dst_port" in pl, "在案"))
+    rows.append(("守卫：wire_fault 注入锚词出口", "negative-path injection rejected" in pl, "在案"))
+    rows.append(("守卫：算法↔hash 长度绑定", "(hash)" in bl and "hash length mismatch" in bl, "在案"))
+    rows.append(("守卫：request_count↔certs 长度匹配", "does not match request.certs length" in bl, "在案"))
+    rows.append(("守卫：version v1 DEFAULT 不编码（X.690 §11.5）", "*p.version == 0" in bl, "在案"))
+    gnt = (tg / "test" / "protocol_pcap" / "cases" / "ocsp.json")
+    rows.append(("用例文件在案", gnt.exists(), "在案"))
+
+    # 3. 用例面（20 例）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "ocsp_http_ipv4_request_response", "ocsp_http_ipv6_request_response",
+        "ocsp_tcp_record_framing", "ocsp_request_certid_sha1",
+        "ocsp_request_certid_sha256_rfc8954", "ocsp_batch_multi_request",
+        "ocsp_nonce_extension", "ocsp_signed_request",
+        "ocsp_basic_response_status", "ocsp_single_response_statuses",
+        "ocsp_response_signature_extensions", "ocsp_time_validity_windows",
+        "ocsp_multi_session_stream", "ocsp_pcap_nic_consistency",
+        "ocsp_neg_der_truncated", "ocsp_neg_certid_hash_length",
+        "ocsp_neg_request_response_mismatch", "ocsp_neg_nonce_extension",
+        "ocsp_neg_signature", "ocsp_neg_carrier_profile",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    rows.append(("用例总数 20（14 正+6 负）", len(cases) == 20, f"{len(cases)} 例"))
+    return rows
+
+
 CHECKS = {
     "smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
@@ -3042,7 +3133,7 @@ def check_dtls(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ocsp": check_ocsp}
 
 
 def main(argv):
