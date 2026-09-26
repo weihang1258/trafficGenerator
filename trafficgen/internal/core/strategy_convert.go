@@ -426,6 +426,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-AMQP-1：amqp 在库旧策略顶层 amqp → ValidationErrors（ocsp 同款；
+	// 在库 0 行纯防御——新协议无存量迁移面）。
+	if protocol == "amqp" {
+		if v, ok := cfg["amqp"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 
 	// D-FTP-3 §5: 扁平四键收动态对象（引擎直调路径，REST 形状层已先 400）→
 	// spec.ValidationErrors 拒绝并指路层字段，worker 预检终态 error，绝不
@@ -589,6 +596,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// AMQP (Advanced Message Queuing Protocol) 默认端口 5672.
 		// 仅当用户未指定 dst_port 时覆盖 — 与 DNS/FTP/SIP/RTSP 模式一致.
+		setDefaultDstPort(&spec, cfg, 5672)
 	case "http_flv":
 		if sub, ok := cfg["http_flv"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*HTTPFLVConfig](&spec, sub, "http_flv", &spec.HTTPFLV)
@@ -8397,6 +8405,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "ocsp" {
 		if v, ok := cfg["ocsp"]; ok && v != nil {
 			return "protocol ocsp no longer accepts a top-level ocsp sub-config (move it into the ocsp layer of an [ip,tcp,http,ocsp] layers chain; RFC 6960/8954 OCSP config lives in the ocsp layer)"
+		}
+	}
+	// D-AMQP-1：amqp 顶层 amqp 子映射 presence 判死（ocsp 先例；空 map 也
+	// 死——新协议无扁平存量，配置迁 amqp 层键，层链形状不触发）。
+	if protocol == "amqp" {
+		if v, ok := cfg["amqp"]; ok && v != nil {
+			return "protocol amqp no longer accepts a top-level amqp sub-config (move it into the amqp layer of an [ip,tcp,amqp] layers chain; AMQP 0-9-1 config lives in the amqp layer)"
 		}
 	}
 	// D-EDP-1：edp 顶层 edp 子映射 presence 判死（mmse 先例；空 map 也

@@ -2314,6 +2314,29 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.OCSP = &ocfg
+	case "amqp":
+		if spec.AMQP != nil {
+			return // flat 权威；二者并存时 flat 优先（ocsp 同款——扁平入口
+			// 已由 CheckProtoFlat 判死，此处仅守 out-of-band 配置）
+		}
+		// D-AMQP-1：层 config 严格往返解码（ocsp 同款——json 往返 +
+		// DisallowUnknownFields；未知键在 config 层即拒）。
+		cfgA := completedConfig(s, term.Config)
+		rawA, err := json.Marshal(cfgA)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("amqp layer config encode: %v", err))
+			return
+		}
+		var acfg core.AMQPConfig
+		decA := json.NewDecoder(bytes.NewReader(rawA))
+		decA.DisallowUnknownFields()
+		if err := decA.Decode(&acfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("amqp layer config decode: %v", err))
+			return
+		}
+		spec.AMQP = &acfg
 	case "ftp":
 		// 只在扁平路径确实携带了业务内容（sessions/banner/commands/data_channel）
 		// 时才跳过翻译。mapToFlowSpec 对协议 ftp 总会创建一个 FTPConfig

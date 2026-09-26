@@ -420,6 +420,40 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 		}
 	}
 
+	if protocol == "amqp" {
+		// D-AMQP-1：tcp 单载体预检（hl7/edp/xmrmining/ntlm 预检同构——
+		// DependsOn tcp 自动补全前拦，裸 amqp 层不被补全掩盖）。
+		//   - 链夹 udp → 拒（AMQP 只走 TCP，契约 §2；bacnet 镜像面）；
+		//   - 缺 tcp → 拒（[ip,amqp] 直连，dcerpc 同款）；
+		//   - ip 层 src/dst 混族 → 拒（dtls/bacnet/kerberos/ocsp 同面）。
+		// 锚词按契约 §9：carrier / family（§13-P2 四链级红例之二三）。
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			hasTCP := false
+			for _, item := range probe {
+				if _, ok := item["udp"]; ok {
+					return nil, fmt.Errorf("amqp chain: udp carrier is not supported — amqp rides tcp only (AMQP 0-9-1 over a TCP byte stream) (carrier)")
+				}
+				if _, ok := item["tcp"]; ok {
+					hasTCP = true
+				}
+				if rawIP, ok := item["ip"]; ok && len(rawIP) > 0 {
+					var ipcfg map[string]interface{}
+					if err := json.Unmarshal(rawIP, &ipcfg); err == nil {
+						srcA, _ := ipcfg["src"].(string)
+						dstA, _ := ipcfg["dst"].(string)
+						if srcA != "" && dstA != "" && strings.Contains(srcA, ":") != strings.Contains(dstA, ":") {
+							return nil, fmt.Errorf("amqp chain: mixed address family in ip layer (src %q / dst %q) — src and dst must be the same family (family)", srcA, dstA)
+						}
+					}
+				}
+			}
+			if !hasTCP {
+				return nil, fmt.Errorf("amqp chain: missing tcp carrier — amqp requires an [ip,tcp,amqp] chain (carrier)")
+			}
+		}
+	}
+
 	effective, err := ValidateLayers(layersJSON, protocol)
 	if err != nil {
 		return nil, err
