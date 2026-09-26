@@ -26,10 +26,15 @@ func TranslateSMBConfigFromMap(m map[string]interface{}) (*SMBConfig, error) {
 }
 
 // normalizeSMBLayerMap returns a copy of m where values that encoding/json
-// cannot decode into SMBConfig/SMBOperation (hex-string numerics, GUID hex
-// strings, raw-text data, base64 data_b64, byte-list security_blob) are
-// replaced by same-type placeholders, so smbLayerKeyCheck sees only key
-// presence. Value semantics come from parseSMBConfig, never from this copy.
+// cannot decode into SMBConfig/SMBOperation are replaced by same-type
+// placeholders, so smbLayerKeyCheck sees only key presence. Value semantics
+// come from parseSMBConfig, never from this copy. Placeholder policy: EVERY
+// key whose struct type is not string/bool is set to float64(0) — this covers
+// hex-string numerics, Go-typed registry defaults (uint32(0) etc. injected by
+// completedConfig for absent keys), and list-typed numerics whose element
+// type encoding/json cannot hit ([]uint16 from []interface{} etc.). String,
+// bool, and opaque-list keys (dialects/security_blob/operations) pass through
+// natively; operations[] items get per-item data/file_id placeholders.
 // tpos064 note: impersonation_level is a dead key (no SMBConfig field,
 // generator hardcodes 2) — dropped here so the strict gate passes; P5 drops
 // it from the case file with a notes entry.
@@ -40,18 +45,26 @@ func normalizeSMBLayerMap(m map[string]interface{}) map[string]interface{} {
 		if k == "impersonation_level" {
 			continue
 		}
-		out[k] = v
-	}
-	// hex-string numerics → 0 (number placeholder keeps key presence).
-	for _, k := range []string{"error_response_status", "previous_session_id"} {
-		if s, ok := out[k].(string); ok && len(s) > 0 {
-			out[k] = float64(0)
-		}
-	}
-	// GUID hex strings → empty array placeholder ([16]byte decodes arrays).
-	for _, k := range []string{"client_guid", "server_guid", "file_id"} {
-		if _, ok := out[k].(string); ok {
+		switch k {
+		case "transport", "selected_dialect",
+			"auth_mechanism", "username", "domain", "password",
+			"tree_connect_share", "file_path",
+			"error_on_command",
+			"signing_required", "encryption_required",
+			"include_negotiate", "include_auth", "include_tree_connect",
+			"include_teardown",
+			"dialects", "security_blob", "operations",
+			"preauth_integrity_hash_algorithms":
+			out[k] = v
+			continue
+		case "client_guid", "server_guid", "file_id":
+			// [16]byte struct fields: JSON strings (GUID hex) cannot
+			// decode into byte arrays — empty array placeholder keeps
+			// key presence, value truth is parseSMBConfig.
 			out[k] = []interface{}{}
+			continue
+		default:
+			out[k] = float64(0)
 		}
 	}
 	// security_blob byte list & data strings are natively decodable; data

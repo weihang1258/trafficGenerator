@@ -1,1 +1,594 @@
-[{"id": "probe_explicit_close", "proto": "smb", "summary": "probe: explicit close single close", "spec_json": {"src_ip": "10.0.0.100", "dst_ip": "10.0.0.1", "smb": {"operations": [{"op_type": "close"}]}}, "expect": {"packet_count": 24}}]
+[
+ {
+  "id": "probe_explicit_close",
+  "proto": "smb",
+  "summary": "probe: explicit single close, CLOSE exactly one pair",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "operations": [
+       {
+        "op_type": "close"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 25,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "445"
+    },
+    {
+     "packet": 16,
+     "field": "smb2.cmd",
+     "value": "6"
+    },
+    {
+     "packet": 17,
+     "field": "smb2.cmd",
+     "value": "6"
+    },
+    {
+     "packet": 17,
+     "field": "smb2.flags.response",
+     "value": "1"
+    },
+    {
+     "packet": 18,
+     "field": "smb2.cmd",
+     "value": "4"
+    },
+    {
+     "packet": 20,
+     "field": "smb2.cmd",
+     "value": "2"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 16,
+     "offset": 122,
+     "hex": "18 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 17,
+     "offset": 122,
+     "hex": "3c 00 00 00"
+    }
+   ],
+   "notes": [
+    "probe: target shape layers[].smb business keys; CLOSE exactly one pair (implicit suppressed)"
+   ]
+  }
+ },
+ {
+  "id": "probe_default_session",
+  "proto": "smb",
+  "summary": "probe: empty smb layer default session (default single read + implicit close)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {}
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 29,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "445"
+    },
+    {
+     "packet": 4,
+     "field": "smb2.cmd",
+     "value": "0"
+    },
+    {
+     "packet": 16,
+     "field": "smb2.cmd",
+     "value": "8"
+    },
+    {
+     "packet": 20,
+     "field": "smb2.cmd",
+     "value": "6"
+    }
+   ],
+   "notes": [
+    "probe: empty layer = default single-read session with implicit close backstop"
+   ]
+  }
+ },
+ {
+  "id": "probe_ops_multi_round",
+  "proto": "smb",
+  "summary": "probe: same-connection multi-round read,write,close",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "operations": [
+       {
+        "op_type": "read",
+        "offset": 0,
+        "length": 4096
+       },
+       {
+        "op_type": "write",
+        "offset": 0,
+        "data": "ABCDEFGHIJ"
+       },
+       {
+        "op_type": "close"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 31,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 16,
+     "field": "smb2.cmd",
+     "value": "8"
+    },
+    {
+     "packet": 20,
+     "field": "smb2.cmd",
+     "value": "9"
+    },
+    {
+     "packet": 22,
+     "field": "smb2.cmd",
+     "value": "6"
+    }
+   ],
+   "notes": [
+    "probe: cmd order 8,9,6 each one pair; msg_id monotonic"
+   ]
+  }
+ },
+ {
+  "id": "probe_error_on_close",
+  "proto": "smb",
+  "summary": "probe: error_on_command=close injected then teardown continues",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "operations": [
+       {
+        "op_type": "close"
+       }
+      ],
+      "error_on_command": "close",
+      "error_response_status": "0xC0000022"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 25,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 16,
+     "field": "smb2.cmd",
+     "value": "6"
+    },
+    {
+     "packet": 17,
+     "field": "smb2.cmd",
+     "value": "6"
+    },
+    {
+     "packet": 17,
+     "field": "smb2.nt_status",
+     "nonzero": true
+    },
+    {
+     "packet": 18,
+     "field": "smb2.cmd",
+     "value": "4"
+    },
+    {
+     "packet": 20,
+     "field": "smb2.cmd",
+     "value": "2"
+    }
+   ],
+   "notes": [
+    "probe: CLOSE pair exactly one; CLOSE resp nt_status nonzero; teardown intact"
+   ]
+  }
+ },
+ {
+  "id": "probe_echo_liveness",
+  "proto": "smb",
+  "summary": "probe: same-connection two ECHO rounds liveness",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "operations": [
+       {
+        "op_type": "echo"
+       },
+       {
+        "op_type": "echo"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 29,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 16,
+     "field": "smb2.cmd",
+     "value": "13"
+    },
+    {
+     "packet": 18,
+     "field": "smb2.cmd",
+     "value": "13"
+    }
+   ],
+   "notes": [
+    "probe: cmd 13 exactly two pairs; no second NEGOTIATE"
+   ]
+  }
+ },
+ {
+  "id": "probe_netbios_139",
+  "proto": "smb",
+  "summary": "probe: netbios transport on TCP 139",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 139
+     }
+    },
+    {
+     "smb": {
+      "transport": "netbios"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 29,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "139"
+    },
+    {
+     "packet": 4,
+     "field": "smb2.cmd",
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "00 00 00 b0"
+    }
+   ],
+   "notes": [
+    "probe: transport=netbios rides TCP 139"
+   ]
+  }
+ },
+ {
+  "id": "probe_ipv6_session",
+  "proto": "smb",
+  "summary": "probe: ipv6 carrier session",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "2001:db8::100",
+      "dst": "2001:db8::1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {}
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 29,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "ipv6.src",
+     "value": "2001:db8::100"
+    },
+    {
+     "packet": 4,
+     "field": "ipv6.dst",
+     "value": "2001:db8::1"
+    },
+    {
+     "packet": 4,
+     "field": "smb2.cmd",
+     "value": "0"
+    }
+   ],
+   "notes": [
+    "probe: ipv6 carrier independent fixture; same PDU order as ipv4"
+   ]
+  }
+ },
+ {
+  "id": "probe_multi_flow_dynamic",
+  "proto": "smb",
+  "summary": "probe: flows=2 with dynamic src_port",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": {
+       "strategy": "inc",
+       "range": [
+        40001,
+        40002
+       ],
+       "step": 1
+      }
+     }
+    },
+    {
+     "smb": {}
+    }
+   ],
+   "group_id": {
+    "strategy": "fixed",
+    "value": "smb-probe"
+   }
+  },
+  "expect": {
+   "packet_count": 58,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.srcport",
+     "value": "40001"
+    },
+    {
+     "packet": 30,
+     "field": "tcp.srcport",
+     "value": "40002"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "445"
+    }
+   ],
+   "notes": [
+    "probe: flows=2 dynamic src_port; per-flow sessions complete"
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  }
+ },
+ {
+  "id": "probe_neg_flat_keys",
+  "proto": "smb",
+  "summary": "probe neg: top-level flat keys rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {}
+    }
+   ],
+   "src_ip": "10.0.0.100"
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "no longer accepts flat config field src_ip"
+  }
+ },
+ {
+  "id": "probe_neg_layers_flat_mix",
+  "proto": "smb",
+  "summary": "probe neg: layers plus top-level src_port rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {}
+    }
+   ],
+   "src_port": 40001
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "config mixes layers with flat four-tuple field src_port"
+  }
+ },
+ {
+  "id": "probe_neg_static_copy",
+  "proto": "smb",
+  "summary": "probe neg: static four-tuple with flows>1 rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {}
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "layers pin a static four-tuple but flows > 1"
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  }
+ },
+ {
+  "id": "probe_pcap_nic_consistency",
+  "proto": "smb",
+  "summary": "PCAP/NIC carrier consistency: TCP/445 + SMB2 PDU order + direction + teardown count",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "operations": [
+       {
+        "op_type": "close"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 25,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "445"
+    },
+    {
+     "packet": 4,
+     "field": "smb2.cmd",
+     "value": "0"
+    },
+    {
+     "packet": 16,
+     "field": "smb2.cmd",
+     "value": "6"
+    }
+   ],
+   "notes": [
+    "NIC interface=netif:enp135s0f0np0; checksum offload \u4e0b NIC \u4fa7\u6821\u9a8c\u548c\u53ef\u80fd\u663e\u793a\u4e3a 0/\u975e\u6cd5\uff08\u8bb0\u5f55\u89c2\u5bdf\u8fb9\u754c\uff0c\u4e0d\u7b97\u5931\u8d25\uff09\u3002",
+    "PCAP \u4e0e NIC \u4e24\u4fa7\u65ad\u8a00\u540c\u4e00\u8f7d\u4f53\u53e3\u5f84\uff08sstp_pcap_nic_consistency \u540c\u6b3e\uff0cpcap-only \u843d\u76d8\uff0cNIC \u8def\u5916\u90e8\u7f16\u6392\uff09\u3002"
+   ]
+  }
+ }
+]

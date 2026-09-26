@@ -9,6 +9,8 @@ import (
 
 // P4 red-first: every stored smb sub-map must round-trip through the
 // layer-chain decoder identically to the flat truth (parseSMBConfig).
+// P5 layers shape: business config lives in spec_json.layers[].smb
+// (top-level smb is dead — presence guard rejects it).
 func TestTranslateSMBConfigMatchesFlat(t *testing.T) {
 	raw, err := os.ReadFile("../..//test/protocol_pcap/cases/smb.json")
 	if err != nil {
@@ -23,7 +25,21 @@ func TestTranslateSMBConfigMatchesFlat(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, c := range cases {
-		sm := c["spec_json"].(map[string]any)["smb"].(map[string]any)
+		sj, _ := c["spec_json"].(map[string]any)
+		var sm map[string]any
+		if lys, ok := sj["layers"].([]any); ok {
+			for _, e := range lys {
+				if em, ok := e.(map[string]any); ok {
+					if s, ok := em["smb"].(map[string]any); ok {
+						sm = s
+					}
+				}
+			}
+		}
+		if sm == nil {
+			t.Errorf("%s: no layers[].smb found", c["id"])
+			continue
+		}
 		got, err := TranslateSMBConfigFromMap(sm)
 		if err != nil {
 			t.Errorf("%s: layer decode: %v", c["id"], err)

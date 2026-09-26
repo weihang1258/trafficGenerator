@@ -1134,6 +1134,10 @@ func buildDefaultRegistry() {
 			"include_auth":                      {Type: "bool", Default: true},
 			"include_tree_connect":              {Type: "bool", Default: true},
 			"include_teardown":                  {Type: "bool", Default: true},
+			"previous_session_id":               {Type: "string"},
+			"client_guid":                       {Type: "string"},
+			"server_guid":                       {Type: "string"},
+			"file_id":                           {Type: "string"},
 			"error_response_status":             {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
 			"error_on_command":                  {Type: "string", Default: ""},
 		}})

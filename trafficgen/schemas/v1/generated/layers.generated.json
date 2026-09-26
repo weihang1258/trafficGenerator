@@ -3120,6 +3120,9 @@
           "default": 0,
           "max": 4294967295
         },
+        "client_guid": {
+          "type": "string"
+        },
         "create_disposition": {
           "type": "uint8",
           "default": 0,
@@ -3160,6 +3163,9 @@
           "type": "uint32",
           "default": 0,
           "max": 4294967295
+        },
+        "file_id": {
+          "type": "string"
         },
         "file_path": {
           "type": "string",
@@ -3208,6 +3214,9 @@
           "type": "list",
           "default": []
         },
+        "previous_session_id": {
+          "type": "string"
+        },
         "security_blob": {
           "type": "list",
           "default": []
@@ -3225,6 +3234,9 @@
           "type": "uint32",
           "default": 0,
           "max": 4294967295
+        },
+        "server_guid": {
+          "type": "string"
         },
         "share_access": {
           "type": "uint8",
