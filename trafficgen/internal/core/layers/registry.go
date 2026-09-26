@@ -820,6 +820,37 @@ func buildDefaultRegistry() {
 			"wire_fault": {Type: "string", Default: ""}, // 6 值枚举（契约 §2/§11）；""=无故障
 		},
 	})
+	// D-OCSP-1：ocsp 终结层双 profile（62-ocsp §11.4 裁定1——A 方案）：
+	// DependsOn ["tcp"]（裸 TCP 默认可达）+ OptionalOn ["http"]（0c355be 联
+	// 动：dependedOn 含 OptionalOn，"[ip,tcp,http,ocsp]" 与 "[ip,tcp,ocsp]"
+	// 双链可达——http 层用户显式写才启用）+ TransportOn ["tcp"]（L4 纯度）。
+	// FieldContract tcp.dst_port=80（tshark 自动解码依赖；裸 TCP 8080
+	// fixture 显式写端口）。
+	r.Register(LayerSchema{Name: "ocsp", Category: CategoryTerminal,
+		DependsOn:     []string{"tcp"},
+		OptionalOn:    []string{"http"}, // HTTP profile 用户显式写 http 层启用
+		TransportOn:   []string{"tcp"},  // L4 载体（http 是变换层，非载体）
+		FieldContract: map[string]string{"tcp.dst_port": "80"},
+		Fields: map[string]FieldSchema{
+			"profile":             {Type: "string", Default: ""}, // http-post/http-get/tcp；"" = 有 http 层→http-post，否则 tcp
+			"hash_algorithm":      {Type: "string", Default: ""}, // sha1（缺省）/sha256
+			"request_count":       {Type: "int", Default: 0, Min: 0, Max: 256},
+			"nonce":               {Type: "map", Default: map[string]interface{}{}},
+			"cert_status":         {Type: "string", Default: ""}, // good（缺省）/revoked/unknown
+			"signed_request":      {Type: "bool", Default: false},
+			"signature_algorithm": {Type: "string", Default: ""},
+			"version":             {Type: "int", Default: 0},
+			"certs":               {Type: "bool", Default: false},
+			"response_extensions": {Type: "bool", Default: false},
+			"single_extensions":   {Type: "bool", Default: false},
+			"responder_id":        {Type: "string", Default: ""}, // bykey（缺省）/byname
+			"produced_at":         {Type: "string", Default: ""},
+			"this_update":         {Type: "string", Default: ""},
+			"next_update":         {Type: "string", Default: ""},
+			"sessions":            {Type: "list", Default: []interface{}{}},
+			"wire_fault":          {Type: "string", Default: ""}, // 6 值枚举（62-ocsp §2 表）；""=无故障
+		},
+	})
 	r.Register(LayerSchema{Name: "cql", Category: CategoryTerminal, DependsOn: []string{"tcp"}})
 	r.Register(LayerSchema{Name: "iec104", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "2404"},

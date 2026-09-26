@@ -1,24 +1,1633 @@
 [
-  {
-    "id": "ocsp_neg_unregistered",
-    "proto": "ocsp",
-    "summary": "OCSP layer is not registered yet; reject at layer validation",
-    "spec_json": {
-      "layers": [
-        {"tcp": {}},
-        {"ocsp": {}}
-      ],
-      "src_ip": "192.0.2.62",
-      "dst_ip": "198.51.100.62",
-      "src_port": 42062,
-      "dst_port": 80
+ {
+  "id": "ocsp_http_ipv4_request_response",
+  "proto": "ocsp",
+  "summary": "HTTP POST/IPv4 单查询：DER OCSPRequest/OCSPResponse + content type",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "unknown layer",
-      "notes": [
-        "Design-only gate: ocsp is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove it and add the 14 positive and 6 negative semantic cases in testcase order."
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 42062
+     }
+    },
+    {
+     "http": {}
+    },
+    {
+     "ocsp": {
+      "sessions": [
+       {
+        "id": "s1",
+        "transactions": [
+         {
+          "id": "t1",
+          "request": {
+           "certs": [
+            {
+             "serial": "auto"
+            }
+           ]
+          }
+         }
+        ]
+       }
       ]
+     }
     }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ip.proto",
+     "packet": 1,
+     "value": "6"
+    },
+    {
+     "field": "tcp.dstport",
+     "packet": 1,
+     "value": "80"
+    },
+    {
+     "field": "http.request.method",
+     "packet": 4,
+     "value": "POST"
+    },
+    {
+     "field": "http.request.uri",
+     "packet": 4,
+     "value": "/"
+    },
+    {
+     "field": "http.content_type",
+     "packet": 4,
+     "value": "application/ocsp-request"
+    },
+    {
+     "field": "http.content_length",
+     "nonzero": true,
+     "packet": 4
+    },
+    {
+     "field": "ocsp.serialNumber",
+     "packet": 4,
+     "value": "10000000"
+    },
+    {
+     "field": "http.response.code",
+     "packet": 5,
+     "value": "200"
+    },
+    {
+     "field": "http.content_type",
+     "packet": 5,
+     "value": "application/ocsp-response"
+    },
+    {
+     "field": "ocsp.responseStatus",
+     "packet": 5,
+     "value": "0"
+    },
+    {
+     "field": "ocsp.responseType.id",
+     "packet": 5,
+     "value": "1.3.6.1.5.5.7.48.1.1"
+    },
+    {
+     "field": "ocsp.responses",
+     "packet": 5,
+     "value": "1"
+    },
+    {
+     "field": "ocsp.certStatus",
+     "packet": 5,
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "504F5354202F20485454502F312E310D0A486F73743A203139382E35312E3130302E36320D0A436F6E74656E742D547970653A206170706C69636174696F6E2F6F6373702D726571756573740D0A436F6E74656E742D4C656E6774683A2037310D0A436F6E6E656374696F6E3A20636C6F73650D0A0D0A304530433041303F303D300906052B0E03021A05000414111111111111111111111111111111111111111104142222222222222222222222222222222222222222020410000000",
+     "offset": 54,
+     "packet": 4
+    },
+    {
+     "hex": "485454502F312E3120323030204F4B0D0A436F6E74656E742D547970653A206170706C69636174696F6E2F6F6373702D726573706F6E73650D0A436F6E74656E742D4C656E6774683A203235380D0A436F6E6E656374696F6E3A20636C6F73650D0A0D0A3081FF0A0100A081F93081F606092B06010505073001010481E83081E5308192A21604143333333333333333333333333333333333333333180F32303236303932363132303030305A30673065303D300906052B0E03021A050004141111111111111111111111111111111111111111041422222222222222222222222222222222222222220204100000008000180F32303236303932363132303030305AA011180F32303236303932373132303030305A300B06092A864886F70D01010503410077777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777",
+     "offset": 54,
+     "packet": 5
+    }
+   ],
+   "notes": [
+    "契约 §8 约定 8；实测 9（tcp 层挥手恒 4 帧：3 握手 + 2 消息 + 4 挥手）；requestList 是 dissector 树节点不可过滤，请求面断言走 serialNumber"
+   ],
+   "packet_count": 9
   }
+ },
+ {
+  "id": "ocsp_http_ipv6_request_response",
+  "proto": "ocsp",
+  "summary": "HTTP POST/IPv6 独立 fixture：地址族/外层 DER 与响应",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "2001:db8:ffff::62",
+      "src": "2001:db8::62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 42062
+     }
+    },
+    {
+     "http": {}
+    },
+    {
+     "ocsp": {
+      "sessions": [
+       {
+        "id": "s1",
+        "transactions": [
+         {
+          "id": "t1",
+          "request": {
+           "certs": [
+            {
+             "serial": "auto"
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ipv6.nxt",
+     "packet": 1,
+     "value": "6"
+    },
+    {
+     "field": "tcp.dstport",
+     "packet": 1,
+     "value": "80"
+    },
+    {
+     "field": "http.request.method",
+     "packet": 4,
+     "value": "POST"
+    },
+    {
+     "field": "http.response.code",
+     "packet": 5,
+     "value": "200"
+    },
+    {
+     "field": "ocsp.responseStatus",
+     "packet": 5,
+     "value": "0"
+    },
+    {
+     "field": "ocsp.responseType.id",
+     "packet": 5,
+     "value": "1.3.6.1.5.5.7.48.1.1"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "504F5354202F20485454502F312E310D0A486F73743A20323030313A6462383A",
+     "offset": 74,
+     "packet": 4
+    },
+    {
+     "hex": "485454502F312E3120323030204F4B0D0A436F6E74656E742D547970653A2061",
+     "offset": 74,
+     "packet": 5
+    }
+   ],
+   "notes": [
+    "契约 §8 约定 8；实测 9（挥手 4 帧）"
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "ocsp_tcp_record_framing",
+  "proto": "ocsp",
+  "summary": "裸 TCP 整 DER：无私有长度前缀，响应 DER 跨 segment 按父长度重组",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 8080,
+      "mss": 536,
+      "src_port": 42062
+     }
+    },
+    {
+     "ocsp": {
+      "profile": "tcp",
+      "request_count": 6,
+      "sessions": [
+       {
+        "id": "s1",
+        "transactions": [
+         {
+          "id": "t1"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "tcp.dstport",
+     "packet": 1,
+     "value": "8080"
+    },
+    {
+     "field": "tcp.flags.syn",
+     "packet": 1,
+     "value": "1"
+    },
+    {
+     "field": "tcp.len",
+     "packet": 4,
+     "value": "402"
+    },
+    {
+     "field": "tcp.len",
+     "packet": 5,
+     "value": "536"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "3082018E3082018A30820186303F303D",
+     "offset": 54,
+     "packet": 4
+    },
+    {
+     "hex": "308203090A0100A0820302308202FE06092B0601050507300101048202EF3082",
+     "offset": 54,
+     "packet": 5
+    },
+    {
+     "hex": "22222222222222222222222222222222",
+     "offset": 54,
+     "packet": 6
+    }
+   ],
+   "notes": [
+    "契约 §8 约定 8；实测 10（响应 DER 跨 2 segment）——TCP 段边界不当作 OCSP 字段"
+   ],
+   "packet_count": 10
+  }
+ },
+ {
+  "id": "ocsp_request_certid_sha1",
+  "proto": "ocsp",
+  "summary": "SHA-1 CertID：OID 1.3.14.3.2.26 + 20B issuer hashes + 最短 INTEGER serial",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 42062
+     }
+    },
+    {
+     "http": {}
+    },
+    {
+     "ocsp": {
+      "sessions": [
+       {
+        "id": "s1",
+        "transactions": [
+         {
+          "id": "t1",
+          "request": {
+           "certs": [
+            {
+             "serial": "auto"
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "x509af.algorithm.id",
+     "packet": 4,
+     "value": "1.3.14.3.2.26"
+    },
+    {
+     "field": "ocsp.issuerNameHash",
+     "packet": 4,
+     "value": "1111111111111111111111111111111111111111"
+    },
+    {
+     "field": "ocsp.issuerKeyHash",
+     "packet": 4,
+     "value": "2222222222222222222222222222222222222222"
+    },
+    {
+     "field": "ocsp.serialNumber",
+     "packet": 4,
+     "value": "10000000"
+    },
+    {
+     "field": "ocsp.requestList",
+     "packet": 4,
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "504F5354202F20485454502F312E310D0A486F73743A203139382E35312E3130302E36320D0A436F6E74656E742D5479",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "notes": [
+    "契约 §8 约定 6；实测 9（HTTP 单事务 = 3+2+4）"
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "ocsp_request_certid_sha256_rfc8954",
+  "proto": "ocsp",
+  "summary": "RFC 8954 SHA-256 CertID：OID + 32B 双 hash（算法↔长度绑定）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 42062
+     }
+    },
+    {
+     "http": {}
+    },
+    {
+     "ocsp": {
+      "hash_algorithm": "sha256",
+      "sessions": [
+       {
+        "id": "s1",
+        "transactions": [
+         {
+          "id": "t1",
+          "request": {
+           "certs": [
+            {
+             "serial": "auto"
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "x509af.algorithm.id",
+     "packet": 4,
+     "value": "2.16.840.1.101.3.4.2.1"
+    },
+    {
+     "field": "ocsp.issuerNameHash",
+     "packet": 4,
+     "value": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+     "field": "ocsp.issuerKeyHash",
+     "packet": 4,
+     "value": "2222222222222222222222222222222222222222222222222222222222222222"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "504F5354202F20485454502F312E310D0A486F73743A203139382E35312E3130302E36320D0A436F6E74656E742D5479",
+     "offset": 54,
+     "packet": 4
+    }
+   ],
+   "notes": [
+    "契约 §8 约定 6；实测 9"
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "ocsp_batch_multi_request",
+  "proto": "ocsp",
+  "summary": "批量 requestList 3 项：线上顺序保留 + 逐项响应匹配",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 42062
+     }
+    },
+    {
+     "http": {}
+    },
+    {
+     "ocsp": {
+      "request_count": 3,
+      "sessions": [
+       {
+        "id": "s1",
+        "transactions": [
+         {
+          "id": "t1"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ocsp.requestList",
+     "packet": 4,
+     "value": "3"
+    },
+    {
+     "field": "ocsp.serialNumber",
+     "packet": 4,
+     "value": "10000000,10000001,10000002"
+    },
+    {
+     "field": "ocsp.responses",
+     "packet": 5,
+     "value": "3"
+    },
+    {
+     "field": "ocsp.serialNumber",
+     "packet": 5,
+     "value": "10000000,10000001,10000002"
+    },
+    {
+     "field": "ocsp.certStatus",
+     "packet": 5,
+     "value": "0,0,0"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "504F5354202F20485454502F312E310D0A486F73743A203139382E35312E3130302E36320D0A436F6E74656E742D5479",
+     "offset": 54,
+     "packet": 4
+    },
+    {
+     "hex": "485454502F312E3120323030204F4B0D0A436F6E74656E742D547970653A2061",
+     "offset": 54,
+     "packet": 5
+    }
+   ],
+   "notes": [
+    "契约 §8 约定 8；实测 9；serial 列表顺序 = 请求序（不去重/不重排）"
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "ocsp_nonce_extension",
+  "proto": "ocsp",
+  "summary": "nonce 扩展双层 OCTET STRING：请求/响应同值（same_as）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 42062
+     }
+    },
+    {
+     "http": {}
+    },
+    {
+     "ocsp": {
+      "nonce": {
+       "enabled": true,
+       "opaque": true
+      },
+      "response_extensions": true,
+      "sessions": [
+       {
+        "id": "s1",
+        "transactions": [
+         {
+          "id": "t1",
+          "request": {
+           "certs": [
+            {
+             "serial": "auto"
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ocsp.requestExtensions",
+     "packet": 4,
+     "value": "1"
+    },
+    {
+     "field": "ocsp.ReOcspNonce",
+     "nonzero": true,
+     "packet": 4
+    },
+    {
+     "field": "ocsp.responseExtensions",
+     "packet": 5,
+     "value": "1"
+    },
+    {
+     "field": "ocsp.ReOcspNonce",
+     "nonzero": true,
+     "packet": 5,
+     "same_as_packet": 4
+    }
+   ],
+   "frames": [
+    {
+     "hex": "504F5354202F20485454502F312E310D0A486F73743A203139382E35312E3130",
+     "offset": 54,
+     "packet": 4
+    },
+    {
+     "hex": "485454502F312E3120323030204F4B0D0A436F6E74656E742D547970653A2061",
+     "offset": 54,
+     "packet": 5
+    }
+   ],
+   "notes": [
+    "契约 §8 约定 6；实测 9；响应 nonce 与请求 same_as_packet（双层长度逐层计算）"
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "ocsp_signed_request",
+  "proto": "ocsp",
+  "summary": "签名请求：requestorName/optionalSignature/signatureAlgorithm/certs 结构面",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 42062
+     }
+    },
+    {
+     "http": {}
+    },
+    {
+     "ocsp": {
+      "certs": true,
+      "sessions": [
+       {
+        "id": "s1",
+        "transactions": [
+         {
+          "id": "t1",
+          "request": {
+           "certs": [
+            {
+             "serial": "auto"
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ],
+      "signed_request": true,
+      "version": 2
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ocsp.version",
+     "packet": 4,
+     "value": "2"
+    },
+    {
+     "field": "ocsp.requestorName",
+     "packet": 4,
+     "value": "1"
+    },
+    {
+     "field": "ocsp.optionalSignature_element",
+     "packet": 4,
+     "value": "1"
+    },
+    {
+     "field": "ocsp.certs",
+     "packet": 4,
+     "value": "1"
+    },
+    {
+     "field": "ocsp.signature",
+     "packet": 4,
+     "value": "77777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777"
+    },
+    {
+     "field": "ocsp.responseStatus",
+     "packet": 5,
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "504F5354202F20485454502F312E310D0A486F73743A203139382E35312E3130302E36320D0A436F6E74656E742D5479",
+     "offset": 54,
+     "packet": 4
+    },
+    {
+     "hex": "485454502F312E3120323030204F4B0D0A436F6E74656E742D547970653A2061",
+     "offset": 54,
+     "packet": 5
+    }
+   ],
+   "notes": [
+    "契约 §8 约定 8；实测 9；v1 DEFAULT 按 DER §11.5 恒省略，version=2 为显式非默认形；无 key 不宣称验证成功"
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "ocsp_basic_response_status",
+  "proto": "ocsp",
+  "summary": "responseStatus successful + ResponseBytes + BasicOCSPResponse（ResponderID byName）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 42062
+     }
+    },
+    {
+     "http": {}
+    },
+    {
+     "ocsp": {
+      "responder_id": "byname",
+      "sessions": [
+       {
+        "id": "s1",
+        "transactions": [
+         {
+          "id": "t1",
+          "request": {
+           "certs": [
+            {
+             "serial": "auto"
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ocsp.responseStatus",
+     "packet": 5,
+     "value": "0"
+    },
+    {
+     "field": "ocsp.responseBytes_element",
+     "packet": 5,
+     "value": "1"
+    },
+    {
+     "field": "ocsp.responseType.id",
+     "packet": 5,
+     "value": "1.3.6.1.5.5.7.48.1.1"
+    },
+    {
+     "field": "ocsp.responderID",
+     "packet": 5,
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "485454502F312E3120323030204F4B0D0A436F6E74656E742D547970653A206170706C69636174696F6E2F6F6373702D",
+     "offset": 54,
+     "packet": 5
+    }
+   ],
+   "notes": [
+    "契约 §8 约定 8；实测 9；ResponderID 取 byName [1]（与 byKey [2] 不可互换）"
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "ocsp_single_response_statuses",
+  "proto": "ocsp",
+  "summary": "SingleResponse 三态：good[0]/revoked[1]+RevokedInfo/unknown[2] tag 面",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 42062
+     }
+    },
+    {
+     "http": {}
+    },
+    {
+     "ocsp": {
+      "sessions": [
+       {
+        "id": "s1",
+        "transactions": [
+         {
+          "id": "t1",
+          "request": {
+           "certs": [
+            {
+             "serial": "1",
+             "status": "good"
+            },
+            {
+             "serial": "2",
+             "status": "revoked"
+            },
+            {
+             "serial": "3",
+             "status": "unknown"
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ocsp.responses",
+     "packet": 5,
+     "value": "3"
+    },
+    {
+     "field": "ocsp.certStatus",
+     "packet": 5,
+     "value": "0,1,2"
+    },
+    {
+     "field": "ocsp.revocationTime",
+     "packet": 5,
+     "value": "2026-09-20 10:00:00 (UTC)"
+    },
+    {
+     "field": "ocsp.revocationReason",
+     "packet": 5,
+     "value": "1"
+    },
+    {
+     "field": "ocsp.thisUpdate",
+     "packet": 5,
+     "value": "2026-09-26 12:00:00 (UTC),2026-09-26 12:00:00 (UTC),2026-09-26 12:00:00 (UTC)"
+    },
+    {
+     "field": "ocsp.nextUpdate",
+     "packet": 5,
+     "value": "2026-09-27 12:00:00 (UTC),2026-09-27 12:00:00 (UTC),2026-09-27 12:00:00 (UTC)"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "485454502F312E3120323030204F4B0D0A436F6E74656E742D547970653A206170706C69636174696F6E2F6F6373702D",
+     "offset": 54,
+     "packet": 5
+    }
+   ],
+   "notes": [
+    "契约 §8 约定 8；实测 9；certStatus 为 IMPLICIT choice tag（非字符串）"
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "ocsp_response_signature_extensions",
+  "proto": "ocsp",
+  "summary": "Basic signature/certs + ResponseData[1]/SingleResponse[1] 扩展槽",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 42062
+     }
+    },
+    {
+     "http": {}
+    },
+    {
+     "ocsp": {
+      "certs": true,
+      "nonce": {
+       "enabled": true
+      },
+      "response_extensions": true,
+      "sessions": [
+       {
+        "id": "s1",
+        "transactions": [
+         {
+          "id": "t1",
+          "request": {
+           "certs": [
+            {
+             "serial": "auto"
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ],
+      "single_extensions": true
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "x509af.algorithm.id",
+     "packet": 4,
+     "value": "1.3.14.3.2.26"
+    },
+    {
+     "field": "ocsp.signature",
+     "packet": 5,
+     "value": "77777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777"
+    },
+    {
+     "field": "ocsp.certs",
+     "packet": 5,
+     "value": "1"
+    },
+    {
+     "field": "ocsp.responseExtensions",
+     "packet": 5,
+     "value": "1"
+    },
+    {
+     "field": "ocsp.singleExtensions",
+     "packet": 5,
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "485454502F312E3120323030204F4B0D0A436F6E74656E742D547970653A206170706C69636174696F6E2F6F6373702D",
+     "offset": 54,
+     "packet": 5
+    }
+   ],
+   "notes": [
+    "契约 §8 约定 8；实测 9；signature/cert 值 opaque（确定性 fixture），只断言结构/长度"
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "ocsp_time_validity_windows",
+  "proto": "ocsp",
+  "summary": "时间窗：producedAt/thisUpdate 必需 + nextUpdate 可选 [0] EXPLICIT（缺省形）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 42062
+     }
+    },
+    {
+     "http": {}
+    },
+    {
+     "ocsp": {
+      "sessions": [
+       {
+        "id": "s1",
+        "transactions": [
+         {
+          "id": "t1",
+          "request": {
+           "certs": [
+            {
+             "serial": "1"
+            },
+            {
+             "next_update": "none",
+             "serial": "2"
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ocsp.producedAt",
+     "packet": 5,
+     "value": "2026-09-26 12:00:00 (UTC)"
+    },
+    {
+     "field": "ocsp.thisUpdate",
+     "packet": 5,
+     "value": "2026-09-26 12:00:00 (UTC),2026-09-26 12:00:00 (UTC)"
+    },
+    {
+     "field": "ocsp.nextUpdate",
+     "packet": 5,
+     "value": "2026-09-27 12:00:00 (UTC)"
+    },
+    {
+     "field": "ocsp.responses",
+     "packet": 5,
+     "value": "2"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "485454502F312E3120323030204F4B0D0A436F6E74656E742D547970653A206170706C69636174696F6E2F6F6373702D",
+     "offset": 54,
+     "packet": 5
+    }
+   ],
+   "notes": [
+    "契约 §8 约定 6；实测 9；nextUpdate 单值 = 第二项省略该 Optional 字段；nextUpdate 不早于 thisUpdate"
+   ],
+   "packet_count": 9
+  }
+ },
+ {
+  "id": "ocsp_multi_session_stream",
+  "proto": "ocsp",
+  "summary": "多会话/keep-alive：两 HTTP 会话交错回放 + tryLater(3)/503 重试分支 + nonce 隔离",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 42062
+     }
+    },
+    {
+     "http": {}
+    },
+    {
+     "ocsp": {
+      "nonce": {
+       "enabled": true
+      },
+      "sessions": [
+       {
+        "id": "s1",
+        "transactions": [
+         {
+          "id": "t1",
+          "request": {
+           "certs": [
+            {
+             "serial": "auto"
+            }
+           ]
+          }
+         },
+         {
+          "id": "t2",
+          "request": {
+           "certs": [
+            {
+             "serial": "auto"
+            },
+            {
+             "serial": "auto"
+            }
+           ]
+          }
+         },
+         {
+          "expect_status": "try_later",
+          "id": "t3"
+         }
+        ]
+       },
+       {
+        "id": "s2",
+        "src_port": 42063,
+        "transactions": [
+         {
+          "id": "t1",
+          "request": {
+           "certs": [
+            {
+             "serial": "auto"
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "distinct_exclude": [
+      "80"
+     ],
+     "distinct_values": [
+      "42062",
+      "42063"
+     ],
+     "field": "tcp.srcport",
+     "packet": 1
+    },
+    {
+     "field": "http.request.method",
+     "packet": 4,
+     "value": "POST"
+    },
+    {
+     "distinct_values": [
+      "120f19e8c2507c565b2acaf21691820a",
+      "eb3baa90c4607660ab620a0dde8b125f",
+      "c5663b38c671716afc994928a685a2b5",
+      "6288eec8692bdbec6cb9880b4a08706e"
+     ],
+     "field": "ocsp.ReOcspNonce",
+     "packet": 9
+    },
+    {
+     "field": "http.response.code",
+     "packet": 9,
+     "value": "503"
+    },
+    {
+     "field": "ocsp.responseStatus",
+     "packet": 9,
+     "value": "3"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "504F5354202F20485454502F312E310D0A486F73743A2031",
+     "offset": 54,
+     "packet": 4
+    },
+    {
+     "hex": "485454502F312E3120353033205365727669636520556E617661696C61626C65",
+     "offset": 54,
+     "packet": 9
+    }
+   ],
+   "notes": [
+    "契约 §8 约定 16；实测 22（s1 = 3+6+4、s2 = 3+2+4；会话数据先于挥手：s1 数据 4-9、s2 会话 10-14、双会话挥手殿后）；会话间 nonce distinct（4 值派生，tshark 小写 hex）；tryLater → HTTP 503 + Retry-After，不静默成功"
+   ],
+   "packet_count": 22
+  }
+ },
+ {
+  "id": "ocsp_pcap_nic_consistency",
+  "proto": "ocsp",
+  "summary": "PCAP/NIC 一致：POST + RFC 5019 GET base64url（无 padding）双会话 carrier 断言",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 42062
+     }
+    },
+    {
+     "http": {}
+    },
+    {
+     "ocsp": {
+      "sessions": [
+       {
+        "id": "s1",
+        "transactions": [
+         {
+          "id": "t1",
+          "request": {
+           "certs": [
+            {
+             "serial": "auto"
+            }
+           ]
+          }
+         }
+        ]
+       },
+       {
+        "id": "s2",
+        "profile": "http-get",
+        "src_port": 42063,
+        "transactions": [
+         {
+          "id": "t1",
+          "request": {
+           "certs": [
+            {
+             "serial": "auto"
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "fields": [
+    {
+     "field": "ip.proto",
+     "packet": 1,
+     "value": "6"
+    },
+    {
+     "field": "tcp.dstport",
+     "packet": 1,
+     "value": "80"
+    },
+    {
+     "field": "http.request.method",
+     "packet": 4,
+     "value": "POST"
+    },
+    {
+     "field": "ocsp.responseStatus",
+     "packet": 5,
+     "value": "0"
+    },
+    {
+     "field": "ocsp.responseType.id",
+     "packet": 5,
+     "value": "1.3.6.1.5.5.7.48.1.1"
+    },
+    {
+     "field": "http.request.method",
+     "packet": 9,
+     "value": "GET"
+    },
+    {
+     "field": "http.request.uri",
+     "packet": 9,
+     "value": "/MEUwQzBBMD8wPTAJBgUrDgMCGgUABBQREREREREREREREREREREREREREQQUIiIiIiIiIiIiIiIiIiIiIiIiIiICBBAAAQA"
+    },
+    {
+     "field": "http.response.code",
+     "packet": 10,
+     "value": "200"
+    },
+    {
+     "field": "ocsp.responseStatus",
+     "packet": 10,
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "hex": "504F5354202F20485454502F312E310D0A486F73743A203139382E35312E3130",
+     "offset": 54,
+     "packet": 4
+    },
+    {
+     "hex": "474554202F4D455577517A42424D4438775054414A4267557244674D43476755",
+     "offset": 54,
+     "packet": 9
+    },
+    {
+     "hex": "485454502F312E3120323030204F4B0D0A436F6E74656E742D547970653A2061",
+     "offset": 54,
+     "packet": 10
+    }
+   ],
+   "notes": [
+    "契约 §8 约定 12；实测 18（双会话：s1 数据 4-5、s2 会话 6-10、双会话挥手殿后；GET 会话独立四元组）；GET path 为 base64url 无 padding，URL 字符数不等于 DER 长度；NIC 路径复用同一断言集"
+   ],
+   "packet_count": 18
+  }
+ },
+ {
+  "id": "ocsp_neg_der_truncated",
+  "proto": "ocsp",
+  "summary": "DER 父/子 TLV 截断（wire_fault 注入）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 42062
+     }
+    },
+    {
+     "http": {}
+    },
+    {
+     "ocsp": {
+      "wire_fault": "der_truncated"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "der",
+   "expect_error": true,
+   "notes": [
+    "契约 §7 目标词 der/response/length；主锚词 der"
+   ]
+  }
+ },
+ {
+  "id": "ocsp_neg_certid_hash_length",
+  "proto": "ocsp",
+  "summary": "算法 OID 与 hash 长度不匹配（sha256 + 20B fixture）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 42062
+     }
+    },
+    {
+     "http": {}
+    },
+    {
+     "ocsp": {
+      "hash_algorithm": "sha256",
+      "sessions": [
+       {
+        "id": "s1",
+        "transactions": [
+         {
+          "id": "t1",
+          "request": {
+           "certs": [
+            {
+             "issuer_name_hash": "1111111111111111111111111111111111111111",
+             "serial": "auto"
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "hash",
+   "expect_error": true,
+   "notes": [
+    "契约 §7 目标词 certid/hash/algorithm；自然面守卫（算法↔长度绑定）"
+   ]
+  }
+ },
+ {
+  "id": "ocsp_neg_request_response_mismatch",
+  "proto": "ocsp",
+  "summary": "批量项不匹配（request_count 3 vs request.certs 2 项）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 42062
+     }
+    },
+    {
+     "http": {}
+    },
+    {
+     "ocsp": {
+      "request_count": 3,
+      "sessions": [
+       {
+        "id": "s1",
+        "transactions": [
+         {
+          "id": "t1",
+          "request": {
+           "certs": [
+            {
+             "serial": "auto"
+            },
+            {
+             "serial": "auto"
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "match",
+   "expect_error": true,
+   "notes": [
+    "契约 §7 目标词 match/certid/nonce；自然面守卫（批量项一致性）"
+   ]
+  }
+ },
+ {
+  "id": "ocsp_neg_nonce_extension",
+  "proto": "ocsp",
+  "summary": "nonce 双层 OCTET STRING 长度越界（40B \u003e 32B 上限）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 42062
+     }
+    },
+    {
+     "http": {}
+    },
+    {
+     "ocsp": {
+      "nonce": {
+       "enabled": true,
+       "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "nonce",
+   "expect_error": true,
+   "notes": [
+    "契约 §7 目标词 nonce/extension/length；自然面守卫（nonce 长度域）"
+   ]
+  }
+ },
+ {
+  "id": "ocsp_neg_signature",
+  "proto": "ocsp",
+  "summary": "签名算法名未知（signature_algorithm 结构错误）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 80,
+      "src_port": 42062
+     }
+    },
+    {
+     "http": {}
+    },
+    {
+     "ocsp": {
+      "signature_algorithm": "md5-with-nonexistent",
+      "signed_request": true
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "algorithm",
+   "expect_error": true,
+   "notes": [
+    "契约 §7 目标词 signature/algorithm/responder；自然面守卫（签名算法名域）"
+   ]
+  }
+ },
+ {
+  "id": "ocsp_neg_carrier_profile",
+  "proto": "ocsp",
+  "summary": "HTTP profile 与链载体不一致（http-post 但链无 http 层）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "dst": "198.51.100.62",
+      "src": "192.0.2.62"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 8080,
+      "src_port": 42062
+     }
+    },
+    {
+     "ocsp": {
+      "profile": "http-post",
+      "sessions": [
+       {
+        "id": "s1",
+        "transactions": [
+         {
+          "id": "t1"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "error_contains": "carrier",
+   "expect_error": true,
+   "notes": [
+    "契约 §7 目标词 carrier/http/tcp/profile；预检通道（profile↔http 层有无一致性）"
+   ]
+  }
+ }
 ]

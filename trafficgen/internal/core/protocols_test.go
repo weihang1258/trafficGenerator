@@ -27,7 +27,7 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		"hl7", "hls", "http", "http_flv", "icmp", "icmpv6", "iec104", "igmp", "ike",
 		"ike_nat_t", "imap", "isis", "jt808", "jt809", "jtt905", "kerberos", "l2tp",
 		"ldap", "ldp", "mcp", "mcpprotocol", "mdns", "megaco", "mms", "modbus",
-		"mongodb", "moxa", "mpls", "mqtt", "mysql", "nfs", "ngap", "ntp",
+		"mongodb", "moxa", "mpls", "mqtt", "mysql", "nfs", "ngap", "ntp", "ocsp",
 		"opcua", "openvpn", "ospf", "pcep", "pim", "pop3", "postgresql", "pppoe", "pptp",
 		"radius", "rdp", "redis", "replay", "rip", "rtmfp", "rtmp", "rtsp",
 		"s7", "sctp", "shadowsocks", "sip", "smb", "smtp", "snmp", "socks5",
@@ -112,7 +112,9 @@ func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 		// D-SSTP-1：sstp 已注册 layer/planner，摘出 negativeOnly（20 语义
 		// 用例 P5 落地，sstp_neg_unregistered 占位随之移除——契约 §1/§6）。
 		// mmse/edp 先例。
-		"ocsp", "spnego",
+		// D-OCSP-1：ocsp 已注册 layer/planner，摘出 negativeOnly
+		// （20 语义用例落地——契约 §1）。kerberos/dtls/dcerpc 先例。
+		"spnego",
 	}
 	for _, name := range negativeOnly {
 		if IsAllowedProtocol(name) {

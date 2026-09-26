@@ -2352,6 +2352,92 @@
       ],
       "fields": {}
     },
+    "ocsp": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "transport_on": [
+        "tcp"
+      ],
+      "optional_on": [
+        "http"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "80"
+      },
+      "fields": {
+        "cert_status": {
+          "type": "string",
+          "default": ""
+        },
+        "certs": {
+          "type": "bool",
+          "default": false
+        },
+        "hash_algorithm": {
+          "type": "string",
+          "default": ""
+        },
+        "next_update": {
+          "type": "string",
+          "default": ""
+        },
+        "nonce": {
+          "type": "map",
+          "default": {}
+        },
+        "produced_at": {
+          "type": "string",
+          "default": ""
+        },
+        "profile": {
+          "type": "string",
+          "default": ""
+        },
+        "request_count": {
+          "type": "int",
+          "default": 0,
+          "max": 256
+        },
+        "responder_id": {
+          "type": "string",
+          "default": ""
+        },
+        "response_extensions": {
+          "type": "bool",
+          "default": false
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "signature_algorithm": {
+          "type": "string",
+          "default": ""
+        },
+        "signed_request": {
+          "type": "bool",
+          "default": false
+        },
+        "single_extensions": {
+          "type": "bool",
+          "default": false
+        },
+        "this_update": {
+          "type": "string",
+          "default": ""
+        },
+        "version": {
+          "type": "int",
+          "default": 0
+        },
+        "wire_fault": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
     "onvif": {
       "category": "terminal",
       "depends_on": [

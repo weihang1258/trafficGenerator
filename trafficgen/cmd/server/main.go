@@ -95,8 +95,6 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/gnutella"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/hl7"      // init 注册 hl7 终结层生成器+校验器（D-HL7-1，HL7 v2.x MLLP/TCP-2575） // init 注册 megaco 终结层生成器+校验器（D-MEGACO-1，RFC 3525 文本编码）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/kerberos" // init 注册 kerberos 终结层生成器+校验器（D-KERBEROS-1，Kerberos V5 DER UDP/TCP-88）
-	_ "github.com/trafficgen/trafficgen/internal/protocol/ntlm"     // init 注册 ntlm 终结层生成器+校验器（D-NTLM-1，NTLMv2 三消息 TCP SMB2/HTTP Negotiate 双 profile）
-	_ "github.com/trafficgen/trafficgen/internal/protocol/sstp"     // init 注册 sstp 终结层生成器+校验器（D-SSTP-1，MS-SSTP over TLS/TCP-443）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/l2tp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ldap" // 空导入：ldap 包 init 注册层生成器 + 校验器（D-LDAP-1）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ldp"
@@ -110,8 +108,11 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/moxa"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mpls" // 空导入：mpls 包 init 注册层生成器 + 校验器（D-MPLS-1）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mqtt"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ntlm" // init 注册 ntlm 终结层生成器+校验器（D-NTLM-1，NTLMv2 三消息 TCP SMB2/HTTP Negotiate 双 profile）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/nvgre"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ocsp" // init 注册 ocsp 终结层生成器+校验器（D-OCSP-1，RFC 6960/8954 OCSP TCP/HTTP-80）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/openwire"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/sstp" // init 注册 sstp 终结层生成器+校验器（D-SSTP-1，MS-SSTP over TLS/TCP-443）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/swarm"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/vxlan"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/xmrmining" // init 注册 xmrmining 终结层生成器+校验器（D-XMR-1，Monero stratum/TCP-18081）
@@ -524,6 +525,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("kerberos"))  // D-KERBEROS-1：Kerberos V5 DER（UDP/TCP 88 双载体）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ntlm"))      // D-NTLM-1：NTLMv2 三消息（TCP 单载体，SMB2/HTTP Negotiate 自封帧）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("sstp"))      // D-SSTP-1：SSTP over TLS/TCP 443（tls 载体）
+	app.engine.RegisterPlanner(layers.NewChainPlanner("ocsp"))      // D-OCSP-1：OCSP DER（TCP 载体 + 可选 http 层双 profile，HTTP-80）
 	app.engine.RegisterPlanner(layers.NewChainPlanner("cql"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("someip"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("stun"))

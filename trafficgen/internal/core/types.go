@@ -1819,6 +1819,7 @@ type FlowSpec struct {
 	Kerberos    *KerberosConfig    `json:"kerberos,omitempty"`
 	NTLM        *NTLMConfig        `json:"ntlm,omitempty"`
 	SSTP        *SSTPConfig        `json:"sstp,omitempty"`
+	OCSP        *OCSPConfig        `json:"ocsp,omitempty"`
 	NTP         *NTPConfig         `json:"ntp,omitempty"`
 	OpenVPN     *OpenVPNConfig     `json:"openvpn,omitempty"`
 	PostgreSQL  *PostgreSQLConfig  `json:"postgresql,omitempty"`

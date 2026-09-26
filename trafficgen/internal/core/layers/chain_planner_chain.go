@@ -578,6 +578,14 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 					cfg["concurrent"] = true
 				}
 			}
+			// D-OCSP-1：ocsp 链并发会话语义（edp/xmr 同款）：sessions[] 多
+			// 会话靠事件 SrcPort/DstPort 覆盖合成独立 connKey；concurrent=true
+			// 使 tcp 层按 key 独立建连/恢复 seq/流末统一挥手——顺序挥旧握新
+			// 语义会把会话切换搅成 teardown+重握手（D-OCSP-1 §12.3 多会话
+			// 并发交错；并发会话断言以流内状态为准）。
+			if isOCSPChain(chain) && spec.OCSP != nil && len(spec.OCSP.Sessions) > 0 {
+				cfg["concurrent"] = true
+			}
 			// nmea 链会话级 termination:"rst" 翻译（69-nmea §5 正例 46）：
 			// 任一会话声明 rst 即切 tcp 层 RST 形态——rst=true 使
 			// TCPGenerator 以单帧 RST|ACK(up) 短路收尾（3+N+1），并关

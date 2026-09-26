@@ -354,6 +354,72 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 			}
 		}
 	}
+
+	if protocol == "ocsp" {
+		// D-OCSP-1：双 profile 预检（dcerpc/dtls/kerberos 预检同构——
+		// DependsOn tcp 自动补全前拦，裸 ocsp 层不被补全掩盖）。
+		// ① profile↔http 层有无一致性（§11.4 裁定1：http profile 要求 http
+		// 层在链、tcp profile 要求不在——nfs 链载体↔transport 同款结构性
+		// 校验，不一致同步拒）；②缺 http/tcp 双载体同面拒；③混合地址族同
+		// dtls/bacnet/kerberos 面。
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			hasHTTP, hasTCP := false, false
+			profiles := map[string]string{}
+			for _, item := range probe {
+				if _, ok := item["http"]; ok {
+					hasHTTP = true
+				}
+				if _, ok := item["tcp"]; ok {
+					hasTCP = true
+				}
+				if rawIP, ok := item["ip"]; ok && len(rawIP) > 0 {
+					var ipcfg map[string]interface{}
+					if err := json.Unmarshal(rawIP, &ipcfg); err == nil {
+						srcD, _ := ipcfg["src"].(string)
+						dstD, _ := ipcfg["dst"].(string)
+						if srcD != "" && dstD != "" && strings.Contains(srcD, ":") != strings.Contains(dstD, ":") {
+							return nil, fmt.Errorf("ocsp chain: mixed address family in ip layer (src %q / dst %q) — src and dst must be the same family (family)", srcD, dstD)
+						}
+					}
+				}
+				if rawO, ok := item["ocsp"]; ok && len(rawO) > 0 {
+					var ocfg struct {
+						Profile  string `json:"profile"`
+						Sessions []struct {
+							Profile string `json:"profile"`
+						} `json:"sessions"`
+					}
+					if json.Unmarshal(rawO, &ocfg) == nil {
+						if ocfg.Profile != "" {
+							profiles["ocsp"] = ocfg.Profile
+						}
+						for si, se := range ocfg.Sessions {
+							if se.Profile != "" {
+								profiles[fmt.Sprintf("sessions[%d]", si)] = se.Profile
+							}
+						}
+					}
+				}
+			}
+			if !hasTCP {
+				return nil, fmt.Errorf("ocsp chain: missing tcp carrier — ocsp requires an [ip,tcp,ocsp] or [ip,tcp,http,ocsp] chain (carrier)")
+			}
+			for where, prof := range profiles {
+				switch prof {
+				case "http-post", "http-get":
+					if !hasHTTP {
+						return nil, fmt.Errorf("ocsp chain: %s declares profile %q but no http layer in chain — http profile requires [ip,tcp,http,ocsp] (carrier)", where, prof)
+					}
+				case "tcp":
+					if hasHTTP {
+						return nil, fmt.Errorf("ocsp chain: %s declares profile %q but http layer present — tcp profile requires [ip,tcp,ocsp] without http (carrier)", where, prof)
+					}
+				}
+			}
+		}
+	}
+
 	effective, err := ValidateLayers(layersJSON, protocol)
 	if err != nil {
 		return nil, err

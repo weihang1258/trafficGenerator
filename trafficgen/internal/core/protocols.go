@@ -29,8 +29,9 @@ var allowedProtocols = map[string]bool{
 	// ntlm_neg_unregistered 随之移除——契约 §1）。与 _neg_unregistered
 	// 占位同批翻转：否则占位锚词由 unknown layer 漂移。
 	"ntlm": true,
-	"sstp":     true,
-	"dhcp":     true, "dhcpv6": true, "dnp3": true, "dns": true,
+	"sstp": true,
+	"ocsp": true,
+	"dhcp": true, "dhcpv6": true, "dnp3": true, "dns": true,
 	"doip": true, "drda": true, "edp": true, "enip": true, "fins": true, "xmrmining": true,
 	"ftp": true, "gbt32960": true, "goose": true, "gre": true,
 	"grpc": true, "gtp": true, "h323": true, "hds": true,
