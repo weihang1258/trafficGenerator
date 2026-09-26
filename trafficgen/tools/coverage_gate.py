@@ -1295,7 +1295,7 @@ def check_sstp(cases):
     rows.append(("守卫：会话 ID/TLS session 独立", "duplicates an earlier session" in pl, "在案"))
     rows.append(("守卫：wire_fault 注入锚词出口", "negative-path injection rejected" in pl, "在案"))
 
-    # 3. 用例面（20 例）。
+    # 3. 用例面（22 例）。
     ids = {c.get("id", "") for c in cases}
     for cid in [
         "sstp_https_tls_handshake", "sstp_call_connect_request",
@@ -1303,13 +1303,15 @@ def check_sstp(cases):
         "sstp_attribute_protocol_id", "sstp_attribute_status_crypto",
         "sstp_ppp_ipv4", "sstp_ppp_ipv6", "sstp_ppp_mppe_boundary",
         "sstp_multi_connection", "sstp_session_ordering",
-        "sstp_length_record_segmentation", "sstp_pcap_nic_consistency",
+        "sstp_length_record_segmentation", "sstp_call_connect_nak",
+        "sstp_group_coalesced_record",
+        "sstp_pcap_nic_consistency",
         "sstp_neg_header_length", "sstp_neg_attribute_length",
         "sstp_neg_state_transition", "sstp_neg_transport_carrier",
         "sstp_neg_ppp_framing", "sstp_neg_tls_boundary",
     ]:
         rows.append((f"用例在案：{cid}", cid in ids, "在案"))
-    rows.append(("用例总数 20（14 正+6 负）", len(cases) == 20, f"{len(cases)} 例"))
+    rows.append(("用例总数 22（16 正+6 负）", len(cases) == 22, f"{len(cases)} 例"))
     rows.append(("无 sstp_neg_unregistered 占位", "sstp_neg_unregistered" not in ids, "已移除"))
     return rows
 

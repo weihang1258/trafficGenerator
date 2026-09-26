@@ -44,7 +44,8 @@
       "has_handshake": true,
       "notes": [
         "证据红线：无解密密钥，只断言 TCP/443 + tls.record.* + frames hex（record 体内字节），不使用 sstp.*/ppp.* 字段。",
-        "packet_count 16 = 3 TCP 握手 + 7 TLS 握手 record + 2 application-data + 4 TCP 挥手。"
+        "packet_count 16 = 3 TCP 握手 + 7 TLS 握手 record + 2 application-data + 4 TCP 挥手。",
+        "首事务 expect:\"ack\" 声明成功分支，次事务为 ACK（builder.go walkSession 一致性守卫面，M2/m1 合并覆盖）。"
       ],
       "packet_count": 16,
       "terminates": true
@@ -82,6 +83,7 @@
                   }
                 ],
                 "direction": "c2s",
+                "expect": "ack",
                 "kind": "call_connect_request"
               },
               {
@@ -1425,6 +1427,234 @@
       ]
     },
     "summary": "SSTP Length 跨 TLS record/TCP segment：单 message 切多 record + 大帧跨 TCP 段"
+  },
+  {
+    "expect": {
+      "directional": true,
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "443"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 4,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 10,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.length",
+          "nonzero": true,
+          "packet": 11
+        }
+      ],
+      "frames": [
+        {
+          "hex": "10 01 00 14 00 03 00 01 00 02 00 0c 00 00 00 01 00 00 00 05",
+          "offset": 59,
+          "packet": 12
+        }
+      ],
+      "has_handshake": true,
+      "notes": [
+        "sessions[] 形（m2 面）：单会话 s1 + 独立 tls_session，planner 双权威/会话独立守卫走此形。",
+        "Status 0x00000005 = ATTRIB_STATUS_NO_DUPLICATE_IP_ADDRESSES（MS-SSTP §2.2.8 枚举，拒绝码）。",
+        "首事务 expect:\"nak\" 与次事务 NAK 一致（m1 面：builder.go walkSession 一致性守卫）；NAK 后禁一切由状态机守卫（终审 M2 面）。"
+      ],
+      "packet_count": 16,
+      "terminates": true
+    },
+    "id": "sstp_call_connect_nak",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "sessions": [
+              {
+                "id": "s1",
+                "tls_session": "tls-1",
+                "transactions": [
+                  {
+                    "attributes": [
+                      {
+                        "id": 1
+                      }
+                    ],
+                    "direction": "c2s",
+                    "expect": "nak",
+                    "kind": "call_connect_request"
+                  },
+                  {
+                    "attributes": [
+                      {
+                        "attrib_id": 1,
+                        "id": 2,
+                        "status": 5
+                      }
+                    ],
+                    "direction": "s2c",
+                    "kind": "call_connect_nak"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "CALL CONNECT NAK 拒绝路径（sessions[] 形）：REQUEST→NAK(Status Info) 后连接终止，禁 CONNECTED/PPP"
+  },
+  {
+    "expect": {
+      "directional": true,
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "packet": 1,
+          "value": "443"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 4,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.content_type",
+          "packet": 10,
+          "value": "22"
+        },
+        {
+          "field": "tls.record.length",
+          "nonzero": true,
+          "packet": 11
+        },
+        {
+          "field": "tls.record.length",
+          "packet": 14,
+          "value": "64"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "10 00 00 20 ff 03 00 21",
+          "offset": 59,
+          "packet": 14
+        },
+        {
+          "hex": "10 00 00 20 ff 03 00 21",
+          "offset": 91,
+          "packet": 14
+        }
+      ],
+      "has_handshake": true,
+      "notes": [
+        "m3 面：group=2 写在组首（本条与后一条同进一条 record）；两条 c2s PPP 同方向合并（跨方向合并走链级 (boundary) 负例）。",
+        "record 体由 frames hex 钉组首 message 边界（Length 0x0020）；组内第二条 message 边界由实现单测逐字节复算（chain_test group_merges_same_direction 同构）。"
+      ],
+      "packet_count": 18,
+      "terminates": true
+    },
+    "id": "sstp_group_coalesced_record",
+    "proto": "sstp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "198.51.100.57",
+            "src": "192.0.2.57"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 443,
+            "src_port": 45057
+          }
+        },
+        {
+          "tls": {
+            "role": "client",
+            "sni": "sstp.example.test",
+            "version": "tls1.3"
+          }
+        },
+        {
+          "sstp": {
+            "events": [
+              {
+                "attributes": [
+                  {
+                    "id": 1
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connect_request"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 4
+                  }
+                ],
+                "direction": "s2c",
+                "kind": "call_connect_ack"
+              },
+              {
+                "attributes": [
+                  {
+                    "id": 3
+                  }
+                ],
+                "direction": "c2s",
+                "kind": "call_connected"
+              },
+              {
+                "direction": "c2s",
+                "group": 2,
+                "kind": "ppp_data",
+                "ppp": {
+                  "payload_len": 24,
+                  "protocol": "ipv4"
+                }
+              },
+              {
+                "direction": "c2s",
+                "kind": "ppp_data",
+                "ppp": {
+                  "payload_len": 24,
+                  "protocol": "ipv4"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "summary": "group 同 record 双 message：首条组首 group=2，两条 c2s PPP 同一条 TLS record"
   },
   {
     "expect": {

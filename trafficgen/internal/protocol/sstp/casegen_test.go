@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-// 用例生成器（一次性，D-SSTP-1 P5）：按用例文档 §2 权威序产出 20 例
-// （14 正 + 6 负），落 test/protocol_pcap/cases/sstp.json。
+// 用例生成器（一次性，D-SSTP-1 P5；P6 修轮 20→21→22）：按用例文档 §2 权威序
+// 产出 22 例（16 正 + 6 负），落 test/protocol_pcap/cases/sstp.json。
 //
 // 证据红线（契约 §1/§9/§16）：本 fixture 的 SSTP message 经 tls 层
 // application-data 透传（合成 TLS record，无真实密钥协商），tshark 不会用
@@ -154,6 +154,14 @@ func tx(kind string, extra map[string]interface{}) map[string]interface{} {
 	return m
 }
 
+// txE 是带成功分支声明（expect）的事务：声明值必须与下一条事务 kind
+// 相符（builder.go walkSession 一致性守卫；契约 §16.3 五件套）。
+func txE(kind, expect string, extra map[string]interface{}) map[string]interface{} {
+	m := tx(kind, extra)
+	m["expect"] = expect
+	return m
+}
+
 func attrs(list ...map[string]interface{}) []interface{} {
 	out := make([]interface{}, len(list))
 	for i, a := range list {
@@ -180,7 +188,32 @@ func eventsCfg(list ...map[string]interface{}) map[string]interface{} {
 	return map[string]interface{}{"events": evs}
 }
 
+// sessionsCfg 是 sessions[] 形（契约 m2 面：planner.go 双权威/会话 ID/TLS
+// session 独立守卫走此形；与 events[] 短形同路径）。
+func sessionsCfg(id, tls string, list ...map[string]interface{}) map[string]interface{} {
+	txs := make([]interface{}, len(list))
+	for i, e := range list {
+		txs[i] = e
+	}
+	return map[string]interface{}{"sessions": []interface{}{
+		map[string]interface{}{"id": id, "tls_session": tls, "transactions": txs},
+	}}
+}
+
 // 常用事务序列片段。
+func grpTx(kind string, extra map[string]interface{}) map[string]interface{} {
+	m := tx(kind, extra)
+	m["group"] = 2
+	return m
+}
+func reqTxE() map[string]interface{} {
+	return txE("call_connect_request", "ack", map[string]interface{}{"direction": "c2s",
+		"attributes": attrs(attr(1))})
+}
+func nakTx(status int) map[string]interface{} {
+	return tx("call_connect_nak", map[string]interface{}{"direction": "s2c",
+		"attributes": attrs(attr(2, map[string]interface{}{"attrib_id": 1, "status": status}))})
+}
 func reqTx() map[string]interface{} {
 	return tx("call_connect_request", map[string]interface{}{"direction": "c2s",
 		"attributes": attrs(attr(1))})
@@ -222,7 +255,7 @@ func sstpPosCases() []sposCase {
 		{
 			id:      "sstp_https_tls_handshake",
 			summary: "TCP/443 + TLS 握手 + application-data 载体（无密钥只断言 TLS）",
-			layers:  sChain(eventsCfg(reqTx(), ackTx())),
+			layers:  sChain(eventsCfg(reqTxE(), ackTx())),
 			fields: append(carrierFields(sFirstData),
 				sfld{Packet: 1, Field: "tcp.flags", Value: "0x0002"}),
 			frames: []sfr{
@@ -239,6 +272,7 @@ func sstpPosCases() []sposCase {
 			notes: []string{
 				"证据红线：无解密密钥，只断言 TCP/443 + tls.record.* + frames hex（record 体内字节），不使用 sstp.*/ppp.* 字段。",
 				"packet_count 16 = 3 TCP 握手 + 7 TLS 握手 record + 2 application-data + 4 TCP 挥手。",
+				"首事务 expect:\"ack\" 声明成功分支，次事务为 ACK（builder.go walkSession 一致性守卫面，M2/m1 合并覆盖）。",
 			},
 		},
 		{
@@ -523,6 +557,59 @@ func sstpPosCases() []sposCase {
 			},
 		},
 		{
+			id:      "sstp_call_connect_nak",
+			summary: "CALL CONNECT NAK 拒绝路径（sessions[] 形）：REQUEST→NAK(Status Info) 后连接终止，禁 CONNECTED/PPP",
+			layers: []interface{}{ip4L(sCli, sSrv), tcpL(sSport, sPort), tlsL(),
+				sstpL(sessionsCfg("s1", "tls-1", txE("call_connect_request", "nak", map[string]interface{}{"direction": "c2s",
+					"attributes": attrs(attr(1))}), nakTx(5)))},
+			fields: carrierFields(sFirstData),
+			frames: []sfr{
+				// NAK：Length 20 = 8 + 12、Type 0x0003、Num 1、Status Info
+				//（LengthPacket 0x000c、AttribID 0x01、Status 0x00000005）。
+				{Packet: sFirstData + 1, Offset: sFrameOffV4, Hex: "10 01 00 14 00 03 00 01 00 02 00 0c 00 00 00 01 00 00 00 05"},
+			},
+			// 先跑后钉（P6 修轮实测）：16 = 3 TCP 握手 + 7 TLS 握手 record +
+			// 2 application-data（REQUEST c2s + NAK s2c）+ 4 TCP 挥手。
+			packetCount: 16,
+			handshake:   true,
+			terminates:  true,
+			directional: true,
+			notes: []string{
+				"sessions[] 形（m2 面）：单会话 s1 + 独立 tls_session，planner 双权威/会话独立守卫走此形。",
+				"Status 0x00000005 = ATTRIB_STATUS_NO_DUPLICATE_IP_ADDRESSES（MS-SSTP §2.2.8 枚举，拒绝码）。",
+				"首事务 expect:\"nak\" 与次事务 NAK 一致（m1 面：builder.go walkSession 一致性守卫）；NAK 后禁一切由状态机守卫（终审 M2 面）。",
+			},
+		},
+		{
+			id:      "sstp_group_coalesced_record",
+			summary: "group 同 record 双 message：首条组首 group=2，两条 c2s PPP 同一条 TLS record",
+			layers: sChain(eventsCfg(
+				reqTx(), ackTx(), connectedTx(),
+				grpTx("ppp_data", map[string]interface{}{"direction": "c2s",
+					"ppp": map[string]interface{}{"protocol": "ipv4", "payload_len": 24}}),
+				pppTx("ipv4", 24, false),
+			)),
+			fields: append(carrierFields(sFirstData),
+				sfld{Packet: sFirstData + 3, Field: "tls.record.length", Value: "64"}),
+			frames: []sfr{
+				// 组 record 体：首 message Length 0x0020（32 = 8 + 4 + 20）+
+				// 次 message Length 0x0020；单条 TLS record 长 64（record 体），
+				// 先跑后钉以 lane9 落盘 pcap 为准（包 14 record.length=64）。
+				{Packet: sFirstData + 3, Offset: sFrameOffV4, Hex: "10 00 00 20 ff 03 00 21"},
+				{Packet: sFirstData + 3, Offset: sFrameOffV4 + 32, Hex: "10 00 00 20 ff 03 00 21"},
+			},
+			// 先跑后钉（P6 修轮实测）：18 = 3 TCP 握手 + 7 TLS 握手 record +
+			// 4 application-data（REQUEST/ACK/CONNECTED 各一 + 组 record 一）+ 4 TCP 挥手。
+			packetCount: 18,
+			handshake:   true,
+			terminates:  true,
+			directional: true,
+			notes: []string{
+				"m3 面：group=2 写在组首（本条与后一条同进一条 record）；两条 c2s PPP 同方向合并（跨方向合并走链级 (boundary) 负例）。",
+				"record 体由 frames hex 钉组首 message 边界（Length 0x0020）；组内第二条 message 边界由实现单测逐字节复算（chain_test group_merges_same_direction 同构）。",
+			},
+		},
+		{
 			id:      "sstp_pcap_nic_consistency",
 			summary: "PCAP/NIC 载体一致：TCP/443 + TLS 握手/应用数据 + 方向 + 握挥手数量",
 			layers:  sChain(eventsCfg(reqTx(), ackTx())),
@@ -598,7 +685,7 @@ func sstpNegCases() []snegCase {
 //
 // 生成物入库（用例文件是测试产物，回指 TEST_CASES.md 编号）。
 func TestGenerateSSTPCases(t *testing.T) {
-	out := make([]map[string]interface{}, 0, 20)
+	out := make([]map[string]interface{}, 0, 21)
 	add := func(id, summary string, layers []interface{}, fc *int, expect map[string]interface{}) {
 		c := map[string]interface{}{
 			"id":        id,
@@ -660,8 +747,8 @@ func TestGenerateSSTPCases(t *testing.T) {
 		add(nc.id, nc.summary, nc.layers, nil, expect)
 	}
 
-	if len(out) != 20 {
-		t.Fatalf("want 20 cases (14 pos + 6 neg), got %d", len(out))
+	if len(out) != 22 {
+		t.Fatalf("want 22 cases (16 pos + 6 neg), got %d", len(out))
 	}
 	raw, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {

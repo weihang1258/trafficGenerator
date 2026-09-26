@@ -360,6 +360,152 @@ func TestSSTPChain_WireFaults(t *testing.T) {
 		!strings.Contains(err.Error(), "unknown wire_fault") {
 		t.Fatalf("unknown fault: %v", err)
 	}
+
+	// expect 声明面（M2/m1）；P6 修轮新增：声明值必须命中合法分支表 +
+	// 与下一条事务 kind 相符（builder.go expectNext 一致性守卫）。
+	t.Run("unknown_expect_value", func(t *testing.T) {
+		err := driveSErr(t, sessCfg(map[string]interface{}{
+			"kind": "call_connect_request", "expect": "no_such_branch",
+			"attributes": []interface{}{map[string]interface{}{"id": 1}}}))
+		if err == nil || !strings.Contains(err.Error(), "(sequence)") {
+			t.Fatalf("want (sequence) for unknown expect, got %v", err)
+		}
+	})
+	t.Run("expect_mismatch_next_kind", func(t *testing.T) {
+		err := driveSErr(t, sessCfg(
+			map[string]interface{}{"kind": "call_connect_request", "expect": "ack",
+				"attributes": []interface{}{map[string]interface{}{"id": 1}}},
+			map[string]interface{}{"kind": "call_connect_nak", "direction": "s2c",
+				"attributes": []interface{}{map[string]interface{}{"id": 2, "attrib_id": 1, "status": 5}}}))
+		if err == nil || !strings.Contains(err.Error(), "(state/sequence)") {
+			t.Fatalf("want (state/sequence) for expect/next mismatch, got %v", err)
+		}
+	})
+	t.Run("expect_declared_but_session_ends", func(t *testing.T) {
+		err := driveSErr(t, sessCfg(map[string]interface{}{
+			"kind": "call_connect_request", "expect": "ack",
+			"attributes": []interface{}{map[string]interface{}{"id": 1}}}))
+		if err == nil || !strings.Contains(err.Error(), "(sequence)") {
+			t.Fatalf("want (sequence) for dangling expect, got %v", err)
+		}
+	})
+	// 正例：声明值与下一条 kind 相符（expect:"nak" → NAK 事务）走通，
+	// 且 wire 上确为 Message Type 0x0003。
+	t.Run("expect_satisfied_by_next_kind", func(t *testing.T) {
+		pkts := driveS(t, sessCfg(
+			map[string]interface{}{"kind": "call_connect_request", "expect": "nak",
+				"attributes": []interface{}{map[string]interface{}{"id": 1}}},
+			map[string]interface{}{"kind": "call_connect_nak", "direction": "s2c",
+				"attributes": []interface{}{map[string]interface{}{"id": 2, "attrib_id": 1, "status": 5}}}))
+		msgs := sAppPayloads(t, pkts)
+		if len(msgs) != 2 || sHex(msgs, 1)[8:12] != "0003" {
+			t.Fatalf("expect nak sequence: got %d msgs", len(msgs))
+		}
+	})
+	// sessions[] 形（m2 面）：双权威拒 + 会话 ID/TLS session 跨连接复用拒
+	// + 空会话拒——三守卫逐条。
+	t.Run("sessions_dual_authority", func(t *testing.T) {
+		req := map[string]interface{}{"kind": "call_connect_request",
+			"attributes": []interface{}{map[string]interface{}{"id": 1}}}
+		nak := map[string]interface{}{"kind": "call_connect_nak", "direction": "s2c",
+			"attributes": []interface{}{map[string]interface{}{"id": 2, "attrib_id": 1, "status": 5}}}
+		err := driveSErr(t, map[string]interface{}{
+			"events": []interface{}{req, nak},
+			"sessions": []interface{}{map[string]interface{}{
+				"id": "s1", "tls_session": "tls-1",
+				"transactions": []interface{}{req, nak}}},
+		})
+		if err == nil || !strings.Contains(err.Error(), "(presence)") {
+			t.Fatalf("want (presence) for dual authority, got %v", err)
+		}
+	})
+	t.Run("sessions_reuse_guard", func(t *testing.T) {
+		req := func() map[string]interface{} {
+			return map[string]interface{}{"kind": "call_connect_request",
+				"attributes": []interface{}{map[string]interface{}{"id": 1}}}
+		}
+		nak := func() map[string]interface{} {
+			return map[string]interface{}{"kind": "call_connect_nak", "direction": "s2c",
+				"attributes": []interface{}{map[string]interface{}{"id": 2, "attrib_id": 1, "status": 5}}}
+		}
+		two := func(id, tls string) []interface{} {
+			return []interface{}{
+				map[string]interface{}{"id": id, "tls_session": tls,
+					"transactions": []interface{}{req(), nak()}},
+			}
+		}
+		dupID := append(two("s1", "tls-1"), two("s1", "tls-2")...)
+		if err := driveSErr(t, map[string]interface{}{"sessions": dupID}); err == nil ||
+			!strings.Contains(err.Error(), "(state)") {
+			t.Fatalf("want (state) for duplicate session id, got %v", err)
+		}
+		dupTLS := append(two("s1", "tls-1"), two("s2", "tls-1")...)
+		if err := driveSErr(t, map[string]interface{}{"sessions": dupTLS}); err == nil ||
+			!strings.Contains(err.Error(), "(state)") {
+			t.Fatalf("want (state) for duplicate tls_session, got %v", err)
+		}
+	})
+	t.Run("sessions_empty_rejected", func(t *testing.T) {
+		err := driveSErr(t, map[string]interface{}{"sessions": []interface{}{
+			map[string]interface{}{"id": "s1", "tls_session": "tls-1"}}})
+		if err == nil || !strings.Contains(err.Error(), "(state)") {
+			t.Fatalf("want (state) for empty session, got %v", err)
+		}
+	})
+	// group 分帧（m3 面）：组必须凑满 / 同组同方向 / 成员不得自带 group。
+	t.Run("group_framing_guards", func(t *testing.T) {
+		req := map[string]interface{}{"kind": "call_connect_request", "group": 2,
+			"attributes": []interface{}{map[string]interface{}{"id": 1}}}
+		ack := map[string]interface{}{"kind": "call_connect_ack", "direction": "s2c",
+			"attributes": []interface{}{map[string]interface{}{"id": 4}}}
+		// 组跨方向：REQUEST(c2s) 与 ACK(s2c) 不能同进一条 record。
+		if err := driveSErr(t, sessCfg(req, ack)); err == nil ||
+			!strings.Contains(err.Error(), "(boundary)") {
+			t.Fatalf("want (boundary) for cross-direction group, got %v", err)
+		}
+		// 组未凑满：单消息声明 group=2 但会话只剩 1 条。
+		if err := driveSErr(t, sessCfg(req)); err == nil ||
+			!strings.Contains(err.Error(), "(framing)") {
+			t.Fatalf("want (framing) for short group, got %v", err)
+		}
+		// 嵌套组：成员自带 group。
+		nested := []map[string]interface{}{
+			{"kind": "call_connect_request", "group": 2,
+				"attributes": []interface{}{map[string]interface{}{"id": 1}}},
+			{"kind": "call_connect_ack", "direction": "s2c", "group": 2,
+				"attributes": []interface{}{map[string]interface{}{"id": 4}}},
+			{"kind": "call_connected", "attributes": []interface{}{map[string]interface{}{"id": 3}}},
+		}
+		if err := driveSErr(t, sessCfg(nested...)); err == nil ||
+			!strings.Contains(err.Error(), "(framing)") {
+			t.Fatalf("want (framing) for nested group, got %v", err)
+		}
+	})
+	// group 正例：同方向两消息合并进一条 record（SSTP message 边界 ≠
+	// record 边界——一条 record 载两条 message）。REQUEST(c2s)/ACK(s2c)
+	// 是反方向对不能同组（见 ⑫ 注）；最小同向对是 ESTABLISHED 态的两条
+	// c2s PPP data。
+	t.Run("group_merges_same_direction", func(t *testing.T) {
+		pkts := driveS(t, sessCfg(
+			map[string]interface{}{"kind": "call_connect_request",
+				"attributes": []interface{}{map[string]interface{}{"id": 1}}},
+			map[string]interface{}{"kind": "call_connect_ack", "direction": "s2c",
+				"attributes": []interface{}{map[string]interface{}{"id": 4}}},
+			map[string]interface{}{"kind": "call_connected",
+				"attributes": []interface{}{map[string]interface{}{"id": 3}}},
+			map[string]interface{}{"kind": "ppp_data", "direction": "c2s", "group": 2,
+				"ppp": map[string]interface{}{"protocol": "ipv4"}},
+			map[string]interface{}{"kind": "ppp_data", "direction": "c2s",
+				"ppp": map[string]interface{}{"protocol": "ipv6"}},
+		))
+		msgs := sAppPayloads(t, pkts)
+		if len(msgs) != 4 { // 3 控制各一条 + 2 data 同一条（group 写在组首）
+			t.Fatalf("group=2: want 4 records, got %d", len(msgs))
+		}
+		if l := int(msgs[3][2])<<8 | int(msgs[3][3]); l != 28 {
+			t.Fatalf("group msg1 length %d, want 28", l)
+		}
+	})
 }
 
 // ⑦ carrier 五形状（预检锚词）：缺 tls / udp / tls 内非 sstp / 错端口 / 混合族。
