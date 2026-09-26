@@ -5,6 +5,11 @@
 // implement real encryption or authentication state machines), but they are
 // DER/BER well-formed so parsers (Wireshark, SPNEGO implementations) can
 // decode them without malformed-packet errors.
+//
+// G-SMB-2 boundary (D-SMB-1, ruling c: coexist): the Type1/Challenge/Auth
+// placeholders below (32/48/88B) serve full-session smb flows only;
+// standalone NTLM exchanges live in the ntlm layer (G-NTLM-3). If the ntlm
+// builder drifts from these sizes, reunification is framework backlog.
 package smb
 
 import (

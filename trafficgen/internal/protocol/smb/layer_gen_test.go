@@ -808,11 +808,12 @@ func TestLayerGen_ChainPlannerRejectsInvalidSpec(t *testing.T) {
 	if _, err := planner.Plan(context.Background(), spec); err == nil || !strings.Contains(err.Error(), "ErrorResponseStatus must be non-zero") {
 		t.Fatalf("Plan with command-only error = %v, want ErrorResponseStatus requirement", err)
 	}
-	// 无 SMB 配置（spec.SMB=nil）——LookupSMBConfig 拒绝。
+	// 无 SMB 配置（spec.SMB=nil）——空层 config 翻译出默认配置直通
+	// （D-SMB-1：空层 config 非 nil，与 kerberos/ntlm 空配置缺省同款）。
 	spec = smbSpec(0)
 	spec.SMB = nil
-	if _, err := planner.Plan(context.Background(), spec); err == nil || !strings.Contains(err.Error(), "spec.SMB is required") {
-		t.Fatalf("Plan with nil SMB error = %v, want missing config rejection", err)
+	if _, err := planner.Plan(context.Background(), spec); err != nil {
+		t.Fatalf("Plan with nil SMB error = %v, want default-config passthrough", err)
 	}
 }
 

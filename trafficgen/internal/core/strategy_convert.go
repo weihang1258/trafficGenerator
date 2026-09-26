@@ -397,6 +397,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-SMB-1：smb 在库旧策略顶层 smb → ValidationErrors（sstp 同款；
+	// 空 map 也死——testcase §4.3 判死形状「层链+顶层空子映射并存」wired 面）。
+	if protocol == "smb" {
+		if v, ok := cfg["smb"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-SSTP-1：sstp 在库旧策略顶层 sstp → ValidationErrors（hl7/mmse 同款；
 	// 空 map 也死——契约 §16-P2 判死形状「层链+顶层空子映射并存」wired 面）。
 	if protocol == "sstp" {
@@ -8222,6 +8229,23 @@ func parseSMBConfig(m map[string]interface{}) *SMBConfig {
 		IncludeTeardown:    getBoolPtr(m, "include_teardown"),
 		PreviousSessionId:  getUint64(m, "previous_session_id"),
 	}
+	// ops-level file_id hex string → per-op FileId ([16]byte only decodes
+	// numeric arrays via encoding/json, so the tolerant flat decoder fills
+	// it here; translateSMBConfigFromMap reuses this function).
+	if arr, ok := m["operations"].([]interface{}); ok {
+		for i, item := range arr {
+			if i >= len(cfg.Operations) {
+				break
+			}
+			om, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if f, ok := om["file_id"].(string); ok && len(f) >= 32 {
+				parseGUIDString(f, &cfg.Operations[i].FileId)
+			}
+		}
+	}
 	// GUIDs: parse if provided as JSON hex string ("01020304...")
 	if g, ok := m["client_guid"].(string); ok && len(g) >= 32 {
 		parseGUIDString(g, &cfg.ClientGuid)
@@ -8444,6 +8468,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "xmrmining" {
 		if v, ok := cfg["xmrmining"]; ok && v != nil {
 			return "protocol xmrmining no longer accepts a top-level xmrmining sub-config (move it into the xmrmining layer of an [ip,tcp,xmrmining] layers chain; Monero stratum framing lives in the xmrmining layer)"
+		}
+	}
+	// D-SMB-1：smb 顶层 smb 子映射 presence 判死（bacnet 先例；空 map 也
+	// 死——B6 扁平注入形退役，配置迁 smb 层 34 键）。层链形状不触发。
+	if protocol == "smb" {
+		if v, ok := cfg["smb"]; ok && v != nil {
+			return "protocol smb no longer accepts a top-level smb sub-config (move it into the smb layer of an [ip,tcp,smb] layers chain)"
 		}
 	}
 	// D-BACNET-1：bacnet 顶层 bacnet 子映射 presence 判死（xmrmining 先例；

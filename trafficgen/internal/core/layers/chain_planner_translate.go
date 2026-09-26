@@ -2540,6 +2540,19 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.VNC == nil {
 			spec.VNC = core.ParseVNCConfigFromMap(completedConfig(s, term.Config))
 		}
+	case "smb":
+		// D-SMB-1：层 config 经 core.TranslateSMBConfigFromMap 复用扁平
+		// parseSMBConfig 宽容口径为单一真相（hex 字符串数值/GUID hex 串/
+		// data 原文字节/ops 级 file_id 由 flat parse 承接；未知键严格拒）。
+		// 空层 config 也翻译出非 nil（全默认=默认单 read 会话）。
+		if spec.SMB == nil {
+			smbCfg, err := core.TranslateSMBConfigFromMap(completedConfig(s, term.Config))
+			if err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, err.Error())
+				return
+			}
+			spec.SMB = smbCfg
+		}
 	case "xmpp":
 		// D-XMPP-1：层 config 经 core.ParseXmppConfigFromMap 复用扁平
 		// 解析单一真相（messages 记录 direction/to/body 与 flat 同构）。

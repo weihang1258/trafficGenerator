@@ -1316,6 +1316,110 @@ def check_sstp(cases):
     return rows
 
 
+def check_smb(cases):
+    """D-SMB-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。诊断族 probe_smb
+    不进分母（G-PROBE-SMB-4：deep_audit 口径 diagnostics, not suite cases）。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 smb", '"smb": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 smb（已准入）", '"smb"' not in pt[i_neg:i_neg + 1500], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case smb（宽容+严格）", 'case "smb":' in tr and "TranslateSMBConfigFromMap" in tr, "在案"))
+    rows.append(("FlowMeta.SMB 直传", re.search(r"SMB:\s+spec\.SMB\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.SMB 字段", re.search(r"SMB\s+\*core\.SMBConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.SMB 字段", re.search(r"SMB\s+\*SMBConfig", ty) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "smb"')
+    reg_block = rg[i_reg:rg.index('Name: "', i_reg + len('Name: "smb"'))]
+    rows.append(("registry smb 行（DependsOn tcp 单值 + 38 字段）",
+                 'DependsOn: []string{"tcp"}' in reg_block
+                 and reg_block.count("{Type:") >= 38, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    i_vl = vl.index('if protocol == "smb" {')
+    vl_block = vl[i_vl:vl.index("effective, err := ValidateLayers", i_vl)]
+    rows.append(("载体预检（缺 tcp / 夹 udp / 混合族）",
+                 "missing tcp carrier" in vl_block and "udp carrier is not supported" in vl_block
+                 and "mixed address family in ip layer" in vl_block, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(smb)",
+                 "internal/protocol/smb" in mn and 'NewChainPlanner("smb")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("strategy_convert case smb + 445/139 缺省",
+                 'case "smb":' in sc and "parseSMBConfig" in sc
+                 and "spec.DstPort = 139" in sc, "在案"))
+    rows.append(("CheckProtoFlat 顶层 smb 子映射 presence 判死",
+                 "protocol smb no longer accepts a top-level smb sub-config" in sc, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain_planner smb 端口缺省（netbios→139/余→445）",
+                 'case "smb":' in cp and 'spec.SMB.Transport == "netbios"' in cp, "在案"))
+    dc = (tg / "internal" / "core" / "smb_layer_decode.go").read_text()
+    rows.append(("层解码单真相（parseSMBConfig 复用 + 逐级严格）",
+                 "parseSMBConfig(m)" in dc and "DisallowUnknownFields" in dc
+                 and "operations[%d]" in dc, "在案"))
+
+    # 2. 行为面（生成器/校验器关键件）。
+    lg = (tg / "internal" / "protocol" / "smb" / "layer_gen.go").read_text()
+    for prim, name in [
+        ("func (g *SMBGenerator) Generate", "终结层事件流（逐 PDU 一事件）"),
+        ("smb generator: no config", "缺配置兜底（nil 即错）"),
+        ("RegisterLayerGenerator", "init 注册生成器"),
+        ("RegisterLayerValidator", "init 注册校验器"),
+        ("func (g *SMBGenerator) GenEvents", "事件生成器面（链驱动）"),
+    ]:
+        rows.append((f"关键件：{name}", prim in lg, "在案"))
+    vd = (tg / "internal" / "protocol" / "smb" / "validate.go").read_text()
+    for anchor, name in [
+        ("auth_mechanism must be", "认证机制值域"),
+        ("AuthRounds must be 1-3", "认证轮数值域"),
+        ("OpType must be", "操作类型值域"),
+        ("ErrorOnCommand must be", "错误注入命令值域"),
+        ("known NT status code", "错误码值域"),
+        ("exceeds NBSS limit", "尺寸上限"),
+    ]:
+        rows.append((f"守卫：{name}", anchor in vd, f"锚词 {anchor}"))
+
+    # 3. 用例面（279 例；诊断族 probe_smb 不进分母）。
+    ids = [c.get("id", "") for c in cases]
+    idset = set(ids)
+    rows.append(("用例总数 279", len(cases) == 279, f"{len(cases)} 例"))
+    pos = [c for c in cases if "expect_error" not in (c.get("expect") or {})]
+    neg = [c for c in cases if "expect_error" in (c.get("expect") or {})]
+    rows.append((f"{len(pos)} 正 + {len(neg)} 负（17 负）", len(neg) == 17 and len(pos) == 262,
+                 f"{len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("正例均带 packet_count", all((c.get("expect") or {}).get("packet_count") for c in pos), "全部在案"))
+    bad_keys = [c.get("id") for c in neg
+                if set((c.get("expect") or {}).keys()) - {"notes"} != {"expect_error", "error_contains"}]
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}（+notes）", not bad_keys, bad_keys or "全部合规"))
+    code_text = vd + sc + tr + vl_block
+    bad_a = [f"{c.get('id')}:{ec}" for c in neg
+             for ec in [(c.get("expect") or {}).get("error_contains", "")]
+             if ec not in code_text
+             and not any(t in ec or ec in t or
+                         (t == "not in allowed list" and ec.startswith("dialect "))
+                         for t in
+                         ["not in allowed list", "anonymous auth can only be",
+                          "known NT status code", "SMB1 dialect string"])]
+    rows.append(("负例锚词 ∈ 实现锚词集", not bad_a, bad_a or "全部命中"))
+    sj_keys = set()
+    for c in pos:
+        sj_keys.update((c.get("spec_json") or {}).keys())
+    rows.append(("非负例顶层键=0（仅 layers/group_id/flow_control/output）",
+                 sj_keys <= {"layers", "group_id", "flow_control", "output"}, sorted(sj_keys)))
+    rows.append(("诊断族 probe_smb 不进分母（G-PROBE-SMB-4）",
+                 not any(i.startswith("probe_") for i in ids), "无 probe_ 前缀"))
+    # 层内 smb 键全注册面（38 字段逐键在 registry 行内）。
+    missing = [k for k in {kk for c in pos for kk in ((c.get("spec_json") or {}).get("layers") or [{}])[-1].get("smb", {}).keys()}
+               if k not in reg_block]
+    rows.append(("层内 smb 键 ∈ registry 38 字段", not missing, missing or "全命中"))
+    return rows
+
 CHECKS = {
     "smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
@@ -3649,7 +3753,7 @@ def check_spnego(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb}
 
 
 def main(argv):

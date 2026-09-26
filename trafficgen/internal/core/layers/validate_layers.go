@@ -479,6 +479,40 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 			}
 		}
 	}
+	if protocol == "smb" {
+		// D-SMB-1：tcp 唯一载体 + 混合地址族（ntlm 预检同构——DependsOn
+		// tcp 自动补全前拦，裸 smb 层不被补全掩盖）。transport=netbios 只
+		// 改缺省端口（139/445，chain_planner 同款），不改载体形状。
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			hasTCP, hasUDP := false, false
+			for _, item := range probe {
+				if _, ok := item["tcp"]; ok {
+					hasTCP = true
+				}
+				if _, ok := item["udp"]; ok {
+					hasUDP = true
+				}
+				if rawIP, ok := item["ip"]; ok && len(rawIP) > 0 {
+					var ipcfg map[string]interface{}
+					if err := json.Unmarshal(rawIP, &ipcfg); err == nil {
+						srcS, _ := ipcfg["src"].(string)
+						dstS, _ := ipcfg["dst"].(string)
+						if srcS != "" && dstS != "" && strings.Contains(srcS, ":") != strings.Contains(dstS, ":") {
+							return nil, fmt.Errorf("smb chain: mixed address family in ip layer (src %q / dst %q) — src and dst must be the same family (family)", srcS, dstS)
+						}
+					}
+				}
+			}
+			if hasUDP {
+				return nil, fmt.Errorf("smb chain: udp carrier is not supported — smb rides tcp only ([ip,tcp,smb]) (transport)")
+			}
+			if !hasTCP {
+				return nil, fmt.Errorf("smb chain: missing tcp carrier — smb requires an [ip,tcp,smb] chain (carrier)")
+			}
+		}
+	}
+
 	effective, err := ValidateLayers(layersJSON, protocol)
 	if err != nil {
 		return nil, err
