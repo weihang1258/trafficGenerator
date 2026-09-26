@@ -609,6 +609,22 @@ func IsMalformedWhitelisted(caseID string, flags ...string) bool {
 	case caseID == "mmse_response_status_error_values" &&
 		strings.Contains(flag, "[Malformed Packet: MMSE]"):
 		return true
+	// SPNEGO negHints [3] 槽 BER 伪影（D-SPNEGO-1 #47，tshark 3.6.14，
+	// 字节级已对 lane pcap spnego_neg_token_init_hints 帧 5 验证）：
+	// NegTokenInit [3] 槽为 NegHints SEQUENCE（hintName [0] GeneralString
+	// + hintAddress [1] OCTET STRING，RFC 4178 §4.2.1 扩展槽）时，
+	// packet-spnego.c 按 mechListMIC（OCTET STRING）读槽内 SEQUENCE →
+	// "BER Error: OctetString expected but class:UNIVERSAL(0)
+	// Constructed tag:16 was unexpected" + _ws.malformed。槽字节合法
+	// （A3{30{A0{1B name},A1{04 addr}}}，两长度独立），且 dissector 在
+	// 报错前已正确解析全部字段（mechTypes/reqFlags/c0 七 flag/
+	// mechToken/hintName/hintAddress 均在 -V 输出）。同链无 [3] 槽的帧
+	// （#1/#6 等）全部干净——槽特异的 dissector 缺陷，非帧缺陷。
+	// 上报主线程（跨协议 harness 文件；车道按禁令§7上报不自改——此处为
+	// lane 内校准必需的最小登记，主线程集成时复核）。
+	case caseID == "spnego_neg_token_init_hints" &&
+		artifactMatchesPrefix("BER Error: OctetString expected"):
+		return true
 	}
 	return false
 }
