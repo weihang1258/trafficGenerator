@@ -8658,7 +8658,7 @@
  {
   "id": "tds_mars_two_sessions_interleave",
   "proto": "tds",
-  "summary": "T-216: MARS 2 会话字节流交错 — A 请求→B 请求→响应按会话归并",
+  "summary": "T-216: MARS 2 会话字节流顺序发射（A 请求→A 响应对→B 请求→B 响应对，会话块串行；真交错编排未实现 → G-TDS-3，断言按实际字节序钉）",
   "spec_json": {
    "layers": [
     {
@@ -8736,7 +8736,7 @@
     }
    ],
    "notes": [
-    "T-216/A218: 字节流 A 请求(pkt8)→A 响应(pkt9)→B 请求(pkt10)→B 响应(pkt11) 交错; OutstandingRequestCount=2 (两会话均活动)",
+    "T-216/A218: 字节流按会话块串行发射 A 请求(pkt8)→A 响应对(pkt9)→B 请求(pkt10)→B 响应对(pkt11); OutstandingRequestCount=2 (两会话均活动); 真交错编排未实现→G-TDS-3",
     "每个会话 token 序列独立归并无串扰 — A 的 DONE RowCount=1 B 同"
    ]
   }
@@ -8768,6 +8768,68 @@
   "expect": {
    "expect_error": true,
    "error_contains": "no longer accepts a top-level tds sub-config"
+  }
+ },
+ {
+  "id": "tds_neg_stray_src_ip",
+  "proto": "tds",
+  "summary": "D-TDS-1 M5② stray-key negative: layers + top-level flat field src_ip = reject",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "mars": false
+     }
+    }
+   ],
+   "src_ip": "10.9.9.9"
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "no longer accepts flat config field src_ip"
+  }
+ },
+ {
+  "id": "tds_neg_stray_count",
+  "proto": "tds",
+  "summary": "D-TDS-1 M5② stray-key negative: layers + top-level flat field count = reject",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 54321,
+      "dst_port": 1433
+     }
+    },
+    {
+     "tds": {
+      "mars": false
+     }
+    }
+   ],
+   "count": 3
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "no longer accepts flat config field count"
   }
  }
 ]

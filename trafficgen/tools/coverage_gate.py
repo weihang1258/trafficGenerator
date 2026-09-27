@@ -5677,7 +5677,7 @@ def check_ntlm(cases):
 
 
 def check_tds(cases):
-    """D-TDS-1 P5 反查表（131 改写例 + 1 presence 负例 = 132）。返回 [(检查名, 通过?, 证据)]。"""
+    """D-TDS-1 P5 反查表（131 改写例 + 1 presence + 2 游离键负例 = 134）。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
     tg = Path(__file__).resolve().parent.parent
     lays = []
@@ -5701,13 +5701,16 @@ def check_tds(cases):
     rows.append(("strategy_convert 存量兼容块记 ValidationErrors",
                  'if protocol == "tds" {' in sc, "在案"))
 
-    # 2. 用例面（132 例 = 131 改写 + 1 presence）。
-    rows.append(("用例总数 132", len(cases) == 132, f"{len(cases)} 例"))
+    # 2. 用例面（134 例 = 131 改写 + 1 presence + 2 游离键负例）。
+    rows.append(("用例总数 134", len(cases) == 134, f"{len(cases)} 例"))
     pos = [c for c in cases if "expect_error" not in (c.get("expect") or {})]
     neg = [c for c in cases if "expect_error" in (c.get("expect") or {})]
-    rows.append(("105 正 + 27 负", len(pos) == 105 and len(neg) == 27, f"{len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("105 正 + 29 负", len(pos) == 105 and len(neg) == 29, f"{len(pos)} 正 / {len(neg)} 负"))
     rows.append(("presence 负例在案（layers+顶层tds）",
                  "tds_neg_top_tds_presence_reject" in {c.get("id") for c in cases}, "在案"))
+    ids_tds = {c.get("id") for c in cases}
+    rows.append(("游离键负例在案（M5② src_ip/count）",
+                 {"tds_neg_stray_src_ip", "tds_neg_stray_count"} <= ids_tds, "在案"))
     bad_top = [c.get("id") for c in pos
                if set((c.get("spec_json") or {}).keys()) - {"layers", "flow_control", "output"}]
     rows.append(("非负例顶层键=0（白名单制）", not bad_top, bad_top or "全部合规"))
@@ -5717,7 +5720,7 @@ def check_tds(cases):
         hit = next((cid for cid, m in lays if k in m), None)
         rows.append((f"层键覆盖：{k}", hit is not None, hit or "无用例"))
 
-    # 3. 锚词面（27 负例：26 V-TDS 真门 + 1 presence）。
+    # 3. 锚词面（29 负例：26 V-TDS 真门 + 1 presence + 2 游离键）。
     for needle, name in [
         ("top-level tds sub-config", "presence 判死"),
         ("V-TDS-001", "version 非法"), ("V-TDS-002", "packet_size 越界"),

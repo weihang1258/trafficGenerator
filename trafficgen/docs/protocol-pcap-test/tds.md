@@ -1,6 +1,6 @@
 # tds Pcap Test Results
 
-Cases: 131 — pass 131, fail 0, error 0
+Cases: 134 — pass 134, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -42,8 +42,11 @@ Cases: 131 — pass 131, fail 0, error 0
 | tds_mars_3sessions_multi_done | T-189: 会话内 3 语句 → 2 个 DONE_MORE + 1 个 DONE_FINAL | pass | 13 | [pcap](tds/tds_mars_3sessions_multi_done.pcap) |
 | tds_mars_3sessions_txn_indep | T-193/T-194: MARS 3 会话各自 TransactionDescriptor (A=5, B=7, C=0) | pass | 21 | [pcap](tds/tds_mars_3sessions_txn_indep.pcap) |
 | tds_mars_attention_cancel | T-191: MARS 会话 A 定向 Attention → 仅 A 的 DONE_ATTN (0x20) | pass | 17 | [pcap](tds/tds_mars_attention_cancel.pcap) |
-| tds_mars_two_sessions_interleave | T-216: MARS 2 会话字节流交错 — A 请求→B 请求→响应按会话归并 | pass | 15 | [pcap](tds/tds_mars_two_sessions_interleave.pcap) |
+| tds_mars_two_sessions_interleave | T-216: MARS 2 会话字节流顺序发射（A 请求→A 响应对→B 请求→B 响应对，会话块串行；真交错编排未实现 → G-TDS-3，断言按实际字节序钉） | pass | 15 | [pcap](tds/tds_mars_two_sessions_interleave.pcap) |
 | tds_mars_txn_isolation | T-217: MARS 事务隔离 — 会话 A 事务中(TransactionID=5) vs B(0) → ALL_HEADERS.TransactionDescriptor 独立 | pass | 17 | [pcap](tds/tds_mars_txn_isolation.pcap) |
+| tds_neg_stray_count | D-TDS-1 M5② stray-key negative: layers + top-level flat field count = reject | pass | 0 | [pcap]() |
+| tds_neg_stray_src_ip | D-TDS-1 M5② stray-key negative: layers + top-level flat field src_ip = reject | pass | 0 | [pcap]() |
+| tds_neg_top_tds_presence_reject | D-TDS-1 presence: layers + top-level tds {} coexist = reject | pass | 0 | [pcap]() |
 | tds_prelogin_encrypt_notsup | T-008: ENCRYPTION=0x02 (not_sup) → 服务器回 ENCRYPT_NOT_SUP (0x02) | pass | 13 | [pcap](tds/tds_prelogin_encrypt_notsup.pcap) |
 | tds_prelogin_encrypt_on | T-005: encrypt_mode=1 → PRELOGIN ENCRYPTION 数据=0x01 (ENCRYPT_ON)，11 包 | pass | 13 | [pcap](tds/tds_prelogin_encrypt_on.pcap) |
 | tds_prelogin_encrypt_required | T-007: ENCRYPTION=0x03 (req) → 服务器回 ENCRYPT_ON (0x01) | pass | 13 | [pcap](tds/tds_prelogin_encrypt_required.pcap) |

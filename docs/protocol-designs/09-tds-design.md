@@ -1,11 +1,12 @@
-# TDS 设计文档（v3.0.2）
+# TDS 设计文档（v3.1.1）
 
 > **协议**: Tabular Data Stream (TDS)（表格数据流）— Microsoft SQL Server 客户端-服务器协议
-> **文档版本**: v3.0.2（2026-08-08；v3.0.1 基础上修正 RPC OptionFlags 字节数 —— MS-TDS §3.4 为 USHORT 2B，tshark/FreeTDS 均按 2B 读取，详见 §11 修订记录）
+> **文档版本**: v3.1.1（2026-09-27；P4–P6 落地回写：去扁平 134 例交付、D-TDS-1 关单（已验收）、§16.7.3 M5② 落地口径修正；v3.1.0 = P1–P3 层链收口产物：§12 P1 规范矩阵、§13 三路对照与候选方案、§14 门 1 十四行表（§1/§3/§12 强制展开）、§15 D-TDS-1 代码设计、§16 P3 固定动作与存量用例审计；正文 §1–§11 未改）
 > **规范版本**: MS-TDS v20260617（修订版 42.0，2026-06-17 发布）
-> **测试用例**: 220 条（T-001 ~ T-220；v3.0.0 的 214 条基础上补充 6 条集成/并发/类型覆盖用例）
+> **测试用例**: 设计条目 220 条（T-001 ~ T-220，§7）+ 机器用例 `cases/tds.json` **134 例**（P5 去扁平改写完成：105 正 + 29 负；§16.6 的 131 例为 P3 审计基线，ID 未改名，去向见 §16.7/§17 v3.1.1）
 > **HexDump 场景**: S1-S15 共 15 个
-> **适用实现**: trafficgen `trafficgen/internal/protocol/tds/`（新实现）
+> **层链裁定 T1（实测）**：可达链形 `[ip, tcp, tds]`（IPv6 换 `ipv6`）；`tds` 为 `CategoryTerminal` + `DependsOn ["tcp"]`（单值，registry.go:1075-1076）。**现状偏离如实登记（P1 期；v3.1.1 已收口）**：业务配置经 `spec.Payload` 旁路携带、层条目 16 个字段零消费点、顶层 `tds` 子映射未判死 → 缺口 G-TDS-1（§12.6），目标为纯 layers 唯一真相（§14.1），**不是合法特例**。**收口实况**：层条目为唯一配置真相（`translateTerminalConfig` case "tds"，业务键住 `layers[].tds`）、顶层 `tds` 子映射 presence 判死（`strategy_convert.go` CheckProtoFlat tds 分支）；`TransportOn ["tcp"]` 已补。
+> **适用实现**: trafficgen `trafficgen/internal/protocol/tds/`（已注册并入链，P4a）
 
 ---
 
@@ -2497,3 +2498,449 @@ trafficgen 将 TDS 协议能力映射到统一任务模型：
 
 *本文档所有 wire 格式以 MS-TDS v20260617（修订版 42.0）为准；与规范冲突时以规范为准并更新本文档。*
 
+
+---
+
+# 附录（P1–P3 层链收口产物，v3.1.0）
+
+> 本节为 #55 tds 在并发 P-PIPE 文档轨（车道 A）补足的 P1–P3 产物：§12 P1 规范矩阵、§13 三路对照与候选方案对比、§14 门 1 十四行对照表（§1/§3/§12 强制展开）、§15 D-TDS-1 代码设计、§16 P3 固定动作与对接清单。所有行号/计数均为 2026-09-26 在 HEAD `0c355be` 工作区实读实测；未实读的数字一律标「待确认」并写确认方式（§5.5）。
+
+## §12. P1 规范矩阵（CORE_MEMORY §4 八项：规范要求 → 业务场景 → 代码现状 → 缺口）
+
+> 深度口径（§4.19–4.22）：三张子表在 §12.2–§12.4。每条结论三选一：**已实现 / 明确不支持 / 不适用**，不留白。
+
+### 12.1 八项规范矩阵
+
+| # | 规范要求（规范条款） | 业务场景 | 代码现状（实测） | 缺口 |
+|---|---|---|---|---|
+| 1 | **连接模型**：客户端主动建连的 TCP 长连接，无控制/数据分离通道；默认端口 1433；连接建立即会话建立、TCP 关闭即会话终止；MARS 是同一连接上的多路复用（非分离通道）（MS-TDS §1/§3.2/§3.3；设计 §1.3/§1.4） | SQL Server 客户端压测（登录 + SQL/RPC 混合）；连接池复用 | **已实现**：`tds` 注册为 `CategoryTerminal` + `DependsOn ["tcp"]`（单值，registry.go:1075-1076）；终结层生成器 `layer_gen.go:66`；目的端口默认 1433 由 `chain_planner.go:1130-1134` 补（`validateBaseDstPortHandled` 含 tds，chain_planner.go:644）；src_port 不默认化（chain_planner.go:877-880，与 legacy tds.go:449 一致）；legacy `Planner.Plan` 并存（tds.go:353） | 连接模型无缺口。链路可达：`[ip,tcp,tds]` / `[ipv6,tcp,tds]` 唯一终结层 → 可达（complete.go:392-441 终结层计数；`OptionalOn` 计入底座豁免为 `0c355be` 实装，complete.go:406-418）。**`TransportOn` 当前未声明**（对照 ocsp/ntlm 车道写法）→ D-TDS-1 收口为 `TransportOn ["tcp"]`（只放 L4） |
+| 2 | **命令/消息表**：12 种包头 Type（0x01 SQLBatch / 0x02 Pre-TDS7 Login / 0x03 RPC / 0x04 Tabular result / 0x05 Unused / 0x06 Attention / 0x07 BulkLoad / 0x08 FedAuth / 0x0E TransMgrReq / 0x10 LOGIN7 / 0x11 SSPI / 0x12 PreLogin），每条含请求—响应与必选/可选字段（MS-TDS §2.2.3.1.1；设计 §2.1.1/§2.6） | 登录协商、SQL 批处理、RPC 调用、请求取消、事务管理、批量装载、联合认证 | **部分已实现**：生成器分派 PRELOGIN / LOGIN7 / SQLBatch / RPC / TransMgrReq / Attention 六类（layer_gen.go:120-193）；用例 `tds.type` 断言覆盖 7/12 值（1、3、4、6、14、16、18，实测）；BulkLoad(0x07) / SSPI(0x11) / FedAuth(0x08) / Pre-TDS7 Login(0x02) / Unused(0x05) 无生成路径 | 六类已实现；五类**明确不支持**（TDS 7.4 面）；逐格见 §12.2 |
+| 3 | **状态机**：客户端/服务器两侧连接状态机（Initial → PRELOGIN → TLS/认证 → Logged In → Client Request → Sent Attention → Final）、事务状态机（NO_TRANSACTION/ACTIVE/DTC_ACTIVE）、MARS 状态机（多请求在途与乱序归并）（MS-TDS §3.2/§3.3；设计 §4.1–§4.4） | 登录失败即断、请求取消、显式事务生命周期、MARS 并发请求 | **部分已实现**：连接级序列由生成器按配置一次性展开（PRELOGIN→LOGIN7→会话→挥手），`Login.Error != nil` 门控跳过全部会话（layer_gen.go:121-125，T-147）；事务状态经 ENVCHANGE 8/9/10 与 TransMgrReq 表达（用例 6 例）；**MARS 会话为串行块**（layer_gen.go:128-193 两层循环，逐会话先出全部请求与响应） | 真交错（同连接多请求在途、响应乱序归并）未实现：`tds_mars_two_sessions_interleave` 只钉 `OutstandingRequestCount` 常量、字节序实为 A 请求→A 响应→B 请求→B 响应 → 立项 **G-TDS-3** + 用例改名/改写（§16.6） |
+| 4 | **字段表**：43 个数据类型 token（零长 1 + 定长 13 + BYTELEN 16 + USHORTLEN 7 + LONGLEN 6）、24 个流 token、包长/字节序（Length/SPID 大端，其余小端）、8B DoneRowCount（7.2+）、4B LineNumber（7.2+）、PLP 编码、COLLATION 5B（MS-TDS §2.2.5；设计 §2.2–§2.4） | 结果集列类型全谱、参数类型全谱、大值（PLP）分块、跨版本宽度差异 | **已实现（子集）**：builder 侧——包层 `PacketHeader`/`BuildPreLogin`/`BuildPreLoginResponse`/`BuildLogin7`/`AllHeaders`/`BuildSQLBatch`（builder_packet.go:7,32,71,118,310,329）；响应 token 层 `BuildColMetadata`/`BuildRow`/`BuildNbcRow`/`BuildDone`/`BuildEnvChange`/`BuildErrorInfo`/`BuildLoginAck`/`BuildReturnStatus`/`BuildTableResponsePacket(s)`（builder_response.go:21,45,52,63,90,121,157,182,193,207）；请求层 `encodeTypeInfoAndValue`/`BuildRPCRequest`/`BuildRPCBatch`/`BuildTransMgrReq`/`BuildAttention`（builder_rpc.go:98,475,504,543,568）；parser 侧 1297 行（parser.go）；用例断言 41 个 `tshark tds.*` 字段全部命中本机 dissector 名单（§13.1）。**其中 `BuildNbcRow`（:52）与 `BuildRPCBatch`（:504）唯一调用点均为单测**（tds_test.go:1422 / :1342）→ 生成侧无注入点（G-TDS-2） | 逐项变体见 §12.3；未覆面收口（NBCROW / 单消息多 RPC 注入点、UNKNOWN_PLP_LEN、TEXT/NTEXT/IMAGE LONGLEN NULL、ALL_HEADERS 0x0000/0x0003、Status 位 Ignore/RESETCONNECTION*） |
+| 5 | **错误处理表**：50 条 Validate 规则（V-01–V-50，错误码 V-TDS-001…059）、生成阶段 wire 校验（Length=8+body、分包长度、PacketID 递增、EOM、偏移表单调）、服务器 ERROR/INFO token 的 Class 分级处理（0–9/10 信息、11–16 用户可修正、17–19 管理员、20–25 致命）（MS-TDS §2.2.7.9/§2.2.7.10；设计 §8/§9） | 坏配置拒收、语法/权限/死锁/严重错误分支、登录失败传播 | **部分已实现**：代码实测出现 29 个 V-TDS 码（V-TDS-001…007、015…018、020…028、030、034…036、038、050、051、060、061；其中 060/061 是 §8 未列的扩展码）→ §8 的 50 条规则中 **27 条有码字面、23 条无**；`ERROR`/`INFO` 注入面覆盖 class 13/14/15/16/20 与 INFO class 0（用例 11 例 inject + sql_error*），失败经 `spec.ValidationErrors`/任务 error 传播（负例 26 例全部带锚词，实测） | §8 无码字面的 23 条（含 TVP 两条 V-30/V-31、RESETCONNECTION 互斥 V-38、Attention 无 body V-39、会话内配对 V-40、wire 校验 V-52…V-59）→ 逐条三选一收口 **G-TDS-6**；class 17–19 无例 |
+| 6 | **超时与活性**：三个客户端定时器（Connection 15s / Client Request / Cancel）、Attention 后必须收到 DONE_ATTN 才算确认、超时关连接、无显式 logout（MS-TDS §3.2.6/§3.2.7；设计 §4.1/§9.4） | 网络时延下取消计时、空闲连接、登录超时 | **不适用（生成器语义）**：本引擎是流量生成器，事件流一次性产出（layer_gen.go:66-193），不实现等待/定时器；TCP 层的握手/序号/挥手由 tcp 层生成器承担（registry.go:1069-1071 注释） | 定时器面**明确不支持**（生成器不等待响应）；「长保活/多轮」用例面 → 立项 **G-TDS-4**（同连接多轮请求上限现状 3，实测 sessions 直方图 max=3） |
+| 7 | **NAT/代理/被动模式**：TDS 无 NAT/被动模式语义；TDS 7.4 的路由重定向经 ENVCHANGE Type 20/21（LOGINACK 之后，二者不得同时出现；Type 21 需 ENHANCEDROUTINGSUPPORT）（MS-TDS §2.2.7.9；设计 §3.10） | Azure SQL 重定向、实例名路由 | **未实现**：ENVCHANGE 生成侧类型实测仅 Type 1/2/4/7/8/9/10（builder_response.go:90 `BuildEnvChange` 通用构造 + 用例断言 7 类）；Type 20/21 无构造路径、无 FeatureId 0x0F 生成 | 路由重定向面**明确不支持 → 立项 G-TDS-5**（Type 20/21 + ENHANCEDROUTINGSUPPORT + Routing Completed 终态） |
+| 8 | **版本/方言**：TDS 7.0/7.1/7.1R1/7.2/7.3.A/7.3.B/7.4 七档；本设计默认 7.4；DQ 差异：NbcRow/TVP 仅 7.3.B+/7.3+、FeatureExt/FeatureExtAck 仅 7.4、DATETIME2 族 7.3+；SQL Server 2022/2025 仍用 7.4（MS-TDS 脚注 17/27/72；设计 §1.2/§10.1） | 老版本 SQL Server 兼容（7.1/7.2/7.3）、新特性协商 | **部分已实现**：5 个版本常量（types.go:22-33）；LOGINACK TDSVersion 双方向字节序（types.go 注释 + 用例 4 档断言：7.1/7.2/7.3A/7.4）；DoneRowCount/LineNumber 宽度随版本切换（有例） | **7.3.B 档无例**（`tds.loginack.tdsversion` 断言实测 4 值缺 0x730B0003）；NbcRow 仅在版本注释中（types.go:27-29），生成侧无注入点（`BuildNbcRow` 唯一调用点=单测 tds_test.go:1422）；TDS 5（Sybase 方言）**明确不支持** |
+
+### 12.2 子表①：消息 × 响应终态矩阵（逐格已覆 / 缺失 / 不适用）
+
+> **适配声明**：TDS 无"命令—响应码"表（§4.22 原型），等价物是**请求消息 × 响应终态**（0x04 token 流收尾 / ERROR+DONE_ERROR / 会话终止 / 无响应）。逐格给结论，不留白。
+
+| 请求面 \ 响应终态 | 0x04 正常收尾（DONE final） | ERROR + DONE_ERROR | 会话终止（FIN/RST 提前） | 无响应 / 超时 |
+|---|---|---|---|---|
+| PRELOGIN（0x12） | 已覆 `tds_prelogin_versions` / `tds_prelogin_encrypt_*`（5 例） | 不适用（PRELOGIN 阶段无 ERROR token 路径） | 立项 **G-TDS-4**（登录前断连） | 立项 **G-TDS-4** |
+| LOGIN7（0x10） | 已覆 `tds_login7_*`（13 例）、`tds_login_info_tokens` | 已覆 `tds_inject_login_fail`（18456/Class14 + DONE_ERROR + 会话全跳过） | 立项 **G-TDS-4** | 立项 **G-TDS-4** |
+| SQL Batch（0x01） | 已覆 `tds_sql_select` / `tds_sql_multi*` / `tds_integration_full_flow` 等 | 已覆 `tds_sql_error_*`（class 13/14/15/16/20）、`tds_inject_error_*` | 不适用（生成器不等待） | 立项 **G-TDS-4** |
+| RPC（0x03） | 已覆 `tds_rpc_*`（25 例，含 PLP/类型族） | 部分覆（RPC 响应无独立 ERROR 注入例；`tds_inject_error_*` 均走 SQL Batch） | 不适用 | 立项 **G-TDS-4** |
+| TransMgrReq（0x0E） | 已覆 `tds_transmgr_*`（6 例：8/9/10 事务 ENVCHANGE） | 未覆（未知 RequestType 的断连行为无用例） | 不适用 | 立项 **G-TDS-4** |
+| Attention（0x06） | 已覆 `tds_attention` / `_idle_confirm` / `_pktid_increment`（DONE_ATTN=0x20） | 不适用（Attention 确认载体即 DONE） | 不适用 | 立项 **G-TDS-4** |
+| BulkLoad（0x07） | **明确不支持**（无生成路径） | 明确不支持 | — | — |
+| SSPI（0x11）/ FedAuth（0x08） | **明确不支持** | 明确不支持 | — | — |
+| Pre-TDS7 Login（0x02）/ Unused（0x05） | **明确不支持 / 不适用**（0x05 规范标注 Unused） | — | — | — |
+
+注：36 格逐格结论——已覆 8 格、部分覆 1 格（RPC 的 ERROR 列）、未覆 1 格（TransMgrReq 的 ERROR 列）、明确不支持 5 格、不适用 5 格、立项 8 格（均为 G-TDS-4 的会话终止/无响应面，合并为一个立项）、整行不适用留白 7 格、混合判定 1 格；8+1+1+5+5+8+7+1 = 36。
+
+### 12.3 子表②：数据形态变体表（协议相关全部形态逐项）
+
+| # | 变体维度 | 形态 | 对应用例（存量） | 结论 |
+|---:|---|---|---|---|
+| 1 | 地址族 | IPv4 | 131 例全部（地址走顶层旧键，去扁平后落 `ip` 层） | 已覆 |
+| 2 | 地址族 | IPv6 | **0 例**（`cases/tds.json` 全文 grep `ipv6` = 0） | 缺口 → **G-TDS-7**（§9.24 地址族对称） |
+| 3 | TDS 版本 | 7.1 / 7.2 / 7.3.A / 7.4 | `tds_login7_tds71|72|73a`、`tds_login7_default`、`tds_sql_select_tds71`、`tds_inject_error_tds71` | 已覆 |
+| 4 | TDS 版本 | 7.3.B（0x730B0003） | 无 | 缺口 → **G-TDS-7** |
+| 5 | DoneRowCount 宽度 | 4B（7.1）/ 8B（7.2+） | `tds_sql_select_tds71` / `tds_done_rowcount_*` | 已覆 |
+| 6 | LineNumber 宽度 | 2B（7.1）/ 4B（7.2+） | `tds_inject_error_tds71` + `tds_sql_error_*` | 已覆 |
+| 7 | RowCount 大值边界 | 2^31 / 2^32 / 5×10⁹ | `tds_done_rowcount_2g` / `_4gb` / `_5e9`（断言 `tds.done.donerowcount64`=5000000000） | 已覆 |
+| 8 | PLP 编码 | 已知长度 + 多 chunk + PLP_TERMINATOR | `tds_rpc_param_varchar_max_multichunk` / `_plp_chunking` | 已覆 |
+| 9 | PLP 编码 | UNKNOWN_PLP_LEN（0xFFFFFFFFFFFFFFFE） | 无 | 缺口 → **G-TDS-2**（`buildPLP` 恒写已知长度 `uint64(len(raw))`，builder_rpc.go:453，无未知长度路径） |
+| 10 | NULL 编码 | 定长全 0 / 字符类 2B 0xFFFF / MAX 8B PLP_NULL | `tds_rpc_param_int4_null` / `_varchar_null` / `_varchar_max_null` / `_bit_null` / `_bigint_null` / `_varbinary_null` | 已覆（TEXT/NTEXT/IMAGE 4B LONGLEN NULL 无例 → G-TDS-2） |
+| 11 | ALL_HEADERS 头类型 | 0x0002 Transaction Descriptor | 全 SQLBatch/RPC/TransMgr 例（`tds.all_headers.header.*` 断言 10+8 处） | 已覆 |
+| 12 | ALL_HEADERS 头类型 | 0x0000 Query Notifications / 0x0003 Trace Activity | 无 | 缺口 → **G-TDS-7** |
+| 13 | 包分片（应用层） | 多包消息 EOM/PacketID 递增 | `tds_rpc_param_plp_chunking` / `tds_inject_error_split` / 登录响应分片（T-148 路径） | 已覆 |
+| 14 | Status 位 | EOM=0x01 | 全部（每包 Status=0x01） | 已覆 |
+| 15 | Status 位 | Ignore=0x02 / RESETCONNECTION=0x08 / RESETCONNECTIONSKIPTRAN=0x10 | 无 | 缺口 → **G-TDS-7**（设计 §2.1.2 三值；V-38 互斥规则亦缺例） |
+| 16 | 行 token | ROW（0xD1） | 全部结果集例 | 已覆 |
+| 17 | 行 token | NBCROW（0xD2） | 无（`BuildNbcRow` 唯一调用点=单测 tds_test.go:1422，生成侧无注入点） | 缺口 → **G-TDS-2**（生成侧 NBCROW 路径） |
+| 18 | COLMETADATA | 常规列 / NoMetaData 0xFFFF / CekTable | `tds_sql_column_metadata_two_groups`（部分）；NoMetaData 无例 | 缺口 → **G-TDS-7** |
+| 19 | ENVCHANGE 类型 | 1 DB / 2 Language / 4 PacketSize / 7 Collation / 8 Begin / 9 Commit / 10 Rollback | 断言实测 7 类（`tds.envchange.type` = {1,7,2,4} / 8 / 9 / 10） | 部分覆；其余 11 类（3/11/12/13/15/16/17/18/19/20/21）→ 缺口 → **G-TDS-5 / G-TDS-7** |
+| 20 | RPC 参数类型 | int4 / bigint / nvarchar / varchar / varbinary / uniqueidentifier / bit / decimal / tinyint / datetime / xml / json / udt | `tds_rpc_param_*` 20 例（实测 13 类型） | 已覆（子集：43 类型 token 未逐值枚举 → G-TDS-7） |
+| 21 | RPC 形态 | 短形式 ProcID / 长形式 ProcName / 空名参数 / 默认值 / OUTPUT 位 | `tds_rpc_procid_short` / `_longname` / `_param_empty_name` / `_param_defaultvalue` / `_param_byref` | 已覆 |
+| 22 | 多语句批 | 3 语句 → 2×DONE_MORE + 1×DONE_FINAL | `tds_sql_multi` / `tds_mars_3sessions_multi_done` | 已覆 |
+| 23 | MARS 会话语义 | 2/3 会话、事务隔离、错误隔离、定向 Attention | `tds_mars_*` 8 例 | 部分覆（真交错 → G-TDS-3） |
+| 24 | 事务分支 | SQL BEGIN/COMMIT/ROLLBACK + TM_BEGIN/COMMIT/ROLLBACK/SAVE/PROMOTE | `tds_transmgr_*` 6 例 + `tds_sql_begin_then_commit` | 已覆 |
+| 25 | 错误类 | 13 / 14 / 15 / 16 / 20 | `tds_sql_error_*` + `tds_inject_error_*` | 部分覆（17–19 无例 → G-TDS-7） |
+| 26 | 错误号边界 | <20001 保留 / ≥20001 用户 | `tds_sql_error_num_reserved`（19999）+ `tds_inject_error_*`（50000） | 已覆 |
+| 27 | 载体验收 | PCAP 落盘路径 | 全量（框架默认 `/tmp/mcp-pcaps/tds/`；本机当前无该目录，证据需 P6 复跑落盘） | 部分（待复跑） |
+| 28 | 载体验收 | NIC 真网卡抓包 | **0 例**（`cases/tds.json` 无 `nic_capture` 键；case schema 亦无该字段） | 缺口 → **G-TDS-8**（§6.3 两路验收） |
+| 29 | 多流 | 同一任务多策略/多流并发 | 0 例（全部 `count: 1`；`flow_control` 0 处） | 缺口 → **G-TDS-4**（多流 + 层链四元组动态） |
+
+### 12.4 子表③：商业行为 → 用例映射表（§4.16）
+
+| 商业行为（产品/版本 + 出处） | 对应用例 | 无映射项 + 确认方式 |
+|---|---|---|
+| SQL Server 2012+ / 2022 / 2025 客户端登录协商（VERSION/ENCRYPTION/INSTOPT/THREADID/MARS） | `tds_prelogin_*`（5 例） | 现网 SQL Server 抓包核对 → G-TDS-9（抓 `sqlcmd`↔SQL Server 回环包） |
+| SQL Server LOGIN7 默认形态（TDS 7.4、`04 00 00 74` 客户端方向 / `74 00 00 04` 服务器方向） | `tds_login7_default` / `tds_integration_full_flow`（frames 钉 `04 00 00 74`） | — |
+| SQL Server 登录失败（错误号 18456 / Class 14） | `tds_inject_login_fail`（断言 18456/14 + DONE_ERROR） | — |
+| SQL Server 语法错误 102 / Class 15 | `tds_inject_error_syntax` / `tds_sql_error_*` | — |
+| 死锁 1205 / 权限 229 / 唯一约束 2627（Class 13/14/16） | `tds_sql_error_class13_deadlock` / `_class14_perm` / `tds_sql_error_unique_constraint` | — |
+| 事务：BEGIN/COMMIT/ROLLBACK + SAVE TRAN（无 ENVCHANGE）/ PROMOTE（DTC） | `tds_transmgr_*`（6 例） | PROMOTE 的 DTC token 真实形态 → G-TDS-9（抓 SQL Server DTC 场景） |
+| Azure SQL 路由重定向（ENVCHANGE 20/21 + FEATUREEXTACK 0x0F） | **无** | → G-TDS-5（查 MS-TDS §2.2.7.9 + 抓 Azure SQL 登录响应对照） |
+| FreeTDS / ODBC 客户端形态（`tsql -C` 版本协商、2B RPC OptionFlags） | `tds_rpc_*`（OptionFlags 2B 已按 §3.4 钉，v3.0.2 修） | FreeTDS 行为核对 → G-TDS-9（抓 FreeTDS `tsql` 对 SQL Server 的 RPC 包；或读 FreeTDS 源码 `tds_submit_rpc`——只借鉴不搬码） |
+| 大值传输（varchar(max) 分块，客户端多 chunk） | `tds_rpc_param_varchar_max_multichunk` / `_plp_chunking` | — |
+| 批量装载（BulkLoadBCP） | **明确不支持** | 若需覆盖 → 另立项（确认方式：MS-TDS §2.2.6.1 + 抓 `bcp` 会话） |
+
+### 12.5 规范枚举面计数与覆盖对账（9.52 两行在此定稿，报告另摘录）
+
+> **清单出处声明**：本清单**由规范原文反推**——`docs/protocol-designs/ms-tds-spec.txt`（MS-TDS v20260617，**12603 行实测**）逐表枚举，落到本设计 §2/§3/§8 的表行计数；**不是**从现有用例或引擎能力反推。
+
+| 规范枚举面 | 点数（实读设计 §2/§3/§8 表行） | 已覆（用例实测） | 缺口去向 |
+|---|---:|---|---|
+| 包头 Type 值（§2.1.1） | 12 | 7（1/3/4/6/14/16/18） | 5 → 明确不支持（0x02/0x05/0x07/0x08/0x11） |
+| 包头 Status 位（§2.1.2） | 5 | 1（EOM） | 3 → G-TDS-7；1 不适用 |
+| 流 token（§3.6） | 24 | 11（COLMETADATA/ROW/DONE/DONEINPROC/DONEPROC/ENVCHANGE/ERROR/INFO/LOGINACK/RETURNSTATUS + 0xD2 仅单测） | 余 → G-TDS-2/G-TDS-7/明确不支持（ALTMETADATA/ALTROW/OFFSET 7.4 弃用） |
+| ENVCHANGE 类型（§3.10） | 18 | 7（1/2/4/7/8/9/10） | 11 → G-TDS-5（20/21）+ G-TDS-7 |
+| TransMgr RequestType（§3.5） | 7 | 5（实测 `request_type` 用例值 = 5/6/7/8/9；另 99 为负例 V-TDS-034） | → G-TDS-7（TM_GET_DTC_ADDRESS=0 / TM_PROPAGATE_XACT=1 无例） |
+| 数据类型 token（§2.4） | 43 | 子集（rpc 参数实测 **13 类型**：varchar/int/bigint/decimal/nvarchar/varbinary/uniqueidentifier/bit/tinyint/datetime/xml/json/udt） | → G-TDS-7（逐值枚举表） |
+| DONE Status 位（§3.9） | 8 | 6（0x00 FINAL / MORE / ERROR / COUNT / ATTN / SRVERROR，实测断言值 0x0000/0x0001/0x0002/0x0003/0x0010/0x0011/0x0020/0x0102） | 2 → G-TDS-7（INXACT 0x04：有例但断言不含该位，见 §16.6 名实不符项；RPCINBATCH 0x80） |
+| COLMETADATA Flags 位（§3.7） | 16 | 0（仅列数 `tds.colmetadata.columns` 有断言） | → G-TDS-7 |
+| PRELOGIN 选项 token（§3.1） | 9 | 4–5（VERSION/ENCRYPTION/THREADID/MARS；INSTOPT 经 frames） | → G-TDS-7（TRACEID/FEDAUTHREQUIRED/NONCEOPT） |
+| FeatureId（§3.2/§3.14） | 13 | 1（SESSIONRECOVERY，`tds_login7_feature_ext`） | → G-TDS-7 |
+| 事务隔离级别（§3.5） | 6 | 1（`tds_transmgr_begin_payload` 钉 0x02） | → G-TDS-7 |
+| TDS 版本档（§1.2） | 5（本设计支持的 7.1/7.2/7.3A/7.3B/7.4） | 4 | 1 → G-TDS-7（7.3.B） |
+| **枚举点小计** | **166** | — | — |
+| Validate 规则（§8） | 50（V-01–V-50） | 26 个错误码被用例引用；代码实测出现 29 个 V-TDS 码（含 060/061 扩展）→ 27 条规则有码字面 | 23 条规则无码字面 → G-TDS-6 |
+| 设计测试条目（§7 T-001–T-220） | 220 | **147 被引用（73 缺）**（实测 regex `T-\d{3}` 去重） | 逐条去向见 §16.6；缺口并入 G-TDS-2/G-TDS-3/G-TDS-6/G-TDS-7 |
+
+**9.52 对账两行**：
+- 规范逻辑点总数 = **166 枚举点（12 个面）+ 50 条 Validate 规则 = 216**（清单出处 = MS-TDS v20260617 原文反推，落 §2/§3/§8 表行；见上表逐面点数）。
+- 用例覆盖数 = **存量 131 例**（`cases/tds.json` 实测）；其中 §7 的 220 条设计条目被引用 147 条（**73 条无对应用例**）；枚举面按上表覆盖，未覆面已全部归入 G-TDS-2/3/5/6/7/8 立项或标「明确不支持」。
+
+### 12.6 现状偏离登记（不许抹平：`Payload` 携带特例）
+
+**偏离本体（实测）**：
+1. `registry.go:1066-1074` 注释声明：tds 配置"繁多不落层 config（layers 数组条目零负载），经 `spec.Payload`（TDSConfig JSON）携带、`FlowMeta.Payload` 直传生成器"。
+2. 但同一注册块 `registry.go:1078-1093` 又声明了 **16 个层字段**（version/packet_size/encrypt_mode/mars/app_name/server_name/client_name/user_name/password/database/language/interface_lib/client_lcid/feature_exts/login/sessions）。
+3. 实测**零消费点**：`chain_planner_translate.go` 全文 grep `tds` = 0；`translateTerminalConfig`（:679）的 21 个 `case`（747/847/935/963/1024/1083/1106/1224/1302/1415/1500/1570/1641/1687/1744/1801/1993/2021/2042/2064/2091）无 tds；`layer_dyn.go` 无 tds 分支 → 层条目里的 16 个字段被 `complete.go:293`（"layer %q: unknown field" 白名单）放行后**静默丢弃**（死配置，与 CORE_MEMORY「死配置三连」教训同形）。
+4. 配置的真实入口是**顶层 `tds` 子映射**：`strategy_convert.go:1309-1315`（`mapToFlowSpec` 内 `case "tds"`：把 `cfg["tds"]` 重新序列化进 `spec.Payload`）→ `chain_planner_translate.go:48`（`FlowMeta.Payload ← spec.Payload`）→ `layer_gen.go:66` → `tds.go:59 configFromSpec`。
+5. 顶层 `tds` 子映射**未被判死**：`CheckProtoFlat`（strategy_convert.go:8273）只有 ftp 特判 + 五个通用旧键 + http 族/dns/mqtt/cwmp/megaco/hl7 等子映射分支，**无 tds 分支**（实测）——与 1.11「顶层白名单」相抵触，也与 a2a 同族形态（registry.go:201-206 零字段声明 + Payload 携带）不同：**tds 是"声明了层字段却零消费"的独一形态**。
+
+**与 §1「层链是唯一配置真相」的关系（如实说明，不抹平）**：沿用"业务配置走 Payload"是把配置搬到了**层链之外**的旁路——即便链形是纯 layers，业务配置仍从顶层键来，等于 §1 与 1.11 双双被架空。因此本设计把该偏离判为**待整改缺口 G-TDS-1**（不是合法特例）：
+- 目标：`layers[].tds` 条目为唯一配置住处（§14.1 样例），`spec.Payload` 只作层条目 → 生成器的**内部搬运管道**（不再是用户可见入口）；
+- 过渡：改写期间顶层 `tds` 子映射按 1.11 判死（`CheckProtoFlat` 加 tds 分支，presence 语义：空 `{"tds":{}}` 与 layers 并存同样判死）；
+- 16 个层字段**要么接线（translate 期把层 config 序列化进 Payload）要么删除**，不许"登记保留"（1.12）。
+
+## §13. 三路对照（§4.12–4.15）与候选方案对比（§4.17）
+
+### 13.1 三路对照
+
+① **规范原文**：`docs/protocol-designs/ms-tds-spec.txt`（**MS-TDS v20260617，修订版 42.0，12603 行实测**）——包头 Type/Status、Token 流四分类、LOGIN7 偏移表、RPCReqBatch/SMP、ENVCHANGE 全类型、DONE 系列、PLP、TDS 版本与脚注 17/27/72。规范对"必须是什么"给出底线（如 7.4 双方向 wire 字节序、RPC OptionFlags 2B、ALL_HEADERS 必需、Attention 确认经 DONE_ATTN）。
+
+② **现网行为**（定"真跑成什么样"；逐条给产品 + 出处）：
+- **SQL Server 2012+ / 2022 / 2025**：仍以 TDS 7.4 互操作（MS-TDS 脚注 17/72 明载），LOGIN7 `04 00 00 74`、LOGINACK `74 00 00 04`。出处=规范原文（本地文件）+ 设计 §1.2。
+- **SQL Server 错误面**：18456 登录失败（Class 14）、102 语法错误（Class 15）、1205 死锁（Class 13）、2627 唯一约束（Class 16）——现行用例已按这些错误号钉断言（`tds_inject_login_fail` 等），出处=用例 + SQL Server 公开错误号表。**待确认项**：现网抓包逐字段复核 → **G-TDS-9**（抓 `sqlcmd`↔SQL Server 回环包，确认 PRELOGIN 选项集与 LOGINACK 形态）。
+- **FreeTDS**（开源 C 实现，最新发布 **v1.5.15**，GitHub `FreeTDS/freetds` Releases 页 2026-09-26 查询）：按 TDS 7.x 与 SQL Server 互操作；设计 §3.4 已记录其对 RPC OptionFlags 的 2B 读法（v3.0.2 修轮依据）。**待确认项**：FreeTDS 版本/commit 级行为核对 → **G-TDS-9**（抓 `tsql` 对 SQL Server 的 RPC 包；或读其源码 `tds_submit_rpc`——只借鉴思路，不搬码 §4.14）。
+- **Azure SQL 路由重定向**（ENVCHANGE 20/21 + ENHANCEDROUTINGSUPPORT）：现网存在，本实现不支持 → G-TDS-5，确认方式=抓 Azure SQL 登录响应（G-TDS-9 一并）。
+
+③ **可靠开源实现思路**：wireshark tds dissector（本机 **tshark 3.6.14** 实测）——`tds.*` 唯一字段名 **605 个**（口径：`tshark -G fields | grep -oP '\btds\.[a-z0-9_.]+' | sort -u`；家族分布实测：capability 152 / login 47 / colmetadata 43 / 7login 22 / type_varbyte 21 / rpc 16 / type_info 16 / done 14 / prelogin 13 / envchange 12 / all_headers 7 / loginack 6 等）。**口径说明（如实记录双数）**：方案简口径 `tshark -G fields | awk '{print $3}' | grep -c '^tds\.'` 实测 = **112**，该口径按行的第 3 列取字段名，而 `-G fields` 输出以 label 列开头（label 词数不同导致字段名落到不同列），故 112 是**伪计数**；本设计以唯一名计数 605 为准（两个数均为实测，出处命令已列）。dissector 的解析思路（按包类型分派、按 token 流驱动、SecurityBuffer/TYPE_INFO 驱动切片、PLP chunk 循环）与设计 §4.5 解析状态机同构；用例断言的 **41 个 `tds.*` 字段全部命中该名单**（0 缺失，实测）。
+
+**三路一致性**：包头 8B 与字节序、Type 值表、LOGIN7 偏移语义、RPC OptionFlags 2B、ALL_HEADERS、DONE 系列与 ENVCHANGE 事务三型、PLP 编码 —— 三路一致。**不一致点**：§3.15 的 "Attention 确认" 在 v3.0.0 曾误写成 Type=0x05（规范标注 Unused），现以规范 + dissector 为准（DONE_ATTN 位），已修正；另 §6 S2 示例沿用官方示例 4.2 的 TDS 7.2 字节序列（`02 00 09 72`）而默认版本为 7.4 —— 设计已加注记，不混用。
+
+### 13.2 候选方案对比表（§4.17；每个关键决策至少两个真实走法）
+
+**决策 A：业务配置的住处**（层链唯一真相 vs Payload 旁路）
+
+| 方案 | 走法（含借鉴来源） | 优 | 劣 | 性能/复杂度/兼容性 | 结论 |
+|---|---|---|---|---|---|
+| A1 层条目为唯一住处（配置搬进 `layers[].tds` → translate 期序列化进 `spec.Payload`） | 与 ftp/mqtt/cwmp/dns 等"业务字段全进层"的既有改成式同族（ftp 层 registry.go:1095+ 注释即该范式） | 满足 1.1–1.13 与 §1 唯一真相；顶层键可判死；schema/MCP 描述自动覆盖 | translate 期新增一次 JSON 往返（微秒级）；需改 3 处代码 | O(1)/流；复杂度低；对既有 131 例是**破坏性形状变更**（须改写） | **采用**（G-TDS-1 主方案） |
+| A2 维持顶层 `tds` 子映射 + 层条目零负载（现状） | 现状；a2a 同族（registry.go:201-206） | 零改动 | 违反 1.4/1.11/§1；顶层 tds 与 layers 并存即"混用"，门 2① 必红 | 不改即红 | 不采用（登记为偏离，见 §12.6） |
+| A3 保留层字段声明但不接线（登记豁免） | — | 无 | 1.12 明文禁止（"不许用登记保留/顶层保留/豁免写进设计条目"）；且是死配置 | — | **禁止** |
+
+**决策 B：MARS 多会话的时间线表达**
+
+| 方案 | 走法 | 优 | 劣 | 结论 |
+|---|---|---|---|---|
+| B1 会话串行块（现状：逐会话出全部请求/响应） | 生成器现状（layer_gen.go:128-193） | 实现简单、字节确定性好 | 与规范 §4.4 "响应可乱序、按消息边界归并"不符；用例名 `interleave` 名实不符 | 保留为**默认档**，但用例须改名/加注（§16.6），并补 B2 |
+| B2 真交错（A 请求→B 请求→A 响应→B 响应 + OutstandingRequestCount 动态回落） | 借鉴 MC-SMP/MARS 语义（设计 §4.4）；实现参考 http 波 2 事件模型（跨会话交织 emit） | 覆盖 9.49/9.50 的并发交错维度；`OutstandingRequestCount` 真变化可断言 | 生成器需会话调度器（小改造，限定在协议包内） | **采用为 G-TDS-3 立项**（P4 落码） |
+
+**决策 C：响应字节的生成方式**
+
+| 方案 | 走法 | 优 | 劣 | 结论 |
+|---|---|---|---|---|
+| C1 结构化 builder 逐 token 组装（现状） | builder_*.go 纯函数（29 个导出函数实测） | 字段可结构化断言、可按配置注入 ERROR/INFO、可按 PacketSize 分片 | 需要为每种 token 写构造 | **采用**（已实装） |
+| C2 整消息 hex 回放 | 参考 kerberos `events[].body` 逃生口 | 最省事 | 字段不可结构化断言、动态零分、覆盖无法逐点对账 | 仅作负例/特殊形逃生口（G-TDS-2 注入点候选） |
+
+**决策 D：Address 族动态**
+
+| 方案 | 走法 | 优 | 劣 | 结论 |
+|---|---|---|---|---|
+| D1 四元组走 `ip`/`tcp` 层动态（通用层机制） | `layer_dyn.go` 对 ip/tcp 的通用解析（无 tds 专属分支） | 复用既有机制，五策略齐 | 需实测确认 tds 链上生效（P4 校准） | **采用（目标）** |
+| D2 业务字段（SQL 文本/参数/用户名）动态 | 现状无（`Strategy` 在 `internal/protocol/tds/*.go` 非测试文件 **0 命中**） | — | 无 | 立项 **G-TDS-10**（B 类：逐字段策略或"明确不支持"） |
+
+### 13.3 三路结论的取舍（§4.15）
+
+- 规范与实现冲突时以规范为底线、以现网为准绳：本设计保留"规范位但现网不置"的差异注明（如 DONE_INXACT 0x04 —— 规范定义、SQL Server 实际不置位），并让**事实断言**（而非规范愿望）进入用例（`tds_sql_txn_begin_done_inxact` 实钉 MORE|COUNT，见 §16.6 名实不符项）。
+- 现网与规范不一致的面（BulkLoad/SSPI/FedAuth/路由重定向）：一律三选一写明（本设计标"明确不支持"，除路由重定向立 G-TDS-5），不许留白、不许拿"已有值有代表性"抽样。
+- dissector 只作**观察口径**（字段名与解析思路），不作行为契约：生成的字节由 MS-TDS 决定，断言字段以本机 tshark 实测存在的名字为准（41/41 命中）。
+
+## §14. 门 1 §1–§14 十四行对照表（CORE_MEMORY §15.1–15.3）
+
+> 一行一 §，写"本协议怎么满足 + 证据在哪"；§1/§3/§12 强制展开在 §14.1–§14.3。证据三选一：文档章节 / 代码行 / 用例号（§15.2）。
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 见 §14.1 强制展开：旧键 `src_ip`/`dst_ip` 迁 `ip` 层、`src_port`/`dst_port` 迁 `tcp` 层、`count` 迁 `flow_control.flows`、顶层 `tds` 子映射迁 `layers[].tds`；**如实声明 Payload 旁路偏离（§12.6）并立项 G-TDS-1**，纯 layers 目标形状样例见 §14.1 | 本契约 §12.6/§14.1；`cases/tds.json` 131/131 顶层旧键（实测）；`strategy_convert.go:1309-1315`（现状入口）与 `strategy_convert.go:8273 CheckProtoFlat`（实测无 tds 判死分支） |
+| §2 策略/任务 | 策略 = 单 TDS 流量模板（自带 `flow_control` flows/bps/time）；任务 = 多策略合跑 + 总量封顶；语义未动 | 本契约 §2；框架层现状（未改） |
+| §3 五件套 | 见 §14.2（会话表 / 事务序列 / 关联关系 / 插入位置 / 时间线）；**有长连接不豁免**（多会话 MARS 有例、多事务有例） | 本契约 §14.2；用例 `tds_mars_*`（8 例）、`tds_transmgr_*`（6 例） |
+| §4 查规范 | MS-TDS v20260617（本地 `ms-tds-spec.txt` 12603 行）+ SQL Server 2012+/2022/2025 行为 + FreeTDS 1.5.15（GitHub Releases 查询）+ tshark 3.6.14 dissector（`tds.*` 唯一名 605）；P1 矩阵 8 项 + 三子表 | 本契约 §12/§13 |
+| §5 依赖与错误 | 依赖：`DependsOn ["tcp"]`（单值）+ `CategoryTerminal`；错误：29 个 V-TDS 码实装（其中 27 条对应 §8 规则）+ 26 例负例带锚词（实测）；未落码的 23 条规则 → G-TDS-6 | 本契约 §12.1 行 5；`internal/protocol/tds/tds.go:113/132` |
+| §6 性能 | 生成器 O(n) 流式事件（无全量聚合）；应用层分片保留（`BuildTableResponsePackets`）；pcap/NIC 两路验收写法见 §15.6（NIC 面缺例 → G-TDS-8）；量化目标待 P4 基准确认（§6.5 不写承诺数字） | 本契约 §15.6；`layer_gen.go:66-193`；`builder_response.go:207` |
+| §7 三份文档 | `09-tds-design.md` v3.1.0（本文）+ `09-tds-testcase.md` v1.0（本次新建）+ D-TDS-1（§15，门 1 获批 = 定稿）+ T 条目（testcase §2）；权威文本在 append 进 CODE_DESIGN/TEST_CASES 时收口（车道 A 不写共享文档） | 修订记录 |
+| §8 设计先行 | 本附录 P1–P3 先于 P4 改动；门 1 获批 = D-TDS-1 定稿 = 开工门（8.9） | 提交序；§15 |
+| §9 测试三源 | 规范（MS-TDS §2/§3/§8 逐表）+ 设计 D-TDS-1 + 现网行为（SQL Server 错误号/FreeTDS/dissector）；131 例存量审计 + 9.52 对账两行见 §12.5/§16 | 本契约 §12.5；`09-tds-testcase.md` §2/§5 |
+| §10 评审闭环 | 每阶段对抗自重审（结论见 `/tmp/pipe/55-tds/p123-report.md`）+ 收官隔离复审 + 修轮；红先绿后 | p123 报告 |
+| §11 白话 | 汇报先一句白话结论再贴证据；本文档内技术细节不外溢到对话 | 汇报约定 |
+| §12 动态清单 | 见 §14.3 强制展开：四元组走 `ip`/`tcp` 层动态（五策略）；业务字段现状**无动态**（实测 `Strategy` 零命中）→ G-TDS-10 | 本契约 §14.3 |
+| §13 schema 派生 | `registry.go:1075-1094` tds 行（含 16 层字段与 `TransportOn` 收口）→ 改后 `schemagen` 重跑（`schemas/v1/generated/layers.generated.json` 现 123 层含 tds）；struct 标签字面量锁（13.13）；`allowedProtocols` 已含 tds（`internal/core/protocols.go:48`） | registry.go:1075-1094；`layers.generated.json` 实测 123 层 |
+| §14 真实流程 | 用例经 MCP 建任务 → 引擎生成 → tshark `tds.*` 字段 + frames hex 双通道；先跑后钉；pcap 落 `/tmp/mcp-pcaps/tds/`（本机当前无该目录，P6 复跑落盘为验收证据） | 用例 §1；`test/protocol_pcap/driver.go` |
+
+### 14.1 §1 强制展开：旧键逐个去向 + 纯 layers 目标形状样例
+
+**现状（实测）**：`cases/tds.json` 131 例**全部**带顶层旧键（`count` 131、`src_ip` 131、`dst_ip` 131、`src_port` 131、`dst_port` 131）；其中 105 例同时写 `layers: [{"tcp":{}},{"tds":{}}]`（**层链 + 顶层子映射并存**）与顶层 `tds` 子映射；26 例（validate 组）无 `layers`；`flow_control`/`strategy_fc` **0 处**。按门 2① 现口径：这 131 例全部命中"顶层旧键"红项，105 例另命中"顶层协议子映射与 layers 并存"黄项（`pipe_gate.sh:41/57`）。
+
+| 旧键（顶层） | 去向（目标形状） | 现状证据 |
+|---|---|---|
+| `src_ip` | `layers[].ip.src` | 131 例顶层（实测） |
+| `dst_ip` | `layers[].ip.dst` | 131 例顶层 |
+| `src_port` | `layers[].tcp.src_port` | 131 例顶层；`chain_planner.go:877-880` 显式不做默认化（0 也上包，与 legacy tds.go:449 一致） |
+| `dst_port` | `layers[].tcp.dst_port`（缺省 1433 由 `chain_planner.go:1130-1134` 补） | 131 例顶层 |
+| `count` | `flow_control.flows` | 131 例顶层 |
+| 顶层 `tds` 子映射 | `layers[].tds` 条目 | 131 例顶层；**今天层条目零消费**（§12.6）→ 改写须先落 G-TDS-1 |
+
+**目标形状 spec_json 样例（纯 layers；唯一合法形状）**：
+
+```json
+{
+  "layers": [
+    {"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}},
+    {"tcp": {"src_port": 54321, "dst_port": 1433}},
+    {"tds": {
+      "mars": true,
+      "app_name": "trafficgen",
+      "user_name": "sa",
+      "password": "password",
+      "database": "master",
+      "sessions": [
+        {"id": "A", "requests": [
+          {"type": "sql_batch", "sql": {"statements": [{"text": "select 'foo' as 'bar'"}]}}
+        ]},
+        {"id": "B", "requests": [
+          {"type": "rpc", "rpc": {"proc_id": 10, "params": [{"name": "@stmt", "type": "varchar", "max_len": 8, "value": "SELECT 1"}]}}
+        ]}
+      ]
+    }}
+  ],
+  "flow_control": {"flows": 1}
+}
+```
+
+**两处必须如实标注（1.9）**：
+1. **业务配置走 Payload 不走层字段**是现状实现的特例，不是合法形态：上样例中 `layers[].tds` 的内容**今天被静默丢弃**（生成器会拿到空 Payload → 走默认配置），因此 §1 门的"跑通"必须等 **G-TDS-1** 落地后重跑；本样例定位为**目标形状，今天跑不通，需先补代码**。
+2. `flows > 1` 时层链四元组必须写动态对象或留空（9.39 静态复制拒绝），`flow_control.flows=1` 是本文样例的取值。
+
+### 14.2 §3 强制展开：五件套
+
+| 五件套 | 本协议内容 | 证据/现状 |
+|---|---|---|
+| **① 会话表** | TDS 会话 = TCP 连接（一 flow 一连接，MS-TDS §1）。多会话仅经 MARS：`sessions[]` 显式声明，每会话独立 `id` + 独立 `transaction_id` + 独立请求序列，**共享同一 TCP 四元组与同一 SPID（0x0042）**，靠消息边界区分（MS-TDS §1.4/§4.4；设计 §4.4）。会话 ID 全局唯一 → 用于 §3.10 的被关联流寻址 | 已实装：`TDSConfig.Sessions`（types.go:60-66）；用例 `tds_mars_2sessions`/`_3sessions`/`mars_txn_isolation`（8 例）；SPID 固定 0x0042（`layer_gen.go:79-82`） |
+| **② 事务序列** | 连接级：PRELOGIN → Login Response → 会话 1..N（各会话内为有序请求序列）→ TCP 挥手；请求级四件事——前置（`transaction_id` 需先 BEGIN，V-TDS-036）、触发（`type`：sql_batch/rpc/trans_mgr/attention）、成功（DONE/DONEPROC + ENVCHANGE 8/9/10）、失败（ERROR token + DONE_ERROR；登录失败跳全部会话） | 实现：`layer_gen.go:99-193` 顺序展开；校验：`tds.go:282`（V-TDS-036 前置）；用例：`tds_integration_full_flow`、`tds_transmgr_*`、`tds_inject_login_fail` |
+| **③ 关联关系** | **TDS 无"控制流关联数据流"结构**（无 FTP/SIP 式派生副流）→ `driven_by` **不适用**（不是缺口）。多流关联改由两条既定语义承担：同一 MARS 连接的多会话靠**消息边界 + OutstandingRequestCount** 归并；同一批内多语句/多 RPC 靠 **DONE_MORE / DONE_RPCINBATCH** 定界 | 已实装：ALL_HEADERS 的 `OutstandingRequestCount`（`computeOutstanding`，layer_gen.go:87）；用例 `tds_mars_*`、`tds_sql_multi`（DONE_MORE 序列） |
+| **④ 插入位置** | `tds` 为**终结层**（链尾），自封 TDS 包（8B 包头 + body）；链上无中间变换层，TCP 语义（握手/序号/挥手/MSS 分段）由 `tcp` 层生成器承担 | `registry.go:1075`（`CategoryTerminal`）；`layer_gen.go:1-58` 注释（事件模式，http 波 2 方案 A 同款）；`chain_planner.go:877-880`（端口语义归属） |
+| **⑤ 时间线** | 会话内：严格有序（请求 → 响应 → 下一请求），断言以 stream 内重组后的包序为准；跨会话：**规范允许并发交错与乱序归并**，**实现现状为会话串行块**（A 全部完成再 B）→ 现状用例只钉 `OutstandingRequestCount` 常量，未钉交错顺序（**G-TDS-3**，用例 `tds_mars_two_sessions_interleave` 名实不符，§16.6） | `layer_gen.go:128-193`；用例 `tds_mars_two_sessions_interleave`（断言仅 `request_cnt=2` + `done.status`） |
+
+### 14.3 §12 强制展开：动态字段清单 + 序号算法位置
+
+| 字段面 | 住处 | 现状（实测） | 目标 | 缺口 |
+|---|---|---|---|---|
+| `src_ip` / `dst_ip` | `ip` 层（`src`/`dst`） | 通用层动态机制可用（`layer_dyn.go:140-148` 的 ip 分支）；**tds 用例 0 处动态** | 五策略（fixed/inc/rand/list/pattern）全支持 | 需 P4 在 tds 链上实测五策略（G-TDS-4 并入） |
+| `src_port` / `dst_port` | `tcp` 层 | 同上（`layer_dyn.go:149-160`）；另 src_port 有不写死时的 `12345+i` 保底（2.8/12.10） | 同上 | 同上 |
+| `count`（流数量） | `flow_control.flows`（独立封包） | 用例全 `count:1`（旧键）；`flow_control` 0 处 | 走 `flow_control` | G-TDS-4（多流用例面 0） |
+| SQL 文本（`statements[].text`） | `layers[].tds` 条目 | **无动态**（`internal/protocol/tds/*.go` 非测试文件 grep `Strategy` = 0） | 逐字段策略（如 `pattern` 造 `select {n}`）或**明确不支持** | **G-TDS-10**（B 类，须在三选一里收口） |
+| RPC 参数值（`params[].value`） / `proc_name` | 同上 | 无动态 | 同上 | 同上 |
+| 登录字段（`user_name`/`password`/`database`/`app_name`） | 同上 | 无动态 | 同上 | 同上 |
+| 会话/事务标识（`sessions[].id`、`transaction_id`） | 同上 | 无动态（`transaction_id` 为常量；ENVCHANGE 8 的 8B TransactionID 由服务器侧生成，设计 §4.3） | `inc` 按流序号（若需） | 同上 |
+| **序号算法代码位置** | — | 层四元组动态：`internal/core/layer_dyn.go`（+ `ResolveStringValue`/worker 递增）按流序号解析（12.4 语义）；**业务字段无算法**（诚实写"无"，不编行号） | 业务字段若开动态，算法住 `internal/protocol/tds` 内（按 `FlowMeta.FlowIndex`） | G-TDS-10 |
+
+## §15. D-TDS-1 代码设计（CODE_DESIGN 体裁八要素；门 1 获批 = 定稿）
+
+> 目标：把 tds 从"层链 + Payload 旁路"收口为"纯 layers 唯一真相"，补齐 §12/§14 登记的缺口。
+> **状态：已验收（2026-09-27，P6 关单）**——落码提交：P4+P5 集成 merge `50434f1`；P6 修轮 m1/m2 与本节回写同批（§17 v3.1.1）。P4 落码相对本节伪码的实况差异见 §17 v3.1.1（§15.2 `completedConfig` 伪码差异、P4 自审修轮 R1–R4）。
+
+### 15.1 改哪几个文件（8.1）
+
+| 文件 | 改动 | 现状锚点（实读行号） |
+|---|---|---|
+| `trafficgen/internal/core/layers/registry.go` | tds 注册块收口：16 层字段接线（或按结论删）；补 `TransportOn ["tcp"]`；注释改写（删"配置经 Payload 携带"用户可见语义，改述为层条目为唯一住处） | tds 块 `registry.go:1066-1094`（字段 1078-1093） |
+| `trafficgen/internal/core/layers/chain_planner_translate.go` | `translateTerminalConfig` 新增 `case "tds"`：`completedConfig(s, term.Config)` → `json.Marshal` → `spec.Payload`（层条目 → Payload 管道） | `translateTerminalConfig` 起点 `:679`；既有 21 个 case 见 `:747`…`:2091`；`drive` 的 `Payload: spec.Payload` 在 `:48` |
+| `trafficgen/internal/core/strategy_convert.go` | ① `case "tds"`（`:1309-1315`）改为仅作兼容路径并置 `spec.ValidationErrors`；② `CheckProtoFlat`（`:8273`）新增 tds 分支：顶层 `tds` 子映射 presence 判死（空 map 同死） | `:1309-1315`、`:8273` |
+| `trafficgen/internal/protocol/tds/layer_gen.go` | MARS 真交错（G-TDS-3）：会话调度器（跨会话交织 emit）；`Generate` 主流程保持 O(n) | `Generate :66`、`GenEvents :205`、`EmitEvent :210`、`init :214`；会话循环 `:128-193` |
+| `trafficgen/internal/protocol/tds/tds.go` | 未落码的 §8 规则收口（G-TDS-6）；`configFromSpec` 语义不变（层条目 JSON 与原顶层 JSON 同构） | `configFromSpec :59`、`applyDefaults :82`、`Validate :113`、`ValidateConfig :132` |
+| `trafficgen/internal/protocol/tds/builder_response.go` | NBCROW 注入点（G-TDS-2）：响应构造可挂 NBCROW 行 | `BuildNbcRow :52`（当前唯一调用点=单测） |
+| `trafficgen/tools/coverage_gate.py` | 新增 `check_tds`（方案 §2 M1：出口必须为 0） | 实测当前 `grep -c tds` = **0**（无 check_tds） |
+| `trafficgen/test/protocol_pcap/cases/tds.json` | 131 例去扁平改写 + 补 IPv6/NIC/7.3B 等例（§16.7） | 实测 131 例全顶层旧键 |
+| `trafficgen/schemas/v1/generated/layers.generated.json` | registry 改后 `schemagen` 重跑（13.18/13.19） | 当前 123 层含 tds（实测） |
+
+### 15.2 接口签名（8.2）
+
+```go
+// 不变（生成器入口，层链契约）
+func (g *TDSGenerator) Name() string                                  // layer_gen.go:60
+func (g *TDSGenerator) Generate(ctx context.Context, req *layers.GenRequest) error // :66
+func (g *TDSGenerator) GenEvents() layers.EventGenerator              // :205
+func (g *TDSGenerator) EmitEvent(ev layers.MessageEvent) error        // :210
+
+// 新增（translate 期，层条目 → Payload 管道）
+// chain_planner_translate.go：在 translateTerminalConfig 的 switch 内
+case "tds":
+    // cfg := completedConfig(s, term.Config)（:2822 既有工具）
+    // raw, err := json.Marshal(cfg) → spec.Payload = raw
+    // 仅当 spec.Payload 为空时写入（引擎直调路径已置 Payload 时不覆盖——
+    // 与 goose/dns "已存在不覆盖" 同款；层优先，flat 判死后无双轨）
+
+// 新增（判死入口，strategy_convert.go：CheckProtoFlat 内 tds 分支）
+func CheckProtoFlat(protocol string, cfg map[string]interface{}) string // :8273（签名不变，新增 tds 分支）
+```
+
+### 15.3 数据结构（8.3）
+
+- 用户可见结构不变：`TDSConfig`（types.go:47-64）/`SessionSpec`（:66-70）/`RequestSpec`（:72-80）/`SqlBatchSpec`/`StatementSpec`（:88-95）/`RpcSpec`/`ParamSpec`/`TransMgrSpec`/`FeatureExt`/`LoginSpec`/`OutcomeSpec`。
+- **搬运结构**：`spec.Payload []byte`（既有字段，语义从"用户入口"变为"层条目序列化结果"）；层条目 JSON 与 `TDSConfig` JSON **同构**（键名一致：`version`/`packet_size`/…/`sessions`，见 registry.go:1078-1093 与 types.go 的 json tag 对照）。
+- 死配置消除二选一：a) 接线（保留 16 字段）；b) 删除字段（若某项确认不消费且不入动态名单）。**不许保留不接线的字段**（1.12）。
+
+### 15.4 主流程（8.4）
+
+1. **建/改**：REST/MCP → `ValidateStrategy`/`ValidateTaskCreate`（13.7）→ `CheckProtoFlat`（新 tds 分支：顶层 `tds` 子映射判死）→ registry 层字段白名单校验（`complete.go:293`）→ 入库。
+2. **启动**：`mapToFlowSpec`（strategy_convert.go:324）→ 若在库旧策略仍带顶层 `tds` → 追加 `spec.ValidationErrors`（存量行启动即 error，worker 预检终态；mqtt/cwmp 同款）→ 否则 `translateTerminalConfig` 的 tds case 把层条目序列化进 `spec.Payload`。
+3. **计划**：`ChainPlanner.drive`（chain_planner_translate.go:44）→ `FlowMeta.Payload = spec.Payload`（:48）→ 终结层生成器 `layer_gen.go:66` → `configFromSpec`（tds.go:59，Payload 空=默认配置；非空=JSON unmarshal + presence 默认化）→ 逐事件 emit → tcp 层负责握手/序号/挥手。
+4. **验收**：pcap 落盘 → tshark 字段断言 + frames 逐字节；NIC 路径按 §15.6 两路验收。
+
+### 15.5 错误分支（8.5）
+
+| 分支 | 触发 | 返回 | 证据 |
+|---|---|---|---|
+| 配置形状错 | 顶层 `tds` 子映射与 layers 并存（含空 map） | 400（新建/更新）/ `spec.ValidationErrors`（在库旧策略），锚词含 `tds` 与 `layers` | CheckProtoFlat 现有 http 族/dns 文案同构 |
+| 层字段未知 | 层条目写了 registry 未声明的键 | `layers: layer "tds": unknown field` | `complete.go:293`（既有） |
+| 语义错 | V-TDS 码（用例引用 26 个；实装 29 个，含 §8 未列的 060/061 扩展码） | 任务创建失败，不产生流量 | `tds.go:113/132` |
+| 生成期错 | `EmitMsg` 未接、ctx 取消 | 生成器 error 上抛（取消不泄漏） | `layer_gen.go:66-70`、`emitMsg:195` |
+| 协议错误响应 | ERROR token（Class 13–20） | 任务报告失败原因 + 已收字节；**零假成功**（14.11/14.12） | `tds_inject_error_*` 11 例 |
+
+### 15.6 性能边界（8.6，含「性能设计与验收」6.1–6.8）
+
+- **路径依据（6.4）**：事件生成器**流式**（`layer_gen.go` 逐报文 emit，无切片聚合、无全量收集）；每报文新增内存 ≈ 单包字节切片（复用 builder 纯函数，无跨流共享状态、无锁）；限速由 `flow_control` + 引擎 pacer 承担（不在协议层）；多 worker 总速率正确性由框架既有 pacer 语义保证（本协议不引入新共享状态）。
+- **指标（6.2）**：目标吞吐/并发会话数/单流最大报文/内存上限/队列上限/CPU 并行度 —— **待 P4 基准实测后回填**（6.5：无基准数据支撑的数字不许写成承诺；此处仅登记待确认）。
+- **规模边界（8.6）**：包长 ≤ 32767（包头 Length 2B）、登录前包 ≤ 4096、LOGIN7 ≤ 128K−1、PLP chunk ≤ 4096（设计 §2.1/§2.4/§10.2）；单连接会话数与请求数上界由配置展开规模决定（现状用例 max 3 请求/会话，实测）。
+- **验收两路（6.3/6.9）**：①PCAP 输出：suite 落盘 `/tmp/mcp-pcaps/tds/` + tshark 字段断言 + frames 逐字节；②NIC 输出：`enp135s0f0np0` 抓包 + 过滤 `tcp port 1433`，记录 checksum offload 与方向 —— **当前 0 例（G-TDS-8）**。
+- **性能测试六类（6.6）**：基线 / 目标规模 / 压力上限 / 长时间运行 / 并发交错 / 资源耗尽背压 —— 前四类随 G-TDS-4、并发交错随 G-TDS-3、背压随框架既有 buffer 溢出路径（`BufferOverflowError`，CLAUDE.md 设计）；六类清单在 P4 落成用例（6.10：无目标/测量方法/失败边界不得宣称完成）。
+
+### 15.7 与现有逻辑的冲突点（8.7）
+
+1. **双头权威**：legacy `Planner.Plan`（tds.go:353）+ 层链生成器（layer_gen.go:66）并存 → 收口后 legacy 只保留直调/单测路径；改 `TDSConfig` 语义须两边同改（`legacy_migrate_test.go:101` 的 `tdsMinimalSpec` 是既有护栏）。
+2. **a2a/nfs 同族未被同样整改**：本条目只动 tds；a2a 的"零字段+Payload"形态是否同样判为偏离属跨协议裁定 → **上报主线程**（车道不得自改框架层判定口径）。
+3. **131 例形状破坏**：去扁平是多文件大改，必须与 G-TDS-1 同批落地（先码后例，14.4–14.6）。
+4. **coverage_gate 登记**：`check_tds` 属"各插各的协议本地块"，列入合并冲突预期点（方案 §2 M1）。
+5. **判死口径**：tds 顶层子映射判死会让**存量 105 例+26 例**在改写完成前无法经 MCP 跑通 —— 须与用例改写同批合入，否则门 2② 必红。
+
+### 15.8 回滚方式（8.8）
+
+- 单提交回滚粒度：①registry/translate 接线；②CheckProtoFlat 判死；③用例改写；④生成器 MARS/NBCROW。任一红 → `git revert` 该提交；判死项回滚后存量用例立即恢复可跑（形状未变）。
+- 回滚后 D/T 条目同步回退（方案 §5 门 2 红回滚条款 m5），不留双头。
+
+## §16. P3 固定动作与对接清单
+
+### 16.1 §3.15 三项（同连接多轮 / 非正常结束 / 长保活）
+
+| 项 | 结论 | 用例/立项 |
+|---|---|---|
+| 同连接/同流内多轮操作 | **已覆**：`tds_sql_multi`（3 语句批）、`tds_transmgr_begin_commit`（BEGIN→COMMIT 同连接）、`tds_integration_full_flow`（PRELOGIN→LOGIN7→SQL）、`tds_mars_3sessions_multi_done` | 用例号已列 |
+| 非正常结束 | **已覆**：`tds_attention` / `tds_attention_idle_confirm` / `tds_attention_pktid_increment`（DONE_ATTN）、`tds_inject_login_fail`（会话全跳过）、`tds_sql_error_*`（批内错误继续/严重错误）、`tds_mars_attention_cancel`（定向取消） | 用例号已列 |
+| 长保活 | **无例**：TDS 无保活消息；现状同连接最多 3 请求（实测 max=3），无长时/大量轮次用例 | **立项 G-TDS-4**（长保活多轮 + 多流并发 + 层四元组动态） |
+
+### 16.2 A′ / B′ 两分类表
+
+| 分类 | 定义 | 本协议条目 |
+|---|---|---|
+| **A′（纯用例/断言面可表达，不动代码）** | 现有生成能力已存在，只需写/改用例与断言 | ①IPv6 面补例；②7.3.B 档补例；③ALL_HEADERS 0x0000/0x0003；④Status Ignore/RESETCONNECTION*；⑤错误类 17–19；⑥COLMETADATA NoMetaData；⑦PRELOGIN TRACEID/FEDAUTHREQUIRED/NONCEOPT/INSTOPT；⑧FeatureId 余项；⑨隔离级别逐值；⑩ENVCHANGE Type 3/11/12/13/15/16/17/18/19（builder 的 `BuildEnvChange` 为通用构造，仅需配置/注入点）；⑪数据类型 token 逐值枚举（builder 侧 `encodeTypeInfoAndValue` 覆盖有限，未覆者先测后归 B′） |
+| **B′（需代码或框架改动，另立项）** | 生成/校验/schema/用例框架有缺 | G-TDS-1（配置收口）、G-TDS-2（注入点族：NBCROW／单消息多 RPC／RETURNVALUE／TABNAME·COLINFO／NoMetaData／UNKNOWN_PLP_LEN／TEXT·NTEXT·IMAGE NULL）、G-TDS-3（MARS 真交错）、G-TDS-5（路由重定向）、G-TDS-6（§8 未落码 23 条规则补码）、G-TDS-8（NIC 验收面）、G-TDS-10（业务字段动态） |
+
+### 16.3 9.52 对账两行 + 清单出处（定稿见 §12.5）
+
+- **行 1**：规范逻辑点总数 = 166 枚举点（12 面）+ 50 条 Validate 规则 = **216**。
+- **行 2**：用例覆盖数 = 存量 **131** 例；§7 设计条目 220 条中被引用 **147** 条（**73 条无例**）。
+- **清单出处声明**：清单 = MS-TDS v20260617 原文反推（本地 `ms-tds-spec.txt` 12603 行 → 设计 §2/§3/§8 表行），**非**从用例或引擎能力反推。
+
+### 16.4 §3.14 豁免边界审计
+
+TDS **是长连接协议**（TCP 连接即会话）→ 3.14 的"无长连接协议"豁免**不适用**，`sessions[]` 不许豁免。两项各需用例：多流并发 = MARS 多会话（`tds_mars_*` 8 例，但真并发交错缺 → G-TDS-3）；单包多载荷 = 一批多 SQL 语句（`tds_sql_multi`）与一批多 RPC（缺：见 G-TDS-2，BatchFlag 单消息多 RPC 无例）。
+
+### 16.5 三源回指（§9.2–9.4）
+
+| 源 | 回指 |
+|---|---|
+| 规范（MS-TDS v20260617） | 设计 §2/§3/§8 表行 ↔ 用例 `tds_*`（例：§3.9 DONE Status ↔ `tds_attention`（0x20）/`tds_inject_error_*`（0x02）/`tds_done_rowcount_*`（0x10）） |
+| 设计（D-TDS-1） | §15 条目 ↔ 用例（例：§15.1 用例改写 ↔ `09-tds-testcase.md` §3 清单） |
+| 现网行为 | SQL Server 错误号（18456/102/1205/2627）↔ `tds_inject_login_fail`/`tds_sql_error_*`；FreeTDS OptionFlags 2B ↔ `tds_rpc_*` |
+
+### 16.6 存量用例审计去向分类（131 例逐条归类）
+
+| 去向 | 数量 | 明细 |
+|---|---:|---|
+| **保留（形状改写后语义不变）** | 105 | `prelogin` 5 / `login7` 13 / `sql` 29 / `rpc` 25 / `transmgr` 6 / `attention` 3 / `done` 3 / `mars` 8 / `login` 1 / `inject` 11 / `integration` 1 —— 全部为层链+顶层并存形，去扁平后语义保持（§16.7）。**其中 5 例带附注**（下两行，不另计数） |
+| ↳ 附注 A：改名 + 注记（名实不符项） | （3，含于上行） | ①`tds_mars_two_sessions_interleave`：名含交错，断言仅 `OutstandingRequestCount=2`+`done.status`（实测），字节序实为会话串行 → 改名或补真交错断言（G-TDS-3）；②`tds_sql_txn_begin_done_inxact`：声明 T-075/DONE_INXACT(0x04)，实钉 `0x0001,0x0010`（不含 0x04）→ 改名 + 注记"规范位、SQL Server 不置位"（设计 §3.9 已载）；③`tds_rpc_batch_two_procs`：声明 T-202 批内隔离，实际是**两条独立 RPC 消息**（非单消息多 RPC/BatchFlag）→ 改名 + 立项（G-TDS-2） |
+| ↳ 附注 B：现状断言 + 注记（无注入点，归 B 类） | （2，含于上行） | `tds_sql_tabname_colinfo_unreachable`（TABNAME/COLINFO 浏览模式不合成）、`tds_rpc_returnvalue_unreachable`（RETURNVALUE 输出参数不合成）—— 现断言=固定 token 序列，注记"不可配置（归单测域）"（9.36 现状断言形，须在 G-TDS-2 收口为可注入或明确不支持） |
+| **保留（负例组，改写为纯 layers）** | 26 | `validate_*` 26 例：**无 layers**（纯 flat 负例）；改写后负例仍需经 MCP 提交并被拒（14.11），锚词（V-TDS-0xx）不变 |
+| **作废** | 0 | — |
+| 合计 | **131** | 105 + 26 + 0 = 131，与文件实测条数一致 |
+
+### 16.7 去扁平改写清单（G-TDS-1 落地后执行；形状对照 §14.1）
+
+1. **通用改写（131 例）**：删顶层 `count`→`flow_control.flows`；顶层 `src_ip`/`dst_ip`→`layers[].ip`（**新增 ip 层**，现 105 例只有 `[tcp,tds]`）；顶层 `src_port`/`dst_port`→`layers[].tcp`；顶层 `tds` 子映射→`layers[].tds`；删 `layers` 里的空 `{}` 占位改写为带值形态。
+2. **负例组（26 例）**：改为"纯 layers + 非法内容"（负例内容住层条目/层字段），或按判死项新增"顶层 `tds` 与 layers 并存" presence 负例（1 例即可复用锚词）。
+3. **新增必含负例（M5 清单，落地口径）**：①presence 负例形状——`{"layers":[{"ip":{}},{"tcp":{}},{"tds":{}}],"tds":{}}` 判死（空子映射亦然）→ 落地 `tds_neg_top_tds_presence_reject`；②白名单外游离键负例 → **落地为顶层 `src_ip`/`count` 两例**（`tds_neg_stray_src_ip`/`tds_neg_stray_count`，CheckProtoFlat 五键白名单面，锚词 `no longer accepts flat config field <k>`）；清单原列的 `ttl`/`src_mac` 不在 CheckProtoFlat 五键循环内（框架白名单缺口，登记 G-PG-6 家族 backlog，非 tds 本地可收口——P6 m2 裁定）；③全部负例 `expect_error` + 锚词（交付 29 负例全带锚词）；④收官自查行「非负例顶层键=0」（check_tds 含此断言）。
+4. **门 2① 复跑**：`trafficgen/tools/pipe_gate.sh tds`，已绿（P6 独立复跑；P5 前旧红为 131 例顶层旧键，去扁平后消除）。
+
+### 16.8 缺口立项清单（G-TDS-1…10）
+
+| ID | 缺口 | 分类 | 去向 |
+|---|---|---|---|
+| G-TDS-1 | 配置载体偏离（层字段零消费 + 顶层 tds 子映射未判死）→ 纯 layers 收口 | B′ | §15 D-TDS-1（主条目） |
+| G-TDS-2 | 生成侧注入点族，分两档：**builder 已有、缺接线**（NBCROW `BuildNbcRow` builder_response.go:52、单消息多 RPC `BuildRPCBatch` builder_rpc.go:504 —— 唯一调用点皆是单测 tds_test.go:1422/:1342）；**builder 亦无、缺构造**（RETURNVALUE、TABNAME/COLINFO、NoMetaData、UNKNOWN_PLP_LEN、TEXT/NTEXT/IMAGE LONGLEN NULL） | B′ | P4（接线档）+ 构造档；A′ 面（可纯用例表达者）先行 |
+| G-TDS-3 | MARS 真交错（同连接多请求在途 + 响应乱序归并 + OutstandingRequestCount 回落） | B′ | P4（§15.2 生成器改造） |
+| G-TDS-4 | 多流/长保活/多轮面 0 例（含层四元组动态五策略实测、会话终止/无响应） | A′+B′ | P4 用例面 + 动态实测 |
+| G-TDS-5 | 路由重定向（ENVCHANGE 20/21 + ENHANCEDROUTINGSUPPORT） | B′ | 立项或"明确不支持"收口 |
+| G-TDS-6 | §8 的 23 条规则无错误码字面（含 TVP/Attention body/RESETCONNECTION 互斥/wire 校验 V-52…59） | B′ | 逐条三选一（实现/明确不支持/不适用） |
+| G-TDS-7 | 枚举面补例包（IPv6、7.3.B、ALL_HEADERS 0x0000/0x0003、Status 三值、Flags 位、PRELOGIN 余项、FeatureId 余项、隔离级别逐值、数据类型逐值、错误类 17–19） | A′（多为纯用例） | P4/P5 用例批次 |
+| G-TDS-8 | NIC 真网卡验收 0 例（§6.3 两路验收） | B′（harness 面） | P5（`nic_capture` 配置 + `enp135s0f0np0`） |
+| G-TDS-9 | 现网行为待确认项（SQL Server 抓包复核、FreeTDS 行为/版本核对、Azure 路由抓包） | 待确认 | 确认方式=抓包/读规范章节（§13.1 已列） |
+| G-TDS-10 | 业务字段动态（SQL 文本/参数/登录字段）现状无（`Strategy` 零命中） | B′ | 逐字段策略 或"明确不支持"（12.3/12.14） |
+
+## §17. 修订记录（续）
+
+### v3.1.1（2026-09-27）— P4–P6 落地与关单
+
+- P4+P5（集成 merge `50434f1`）：层链五件套接线（`translateTerminalConfig` case "tds"、CheckProtoFlat 顶层 `tds` presence 判死、`TransportOn ["tcp"]`、registry 16 键、schemagen 重跑）；`cases/tds.json` 131 → 132（105 正保留 + 26 负例改纯 layers/presence + presence 负例 1），lane5 suite 132/132 全绿。
+- P4 落码相对 §15 的实况差异（如实回写）：①§15.2 伪码 `completedConfig(s, term.Config)`——实现为 `term.Config` 原样（schema 零值会压 presence 默认，R2 实证 login7_default 红，行为正确）；②P4 自审修轮 R1–R4（先跑后钉）：presence 负例形状改纯 `{layers, tds}`（`strategy_fc` 在白名单外，门 2-1 拒绝）、translate 弃 `completedConfig` 只搬用户显式键、兼容块与 `case "tds"` 双记错收敛为恰一条（红例先行抓获）、空层守卫（`{"tds":{}}` 不覆盖默认配置语义）。
+- P6 隔离终审：**通过**（p6-review.md），三门全绿（suite / coverage_gate 50/50 / pipe_gate 四门）；2 MINOR 修轮 + scoped 复核：
+  - m1：`tds_mars_two_sessions_interleave` summary 如实改写（会话块串行实况 + G-TDS-3 注记）；
+  - m2：M5② 游离键负例落地 `src_ip`/`count` 两例（见 §16.7.3 ②）；`ttl`/`src_mac` → G-PG-6 框架白名单 backlog；
+  - 同批：三例名实不符项（§16.6 附注 A）采「summary 如实注记 + 缺口立项（G-TDS-2/G-TDS-3）」处置，ID 未改名（§16.6 基线清单继续有效）。
+- 交付终态：`cases/tds.json` **134 例**（105 正 + 29 负）；`check_tds` 同步（总数 134 / 105+29 / 游离键在案）→ 覆盖反查 51/51 绿；D-TDS-1 状态 → **已验收**（§15 头条）；248 表落盘 `docs/protocol-designs/248/55-tds-248-table.md`；live 库 tds 行清空（删前报数 strategies 94 + tasks 315、跨协议引用 0 → 备份 `backup-tds-purge-20260927-114012.db` → 删 → 总量 2446/10491 → 2352/10176 对账，见 ledger）。
+- 缺口：G-TDS-1 已关；G-TDS-2…10 维持 open（§16.8）。
+- 未改动：§1–§11 正文与 HexDump 逐字节核算。
+
+### v3.1.0（2026-09-26）— P1–P3 层链收口产物
+
+- 新增 §12 P1 规范矩阵（八项 + 三子表 + 规范枚举面计数 166 + 9.52 对账两行 + §12.6 现状偏离登记）。
+- 新增 §13 三路对照（MS-TDS 原文 / 现网 SQL Server·FreeTDS / tshark 3.6.14 dissector 实测 605 个 `tds.*` 字段）与候选方案对比（4 组决策）。
+- 新增 §14 门 1 十四行对照表 + 三处强制展开（旧键去向与纯 layers 目标样例 / 五件套 / 动态清单）。
+- 新增 §15 D-TDS-1 代码设计（八要素 + 性能设计与验收）。
+- 新增 §16 P3 固定动作（§3.15 三项 / A′·B′ / 9.52 / 3.14 / 三源回指）+ 存量 131 例审计去向 + 去扁平改写清单 + G-TDS-1…10 缺口清单。
+- 未改动：§1–§11 正文与 HexDump 逐字节核算；`cases/tds.json`、Go 代码、共享文档（CODE_DESIGN.md/TEST_CASES.md）均未触碰（车道 A 边界）。
