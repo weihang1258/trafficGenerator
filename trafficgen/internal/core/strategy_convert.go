@@ -469,6 +469,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-S7-85（G-S7-1）：s7 在库旧策略顶层 s7 → ValidationErrors（amqp
+	// 同款；空 map 也死——顶层 s7 子映射 presence 判死，层链形状不触发）。
+	if protocol == "s7" {
+		if v, ok := cfg["s7"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 
 	// D-FTP-3 §5: 扁平四键收动态对象（引擎直调路径，REST 形状层已先 400）→
 	// spec.ValidationErrors 拒绝并指路层字段，worker 预检终态 error，绝不
@@ -8659,6 +8666,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "enip" {
 		if v, ok := cfg["enip"]; ok && v != nil {
 			return "protocol enip no longer accepts a top-level enip sub-config (move it into the enip layer of an [ip,tcp,enip] layers chain; the layer chain is the only config truth)"
+		}
+	}
+	// D-S7-85（G-S7-1）：s7 顶层 s7 子映射 presence 判死（amqp 先例；空
+	// map 也死——配置住 s7 层，层链是唯一真相）。层链形状不触发。
+	if protocol == "s7" {
+		if v, ok := cfg["s7"]; ok && v != nil {
+			return "protocol s7 no longer accepts a top-level s7 sub-config (move it into the s7 layer of an [ip,tcp,s7] layers chain)"
 		}
 	}
 	// D-*-1 raw 自驱八协议：顶层同名子映射 presence 判死（mcp 先例；空

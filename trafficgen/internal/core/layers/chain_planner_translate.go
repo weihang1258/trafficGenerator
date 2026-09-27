@@ -2759,6 +2759,36 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.Payload = rawT
+	case "s7":
+		// D-S7-85（G-S7-1）：层条目 layers[].s7 经 JSON 往返解码为
+		// core.S7Config（mmse/edp 严格解码同款——顶层未知键
+		// DisallowUnknownFields 拒；commands/items 嵌套值走 Planner.Validate
+		// 全量校验）。层优先：spec.S7 已存在（引擎直调/单测路径）则不覆盖；
+		// 扁平入口已由 CheckProtoFlat 判死顶层 s7 子映射（存量行经
+		// strategy_convert 兼容块记 ValidationErrors）。空层 {} 翻译出零
+		// 配置（非 nil）→ validator 直通 P0b 缺省流（缺省 read DB1，与
+		// legacy Plan 同款）。解码走 **原始用户层**（不经 completedConfig）：
+		// 补全后的 schema 默认（commands: [] 、sessions: 0）会压掉 presence
+		// 语义——`commands` 缺省（nil）= 注入默认 read DB1，显式 `[]` =
+		// setup-only（tds case 同款注记；planner.go:45 的 nil 分支）。
+		if spec.S7 != nil {
+			return
+		}
+		rawS7, err := json.Marshal(term.Config)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("s7 layer config encode: %v", err))
+			return
+		}
+		var scfg core.S7Config
+		decS7 := json.NewDecoder(bytes.NewReader(rawS7))
+		decS7.DisallowUnknownFields()
+		if err := decS7.Decode(&scfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("s7 layer config decode: %v", err))
+			return
+		}
+		spec.S7 = &scfg
 	}
 }
 
