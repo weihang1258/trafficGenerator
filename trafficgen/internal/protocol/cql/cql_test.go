@@ -754,7 +754,7 @@ func TestPlanCQLQueryVoid(t *testing.T) {
 }
 
 func TestPlanCQLPrepareExecute(t *testing.T) {
-	// S5: prepare + execute → 9 packets
+	// S5: prepare + execute → 11 packets (P6 F6: was 9 in comment, actual 11)
 	spec := core.FlowSpec{
 		SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345, DstPort: 9042, Count: 1,
 		CQL: &core.CQLConfig{
@@ -894,6 +894,21 @@ func TestValidateCQLV5PostHandshakeRejected(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "envelope") {
 		t.Fatalf("err=%v want envelope rejection", err)
+	}
+}
+
+// G-CQL-6: bare PREPARE before startup/ready is rejected (F5, P6 review).
+func TestValidateCQLPrepareBeforeReadyRejected(t *testing.T) {
+	err := (Planner{}).Validate(core.FlowSpec{
+		CQL: &core.CQLConfig{
+			WireProfile: "cql_v4",
+			Events: []core.CQLEvent{
+				{Kind: "prepare", Direction: "c2s", Query: "SELECT 1"},
+			},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "state") {
+		t.Fatalf("err=%v want state rejection (prepare before ready)", err)
 	}
 }
 
