@@ -4,7 +4,7 @@
 > 日期：2026-09-26
 > 车道：并发管线车道 A（文档轨）
 > 配套设计：`docs/protocol-designs/80-bgp-design.md`（D-BGP-1）
-> 机器契约：`trafficgen/test/protocol_pcap/cases/bgp.json`（现存 19 例；目标 38 例，P5 落码）
+> 机器契约：`trafficgen/test/protocol_pcap/cases/bgp.json`（P6 实测 **43 例 = 20 正 + 23 负**；P1 写作时 19 例存量，目标 38 例；新增 5 判死负例见 M3）
 > 旧基线：`docs/protocol-designs/36-bgp-testcase.md`（2026-08-20，10 正 + 9 负；本契约延续 19 ID 全集 + 增 19 A′）
 > 状态：**`bgp` 层已注册但事件面进层未接线**（design §1：translate 无 `case "bgp"` + registry 无 `events`/`sessions` 键）——本文 19 存量 ID 的事件面仍走顶层 `bgp` 子映射（P5 改写对象），19 A′ 按目标层链形书写。本文**不宣称本次跑过 suite、不启动服务器**。
 
@@ -16,10 +16,10 @@
 - 负例的 `expect` 严格只有 `expect_error` 与 `error_contains`，不对失败 PCAP 作断言（负例纯净性）。
 - 包数公式（无额外 TCP option、每事件一 data segment）：`packet_count = 3 + 应用事件数 + 4`；多会话按每四元组独立计算后求和（`bgp_multi_session` 22 = 11×2；术语"多会话展开"整块回放）。
 - IPv4 payload 起点 offset **54**；IPv6 起点 **74**。offset 仅用于未分段帧；MSS 分段走 TCP stream 重组。
-- 长度复算（RFC 4271 逐字节，design §3.4）：全属性 UPDATE 总长 66=`00 42`（19+2+0+2+39+4）；withdraw 总长 27=`00 1b`（19+2+4+2+0）；/32 总长 67=`00 43`（19+2+0+2+39+5）。path_attr_len=39 位于 body[21:23]（withdrawn 空时）；withdrawn_len=4 时其后 `00 00` 是 path_attr_len=0（单测 `bgp_test.go:542-560` 字节级守护）。
+- 长度复算（RFC 4271 逐字节，design §3.4）：全属性 UPDATE 总长 66=`00 42`（19+2+0+2+39+4）；withdraw 总长 27=`00 1b`（19+2+4+2+0）；/32 总长 67=`00 43`（19+2+0+2+39+5）。path_attr_len=39 位于 body[21:23]（withdrawn 空时）；withdrawn_len=4 时其后 `00 00` 是 path_attr_len=0（单测 `bgp_test.go:542-560` 字节级守护（P1 行号；P6 实测锚词逐字在））。
 - 所有正例显式使用 `wire_profile=bgp_rfc4271_ipv4_unicast`。IPv6 transport 仍用 IPv4 NLRI profile，不等于 MP_REACH 支持。
 
-## 2. 原子用例索引（38 ID = 20 正 + 18 负，顺序为权威）
+## 2. 原子用例索引（P6 实测 43 例 = 20 正 + 23 负；P1 写作时 38 ID = 20 正 + 18 负，顺序为权威；新增 5 例见 M3）
 
 存量 19（T1–T10 + N1–N9，ID 延续旧基线 `bgp_*` 命名）+ A′ 19（`bgp_a_*`）。
 
@@ -88,13 +88,13 @@ T1–T10 延续旧基线（frames hex 与 fields 见 `cases/bgp.json` 实测；�
 | `bgp_a_neg_notification_not_last` | NOTIF 后再 KA | `last`（`planner.go:97` "must be the last"） |
 | `bgp_a_neg_single_open` | 单 c2s OPEN | `exactly two`（`planner.go:105`） |
 | `bgp_a_neg_keepalive_before_open` | 首事件 KA | `state`（`planner.go:89`） |
-| `bgp_a_neg_notification_other_code` | `notification error_code=6` | `error_code`（`builder.go:509`） |
-| `bgp_a_neg_msg_overflow_4096` | 850 个 /32 NLRI | `4096`（`builder.go:383`；单测 `:528-540`） |
+| `bgp_a_neg_notification_other_code` | `notification error_code=6` | `error_code`（P6 行 `builder.go:543`；P1 写作时 509） |
+| `bgp_a_neg_msg_overflow_4096` | 850 个 /32 NLRI | `4096`（P6 行 `builder.go:417`；P1 写作时 383，单测 `:528-540`） |
 | `bgp_a_neg_notification_before_open` | 首事件为 NOTIFICATION(4/0) | `state`（`planner.go:93` "notification before OPEN"） |
-| `bgp_a_neg_bad_identifier` | `identifier="2001:db8::1"` | `identifier`（`builder.go:119-121`） |
-| `bgp_a_neg_bad_nexthop` | `next_hop="2001:db8::1"` | `next_hop`（`builder.go:191-193`） |
+| `bgp_a_neg_bad_identifier` | `identifier="2001:db8::1"` | `identifier`（P6 行 `builder.go:124`；P1 写作时 119-121） |
+| `bgp_a_neg_bad_nexthop` | `next_hop="2001:db8::1"` | `next_hop`（P6 行 `builder.go:201`；P1 写作时 191-193） |
 | 缺：`prefix length 0`（`bgp_test.go` 无 pcap 例 → 若补例锚词待 P4 实测，现状立项无 ID） | — | — |
-| 缺：`extended-length`（单测 `:514-526`；pcap 立项无 ID，锚词 `extended-length` 已知） | — | — |
+| 缺：`extended-length`（P6 行 `builder.go:515`；P1 单测 `:514-526`；pcap 立项无 ID，锚词 `extended-length` 已知） | — | — |
 
 `wire_fault` 是测试注入入口，不是合法线上字段；不得把损坏的 marker/length/type 生成为"成功"PCAP。MP_REACH、能力协商、4-octet ASN 均以新 profile 承载，不放宽存量负例。
 
@@ -105,7 +105,7 @@ T1–T10 延续旧基线（frames hex 与 fields 见 `cases/bgp.json` 实测；�
 - ①RFC/官方文档：RFC 4271 §4（头/OPEN/UPDATE/NOTIF/KA）/ §5（六属性）/ §6（错误码）/ §8（FSM）/ §9（UPDATE 收发）+ RFC 2545（传输）+ RFC 4760/5492/6793（B′边界）——设计 §3 逐表列节号。
 - ②`docs/CODE_DESIGN.md` 对应条目：D-BGP-1（设计 §11，门1 获批 = 定稿）。
 - ③已确认现网行为：Cisco hold 180/ka 60、JunOS hold 90/ka 30、FRR OPEN 能力（设计 §10.5，可判字节面已用 T2/T6 90/0 两档；协商过程 N/A 未冒充）。
-- ID 权威 = 本文件 §2（38 ID）。
+- ID 权威 = 本文件 §2（P1 写作时 38 ID；P6 实测 43 例，新增 5 判死负例登记见 M3）。
 
 ### 5.2 9.52 对账两行 + 清单出处声明
 
@@ -177,3 +177,4 @@ A′（P4/P5 接线补例 19，§2 #11–#20 + #30–#38）：数据面（V2/V6/
 ## 9. 修订记录
 
 - v1.0.0（2026-09-26）：P3 初稿。存量 19 全审计去向；A′ 19（10 正 + 9 负）；9.52 对账（70 = 61覆行+3缺口+4B′+1N/A+1重复隙）；§3.15/A′B′/3.14/门3 预判齐。
+- v1.0.1（2026-09-28，P6 M2/M3 回填）：M2 行号回填（§4 builder 行号 +34 漂移：BuildOpen `:261→:295`、BuildKeepalive `:281→:315`、BuildEvent `:292→:326`、BuildUpdate `:351→:385`、encodePrefix `:394→:428`、appendPathAttr `:479→:513`、BuildNotification `:507→:541`；锚词逐字在）；M3 新增 5 判死负例登记（`bgp_neg_presence_top_level_bgp`、`bgp_neg_flat_count`、`bgp_neg_stray_src_mac`、`bgp_neg_static_copy_multiflow`、`bgp_a_neg_hold_time_small`，§12-P2 判死形状 + 1.11–1.13 白名单门固化；实测 43 = 20 正 + 23 负）。

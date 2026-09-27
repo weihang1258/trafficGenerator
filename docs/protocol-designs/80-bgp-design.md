@@ -6,7 +6,7 @@
 > 配套文件：`docs/protocol-designs/80-bgp-testcase.md`、`trafficgen/test/protocol_pcap/cases/bgp.json`（现存 19 例）、旧基线 `docs/protocol-designs/36-bgp-design.md` + `36-bgp-testcase.md`（2026-08-20，设计阶段产物；§10.2 逐条核对替代动作见本契约 §12说明）
 > 规范基线：RFC 4271（报文格式 §4 / 路径属性 §5 / 错误处理 §6 / FSM §8 / UPDATE 收发 §9）；IPv6 传输范围参照 RFC 2545；MP_REACH 归 RFC 4760、能力协商归 RFC 5492、4-octet ASN 归 RFC 6793（§11 B′）。
 > **层链唯一真相**：本契约目标形状只有纯 `layers` 形——地址只住 `ip` 层（`src`/`dst`）、端口只住 `tcp` 层（`src_port`/`dst_port`）、数量只走 `flow_control`；顶层只允许 `layers`/`flow_control` 家族/`output`（CORE_MEMORY §1.11–1.13）。任何顶层 `src_ip`/`dst_ip`/`src_port`/`dst_port`/`count`/顶层 `bgp` 子映射都判违规，**目标形状中 `events`/`sessions` 进 `bgp` 层一节今日跑不通（P4 必办，§12.1 按 §1.9 标注）**。
-> **注册现状**：`bgp` 层**已注册**（`layers/registry.go:1012`，`CategoryTerminal` + `DependsOn ["tcp"]` + `FieldContract {"tcp.dst_port":"179"}`），`allowedProtocols["bgp"]=true`（`core/protocols.go:22`），`NewChainPlanner("bgp")` 已在 `trafficgen/cmd/server/main.go:500` 注册（空白导入 `:22`）。本文**不宣称本次跑过 suite、不启动服务器**；所有"已落码/未落码"结论均标实测出处。
+> **注册现状**：`bgp` 层**已注册**（`layers/registry.go:1081`（P6 实测；P1 写作时 1012，后续车道合并续漂，锚词逐字在），`CategoryTerminal` + `DependsOn ["tcp"]` + `FieldContract {"tcp.dst_port":"179"}`），`allowedProtocols["bgp"]=true`（`core/protocols.go:22`），`NewChainPlanner("bgp")` 已在 `trafficgen/cmd/server/main.go:500` 注册（空白导入 `:22`）。本文**不宣称本次跑过 suite、不启动服务器**；所有"已落码/未落码"结论均标实测出处。
 
 ---
 
@@ -25,7 +25,7 @@
 **已落码边界（实测，2026-09-26 HEAD）**：
 
 - 生成器：`internal/protocol/bgp/layer_gen.go`（109 行）——`Generate`（`:15`）+ `emitEvents`（`:52`）+ `defaultDualEvents`（`:85`，P0b-2 缺省 6 事件流）；`BGPGenerator.GenEvents/EmitEvent`（`:101-104`）。
-- 字节原语：`internal/protocol/bgp/builder.go`（518 行）——`BuildOpen`（`:261`）/`BuildKeepalive`（`:281`）/`BuildEvent`（`:292`）/`buildOpenEvent`（`:314`）/`BuildUpdate`（`:351`）/`encodePrefix`（`:394`）/`encodeAttributes`（`:407`）/`appendPathAttr`（`:479`）/`BuildNotification`（`:507`）；`ValidateConfig`（`:66`）+ `validateEventConfig`（`:109`）+ `validateUpdateEvent`（`:175`）。
+- 字节原语：`internal/protocol/bgp/builder.go`（518 行）——`BuildOpen`（P6 行 `:295`；P1 写作时 261）/`BuildKeepalive`（P6 行 `:315`；P1 写作时 281）/`BuildEvent`（P6 行 `:326`；P1 写作时 292）/`buildOpenEvent`（P6 行 `:348`；P1 写作时 314）/`BuildUpdate`（P6 行 `:385`；P1 写作时 351）/`encodePrefix`（P6 行 `:428`；P1 写作时 394）/`encodeAttributes`（P6 行 `:441`；P1 写作时 407，+34 漂移族）/`appendPathAttr`（P6 行 `:513`；P1 写作时 479）/`BuildNotification`（P6 行 `:541`；P1 写作时 507）；`ValidateConfig`（`:66`）+ `validateEventConfig`（`:109`）+ `validateUpdateEvent`（`:175`）。
 - 状态机校验：`internal/protocol/bgp/planner.go`（160 行）——`Validate`（`:14`）+ `validateSessionConfig`（`:39`，逐 session 独立状态机）+ `validateEventSequence`（`:65`）+ legacy `Plan`（`:110`，直调回归面）。
 - 链路：`BGP: spec.BGP` 经 `FlowMeta` 直传生成器（`chain_planner_translate.go:114`）；终结层 nil-默认（`:702-703`）；`mapToFlowSpec` case `"bgp"`（`strategy_convert.go:1390-1392`）；Go 单测 `bgp_test.go`（560 行，字节级 + 状态机级）。
 - **未接线（关键现状，P4 必办）**：`translateTerminalConfig` 的 `switch`（`chain_planner_translate.go:760` 起数十个 case，经逐个实测**无 `case "bgp"`**）——层 config `{"bgp": {"events": [...]}}` 无翻译分支；且 registry `bgp` Fields（11 键，见 §2.2）**无 `events`/`sessions` 键**，层内写事件即 `unknown field`（`complete.go:293`）。因此事件面今日唯一通道 = 顶层 `bgp` 子映射 → `spec.BGP` → `Meta.BGP`。本契约把"事件面进层"列为 P4 必办（§11.1/§12.1，G-BGP-5），不冒充已覆盖。
@@ -61,11 +61,11 @@
 }
 ```
 
-> **`tcp.dst_port` 不写**：由 `bgp` 层 `FieldContract {"tcp.dst_port": "179"}`（`registry.go:1012`）经通用契约块（`chain_planner.go:598-629`，`validateBaseDstPortHandled` 之外的 amqp/bgp 同款）补齐；用户显式写 tcp 层 `dst_port` 时用户值优先（`:607-620`），非 179 仍可作 TCP 载体（旧基线 §1 不变式②延续）。
+> **`tcp.dst_port` 不写**：由 `bgp` 层 `FieldContract {"tcp.dst_port": "179"}`（`registry.go:1081`）经通用 FieldContract 块（`chain_planner.go` 通用块，`validateBaseDstPortHandled` 之外的 amqp/bgp 同款）补齐；用户显式写 tcp 层 `dst_port` 时用户值优先（`:607-620`），非 179 仍可作 TCP 载体（旧基线 §1 不变式②延续）。
 
 **存量现状形（19 例实测，P5 改写对象；不是目标形）**：`layers` 为 `[tcp,bgp]`（**缺 `ip` 层**，两层 config 均 `{}`）+ 顶层 `src_ip`/`dst_ip`/`src_port`/`dst_port` + 顶层 `bgp` 子映射（`wire_profile` + `events`/`sessions`）。18 例此形 + `bgp_neg_udp` 为 `[udp,bgp]` 刻意坏配置（见 §12.1 机读表）。
 
-### 2.2 层内配置键（**唯一权威 = registry `Fields`，实测 11 键**，`registry.go:1012-1027`）
+### 2.2 层内配置键（**唯一权威 = registry `Fields`，P6 实测 13 键**（11 原键 + `events`/`sessions`，P6 行 `registry.go:1084-1094/1101-1102`；P1 写作时 11 键 `:1012-1027`））
 
 | 键 | 类型 | 默认 | 语义 | 证据 |
 |---|---|---|---|---|
@@ -85,16 +85,16 @@
 
 ### 2.3 事件形状（今日唯一通道 = 顶层 `bgp` 子映射；`core/types.go:92-140`）
 
-`BGPConfig` 14 个 JSON 键；`BuildEvent`（`builder.go:292`）实际消费的事件面：
+`BGPConfig` 14 个 JSON 键；`BuildEvent`（P6 行 `builder.go:326`；P1 写作时 292）实际消费的事件面：
 
 | 事件键 | 被消费？ | 消费点 / 备注 |
 |---|---|---|
-| `kind` | ✅ | `validateEventConfig`（`:109`）+ `BuildEvent` dispatch（`:296-308`）：`open`/`keepalive`/`update`/`notification`/`wire_fault` |
+| `kind` | ✅ | `validateEventConfig`（P6 行 `:113`；P1 写作时 109）+ `BuildEvent` dispatch（P6 行 `:330` 起；P1 写作时 296-308）：`open`/`keepalive`/`update`/`notification`/`wire_fault` |
 | `direction` | ✅ | 非 `s2c` 即上行（`layer_gen.go:72`；`planner.go:151` 同款）；非法值拒 `must be c2s or s2c`（`builder.go:166-168`） |
-| `version`/`my_as`/`hold_time`/`identifier` | ✅ 仅 `open` | `buildOpenEvent`（`:314-346`）；`my_as` 为 uint32 专防 JSON 静默绕回（`types.go:113` 注释） |
-| `withdrawn_prefixes`/`nlri` | ✅ 仅 `update` | `BuildUpdate`（`:351`）；`validateIPv4Prefix`（`:211`，非 IPv4 → `address` 锚词） |
-| `attributes` | ✅ 仅 `update` | `encodeAttributes`（`:407`）；`origin` 指针式（IGP=0 可辨，`types.go:128`） |
-| `error_code`/`error_subcode` | ✅ 仅 `notification` | 仅允许 4/0（`:507-513`），余者 B′/#34 |
+| `version`/`my_as`/`hold_time`/`identifier` | ✅ 仅 `open` | `buildOpenEvent`（P6 行 `:348` 起；P1 写作时 314-346）；`my_as` 为 uint32 专防 JSON 静默绕回（`types.go:113` 注释） |
+| `withdrawn_prefixes`/`nlri` | ✅ 仅 `update` | `BuildUpdate`（P6 行 `:385`；P1 写作时 351）；`validateIPv4Prefix`（P6 行 `:245`；P1 写作时 211，非 IPv4 → `address` 锚词） |
+| `attributes` | ✅ 仅 `update` | `encodeAttributes`（P6 行 `:441`；P1 写作时 407）；`origin` 指针式（IGP=0 可辨，`types.go:128`） |
+| `error_code`/`error_subcode` | ✅ 仅 `notification` | 仅允许 4/0（P6 行 `:140`；P1 写作时 507-513），余者 B′/#34 |
 | `fault_kind`/`value` | ✅ 仅 `wire_fault` | **验证边界指令**：`marker`/`length`/`type` 三值，命中即拒，永不产线字节（`:136-160`） |
 | `transport`（顶层） | ✅ | 仅 `tcp`/空（`planner.go:20`） |
 | `sessions[]` | ✅ | 每项 `{src_port, events[]}`；`>1` 时逐 session 独立连接（`layer_gen.go:35-42`）；`==1` 时提升 events（`:44-46`，mongodb 同款契约） |
@@ -134,13 +134,13 @@ OPEN 金向量（`bgp_test.go:18-30`）：`ffffffffffffffffffffffffffffffff001d0
 
 ### 3.3 KEEPALIVE（RFC 4271 §4.4；恒 19 字节）
 
-无 body：marker + `00 13` + type `04`（`builder.go:281-287`；单测 `:32-43`）。只能出现在 OPEN 交换成功后；connect 例不自动增发（`defaultDualEvents` 只用于 events 缺省 nil，显式 `[]` = connect-only，`layer_gen.go:53-57`）。
+无 body：marker + `00 13` + type `04`（P6 行 `builder.go:315` 起；P1 写作时 281-287；单测 `:32-43`）。只能出现在 OPEN 交换成功后；connect 例不自动增发（`defaultDualEvents` 只用于 events 缺省 nil，显式 `[]` = connect-only，`layer_gen.go:53-57`）。
 
-### 3.4 UPDATE（RFC 4271 §4.3；`builder.go:351-389`）
+### 3.4 UPDATE（RFC 4271 §4.3；P6 行 `builder.go:385` 起；P1 写作时 351-389）
 
 顺序：`Withdrawn Routes Length(2)` + withdrawn + `Total Path Attribute Length(2)` + 属性 + NLRI。任一长度区超 65535 即拒（`:371-373`）；总长超 4096 即拒（`:381-384`，锚词 `4096`）。
 
-IPv4 前缀 = `prefix length(1B)` + `ceil(plen/8)` 个最高有效地址字节（`encodePrefix :394-400`）：`203.0.113.0/24` = `18 cb 00 71`；`192.0.2.1/32` = `20 c0 00 02 01`。prefix length 0 今日拒（`validateIPv4Prefix :219-222`，立项 prefix-0 无 ID）。
+IPv4 前缀 = `prefix length(1B)` + `ceil(plen/8)` 个最高有效地址字节（P6 行 `encodePrefix :428` 起；P1 写作时 394-400）：`203.0.113.0/24` = `18 cb 00 71`；`192.0.2.1/32` = `20 c0 00 02 01`。prefix length 0 今日拒（P6 行 `validateIPv4Prefix :245` 起；P1 写作时 219-222，立项 prefix-0 无 ID）。
 
 属性编码（本模板固定，flags/type/length 逐字段）：
 
@@ -153,12 +153,12 @@ IPv4 前缀 = `prefix length(1B)` + `ceil(plen/8)` 个最高有效地址字节�
 | LOCAL_PREF | `0x40` | 5 | 4B 无符号 | RFC §5.1.5 |
 | COMMUNITIES | `0xc0` | 8 | 每 community 4B；`NO_EXPORT=0xffffff01`（`NO_ADVERTISE` → #15；`ASN:N` 数值形拒 → 现状钉死） | RFC §5.1.6（well-known 研读注记） |
 
-长度一律 one-octet；值长 ≥256 走扩展长度编码——本模板不支持，拒（`appendPathAttr :479-486`，锚词 `extended-length`；单测 `:514-526`；pcap 例立项 extended-length 无 ID）。
+长度一律 one-octet；值长 ≥256 走扩展长度编码——本模板不支持，拒（P6 行 `appendPathAttr :513` 起，锚词 `extended-length` 在 `:515`；P1 写作时 479-486，单测 `:514-526`；pcap 例立项 extended-length 无 ID）。
 
 全属性 UPDATE 金向量（`bgp_test.go:255-279`，length `00 42`=66，path_attr_len=39；§12-P0 复算见 testcase §1）：
 `ffffffffffffffffffffffffffffffff00420200000027400101004002040201fc00400304c00002018004040000006440050400000064c00804ffffff0118cb0071`
 
-### 3.5 NOTIFICATION（RFC 4271 §4.5；`builder.go:507-518`）
+### 3.5 NOTIFICATION（RFC 4271 §4.5；P6 行 `builder.go:541` 起；P1 写作时 507-518）
 
 body = `Error Code(1)` + `Error Subcode(1)` + Data。本模板仅 Hold Timer Expired（4/0，空 data，总长 21=`00 15`；金向量 `...0015030400`，单测 `:318-332`）。其余错误码（含 Cease 6 → #34，锚词 `error_code`）今日拒 + B′（§11.2）。
 
@@ -205,7 +205,7 @@ IPv6 transport 只改变 IP 外层（TCP 仍 179，identifier 仍 IPv4，NLRI �
 
 ## 5. 依赖声明与端口契约
 
-- 依赖 = `DependsOn ["tcp"]` 单值（`registry.go:1012`），无 `TransportOn`/`OptionalOn`/`InnerRequired`；`[udp,bgp]` 链非法（N1，锚词 `tcp`）。
+- 依赖 = `DependsOn ["tcp"]` 单值（P6 行 `registry.go:1081`；P1 写作时 1012），无 `TransportOn`/`OptionalOn`/`InnerRequired`；`[udp,bgp]` 链非法（N1，锚词 `tcp`）。
 - 端口契约 `FieldContract {"tcp.dst_port": "179"}`（同上）；用户显式写 tcp 层 `dst_port` 优先（`chain_planner.go:607-620`）。
 - 失败传播：planner/validator 错误 → 任务错误终态；`wire_fault` 三 kind 在校验层直接拒（`builder.go:140-157`），永不产线字节。
 
@@ -348,7 +348,7 @@ BGP 单 TCP 连接内无派生数据/媒体流——**无 `driven_by` 关联，�
 2. `trafficgen/internal/protocol/bgp/builder.go` ——报文编码 + 顶层/事件校验（G-BGP-7 在此补 hold 1–2 拒绝）。
 3. `trafficgen/internal/protocol/bgp/planner.go` ——状态机 + legacy Plan（回归面，不动）。
 4. `trafficgen/internal/protocol/bgp/layer_gen.go` ——链路生成器（不动；事件源切换见 5）。
-5. `trafficgen/internal/core/layers/registry.go:1012` ——`Fields` 增 `events`/`sessions`（G-BGP-5①）。
+5. `trafficgen/internal/core/layers/registry.go` ——`Fields` 已增 `events`/`sessions`（G-BGP-5① closed，P6 行 `:1081-1105`；P1 写作时 1012）。
 6. `trafficgen/internal/core/layers/chain_planner_translate.go` ——增 `case "bgp"`（JSON 往返解码层 config → `spec.BGP`；G-BGP-5②；postgresql `:2006` 先例）+ drive `Meta.BGP` 已就绪（`:114`，不动）。
 7. `trafficgen/internal/core/strategy_convert.go` ——`CheckProtoFlat` 增 `bgp` presence 分支（G-BGP-6；dns/mqtt 先例）。
 8. `trafficgen/test/protocol_pcap/cases/bgp.json` ——19 例改写 + 19 A′（P5）。
@@ -396,7 +396,7 @@ registry/translate/CheckProtoFlat 三处独立提交；任一回滚即回退到"
 | §2 策略/任务 | 策略 = 单 bgp 流量模板，自带 `flow_control`（flows/bps/time）；任务 = 多策略合跑 + 总量封顶（父桶）；框架语义未动（bgp 不在 worker/task 特判名单） | `internal/core/worker.go:307-316`；本契约 §2.1 |
 | §3 五件套 | 见 §12.3 强制展开：会话表（s1/s2 无派生流声明）/ 事务序列（t1–t4 四件事）/ 关联关系（无 driven_by，§10.4）/ 插入位置（终结层）/ 时间线（会内顺序 + 多会话整块 + 多流并发）。**有长连接载体，不豁免** | 本契约 §12.3 + §10.4；T9 |
 | §4 查规范 | RFC 4271（§4/§5/§6/§8/§9 节号级，无二手解读）+ RFC 2545（传输）+ RFC 4760/5492/6793（B′边界）；TShark 3.6.14 `bgp.*` 784 字段实测；八项矩阵 + 子表①②③ + 候选对比 | 本契约 §3/§10 |
-| §5 依赖与错误 | 依赖 = `DependsOn ["tcp"]`（`registry.go:1012`）；端口契约 179；`wire_fault` 3 kind + §7 十四行；失败传 task error（零假成功） | 本契约 §5/§7/§11.5 |
+| §5 依赖与错误 | 依赖 = `DependsOn ["tcp"]`（P6 行 `registry.go:1081`；P1 写作时 1012）；端口契约 179；`wire_fault` 3 kind + §7 十四行；失败传 task error（零假成功） | 本契约 §5/§7/§11.5 |
 | §6 性能 | 见本契约 §6（6.1–6.8 要素）：逐事件流式、单 flow O(1)、无锁无共享；pcap/NIC 双路（NIC=`enp135s0f0np0`）；吞吐标「待 P4 基准」 | 本契约 §6 |
 | §7 三份文档 | `80-bgp-design.md` + `80-bgp-testcase.md` v1.0.0（per-protocol 草稿层）+ D-BGP-1（本契约 §11，门1 获批 = 定稿）+ T-BGP（testcase §2，38 ID）+ generated schema（`layers.bgp` 已有，不新增层） | 修订记录 |
 | §8 设计先行 | 本条目 P1–P3 先于 P4 实现；门1 获批 = D-BGP-1 定稿 = 开工门（§8.9） | 提交序 |
@@ -404,7 +404,7 @@ registry/translate/CheckProtoFlat 三处独立提交；任一回滚即回退到"
 | §10 评审闭环 | 每阶段对抗自重审（结论见 `/tmp/pipe/80-bgp/p123-report.md` §3）+ 收官隔离复审 + 修轮；红先绿后 | 报告 §3 |
 | §11 白话 | 汇报首句先行白话结论 | 报告 §0 |
 | §12 动态清单 | 见 §12.12 强制展开：四元组 = `ip`/`tcp` 层（五策略全开，allowlist `layer_dyn.go:17-21`；`bgp` 不在 allowlist → 业务字段对象必拒）；业务字段逐个列开/不开 + 理由；序号算法实读行号 | 本契约 §12.12 |
-| §13 schema 派生 | `bgp` 已在 `registry.go:1012-1027` 注册（generated `layers.bgp` 含 field_contract 179；**不新增层**）；`allowedProtocols["bgp"]`（`protocols.go:22`）；`main.go:500` 已注册 ChainPlanner；**P4 改 registry `Fields` 必须重跑 schemagen**（§13.18/13.19） | 本契约 §11.1 |
+| §13 schema 派生 | `bgp` 已在 registry 注册（P6 行 `:1081-1105`，13 键；P1 写作时 `:1012-1027`，11 键；generated `layers.bgp` 含 field_contract 179；**不新增层**）；`allowedProtocols["bgp"]`（`protocols.go:22`）；`main.go:500` 已注册 ChainPlanner；**P4 改 registry `Fields` 必须重跑 schemagen**（§13.18/13.19） | 本契约 §11.1 |
 | §14 真实流程 | suite 经 MCP 建策略建任务 → 引擎真实生成 → tshark `bgp.*` + frames hex 双通道 → 先跑后钉（§9.31/§14.20）；pcap 落 `/tmp/mcp-pcaps/bgp/` | testcase §7 |
 
 ### 12.1 §1 强制展开：旧键去向 + 完整 spec_json 样例
@@ -506,4 +506,5 @@ registry/translate/CheckProtoFlat 三处独立提交；任一回滚即回退到"
 
 ## 15. 修订记录
 
+- v1.0.1（2026-09-28，P6 M1/M2 回填）：M1 证据号回填（registry `1012→1081-1105` + 11→13 键 + chain 通用块行号去脆；锚词逐字在）；M2 builder 行号回填（+34 漂移族，锚词逐字在）；§2.2 表题 11 键→13 键；§11.1⑤ G-BGP-5① 标 closed。
 - v1.0.0（2026-09-26）：P1–P3 初稿。旧基线 36-bgp-* 逐节比对延续；RFC 4271 三路对照（Cisco/JunOS/FRR 口径）；P1 矩阵 8+20+22+6；P2 D-BGP-1 八要素；门1 十四行齐；缺口 G-BGP-5/6/7 + B1–B5。
