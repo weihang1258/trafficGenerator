@@ -6580,11 +6580,172 @@ def check_spnego(cases):
     return rows
 
 
+def check_gbt32960(cases):
+    """D-GBT32960 P4 反查表（105 改写 + 3 形状负例 + A′ 8 例 = 116）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("gbt32960"), dict):
+                lays.append((c.get("id", "?"), l["gbt32960"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 gbt32960", '"gbt32960": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 gbt32960（已准入）", '"gbt32960"' not in pt[i_neg:i_neg + 4000], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case gbt32960（层条目→spec.GBT32960）",
+                 'case "gbt32960":' in tr and "core.ParseGBT32960ConfigFromMap" in tr, "在案"))
+    rows.append(("FlowMeta.GBT32960 直传（Meta 字面量检查点）",
+                 re.search(r"GBT32960:\s+spec\.GBT32960\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.GBT32960 字段", re.search(r"GBT32960\s+\*core\.GBT32960Config", gen) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "gbt32960"')
+    reg_block = rg[i_reg:rg.index('Name: "mcp"', i_reg)]
+    rows.append(("registry gbt32960 行（DependsOn tcp + TransportOn tcp + Fields 28 键）",
+                 'DependsOn:   []string{"tcp"}' in reg_block
+                 and 'TransportOn: []string{"tcp"}' in reg_block
+                 and '"vin"' in reg_block and '"role"' in reg_block
+                 and '"reports"' in reg_block and '"remote_control"' in reg_block
+                 and '"platform_login"' in reg_block and '"status_change_trace"' in reg_block
+                 and '"custom_fields"' in reg_block and '"inject_bcc_error"' in reg_block, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(gbt32960)",
+                 "internal/protocol/gbt32960" in mn and 'NewChainPlanner("gbt32960")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("strategy_convert 扁平解析导出（单一真相）",
+                 "func ParseGBT32960ConfigFromMap" in sc, "在案"))
+    rows.append(("CheckProtoFlat 顶层 gbt32960 子映射 presence 判死",
+                 "protocol gbt32960 no longer accepts a top-level gbt32960 sub-config" in sc, "在案"))
+    rows.append(("mapToFlowSpec 顶层 gbt32960 → ValidationErrors（在库旧策略执法）",
+                 'if protocol == "gbt32960" {' in sc, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain_planner gbt32960 目的端口缺省 10020",
+                 'case "gbt32960":' in cp and "spec.DstPort = gbtPort" in cp, "在案"))
+
+    # 2. 行为面（原语/关键件）。
+    bl = (tg / "internal" / "protocol" / "gbt32960" / "builder.go").read_text()
+    for prim, name in [
+        ("func bccXOR", "BCC 异或（不含起始符/BCC 自身）"),
+        ("func buildMessage", "报文组装（起始符+头+数据+BCC）"),
+        ("func flipBCCBit", "BCC 错误注入（翻转最低位）"),
+        ("func encodeBCDTime", "BCD 时间编码 YYMMDDHHMMSS"),
+        ("func encodeVIN", "VIN 补齐（17B）"),
+        ("func encodeSIM", "SIM 补齐（20B）"),
+        ("func encodeRechargeableSubsysCodes", "储能子系统编码拼接（n×m）"),
+        ("func buildLoginData", "0x01 数据单元"),
+        ("func buildLogoutData", "0x04 数据单元（6B 时间 + 2B 流水号）"),
+        ("func buildRealtimeData", "0x02 数据单元（采集时间 + 信息体）"),
+        ("func buildDefaultInfoBodies", "缺省信息体（整车 0x01 / 位置 0x05）"),
+        ("func buildAlarmInfoBody", "报警信息体 0x07（5B）"),
+        ("func buildPlatformLoginData", "0x05 数据单元（48B）"),
+        ("func buildControlData", "0x08 控制命令数据单元"),
+        ("func buildAckData", "0x0C 确认数据单元（回填命令单元）"),
+        ("func parseAlarmFlags", "通用报警标志解析（8 hex → uint32）"),
+        ("func decodeHex", "CustomFields hex 解码"),
+    ]:
+        rows.append((f"原语：{name}", prim in bl, "在案"))
+    sm = (tg / "internal" / "protocol" / "gbt32960" / "state_machine.go").read_text()
+    for prim, name in [
+        ("func buildVehicleMessages", "车辆状态机（登入→上报→控制→补报→登出）"),
+        ("func buildPlatformMessages", "平台状态机（0x05→0x0B×N→0x06）"),
+        ("func buildTraceIndex", "StatusChangeTrace 索引"),
+        ("func reissueCollectTime", "补报采集时间"),
+    ]:
+        rows.append((f"关键件：{name}", prim in sm, "在案"))
+    lg = (tg / "internal/protocol/gbt32960/layer_gen.go").read_text()
+    rows.append(("关键件：终结层事件流（tcp 层管握手/挥手）",
+                 "func (g *GBT32960Generator) Generate" in lg, "在案"))
+    rows.append(("关键件：BCC 注入索引边界同步拒（空流守卫）",
+                 "BCCErrorIndex %d exceeds message count" in lg, "在案"))
+    pl = (tg / "internal" / "protocol" / "gbt32960" / "gbt32960.go").read_text()
+    for prim, name in [
+        ("func (p *Planner) Validate", "V1-V35 校验"),
+        ("func estimateMessageCount", "V24 消息数估算"),
+        ("func validateVIN", "V2/V3/V3b/V4"),
+        ("func validateAlarmData", "V8/V9/V32"),
+    ]:
+        rows.append((f"关键件：{name}", prim in pl, "在案"))
+
+    # 3. 用例面（108 例 = 105 改写 + 1 presence + 2 游离键）。
+    rows.append(("用例总数 116", len(cases) == 116, f"{len(cases)} 例"))
+    pos = [c for c in cases if "expect_error" not in (c.get("expect") or {})]
+    neg = [c for c in cases if "expect_error" in (c.get("expect") or {})]
+    rows.append(("70 正 + 46 负", len(pos) == 70 and len(neg) == 46, f"{len(pos)} 正 / {len(neg)} 负"))
+    ids = {c.get("id") for c in cases}
+    rows.append(("presence 负例在案（layers+顶层gbt32960）",
+                 "gbt_neg_presence_top_gbt32960" in ids, "在案"))
+    rows.append(("游离键负例在案（src_ip/count）",
+                 {"gbt_neg_stray_src_ip", "gbt_neg_stray_count"} <= ids, "在案"))
+    rows.append(("A′ 补例块在案（T-GBT-201/202/203/204/205/208/210/211）",
+                 {"gbt_t201_resp04_next_uplink", "gbt_t202_reissue_only_resp01",
+                  "gbt_t203_ipv4_layer_fixture", "gbt_t204_ipv6_layer_fixture",
+                  "gbt_t205_multiflow_dynamic_srcport", "gbt_t208_udp_carrier_rejected",
+                  "gbt_t210_heartbeat_and_reports_line", "gbt_t211_vin_10b_default_pad"} <= ids, "8 例在案"))
+    rows.append(("地址族双族（ip.version 4/6 各一例）",
+                 "gbt_t203_ipv4_layer_fixture" in ids and "gbt_t204_ipv6_layer_fixture" in ids, "在案"))
+    bad_top = [c.get("id") for c in pos
+               if set((c.get("spec_json") or {}).keys()) - {"layers", "flow_control", "output", "group_id"}]
+    rows.append(("非负例顶层键=0（白名单制）", not bad_top, bad_top or "全部合规"))
+    rows.append(("正例均带 packet_count/min_packets",
+                 all((c.get("expect") or {}).get("packet_count") or (c.get("expect") or {}).get("min_packets") for c in pos),
+                 "全部在案"))
+    bad_exp = [c.get("id") for c in neg
+               if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}", not bad_exp, bad_exp or "全部合规"))
+    for k in ["role", "vin", "vin_pad_byte", "sim", "encrypt_rule", "login_serial_number",
+              "logout_serial_number", "rechargeable_subsys_count", "rechargeable_subsys_code_length",
+              "rechargeable_subsys_codes", "login_time", "logout_time", "reports", "reissue_reports",
+              "alarm_data", "remote_control", "platform_login", "platform_id", "platform_domain",
+              "set_platform_domain", "connect_id", "is_trans_battery_data", "heartbeat_count",
+              "response_flags", "status_change_trace", "custom_fields", "inject_bcc_error",
+              "bcc_error_index"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((f"层键覆盖：{k}", hit is not None, hit or "无用例"))
+
+    # 4. 锚词面（45 负例 = 42 validator + 1 presence + 2 游离键）。
+    for needle, name in [
+        ("no longer accepts a top-level gbt32960 sub-config", "presence 判死"),
+        ("no longer accepts flat config field src_ip", "游离键 src_ip"),
+        ("invalid Role", "V1 Role"), ("VIN length 18 exceeds 17", "V2 VIN 超长"),
+        ("non-ASCII", "V3 VIN 非 ASCII"), ("I/O/Q not allowed", "V3b VIN I/O/Q"),
+        ("VIN is required", "V4 VIN 必需"), ("SIM length 21 exceeds 20", "V5 SIM 超长"),
+        ("invalid EncryptRule", "V6 加密方式"), ("LoginSerialNumber 65532 out of range", "V7 流水号上限"),
+        ("LoginSerialNumber 0 out of range", "V7 流水号下限"), ("invalid GeneralAlarmFlags", "V8 报警标志"),
+        ("invalid LoginTime", "V12 登入时间"), ("invalid LogoutTime", "V13 登出时间"),
+        ("must be >= LoginTime", "V34 登出早于登入"), ("invalid CustomFields", "V26 自定义字段"),
+        ("RemoteControl.ControlType is required", "V16 控制类型"),
+        ("invalid RemoteControl.ResponseFlags", "V17 控制应答标志"),
+        ("PlatformLogin.User length 13 exceeds 12", "V18 平台用户名"),
+        ("PlatformLogin.Password length 21 exceeds 20", "V19 平台密码"),
+        ("PlatformLogin.EncryptSeq length 17 exceeds 16", "V20 密钥版本"),
+        ("HeartbeatCount", "V21 心跳次数"), ("invalid ResponseFlags", "V22 应答标志"),
+        ("BCCErrorIndex 999 exceeds message count", "V24 注入索引越界"),
+        ("BCCErrorIndex -1 must be non-negative", "V23 注入索引负值"),
+        ("StatusChangeTrace", "V25 状态变更索引"),
+        ("RechargeableSubsysCount 0 must be >= 1", "V30 子系统数"),
+        ("RechargeableSubsysCodes length 1 != count 2", "V31 编码数不符"),
+        ("MaxAlarmLevel 4 out of range", "V32 报警等级"),
+        ("PlatformID length 18 exceeds 17", "V33 平台识别码"),
+        ("RechargeableSubsysCodeLength 0 must be >= 1", "V35 编码长度"),
+        ("exceeds 65531", "V28 数据单元上限"),
+        ("exceeds MSS-31 budget", "V29 MSS 预算"),
+        ("mss 100 too small", "V27 MSS 下限（validateSpecBase 通用 MSS 门）"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+    return rows
 
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960}
 
 
 def main(argv):

@@ -288,11 +288,45 @@ func buildDefaultRegistry() {
 	// 展开为逐消息事件（0x01 登入 → 0x0C 确认 → 0x02 上报 ×N → 0x04 登出，
 	// 0x08 控制/0x03 补报 按序插入；平台侧 0x05/0x0B 心跳 ×N/0x06），wire
 	// 字节由 buildMessage 纯函数产出），TCP 语义（握手/seq-ack/挥手）交给
-	// tcp 层生成器；配置（role/vin/reports/remote_control/heartbeat...）繁多
-	// 不落层 config（layers 数组条目零负载），经 spec.GBT32960 flat 键携带、
-	// FlowMeta 直传生成器。
+	// tcp 层生成器。层 config 全量收 GBT32960Config 同名 28 键（数值键一律
+	// 声明 int/uint8 不设界——serial/计数值域由 validator V7/V30/V35 执法，
+	// 层 V9 不抢；bool 键不设 Default：缺省 nil 走生成器回退语义——
+	// completedConfig 缺省注入会污染"缺省=省略"线形，mcp 同款教训）。
+	// 嵌套对象/数组（alarm_data/remote_control/platform_login/reports/…）
+	// V9 只验顶层键存在，值语义归翻译分支解析 + validator。
 	r.Register(LayerSchema{Name: "gbt32960", Category: CategoryTerminal,
-		DependsOn: []string{"tcp"},
+		DependsOn:   []string{"tcp"},
+		TransportOn: []string{"tcp"},
+		Fields: map[string]FieldSchema{
+			"role":                            {Type: "string"},
+			"vin":                             {Type: "string"},
+			"vin_pad_byte":                    {Type: "uint8"},
+			"sim":                             {Type: "string"},
+			"encrypt_rule":                    {Type: "string"},
+			"login_serial_number":             {Type: "int"},
+			"logout_serial_number":            {Type: "int"},
+			"rechargeable_subsys_count":       {Type: "int"},
+			"rechargeable_subsys_code_length": {Type: "int"},
+			"rechargeable_subsys_codes":       {Type: "list"},
+			"login_time":                      {Type: "string"},
+			"logout_time":                     {Type: "string"},
+			"reports":                         {Type: "list"},
+			"reissue_reports":                 {Type: "list"},
+			"alarm_data":                      {Type: "object"},
+			"remote_control":                  {Type: "object"},
+			"platform_login":                  {Type: "object"},
+			"platform_id":                     {Type: "string"},
+			"platform_domain":                 {Type: "string"},
+			"set_platform_domain":             {Type: "string"},
+			"connect_id":                      {Type: "string"},
+			"is_trans_battery_data":           {Type: "bool"},
+			"heartbeat_count":                 {Type: "int"},
+			"response_flags":                  {Type: "string"},
+			"status_change_trace":             {Type: "list"},
+			"custom_fields":                   {Type: "string"},
+			"inject_bcc_error":                {Type: "bool"},
+			"bcc_error_index":                 {Type: "int"},
+		},
 	})
 	// ---- P4a：mcp（tcp 终结层。MCP 会话（JSON-RPC 2.0）——initialize →
 	// 请求/响应序列 → 可选挥手，三传输（stdio/http_sse/streamable）均单
