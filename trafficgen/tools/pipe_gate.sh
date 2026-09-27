@@ -50,7 +50,9 @@ for c in d:
     sj = c.get("spec_json", {}) or {}
     if "layers" in sj:
         for k in list(sj.keys()):
-            if k not in ("layers","strategy_fc","ttl","flow_control","output","output_config") and isinstance(sj[k], dict):
+            # group_id 是框架级流绑定键（非协议旧扁平键；smb_tpos16x/
+            # gbt_t117 先例），D-NFS-1 P6 修轮登记在案，不算并存残留。
+            if k not in ("layers","strategy_fc","ttl","flow_control","output","output_config","group_id") and isinstance(sj[k], dict):
                 bad.append(c["id"] + ":顶层子映射+" + k)
                 break
 print("\n".join(sorted(set(bad))))
