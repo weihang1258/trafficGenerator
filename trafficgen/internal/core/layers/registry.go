@@ -720,7 +720,6 @@ func buildDefaultRegistry() {
 		Fields: map[string]FieldSchema{
 			"transport":        {Type: "string", Default: ""},
 			"association":      {Type: "string", Default: ""},
-			"session_start":    {Type: "int", Default: 0, Min: 0, Max: 0},
 			"ccsid":            {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 			"correlator_start": {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 			"correlator_inc":   {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},

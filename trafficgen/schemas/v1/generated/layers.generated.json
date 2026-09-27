@@ -683,10 +683,6 @@
           "type": "string",
           "default": ""
         },
-        "session_start": {
-          "type": "int",
-          "default": 0
-        },
         "sessions": {
           "type": "list",
           "default": []

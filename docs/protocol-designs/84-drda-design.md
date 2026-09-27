@@ -70,7 +70,7 @@
 | 键 | 类型 | 消费现状（实测） |
 |---|---|---|
 | `transport` | string | ✅ 旧 planner 作 `association` 空值时的 legacy 别名（`planner.go:169-172`）；layer_gen 路径经同一 `buildDefaultSegments` 消费 |
-| `session_start` | int | ❌ **死配置**——`core.DRDAConfig` 有同名字段（`types.go:1371`）但 planner/builder/layer_gen **零消费**（G-DRDA-2） |
+| `session_start` | int | ❌ **死配置，已删（P6 M1，关单轮）**——`core.DRDAConfig` 曾有同名字段但 planner/builder/layer_gen **零消费**（G-DRDA-2）；registry 键 + struct 字段已删，schemagen 已重跑 12 键 |
 | `ccsid` | uint16 | ✅ ACCSEC 参数 `0x2113` 的 u16 数据（`planner.go:183-187`；layer_gen 同源） |
 | `correlator_start` | uint16 | ✅ 起始 correlator（0→1 缺省；`planner.go:56-59`，`layer_gen.go:29-32`） |
 | `correlator_inc` | uint16 | ✅ 递增步长（0→1 缺省） |
@@ -91,7 +91,7 @@
 | `association` | string | 默认序列截断档：`excsat`=1 对 / `security`=3 对 / `database`=4 对 / `sql`=全＋SQL；空＝`transport` 别名，仍空＝全序列（`planner.go:166-172`） | **P4 登记进 registry**（G-DRDA-1） |
 | `dss_length` | int | 声明长度一致性校验（负例注入口，非线上字段） | **P4 登记或转 `wire_fault`**（G-DRDA-1） |
 | `sessions` | list | `DRDASession{ID/SrcPort/CorrelatorStart}` 多会话展开（仅 layer_gen，`layer_gen.go:44-55`） | **P4 登记进 registry**（G-DRDA-1） |
-| `sql.statement` | string | 可选 SQLSTT 数据（今日**零消费**，code 注释与 builder 均无引用） | G-DRDA-2（删除或实现二选一） |
+| `sql.statement` | string | 可选 SQLSTT 数据（**已删，P6 M2 关单轮**：`DRDASQLConfig.Statement` 零消费、`CPSQLSTT=0x2414` 无发射点；删除二选一之删除项） | G-DRDA-2 closed |
 
 > **纠偏注记**：P1–P3 初稿曾把 `association`/`sequence` 写成 registry 键——实测否决：`association`/`sequence` 对象键属于 **`mms`** 层（`registry.go:596-609`），`drda` 无此二键。凡旧文引用以此为准更正。
 
@@ -142,7 +142,7 @@
 | `0x2201` | ACCRDBRM | S→C | 关联结果 |
 | `0x2412` | SQLDTA | C→S | SQL 数据/参数 |
 | `0x2408` | SQLCARD | S→C | SQL 结果状态卡 |
-| `0x2414` | SQLSTT | C→S | SQL 语句文本（`sql.statement`，今日零消费，G-DRDA-2） |
+| `0x2414` | SQLSTT | C→S | SQL 语句文本（`sql.statement` **已删，P6 M2**，G-DRDA-2 closed） |
 
 响应映射 `respCodePoint`（`planner.go:227-243`）；未知请求码点→无响应（返回 0，不产包）。
 

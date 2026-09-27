@@ -1384,7 +1384,6 @@ type DRDAConfig struct {
 	// cases (dss_length_mismatch): a declared length smaller than the fixed
 	// 6-byte DSS header is a wire fault and is rejected at validation.
 	DSSLength       int            `json:"dss_length,omitempty"`
-	SessionStart    int            `json:"session_start,omitempty"`
 	CCSID           uint16         `json:"ccsid,omitempty"`
 	CorrelatorStart uint16         `json:"correlator_start,omitempty"`
 	CorrelatorInc   uint16         `json:"correlator_inc,omitempty"`
@@ -1408,7 +1407,6 @@ type DRDASession struct {
 
 // DRDASQLConfig configures SQLDTA/SQLCARD in DRDA.
 type DRDASQLConfig struct {
-	Statement  string `json:"statement,omitempty"`
 	Data       []byte `json:"data,omitempty"`
 	SQLCode    int32  `json:"code,omitempty"`
 	SQLState   string `json:"state,omitempty"`

@@ -6702,11 +6702,12 @@ def check_drda(cases):
     rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
     i_reg = rg.index('Name: "drda"')
     reg_block = rg[i_reg:rg.index('Name: "thrift"', i_reg)]
-    rows.append(("registry drda 行（DependsOn tcp + FieldContract 446 + 13 键）",
+    rows.append(("registry drda 行（DependsOn tcp + FieldContract 446 + 12 键，P6 M1 session_start 已删）",
                  'DependsOn: []string{"tcp"}' in reg_block
                  and '"tcp.dst_port": "446"' in reg_block
+                 and '"session_start"' not in reg_block
                  and all(k in reg_block for k in
-                         ['"association"', '"transport"', '"session_start"', '"ccsid"',
+                         ['"association"', '"transport"', '"ccsid"',
                           '"correlator_start"', '"correlator_inc"', '"security_user"',
                           '"security_token"', '"rdb_name"', '"sql"', '"dss_segments"',
                           '"dss_length"', '"sessions"']), "在案"))
