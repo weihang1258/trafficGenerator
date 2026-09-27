@@ -6892,9 +6892,164 @@ def check_gbt32960(cases):
     return rows
 
 
+def check_igmp(cases):
+    """D-IGMP-1 P4 反查表（T-IGMP-1…25；契约 §1/§2/§3/§4 逐条回查）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线（P4 落码面）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 igmp", '"igmp": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 igmp（已准入）", '"igmp"' not in pt[i_neg:i_neg + 900], "已摘除"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "igmp"')
+    reg_block = rg[i_reg:rg.index('Name: "', i_reg + 20)]
+    rows.append(("registry igmp 行（DependsOn ip + FieldContract ip.protocol=2）",
+                 'DependsOn: []string{"ip"}' in reg_block
+                 and '"ip.protocol": "2"' in reg_block, "在案"))
+    for k in ["profile", "kind", "group", "max_response_time", "max_response_code",
+              "s_flag", "qrv", "qqic", "records", "sources", "source_count",
+              "checksum_mode", "wire_fault", "address_family", "events"]:
+        if f'"{k}"' not in reg_block:
+            rows.append((f"registry Fields 含 {k}", False, "缺键"))
+            break
+    else:
+        rows.append(("registry Fields 15 键齐（层业务键 V9 放行）", True, "15/15"))
+    cg = (tg / "internal" / "core" / "igmp.go").read_text()
+    rows.append(("ParseIGMPConfigFromMap 单一解析权威（扁平/层链共用）",
+                 "func ParseIGMPConfigFromMap" in cg, "在案"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case igmp（层 config → spec.IGMP）", 'case "igmp":' in tr, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat 顶层 igmp 子映射 presence 判死",
+                 "protocol igmp no longer accepts a top-level igmp sub-config" in sc, "在案"))
+    rows.append(("mapToFlowSpec 顶层 igmp → ValidationErrors（在库旧策略执法）",
+                 'if protocol == "igmp" {' in sc, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    i_vl = vl.index('if protocol == "igmp" {')
+    vl_block = vl[i_vl:vl.index("effective, err := ValidateLayers", i_vl)]
+    rows.append(("链预检三支：tcp carrier / udp carrier / 缺 ip carrier",
+                 "tcp carrier is not supported" in vl_block
+                 and "udp carrier is not supported" in vl_block
+                 and "missing ip carrier" in vl_block, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(igmp)",
+                 "internal/protocol/igmp" in mn and 'NewChainPlanner("igmp")' in mn, "在案"))
+    cu = (tg / "internal" / "core" / "layers" / "chain_planner_util.go").read_text()
+    rows.append(("isRawIPChain 认 igmp（无传输层族）", '"igmp"' in cu.split("func isRawIPChain")[1][:600], "在案"))
+    gen = json.loads((tg / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
+    gf = ((gen.get("layers") or {}).get("igmp") or {}).get("fields") or {}
+    rows.append(("生成表 igmp 层与 registry 对齐（15 键）",
+                 len(gf) == 15 and {"profile", "kind", "group", "events"} <= set(gf), f"{len(gf)} 键"))
+
+    # 2. 用例面（契约 §2 索引 + §1 完整性口径）。
+    exp_ids = ["igmp_v1_general_query", "igmp_v1_report", "igmp_v2_general_query",
+               "igmp_v2_group_specific_query", "igmp_v2_report", "igmp_v2_leave",
+               "igmp_v3_general_query", "igmp_v3_source_specific_query",
+               "igmp_v3_include_record", "igmp_v3_exclude_record", "igmp_v3_change_records",
+               "igmp_v3_allow_block_sources", "igmp_profile_matrix", "igmp_retransmit_state",
+               "igmp_multi_group_sessions", "igmp_ipv4_outer_invariants",
+               "igmp_v3_query_boundaries", "igmp_neg_ipv6", "igmp_neg_nonmulticast_destination",
+               "igmp_neg_ttl_not_one", "igmp_neg_protocol_not_two", "igmp_neg_bad_checksum",
+               "igmp_neg_invalid_v3_record", "igmp_neg_invalid_profile_version",
+               "igmp_neg_query_source_count_length"]
+    got_ids = [c.get("id") for c in cases]
+    rows.append(("25 例 ID 与契约 §2 索引同序",
+                 got_ids == exp_ids, "同序" if got_ids == exp_ids else f"差异: {set(exp_ids) ^ set(got_ids)}"))
+    pos = [c for c in cases if "expect_error" not in (c.get("expect") or {})]
+    neg = [c for c in cases if "expect_error" in (c.get("expect") or {})]
+    rows.append(("17 正 + 8 负", len(pos) == 17 and len(neg) == 8, f"{len(pos)} 正 / {len(neg)} 负"))
+    seq = [(c.get("expect") or {}).get("packet_count") for c in pos]
+    want_seq = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 4, 1, 1]
+    rows.append(("packet_count 序列 = 契约 §2", seq == want_seq, str(seq)))
+    five = [c.get("id") for c in pos if not (
+        (c.get("expect") or {}).get("packet_count")
+        and (c.get("expect") or {}).get("fields")
+        and (c.get("expect") or {}).get("frames")
+        and (c.get("expect") or {}).get("has_payload") is True
+        and (c.get("expect") or {}).get("directional") is False)]
+    rows.append(("正例五项齐全（packet_count/fields/frames/has_payload/directional=false）",
+                 not five, five or "17/17"))
+    bad_keys = [c.get("id") for c in neg
+                if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}", not bad_keys, bad_keys or "8/8 合规"))
+
+    # 3. 字段/帧面（§1/§3 实测口径）。
+    flds = set()
+    for c in pos:
+        for f in (c.get("expect") or {}).get("fields") or []:
+            if isinstance(f, dict) and f.get("field"):
+                flds.add(f["field"])
+    want_flds = {"igmp.type", "igmp.checksum", "igmp.maddr", "igmp.max_resp", "igmp.qrv",
+                 "igmp.qqic", "igmp.num_src", "igmp.saddr", "igmp.num_grp_recs",
+                 "igmp.record_type", "igmp.s", "ip.proto", "ip.ttl", "ip.dst"}
+    rows.append(("字段去重 14 个（igmp.* 11 + ip.* 3）",
+                 flds == want_flds, f"{len(flds)} 个" + ("" if flds == want_flds else f"，差异 {flds ^ want_flds}")))
+    offs = set()
+    for c in pos:
+        for f in (c.get("expect") or {}).get("frames") or []:
+            if isinstance(f, dict) and f.get("offset") is not None:
+                offs.add(f["offset"])
+    rows.append(("frames offset ⊆ 契约八档 {34,38,42,46,50,54,58,62}",
+                 offs <= {34, 38, 42, 46, 50, 54, 58, 62}, str(sorted(offs))))
+    lit = [c.get("id") for c in pos for f in (c.get("expect") or {}).get("fields") or []
+           if f.get("field") == "igmp.checksum" and "value" in f]
+    rows.append(("checksum 只以 nonzero 观察（不钉未复算十六进制）", not lit, lit or "零字面量"))
+    hs = [c.get("id") for c in cases if "has_handshake" in json.dumps(c)]
+    rows.append(("has_handshake 零出现（无端口无握手族）", not hs, hs or "0/25"))
+
+    # 4. 负例锚词：case 侧 `error_contains` 逐字 = 契约 §4 表值，且每个值
+    #    命中 planner.go（#23 另含解码通道）已落码锚词。
+    pl = (tg / "internal" / "protocol" / "igmp" / "planner.go").read_text()
+    want_anchor = {
+        "igmp_neg_ipv6": "IPv6",
+        "igmp_neg_nonmulticast_destination": "multicast",
+        "igmp_neg_ttl_not_one": "TTL",
+        "igmp_neg_protocol_not_two": "Protocol 2",
+        "igmp_neg_bad_checksum": "checksum",
+        "igmp_neg_invalid_v3_record": "record",
+        "igmp_neg_invalid_profile_version": "profile",
+        "igmp_neg_query_source_count_length": "source count",
+    }
+    bad = [c.get("id") for c in neg
+           if (c.get("expect") or {}).get("error_contains") != want_anchor.get(c.get("id"))]
+    rows.append(("8 负例 error_contains 逐字 = 契约 §4 表值", not bad, bad or "8/8 逐字"))
+    code_anchors = {
+        "IPv6": "igmp: IPv6 is N/A",
+        "multicast": "non-multicast destination",
+        "TTL": "igmp: TTL must be 1",
+        "Protocol 2": "igmp: IP Protocol 2 required",
+        "checksum": "igmp: invalid checksum requested",
+        "record": "igmp: invalid v3 record",
+        "profile": 'igmp: invalid profile %q / kind %q',
+        "source count": "igmp: v3 query source count",
+    }
+    miss = [v for v in want_anchor.values() if code_anchors[v] not in pl]
+    rows.append(("8 锚词均命中 planner.go 已落码文案", not miss, miss or "8/8 命中"))
+    # T-23 的判死通道是类型不匹配（数值型 record_type 撞 string 字段 → 解码
+    # 错误），故须断言触发源是**数值**而非字符串——字符串值会静默通过解码。
+    rt = []
+    for c in neg:
+        if c.get("id") != "igmp_neg_invalid_v3_record":
+            continue
+        for l in (c.get("spec_json") or {}).get("layers") or []:
+            for rec in ((l.get("igmp") or {}).get("records") or []):
+                rt.append(rec.get("record_type"))
+    rows.append(("T-23 触发源 = 数值型 record_type（解码层判死，非字符串）",
+                 bool(rt) and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in rt),
+                 f"record_type={rt}"))
+
+    # 5. 顶层残留为零（层链唯一配置真相，非负例顶层键=0）。
+    leaked = [c.get("id") for c in cases if "igmp" in (c.get("spec_json") or {})]
+    rows.append(("顶层残留为零（仅 layers）", not leaked, leaked or "零残留"))
+    return rows
+
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp}
 
 
 def main(argv):

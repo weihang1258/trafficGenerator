@@ -528,6 +528,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-IGMP-1（§14-P2）：igmp 在库旧策略顶层 igmp → ValidationErrors
+	// （tftp/sstp 同款；空 map 也死——判死形状「层链+顶层空子映射并存」
+	// wired 面，25 例存量正是此形）。
+	if protocol == "igmp" {
+		if v, ok := cfg["igmp"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 
 	// D-FTP-3 §5: 扁平四键收动态对象（引擎直调路径，REST 形状层已先 400）→
 	// spec.ValidationErrors 拒绝并指路层字段，worker 预检终态 error，绝不
@@ -8811,6 +8819,14 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "doip" {
 		if v, ok := cfg["doip"]; ok && v != nil {
 			return "protocol doip no longer accepts a top-level doip sub-config (move it into the doip layer of an [ip,tcp,doip] layers chain; the layer chain is the only config truth)"
+		}
+	}
+	// D-IGMP-1（§14-P2）：igmp 顶层 igmp 子映射 presence 判死（tftp/sstp
+	// 先例；空 map 也死——契约点名形状「层链+顶层空子映射并存=判死负例」）。
+	// 层链形状不触发。
+	if protocol == "igmp" {
+		if v, ok := cfg["igmp"]; ok && v != nil {
+			return "protocol igmp no longer accepts a top-level igmp sub-config (move it into the igmp layer of an [ip,igmp] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-*-1 raw 自驱八协议：顶层同名子映射 presence 判死（mcp 先例；空
