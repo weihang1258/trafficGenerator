@@ -253,16 +253,35 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "dnp3", Category: CategoryTerminal,
 		DependsOn: []string{"tcp"},
 	})
-	// ---- P4a：doip（tcp 终结层。ISO 13400-2 DoIP——routing activation /
-	// diagnostic messages / alive check / generic nack 阶段逐报文事件，
-	// 0x36 TransferData 协议级分段复刻（legacy doip.go:677-701 同款），
-	// TCP 语义（握手/seq-ack/挥手/MSS 分段）交给 tcp 层生成器；配置
-	// （protocol_version/activation/messages/alive_check...）繁多不落层
-	// config（layers 数组条目零负载），经 spec.DoIP flat 键携带、FlowMeta
-	// 直传生成器。UDP 阶段（Discovery/EntityStatus/PowerMode）与激活失败
-	// 提前终止不支持（生成器显式拒绝）。
+	// D-DOIP-1：doip（tcp 终结层；层七键对齐 core.DoIPConfig json 标签——
+	// 键名=标签名。oem_specific/user_data 等字节片由扁平 getByteSlice/
+	// getHexBytes 承接双语义（字符串原样字节/hex 解码/数字数组），JSON
+	// 往返会误读——srv6 inner_payload/tftp data_payload_pattern 同陷阱，
+	// 翻译侧复用扁平 parseDoIPConfig 单一真相。discovery/entity_status/
+	// power_mode 三键在册（ValidateLayerConfig 未知键即拒之前先过值面）→
+	// 生成器/校验器同步显式拒绝（UDP 面链上不可达）；vin/eid/gid 死配置
+	// 同册（生成器零读取，G-DOIP-7）。端口契约 tcp.dst_port=13400（缺省
+	// 补齐，enip :44818 同款）。顶层 `doip` 子映射由 CheckProtoFlat
+	// presence 判死，层链是唯一配置真相。
 	r.Register(LayerSchema{Name: "doip", Category: CategoryTerminal,
-		DependsOn: []string{"tcp"},
+		DependsOn:   []string{"tcp"},
+		TransportOn: []string{"tcp"},
+		FieldContract: map[string]string{"tcp.dst_port": "13400"},
+		Fields: map[string]FieldSchema{
+			"protocol_version": {Type: "uint8", Min: 0, Max: 255},
+			"logical_address":  {Type: "uint16", Min: 0, Max: 65535},
+			"tester_address":   {Type: "uint16", Min: 0, Max: 65535},
+			"vin":              {Type: "string"},
+			"eid":              {Type: "string"},
+			"gid":              {Type: "string"},
+			"discovery":        {Type: "object"},
+			"entity_status":    {Type: "object"},
+			"power_mode":       {Type: "object"},
+			"activation":       {Type: "object"},
+			"messages":         {Type: "list"},
+			"alive_check":      {Type: "object"},
+			"generic_nack":     {Type: "object"},
+		},
 	})
 	// ---- P4a：gbt32960（tcp 终结层。GB/T 32960.3-2016——车辆/平台状态机
 	// 展开为逐消息事件（0x01 登入 → 0x0C 确认 → 0x02 上报 ×N → 0x04 登出，

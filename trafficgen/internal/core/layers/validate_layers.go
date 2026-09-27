@@ -586,6 +586,43 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 		}
 	}
 
+	if protocol == "doip" {
+		// D-DOIP-1（G-DOIP-2，§15 8.5②/8.7）：链上不可达形在 create 期同步
+		// 判死（生成器 drive 期错误会被 Plan goroutine 吞成空流——hl7
+		// 裁定2/megaco 修轮⑨同教训；三支锚词与生成器 layer_gen.go:63-69
+		// 逐字一致，双路闭合）。
+		//   - discovery 非空（UDP 发现面）→ 拒；
+		//   - entity_status 非空（UDP 实体状态面）→ 拒；
+		//   - power_mode 非空（UDP 电源模式面）→ 拒。
+		// 混合地址族走通用 same-version 检查（锚词 address），此处不重复。
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			for _, item := range probe {
+				rawD, ok := item["doip"]
+				if !ok || len(rawD) == 0 {
+					continue
+				}
+				var dcfg struct {
+					Discovery    json.RawMessage `json:"discovery"`
+					EntityStatus json.RawMessage `json:"entity_status"`
+					PowerMode    json.RawMessage `json:"power_mode"`
+				}
+				if json.Unmarshal(rawD, &dcfg) != nil {
+					continue
+				}
+				if len(dcfg.Discovery) > 0 && string(dcfg.Discovery) != "null" {
+					return nil, fmt.Errorf("doip chain: discovery (UDP vehicle discovery) is not supported on a tcp-layer chain (discovery)")
+				}
+				if len(dcfg.EntityStatus) > 0 && string(dcfg.EntityStatus) != "null" {
+					return nil, fmt.Errorf("doip chain: entity_status (UDP entity status) is not supported on a tcp-layer chain (entity_status)")
+				}
+				if len(dcfg.PowerMode) > 0 && string(dcfg.PowerMode) != "null" {
+					return nil, fmt.Errorf("doip chain: power_mode (UDP power mode) is not supported on a tcp-layer chain (power_mode)")
+				}
+			}
+		}
+	}
+
 	effective, err := ValidateLayers(layersJSON, protocol)
 	if err != nil {
 		return nil, err
