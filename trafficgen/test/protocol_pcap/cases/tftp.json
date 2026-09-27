@@ -11574,7 +11574,7 @@
   "expect": {
    "packet_count": 300,
    "notes": [
-    "spec T-217: 100 流唯一 4-tuple（src 12345..12444 自动递增），无 TID 冲突",
+    "spec T-217: 100 流唯一 4-tuple（层内 udp.src_port 动态 inc 对象，实测 49152..49251 逐值生效），无 TID 冲突",
     "100×(RRQ+DATA+ACK)=300 包；每流 server TID 由 FNV-1a(FlowID) 确定性派生且互异",
     "跨流包序由引擎并行 worker 交错 → 不做按位置断言；流内 (RRQ,DATA,ACK) 完整"
    ]
@@ -15104,7 +15104,7 @@
     }
    ],
    "notes": [
-    "T-TFTP-WRQ-RETX: WRQ 方向重传（落盘实测 8 包：WRQ+ACK0+DATA1/ACK1+DATA2/ACK2+DATA3(re)+ACK3；重传 DATA 先于其 ACK）"
+    "T-TFTP-WRQ-RETX: WRQ 方向重传（落盘实测 8 包：WRQ+ACK#0+DATA#1(仅重传版)/ACK#1+DATA#2/ACK#2+DATA#3(0B 追加)/ACK#3；块 #1 为唯一重传版，块 #3 为自动追加末块）"
    ]
   }
  },
@@ -15181,7 +15181,7 @@
     }
    ],
    "notes": [
-    "T-TFTP-WRQ-TIDCHG: WRQ+TID 变更（落盘实测 9 包：WRQ+ACK0+DATA1(ERR5)+ERR5+ACK1+DATA2/ACK2+DATA3/ACK3；传输继续，互操作负向）"
+    "T-TFTP-WRQ-TIDCHG: WRQ+TID 变更（落盘实测 9 包：WRQ+ACK#0(60000)+DATA#1(→61000)/ERR5(→61000)+ACK#1(61000)+DATA#2/ACK#2+DATA#3(0B)/ACK#3；客户端发送方切换块起直发新 TID，ERROR(5) 作迁移标记，传输继续，互操作负向）"
    ]
   }
  },
