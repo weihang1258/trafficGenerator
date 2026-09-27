@@ -6500,55 +6500,6 @@
   }
  },
  {
-  "id": "nfs_t154_v4_no_filehandle",
-  "proto": "nfs",
-  "summary": "T-154: compound_ops 无 PUTFH/PUTROOTFH → 自动补 PUTROOTFH(24) 仍成功（对比 T-155 截断）",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "nfs": {
-      "version": 4,
-      "xid_incr": 1,
-      "ops": [
-       {
-        "procedure": 1,
-        "compound_ops": [
-         {
-          "opcode": 9,
-          "attr_mask": [
-           16
-          ]
-         }
-        ]
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "packet_count": 13,
-   "fields": [
-    {
-     "packet": 8,
-     "field": "nfs.opcode",
-     "value": "24,9"
-    },
-    {
-     "packet": 9,
-     "field": "nfs.nfsstat4",
-     "value": "0,0,0"
-    }
-   ],
-   "notes": [
-    "设计 §7.6 T-154：needsCurrentFH 自动补 PUTROOTFH（nfs.go:667）→ resarray=2 全 0（设计 T-154 期望 10020 但 encoder 不注入 NOFILEHANDLE）"
-   ]
-  }
- },
- {
   "id": "nfs_t155_v4_compound_truncate",
   "proto": "nfs",
   "summary": "T-155: [PUTROOTFH, GETATTR{op_status:10025}, READ] → top=10025, resarray=2, READ 不返回",
@@ -6651,55 +6602,6 @@
    ],
    "notes": [
     "设计 §7.6 T-157：全成功 → 顶层 status=0 + 每 op_status=0"
-   ]
-  }
- },
- {
-  "id": "nfs_t158_rpc_accept_prog_unavail",
-  "proto": "nfs",
-  "summary": "T-158: rpc_accept_state=1 (PROG_UNAVAIL) → AcceptState=1 无 NFS body",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "nfs": {
-      "version": 3,
-      "ops": [
-       {
-        "program": 100003,
-        "procedure": 0,
-        "rpc_accept_state": 1
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "packet_count": 9,
-   "fields": [
-    {
-     "packet": 5,
-     "field": "rpc.msgtyp",
-     "value": "1"
-    },
-    {
-     "packet": 5,
-     "field": "rpc.state_accept",
-     "value": "1"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 5,
-     "offset": 54,
-     "hex": "80 00 00 18 00 00 00 01 00 00 00 01 00 00 00 00\n00 00 00 00 00 00 00 00 00 00 00 01"
-    }
-   ],
-   "notes": [
-    "设计 §7.6 T-158：MSG_ACCEPTED(1) + reply_stat=0 + verf(AUTH_NONE 0/0) + AcceptState=1；RM=0x80000018=24B 头（含 accept_state），无 NFS body"
    ]
   }
  },
@@ -10491,6 +10393,281 @@
   }
  },
  {
+  "id": "nfs_t195_v3_multiflow_composite",
+  "proto": "nfs",
+  "summary": "T-195/T-200 复合大场景：flow_control.flows=3 条独立客户端流（层内动态 ip.src + 框架逐流源端口 12345/6/7）— 每流 MOUNT + GETATTR/LOOKUP/READ/WRITE/REMOVE + UMOUNT 共 7 轮 RPC；GETATTR 注入 NFS3ERR_STALE(70) 异常分支后 LOOKUP 恢复；AUTH_SYS 全 call；group_id 同 shard 定序 → 3×21=63 包",
+  "strategy_fc": {
+   "type": "flows",
+   "value": 3
+  },
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": {
+       "strategy": "inc",
+       "range": [
+        "10.0.1.1",
+        "10.0.1.9"
+       ],
+       "step": 1
+      },
+      "dst": "10.0.0.2"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "nfs": {
+      "version": 3,
+      "auth_flavor": 1,
+      "xid_base": 1,
+      "xid_incr": 1,
+      "ops": [
+       {
+        "procedure": 1,
+        "reply_status": 70
+       },
+       {
+        "procedure": 3,
+        "filename": "file.txt"
+       },
+       {
+        "procedure": 6,
+        "offset": 0,
+        "count": 4
+       },
+       {
+        "procedure": 7,
+        "count": 1,
+        "stable_how": 2,
+        "data": "QQ=="
+       },
+       {
+        "procedure": 10,
+        "filename": "file.txt"
+       }
+      ]
+     }
+    }
+   ],
+   "group_id": {
+    "strategy": "fixed",
+    "value": "nfs-composite"
+   }
+  },
+  "expect": {
+   "packet_count": 63,
+   "has_handshake": true,
+   "has_payload": true,
+   "terminates": true,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 22,
+     "field": "tcp.srcport",
+     "value": "12346"
+    },
+    {
+     "packet": 43,
+     "field": "tcp.srcport",
+     "value": "12347"
+    },
+    {
+     "packet": 1,
+     "field": "ip.src",
+     "value": "10.0.1.1"
+    },
+    {
+     "packet": 22,
+     "field": "ip.src",
+     "value": "10.0.1.2"
+    },
+    {
+     "packet": 43,
+     "field": "ip.src",
+     "value": "10.0.1.3"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "2049"
+    },
+    {
+     "packet": 4,
+     "field": "rpc.program",
+     "value": "100005"
+    },
+    {
+     "packet": 4,
+     "field": "rpc.procedure",
+     "value": "1"
+    },
+    {
+     "packet": 4,
+     "field": "rpc.xid",
+     "value": "0x00000001"
+    },
+    {
+     "packet": 4,
+     "field": "rpc.auth.flavor",
+     "value": "1,0"
+    },
+    {
+     "packet": 6,
+     "field": "rpc.program",
+     "value": "100003"
+    },
+    {
+     "packet": 6,
+     "field": "rpc.procedure",
+     "value": "1"
+    },
+    {
+     "packet": 6,
+     "field": "rpc.xid",
+     "value": "0x00000002"
+    },
+    {
+     "packet": 7,
+     "field": "nfs.status3",
+     "value": "70"
+    },
+    {
+     "packet": 8,
+     "field": "rpc.procedure",
+     "value": "3"
+    },
+    {
+     "packet": 9,
+     "field": "nfs.status3",
+     "value": "0"
+    },
+    {
+     "packet": 10,
+     "field": "rpc.procedure",
+     "value": "6"
+    },
+    {
+     "packet": 12,
+     "field": "rpc.procedure",
+     "value": "7"
+    },
+    {
+     "packet": 14,
+     "field": "rpc.procedure",
+     "value": "10"
+    },
+    {
+     "packet": 16,
+     "field": "rpc.program",
+     "value": "100005"
+    },
+    {
+     "packet": 16,
+     "field": "rpc.procedure",
+     "value": "3"
+    },
+    {
+     "packet": 16,
+     "field": "rpc.xid",
+     "value": "0x00000007"
+    },
+    {
+     "packet": 25,
+     "field": "rpc.xid",
+     "value": "0x00000001"
+    },
+    {
+     "packet": 28,
+     "field": "nfs.status3",
+     "value": "70"
+    },
+    {
+     "packet": 46,
+     "field": "rpc.xid",
+     "value": "0x00000001"
+    },
+    {
+     "packet": 49,
+     "field": "nfs.status3",
+     "value": "70"
+    },
+    {
+     "field": "ip.src",
+     "distinct_values": [
+      "10.0.1.1",
+      "10.0.1.2",
+      "10.0.1.3"
+     ],
+     "distinct_exclude": [
+      "10.0.0.2"
+     ]
+    },
+    {
+     "field": "tcp.srcport",
+     "distinct_values": [
+      "12345",
+      "12346",
+      "12347"
+     ],
+     "distinct_exclude": [
+      "2049"
+     ]
+    },
+    {
+     "field": "nfs.status3",
+     "distinct_values": [
+      "0",
+      "70"
+     ]
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "80 00 00 50 00 00 00 01"
+    },
+    {
+     "packet": 7,
+     "offset": 54,
+     "hex": "80 00 00 1c"
+    },
+    {
+     "packet": 7,
+     "offset": 82,
+     "hex": "00 00 00 46"
+    },
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "80 00 00 80 00 00 00 03"
+    },
+    {
+     "packet": 46,
+     "offset": 54,
+     "hex": "80 00 00 50 00 00 00 01"
+    }
+   ],
+   "notes": [
+    "T-195（多会话完整 → N1 裁定重建为 flow_control 多流）+ T-200（auth_sys + 多流 + 错误注入 + 多 op 全字段）：每流 21 包 = 3 握手 + MOUNT(2) + 5 ops(10) + UMOUNT(2) + 挥手(4)",
+    "交织类别 = 多流（3 条独立 4-tuple 客户端流）× 多事务（每流 7 轮 RPC 往返）× 异常分支（GETATTR reply_status=70 NFS3ERR_STALE，随后 LOOKUP 恢复）≥ 3 类（§9.49/§9.50 下限）",
+    "group_id=fixed → 三流同 shard 单 worker FIFO → pcap 定序：flow0 p1-21 / flow1 p22-42 / flow2 p43-63（gbt_t117/smb_tpos16x 同款定序口径，先跑后钉三轮复跑稳定）",
+    "四元组逐流有别 = 层内动态对象 ip.src（inc 10.0.1.1-9）+ 框架逐流源端口保底 12345+i（12.9 静态复制逃逸口）",
+    "XID 逐流独立从 1 起（每流 1..7；p25/p46 实证第二/三流回到 0x00000001，与 p4 首流一致）",
+    "AUTH_SYS 全 call（rpc.auth.flavor=1,0）；错误状态字 p7/p28/p49 = 0x46(70) 三流一致，且 nfs.status3 聚合 = {0,70}",
+    "每 op 一轮 call+reply（相邻两包）；逐流 21 包与 t191 单流同构；GETATTR 之外的 proc 错误状态被 tshark dissector 判 malformed（harness 限制，§9.27）故异常分支落 GETATTR"
+   ]
+  }
+ },
+ {
   "id": "nfs_t197_v4_e2e_pcap",
   "proto": "nfs",
   "summary": "T-197: 端到端 PCAP 产出 — 任务提交 → pcap 含 3-way + RPC + FIN，tshark 解析为 NFS",
@@ -10776,7 +10953,7 @@
  {
   "id": "nfs_neg_stray_src_mac",
   "proto": "nfs",
-  "summary": " 白名单外游离键判死②-b：顶层 src_ip（地址真相住 ip 层；CheckProtoFlat）",
+  "summary": "白名单外游离键判死②-b：顶层 src_mac（MAC 真相住 eth 层；checkLayerFlatConflict 混用门）",
   "spec_json": {
    "layers": [
     {
@@ -10793,17 +10970,17 @@
      }
     }
    ],
-   "src_ip": "10.0.0.1"
+   "src_mac": "02:00:00:00:00:09"
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "no longer accepts flat config field src_ip"
+   "error_contains": "config mixes layers with flat four-tuple field src_mac"
   }
  },
  {
   "id": "nfs_neg_stray_ttl",
   "proto": "nfs",
-  "summary": " 白名单外游离键判死②-c：顶层 count=2（数量真相走 flow_control；CheckProtoFlat，与门2-1 豁免同锚）",
+  "summary": "白名单外游离键判死②-c：顶层 ttl 越界（ttl 真相住 ip 层；越界走 ValidateConfigRanges shape 门）",
   "spec_json": {
    "layers": [
     {
@@ -10820,11 +10997,11 @@
      }
     }
    ],
-   "count": 2
+   "ttl": 300
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "no longer accepts flat config field count"
+   "error_contains": "ttl 300 invalid (must be 0-255)"
   }
  },
  {

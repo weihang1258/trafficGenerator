@@ -1761,7 +1761,7 @@ def check_tftp(cases):
 
 
 def check_nfs(cases):
-    """D-NFS-1 P6 反查表（192 例=168 正+24 负，NFSv3/v4 RPC 双载体。
+    """D-NFS-1 P6 反查表（197 例=167 正+30 负，NFSv3/v4 RPC 双载体。
     返回 [(检查名, 通过?, 证据)]。"""
     rows = []
     tg = Path(__file__).resolve().parent.parent
@@ -1805,18 +1805,19 @@ def check_nfs(cases):
     ]:
         rows.append((f"builder：{name}", prim in bl, "在案"))
 
-    # 3. 用例面（168 正 + 30 负；proto=nfs；顶层仅 layers + 红例执法键）。
+    # 3. 用例面（167 正 + 30 负；proto=nfs；顶层仅 layers/group_id + 红例执法键）。
     pos = [c for c in cases if "packet_count" in (c.get("expect") or {})]
     neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
-    rows.append(("198 例对账（168 正+30 负）", len(pos) == 168 and len(neg) == 30 and len(cases) == 198,
+    rows.append(("197 例对账（167 正+30 负）", len(pos) == 167 and len(neg) == 30 and len(cases) == 197,
                  f"{len(pos)}+{len(neg)}={len(cases)}"))
     bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "nfs"]
     rows.append(("proto 全=nfs（单准入名）", not bad_proto, bad_proto or "全 nfs"))
     red_ids = {"nfs_neg_presence_top_level_nfs", "nfs_neg_flat_count", "nfs_neg_stray_src_mac",
                "nfs_neg_stray_ttl", "nfs_neg_unknown_layer_field", "nfs_neg_static_copy_multiflow"}
+    # group_id 为框架级流绑定键（smb_tpos16x/gbt_t117 先例），非旧扁平协议键。
     leaked = sorted({k for c in cases if c.get("id") not in red_ids
-                     for k in (c.get("spec_json", {}) or {}) if k != "layers"})
-    rows.append(("顶层残留为零（仅 layers；红例执法键豁免）", not leaked, leaked or "零残留"))
+                     for k in (c.get("spec_json", {}) or {}) if k not in ("layers", "group_id")})
+    rows.append(("顶层残留为零（仅 layers/group_id；红例执法键豁免）", not leaked, leaked or "零残留"))
     red_presence = next((c.get("id", "?") for c in cases if c.get("id") == "nfs_neg_presence_top_level_nfs"), None)
     rows.append(("presence 红例在案（M5 清单①）", red_presence is not None, red_presence or "无用例"))
     empty_nfs = [c.get("id", "?") for c in cases if c.get("id") not in red_ids
@@ -1835,20 +1836,35 @@ def check_nfs(cases):
         ("nfs_t171_v4_sessions1_default", "T-171 单会话默认口径"),
         ("nfs_t016_xid_base_zero", "T-016 XID 零值兜底（裁定 N2）"),
         ("nfs_t135_v4_stateid_other12", "T-135 stateid 数组形（裁定 N3）"),
+        ("nfs_t195_v3_multiflow_composite", "T-195/T-200 多流复合大场景（3 流×21 包，§9.49/9.50/9.53）"),
     ]:
         hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
         rows.append((name, hit is not None, hit or "无用例"))
+    # 多流复合例形状自检（§9.49/§9.50 下限 ≥3 类交织：多流 + 多事务 + 异常分支）。
+    comp = next((c for c in cases if c.get("id") == "nfs_t195_v3_multiflow_composite"), None)
+    comp_ok = bool(comp) and (comp.get("strategy_fc") or {}).get("value") == 3
+    if comp:
+        sj = comp.get("spec_json", {}) or {}
+        ns = next((l.get("nfs") for l in sj.get("layers", []) or [] if isinstance(l, dict) and "nfs" in l), {}) or {}
+        ops = ns.get("ops") or []
+        comp_ok = (comp_ok and len(ops) >= 5
+                   and any(o.get("reply_status") for o in ops if isinstance(o, dict))
+                   and any(isinstance(v, dict) and v.get("strategy") for l in sj.get("layers", []) or []
+                           if isinstance(l, dict) for v in (l.get("ip") or {}).values()))
+    rows.append(("多流复合例（flows=3 + ≥5 op + 异常注入 + 层内动态四元组）", comp_ok,
+                 "nfs_t195_v3_multiflow_composite" if comp_ok else "形状不符"))
 
     # 4. 锚词面（主锚词族在负例 expect 中；保持与 suite 绿一致）。
-    # ttl 红例锚词为 ValidateConfigRanges 原文 "ttl 300 invalid"；族名记作 ttl。
+    # ttl 红例锚词为 ValidateConfigRanges 原文 "ttl 300 invalid"；src_mac 走
+    # checkLayerFlatConflict 混用门原文（族名记作 ttl / mixes）。
     anchors = {"version must be 3 or 4", "multi-stream expansion is not supported on the layer chain",
                "NFSv4 requires TCP", "UDP RPC message exceeds 65507", "MOUNT v3 procedure out of range",
                "attrmask contains NFSv4.1+ attributes", "layers: layer",
                "no longer accepts a top-level nfs sub-config", "no longer accepts flat config field count",
-               "src_ip", "static copy"}
+               "flat four-tuple field src_mac", "ttl 300 invalid (must be 0-255)", "static copy"}
     got = {(c.get("expect") or {}).get("error_contains") for c in neg}
     missing = sorted(a for a in anchors if not any(a in (g or "") for g in got))
-    rows.append(("负例锚词覆盖十三族", not missing, missing or sorted(got)))
+    rows.append((f"负例锚词覆盖 {len(anchors)} 族", not missing, missing or sorted(got)))
     return rows
 
 

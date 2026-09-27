@@ -455,13 +455,6 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
-	// D-NFS-1：nfs 在库旧策略顶层 nfs → ValidationErrors（mmse 同款；
-	// 在库 0 行纯防御——新协议去扁平后顶层 nfs 即判死）。
-	if protocol == "nfs" {
-		if v, ok := cfg["nfs"]; ok && v != nil {
-			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
-		}
-	}
 	// D-OCSP-1：ocsp 在库旧策略顶层 ocsp → ValidationErrors（mmse 同款；
 	// 在库 0 行纯防御——新协议无存量迁移面）。
 	if protocol == "ocsp" {
