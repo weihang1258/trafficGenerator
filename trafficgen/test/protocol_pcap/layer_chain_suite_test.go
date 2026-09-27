@@ -46,6 +46,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dhcpv6"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dns"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/doh"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/enip"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/http"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mdns"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mqtt"
@@ -68,6 +69,7 @@ import (
 // still owns it, and the blank imports above only link these generators.
 var chainSuiteProtos = map[string]bool{
 	"cwmp": true, "dhcp": true, "dhcpv6": true, "dns": true, "doh": true,
+	"enip": true,
 	"mdns": true, "mqtt": true, "nmea": true, "ntp": true, "onvif": true, "snmp": true,
 	"pop3": true,
 	"smtp": true,

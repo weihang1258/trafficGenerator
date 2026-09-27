@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/trafficgen/trafficgen/pkg/filesystem"
@@ -10159,10 +10160,64 @@ func (c *ENIPConfig) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// UnmarshalJSON decodes one ENIP command, accepting session_handle as a
+// scalar uint32 or a strategy object ({"strategy":"inc",...} →
+// SessionHandleStrategy, 设计 §7.3 T-090/091；parseENIPCommands 经
+// getENIPSessionHandleStrategy 同口径——层翻译往返与扁平解析单一真相）。
+func (cmd *ENIPCommand) UnmarshalJSON(b []byte) error {
+	type alias ENIPCommand
+	var a alias
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&a); err != nil {
+		// 策略对象形回退：仅当错误是 session_handle 的对象→uint32 类型错
+		// 才走影子解码（未知键错误不吞——仍返回原错）。
+		if !isSessionHandleObjectError(err) {
+			return err
+		}
+		var shadow struct {
+			alias
+			SessionHandleRaw json.RawMessage `json:"session_handle"`
+		}
+		dec2 := json.NewDecoder(bytes.NewReader(b))
+		dec2.DisallowUnknownFields()
+		if err2 := dec2.Decode(&shadow); err2 != nil {
+			return err
+		}
+		var strat struct {
+			Strategy string `json:"strategy"`
+		}
+		if json.Unmarshal(shadow.SessionHandleRaw, &strat) != nil {
+			return err
+		}
+		a.SessionHandleStrategy = strat.Strategy
+		*cmd = ENIPCommand(a)
+		return nil
+	}
+	*cmd = ENIPCommand(a)
+	return nil
+}
+
+// isSessionHandleObjectError reports whether err is the session_handle
+// object-into-uint32 type error (and nothing else claims it).
+func isSessionHandleObjectError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	return strings.Contains(s, "session_handle") && strings.Contains(s, "cannot unmarshal object")
+}
+
 // ENIPCommand represents a single ENIP message command configuration.
 type ENIPCommand struct {
-	Command       uint16 `json:"command"`
-	Length        uint16 `json:"length,omitempty"`
+	Command uint16 `json:"command"`
+	Length  uint16 `json:"length,omitempty"`
+	// SessionHandle 正常为 uint32 标量；策略对象形
+	// （{"strategy":"inc",...}，设计 §7.3 T-090/091）由自定义解码承接：
+	// 标量进 SessionHandle，对象进 SessionHandleStrategy（Validate 拒
+	// 非法策略）。直解码（ 第四面 ：层翻译 JSON 往返）要求此二态，
+	// 否则对象形在翻译期即报 cannot unmarshal object，锚词到不了
+	// Validate（链级红例 T-090/091 实证）。
 	SessionHandle uint32 `json:"session_handle,omitempty"`
 	// SessionHandleStrategy 记录 session_handle 配置为策略 map 时的 strategy 键
 	// （如 {"strategy":"inc",...}），仅用于 Validate 拒绝非法策略（设计 §7.3 T-090/091）。

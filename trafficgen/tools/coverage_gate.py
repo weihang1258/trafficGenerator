@@ -1228,6 +1228,110 @@ def check_kerberos(cases):
     return rows
 
 
+def check_enip(cases):
+    """D-ENIP-1 P4 反查表。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 enip", '"enip": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 enip（已准入）", '"enip"' not in pt[i_neg:i_neg + 500], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case enip（严格解码）", 'case "enip":' in tr and "DisallowUnknownFields" in tr, "在案"))
+    rows.append(("FlowMeta.ENIP 直传（Meta 字面量检查点）",
+                 re.search(r"ENIP:\s+spec\.ENIP\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.ENIP 字段", re.search(r"ENIP\s+\*core\.ENIPConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("ENIPConfig UnmarshalJSON 严格解码", "func (c *ENIPConfig) UnmarshalJSON" in ty, "在案"))
+    rows.append(("ENIPCommand 二态解码（session_handle 标量/策略对象）",
+                 "func (cmd *ENIPCommand) UnmarshalJSON" in ty, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "enip"')
+    reg_block = rg[i_reg:rg.index("Name: \"a2a\"", i_reg)]
+    rows.append(("registry enip 行（DependsOn tcp + FieldContract 44818 + Fields 六键）",
+                 'DependsOn:     []string{"tcp"}' in reg_block
+                 and '"tcp.dst_port": "44818"' in reg_block
+                 and '"commands"' in reg_block and '"io_data"' in reg_block
+                 and '"session_count"' in reg_block and '"flow_count"' in reg_block
+                 and '"transport"' in reg_block and '"scenario"' in reg_block, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    i_vl = vl.index('if protocol == "enip" {')
+    vl_block = vl[i_vl:vl.index("effective, err := ValidateLayers", i_vl)]
+    rows.append(("链上不可达三支预检（io_data/udp/多单元）",
+                 "io_data (UDP I/O frames) is not supported" in vl_block
+                 and "transport \\\"udp\\\" is not supported" in vl_block.replace('\\\\', '\\')
+                 or "multi-unit expansion" in vl_block, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(enip)",
+                 "internal/protocol/enip" in mn and 'NewChainPlanner("enip")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("strategy_convert case enip + 44818 缺省端口",
+                 'case "enip":' in sc and "setDefaultDstPort(&spec, cfg, 44818)" in sc, "在案"))
+    rows.append(("CheckProtoFlat 顶层 enip 子映射 presence 判死",
+                 "protocol enip no longer accepts a top-level enip sub-config" in sc, "在案"))
+    rows.append(("mapToFlowSpec 顶层 enip → ValidationErrors（在库旧策略执法）",
+                 'if protocol == "enip" {' in sc, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain_planner enip 层值回填先于 validator（T-115 端口域）",
+                 'if p.name == "enip" {' in cp, "在案"))
+
+    # 2. 行为面（builder/生成器关键件）。
+    bl = (tg / "internal" / "protocol" / "enip" / "builder.go").read_text()
+    for prim, name in [
+        ("func BuildENIPHeader", "24B ENIP 头（LE）"),
+        ("func BuildCPFItem", "CPF item（TypeID+Length+Data）"),
+        ("func BuildCIPRequest", "CIP 请求（Message Router）"),
+        ("func BuildForwardOpenBody", "Forward_Open 请求体"),
+        ("func BuildForwardCloseBody", "Forward_Close 请求体"),
+        ("func BuildMultipleServicePacket", "MSP 批量请求"),
+        ("func BuildListIdentityResponseItem", "ListIdentity 响应 item"),
+        ("func EncodeCIPPath", "EPATH 编码"),
+    ]:
+        rows.append((f"原语：{name}", prim in bl, "在案"))
+    lg = (tg / "internal" / "protocol" / "enip" / "layer_gen.go").read_text()
+    for prim, name in [
+        ("func (g *ENIPGenerator) Generate", "终结层事件流（tcp 层管握手/挥手）"),
+        ("io_data (UDP I/O frames) is not supported", "io_data 显式拒锚"),
+        ("multi-unit expansion", "多单元显式拒锚"),
+        ("validateFromResponseConfig", "from_response 校验（生成期背 door）"),
+        ("func init", "init 注册生成器+校验器"),
+    ]:
+        rows.append((f"关键件：{name}", prim in lg, "在案"))
+    en = (tg / "internal" / "protocol" / "enip" / "enip.go").read_text()
+    for prim, name in [
+        ("func validateCommand", "命令级校验"),
+        ("func validateFromResponseConfig", "from_response 全量校验"),
+        ("func buildENIPPacket", "逐命令构建（legacy 复用）"),
+        ("unknown command 0x", "未知命令码锚"),
+    ]:
+        rows.append((f"关键件：{name}", prim in en, "在案"))
+
+    # 3. 用例面（136 例：81 正 + 55 负）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "enip_nop_heartbeat", "enip_listidentity_session_lifecycle",
+        "enip_registersession_session_state", "enip_sendrrdata_get_attribute_single",
+        "enip_forward_open_request", "enip_forward_close_triad",
+        "enip_multiple_service_packet", "enip_large_forward_open",
+        "enip_t161_sessioncount2_senderctx", "enip_t179_multiflow_order",
+        "enip_neg_presence",
+        "enip_t081_unknown_command", "enip_t090_sessionhandle_strategy_inc",
+        "enip_t115_dstport_502", "enip_v005_session_count_negative",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    n_neg = sum(1 for c in cases if (c.get("expect") or {}).get("expect_error"))
+    rows.append(("用例总数 136（81 正+55 负，含 1 presence）", len(cases) == 136 and n_neg == 55,
+                 f"{len(cases)} 例 / 负 {n_neg}"))
+    rows.append(("正例顶层键=0（链形穷尽）",
+                 all(set((c.get("spec_json") or {}).keys()) <= {"layers", "flow_control", "output", "output_config"}
+                     for c in cases if not (c.get("expect") or {}).get("expect_error")), "穷尽"))
+    return rows
+
+
 def check_sstp(cases):
     """D-SSTP-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -3287,7 +3391,7 @@ def check_ntlm(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "enip": check_enip}
 
 
 def main(argv):
