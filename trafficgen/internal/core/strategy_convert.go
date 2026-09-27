@@ -551,6 +551,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-MMS-2（G-MMS-1，§14-P2）：mms 在库旧策略顶层 mms → ValidationErrors
+	// （amqp 同款；在库 0 行纯防御——新协议无存量迁移面）。
+	if protocol == "mms" {
+		if v, ok := cfg["mms"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 
 	// D-FTP-3 §5: 扁平四键收动态对象（引擎直调路径，REST 形状层已先 400）→
 	// spec.ValidationErrors 拒绝并指路层字段，worker 预检终态 error，绝不
@@ -8861,6 +8868,14 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "igmp" {
 		if v, ok := cfg["igmp"]; ok && v != nil {
 			return "protocol igmp no longer accepts a top-level igmp sub-config (move it into the igmp layer of an [ip,igmp] layers chain; the layer chain is the only config truth)"
+		}
+	}
+	// D-MMS-2（G-MMS-1，§14-P2）：mms 顶层 mms 子映射 presence 判死
+	// （enip 先例；空 map 也死——配置迁 mms 层 12 键，层链是唯一真相）。
+	// 层链形状不触发。
+	if protocol == "mms" {
+		if v, ok := cfg["mms"]; ok && v != nil {
+			return "protocol mms no longer accepts a top-level mms sub-config (move it into the mms layer of an [ip,tcp,mms] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-*-1 raw 自驱八协议：顶层同名子映射 presence 判死（mcp 先例；空

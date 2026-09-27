@@ -1226,8 +1226,6 @@ def check_kerberos(cases):
         rows.append((f"用例在案：{cid}", cid in ids, "在案"))
     rows.append(("用例总数 20（14 正+6 负）", len(cases) == 20, f"{len(cases)} 例"))
     return rows
-
-
 def check_s7(cases):
     """D-S7-85 P4 反查表（28 例 = 16 正 + 12 负，S7comm over ISO-on-TCP）。
     返回 [(检查名, 通过?, 证据)]。"""
@@ -1515,6 +1513,115 @@ def check_dameng(cases):
     got = {(c.get("expect") or {}).get("error_contains") for c in neg}
     missing = sorted(a for a in anchors if a not in got)
     rows.append((f"负例锚词覆盖 {len(anchors)} 族", not missing, missing or "全覆盖"))
+    return rows
+
+
+def check_mms(cases):
+    """D-MMS-2 P4 反查表（19 例 = 11 正 + 8 负；[ip,tcp,mms] 终结层）。
+    返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 mms", '"mms": true' in pg or '"mms":true' in pg, "在列"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case mms（层 config 逐键搬运）", 'case "mms":' in tr, "在案"))
+    rows.append(("FlowMeta.MMS 直传（Meta 字面量检查点）",
+                 re.search(r"MMS:\s+spec\.MMS\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.MMS 字段", re.search(r"MMS\s+\*core\.MMSConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.MMS", re.search(r"MMS\s+\*MMSConfig", ty) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "mms"')
+    # 块边界 = 下一个 r.Register( —— 固定宽度窗口会把邻层 Fields 计进来。
+    reg_block = rg[i_reg:rg.index("r.Register(", i_reg + 10)]
+    rows.append(("registry mms 行（DependsOn tcp + 恰 12 键 Fields）",
+                 'DependsOn: []string{"tcp"}' in reg_block and reg_block.count("{Type:") == 12
+                 and "FieldContract" not in reg_block, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(mms)",
+                 "internal/protocol/mms" in mn and 'NewChainPlanner("mms")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat 顶层 mms 子映射 presence 判死",
+                 "protocol mms no longer accepts a top-level mms sub-config" in sc, "在案"))
+    rows.append(("mapToFlowSpec 顶层 mms → ValidationErrors（在库旧策略执法）",
+                 'if protocol == "mms" {' in sc, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain_planner mms 目的端口缺省 102",
+                 'case "mms":' in cp and "spec.DstPort = 102" in cp, "在案"))
+    ch = (tg / "internal" / "core" / "layers" / "chain_planner_chain.go").read_text()
+    i_mms = ch.index("if isMMSChain(chain) {")
+    mms_block = ch[i_mms:i_mms + 900]
+    rows.append(("chain 终结层语义（isMMSChain 块内 termination=false + concurrent=true）",
+                 'cfg["termination"] = false' in mms_block and 'cfg["concurrent"] = true' in mms_block,
+                 "在案"))
+
+    # 2. 行为面（builder/planner/生成器关键件）。
+    bl = (tg / "internal" / "protocol" / "mms" / "builder.go").read_text()
+    for prim, name in [
+        ("func BuildCR", "CR 装配（COTP 连接请求）"),
+        ("func BuildCC", "CC 装配（COTP 连接确认）"),
+        ("func cotpDT", "DT 装配（EOT 单段）"),
+        ("func BuildAssociate", "关联对（SPDU/CP/AARQ/ACSE/Initiate）"),
+        ("func BuildReadRequest", "Read 请求"),
+        ("func BuildWriteResponse", "Write 响应"),
+        ("func BuildServiceError", "Confirmed-ErrorPDU"),
+    ]:
+        rows.append((f"原语：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "mms" / "planner.go").read_text()
+    for guard, name in [
+        ("MMS requires tcp", "transport 门"),
+        ("exceeds 32 bytes or is empty", "对象名门"),
+        ("domain exceeds 32 bytes", "域名门"),
+        ("datatype", "datatype 白名单门"),
+        ("sequence step", "步名门"),
+        ("error class", "错误类三值门"),
+    ]:
+        rows.append((f"守卫：{name}", guard in pl, f"锚词 {guard}"))
+    rows.append(("守卫：TPKT 超长拒", "TPKT body exceeds" in bl, "锚词 TPKT body exceeds"))
+    lg = (tg / "internal" / "protocol" / "mms" / "layer_gen.go").read_text()
+    rows.append(("关键件：终结层事件流 + MultiSession 并发 + RegisterLayerValidator",
+                 "RegisterLayerGenerator" in lg and "MultiSession" in lg
+                 and "RegisterLayerValidator" in lg, "在案"))
+
+    # 3. 用例面（10 正 + 6 负；testcase §2 ID 权威 + 本批红例）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "mms_connect_establish", "mms_read_multi_type", "mms_write_success",
+        "mms_information_report", "mms_getnamelist", "mms_identify",
+        "mms_service_error", "mms_no_associate", "mms_ipv6",
+        "mms_multi_session", "mms_validate_reject",
+        "mms_neg_presence", "mms_neg_stray_src_ip",
+        "mms_neg_dead_sequence_key", "mms_neg_unsupported_datatype",
+        "mms_domain_overlong", "mms_multiflow",
+        "mms_neg_multisession_override", "mms_neg_object_members",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    n_neg = sum(1 for c in cases if (c.get("expect") or {}).get("expect_error"))
+    rows.append(("用例总数 19（11 正+8 负，含 1 presence + 1 游离键 + 4 死配置/错编码 + 1 A′ T-MMS-18 + 1 validator）",
+                 len(cases) == 19 and n_neg == 8, f"{len(cases)} 例 / 负 {n_neg}"))
+    rows.append(("正例顶层键=0（仅 layers/flow_control/output）",
+                 all(set((c.get("spec_json") or {}).keys()) <= {"layers", "flow_control", "output"}
+                     for c in cases if not (c.get("expect") or {}).get("expect_error")), "零残留"))
+    rows.append(("正例链形=[ip,tcp,mms]（G-MMS-8 收官）",
+                 all([list(l.keys()) for l in (c.get("spec_json") or {}).get("layers", [])] == [["ip"], ["tcp"], ["mms"]]
+                     for c in cases if not (c.get("expect") or {}).get("expect_error")), "链形齐"))
+    mf = next((c for c in cases if c.get("id") == "mms_multiflow"), None)
+    mf_ok = bool(mf) and (mf.get("strategy_fc") or {}).get("value") == 2
+    if mf:
+        mfl = mf.get("spec_json", {}).get("layers", [])
+        mf_ok = mf_ok and any(isinstance(v, dict) and v.get("strategy")
+                              for l in mfl if isinstance(l, dict) for v in (l.get("ip") or {}).values())
+    rows.append(("多流例（flows=2 + ip.src 层内动态 + 逐流源端口 12345/12346）", mf_ok,
+                 "mms_multiflow" if mf_ok else "形状不符"))
+    anchors = {"no longer accepts a top-level mms", "no longer accepts flat config field src_ip",
+               "sequence.loop is not supported", "datatype", "name", "domain",
+               "multiSession[0].enableWrite is not supported", "members is not supported"}
+    got = {(c.get("expect") or {}).get("error_contains", "") for c in cases}
+    missing = sorted(a for a in anchors if not any(a in (g or "") for g in got))
+    rows.append((f"负例锚词覆盖 {len(anchors)} 族", not missing, missing or sorted(g for g in got if g)))
     return rows
 
 
@@ -7303,7 +7410,7 @@ def check_rtmfp(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms}
 
 
 def main(argv):

@@ -37,10 +37,28 @@ func (Planner) Validate(spec core.FlowSpec) error {
 		if !validType(o.Datatype) {
 			return fmt.Errorf("mms: datatype %q invalid", o.Datatype)
 		}
+		if len(o.Members) > 0 {
+			// §2.3 同类死配置：members 无任何编码路径读取（builder 零命中），
+			// 且其唯一有意义的载体类型 structure 已在 G-MMS-3 拒收——配上
+			// 不生效，判死并指路。
+			return fmt.Errorf("mms: object %q members is not supported (the builder never reads it; emit one object per value instead)", o.Name)
+		}
 	}
 	if s := spec.MMS.Sequence; s != nil {
+		// 契约 §4.2 行「sequence 负值」的锚词保留（负值仍是独立的拒绝面）。
 		if s.Loop < 0 || s.StepGap < 0 || s.InjectOn < 0 {
 			return fmt.Errorf("mms: sequence values cannot be negative")
+		}
+		// G-MMS-2（契约 §2.3）：loop/stepGap/injectOn 在 layer_gen 零消费——
+		// 正值配上不生效即死配置，拒收（接线方案会改线上帧序，无契约要求）。
+		if s.Loop != 0 {
+			return fmt.Errorf("mms: sequence.loop is not supported (the field has no effect; remove it)")
+		}
+		if s.StepGap != 0 {
+			return fmt.Errorf("mms: sequence.stepGap is not supported (the field has no effect; remove it)")
+		}
+		if s.InjectOn != 0 {
+			return fmt.Errorf("mms: sequence.injectOn is not supported (the field has no effect; drive reports with steps=[\"report\"] + enableInformationReport)")
 		}
 		for _, step := range s.Steps {
 			if !validStep(step) {
@@ -51,11 +69,87 @@ func (Planner) Validate(spec core.FlowSpec) error {
 	if spec.MMS.ErrorClassName != "" && spec.MMS.ErrorClassName != "definition" && spec.MMS.ErrorClassName != "service" && spec.MMS.ErrorClassName != "access" {
 		return fmt.Errorf("mms: error class %q invalid", spec.MMS.ErrorClassName)
 	}
+	// multiSession 子会话（契约 §2.2）：每项只覆盖 objects，其余键继承主配置
+	// （layer_gen.go:40-45 实证）。objects 走**同一条编码路径**，故同一套门
+	// 必须覆盖——否则主配置拒掉的错编码 datatype / 超长名配在子会话里照旧
+	// 落线（G-MMS-3 第二入口）；objects 之外的键则读都不读，属死配置，按
+	// §2.3 判死并点名（layer_gen 显式 `sess.MultiSession = nil` 丢弃嵌套）。
+	for i := range spec.MMS.MultiSession {
+		sub := &spec.MMS.MultiSession[i]
+		where := fmt.Sprintf("multiSession[%d]", i)
+		for _, o := range sub.Objects {
+			if len(o.Name) == 0 || len([]byte(o.Name)) > 32 {
+				return fmt.Errorf("mms: %s object name %q exceeds 32 bytes or is empty", where, o.Name)
+			}
+			if o.Domain != "" && len([]byte(o.Domain)) > 32 {
+				return fmt.Errorf("mms: %s domain exceeds 32 bytes", where)
+			}
+			if !validType(o.Datatype) {
+				return fmt.Errorf("mms: %s datatype %q invalid", where, o.Datatype)
+			}
+			if len(o.Members) > 0 {
+				return fmt.Errorf("mms: %s object %q members is not supported (the builder never reads it; emit one object per value instead)", where, o.Name)
+			}
+		}
+		for _, k := range deadMultiSessionKeys(sub) {
+			return fmt.Errorf("mms: %s.%s is not supported (a sub-session overrides objects only; every other key is inherited from the main config and this one is never read; remove it)", where, k)
+		}
+	}
 	return nil
 }
+
+// deadMultiSessionKeys reports which sub-session keys the generator never
+// reads (everything but Objects) — see the multiSession block in Validate.
+func deadMultiSessionKeys(sub *core.MMSConfig) []string {
+	var out []string
+	if sub.Transport != "" {
+		out = append(out, "transport")
+	}
+	if sub.Association != nil {
+		out = append(out, "association")
+	}
+	if sub.IEDName != "" {
+		out = append(out, "iedName")
+	}
+	if sub.EnableRead {
+		out = append(out, "enableRead")
+	}
+	if sub.EnableWrite {
+		out = append(out, "enableWrite")
+	}
+	if sub.EnableInformationReport {
+		out = append(out, "enableInformationReport")
+	}
+	if sub.EnableGetNameList {
+		out = append(out, "enableGetNameList")
+	}
+	if sub.EnableIdentify {
+		out = append(out, "enableIdentify")
+	}
+	if sub.Sequence != nil {
+		out = append(out, "sequence")
+	}
+	if len(sub.MultiSession) > 0 {
+		out = append(out, "multiSession")
+	}
+	if sub.ErrorClassName != "" {
+		out = append(out, "errorClassName")
+	}
+	if sub.ErrorValue != 0 {
+		out = append(out, "errorValue")
+	}
+	return out
+}
+
+// validType gates the datatypes the builder encodes for real. float /
+// binaryTime / structure fell through dataValue's default branch and emitted
+// ber(0x80, nil) — bytes that contradict the declared type (G-MMS-3), so the
+// validator rejects them rather than letting a mis-encoded value reach the
+// wire. "" stays accepted (unchanged): its wire semantics are undetermined in
+// the contract, and this batch only closes the mis-encoding face.
 func validType(s string) bool {
 	switch s {
-	case "", "boolean", "integer", "unsigned", "octetString", "float", "visibleString", "binaryTime", "utcTime", "structure":
+	case "", "boolean", "integer", "unsigned", "octetString", "visibleString", "utcTime":
 		return true
 	}
 	return false

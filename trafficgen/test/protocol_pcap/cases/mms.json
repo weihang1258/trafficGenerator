@@ -6,6 +6,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
+        {
           "tcp": {
             "dst_port": 102
           }
@@ -157,6 +163,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
+        {
           "tcp": {
             "dst_port": 102
           }
@@ -250,6 +262,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
+        {
           "tcp": {
             "dst_port": 102
           }
@@ -335,6 +353,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
+        {
           "tcp": {
             "dst_port": 102
           }
@@ -353,8 +377,7 @@
             "sequence": {
               "steps": [
                 "report"
-              ],
-              "injectOn": 1
+              ]
             }
           }
         }
@@ -389,6 +412,12 @@
     "summary": "MMS GetNameList: request vmdSpecific scope, response listOfIdentifier",
     "spec_json": {
       "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
         {
           "tcp": {
             "dst_port": 102
@@ -468,6 +497,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
+        {
           "tcp": {
             "dst_port": 102
           }
@@ -539,6 +574,12 @@
     "summary": "MMS negative: read non-existent object -> Confirmed-ErrorPDU (access/object-non-existent)",
     "spec_json": {
       "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
         {
           "tcp": {
             "dst_port": 102
@@ -620,6 +661,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
+        {
           "tcp": {
             "dst_port": 102
           }
@@ -684,6 +731,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
           "tcp": {
             "dst_port": 102
           }
@@ -691,9 +744,7 @@
         {
           "mms": {}
         }
-      ],
-      "src_ip": "2001:db8::1",
-      "dst_ip": "2001:db8::2"
+      ]
     },
     "expect": {
       "negotiated": true,
@@ -765,6 +816,12 @@
     "summary": "MMS multi-session: two independent TCP associations each complete CR/CC",
     "spec_json": {
       "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
         {
           "tcp": {
             "dst_port": 102
@@ -868,6 +925,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
+        {
           "tcp": {
             "dst_port": 102
           }
@@ -895,6 +958,370 @@
       "expect_error": true,
       "error_contains": "name",
       "frames": []
+    }
+  },
+  {
+    "id": "mms_neg_presence",
+    "proto": "mms",
+    "summary": "负例：层链+顶层 mms 子映射并存=判死（presence 负例形状）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {}
+        }
+      ],
+      "mms": {}
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "no longer accepts a top-level mms"
+    }
+  },
+  {
+    "id": "mms_neg_stray_src_ip",
+    "proto": "mms",
+    "summary": "游离键: layers + 顶层 src_ip 并存判死",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {}
+        }
+      ],
+      "src_ip": "192.0.2.88"
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "no longer accepts flat config field src_ip"
+    }
+  },
+  {
+    "id": "mms_neg_dead_sequence_key",
+    "proto": "mms",
+    "summary": "G-MMS-2: sequence.loop 零消费（死配置）→ validator 判死",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {
+            "enableRead": true,
+            "sequence": {
+              "steps": [
+                "read"
+              ],
+              "loop": 3
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "sequence.loop is not supported"
+    }
+  },
+  {
+    "id": "mms_neg_unsupported_datatype",
+    "proto": "mms",
+    "summary": "G-MMS-3: float 走 builder default 错字节 → validator 判死（编码与校验一致）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {
+            "objects": [
+              {
+                "domain": "IED1",
+                "name": "MMXU1.TotW.mag.f",
+                "datatype": "float",
+                "value": 1.5
+              }
+            ],
+            "enableRead": true,
+            "sequence": {
+              "steps": [
+                "read"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "datatype"
+    }
+  },
+  {
+    "id": "mms_domain_overlong",
+    "proto": "mms",
+    "summary": "A′ T-MMS-18（变体行 15）: domain 超 32B 拒（planner.go 域名门，此前零 cases）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {
+            "objects": [
+              {
+                "domain": "THIS_DOMAIN_NAME_IS_WAY_TOO_LONG_01",
+                "name": "GGIO1.SPCSO1.stVal",
+                "datatype": "boolean"
+              }
+            ],
+            "enableRead": true,
+            "sequence": {
+              "steps": [
+                "read"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "domain exceeds 32 bytes"
+    }
+  },
+  {
+    "id": "mms_multiflow",
+    "proto": "mms",
+    "summary": "G-MMS-8 flow_control 补例（§12.12）：flows=2 双流并发，ip.src 层内动态逐流递增 + 框架逐流源端口 12345/12346，每流关联 7 包",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": {
+              "strategy": "inc",
+              "range": [
+                "10.0.1.1",
+                "10.0.1.9"
+              ],
+              "step": 1
+            },
+            "dst": "10.0.0.2"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {}
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 14,
+      "has_handshake": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "value": "12345"
+        },
+        {
+          "packet": 8,
+          "field": "tcp.srcport",
+          "value": "12346"
+        },
+        {
+          "packet": 1,
+          "field": "ip.src",
+          "value": "10.0.1.1"
+        },
+        {
+          "packet": 8,
+          "field": "ip.src",
+          "value": "10.0.1.2"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "102"
+        },
+        {
+          "packet": 4,
+          "field": "cotp.type",
+          "value": "0x0e"
+        },
+        {
+          "packet": 11,
+          "field": "cotp.type",
+          "value": "0x0e"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "030000140fe00000000100c0010cc20101c10102"
+        },
+        {
+          "packet": 11,
+          "offset": 54,
+          "hex": "030000140fe00000000100c0010cc20101c10102"
+        }
+      ]
+    }
+  },
+  {
+    "id": "mms_neg_multisession_override",
+    "proto": "mms",
+    "summary": "契约 §2.2: multiSession 子会话只覆盖 objects，写 enableWrite 等键读都不读（死配置）→ validator 判死",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {
+            "objects": [
+              {
+                "domain": "IED1",
+                "name": "GGIO1.SPCSO1.stVal",
+                "datatype": "boolean"
+              }
+            ],
+            "enableRead": true,
+            "multiSession": [
+              {
+                "enableWrite": true,
+                "objects": [
+                  {
+                    "domain": "IED2",
+                    "name": "MMXU1.TotW.mag.f",
+                    "datatype": "integer",
+                    "value": 5
+                  }
+                ]
+              }
+            ],
+            "sequence": {
+              "steps": [
+                "read"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "multiSession[0].enableWrite is not supported"
+    }
+  },
+  {
+    "id": "mms_neg_object_members",
+    "proto": "mms",
+    "summary": "§2.3 死配置: objects[].members 无编码路径读取（builder 零命中）→ validator 判死",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {
+            "objects": [
+              {
+                "domain": "IED1",
+                "name": "GGIO1.SPCSO1.stVal",
+                "datatype": "boolean",
+                "members": [
+                  {
+                    "name": "a",
+                    "datatype": "boolean",
+                    "value": true
+                  }
+                ]
+              }
+            ],
+            "enableRead": true,
+            "sequence": {
+              "steps": [
+                "read"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "members is not supported"
     }
   }
 ]
