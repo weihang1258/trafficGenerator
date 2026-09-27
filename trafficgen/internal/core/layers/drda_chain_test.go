@@ -16,8 +16,9 @@ import (
 // 四档：excsat 9 / security 13 / database 15 / sql 17；握手 3 + 2N + 挥手 4）
 // /②presence 与顶层游离键判死（CheckProtoFlat drda 分支；M5 必含①②：顶层空
 // drda 子映射 + 游离键）/③udp 载体拒（DependsOn=[tcp]，complete.go tcp-only
-// 锚词 carrier）/④dss_length 负例锚词（planner.go:35/39）/⑤T-11 chained
-// format 0x41 /⑥用例文件收官自查（12 例：9 正 + 3 负；非负例顶层键=0）。
+// 锚词 carrier）/④dss_length 负例锚词（planner.go:35/39）+ 端口契约锚词
+// （planner.go dst_port must be 446）/⑤T-11 chained format 0x41 /⑥用例文件
+// 收官自查（13 例：9 正 + 4 负；非负例顶层键=0）。
 
 func drdaJSON(t *testing.T, layersArr []interface{}) json.RawMessage {
 	t.Helper()
@@ -165,7 +166,43 @@ func TestDRDAChain_ChainedFormat(t *testing.T) {
 	}
 }
 
-// ⑥ 用例文件收官自查：12 例（9 正 + 3 负）；非负例顶层键 ⊆ 白名单；
+// ⑤b 端口契约：层内显式 tcp.dst_port 非 446 即拒（planner 端口域）。
+func TestDRDAChain_PortContractRejected(t *testing.T) {
+	arr := []interface{}{
+		map[string]interface{}{"ip": map[string]interface{}{"src": "10.0.0.1", "dst": "20.0.0.1"}},
+		map[string]interface{}{"tcp": map[string]interface{}{"src_port": 12345, "dst_port": 5000}},
+		map[string]interface{}{"drda": map[string]interface{}{"association": "excsat"}},
+	}
+	p, err := layers.BuildLayersPlanner("drda", drdaJSON(t, arr))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345}
+	if _, perr := p.Plan(context.Background(), spec); perr == nil {
+		t.Fatal("Plan(tcp.dst_port=5000) = nil, want port contract rejection")
+	} else if !strings.Contains(perr.Error(), "dst_port must be 446") {
+		t.Fatalf("Plan err = %q, want anchor \"dst_port must be 446\"", perr.Error())
+	}
+	// 显式 446 必须放行（契约端口本身）。
+	arr[1] = map[string]interface{}{"tcp": map[string]interface{}{"src_port": 12345, "dst_port": 446}}
+	p2, err := layers.BuildLayersPlanner("drda", drdaJSON(t, arr))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner(446): %v", err)
+	}
+	ch, perr := p2.Plan(context.Background(), spec)
+	if perr != nil {
+		t.Fatalf("Plan(tcp.dst_port=446) err: %v", perr)
+	}
+	n := 0
+	for range ch {
+		n++
+	}
+	if n != 9 {
+		t.Fatalf("explicit 446: got %d packets, want 9", n)
+	}
+}
+
+// ⑥ 用例文件收官自查：13 例（9 正 + 4 负）；非负例顶层键 ⊆ 白名单；
 // presence 负例在案；层 drda 条目非空（负例 udp_rejected 豁免——其 drda
 // 条目 association 纯触发载体拒形状）。
 func TestDRDAChain_CaseFileAudit(t *testing.T) {
@@ -177,8 +214,8 @@ func TestDRDAChain_CaseFileAudit(t *testing.T) {
 	if err := json.Unmarshal(raw, &cases); err != nil {
 		t.Fatalf("parse cases: %v", err)
 	}
-	if len(cases) != 12 {
-		t.Fatalf("want 12 cases (9 pos + 3 neg), got %d", len(cases))
+	if len(cases) != 13 {
+		t.Fatalf("want 13 cases (9 pos + 4 neg), got %d", len(cases))
 	}
 	allowed := map[string]bool{"layers": true, "flow_control": true, "output": true, "output_config": true, "group_id": true}
 	presence := false

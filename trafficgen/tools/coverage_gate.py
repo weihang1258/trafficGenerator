@@ -5834,12 +5834,12 @@ def check_drda(cases):
         "drda_sql_success", "drda_sql_error", "drda_dss_min_length",
         "drda_ipv6_excsat", "drda_multi_session", "drda_chained_format",
         "drda_dss_length_mismatch", "drda_udp_rejected",
-        "drda_neg_presence_top_level_drda",
+        "drda_neg_presence_top_level_drda", "drda_neg_dst_port_contract",
     ]:
         rows.append((f"用例在案：{cid}", cid in ids, "在案"))
     n_neg = sum(1 for c in cases if (c.get("expect") or {}).get("expect_error"))
-    rows.append(("用例总数 12（9 正+3 负，含 T-11 与 presence）",
-                 len(cases) == 12 and n_neg == 3, f"{len(cases)} 例 / 负 {n_neg}"))
+    rows.append(("用例总数 13（9 正+4 负，含 T-11 与 presence/端口契约）",
+                 len(cases) == 13 and n_neg == 4, f"{len(cases)} 例 / 负 {n_neg}"))
     rows.append(("非负例顶层键=0（仅 layers/flow_control/output 家族）",
                  all(set((c.get("spec_json") or {}).keys()) <= {"layers", "flow_control", "output", "output_config", "group_id"}
                      for c in cases if not (c.get("expect") or {}).get("expect_error")), "穷尽"))
@@ -5853,6 +5853,7 @@ def check_drda(cases):
         rows.append((f"层键覆盖：{k}", hit is not None, hit or "无用例"))
     for needle, name in [
         ("top-level drda sub-config", "presence 判死"),
+        ("dst_port must be 446", "端口契约锚词"),
         ("dss_length", "dss_length 锚词"),
         ("tcp", "udp 载体锚词"),
     ]:

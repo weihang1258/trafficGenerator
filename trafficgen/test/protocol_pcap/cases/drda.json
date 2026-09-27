@@ -897,5 +897,35 @@
       "expect_error": true,
       "error_contains": "top-level drda sub-config"
     }
+  },
+  {
+    "id": "drda_neg_dst_port_contract",
+    "proto": "drda",
+    "summary": "端口契约负例：层内显式 tcp.dst_port=5000 非 446 即拒",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 5000
+          }
+        },
+        {
+          "drda": {
+            "association": "excsat"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "dst_port must be 446"
+    }
   }
 ]

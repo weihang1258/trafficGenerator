@@ -27,6 +27,13 @@ func (Planner) Validate(spec core.FlowSpec) error {
 	if spec.DstIP != "" && net.ParseIP(spec.DstIP) == nil {
 		return fmt.Errorf("drda: invalid destination IP")
 	}
+	// 端口契约（设计 §2.1 / testcase §1）：DRDA 恒 TCP 446，层内显式写非
+	// 446 即拒（enip V-003 同款；0 = 未写，Plan 缺省化 446）。链路径的层
+	// 值经 validateSpecBase 的 FieldContract 块回填进 spec.DstPort 后到达
+	// 本校验器（chain_planner.go 通用块，用户显式 > FieldContract）。
+	if spec.DstPort != 0 && spec.DstPort != 446 {
+		return fmt.Errorf("drda: dst_port must be 446 (DRDA rides TCP 446 only)")
+	}
 	// dss_length negative-path injection: a declared DSS length that
 	// mismatches the segment's own length field (or is smaller than the
 	// 6-byte fixed header) is a wire fault — reject.

@@ -306,8 +306,10 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 	// 形状的端口真相，spec.DstPort 在 Task 5 扁平判死后恒为 mapToFlowSpec
 	// 缺省（setDefaultDstPort 44818）——不先回填，validator 看到的是缺省
 	// 44818 而非层值 502，端口域检查被旁路（下块回填后 validator 复核）。
-	// 仅 enip（回填语义 = 下方通用回填块同款：显式标量才回填，dyn 对象跳过）。
-	if p.name == "enip" {
+	// D-DRDA-1：drda 同款（契约端口 446 的域校验住 planner.Validate，
+	// 显式 5000 不先回填则同样旁路）。
+	// 仅 enip/drda（回填语义 = 下方通用回填块同款：显式标量才回填，dyn 对象跳过）。
+	if p.name == "enip" || p.name == "drda" {
 		for _, l := range chain {
 			if l.Name != "tcp" && l.Name != "udp" {
 				continue
