@@ -293,7 +293,8 @@ func TestENIPChain_CaseFileTopLevelWhitelist(t *testing.T) {
 	if err := json.Unmarshal(raw, &cases); err != nil {
 		t.Fatalf("parse cases: %v", err)
 	}
-	allowed := map[string]bool{"layers": true, "flow_control": true, "output": true, "output_config": true}
+	// group_id 例外：它是框架任务层键(同 shard 调度语义)，非协议旧键——语料内 h323_port_dyn/smb_tpos167 同形。
+	allowed := map[string]bool{"layers": true, "flow_control": true, "output": true, "output_config": true, "group_id": true}
 	stray := map[string]bool{}
 	for _, c := range cases {
 		id, _ := c["id"].(string)
