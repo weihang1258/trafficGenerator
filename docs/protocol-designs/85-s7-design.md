@@ -20,7 +20,7 @@ S7comm 运行于 ISO-on-TCP（RFC 1006）之上，固定 TCP 目标端口 **102*
 | `readsZL`/`read_szl`（两拼写并存） | 7 Userdata → 7 Userdata | Read SZL，参数头 `00 01 12` | 系统状态列表，SZL-ID/Index |
 | `error` | 无请求，仅 Ack_Data 响应 | errcls/errcod 非零 | 错误注入（默认 0x04/0x01） |
 
-**已注册/已落码现状（P1 实测，行号真实）**：`s7` 终结层已注册（`registry.go:92`，`CategoryTerminal + DependsOn ["tcp"]`，`FieldContract {"tcp.dst_port": "102"}`，Fields 5 键 `transport/sessions/pdu_ref/pdu_size/commands`）；白名单已登记（`protocols.go:50`）；顶层 `s7` 子映射解析（`strategy_convert.go:1382-1384`，经 `parseSubconfigJSON` 普通 `json.Unmarshal`，未知键静默忽略）；Meta 注入（`chain_planner_translate.go:108` `S7: spec.S7`，`generator.go:338`）；终结层生成器 `layer_gen.go`（192 行，`Generate :15`、`emitSession :50`、`sessionBaseRef :120` 缺省基 2、`buildS7Pair :130`）；校验器 `planner.go`（114 行，`Validate :13`，P0b 空配置 nil 放行 + `Plan :36` 缺省注入默认 read DB1）；字节构建 `builder.go`（369 行，`BuildConnectionRequest :68`、`BuildSetup :78`、`BuildRead :118`、`BuildWrite :143`、`BuildReadAck :184`、`BuildWriteAck`、`BuildKeepalive`、`BuildErrorAck`、`BuildReadSZL :287`、`BuildReadSZLAck :311`、`validateCommand :339`、`validArea :363`）；单测 5 函数（`s7_test.go`：CR 模板 hex、`Setup/Read` hex、`Validate` 4 负向、`Plan` 包发射、`Generator` 多会话端口）；链级空配置 2 用例（`chain_planner_s7_emptyconfig_test.go`：缺省 dst 102、用户显式 103 优先）。
+**已注册/已落码现状（P1 实测，行号真实）**：`s7` 终结层已注册（`registry.go:92`，`CategoryTerminal + DependsOn ["tcp"]`，`FieldContract {"tcp.dst_port": "102"}`，Fields 5 键 `transport/sessions/pdu_ref/pdu_size/commands`）；白名单已登记（P6 行 `protocols.go:54`；P1 写作时 50）；顶层 `s7` 子映射解析（P6 行 `strategy_convert.go:1544`；P1 写作时 1382-1384，经 `parseSubconfigJSON` 普通 `json.Unmarshal`，未知键静默忽略→G-S7-8 后半 open）；Meta 注入（`chain_planner_translate.go:108` `S7: spec.S7`（P6 行 `:2871 case "s7"` 严格解码；P1 写作时仅 108 直传），`generator.go:338`）；终结层生成器 `layer_gen.go`（192 行，`Generate :15`、`emitSession :50`、`sessionBaseRef :120` 缺省基 2、`buildS7Pair :130`）；校验器 `planner.go`（114 行，`Validate :13`，P0b 空配置 nil 放行 + `Plan :36` 缺省注入默认 read DB1）；字节构建 `builder.go`（369 行，`BuildConnectionRequest :68`、`BuildSetup :78`、`BuildRead :118`、`BuildWrite :143`、`BuildReadAck :184`、`BuildWriteAck`、`BuildKeepalive`、`BuildErrorAck`、`BuildReadSZL :287`、`BuildReadSZLAck :311`、`validateCommand :339`、`validArea :363`）；单测 5 函数（`s7_test.go`：CR 模板 hex、`Setup/Read` hex、`Validate` 4 负向、`Plan` 包发射、`Generator` 多会话端口）；链级空配置 2 用例（`chain_planner_s7_emptyconfig_test.go`：缺省 dst 102、用户显式 103 优先）。
 
 不变式：
 
@@ -207,7 +207,7 @@ returncode 8 行：已覆 2（`ff` 读成功、`00` 写请求保留）；待确�
 ### 13.12 §12 强制展开：动态字段清单
 
 四元组：`ip.src/dst` + `tcp.src_port/dst_port` 五策略全开（`fixed/inc/rand/list/pattern`，layer_dyn.go:17-19；序号算法 `TupleGenerator.Next` tuple_generator.go:26 + `resolveLayerTuple` layer_dyn.go:770，逐流确定性 + 到尾回绕）。
-业务字段（`area/db_number/address/bit/transport_size/length/value/pdu_ref/sessions`）：**全关**（s7 不在 allowlist；层内出现动态对象即 `does not support dynamic`，validate_layers.go:564）→ G-S7-6（D-S7-85 条目；落地前按 §9.36 现状钉：多 DB 遍历等逐流变面暂由多策略/多会话覆盖）。
+业务字段（`area/db_number/address/bit/transport_size/length/value/pdu_ref/sessions`）：**全关**（s7 不在 allowlist；层内出现动态对象即 `does not support dynamic`（P6 行 `validate_layers.go:888`；P1 写作时 564））→ G-S7-6（D-S7-85 条目；落地前按 §9.36 现状钉：多 DB 遍历等逐流变面暂由多策略/多会话覆盖）。
 静态复制禁令：`flows>1` 且四元组全静态 → 框架拒绝（12.9）；s7 用例 `flows` 恒 1，会话复制走 `sessions`。
 
 ### 13-P2 presence 负例形状（链级红例必含①）
@@ -216,7 +216,7 @@ returncode 8 行：已覆 2（`ff` 读成功、`00` 写请求保留）；待确�
 
 ## 14. D-S7-85 P2 代码设计草稿（CORE_MEMORY §8 八要素；门1 获批=定稿）
 
-1. 改哪几个文件：新建 0；接线核对 `registry.go:92`（Fields 补 `transport/sessions` 缺省？现状 Default 0/空串，P4 定缺省语义）+ `strategy_convert.go:1382` + `chain_planner_translate.go:108` + `generator.go:338`；改动面 `internal/protocol/s7/`（G-S7-2/3/4 校验收紧）+ `cases/s7.json`（14 例改写 + 红例新增）；共享面 0（未知键严格解码若动 `strategy_convert_helpers.go:21-30` → 上报主线程，车道不自改，G-S7-8 备选）。
+1. 改哪几个文件：新建 0；接线核对 `registry.go:92`（零漂移，P6 实测） + `strategy_convert.go:1544`（P6 行；P1 写作时 1382） + `chain_planner_translate.go:108/:2871` + `generator.go:338`；改动面 `internal/protocol/s7/`（G-S7-2/3/4 校验收紧）+ `cases/s7.json`（14 例改写 + 红例新增）；共享面 0（未知键严格解码若动 `strategy_convert_helpers.go:21-30` → 上报主线程，车道不自改，G-S7-8 备选）。
 2. 接口签名：`Planner.Validate(spec FlowSpec) error`（+未知 kind/transport_size/sessions 三支拒绝）；`buildS7Pair` 默认分支改返回 error（`s7: unknown kind %q`）；其余构建函数签名不变。
 3. 数据结构：复用 `core.S7Config/S7Command/S7Item`（types.go:1511-1550）；基线 §5 虚声明键**不补 struct**（文档回修 G-S7-5，不反向加代码）。
 4. 主流程：Validate 收紧 → 14 例改写（层链形 + strategy_fc + 锚词）→ presence/白名单红例 → suite 全量绿 → A′/B′-5 补例。
@@ -253,7 +253,7 @@ Wireshark `packet-s7comm.c`（ROSCTR/Userdata/字段名）→ D-S7-85 §3/§7 �
 
 ### 15.6 断言契约核对结论
 
-正例 frames offset：IPv4=54（S7 头内偏移 73/75 两例为 S7ANY/数据区内断言，由 payload 相对偏移 19/21 + 54 导出，s7.json notes 已载明）；IPv6=74（T-S7-008）；`decode_as` 现状 9 正例为 `tcp.port==102,tpkt`（与基线 testcase §1.3 的 `s7comm` 口径不一致 → P4 统一为 `s7comm` 或文档回修，记入 G-S7-1）。
+正例 frames offset：IPv4=54（S7 头内偏移 73/75 两例为 S7ANY/数据区内断言，由 payload 相对偏移 19/21 + 54 导出，s7.json notes 已载明）；IPv6=74（T-S7-008）；`decode_as` P6 m2 结论：tshark 3.6.14 不接受 `tcp.port==102,s7comm`，102 端口原生解码即 COTP/S7COMM，`decode_as` 直接移除（P4 实测依据，lane 报告已载明，接受偏离 P1 字面）。
 
 ### 15.7 性能设计与验收（§6.1–6.8 要素）
 
@@ -291,7 +291,7 @@ Wireshark `packet-s7comm.c`（ROSCTR/Userdata/字段名）→ D-S7-85 §3/§7 �
 
 ## 18. P1/P2/P3 对抗自重审结论（10.11；过 3 轮，末轮干净）
 
-- **P1（八项矩阵 + 三子表）**：R1 抓 4 项——①子表①初稿 6×3=18 格漏"错误头"列 → 改 6×4=24 格复算（6+18+缺口3并入B′-5）；②子表②初稿 area 漏 `0x80` → 补 9 行，总数 33 复算；③#4 行"MaxAmQ 可配"与 struct 矛盾 → 改虚声明并立 G-S7-5；④三路对照初稿写"plc_status.pcap 已核"→ 实测文件不在盘 → 改待重抓 G-S7-7。R2 逐格回读 + 行号实读复核（registry.go:92/protocols.go:50/strategy_convert.go:1382/translate:108/generator.go:338/planner.go:13/builder.go:339）。R3 末轮干净。
+- **P1（八项矩阵 + 三子表）**：R1 抓 4 项——①子表①初稿 6×3=18 格漏"错误头"列 → 改 6×4=24 格复算（6+18+缺口3并入B′-5）；②子表②初稿 area 漏 `0x80` → 补 9 行，总数 33 复算；③#4 行"MaxAmQ 可配"与 struct 矛盾 → 改虚声明并立 G-S7-5；④三路对照初稿写"plc_status.pcap 已核"→ 实测文件不在盘 → 改待重抓 G-S7-7。R2 逐格回读 + 行号实读复核（registry.go:92/protocols.go:50/strategy_convert.go:1382/translate:108/generator.go:338/planner.go:13/builder.go:339；P6 m1 续漂：protocols 50→54、strategy_convert 1382→1544，锚词逐字在）。R3 末轮干净。
 - **P2（D-S7-85 八要素）**：R1 抓 3 项——①初稿"新建 builder 文件"→ 实为零新建（复用 4 文件），改接线核对口径；②初稿回滚写"revert 单测"→ 改全量 revert 序；③未知键严格解码初稿列车道自改 → 改上报主线程（禁令 §6.1）。R2 接线行号逐条实读复核。R3 末轮干净。
 - **P3（testcase §7 + §15/§16/§17）**：R1 抓 4 项——①9.52 初稿总数 61（漏商业 4 + 八项 8 口径混表头）→ 改 69 复算（24+20+4+5+16）；②§3.15①初稿写"有例"→ cmdlet 普查 `cmdlens {1:12, 0:2}` 多命令序列零覆盖 → 改半程 + A′-4；③负例初稿称"带锚词"→ 实测 expect 仅双键无 `error_contains` → 改 G-S7-8；④keepalive 包数 notes"7"与 `packet_count:12` 矛盾 → 记入 §16 #5 先跑后钉。R2 核 23 字段对 tshark 注册表 23/23 命中、包数序列、offset 四档（54/73/75/74）。R3 末轮干净。
 
@@ -307,4 +307,5 @@ RFC 1006（TPKT）→ §3；Wireshark 解析器（ROSCTR/字段/值域）→ §3
 
 ## 修订记录
 
+- v1.0.1（2026-09-28，P6 m1/m2 回填）：m1 行号续漂登记（protocols 50→54、strategy_convert 1382→1544，锚词逐字在；P1 冻结版不改）；m2 `decode_as` 移除结论落盘（tshark 3.6.14 原生解码，偏离 P1 字面已接受）。
 - v1.0.0（2026-09-26）：P1–P3 初稿。P1 矩阵 8 行 + 三子表（24 格/33 行/商业 4）+ 三路对照 + 候选方案 4 项；门1 十四行（三行强制展开 + spec 样例 + presence 形状）；D-S7-85 八要素；T-S7-001~014 + A′ 4 + B′ 5；9.52 对账 69=24+20+4+5+16；缺口 G-S7-1…8；自重审 3 轮 11 修正末轮干净。

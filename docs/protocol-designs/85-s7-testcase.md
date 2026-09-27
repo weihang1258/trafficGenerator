@@ -42,7 +42,7 @@
 - `tcp.dstport=102` 为链语义（FieldContract），逐包方向由 tcp 层定；CR/CC 包断言 `cotp.type`（`0x0e/0x0d`）+ `cotp.srcref/destref`（`0x0001`）。
 - `s7comm.header.rosctr`（1/3/7）、`s7comm.param.func`（`0xf0/0x04/0x05/0xfa`）、`s7comm.param.itemcount`、`s7comm.header.pduref`（回显）、`s7comm.data.returncode`（`0xff`）、`s7comm.data.transportsize`（`0x04/0x03/0x09`）、`s7comm.header.parlg/datlg`、`s7comm.header.errcls/errcod`、`s7comm.param.pdu_length/maxamq_calling/maxamq_called`、`s7comm.data.userdata.szl_id`（`0x0132`）——去重 23 字段，对 tshark 注册表（本机 3.6.14，`s7comm.*` 精确口径 1119）**命中 23/23，零自创**。
 - frames offset 四档实测：**54**（S7 载荷基址，IPv4）/ **73**（T-S7-003 首 S7ANY，54+19）/ **75**（T-S7-003 数据头，54+21）/ **74**（T-S7-008 IPv6 基址）；frames 总 14 条（3+2+2+2+1+2+1+1+0）。
-- `decode_as` 现状 9 正例为 `tcp.port==102,tpkt`（与基线 §1.3 `s7comm` 口径不一致 → P4 统一，G-S7-1）。
+- `decode_as` P6 m2 结论：tshark 3.6.14 不接受 `tcp.port==102,s7comm`，102 端口原生解码即 COTP/S7COMM，`decode_as` 直接移除（P4 实测依据，接受偏离 P1 字面）。
 - fields 总 50 条（12+5+5+6+4+7+4+5+2distinct）；`same_as_packet` 2 处（T-S7-001/003 PduRef 回显）。
 
 ## 4. Negative（负例）契约
@@ -63,7 +63,7 @@
 
 | # | ID | 去向 | 改写动作 |
 |---|---|---|---|
-| 1 | `s7_connect_setup_read` | 改写 | 顶层旧键（`src_ip/dst_ip/src_port/dst_port` + `s7` 子映射）迁层 + `strategy_fc{flows:1}` + `decode_as→s7comm`；包数 13 先跑后钉 |
+| 1 | `s7_connect_setup_read` | 改写 | 顶层旧键（`src_ip/dst_ip/src_port/dst_port` + `s7` 子映射）迁层 + `strategy_fc{flows:1}` + `decode_as` 移除（P6 m2）；包数 13 先跑后钉 |
 | 2 | `s7_write_m_area` | 改写 | 同上；BIT 线性位索引帧断言保留 |
 | 3 | `s7_multi_db_read` | 改写 | 同上；offset 73/75 内断言保留 |
 | 4 | `s7_setup_pdu_length` | 改写 | 同上；`commands: []` setup-only 冻结 |
@@ -78,7 +78,7 @@
 
 ## 6. 三方一致性清单
 
-设计 §6 S1–S12 ↔ 本文件 §2/§3 ↔ s7.json `expect`：14 ID 全对齐；包数序列一致（§2）；offset 四档一致（§3）；断言字段 23/23 注册命中。`decode_as` 口径差（tpkt vs s7comm）与 T-S7-005 包数 notes 矛盾已显式登记（§1/§5 #5），P4 消灭。
+设计 §6 S1–S12 ↔ 本文件 §2/§3 ↔ s7.json `expect`：14 ID 全对齐；包数序列一致（§2）；offset 四档一致（§3）；断言字段 23/23 注册命中。`decode_as` 已移除（P6 m2，tshark 3.6.14 原生解码）；T-S7-005 包数 notes 矛盾已消灭。
 
 ## 7. 实现后执行顺序
 
@@ -114,7 +114,7 @@ Wireshark `packet-s7comm.c` → D-S7-85 §3/§7 → T-S7-001~014（§3/§4）；
 
 ### 9.6 断言契约核对结论（与 design §1/§10/§15 一致）
 
-23 字段逐个对注册表命中；5 拒绝串逐字对代码；offset 四档对存量断言；包数序列对 s7.json；`decode_as` 差与 keepalive notes 矛盾已登记待消。
+23 字段逐个对注册表命中；5 拒绝串逐字对代码；offset 四档对存量断言；包数序列对 s7.json；`decode_as` 已移除（P6 m2）；keepalive notes 已对齐。
 
 ### 9.7 性能设计与验收（§6.1–6.8 要素；细目见 design §15.7）
 
