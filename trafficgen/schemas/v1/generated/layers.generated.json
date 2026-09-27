@@ -315,7 +315,26 @@
       "depends_on": [
         "tcp"
       ],
-      "fields": {}
+      "field_contract": {
+        "tcp.dst_port": "9042"
+      },
+      "fields": {
+        "events": {
+          "type": "list",
+          "default": []
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "wire_fault": {
+          "type": "object"
+        },
+        "wire_profile": {
+          "type": "string",
+          "default": ""
+        }
+      }
     },
     "cwmp": {
       "category": "terminal",

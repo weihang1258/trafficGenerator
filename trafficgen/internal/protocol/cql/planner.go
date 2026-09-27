@@ -42,11 +42,11 @@ func (Planner) Validate(spec core.FlowSpec) error {
 			if len(s.Events) == 0 {
 				return fmt.Errorf("cql: session %d: empty events", i)
 			}
-			if err := validateEvents(s.Events); err != nil {
+			if err := validateEvents(cfg.WireProfile, s.Events); err != nil {
 				return fmt.Errorf("cql: session %d: %w", i, err)
 			}
 		}
-	} else if err := validateEvents(cfg.Events); err != nil {
+	} else if err := validateEvents(cfg.WireProfile, cfg.Events); err != nil {
 		return err
 	}
 	if spec.SrcIP != "" && net.ParseIP(spec.SrcIP) == nil {
@@ -58,9 +58,23 @@ func (Planner) Validate(spec core.FlowSpec) error {
 	return nil
 }
 
-// validateEvents validates event kind, direction, and state machine.
-func validateEvents(events []core.CQLEvent) error {
+// v5PreHandshakeKinds are the message kinds the v5 profile still carries
+// unframed (native_protocol_v5.spec §2.3.1: the handshake — OPTIONS/STARTUP
+// and their responses, plus the auth exchange — precedes the envelope).
+// Every other kind is post-handshake and needs the 6-byte envelope header
+// (CRC24/CRC32), which this implementation does not build yet — G-CQL-3
+// transition档 (B2): reject instead of emitting a bare v4-shaped frame and
+// pretending it is v5.
+var v5PreHandshakeKinds = map[string]bool{
+	"options": true, "supported": true, "startup": true, "ready": true,
+	"authenticate": true, "auth_response": true, "auth_success": true,
+}
+
+// validateEvents validates event kind, direction, flags, and the session
+// state machine (§4/§5).
+func validateEvents(profile string, events []core.CQLEvent) error {
 	ready := false
+	authenticating := false
 	for i, ev := range events {
 		if _, ok := opcodeForKind(ev.Kind); !ok {
 			return fmt.Errorf("cql: event %d: unknown kind %q", i, ev.Kind)
@@ -87,12 +101,49 @@ func validateEvents(events []core.CQLEvent) error {
 				return fmt.Errorf("cql: event %d: auth_response must be c2s (client→server)", i)
 			}
 		}
-		// State machine: query needs startup→ready or auth_success first.
-		if ev.Kind == "ready" || ev.Kind == "auth_success" {
-			ready = true
+		// G-CQL-6：header flags 逐 profile 校验（v4 §2.2 / v5 §2.2）——
+		// beta（0x10）只存在于 v5；warning（0x08）只允许出现在 s2c 响应。
+		if ev.Flags&FlagBeta != 0 && profile != "cql_v5" {
+			return fmt.Errorf("cql: event %d: flags: beta flag 0x10 is v5-only (profile %q)", i, profile)
 		}
-		if ev.Kind == "query" && !ready {
-			return fmt.Errorf("cql: event %d: state: query before startup/ready", i)
+		if ev.Flags&FlagWarning != 0 && dir != "s2c" {
+			return fmt.Errorf("cql: event %d: flags: warning flag 0x08 is response-only (s2c)", i)
+		}
+		// G-CQL-3（B2 过渡档）：v5 握手后消息需 envelope framing（未实现）——
+		// 一律拒，不冒充（W2）。
+		if profile == "cql_v5" && !v5PreHandshakeKinds[ev.Kind] {
+			return fmt.Errorf("cql: event %d: envelope: cql_v5 supports the pre-handshake unframed face only; %s needs the v5 envelope framing (not implemented)", i, ev.Kind)
+		}
+		switch ev.Kind {
+		case "startup":
+			// G-CQL-6：CQL_VERSION 是 STARTUP 的 mandatory 选项
+			// (native_protocol_v4.spec §4.1.1)。
+			if _, ok := ev.Options["CQL_VERSION"]; !ok {
+				return fmt.Errorf("cql: event %d: state: STARTUP requires the mandatory CQL_VERSION option", i)
+			}
+		case "authenticate":
+			authenticating = true
+		case "auth_response", "auth_success":
+			// G-CQL-6：认证次序门——AUTH_RESPONSE/AUTH_SUCCESS 必须先见
+			// AUTHENTICATE；AUTH_SUCCESS 结束认证态并进入 ready。
+			if !authenticating {
+				return fmt.Errorf("cql: event %d: state: %s without a preceding AUTHENTICATE", i, ev.Kind)
+			}
+			if ev.Kind == "auth_success" {
+				authenticating = false
+				ready = true
+			}
+		case "ready":
+			ready = true
+			authenticating = false
+		}
+		// G-CQL-6：业务请求（QUERY/PREPARE/EXECUTE）需 STARTUP→READY（或
+		// 认证成功）之后；认证进行中同样拒（ready 未置位）。
+		switch ev.Kind {
+		case "query", "prepare", "execute":
+			if !ready {
+				return fmt.Errorf("cql: event %d: state: %s before startup/ready", i, ev.Kind)
+			}
 		}
 	}
 	return nil

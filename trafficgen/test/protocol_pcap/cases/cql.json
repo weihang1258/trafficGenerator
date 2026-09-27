@@ -1,967 +1,1221 @@
 [
-  {
-    "id": "cql_v4_startup_ready",
-    "proto": "cql",
-    "summary": "S1: CQL v4 STARTUP then READY",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "cql": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 9042,
-      "cql": {
-        "wire_profile": "cql_v4",
-        "events": [
-          {
-            "kind": "startup",
-            "direction": "c2s",
-            "options": {
-              "CQL_VERSION": "3.0.0"
-            }
-          },
-          {
-            "kind": "ready",
-            "direction": "s2c"
-          }
-        ]
-      }
+ {
+  "id": "cql_v4_startup_ready",
+  "proto": "cql",
+  "summary": "S1: CQL v4 STARTUP then READY",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
-    "expect": {
-      "packet_count": 9,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": true,
-      "directional": true,
-      "fields": [
-        {
-          "packet": 4,
-          "field": "tcp.dstport",
-          "value": "9042"
-        },
-        {
-          "packet": 5,
-          "field": "tcp.srcport",
-          "value": "9042"
-        },
-        {
-          "packet": 4,
-          "field": "tcp.len",
-          "value": "31"
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [
+       {
+        "kind": "startup",
+        "direction": "c2s",
+        "options": {
+         "CQL_VERSION": "3.0.0"
         }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "04 00 00 00 01 00 00 00 16 00 01 00 0b 43 51 4c 5f 56 45 52 53 49 4f 4e 00 05 33 2e 30 2e 30"
-        },
-        {
-          "packet": 5,
-          "offset": 54,
-          "hex": "84 00 00 00 02 00 00 00 00"
-        }
+       },
+       {
+        "kind": "ready",
+        "direction": "s2c"
+       }
       ]
-    },
-    "notes": [
-      "STARTUP body uses a two-byte string-map count; READY has an empty body."
-    ]
-  },
-  {
-    "id": "cql_options_supported",
-    "proto": "cql",
-    "summary": "S2: OPTIONS and SUPPORTED capability map",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "cql": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 9042,
-      "cql": {
-        "wire_profile": "cql_v4",
-        "events": [
-          {
-            "kind": "options",
-            "direction": "c2s"
-          },
-          {
-            "kind": "supported",
-            "direction": "s2c",
-            "options": {
-              "CQL_VERSION": [
-                "3.0.0"
-              ],
-              "COMPRESSION": [
-                "snappy",
-                "lz4"
-              ]
-            }
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 9,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": true,
-      "directional": true,
-      "fields": [
-        {
-          "packet": 4,
-          "field": "tcp.len",
-          "value": "9"
-        },
-        {
-          "packet": 5,
-          "field": "tcp.len",
-          "value": "61"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "04 00 00 00 05 00 00 00 00"
-        },
-        {
-          "packet": 5,
-          "offset": 54,
-          "hex": "84 00 00 00 06 00 00 00 34 00 02 00 0b 43 51 4c 5f 56 45 52 53 49 4f 4e 00 01 00 05 33 2e 30 2e 30 00 0b 43 4f 4d 50 52 45 53 53 49 4f 4e 00 02 00 06 73 6e 61 70 70 79 00 03 6c 7a 34"
-        }
-      ]
-    },
-    "notes": [
-      "SUPPORTED uses a string multimap: short map count, string key, short value count, strings."
-    ]
-  },
-  {
-    "id": "cql_auth_empty_sasl",
-    "proto": "cql",
-    "summary": "S3: AUTHENTICATE, empty AUTH_RESPONSE boundary, AUTH_SUCCESS",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "cql": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 9042,
-      "cql": {
-        "wire_profile": "cql_v4_auth",
-        "events": [
-          {
-            "kind": "authenticate",
-            "direction": "s2c",
-            "mechanism": "org.apache.cassandra.auth.PasswordAuthenticator"
-          },
-          {
-            "kind": "auth_response",
-            "direction": "c2s",
-            "bytes": []
-          },
-          {
-            "kind": "auth_success",
-            "direction": "s2c",
-            "bytes": []
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 10,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": true,
-      "directional": true,
-      "fields": [
-        {
-          "packet": 4,
-          "field": "tcp.srcport",
-          "value": "9042"
-        },
-        {
-          "packet": 5,
-          "field": "tcp.len",
-          "value": "13"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "84 00 00 00 03 00 00 00 31 00 2f 6f 72 67 2e 61 70 61 63 68 65 2e 63 61 73 73 61 6e 64 72 61 2e 61 75 74 68 2e 50 61 73 73 77 6f 72 64 41 75 74 68 65 6e 74 69 63 61 74 6f 72"
-        },
-        {
-          "packet": 5,
-          "offset": 54,
-          "hex": "04 00 00 00 0f 00 00 00 04 00 00 00 00"
-        },
-        {
-          "packet": 6,
-          "offset": 54,
-          "hex": "84 00 00 00 10 00 00 00 04 00 00 00 00"
-        }
-      ]
-    },
-    "notes": [
-      "AUTH_RESPONSE is a bytes value; zero-length SASL payload is a framing boundary only, not a real credential."
-    ]
-  },
-  {
-    "id": "cql_query_void",
-    "proto": "cql",
-    "summary": "S4: QUERY mutation and RESULT VOID with READY boundary",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "cql": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 9042,
-      "cql": {
-        "wire_profile": "cql_v4",
-        "events": [
-          {
-            "kind": "startup",
-            "direction": "c2s",
-            "options": {
-              "CQL_VERSION": "3.0.0"
-            }
-          },
-          {
-            "kind": "ready",
-            "direction": "s2c"
-          },
-          {
-            "kind": "query",
-            "direction": "c2s",
-            "query": "INSERT INTO ks.t (k) VALUES (1)",
-            "consistency": 1,
-            "query_flags": 0
-          },
-          {
-            "kind": "result",
-            "direction": "s2c",
-            "result_kind": "VOID"
-          },
-          {
-            "kind": "ready",
-            "direction": "s2c"
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 12,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": true,
-      "directional": true,
-      "fields": [
-        {
-          "packet": 6,
-          "field": "tcp.len",
-          "value": "50"
-        },
-        {
-          "packet": 7,
-          "field": "tcp.len",
-          "value": "13"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 6,
-          "offset": 54,
-          "hex": "04 00 00 00 07 00 00 00 29 00 00 00 1f 49 4e 53 45 52 54 20 49 4e 54 4f 20 6b 73 2e 74 20 28 6b 29 20 56 41 4c 55 45 53 20 28 31 29 00 01 00 00 00 00"
-        },
-        {
-          "packet": 7,
-          "offset": 54,
-          "hex": "84 00 00 00 08 00 00 00 04 00 00 00 01"
-        }
-      ]
-    },
-    "notes": [
-      "A VOID result is used so the response body is fully determined without inventing row metadata or paging state."
-    ]
-  },
-  {
-    "id": "cql_prepare_execute",
-    "proto": "cql",
-    "summary": "S5: PREPARE and EXECUTE request framing",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "cql": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 9042,
-      "cql": {
-        "wire_profile": "cql_v4",
-        "events": [
-          {
-            "kind": "prepare",
-            "direction": "c2s",
-            "query": "SELECT v FROM ks.t WHERE k = ?"
-          },
-          {
-            "kind": "execute",
-            "direction": "c2s",
-            "prepared_id": "pid-1",
-            "consistency": 1,
-            "query_flags": 0
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 9,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": true,
-      "directional": true,
-      "fields": [
-        {
-          "packet": 4,
-          "field": "tcp.dstport",
-          "value": "9042"
-        },
-        {
-          "packet": 5,
-          "field": "tcp.dstport",
-          "value": "9042"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "04 00 00 00 09 00 00 00 22 00 00 00 1e 53 45 4c 45 43 54 20 76 20 46 52 4f 4d 20 6b 73 2e 74 20 57 48 45 52 45 20 6b 20 3d 20 3f"
-        },
-        {
-          "packet": 5,
-          "offset": 54,
-          "hex": "04 00 00 00 0a 00 00 00 0d 00 05 70 69 64 2d 31 00 01 00 00 00 00"
-        }
-      ]
-    },
-    "notes": [
-      "PREPARED result metadata and bound-value encoding are profile-dependent and are not fabricated here; this case locks request frames."
-    ]
-  },
-  {
-    "id": "cql_error_server",
-    "proto": "cql",
-    "summary": "S6: ERROR response with stable generic SERVER_ERROR body",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "cql": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 9042,
-      "cql": {
-        "wire_profile": "cql_v4",
-        "events": [
-          {
-            "kind": "error",
-            "direction": "s2c",
-            "code": 0,
-            "message": "server error"
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 8,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": true,
-      "directional": true,
-      "fields": [
-        {
-          "packet": 4,
-          "field": "tcp.srcport",
-          "value": "9042"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "84 00 00 00 00 00 00 00 12 00 00 00 00 00 0c 73 65 72 76 65 72 20 65 72 72 6f 72"
-        }
-      ]
-    },
-    "notes": [
-      "Error code 0x00000000 has no conditional detail fields; application ERROR is not a task/config failure."
-    ]
-  },
-  {
-    "id": "cql_ipv6",
-    "proto": "cql",
-    "summary": "S7: IPv6 CQL v4 startup/query transport",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "cql": {}
-        }
-      ],
-      "src_ip": "2001:db8::1",
-      "dst_ip": "2001:db8::2",
-      "src_port": 12345,
-      "dst_port": 9042,
-      "cql": {
-        "wire_profile": "cql_v4",
-        "events": [
-          {
-            "kind": "startup",
-            "direction": "c2s",
-            "options": {
-              "CQL_VERSION": "3.0.0"
-            }
-          },
-          {
-            "kind": "ready",
-            "direction": "s2c"
-          },
-          {
-            "kind": "query",
-            "direction": "c2s",
-            "query": "SELECT 1",
-            "consistency": 1,
-            "query_flags": 0
-          },
-          {
-            "kind": "result",
-            "direction": "s2c",
-            "result_kind": "VOID"
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 11,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": true,
-      "directional": true,
-      "fields": [
-        {
-          "packet": 4,
-          "field": "ipv6.version",
-          "value": "6"
-        },
-        {
-          "packet": 4,
-          "field": "tcp.dstport",
-          "value": "9042"
-        },
-        {
-          "packet": 5,
-          "field": "ipv6.version",
-          "value": "6"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 74,
-          "hex": "04 00 00 00 01 00 00 00 16 00 01 00 0b 43 51 4c 5f 56 45 52 53 49 4f 4e 00 05 33 2e 30 2e 30"
-        },
-        {
-          "packet": 5,
-          "offset": 74,
-          "hex": "84 00 00 00 02 00 00 00 00"
-        }
-      ]
-    },
-    "notes": [
-      "IPv6 changes only the transport payload offset from 54 to 74."
-    ]
-  },
-  {
-    "id": "cql_v5_tracing",
-    "proto": "cql",
-    "summary": "S8: CQL v5 profile and tracing request flag",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "cql": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 9042,
-      "cql": {
-        "wire_profile": "cql_v5",
-        "events": [
-          {
-            "kind": "startup",
-            "direction": "c2s",
-            "options": {
-              "CQL_VERSION": "5.0.0"
-            }
-          },
-          {
-            "kind": "ready",
-            "direction": "s2c"
-          },
-          {
-            "kind": "query",
-            "direction": "c2s",
-            "query": "SELECT 1",
-            "consistency": 1,
-            "query_flags": 2,
-            "flags": 2
-          },
-          {
-            "kind": "result",
-            "direction": "s2c",
-            "result_kind": "VOID"
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 11,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": true,
-      "directional": true,
-      "fields": [
-        {
-          "packet": 4,
-          "field": "tcp.dstport",
-          "value": "9042"
-        },
-        {
-          "packet": 6,
-          "field": "tcp.len",
-          "value": "27"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "05 00 00 00 01 00 00 00 16 00 01 00 0b 43 51 4c 5f 56 45 52 53 49 4f 4e 00 05 35 2e 30 2e 30"
-        },
-        {
-          "packet": 6,
-          "offset": 54,
-          "hex": "05 02 00 00 07 00 00 00 12 00 00 00 08 53 45 4c 45 43 54 20 31 00 01 00 00 00 02"
-        },
-        {
-          "packet": 7,
-          "offset": 54,
-          "hex": "85 00 00 00 08 00 00 00 04 00 00 00 01"
-        }
-      ]
-    },
-    "notes": [
-      "v5 is an explicit profile; v5-only metadata, beta negotiation, and result metadata are not inferred from v4."
-    ]
-  },
-  {
-    "id": "cql_multi_session",
-    "proto": "cql",
-    "summary": "S9: two independent CQL sessions",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "cql": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 9042,
-      "cql": {
-        "wire_profile": "cql_v4",
-        "sessions": [
-          {
-            "src_port": 12345,
-            "events": [
-              {
-                "kind": "startup",
-                "direction": "c2s",
-                "options": {
-                  "CQL_VERSION": "3.0.0"
-                }
-              },
-              {
-                "kind": "ready",
-                "direction": "s2c"
-              }
-            ]
-          },
-          {
-            "src_port": 12346,
-            "events": [
-              {
-                "kind": "startup",
-                "direction": "c2s",
-                "options": {
-                  "CQL_VERSION": "3.0.0"
-                }
-              },
-              {
-                "kind": "ready",
-                "direction": "s2c"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 18,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": true,
-      "directional": true,
-      "fields": [
-        {
-          "packet": 4,
-          "field": "tcp.srcport",
-          "distinct_values": [
-            "12345",
-            "12346"
-          ],
-          "distinct_exclude": [
-            "9042"
-          ]
-        },
-        {
-          "packet": 4,
-          "field": "tcp.dstport",
-          "value": "9042"
-        }
-      ]
-    },
-    "notes": [
-      "Session state and stream IDs are scoped per TCP four-tuple; no global packet interleaving is assumed."
-    ]
-  },
-  {
-    "id": "cql_length_boundary",
-    "proto": "cql",
-    "summary": "S10: zero-length OPTIONS body and nine-byte frame",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "cql": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 9042,
-      "cql": {
-        "wire_profile": "cql_v4",
-        "events": [
-          {
-            "kind": "options",
-            "direction": "c2s"
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 8,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": true,
-      "directional": true,
-      "fields": [
-        {
-          "packet": 4,
-          "field": "tcp.len",
-          "value": "9"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "04 00 00 00 05 00 00 00 00"
-        }
-      ]
-    },
-    "notes": [
-      "Header length=0 is valid for OPTIONS; the nine-byte native frame is the minimum complete frame."
-    ]
-  },
-  {
-    "id": "cql_connect",
-    "proto": "cql",
-    "summary": "S11: TCP 9042 connect without application events",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "cql": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 9042,
-      "cql": {
-        "wire_profile": "cql_v4",
-        "events": []
-      }
-    },
-    "expect": {
-      "packet_count": 7,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": false,
-      "directional": true,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "tcp.dstport",
-          "value": "9042"
-        }
-      ]
-    },
-    "notes": [
-      "Transport-only connect does not imply STARTUP."
-    ]
-  },
-  {
-    "id": "cql_neg_udp",
-    "proto": "cql",
-    "summary": "N1: UDP carrier rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cql": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 9042,
-      "cql": {
-        "wire_profile": "cql_v4",
-        "events": []
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "tcp"
+     }
     }
+   ]
   },
-  {
-    "id": "cql_neg_version",
-    "proto": "cql",
-    "summary": "N2: unsupported protocol profile rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "cql": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 9042,
-      "cql": {
-        "wire_profile": "cql_v3",
-        "events": []
-      }
+  "expect": {
+   "packet_count": 9,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "9042"
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "version"
-    }
-  },
-  {
-    "id": "cql_neg_opcode",
-    "proto": "cql",
-    "summary": "N3: unknown opcode rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "cql": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 9042,
-      "cql": {
-        "wire_profile": "cql_v4",
-        "events": [],
-        "wire_fault": {
-          "kind": "opcode",
-          "value": 255
-        }
-      }
+    {
+     "packet": 5,
+     "field": "tcp.srcport",
+     "value": "9042"
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "opcode"
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "value": "31"
     }
-  },
-  {
-    "id": "cql_neg_length",
-    "proto": "cql",
-    "summary": "N4: truncated native frame rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "cql": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 9042,
-      "cql": {
-        "wire_profile": "cql_v4",
-        "events": [],
-        "wire_fault": {
-          "kind": "length",
-          "value": "declared_gt_body"
-        }
-      }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "04 00 00 00 01 00 00 00 16 00 01 00 0b 43 51 4c 5f 56 45 52 53 49 4f 4e 00 05 33 2e 30 2e 30"
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "length"
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "84 00 00 00 02 00 00 00 00"
     }
+   ]
   },
-  {
-    "id": "cql_neg_state",
-    "proto": "cql",
-    "summary": "N5: QUERY before STARTUP/READY rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "cql": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
+  "notes": [
+   "STARTUP body uses a two-byte string-map count; READY has an empty body."
+  ]
+ },
+ {
+  "id": "cql_options_supported",
+  "proto": "cql",
+  "summary": "S2: OPTIONS and SUPPORTED capability map",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
       "src_port": 12345,
-      "dst_port": 9042,
-      "cql": {
-        "wire_profile": "cql_v4",
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [
+       {
+        "kind": "options",
+        "direction": "c2s"
+       },
+       {
+        "kind": "supported",
+        "direction": "s2c",
+        "options": {
+         "CQL_VERSION": [
+          "3.0.0"
+         ],
+         "COMPRESSION": [
+          "snappy",
+          "lz4"
+         ]
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 9,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "value": "9"
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "value": "61"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "04 00 00 00 05 00 00 00 00"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "84 00 00 00 06 00 00 00 34 00 02 00 0b 43 51 4c 5f 56 45 52 53 49 4f 4e 00 01 00 05 33 2e 30 2e 30 00 0b 43 4f 4d 50 52 45 53 53 49 4f 4e 00 02 00 06 73 6e 61 70 70 79 00 03 6c 7a 34"
+    }
+   ]
+  },
+  "notes": [
+   "SUPPORTED uses a string multimap: short map count, string key, short value count, strings."
+  ]
+ },
+ {
+  "id": "cql_auth_empty_sasl",
+  "proto": "cql",
+  "summary": "S3: AUTHENTICATE, empty AUTH_RESPONSE boundary, AUTH_SUCCESS",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4_auth",
+      "events": [
+       {
+        "kind": "authenticate",
+        "direction": "s2c",
+        "mechanism": "org.apache.cassandra.auth.PasswordAuthenticator"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "c2s",
+        "bytes": []
+       },
+       {
+        "kind": "auth_success",
+        "direction": "s2c",
+        "bytes": []
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 10,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.srcport",
+     "value": "9042"
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "value": "13"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "84 00 00 00 03 00 00 00 31 00 2f 6f 72 67 2e 61 70 61 63 68 65 2e 63 61 73 73 61 6e 64 72 61 2e 61 75 74 68 2e 50 61 73 73 77 6f 72 64 41 75 74 68 65 6e 74 69 63 61 74 6f 72"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "04 00 00 00 0f 00 00 00 04 00 00 00 00"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "84 00 00 00 10 00 00 00 04 00 00 00 00"
+    }
+   ]
+  },
+  "notes": [
+   "AUTH_RESPONSE is a bytes value; zero-length SASL payload is a framing boundary only, not a real credential."
+  ]
+ },
+ {
+  "id": "cql_query_void",
+  "proto": "cql",
+  "summary": "S4: QUERY mutation and RESULT VOID with READY boundary",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [
+       {
+        "kind": "startup",
+        "direction": "c2s",
+        "options": {
+         "CQL_VERSION": "3.0.0"
+        }
+       },
+       {
+        "kind": "ready",
+        "direction": "s2c"
+       },
+       {
+        "kind": "query",
+        "direction": "c2s",
+        "query": "INSERT INTO ks.t (k) VALUES (1)",
+        "consistency": 1,
+        "query_flags": 0
+       },
+       {
+        "kind": "result",
+        "direction": "s2c"
+       },
+       {
+        "kind": "ready",
+        "direction": "s2c"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 12,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 6,
+     "field": "tcp.len",
+     "value": "47"
+    },
+    {
+     "packet": 7,
+     "field": "tcp.len",
+     "value": "13"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "04 00 00 00 07 00 00 00 26 00 00 00 1f 49 4e 53 45 52 54 20 49 4e 54 4f 20 6b 73 2e 74 20 28 6b 29 20 56 41 4c 55 45 53 20 28 31 29 00 01 00"
+    },
+    {
+     "packet": 7,
+     "offset": 54,
+     "hex": "84 00 00 00 08 00 00 00 04 00 00 00 01"
+    }
+   ]
+  },
+  "notes": [
+   "A VOID result is used so the response body is fully determined without inventing row metadata or paging state."
+  ]
+ },
+ {
+  "id": "cql_prepare_execute",
+  "proto": "cql",
+  "summary": "S5: PREPARE and EXECUTE request framing",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [
+       {
+        "kind": "prepare",
+        "direction": "c2s",
+        "query": "SELECT v FROM ks.t WHERE k = ?"
+       },
+       {
+        "kind": "execute",
+        "direction": "c2s",
+        "prepared_id": "pid-1",
+        "consistency": 1,
+        "query_flags": 0
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 9,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "9042"
+    },
+    {
+     "packet": 5,
+     "field": "tcp.dstport",
+     "value": "9042"
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "value": "19"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "04 00 00 00 09 00 00 00 22 00 00 00 1e 53 45 4c 45 43 54 20 76 20 46 52 4f 4d 20 6b 73 2e 74 20 57 48 45 52 45 20 6b 20 3d 20 3f"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "04 00 00 00 0a 00 00 00 0a 00 05 70 69 64 2d 31 00 01 00"
+    }
+   ]
+  },
+  "notes": [
+   "PREPARED result metadata and bound-value encoding are profile-dependent and are not fabricated here; this case locks request frames."
+  ]
+ },
+ {
+  "id": "cql_error_server",
+  "proto": "cql",
+  "summary": "S6: ERROR response with stable generic SERVER_ERROR body",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [
+       {
+        "kind": "error",
+        "direction": "s2c",
+        "code": 0,
+        "message": "server error"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 8,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.srcport",
+     "value": "9042"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "84 00 00 00 00 00 00 00 12 00 00 00 00 00 0c 73 65 72 76 65 72 20 65 72 72 6f 72"
+    }
+   ]
+  },
+  "notes": [
+   "Error code 0x00000000 has no conditional detail fields; application ERROR is not a task/config failure."
+  ]
+ },
+ {
+  "id": "cql_ipv6",
+  "proto": "cql",
+  "summary": "S7: IPv6 CQL v4 startup/query transport",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "2001:db8::1",
+      "dst": "2001:db8::2"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [
+       {
+        "kind": "startup",
+        "direction": "c2s",
+        "options": {
+         "CQL_VERSION": "3.0.0"
+        }
+       },
+       {
+        "kind": "ready",
+        "direction": "s2c"
+       },
+       {
+        "kind": "query",
+        "direction": "c2s",
+        "query": "SELECT 1",
+        "consistency": 1,
+        "query_flags": 0
+       },
+       {
+        "kind": "result",
+        "direction": "s2c"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 11,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "ipv6.version",
+     "value": "6"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "9042"
+    },
+    {
+     "packet": 5,
+     "field": "ipv6.version",
+     "value": "6"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 74,
+     "hex": "04 00 00 00 01 00 00 00 16 00 01 00 0b 43 51 4c 5f 56 45 52 53 49 4f 4e 00 05 33 2e 30 2e 30"
+    },
+    {
+     "packet": 5,
+     "offset": 74,
+     "hex": "84 00 00 00 02 00 00 00 00"
+    }
+   ]
+  },
+  "notes": [
+   "IPv6 changes only the transport payload offset from 54 to 74."
+  ]
+ },
+ {
+  "id": "cql_v5_tracing",
+  "proto": "cql",
+  "summary": "S8: CQL v5 handshake-only (OPTIONS/SUPPORTED/STARTUP/READY, unframed pre-handshake face)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v5",
+      "events": [
+       {
+        "kind": "options",
+        "direction": "c2s"
+       },
+       {
+        "kind": "supported",
+        "direction": "s2c",
+        "options": {
+         "CQL_VERSION": [
+          "5.0.0"
+         ],
+         "COMPRESSION": [
+          "snappy"
+         ]
+        }
+       },
+       {
+        "kind": "startup",
+        "direction": "c2s",
+        "options": {
+         "CQL_VERSION": "5.0.0"
+        }
+       },
+       {
+        "kind": "ready",
+        "direction": "s2c"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 11,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "9042"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "value": "9"
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "value": "56"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "05 00 00 00 05 00 00 00 00"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "85 00 00 00 06 00 00 00 2f 00 02 00 0b 43 51 4c 5f 56 45 52 53 49 4f 4e 00 01 00 05 35 2e 30 2e 30 00 0b 43 4f 4d 50 52 45 53 53 49 4f 4e 00 01 00 06 73 6e 61 70 70 79"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "05 00 00 00 01 00 00 00 16 00 01 00 0b 43 51 4c 5f 56 45 52 53 49 4f 4e 00 05 35 2e 30 2e 30"
+    },
+    {
+     "packet": 7,
+     "offset": 54,
+     "hex": "85 00 00 00 02 00 00 00 00"
+    }
+   ]
+  },
+  "notes": [
+   "v5 transition档 (D-CQL-1 B2): handshake前 unframed 面 only; handshake后 enveloped 另轮 (G-CQL-3)."
+  ]
+ },
+ {
+  "id": "cql_multi_session",
+  "proto": "cql",
+  "summary": "S9: two independent CQL sessions",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "sessions": [
+       {
+        "src_port": 12345,
         "events": [
-          {
-            "kind": "query",
-            "direction": "c2s",
-            "query": "SELECT 1"
+         {
+          "kind": "startup",
+          "direction": "c2s",
+          "options": {
+           "CQL_VERSION": "3.0.0"
           }
+         },
+         {
+          "kind": "ready",
+          "direction": "s2c"
+         }
         ]
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "state"
+       },
+       {
+        "src_port": 12346,
+        "events": [
+         {
+          "kind": "startup",
+          "direction": "c2s",
+          "options": {
+           "CQL_VERSION": "3.0.0"
+          }
+         },
+         {
+          "kind": "ready",
+          "direction": "s2c"
+         }
+        ]
+       }
+      ]
+     }
     }
+   ]
   },
-  {
-    "id": "cql_neg_limit",
-    "proto": "cql",
-    "summary": "N6: frame over message limit rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "cql": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 9042,
-      "cql": {
-        "wire_profile": "cql_v4",
-        "events": [],
-        "wire_fault": {
-          "kind": "message_limit",
-          "value": "over_limit"
-        }
-      }
+  "expect": {
+   "packet_count": 18,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.srcport",
+     "distinct_values": [
+      "12345",
+      "12346"
+     ],
+     "distinct_exclude": [
+      "9042"
+     ]
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "limit"
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "9042"
     }
+   ]
+  },
+  "notes": [
+   "Session state and stream IDs are scoped per TCP four-tuple; no global packet interleaving is assumed."
+  ]
+ },
+ {
+  "id": "cql_length_boundary",
+  "proto": "cql",
+  "summary": "S10: zero-length OPTIONS body and nine-byte frame",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [
+       {
+        "kind": "options",
+        "direction": "c2s"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 8,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "value": "9"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "04 00 00 00 05 00 00 00 00"
+    }
+   ]
+  },
+  "notes": [
+   "Header length=0 is valid for OPTIONS; the nine-byte native frame is the minimum complete frame."
+  ]
+ },
+ {
+  "id": "cql_connect",
+  "proto": "cql",
+  "summary": "S11: TCP 9042 connect without application events",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": []
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 7,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": false,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "9042"
+    }
+   ]
+  },
+  "notes": [
+   "Transport-only connect does not imply STARTUP."
+  ]
+ },
+ {
+  "id": "cql_neg_udp",
+  "proto": "cql",
+  "summary": "N1: UDP carrier rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": []
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "tcp"
   }
+ },
+ {
+  "id": "cql_neg_version",
+  "proto": "cql",
+  "summary": "N2: unsupported protocol profile rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v3",
+      "events": []
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "version"
+  }
+ },
+ {
+  "id": "cql_neg_opcode",
+  "proto": "cql",
+  "summary": "N3: unknown opcode rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [],
+      "wire_fault": {
+       "kind": "opcode",
+       "value": 255
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "opcode"
+  }
+ },
+ {
+  "id": "cql_neg_length",
+  "proto": "cql",
+  "summary": "N4: truncated native frame rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [],
+      "wire_fault": {
+       "kind": "length",
+       "value": "declared_gt_body"
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "length"
+  }
+ },
+ {
+  "id": "cql_neg_state",
+  "proto": "cql",
+  "summary": "N5: QUERY before STARTUP/READY rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [
+       {
+        "kind": "query",
+        "direction": "c2s",
+        "query": "SELECT 1"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "state"
+  }
+ },
+ {
+  "id": "cql_neg_limit",
+  "proto": "cql",
+  "summary": "N6: frame over message limit rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [],
+      "wire_fault": {
+       "kind": "message_limit",
+       "value": "over_limit"
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "limit"
+  }
+ },
+ {
+  "id": "cql_neg_presence_top_level_cql",
+  "proto": "cql",
+  "summary": "presence: layers + top-level cql{} coexist dies",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {}
+    }
+   ],
+   "cql": {}
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "no longer accepts a top-level cql sub-config"
+  }
+ },
+ {
+  "id": "cql_neg_stray_src_ip",
+  "proto": "cql",
+  "summary": "stray top-level src_ip with layers dies",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [
+       {
+        "kind": "options",
+        "direction": "c2s"
+       }
+      ]
+     }
+    }
+   ],
+   "src_ip": "10.9.9.9"
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "no longer accepts flat config field src_ip"
+  }
+ },
+ {
+  "id": "cql_neg_stray_count",
+  "proto": "cql",
+  "summary": "stray top-level count with layers dies",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [
+       {
+        "kind": "options",
+        "direction": "c2s"
+       }
+      ]
+     }
+    }
+   ],
+   "count": 3
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "no longer accepts flat config field count"
+  }
+ },
+ {
+  "id": "cql_neg_unknown_layer_field",
+  "proto": "cql",
+  "summary": "unknown key in cql layer entry dies",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "bogus_key": 1,
+      "events": [
+       {
+        "kind": "options",
+        "direction": "c2s"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "unknown field"
+  }
+ },
+ {
+  "id": "cql_neg_missing_tcp",
+  "proto": "cql",
+  "summary": "missing tcp carrier: [ip,cql] dies (DependsOn auto-complete must not mask it)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [
+       {
+        "kind": "options",
+        "direction": "c2s"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "tcp"
+  }
+ }
 ]

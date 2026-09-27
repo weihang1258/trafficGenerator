@@ -920,7 +920,19 @@ func buildDefaultRegistry() {
 			"wire_fault":     {Type: "string", Default: ""}, // 6 值枚举（D-SPNEGO-1 §2/§12 表）；""=无故障
 		},
 	})
-	r.Register(LayerSchema{Name: "cql", Category: CategoryTerminal, DependsOn: []string{"tcp"}})
+	r.Register(LayerSchema{Name: "cql", Category: CategoryTerminal, DependsOn: []string{"tcp"},
+		FieldContract: map[string]string{"tcp.dst_port": "9042"},
+		Fields: map[string]FieldSchema{
+			"wire_profile": {Type: "string", Default: ""},
+			"events":       {Type: "list", Default: []interface{}{}},
+			"sessions":     {Type: "list", Default: []interface{}{}},
+			// wire_fault is a negative-test fault object {"kind":...,"value":...}.
+			// Default nil (NOT "") so completedConfig omits it: an injected ""
+			// would survive the JSON round-trip as WireFault='""' and be
+			// mis-read as a fault by the validator (postgresql 同款).
+			"wire_fault": {Type: "object"},
+		},
+	})
 	r.Register(LayerSchema{Name: "iec104", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "2404"},
 		Fields: map[string]FieldSchema{

@@ -150,14 +150,14 @@ func TestBuildFrameQuery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := parseHex("04 00 00 00 07 00 00 00 29 00 00 00 1f 49 4e 53 45 52 54 20 49 4e 54 4f 20 6b 73 2e 74 20 28 6b 29 20 56 41 4c 55 45 53 20 28 31 29 00 01 00 00 00 00")
+	want := parseHex("04 00 00 00 07 00 00 00 26 00 00 00 1f 49 4e 53 45 52 54 20 49 4e 54 4f 20 6b 73 2e 74 20 28 6b 29 20 56 41 4c 55 45 53 20 28 31 29 00 01 00")
 	if hexStr(frame) != hexStr(want) {
 		t.Fatalf("frame=%s want=%s", hexStr(frame), hexStr(want))
 	}
 }
 
 func TestBuildFrameResultVoid(t *testing.T) {
-	ev := core.CQLEvent{Kind: "result", Direction: "s2c", ResultKind: "VOID"}
+	ev := core.CQLEvent{Kind: "result", Direction: "s2c"}
 	frame, err := buildFrame(ReqV4, RespV4, ev)
 	if err != nil {
 		t.Fatal(err)
@@ -194,7 +194,7 @@ func TestBuildFrameExecute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := parseHex("04 00 00 00 0a 00 00 00 0d 00 05 70 69 64 2d 31 00 01 00 00 00 00")
+	want := parseHex("04 00 00 00 0a 00 00 00 0a 00 05 70 69 64 2d 31 00 01 00")
 	if hexStr(frame) != hexStr(want) {
 		t.Fatalf("frame=%s want=%s", hexStr(frame), hexStr(want))
 	}
@@ -253,7 +253,7 @@ func TestBuildFrameV5QueryWithFlags(t *testing.T) {
 }
 
 func TestBuildFrameV5Result(t *testing.T) {
-	ev := core.CQLEvent{Kind: "result", Direction: "s2c", ResultKind: "VOID"}
+	ev := core.CQLEvent{Kind: "result", Direction: "s2c"}
 	frame, err := buildFrame(ReqV5, RespV5, ev)
 	if err != nil {
 		t.Fatal(err)
@@ -282,7 +282,7 @@ func TestValidateCQLConfigRequired(t *testing.T) {
 }
 
 func TestValidateCQLWireProfileRequired(t *testing.T) {
-	err := (Planner{}).Validate(core.FlowSpec{CQL: &core.CQLConfig{Events: []core.CQLEvent{{Kind: "startup", Direction: "c2s"}}}})
+	err := (Planner{}).Validate(core.FlowSpec{CQL: &core.CQLConfig{Events: []core.CQLEvent{{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "3.0.0"}}}}})
 	if err == nil || err.Error() != "cql: wire_profile is required" {
 		t.Fatalf("err=%v want wire_profile is required", err)
 	}
@@ -293,7 +293,7 @@ func TestValidateCQLUnknownProfile(t *testing.T) {
 		CQL: &core.CQLConfig{
 			WireProfile: "cql_v3",
 			Events: []core.CQLEvent{
-				{Kind: "startup", Direction: "c2s"},
+				{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "3.0.0"}},
 			},
 		},
 	})
@@ -318,10 +318,10 @@ func TestValidateCQLMutuallyExclusive(t *testing.T) {
 		CQL: &core.CQLConfig{
 			WireProfile: "cql_v4",
 			Events: []core.CQLEvent{
-				{Kind: "startup", Direction: "c2s"},
+				{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "3.0.0"}},
 			},
 			Sessions: []core.CQLSession{
-				{Events: []core.CQLEvent{{Kind: "startup", Direction: "c2s"}}},
+				{Events: []core.CQLEvent{{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "3.0.0"}}}},
 			},
 		},
 	})
@@ -405,7 +405,7 @@ func TestValidateCQLBadIP(t *testing.T) {
 		CQL: &core.CQLConfig{
 			WireProfile: "cql_v4",
 			Events: []core.CQLEvent{
-				{Kind: "startup", Direction: "c2s"},
+				{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "3.0.0"}},
 			},
 		},
 		SrcIP: "not-an-ip",
@@ -420,7 +420,7 @@ func TestValidateCQLBadDstIP(t *testing.T) {
 		CQL: &core.CQLConfig{
 			WireProfile: "cql_v4",
 			Events: []core.CQLEvent{
-				{Kind: "startup", Direction: "c2s"},
+				{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "3.0.0"}},
 			},
 		},
 		DstIP: "not-an-ip",
@@ -436,7 +436,7 @@ func TestValidateCQLWireFault(t *testing.T) {
 		CQL: &core.CQLConfig{
 			WireProfile: "cql_v4",
 			Events: []core.CQLEvent{
-				{Kind: "startup", Direction: "c2s"},
+				{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "3.0.0"}},
 			},
 			WireFault: raw,
 		},
@@ -468,7 +468,7 @@ func TestValidateCQLValidV5(t *testing.T) {
 		CQL: &core.CQLConfig{
 			WireProfile: "cql_v5",
 			Events: []core.CQLEvent{
-				{Kind: "startup", Direction: "c2s"},
+				{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "3.0.0"}},
 				{Kind: "ready", Direction: "s2c"},
 			},
 		},
@@ -514,7 +514,7 @@ func TestValidateCQLValidQueryResult(t *testing.T) {
 		CQL: &core.CQLConfig{
 			WireProfile: "cql_v4",
 			Events: []core.CQLEvent{
-				{Kind: "startup", Direction: "c2s"},
+				{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "3.0.0"}},
 				{Kind: "ready", Direction: "s2c"},
 				{Kind: "query", Direction: "c2s", Query: "SELECT 1"},
 				{Kind: "result", Direction: "s2c"},
@@ -531,6 +531,8 @@ func TestValidateCQLValidPrepareExecute(t *testing.T) {
 		CQL: &core.CQLConfig{
 			WireProfile: "cql_v4",
 			Events: []core.CQLEvent{
+				{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "3.0.0"}},
+				{Kind: "ready", Direction: "s2c"},
 				{Kind: "prepare", Direction: "c2s", Query: "SELECT v FROM ks.t WHERE k = ?"},
 				{Kind: "execute", Direction: "c2s", PreparedID: "pid-1"},
 			},
@@ -560,8 +562,8 @@ func TestValidateCQLValidSessions(t *testing.T) {
 		CQL: &core.CQLConfig{
 			WireProfile: "cql_v4",
 			Sessions: []core.CQLSession{
-				{Events: []core.CQLEvent{{Kind: "startup", Direction: "c2s"}, {Kind: "ready", Direction: "s2c"}}},
-				{Events: []core.CQLEvent{{Kind: "startup", Direction: "c2s"}, {Kind: "ready", Direction: "s2c"}}},
+				{Events: []core.CQLEvent{{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "3.0.0"}}, {Kind: "ready", Direction: "s2c"}}},
+				{Events: []core.CQLEvent{{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "3.0.0"}}, {Kind: "ready", Direction: "s2c"}}},
 			},
 		},
 	})
@@ -758,6 +760,8 @@ func TestPlanCQLPrepareExecute(t *testing.T) {
 		CQL: &core.CQLConfig{
 			WireProfile: "cql_v4",
 			Events: []core.CQLEvent{
+				{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "3.0.0"}},
+				{Kind: "ready", Direction: "s2c"},
 				{Kind: "prepare", Direction: "c2s", Query: "SELECT v FROM ks.t WHERE k = ?"},
 				{Kind: "execute", Direction: "c2s", PreparedID: "pid-1", Consistency: 1, QueryFlags: 0},
 			},
@@ -770,14 +774,14 @@ func TestPlanCQLPrepareExecute(t *testing.T) {
 		t.Fatal(err)
 	}
 	packets := collectPackets(ch, 20)
-	if len(packets) != 9 {
-		t.Fatalf("packet_count=%d want 9", len(packets))
+	if len(packets) != 11 {
+		t.Fatalf("packet_count=%d want 11 (handshake 3 + startup/ready/prepare/execute 4 + teardown 4)", len(packets))
 	}
-	// pkt[3]: prepare up, pkt[4]: execute up
-	if packets[3].Direction != "up" {
-		t.Fatalf("pkt[3] direction=%q want up", packets[3].Direction)
+	// pkt[5]: prepare up, pkt[6]: execute up
+	if packets[5].Direction != "up" {
+		t.Fatalf("pkt[5] direction=%q want up", packets[5].Direction)
 	}
-	if packets[4].Direction != "up" {
+	if packets[6].Direction != "up" {
 		t.Fatalf("pkt[4] direction=%q want up", packets[4].Direction)
 	}
 }
@@ -841,17 +845,18 @@ func TestPlanCQLIPv6(t *testing.T) {
 	}
 }
 
-func TestPlanCQLV5Tracing(t *testing.T) {
-	// S8: v5 profile with tracing flag
+func TestPlanCQLV5HandshakeOnly(t *testing.T) {
+	// S8 (D-CQL-1 B2 transition档): v5 profile carries the pre-handshake
+	// unframed face only (OPTIONS/SUPPORTED/STARTUP/READY); post-handshake
+	// messages need the v5 envelope (G-CQL-3).
 	spec := core.FlowSpec{
 		SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345, DstPort: 9042, Count: 1,
 		CQL: &core.CQLConfig{
 			WireProfile: "cql_v5",
 			Events: []core.CQLEvent{
+				{Kind: "options", Direction: "c2s"},
 				{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "5.0.0"}},
 				{Kind: "ready", Direction: "s2c"},
-				{Kind: "query", Direction: "c2s", Query: "SELECT 1", Consistency: 1, QueryFlags: 0, Flags: 2},
-				{Kind: "result", Direction: "s2c"},
 			},
 		},
 	}
@@ -862,19 +867,142 @@ func TestPlanCQLV5Tracing(t *testing.T) {
 		t.Fatal(err)
 	}
 	packets := collectPackets(ch, 20)
-	if len(packets) != 11 {
-		t.Fatalf("packet_count=%d want 11", len(packets))
+	if len(packets) != 10 {
+		t.Fatalf("packet_count=%d want 10", len(packets))
 	}
-	// pkt[3]: startup v5
+	// pkt[3]: options v5, pkt[4]: startup v5
 	if packets[3].Payload[0] != 0x05 {
 		t.Fatalf("pkt[3] version=%02x want 05", packets[3].Payload[0])
 	}
-	// pkt[5]: query v5 with flags=2
-	if packets[5].Payload[0] != 0x05 {
-		t.Fatalf("pkt[5] version=%02x want 05", packets[5].Payload[0])
+	if packets[4].Payload[0] != 0x05 {
+		t.Fatalf("pkt[4] version=%02x want 05", packets[4].Payload[0])
 	}
-	if packets[5].Payload[1] != 0x02 {
-		t.Fatalf("pkt[5] flags=%02x want 02", packets[5].Payload[1])
+}
+
+// G-CQL-3 (B2): v5 post-handshake message rejected instead of emitting a
+// bare v4-shaped frame.
+func TestValidateCQLV5PostHandshakeRejected(t *testing.T) {
+	err := (Planner{}).Validate(core.FlowSpec{
+		CQL: &core.CQLConfig{
+			WireProfile: "cql_v5",
+			Events: []core.CQLEvent{
+				{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "5.0.0"}},
+				{Kind: "ready", Direction: "s2c"},
+				{Kind: "query", Direction: "c2s", Query: "SELECT 1", Consistency: 1},
+			},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "envelope") {
+		t.Fatalf("err=%v want envelope rejection", err)
+	}
+}
+
+// G-CQL-6: STARTUP without CQL_VERSION is rejected (§4.1.1 mandatory).
+func TestValidateCQLStartupRequiresCQLVersion(t *testing.T) {
+	err := (Planner{}).Validate(core.FlowSpec{
+		CQL: &core.CQLConfig{
+			WireProfile: "cql_v4",
+			Events: []core.CQLEvent{
+				{Kind: "startup", Direction: "c2s"},
+			},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "CQL_VERSION") {
+		t.Fatalf("err=%v want CQL_VERSION mandatory rejection", err)
+	}
+}
+
+// G-CQL-6: v4 rejects the v5-only beta flag; warning is response-only.
+func TestValidateCQLFlagGates(t *testing.T) {
+	beta := (Planner{}).Validate(core.FlowSpec{
+		CQL: &core.CQLConfig{
+			WireProfile: "cql_v4",
+			Events: []core.CQLEvent{
+				{Kind: "options", Direction: "c2s", Flags: FlagBeta},
+			},
+		},
+	})
+	if beta == nil || !strings.Contains(beta.Error(), "beta") {
+		t.Fatalf("beta err=%v want beta rejection", beta)
+	}
+	warn := (Planner{}).Validate(core.FlowSpec{
+		CQL: &core.CQLConfig{
+			WireProfile: "cql_v4",
+			Events: []core.CQLEvent{
+				{Kind: "options", Direction: "c2s", Flags: FlagWarning},
+			},
+		},
+	})
+	if warn == nil || !strings.Contains(warn.Error(), "warning") {
+		t.Fatalf("warning err=%v want warning rejection", warn)
+	}
+}
+
+// G-CQL-6: auth ordering — AUTH_RESPONSE without AUTHENTICATE is rejected;
+// a query mid-auth is rejected; AUTH_SUCCESS opens the ready gate.
+func TestValidateCQLAuthOrdering(t *testing.T) {
+	noAuth := (Planner{}).Validate(core.FlowSpec{
+		CQL: &core.CQLConfig{
+			WireProfile: "cql_v4_auth",
+			Events: []core.CQLEvent{
+				{Kind: "auth_response", Direction: "c2s"},
+			},
+		},
+	})
+	if noAuth == nil || !strings.Contains(noAuth.Error(), "state") {
+		t.Fatalf("err=%v want auth ordering rejection", noAuth)
+	}
+	midAuth := (Planner{}).Validate(core.FlowSpec{
+		CQL: &core.CQLConfig{
+			WireProfile: "cql_v4_auth",
+			Events: []core.CQLEvent{
+				{Kind: "authenticate", Direction: "s2c", Mechanism: "org.apache.cassandra.auth.PasswordAuthenticator"},
+				{Kind: "query", Direction: "c2s", Query: "SELECT 1", Consistency: 1},
+			},
+		},
+	})
+	if midAuth == nil || !strings.Contains(midAuth.Error(), "state") {
+		t.Fatalf("err=%v want mid-auth query rejection", midAuth)
+	}
+	ok := (Planner{}).Validate(core.FlowSpec{
+		CQL: &core.CQLConfig{
+			WireProfile: "cql_v4_auth",
+			Events: []core.CQLEvent{
+				{Kind: "authenticate", Direction: "s2c", Mechanism: "org.apache.cassandra.auth.PasswordAuthenticator"},
+				{Kind: "auth_response", Direction: "c2s"},
+				{Kind: "auth_success", Direction: "s2c"},
+				{Kind: "query", Direction: "c2s", Query: "SELECT 1", Consistency: 1},
+			},
+		},
+	})
+	if ok != nil {
+		t.Fatalf("auth-then-query should be valid, got %v", ok)
+	}
+}
+
+// W1/G-CQL-2: the v4 QUERY flags field is one byte; the v5 one is four.
+func TestBuildQueryFlagsWidthByProfile(t *testing.T) {
+	ev := core.CQLEvent{Kind: "query", Direction: "c2s", Query: "SELECT 1", Consistency: 1, QueryFlags: 0}
+	v4, err := buildFrame(ReqV4, RespV4, ev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := int(binary.BigEndian.Uint32(v4[5:9])); got != 15 {
+		t.Fatalf("v4 query body len=%d want 15 (4+8+2+1)", got)
+	}
+	if v4[len(v4)-1] != 0x00 {
+		t.Fatalf("v4 query last byte=%02x want the 1-byte flags 0x00", v4[len(v4)-1])
+	}
+	ev.QueryFlags = 2
+	v5, err := buildFrame(ReqV5, RespV5, ev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := int(binary.BigEndian.Uint32(v5[5:9])); got != 18 {
+		t.Fatalf("v5 query body len=%d want 18 (4+8+2+4)", got)
+	}
+	if binary.BigEndian.Uint32(v5[len(v5)-4:]) != 2 {
+		t.Fatalf("v5 query flags tail=%x want 00000002", v5[len(v5)-4:])
 	}
 }
 
@@ -963,7 +1091,7 @@ func TestPlanCQLDefaultPort(t *testing.T) {
 		CQL: &core.CQLConfig{
 			WireProfile: "cql_v4",
 			Events: []core.CQLEvent{
-				{Kind: "startup", Direction: "c2s"},
+				{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "3.0.0"}},
 			},
 		},
 	}
@@ -988,7 +1116,7 @@ func TestPlanCQLContextCancel(t *testing.T) {
 		CQL: &core.CQLConfig{
 			WireProfile: "cql_v4",
 			Events: []core.CQLEvent{
-				{Kind: "startup", Direction: "c2s"},
+				{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "3.0.0"}},
 			},
 		},
 	}
@@ -1124,7 +1252,7 @@ func TestCQLGeneratorGenerateContextCancel(t *testing.T) {
 	cfg := &core.CQLConfig{
 		WireProfile: "cql_v4",
 		Events: []core.CQLEvent{
-			{Kind: "startup", Direction: "c2s"},
+			{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "3.0.0"}},
 		},
 	}
 	ctx, cancel := context.WithCancel(context.Background())

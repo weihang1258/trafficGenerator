@@ -124,7 +124,7 @@ func buildFrame(reqVer, respVer byte, ev core.CQLEvent) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("cql: unknown event kind %q", ev.Kind)
 	}
-	body, err := buildBody(op, ev)
+	body, err := buildBody(op, reqVer, ev)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,9 @@ func buildFrame(reqVer, respVer byte, ev core.CQLEvent) ([]byte, error) {
 }
 
 // buildBody builds the frame body for an opcode from the event config.
-func buildBody(op byte, ev core.CQLEvent) ([]byte, error) {
+// reqVer 决定 QUERY/EXECUTE 的 flags 宽度（W1/G-CQL-2：v4 [byte]、
+// v5 [int]，native_protocol_v4.spec §4.1.4 / v5 §9 Changes#4）。
+func buildBody(op byte, reqVer byte, ev core.CQLEvent) ([]byte, error) {
 	switch op {
 	case OpStartup:
 		return buildStringMapBody(ev.Options), nil
@@ -146,7 +148,7 @@ func buildBody(op byte, ev core.CQLEvent) ([]byte, error) {
 	case OpSupported:
 		return buildStringMultimapBody(ev.Options), nil
 	case OpQuery:
-		return buildQueryBody(ev), nil
+		return buildQueryBody(reqVer, ev), nil
 	case OpResult:
 		return appendI32(nil, ResultVoid), nil
 	case OpPrepare:
@@ -154,7 +156,7 @@ func buildBody(op byte, ev core.CQLEvent) ([]byte, error) {
 	case OpExecute:
 		b := appendShortBytes(nil, []byte(ev.PreparedID))
 		b = appendU16(b, ev.Consistency)
-		b = appendU32(b, ev.QueryFlags)
+		b = appendQueryFlags(b, reqVer, ev.QueryFlags)
 		return b, nil
 	case OpAuthResponse:
 		return appendBytes(nil, ev.Bytes), nil
@@ -167,12 +169,24 @@ func buildBody(op byte, ev core.CQLEvent) ([]byte, error) {
 	return nil, fmt.Errorf("cql: unsupported opcode %#x", op)
 }
 
-// buildQueryBody encodes [long string query] + consistency(short) + flags(int).
-func buildQueryBody(ev core.CQLEvent) []byte {
+// buildQueryBody encodes [long string query] + consistency(short) + flags.
+// W1（G-CQL-2）：v4 的 <query_parameters> flags 是 [byte]（1 字节，
+// native_protocol_v4.spec §4.1.4），v5 扩为 [int]（4 字节，v5 §9
+// Changes#4 "Enlarged ... from [byte] to [int]"）。宽度按 profile 选，
+// 不再恒写 4 字节（tshark cql.query.flags 亦为 FT_UINT8 佐证 v4 面）。
+func buildQueryBody(reqVer byte, ev core.CQLEvent) []byte {
 	b := appendLongString(nil, ev.Query)
 	b = appendU16(b, ev.Consistency)
-	b = appendU32(b, ev.QueryFlags)
-	return b
+	return appendQueryFlags(b, reqVer, ev.QueryFlags)
+}
+
+// appendQueryFlags appends the QUERY/EXECUTE flags field at the width the
+// request version defines: 1 byte for v4, 4 bytes for v5.
+func appendQueryFlags(b []byte, reqVer byte, flags uint32) []byte {
+	if reqVer == ReqV5 {
+		return appendU32(b, flags)
+	}
+	return append(b, byte(flags))
 }
 
 // buildStringMapBody encodes a STARTUP [string map]: short count + string
