@@ -1,9 +1,9 @@
-# NFS 协议设计与测试用例（v2.0.4）
+# NFS 协议设计与测试用例（v2.1.1）
 
 **协议**：NFS（Network File System，网络文件系统）
 **规范来源**：RFC 7530 (NFSv4.0) / RFC 7531 (NFSv4.0 XDR) / RFC 1813 (NFSv3) / RFC 5531 (ONC RPC) / RFC 5665 (NFSv4.1，仅对照参考)
 **默认端口**：2049 (TCP，NFSv3 也可用 UDP)
-**版本**：v2.0.4
+**版本**：v2.1.1（v2.1.0 = P1–P3 附录增补；v2.1.1 = P6 修轮回修 §3.1/§3.5/§7/§8.4 三裁定落文 + 证据行号回填）
 **未实现协议清单节点**：`nfsProtRpt`（扩展表 #8）
 **文档目的**：为 trafficgen 项目实现 NFS 协议 Planner 提供完整设计依据、Config 字段表、状态机、Plan 输出规则、15 个 HexDump 逐字节场景与 200+ 条测试用例。本文档不包含实现代码。
 
@@ -488,7 +488,7 @@ type NFSConfig struct {
     AuthFlavor uint32        `json:"auth_flavor,omitempty"`         // 0=auth_none（默认）, 1=auth_sys
     AuthSys *AuthSysInfo     `json:"auth_sys,omitempty"`            // AuthFlavor=1 时必需
     XIDBase uint32           `json:"xid_base,omitempty"`            // XID 起始值，默认 1
-    XIDIncr int              `json:"xid_incr,omitempty"`            // XID 递增步长，默认 1
+    XIDIncr int              `json:"xid_incr,omitempty"`            // XID 递增步长，未设 = 0（不强制到 1；裁定 N2/G-NFS-5）
     Ops []NFSOp              `json:"ops"`                           // 操作序列（v3 procedure / v4 compound_ops）
     Sessions int             `json:"sessions,omitempty"`            // 并发会话数（默认 1），每会话独立 4-tuple
     SessionsSrcPortBase uint16 `json:"sessions_src_port_base,omitempty"` // 多会话源端口起始
@@ -506,8 +506,8 @@ type NFSConfig struct {
 - **Transport**：默认 "tcp"。NFSv3 可设 "udp"（UDP 上 RPC 无记录标记）。
 - **AuthFlavor**：默认 0（auth_none）。设 1 → 用 AuthSys 填 credentials。设 6（RPCSEC_GSS）→ Validate 报错 "RPCSEC_GSS not supported"。
 - **AuthSys**：AuthFlavor=1 时必填，nil 时 Validate 用默认值（stamp=0, machinename="trafficgen", uid=0, gid=0）。
-- **XIDBase**：第一个 RPC call 的 XID。默认 1。XIDIncr=1 时第二个 call 的 XID=2。
-- **XIDIncr**：默认 1。设 0 → 所有 call 共用同一 XID（用于测试 reply echo 行为）。
+- **XIDBase**：第一个 RPC call 的 XID。未设 = 0 → 生成器兜底 1（`layer_gen.go:93`，legacy 同款）。XIDIncr=1 时第二个 call 的 XID=2。
+- **XIDIncr**：**未设 = 0**（裁定 N2/G-NFS-5：代码不把 0 强制到 1，`layer_gen.go:95-97` 注释逐字 "Do NOT coerce to 1"）——未设时所有 call 共用同一 XID（XID 序列不递增）；显式设 0 同义（用于测试 reply echo 行为，T-015）；要递增须显式写 `xid_incr: 1`（T-014/T-016）。
 - **Ops**：操作序列。每个 NFSOp 描述一次 RPC 往返（一个 call + 一个 reply）。
 - **Sessions**：默认 1。>1 时生成 Sessions 个独立 TCP 流，源端口递增（用于多客户端场景）。sessions=1 时 SessionsSrcPortStep 可为任意值（无递增需求）；sessions>1 时必须非 0。
 - **SessionsSrcPortStep**：sessions=1 时可为任意值（含 0）；sessions>1 时必须非 0，否则 Validate 报错。
@@ -749,7 +749,7 @@ type AuthSysInfo struct {
 - **Opcode 范围**：3-39 为 NFSv4.0 合法操作（RFC 7530 §16 / RFC 7531 §6.1）；40-62 为 NFSv4.1+ 引入（RFC 5661/5663），Validate 不报错但生成时直接写入 opcode 字段，本设计的自动补全流程（§4.1）不使用这些操作；0/1/2 与 63+ 非法，Validate 报错 "invalid opcode (must be 3-62)"。
 - **Filehandle 长度**：0 ≤ len ≤ 128（NFS4_FHSIZE） / 64（NFS3_FHSIZE）。超出 Validate 报错。
 - **MountFilehandle 长度**：0 ≤ len ≤ 64（NFS3_FHSIZE），默认 16×0x01。
-- **Stateid.Other**：12 字节固定长度。user 必须提供 12 字节（可用 base64 或 hex string）。不足或超长 → Validate 报错 "stateid other must be 12 bytes"（遵循 RFC 7531 §3 严格 12 字节语义）。
+- **Stateid.Other**：12 字节固定长度。user 必须提供 **12 个数字的 JSON 数组**（`types.go:518` `Other [12]byte`：定长数组由 JSON 直接解码，**不接受 base64/hex 字符串**——`nfs_t135_v4_stateid_other12` 即数组形；非法形态在反序列化期即失败，裁定 N3/G-NFS-6）。长度由固定数组类型结构性兜底：非 12 项数组在 `json.Unmarshal` 即失败。——**v2.1.1 回修**（旧文"可用 base64 或 hex string"按代码事实废止；§8.4 V27/V28/V29 同修）。
 - **Clientid**：8 字节 uint64。0 = "未分配"，在 SET_CLIENTID call 本身中使用 0 是合法的。
 - **Seqid 语义**：uint32。0 = 初始值。回绕（4294967295 → 0）在 NFSv4 中是协议规范行为。**seqid 按 state-owner 独立维护**（RFC 7530 §8.2.2/§8.2.5/§8.2.8）：open-owner（OPEN/OPEN_CONFIRM/OPEN_DOWNGRADE/CLOSE）共享同一序列；lock-owner（LOCK/LOCKU）共享另一序列。不同 owner 的 seqid 序列相互独立。
 - **Data**：byte slice。0 字节合法（空 WRITE）。MSS 分段在 Plan 阶段处理。
@@ -1688,10 +1688,10 @@ GETATTR 前未 PUTFH/PUTROOTFH，服务端返回 NFS4ERR_NOFILEHANDLE=10020（�
 | T-010 | AUTH_SYS groups 空数组 | auth_flavor=1, groups=[] | call gid_count=0 | gid_count @ offset=00；CredLen 反映无 groups |
 | T-011 | RPCSEC_GSS 拒绝 | auth_flavor=6 | Validate 报错 | 错误消息="RPCSEC_GSS not supported" |
 | T-012 | auth_flavor=2 (AUTH_SHORT) | auth_flavor=2 | Validate 报错（未实现） | 错误消息含 "unsupported auth_flavor" |
-| T-013 | XID 递增默认 | xid_base=1, xid_incr=1, ops=[NULL,NULL] | 2 个 call XID=1,2 | call1 XID=01；call2 XID=02 |
+| T-013 | XID 递增（须显式 `xid_incr`） | xid_base=1, xid_incr=1, ops=[NULL,NULL] | 2 个 call XID=1,2 | call1 XID=01；call2 XID=02（**v2.1.1 回修**：未设 `xid_incr` 时不递增——裁定 N2/G-NFS-5 按代码事实定稿，本行须显式写 `xid_incr=1`） |
 | T-014 | XID 步长=2 | xid_base=100, xid_incr=2 | 2 个 call XID=100,102 | call1 XID=00000064；call2 XID=00000066 |
 | T-015 | XID 不递增 | xid_incr=0, ops=[NULL,NULL] | 2 个 call 同 XID | call1 XID == call2 XID（用于测试 echo 行为） |
-| T-016 | XID base=0 | xid_base=0 | call XID=0 | CALL XID @ 04-07=00 00 00 00（合法，XID 是 uint32） |
+| T-016 | XID base=0 | xid_base=0 | call XID=1（0 → 生成器兜底 1，`layer_gen.go:93`） | CALL XID @ 04-07=00 00 00 01（**v2.1.1 回修**：裁定 N2 后按实测口径——0 兜底为 1，非原写的 0；用例 `nfs_t016_xid_base_zero` 先跑后钉） |
 | T-017 | XID 回绕 | xid_base=0xFFFFFFFF, xid_incr=1, ops=[NULL,NULL] | call1 XID=0xFFFFFFFF；call2 XID=0 | 回绕到 0（uint32 溢出） |
 | T-018 | Transport=udp (v3) | version=3, transport="udp" | UDP 数据报（无 RM） | UDP call payload 不含 4B RM，直接以 XID 开头 |
 | T-019 | Transport=udp 拒绝 (v4) | version=4, transport="udp" | Validate 报错 | 错误消息="NFSv4 requires TCP (transport=tcp)" |
@@ -1920,12 +1920,12 @@ GETATTR 前未 PUTFH/PUTROOTFH，服务端返回 NFS4ERR_NOFILEHANDLE=10020（�
 | T-192 | NFSv4 完整会话 | version=4, ops=[{compound_ops:[PUTROOTFH, GETATTR]}, {compound_ops:[PUTFH, LOOKUP, READ]}] | SETCLIENTID + SETCLIENTID_CONFIRM + 2 COMPOUND | 第 1-2 个 COMPOUND 是 SETCLIENTID/CONFIRM；第 3-4 个是用户配置 |
 | T-193 | AUTH_SYS 完整会话 | version=4, auth_flavor=1, ops=[...] | 所有 call 含 AUTH_SYS cred | 每 call CredFlavor=01；CredLen=0x18=24（默认 auth_sys：stamp 4 + machinename "trafficgen" 10+2 padding + uid 4 + gid 4 + gid_count 4） |
 | T-194 | 错误注入完整会话 | result_status=10020, ops=[{compound_ops:[GETATTR]}] | COMPOUND reply status=10020 | reply 顶层 status=00002724；resarray=1 |
-| T-195 | 多会话完整 | sessions=3, ops=[...] | 3 个独立 TCP 流 × 完整序列 | 3 个 FlowID；每会话含 SETCLIENTID+CONFIRM+用户 ops |
+| T-195 | 多流复合完整（多会话口径按 N1 裁定重建） | `strategy_fc {"type":"flows","value":3}` + 层内动态 `ip.src`（inc）+ 显式 `xid_incr: 1` + `auth_flavor: 1` + GETATTR `reply_status: 70`（NFS3ERR_STALE）+ LOOKUP/READ/WRITE/REMOVE，MOUNT/UMOUNT 自动插入 | 63 包 = 3 流 ×（3 握手 + MOUNT(2) + 5 ops(10) + UMOUNT(2) + 挥手(4)）；group_id=fixed → 同 shard 定序 p1-21/p22-42/p43-63；每流 XID 独立 1..7；异常状态字 70 三流一致 | 落码 `nfs_t195_v3_multiflow_composite` |
 | T-196 | MSS 分段 | data=4000 字节（>1460 MSS） | WRITE call 分多段 PSH-ACK | 段 1 含 RM+RPC 头；段 2/3 含 data；每段 PSH+ACK |
 | T-197 | 端到端 PCAP 产出 | 完整 spec | 任务提交 → PCAP 文件 | PCAP 含 TCP 3-way + RPC frames + FIN；tshark 解析为 NFS |
 | T-198 | Plan → builder 集成 | TDSConfig JSON → trafficgen 字节流 | 字节流含完整 RPC 帧序列 | 字节流可被 Wireshark NFS dissector 解析 |
-| T-199 | broken spec 失败 | ops 含非法 clientid 跨会话重复 | 任务实际失败 | 任务状态=failed；失败原因含 "duplicate clientid" |
-| T-200 | 全字段端到端 | 同时配置 auth_sys + 多会话 + 错误注入 + 多 op | 包序列正确 | 每 call CredFlavor=01；每会话独立 clientid；reply status=错误码 |
+| T-199 | broken spec 失败（链级口径） | 链级 sessions>1（多流扩张在链上不受支持） | 生成器/validator 双拒绝 | 失败锚词 = "multi-stream expansion is not supported on the layer chain"（`layer_gen.go:88-90` 生成器级 + `:201-203` 校验级，校验级先于 `Planner.Validate`） |
+| T-200 | 全字段端到端（多流口径按 N1 裁定重建） | `auth_flavor: 1` + `strategy_fc` 多流 + 错误注入（`reply_status`）+ 多 op | 包序列正确 | 每 call CredFlavor=01；每流独立 XID；reply status=错误码——**落码即 T-195 复合例**（`nfs_t195_v3_multiflow_composite`，auth_sys 全 call `rpc.auth.flavor=1,0` + GETATTR 70 + 每流 XID 1..7 已钉） |
 
 ---
 
@@ -1981,9 +1981,9 @@ GETATTR 前未 PUTFH/PUTROOTFH，服务端返回 NFS4ERR_NOFILEHANDLE=10020（�
 | V24 | NFSv3 Filehandle 长度 ≤ 64 (NFS3_FHSIZE) | "filehandle exceeds NFS3_FHSIZE (64)" |
 | V25 | NFSv4 PUTFH Filehandle 长度 ≤ 128 (NFS4_FHSIZE) | "filehandle exceeds NFS4_FHSIZE (128)" |
 | V26 | MountFilehandle 长度 ≤ 64 (NFS3_FHSIZE) | "mount_filehandle exceeds NFS3_FHSIZE (64)" |
-| V27 | Stateid.Other 必须 12 字节 | "stateid other must be 12 bytes" |
-| V28 | ClientidVerifier 必须 8 字节 | "clientid_verifier must be 8 bytes" |
-| V29 | CookieVerf 必须 8 字节 | "cookie_verifier must be 8 bytes" |
+| V27 | Stateid.Other 定长 12（结构性） | 无独立锚词——非 12 项 JSON 数组在反序列化期即失败（裁定 N3/G-NFS-6，**v2.1.1 回修**；旧锚词 "stateid other must be 12 bytes" 废止） |
+| V28 | ClientidVerifier 定长 8（结构性） | 同上（旧锚词 "clientid_verifier must be 8 bytes" 废止） |
+| V29 | CookieVerf 定长 8（结构性） | 同上（旧锚词 "cookie_verifier must be 8 bytes" 废止） |
 | V30 | AttrMask 非零 word 仅 word 0/1（attr 0-63）；word 2+ 非零报错 | "attrmask contains NFSv4.1+ attributes" |
 | V31 | NFSv3 filename 长度 ≤ 255 (NFS3_MAXNAMLEN) | "filename exceeds NFS3_MAXNAMLEN (255)" |
 | V32 | COMPOUND tag 长度 ≤ 1024 | "COMPOUND tag exceeds 1024 bytes" |
@@ -2302,6 +2302,8 @@ trafficgen 将 NFS 协议能力映射到 9.4.1.38 协议扩展信息上报（扩
 
 | 版本 | 日期 | 修订内容 |
 |------|------|----------|
+| v2.1.1 | 2026-09-27 | P6 修轮回修（M3 落文）：§3.1 `XIDIncr` 回修为"未设=0"（裁定 N2）+ T-013（须显式写 `xid_incr: 1`）/T-016（0→兜底 1）回修；§3.5 `Stateid.Other` 回修为"只认 JSON 数字数组"（裁定 N3）；§8.4 V27/V28/V29 转结构性（旧锚词废止）；§7.9 T-195/T-199/T-200 按 N1 口径重建（复合例 `nfs_t195_v3_multiflow_composite` 落码）；§14.5 错误分支落码行号回填（原 P1 预估号漂移）；§15 G-NFS-3/5/6 标落定关单（残留 A′ 缺例另记）；配套 `08-nfs-testcase.md` 同批入版 v1.1.0 |
+| v2.1.0 | 2026-09-26 | P-PIPE 文档轨（#51 nfs）P1–P3 补足：新增 §12 P1 规范矩阵（八项 + 三子表 + 三路对照 + 候选方案对比）、§13 门1 §1–§14 十四行对照表（§1/§3/§12 强制展开 + 目标形状 spec_json 样例）、§14 D-NFS-1 代码设计条目（八要素）、§15 缺口立项清单（G-NFS-1…10）；配套测试侧契约另见 `docs/protocol-designs/08-nfs-testcase.md`。本文 §1–§11 协议正文只核对不改动（区别见 §13 与 08-nfs-testcase.md §3 的审计） |
 | v2.0.4 | 2026-08-05 | 修复复审（r4）发现的 8 个问题（0 CRITICAL + 1 HIGH + 3 MEDIUM + 4 LOW）：§3.2 NFSOp 补齐 NFSv3 多参数 procedure 的 Config 字段（RENAME 双 dirfh 双名 / LINK link_dirfh / SYMLINK symlink_target / MKNOD ftype+devdata），新增 §2.8 字段映射表、§6 S16a-S16d 字节级场景、T-054/055/058/059 输入同步；S14 RM 修正（0x40→0x50，消息 ≥80B）；S9 RM 核算文字修正（128→132=0x84）；T-110 open_seqid 1→2 与 §4.1 规则 3/S12 统一；§2.6 匿名 stateid 字节标注补 seqid；T-143 filename len 6→10；S2 标题"4 字节"→"1 字节"；新增 V23b（share_access/share_deny 范围校验，按 RFC 7530 §16.17.2 原文 share_deny 合法值含 BOTH=3）+ V39（MKNOD ftype）+ T-055a/055b/087 负例/088a/088b/089a/089b；详见 §11.10 |
 | v2.0.3 | 2026-08-05 | 修复复审（r3）发现的 15 个问题（5 CRITICAL + 3 HIGH + 4 MEDIUM + 3 LOW）：撤销 r2 的两个反向修复（恢复 S12 CLAIM_NULL 的 component4 file、删除 S9 多余的外层 eof）；S11 GETATTR result 补 fattr4 attr_vals 长度前缀（RM 0x50→0x54）；S4 LOOKUP reply 重排为 fh→obj_attributes→dir_attributes；S12 openhow 改为 opentype4 判别 + createhow4（含 createattrs）；time_how 映射与 T-155 hex 修正；详见 §11.9 |
 | v2.0.2 | 2026-08-05 | 修复复审（r2）发现的 25 个问题（3 CRITICAL + 7 HIGH + 10 MEDIUM + 5 LOW）：sattr3 判别联合编码整体修正（S3/S7 + §2.8 + T-029~T-035）；RM 长度全部重算（S1/S2 及 S4-S12 CALL 偏移统一 40 字节头）；writeverf3/verf4 去长度前缀（S6/S10）；clientid 三处矛盾统一 0x10000*(i+1)+1；AcceptState 偏移声明修正；S12 纳入 OPEN_CONFIRM 补全；wcc_data 92 字节结构统一；S11 GETATTR result 展开（其中 S12 CLAIM_NULL 删 file、S9 补双 eof 两项为按 r2 误判的反向修复，v2.0.3 §11.9 C-1/C-2 已撤销）；详见 §11.8 |
@@ -2533,5 +2535,382 @@ v2.0.0 是**不兼容重写**：
 | L-4 | OPEN 的 share_access/share_deny 无 Validate 范围校验、T-087~089 无非法值负例 | 新增 V23b（share_access 仅 1/2/3、share_deny 仅 0/1/2/3，RFC 7530 §16.17.2 原文，非法值服务端返回 NFS4ERR_INVAL）；新增负例 T-088a（share_access=0）/T-088b（share_access=4）/T-089b（share_deny=4）+ 正例 T-089a（share_deny=3 BOTH） |
 
 **修复后复核**：S16a-S16d 的 HexDump 全部逐字节核算（见各场景"长度核算"），RM 与 CALL 总长吻合（80B/68B/96B/96B）；T-054/055/058/059 的断言与 §2.8 字段映射、§3.2 Config 字段一一对应；V23b/V39 与 T-088a/088b/089a/089b/055a/055b 一一对应。
+
+---
+
+## 12. P1 规范矩阵（CORE_MEMORY §4.19–§4.22：八项 + 三子表 + 三路对照 + 候选方案对比）
+
+> 本文 §12 起为 P-PIPE 文档轨（#51 nfs）新增层。§12 是"规范要求 → 业务场景 → 代码现状 → 缺口"矩阵，§13 是门 1 十四行对照表，§14 是 D-NFS-1 代码设计条目，§15 是缺口立项清单。
+> **口径声明**：本矩阵"代码现状"列全部为本次实读行号（2026-09-26，HEAD `0c355be` 工作树），"用例覆盖"列全部为 `cases/nfs.json`（201 例）实测；三路对照的"现网"一路只引用官方文档原文（Microsoft Learn / Linux man-pages），无第二手解读；本次读不到、测不到的项一律标"待确认 + 确认方式"，不写成定论。
+
+### 12.0 证据口径（实测数字，可复跑）
+
+| 数字 // 结论 | 口径（命令或 文件:行） | 值 |
+|---|---|---|
+| nfs dissector 字段数 | `tshark -G fields \| awk -F'\t' '$3 ~ /^nfs\./' \| wc -l`（TShark 3.6.14） | **648**（635 F + 13 P） |
+| rpc dissector 字段数 | 同口径换 `^rpc\.` | **82** |
+| 用例断言字段名有效性 | 201 例 `expect.fields` 去重后逐个查 `tshark -G fields` 第 3 列 | **46/46 全部在册**（无死字段） |
+| nfs 层注册 | `trafficgen/internal/core/layers/registry.go:1000-1018` | `DependsOn ["tcp"]`（:1144）+ `TransportOn ["tcp","udp"]`（:1145），双载体 |
+| 生成层注册表 | `trafficgen/schemas/v1/generated/layers.generated.json`（键数） | **123**（含 nfs；**无 ipv6 层**，IPv6 由 `ip.src`/`ip.dst` 的 v6 字面量表达，（P1 期 ipv6 层注记；P6 修轮仅注记行号漂移） "EtherType derived from the source IP (IPv6 flows get 0x86DD)"） |
+| 存量用例 | `trafficgen/test/protocol_pcap/cases/nfs.json` | **201** 例：层链形 168 / 纯扁平形 33；负例 24（**全部为纯扁平形**） |
+| 顶层键实测 | 同上逐例 `spec_json` 键统计 | `count` **201/201**、顶层 `nfs` 子映射 **201/201**、`flow_control` **0/201** |
+| 协议侧测试函数 | `grep -c "func Test"` | `internal/protocol/nfs/nfs_test.go` 79 + `layer_gen_test.go` 15 = **94** |
+| coverage_gate 登记 | `grep -n nfs trafficgen/tools/coverage_gate.py` | **0 命中**（门 2-4 判黄，（已落码：P4 commit `a74ae7b` + P6 修轮 `check_nfs`）） |
+
+### 12.1 八项矩阵（§4.1–§4.8；每行"已实现 / 明确不支持 / 不适用"三选一，不留白）
+
+| # | 规范要求（出处） | 业务场景 | 代码现状（实读） | 缺口（三选一 + 立项号） |
+|---|---|---|---|---|
+| 4.1 连接模型 | v3 走 TCP 或 UDP、端口 2049（RFC 1813 §2.3，本次原文核实："It uses port 2049, the same as the NFS version 2 protocol"；§2.2 CONSTANTS：PROGRAM 100003 VERSION 3）；v4.0 仅 TCP（RFC 7530）；MOUNT 是独立 RPC 程序（RFC 1813 附录 I，本次核实目录 §5.2.0–§5.2.5 = NULL/MNT/DUMP/UMNT/UMNTALL/EXPORT **六个 procedure，无 PATHCHK**）；RPC 帧在 TCP 上有 4 字节 Record Mark（RFC 5531 §11.B） | 单客户端挂载→读写→卸载；一控制程序（MOUNT）一数据程序（NFS） | 双载体注册 `registry.go:1143-1145`（DependsOn 单值 tcp + TransportOn ["tcp","udp"]，默认 tcp）；载体一致性校验 `chain_planner.go:548-569`（载体一致性；P1 期号已漂移，P6 修轮回填）（udp 载体 + transport 空串即拒）；RM 前缀 `nfs.go:916` `wrapRM`（落码实读）（"tcp" 才有 4 字节）；MOUNT/NFS/UMOUNT **同一条连接**（`nfs.go:512` `buildOpSequence`（落码实读） 顺序插 op；`layer_gen.go`（终结层自封；P1 期号已漂移，P6 修轮注记） 逐 op 事件） | **偏离**：真实客户端 MOUNT 走 rpcbind（111）+ mountd 独立服务端口（Linux `nfs(5)`：`mountport=`/`mounthost=`/`mountvers=` 即为此），本设计同连接 ⇒ §9.5 #1 保留 + **G-NFS-7**（关联字段见 §13.2） |
+| 4.2 命令/消息表 | v3 proc 0–21（RFC 1813 §3.3.1–§3.3.21）；MOUNT 0–5（附录 I）；v4 COMPOUND opcode 3–39（RFC 7531 §6.1）；RPC CALL/REPLY 头字段（RFC 5531 §8） | 单 op 请求-响应；一次 COMPOUND 多 op | 编辑器齐备：`encodeNFS3Call`(`nfs.go:928`) / `encodeMountReply`(`:1148`) / `encodeNFS4Call`(`:1180`) / `encodeNFS4Reply`(`:1409`) / `encodeCompoundOpArgs`(`:1316`)（P6 修轮实读在册）；自动补全 `buildOpSequence`(:512) + `autoCompletePutRootFH`（`nfs.go:690`，P6 修轮实读） + `autoCompleteOpenConfirm`(:741)；proc 22+ 透传（T-066/T-148 机制）、MOUNT proc 6+ 报错（`nfs.go:171`，P6 修轮实读） | **已实现**（表格行逐格见 §12.2 子表①；MOUNT 0/2/4/5 仅"显式透传不自动补全"= 明确不支持自动补全，属设计意图） |
+| 4.3 状态机 | v3 无状态：MOUNT→NFS 操作→UMOUNT；v4.0 有状态：SETCLIENTID→CONFIRM→PUTFH/PUTROOTFH→业务 op→（无会话拆除 op，由 TCP FIN 表达）；v4.1 才有 CREATE_SESSION/DESTROY_SESSION（RFC 5661） | 多轮 op 的连续会话；失败即截断 | `buildOpSequence` 插 SETCLIENTID/CONFIRM（v4）；`autoCompletePutRootFH` 按 `needsCurrentFH`(nfs.go:667) 判插入；`autoCompleteOpenConfirm` 按 open-owner 首现插入（`openOwnerKeyFor`:730）；RFC 7530 §16.18.4 的 seqid=OPEN+1 语义已实现 | **已实现**；**缺**：交错调度与空闲/保活状态无表达（见 4.6 行） |
+| 4.4 字段表 | XDR 全大端（RFC 4506）；fattr3 84B；sattr3 判别联合；stateid4 = seqid4 + opaque[12]（RFC 7531 §3）；clientid4 = uint64；filehandle ≤64（v3）/≤128（v4） | 逐字段边界与非法值 | 结构体已定型：`types.go:518` `Other [12]byte`（定长，`nfs.go:254` V23b 注释面（P1 期号已漂移，P6 修轮注记）"Other is fixed 12 bytes; structural type enforces this"）、`:392`/`:436` `CookieVerf [8]byte`、`:458` `ClientidVerifier [8]byte`；编码器 `builder.go`（1017 行） | **偏离**：§8 声明的 V27/V28/V29（"stateid other must be 12 bytes"等三条锚词）**实测 nfs.go 零命中**（长度由固定数组类型结构性兜底：非 12 项 JSON 数组在反序列化即失败，锚词不是声明的那条）；§3.5 称 other 可用 base64/hex 字符串，实测用例必须写 JSON 数组（`cases/nfs.json` 16 处 `"other": [0,0,...]`）⇒ **G-NFS-6** |
+| 4.5 错误处理表 | RPC 层 MSG_ACCEPTED 0–5 六值 + MSG_DENIED RPC_MISMATCH(0)/AUTH_ERROR(1)（RFC 5531 §8）；NFS4ERR_* 全表（RFC 7531 §3）；COMPOUND 中途失败截断 | 认证失败、程序不可用、文件不存在 | 指针注入 `types.go` RPCAcceptState/RPCRejectState；reply 合成 `buildReply`(nfs.go:843)；截断 `encodeNFS4Reply`(:1409) | **已实现**（逐值见 §12.2 子表①：accept 0–5 与 reject 0–1 全覆；错误码取值自由 uint32 ⇒ 表内任意 NFS4ERR_* 可注入） |
+| 4.6 超时与活性 | v4 lease 与 RENEW（RFC 7530 §9.6/§16.29）；v3 无状态但 UDP 有自适应重传（RFC 1813 §4.11 Adaptive retransmission，本次核实目录在册）；NFS 无应用层心跳 | 长保活会话；丢包重传 | RENEW 只作普通 op 可显式配置（`encodeCompoundOpArgs`），无自动补全；**无重传、无超时、无空闲表达**（§9.5 #3 已登记）；链上事件流一次产完（`layer_gen.go:121-140`），无 idle 间隔参数 | **明确不支持**（重传/超时/idle）⇒ **G-NFS-9**；RENEW 作为 op = 已实现 |
+| 4.7 NAT/代理/被动模式 | NFS 无 FTP 式被动模式；v4 回调通道（CB_COMPOUND，RFC 7530 §18.1）需服务端反向可达，NAT 后需显式配置；NLM 同理 | NAT 后的挂载；回调不可达降级 | 无回调通道生成（§1.4 规则 4）；无 NAT 面配置；目的端口默认 2049（`chain_planner.go:1134`（`case "nfs"` 目的端口默认 2049；P1 期号已漂移，P6 修轮回填），用户可显式覆盖 `dst_port`） | **不适用**（无被动模式，无需 `driven_by` 端口协商）+ **明确不支持**（CB 反向流）⇒ **G-NFS-8** |
+| 4.8 版本/方言差异 | v2（RFC 1094，MOUNT proc 6 PATHCHK 已被 v3 删除）；v4.1（RFC 5661：EXCHANGE_ID/CREATE_SESSION/DESTROY_SESSION）、v4.2（Linux 客户端默认先试 4.2 再降级，见 §12.5）；RPC-with-TLS（Linux `nfs(5)` `xprtsec=tls/mtls`） | 老客户端兼容；新方言互操作 | Validate 只放行 version 3/4（`nfs.go:95`）、minorversion 恒 0（`:126`）；opcode 40–62 透传不报错（`:273` 只拒 <3 或 >62）；MOUNT v2 不支持（§2.3）；IPv6 由 `ip` 层字面量表达（无独立 ipv6 层） | v4.1/v4.2/TLS/v2 = **明确不支持**（已在 §1.2/§2.5 登记）；**用例侧缺口**：IPv6 一条用例都没有（201 例 0 例）⇒ §12.3 行 13 + A′ 补例 |
+
+### 12.2 子表① 命令 × 响应码矩阵（§4.22①：逐格"已覆 / 缺失"）
+
+**（a）NFSv3 NFS 程序（100003, v3）proc 0–21 —— 已覆 21/22**
+
+| proc | 名称 | 已覆用例 | 判 |
+|---|---|---|---|
+| 0 | NULL | T-001/T-002/T-003 | 已覆 |
+| 1 | GETATTR | T-021…T-028 | 已覆 |
+| 2 | SETATTR | T-029…T-035a | 已覆 |
+| 3 | LOOKUP | T-036…T-040 | 已覆 |
+| 4 | ACCESS | T-041 | 已覆 |
+| 5 | READLINK | T-042 | 已覆 |
+| 6 | READ | T-043…T-046 | 已覆 |
+| 7 | WRITE | T-047…T-051 | 已覆 |
+| 8 | CREATE | T-052 | 已覆 |
+| 9 | MKDIR | T-053 | 已覆 |
+| 10 | SYMLINK | T-054 | 已覆 |
+| 11 | MKNOD | T-055/T-055a/T-055b | 已覆 |
+| 12 | REMOVE | T-056 | 已覆 |
+| 13 | RMDIR | T-057 | 已覆 |
+| 14 | RENAME | T-058 | 已覆 |
+| 15 | LINK | T-059 | 已覆 |
+| 16 | READDIR | T-059a | 已覆 |
+| 17 | READDIRPLUS | T-059b（+§6 S9） | 已覆 |
+| 18 | FSSTAT | T-060 | 已覆 |
+| 19 | FSINFO | T-060 | 已覆 |
+| 20 | PATHCONF | T-060 | 已覆 |
+| 21 | COMMIT | **无**（§6 S10 v3 COMMIT 有字节场景、§7.2 无 T 行；配置实测 proc=21 零命中，断言实测 rpc.procedure 集合缺 21） | **缺失 ⇒ G-NFS-2（A′ 可补）** |
+| 22+ | 越界（PROC_UNAVAIL 构造） | T-066/T-148（+T-158 双例） | 已覆（透传 + `rpc_accept_state=3`） |
+
+**（b）MOUNT 程序（100005, v3）proc 0–5 —— 已覆 2/6（+越界负例）**
+
+| proc | 名称 | 现状 | 判 |
+|---|---|---|---|
+| 0 | NULL | 无显式例（自动补全只在头部无 100005 op 时插 proc=1，见 §4.2 规则 5） | 缺失（立项 A′） |
+| 1 | MNT | 自动补全，T-001/T-191 等断言 `rpc.program=100005, rpc.procedure=1` | 已覆 |
+| 2 | DUMP | 仅"显式配置可透传"，无例 | 缺失（立项 A′） |
+| 3 | UMNT | 自动补全尾部，T-001 断言 proc=3 | 已覆 |
+| 4 | UMNTALL | 仅透传，无例 | 缺失（立项 A′） |
+| 5 | EXPORT | 仅透传，无例 | 缺失（立项 A′） |
+| 6+ | 越界 | T-136（锚词 "MOUNT v3 procedure out of range (0-5)"） | 已覆（负例） |
+
+**（c）NFSv4.0 COMPOUND opcode 3–39 —— 已覆 32/37**
+
+| 段 | 已覆 opcode | 缺失 opcode |
+|---|---|---|
+| 3–39（v4.0 全量） | 4,5,6,7,8,9,10,12,13,14,15,16,17,18,**20**（自动补全，T-091 断言）,21,22,23,24,25,28,29,30,31,32,33,34,35,36,37,38,39 | **3 ACCESS、11 LINK、19 OPENATTR、26 READDIR、27 READLINK** ⇒ 5 点缺失（A′ 可补；实现侧编码器已覆盖，见 `encodeCompoundOpArgs` nfs.go:1316） |
+| 40–62 | **无例**（v4.1+ 透传语义"Validate 不报错"正是 RFC 5661 区的行为声明，见 §2.5：用户显式配置时 opcode 直接写入；该语义由 `nfs_test.go` 逻辑测试与 `validateCompoundOp`（`nfs.go:270-273`，只拒 <3 或 >62）承载，不属 PCAP 断言面） | 属"明确不支持"的 v4.1+ 特征面，透传语义在行内不算覆盖缺口，但未列 PCAP 透传例 ⇒ **注记：由主线程裁定是否补 1 例透传 PCAP 例**（不计入 G-NFS-2 缺口账） |
+
+**（d）RPC 层响应码（RFC 5531 §8）—— 已覆 8/8**
+
+| 码 | 取值 | 已覆用例 |
+|---|---|---|
+| MSG_ACCEPTED + AcceptState | 0 SUCCESS | 全部正例 |
+| 同上 | 1 PROG_UNAVAIL / 2 PROG_MISMATCH / 3 PROC_UNAVAIL / 4 GARBAGE_ARGS / 5 SYSTEM_ERR | T-158、T-159、T-148、T-161、T-162 |
+| MSG_DENIED + RejectState | 0 RPC_MISMATCH（携带 low/high） | T-163 |
+| 同上 | 1 AUTH_ERROR（携带 auth_stat） | T-164…T-167 |
+
+### 12.3 子表② 数据形态变体表（§4.22②：逐项"已覆 / 缺失"）
+
+| # | 形态 | 现状（实测） | 判 |
+|---|---|---|---|
+| 1 | 空载荷（NULL / count=0 / data=""） | T-001、T-045、T-051、T-185 | 已覆 |
+| 2 | 超大载荷（>MSS 分段） | T-196 缺例；链上分段由 tcp 层生成器负责（`layer_gen.go`（终结层自封；P1 期号已漂移，P6 修轮注记） 不产握手/分段） | **缺失 ⇒ A′ 补（实现已在）** |
+| 3 | opaque 0–3 字节填充 | T-144…T-147 | 已覆 |
+| 4 | uint32/uint64 上界与回绕 | T-017、T-120、T-189、T-150；**T-187/T-188/T-190（offset/cookie/clientid 全 1）缺例** | 部分缺失 ⇒ A′ 补 |
+| 5 | 字符串长度上下界（filename 0/255/256） | T-038/T-039/T-040 | 已覆 |
+| 6 | 判别联合各分支（sattr3 time_how 0/1/2、mknoddata3 NF3CHR/NF3FIFO、openflag4 四型、open_claim4 四型） | T-029…T-035a、T-055/T-055a、T-079…T-086 | 已覆 |
+| 7 | bitmap4 word 数（1/2/3 含尾部 0） | T-138/T-139/T-140 | 已覆 |
+| 8 | stateid 特值（匿名全 0 / READ bypass 全 1 / 12 字节边界） | T-131/T-132/T-135；**T-133/T-134（11/13 字节）缺例**（且锚词与实现不符，见 G-NFS-6） | 部分缺失 |
+| 9 | filehandle 长度 0/1/4/16/64/65/128/129 | T-023…T-028、T-185 | 已覆 |
+| 10 | 双载体（TCP RM 帧 / UDP 裸数据报） | T-018/T-020/T-141/T-142/T-019；实测用例层链含 udp 仅 2 例 | 已覆（薄） |
+| 11 | 单流 / 多流 | 单流：全部；多流（`flow_control.flows>1` + 动态）：**0 例** | **缺失 ⇒ G-NFS-3** |
+| 12 | 单会话 / 多会话 | 多会话：legacy `Sessions>1` 10 例（链路拒绝，见 G-NFS-3）；链上 0 例 | **缺失 ⇒ G-NFS-3** |
+| 13 | 地址族 IPv4 / IPv6 | IPv4：201 例；**IPv6：0 例**（`ip.src`/`ip.dst` 写 v6 字面量即可表达，（P1 期 ipv6 层注记；P6 修轮仅注记行号漂移）） | **缺失 ⇒ A′ 补** |
+| 14 | 认证方言（AUTH_NONE / AUTH_SYS / AUTH_SYS+groups / RPCSEC_GSS） | T-005…T-012（GSS 负例）；实测 auth_flavor 分布 0:192 / 1:7 / 6:1 / 2:1 | 已覆 |
+| 15 | 错误注入面（RPC 层 8 值 / NFS 层错误码 / COMPOUND 截断） | T-151…T-170 | 已覆 |
+| 16 | 多 op 单报文（COMPOUND argarray>1） | T-078、T-154（断言 `nfs.opcode=24,9`） | 已覆 |
+
+### 12.4 子表③ 商业行为 → 用例映射表（§4.22③ + §4.16）
+
+| # | 商业/现网行为（产品 + 出处） | 映射用例 | 判 |
+|---|---|---|---|
+| 1 | Windows Client for NFS 只支持 **NFSv2 / NFSv3**（不提供 v4 客户端；Server for NFS 另支持 v4.1）——Microsoft Learn《Network File System (NFS) overview》（Applies to Windows Server 2016–2025，页面更新 2025-05-16） | v3 链：T-001/T-021/T-191/T-192；MOUNT 自动补全面 | 已映射（v3 面） |
+| 2 | Windows/UNIX 认证三态：Anonymous、AUTH_SYS（uid/gid）、Kerberos（krb5/krb5i/krb5p）——同前出处 | AUTH_NONE=T-005；AUTH_SYS=T-006…T-010；Kerberos（=RPCSEC_GSS）=T-011 负例 | 已映射（后者为"明确不支持"负例） |
+| 3 | Linux 客户端默认 `vers=` 空时先试 **4.2**，逐级降级协商——Linux man-pages `nfs(5)`（man7.org） | 无（本设计仅 v4.0，minorversion=0 硬校验 T-068/T-069） | 已映射为"明确不支持"（T-068 负例锚词 "only NFSv4.0"） |
+| 4 | Linux v3 挂载需 rpcbind + mountd 独立端口（`mountport=`/`mounthost=`/`mountvers=`）；`port=` 未给时用 rpcbind 广告端口——同前出处 | 本设计同连接模拟（§9.5 #1）；T-136 只覆盖 MOUNT proc 越界 | **偏离已登记**（G-NFS-7），无"分连接"映射 |
+| 5 | Linux v4 客户端在未指定 `port=` 时**直接用 2049、不查 rpcbind**——同前出处 | dst_port 默认 2049（`chain_planner.go:1134`（`case "nfs"` 目的端口默认 2049；P1 期号已漂移，P6 修轮回填）），T-020/T-171 | 已映射 |
+| 6 | RPC-with-TLS（`xprtsec=none/tls/mtls`）——同前出处 | 无 | **待确认**：确认方式=查 Wireshark 是否具备 RPC-over-TLS dissector（本机 `tshark -G protocols` 未列）+ 抓取带 xprtsec 挂载的现网包；不确认前不写入实现 |
+| 7 | NFSv4.1 会话（EXCHANGE_ID/CREATE_SESSION）与 pNFS 布局操作 | T-149（attrmask v4.1+ 负例） | 已映射为"明确不支持"（§2.5/§9.5 #4/#7） |
+
+### 12.5 三路对照（§4.12–§4.15）
+
+| 路 | 来源（版本/出处） | 本次结论 |
+|---|---|---|
+| ① 规范原文 | RFC 1813 §2.2/§2.3（本次原文核实：PROGRAM 100003 VERSION 3；TCP/UDP、端口 2049）、§2.4 Sizes、附录 I 目录 §5.1–§5.2.5；RFC 7530/7531（v4.0 语义与 XDR，本文 §2/§3/§8 已逐条引用）；RFC 5531 §8/§11.B（RPC 头与记录标记）；RFC 5661（v4.1 仅对照）；RFC 1094（v2 仅对照） | 设计正文与规范一致（v2.0.2–v2.0.4 三轮复审已按 RFC 原文修正 sattr3、LOOKUP3resok、openflag4、attr_vals 长度前缀、dirlist3 eof 五处） |
+| ② 现网行为 | Linux：man-pages `nfs(5)`（man7.org，本次实取原文）——`proto=` udp/tcp/rdma、`port=`/`mountport=`/`mounthost=`、v4 默认 2049 不查 rpcbind、`sec=krb5/krb5i/krb5p`、`xprtsec=tls/mtls`；Windows：Microsoft Learn NFS overview（2025-05-16 更新）——Client for NFS 仅 v2/v3、AUTH_SYS 与 Kerberos | 与设计冲突点 3 处：MOUNT 分连接（§9.5 #1，保留偏离）、Kerberos/RPCSEC_GSS 不实现（§9.5 #6，保留）、v4.2 降级协商不存在（§2.5 已登记仅 v4.0）。取舍理由：合成流量以"可控、可断言"为先，真实协商过程留白并挂缺口 |
+| ③ 开源实现思路 | Wireshark 3.6.14 dissector（本机 `tshark -G fields` 实测：`nfs.*` 648 字段、`rpc.*` 82 字段，含 `nfs.opcode`/`nfs.nfsstat4`/`nfs.stateid.*`/`nfs.open4.share_access` 等）；本仓库既有实现（`internal/protocol/nfs/`：nfs.go 1731 行 + builder.go 1017 行 + parser.go 604 行 + types.go 575 行） | 断言面以 Wireshark 字段为准（46 个被断言字段全部在册，0 死字段）；编码器与解析器互为逆运算（parser.go 仅供测试回读） |
+
+**三路不一致时的处置（§4.15）**：以规范为底线、现网为准绳——本设计的 7 处现网偏离（§9.5）保留，逐条挂缺口或登记"明确不支持"，不用现网行为覆盖规范取值（例：Windows 只到 v3 不构成"删掉 v4 实现"的理由，v4.0 仍在册）。
+
+### 12.6 候选方案对比表（§4.17：每决策至少两个真实走法）
+
+| # | 决策 | 方案 A | 方案 B | 选型与理由 |
+|---|---|---|---|---|
+| 1 | 配置载体 | 层条目 config：`{"layers":[{"tcp":{}},{"nfs":{"version":3,...}}]}`（与 http/mqtt/dns 等已迁协议同形） | 顶层 `nfs` 子映射经 `spec.Metadata["nfs"]` 直传生成器（**现状**，`chain_planner_translate.go:2705-2721` `case "nfs"`（P6 修轮落码） + `strategy_convert.go:1473` `case "nfs"` 收敛（P1 期号已漂移，P6 修轮回填）） | **目标选 A**（CORE_MEMORY §1.4/§1.11 白名单：业务字段一律住层链；registry 已注册 14 个 Fields 却零负载=自相矛盾）。B 为过渡形态，P5 迁层后删除；今天 A 跑不通（生成器不读层 config，`layer_gen.go:167 configFromMeta` 只认 Metadata），须先补代码 ⇒ **G-NFS-1** |
+| 2 | 多流/多会话表达 | legacy `Sessions>1` 自动递增源端口（`nfs.go` legacy 多会话源端口面（P1 期号已漂移——legacy 链上不可达，口径见本文 §14.5 双拒绝行；P6 修轮注记）、`planSession:443` clientid 派生） | `flow_control.flows>1` + 层内四元组动态对象；多会话用 `sessions[]` 显式声明（CORE_MEMORY §3.1/§3.2） | **选 B**（§3.1 不许隐式；A 在链上已被双拒绝：`layer_gen.go:88-90`（生成器级 sessions 拒绝；P1 期号已漂移，P6 修轮回填） 生成器 + `:201-203` validator）；A 的 10 例用例须改写或作废 ⇒ **G-NFS-3** |
+| 3 | L4 载体建模 | `DependsOn ["tcp","udp"]` 双值 | `DependsOn ["tcp"]` 单值 + `TransportOn ["tcp","udp"]`（**现状**，`registry.go:1143-1145`） | **选 B**（依赖链判定：DependsOn 单值表默认底座、TransportOn 只放 L4；补齐逻辑与 `complete.go` 一致，无需框架改动） |
+| 4 | 业务动态字段 | 全开（14 个 FieldSchema 都可写动态对象） | 全关（现状：`nfs` 不在 `layer_dyn.go:17` 起的 `layerDynAllowlist`，对象即 "does not support dynamic"，`validate_layers.go:370`） | **选折中 C**：端口/四元组动态已由 `ip`/`tcp`/`udp` 提供（`layer_dyn.go:18-20`），nfs 迁层时再按字段逐个裁定（建议开 `xid_base`（inc）、`filename`（pattern）、`stateid.other`（list）三键，理由：逐流可区分且不破坏状态语义）；对象键的执法点在迁层同批落地 ⇒ **G-NFS-4** |
+| 5 | 协议内序号算法 | legacy 单流内计数器（`nfs.go:497` XID 递增、`:443` clientid 派生、`:385-397` 多会话源端口） | 链上层动态按"逐流 index"解析（`layer_dyn.go:726 genSmallInt`：inc=`start+(index*step)%count`、rand=`rand.NewSource(seed+index)`、list=`index%len`） | **两套并存且分工不同**：四元组进 B；协议内序号（XID/clientid/seqid）留 A（属单流内序列，不由逐流 index 决定）。§13.3 逐条列开行号 |
+
+---
+
+## 13. 门 1 §1–§14 十四行对照表（CORE_MEMORY §15.1–§15.3）
+
+| § | 本协议怎么满足 | 证据（文档章节 / 代码行 / 用例号 三选一） |
+|---|---|---|
+| §1 层链唯一真相 | 见 §13.1 强制展开：旧键 `count`（201/201）迁 `flow_control.flows`；顶层 `nfs` 子映射（201/201）迁 `layers[].nfs` 条目 config；目标形状 spec_json 样例见 §13.1；非负例顶层键目标=0（今日为 `count` 201 + `nfs` 201 两键残留，门 2-1 判红/黄） | §13.1 + `registry.go:1143-1161` + `cases/nfs.json`（P1 期键统计注记；P6 修轮：197 例 = 167 正 + 30 负） |
+| §2 策略/任务 | 策略 = 单 NFS 流量模板（自带 `flow_control` flows/bps/time，今日用例仍写 `count`）；任务 = 多策略合跑 + 总量封顶；框架语义未动 | design §2/§3；`chain_planner.go:1134`（`case "nfs"` 目的端口默认 2049；P1 期号已漂移，P6 修轮回填）（dst 2049 默认）、`:845`（src_port 不默认化） |
+| §3 五件套 | 见 §13.2 强制展开：会话表（单 flow + `flow_control.flows` 展开；legacy `sessions>1` 链拒绝）、事务序列（MOUNT→ops→UMOUNT / SETCLIENTID→CONFIRM→ops）、关联关系（fh 继承 + OPEN stateid 引用；真实分连接与反向流缺失）、插入位置（终结层自封）、时间线（单流严格有序、**不可交错**） | §13.2 + `nfs.go:512/741/1248`（buildOpSequence/autoCompleteOpenConfirm/applyOpenReplyStateid；P1 期号 `:690`（PUTROOTFH 自动补全）已并入 buildOpSequence 面，P6 修轮注记） + `layer_gen.go:88-90`（生成器级 sessions 拒绝；P1 期号已漂移，P6 修轮回填） |
+| §4 查规范 | RFC 1094/1813/5661/7530/7531/5531/4506 + Linux `nfs(5)` + Microsoft Learn NFS overview + tshark `nfs.*` **648 字段实测**；八项矩阵 8 行 + 三子表（22+6+37+8 格）+ 三路对照 + 5 个候选方案对比 | §12.1–§12.6 |
+| §5 依赖与错误 | 依赖：`DependsOn ["tcp"]`（单值）+ `TransportOn ["tcp","udp"]`（只放 L4），载体↔transport 一致性结构性校验；错误：RPC 8 值 + NFS 错误码 + COMPOUND 截断 + 双拒绝（生成器/validator）保底 | `registry.go:1143-1145`；`chain_planner.go:548-569`（载体一致性；P1 期号已漂移，P6 修轮回填）；`nfs.go:84-264`（Validate/V 系列校验；P1 期号已漂移，P6 修轮回填）；`layer_gen.go:88-90/201-203` |
+| §6 性能 | 事件流 O(ops) 流式、无全量聚合、每事件一条 wire 字节（MSS 分段交 tcp 层）；pcap/NIC 双路验收；吞吐/并发/内存目标待 P4 基准（**不写承诺数字**，§6.5） | §14.6 性能边界 + 08-nfs-testcase.md §7 |
+| §7 三份文档 | 本文件（design，P1/P2 权威草稿）+ `08-nfs-testcase.md`（P3 契约，ID 权威）+ D-NFS-1（§14，门 1 获批=定稿）+ generated schema（127 层，nfs 在册；P1 期 123 层，P6 修轮回填） | 修订记录 v2.1.0；§14；§12.0 |
+| §8 设计先行 | §12–§15 先于任何 P4/P5 代码改动与用例改写；门 1 获批 = D-NFS-1 定稿 = 开工门 | §14 + §15 |
+| §9 测试三源 | 三源 = RFC/官方文档（§12.5①）+ D-NFS-1（§14）+ 现网行为（§12.5②，两条官方文档原文）；9.52 对账两行见 08-nfs-testcase.md §8 | 08-nfs-testcase.md §2/§8 |
+| §10 评审闭环 | 每阶段对抗自重审（结论见 `/tmp/pipe/51-nfs/p123-report.md`）+ 收官隔离复审 + 修轮；红先绿后 | 报告文件 |
+| §11 白话 | 每阶段白话一句先行（报告内） | `/tmp/pipe/51-nfs/p123-report.md` |
+| §12 动态清单 | 见 §13.3 强制展开：四元组五策略全支持（`layer_dyn.go:18-20`）；nfs 业务 14 字段现状全关（不在 allowlist）；序号算法逐条给代码行（XID `layer_gen.go:136`（每 op 递增；legacy 同源）、clientid `:114`/`:443`、源端口 `nfs.go` legacy 多会话源端口面（P1 期号已漂移——legacy 链上不可达，口径见本文 §14.5 双拒绝行；P6 修轮注记）、逐流 index `layer_dyn.go` 逐流 index 面（P1 期号已漂移，P6 修轮注记）） | §13.3 + 上述行号 |
+| §13 schema 派生 | registry nfs 行（`registry.go:1143-1161`，14 个 FieldSchema）→ schemagen 已产出（`generated/layers.generated.json` 127 层（P1 期 123 层，随仓演进；nfs 条目 14 字段一致），`nfs` 含 `depends_on/transport_on/fields`）；struct 标签字面量锁；`allowedProtocols` 含 `"nfs"`（`internal/core/protocols.go:49`（P1 期号已漂移，P6 修轮回填）） | 上述文件:行 |
+| §14 真实流程 | 用例经 MCP 建任务 → 引擎真实生成（pcap/NIC）→ tshark `nfs.*` 逐字段校对；断言口径以落盘 pcap 为准（今日 201 例尚未按层链形重跑，**不得宣称 suite 绿**） | 08-nfs-testcase.md §3/§4；§12.0 用例统计 |
+
+### 13.1 §1 强制展开：旧键逐个去向 + 目标形状 spec_json 样例
+
+**（a）现状键 → 去向（逐键，实测计数来自 §12.0）**
+
+| 旧键 | 出现次数 | 去向（目标形状） | 依据 | 迁入动作 |
+|---|---|---|---|---|
+| 顶层 `count` | 201/201 | 删；数量走 `flow_control.flows` | CORE_MEMORY §1.3/§1.4/§1.11（白名单只放 `layers`/`flow_control` 家族/`output`） | P5 用例改写（机械）；门 2-1 现状**红** |
+| 顶层 `nfs` 子映射 | 201/201 | 迁入 `layers[]` 的 `nfs` 条目 config（`{"nfs": {...}}`） | §1.11（协议业务字段一律住层链）+ `registry.go:1143-1161`（nfs 行 14 字段；P1 期号 1003-1017 已随仓演进漂移，P6 修轮回填） 已注册 14 字段（层条目零负载=自相矛盾） | P5 用例改写 + 代码补读层 config（**G-NFS-1**）；门 2-1 现状**黄**（登记过渡） |
+| `layers[]` 内 `{"nfs": {}}` | 168/168（层链形用例） | 保留键形，**填入配置** | 同上 | 与上行同批 |
+| `layers[]` 内 `{"tcp": {}}` / `{"udp": {}}` | 166 / 2 | 保留（地址/端口住 `ip`/`tcp`/`udp` 层；用例今日四元组为空层，源端口走引擎保底） | §1.1/§1.2 | 无需改结构 |
+| 顶层 `src_ip`/`dst_ip`/`src_port`/`dst_port`/`src_mac`/`dst_mac`/`ttl` | **0/201**（本协议从未出现） | 不适用 | §1.1/§1.2/§1.11 | 无 |
+| 顶层 `flow_control` | 0/201 | 新增（`flows` 至少 1） | §1.3 | P5 随 `count` 改写 |
+
+**（b）目标形状 spec_json 样例（纯 layers；**今天跑不通**，需先补 G-NFS-1 的代码）**
+
+```json
+{
+  "layers": [
+    {"ip":  {"src": "10.0.0.1", "dst": "10.0.0.2"}},
+    {"tcp": {"src_port": 40000, "dst_port": 2049}},
+    {"nfs": {"version": 3, "auth_flavor": 1, "xid_base": 1, "xid_incr": 1,
+             "ops": [{"procedure": 1, "filehandle": "AAE="},
+                     {"procedure": 6, "filehandle": "AAE=", "offset": 0, "count": 5}]}}
+  ],
+  "flow_control": {"flows": 1}
+}
+```
+
+多流（四元组动态，`flow_control.flows` 与逐流 index 语义见 §13.3）：
+
+```json
+{
+  "layers": [
+    {"ip":  {"src": {"strategy": "inc", "range": ["10.0.0.1", "10.0.0.9"], "step": 1},
+             "dst": "10.0.0.2"}},
+    {"tcp": {"dst_port": 2049}},
+    {"nfs": {"version": 4, "minorversion": 0,
+             "ops": [{"procedure": 1, "compound_ops": [{"opcode": 24}]}]}}
+  ],
+  "flow_control": {"flows": 9}
+}
+```
+
+**（c）今日可跑的过渡形态（P5 前，与存量 168 例同形但已去 `count`）**——注意此形在门 2-1 判**黄**（顶层协议子映射并存，须 D-条目登记迁移计划，本 §13.1 即该计划）：
+
+```json
+{
+  "layers": [{"tcp": {}}, {"nfs": {}}],
+  "nfs": {"version": 3, "ops": [{"procedure": 1, "filehandle": "AAE="}]},
+  "flow_control": {"flows": 1}
+}
+```
+
+**（d）1.9 声明**：目标形状（b）今天**跑不通**——生成器只从 `FlowSpec.Metadata["nfs"]` 取配置（`layer_gen.go:167-188 configFromMeta`），层条目 config 里写 `nfs` 会被忽略，随后在 `configFromMeta(nil)` 处报 `nfs generator: no config (spec.nfs required)`（不是静默产 0 包，是好错误）。补齐动作见 §14（D-NFS-1）。
+
+**（e）presence 负例形状（链级红例必含①）**：`{"layers":[{"ip":{}},{"tcp":{}},{"nfs":{}}],"nfs":{}}`（层链 + 顶层空子映射并存）必须**判死**，锚词含 `top-level` 或 `presence`；白名单外游离键（顶层 `src_mac`/`ttl`/`mb` 类）同判死（必含②）。
+
+### 13.2 §3 强制展开：五件套（CORE_MEMORY §3.1–§3.17）
+
+| 件 | 本协议内容 | 缺口 |
+|---|---|---|
+| ① 会话表 | `s1` = 单 chain flow（一个 4-tuple = `ip.src`/`ip.dst` + `tcp`/`udp` 端口）；多流由 `flow_control.flows=N` 展开为 N 个独立 flow（每 flow 独立四元组、独立 XID 序列、独立 v4 stateid/seqid）——**不是**显式 `sessions[]`/`flows[]` 数组（nfs 层注册的是标量 `sessions`(int)，`registry.go` nfs 行内 `sessions` 标量（P1 期号 1011 已漂移，行内实读）；数组形字段未注册）。legacy `sessions>1`（自动递增源端口，`nfs.go` legacy 多会话源端口面（P1 期号已漂移——legacy 链上不可达，口径见本文 §14.5 双拒绝行；P6 修轮注记））在链上被生成器+validator 双拒绝（`layer_gen.go:88-90`（生成器级 sessions 拒绝；P1 期号已漂移，P6 修轮回填）、`:201-203`） | 多会话显式声明（§3.1/§3.2）无载体 ⇒ **G-NFS-3** |
+| ② 事务序列 | v3：`t1` MOUNT(call/reply，自动补全) → `t2..t(n-1)` 用户 ops（每 op = 一次 RPC 往返）→ `t(n)` UMOUNT；v4：`t1` SETCLIENTID → `t2` SETCLIENTID_CONFIRM → `t3..` COMPOUND（COMPOUND 内多 op 是该事务内的子步骤，非独立事务）→ TCP FIN。每事务四件事（§3.4–§3.7）：前置=前序 op 已完成（fh/stateid 就绪）；触发=op 配置；成功=reply `nfs.nfsstat4=0`；失败=注入 `reply_status`/`op_status`（COMPOUND 截断，`encodeNFS4Reply` nfs.go:1409） | 无失败分支的**会话级**语义（重试/中断整个会话）⇒ 并入 G-NFS-9 |
+| ③ 关联关系 | §3.8 三件事：归属会话 `s1`、归属事务 `t2..`、决定字段 = **filehandle 继承**（MOUNT reply 的 fh3 → 后续 v3 op 的 `filehandle`；默认 `mount_filehandle` 16×0x01，§4.2 规则 2）与 **OPEN reply stateid 引用**（`open_reply_stateid` → 同 COMPOUND 内全 0 stateid 改写，`applyOpenReplyStateid` nfs.go:1248，§3.5） | NFS 无独立数据流，故无 `driven_by` 派生流；真实多流（v3 rpcbind/mountd 分连接、v4 CB_COMPOUND 反向流）缺失 ⇒ **G-NFS-7 / G-NFS-8** |
+| ④ 插入位置 | 终结层自封：`nfs` 层产出 RPC 报文事件（`layer_gen.go`（终结层自封；P1 期号已漂移，P6 修轮注记）），TCP 语义（握手/seq-ack/挥手/MSS 分段）交 `tcp` 层生成器、UDP 语义（方向端口交换）交 `udp` 层生成器；链形 `[eth?, ip, tcp\|udp, nfs]`，链上无中间层 | 无 |
+| ⑤ 时间线 | 单 flow 内**严格顺序**（逐 op，call up → reply down；`nfs.go:432 planSession` 顺序产、链上一 flow 一事件流）；跨 flow **无全局顺序断言**（各 flow 独立）；包时间戳由 ChainPlanner 统一回填（`chain_planner.go:1271/1327/1426/1493` 逐驱动点 `pkt.Timestamp = time.Now()`；设计说明见 `:82` 第 7 条），无 per-op 间隔/让位表达。§3.11/§3.12：**不可交错**（legacy `Interleave` 未实现，§9.5 #8），"长传输分片让位/控制中插"无表达 | ⇒ **G-NFS-9**（交错与保活一并立项，不留白） |
+
+### 13.3 §12 强制展开：动态字段清单 + 序号算法（代码位置实读）
+
+**（a）四元组（§12.2：`src_ip`/`dst_ip`/`src_port`/`dst_port` 五策略全支持）**
+
+| 字段 | 层与写法 | 五策略 | 证据（行号） |
+|---|---|---|---|
+| `ip.src` / `ip.dst` | `{"ip":{"src":{"strategy":"inc","range":[...],"step":1}}}` | fixed/inc/rand/list/pattern | allowlist `layer_dyn.go:18`；形状门 `:1037 CheckLayerDynShape`；解析 `:78 parseLayerDyn`；逐流应用 `:770 resolveLayerTuple`；取值 `tuple_generator.go:290 ResolveIPValue` |
+| `tcp.src_port` / `tcp.dst_port` | `{"tcp":{"src_port":{...}}}` | 同上 | allowlist `layer_dyn.go:19`；取值 `tuple_generator.go:300 ResolvePortValue` |
+| `udp.src_port` / `udp.dst_port` | `{"udp":{"src_port":{...}}}`（仅 v3 载体） | 同上 | allowlist `layer_dyn.go:20` |
+| `ip.ttl` | `{"ip":{"ttl":{...}}}` | int 面 | allowlist `layer_dyn.go:18`；`genSmallInt` `:726` |
+
+**（b）业务字段逐个列（nfs 层 14 个注册字段 + `ops` 子结构；§12.3 要求逐协议列清单）**
+
+| 业务字段 | 现状 | 理由 | P5 建议 |
+|---|---|---|---|
+| `version` | **不开** | 结构选择器（v3/v4 决定整条事件序列形状），逐流变无意义 | 保持关 |
+| `transport` | **不开** | 载体选择器（须与链载体一致，`chain_planner.go:548-569`（载体一致性；P1 期号已漂移，P6 修轮回填） 结构性校验） | 保持关 |
+| `auth_flavor` / `auth_sys` | **不开** | 凭据面（逐流变破坏"同一客户端身份"语义；且 allowlist 无 `nfs`） | 保持关 |
+| `xid_base` | **不开**（现状） | 可逐流区分且不破坏状态语义（int 面 inc 策略天然合适） | **建议开**（int 面 inc） |
+| `xid_incr` | **不开** | 单流内序列参数，与逐流 index 无关 | 保持关 |
+| `ops` | **不开** | 结构树（内含 `filename`/`filehandle`/`stateid`/`data` 等子键，需下钻面，MQTT `messages[]` 先例 `layer_dyn.go:60-64`） | 先关；若开需按 mqtt 下钻三处执法（parseLayerDyn/translate/checkLayerDynObjects） |
+| `sessions` / `sessions_src_port_base` / `sessions_src_port_step` | **不开** | 多流展开在链上被拒（G-NFS-3）；三个字段本身是"隐式多流"的产物，按 §3.1 应退役 | 关闭并随 G-NFS-3 收敛 |
+| `result_status` | **不开** | 错误注入面（逐流变会让同一用例的失败分支不可复现） | 保持关 |
+| `direction` | **不开** | 方向选择器（call/reply 主导） | 保持关 |
+| `mount_filehandle` | **不开** | 状态关联载体（逐流变破坏 fh 继承语义） | 保持关 |
+| `minorversion` | **不开** | 版本方言选择器（恒 0 硬校验，`nfs.go:126`） | 保持关 |
+
+**（c）序号算法（§12.14：逐条给出代码位置；index = 第 i 条 flow，0-based）**
+
+| 算法 | 语义 | 代码位置（实读） |
+|---|---|---|
+| 逐流 index 取值（层动态） | inc：`start + (index*step) % count`（到尾回绕）；rand：`rand.NewSource(seed + index)`（同 seed 同 index 同结果）；list：`List[index % len(List)]`（轮转）；fixed：常量 | `layer_dyn.go:726-761 genSmallInt`；逐流应用 `:770 resolveLayerTuple`；IP/端口 `tuple_generator.go:290/300` |
+| 协议内 XID（链上权威） | 初值 `xidBase`（0 → 1 兜底），每 op 后 `xid = uint32(int(xid) + xidIncr)`（0xFFFFFFFF+1 回绕） | `layer_gen.go:93-97`（兜底 `:93` + Do-NOT-coerce `:95-97`）、`:136`（递增）；legacy 同式（P1 期号 497 注记漂移） |
+| 协议内 XID（默认值分歧点） | 文档 §3.1 称 `xid_incr` 默认 1；代码未设时为 0 且**不强制到 1**（注释明示 "XIDIncr=0 is explicitly supported…Do NOT coerce to 1"） | `layer_gen.go:93-97`；⇒ T-013 缺例同源，**G-NFS-5** |
+| clientid 派生 | 链上单流恒 `0x10000*(0+1)+1 = 0x10001`；legacy 多会话 `0x10000*(sess+1)+1` | `layer_gen.go:114`；`nfs.go:424`（planSession 调用点；P1 期号已漂移，P6 修轮注记） |
+| 多会话源端口派生 | `SrcPortBase + sess*step` | `nfs.go` legacy 多会话源端口面（P1 期号已漂移——legacy 链上不可达，口径见本文 §14.5 双拒绝行；P6 修轮注记）（链上不用，多流被拒） |
+| seqid 序列（open-owner / lock-owner 双序列） | OPEN_CONFIRM = OPEN seqid + 1（RFC 7530 §16.18.4）；user 显式提供则不覆盖 | `nfs.go:741` `autoCompleteOpenConfirm`（落码实读）、`:730 openOwnerKeyFor`；语义定义见本文 §4.1 规则 5 |
+
+---
+
+## 14. D-NFS-1 代码设计条目（P2；CODE_DESIGN 体裁八要素）
+
+> **状态**：草稿。门 1 获批 = 本条定稿（CORE_MEMORY §8.9「设计未定稿不开工」/§8.12「开工汇报先贴编号与定稿结论」）。
+> **范围**：nfs 层「配置载体迁层」（G-NFS-1）——把顶层 `nfs` 子映射 + 顶层 `count` 收敛为 `layers[]` 条目 config + `flow_control`。**不改 wire 编码器**（builder.go/parser.go 与 §6 HexDump 场景一字不动），不改 registry 字段表。
+
+### 14.1 改哪几个文件（§8.1）
+
+| 文件 | 改动 | 现状依据（实读行） |
+|---|---|---|
+| `trafficgen/internal/core/layers/chain_planner_translate.go` | Meta.NFS 取值改为「层条目 config 优先 → 顶层过渡兜底 → 并存判死」 | `:93-98`（现仅从 `spec.Metadata["nfs"]` 取） |
+| `trafficgen/internal/protocol/nfs/layer_gen.go` | **零改动**（仍 `configFromMeta`）；新增层 config 形态的回归用例 | `:167-188`（三形态解析） |
+| `trafficgen/internal/core/strategy_convert.go` | 过渡期保留；去扁平完成后删 nfs case | `strategy_convert.go:1473` `case "nfs"`（已收敛不写顶层；P1 期号已漂移，P6 修轮回填） |
+| `trafficgen/test/protocol_pcap/cases/nfs.json` | 201 例改写（P5） | 实测：`count` 201/201、顶层 `nfs` 201/201 |
+| `trafficgen/tools/coverage_gate.py` | 新增 `check_nfs` 块 | 实测 `grep -n nfs` 0 命中 |
+| `trafficgen/tools/pipe_gate.sh` | `_pres_key` 列表加 `nfs`（去扁平完成后启用 presence 红线） | `:66-87` case 块（`_pres_key="$PROTO"` 在 `:85`；现存名单共 42 个协议 = http 族 8 + 单协议 33 + cwmp 1，kingbase 置空，**不含 nfs**） |
+| `trafficgen/schemas/v1/generated/layers.generated.json` | 不变（registry 未改；若加字段才重跑 `schemagen`） | `nfs` 条目已在册（123 层） |
+
+### 14.2 接口签名（§8.2）
+
+```go
+// chain_planner_translate.go（新增）
+// nfsConfigForChain 组装注入 nfs 生成器的配置：
+//   1) 层条目 config 非空 → 直传（目标形态）；
+//   2) 层条目空且顶层 spec.Metadata["nfs"] 存在 → 过渡兜底（并 warn）；
+//   3) 两者同时存在 → 返回错误（1.4 混用判死）。
+func nfsConfigForChain(chain []Layer, spec core.FlowSpec) (interface{}, error)
+```
+
+生成器侧签名不变：`func configFromMeta(v interface{}) (*NFSConfig, error)`（`layer_gen.go:167`）；`FlowMeta.NFS interface{}`（`generator.go:330-334`）不变。
+
+### 14.3 数据结构（§8.3）
+
+- 层条目 config：`Layer.Config map[string]interface{}`（与 mqtt/modbus/http 同形，字段表已在 `registry.go:1143-1161`（nfs 行 14 字段；P1 期号 1003-1017 已随仓演进漂移，P6 修轮回填） 注册：version/transport/auth_flavor/auth_sys/xid_base/xid_incr/ops/sessions/sessions_src_port_base/sessions_src_port_step/result_status/direction/mount_filehandle/minorversion）；
+- 解析复用 `nfsConfigFromJSONMap`（`nfs.go:62` `nfsConfigFromJSONMap`）与 `GetConfig`（`:40`）（落码实读）——**不新增结构体**；
+- 错误语义沿用：JSON 解码失败 → `invalid nfs config`；空 → `no config (spec.nfs required)`。
+
+### 14.4 主流程（§8.4）
+
+1. `ValidateLayers`：nfs 层条目 config 走既有形状门（标量字段 + 未知键拒绝，既有形状门口径（P1 期号已漂移，P6 修轮注记））；动态对象按 §13.3(b) 的开关表裁定。
+2. 翻译：`nfsConfigForChain` 产出 `FlowMeta.NFS`（第 1 优先层条目）。
+3. 生成：`NFSGenerator.Generate` 逐 op 事件（`layer_gen.go:121-140`）零改动；TCP/UDP 语义仍由 `tcp`/`udp` 层承担。
+4. 用例改写（P5）：`count` → `flow_control.flows`；顶层 `nfs` → `layers[].nfs`；改写规则与逐族去向见 `08-nfs-testcase.md` §3/§4。
+
+### 14.5 错误分支（§8.5）
+
+> **v2.1.1 落码回填**：本节行号按 P6 修轮实读回填（原号为 P1 期预估，已漂移）。
+
+| 条件 | 行为（锚词） | 与现状关系 |
+|---|---|---|
+| 层条目 config 与顶层 `nfs` 并存 | 判死，锚词含 `top-level`（`strategy_convert.go` CheckProtoFlat nfs 块；`strategy_convert.go:8536` + 在库旧策略 ValidationErrors `:430`） | 已落码（`nfs_neg_presence_top_level_nfs`） |
+| 两者皆缺（空层也译出非 nil 空配置） | `nfs generator: no config (spec.nfs required)` | 保留（`layer_gen.go:167-188` configFromMeta 三形态；翻译块 `chain_planner_translate.go:2705-2721` `case "nfs"`） |
+| 层条目 config 形状非法 | `nfs generator: invalid nfs config: ...` | 保留 |
+| 载体与 `transport` 不一致 | `nfs chain: udp carrier requires nfs transport "udp" ...` | 保留（`chain_planner.go:565-566/568-569` 载体一致性） |
+| 多流 `sessions > 1` | validator 与生成器双拒绝（两处锚词）：校验级 `layer_gen.go:201-203` **先于** `Planner.Validate`（`:204`）——三负例（t108/t175/t199）统一命中链级串；生成器级 `:88-90` 双保险 | 已落码（P4 收官；`nfs_t108_v4_clientid_dup_sessions_validate` / `nfs_t175_v3_sessions2_step0_validate` / `nfs_t199_v4_dup_clientid`） |
+| static copy（显式标量四元组 + flows>1 无动态对象） | `checkLayerChainStaticCopy` 拒（`schema/semantic.go`）——逃生口 = 层内动态对象（`nfs_t195_v3_multiflow_composite` 走 `ip.src` inc 对象 + 框架逐流源端口保底） | 已落码（`nfs_neg_static_copy_multiflow` 负例 `strategy_fc flows=2` 钉拒串；§9.49 正向表达面即复合例 C1） |
+
+### 14.6 性能边界（§8.6）
+
+- **流式**：事件逐 op 产出，无全量聚合、无跨流共享状态（一 flow 一事件流）；
+- **单事件内存**：单条 RPC 消息字节（call/reply 各一），MSS 分段交 `tcp` 层（>MSS 切段）；
+- **规模边界**：一链一 flow；多流 = `flow_control.flows` 展开（每流独立四元组与序列）；
+- **性能目标**：吞吐/并发/内存上限与队列积压**待 P4 基准**（§6.5 不写承诺数字）；验收两路（pcap 落盘 + NIC 抓包）与六类场景见 `08-nfs-testcase.md` §7。
+
+### 14.7 与现有逻辑的冲突点（§8.7）
+
+| 冲突点 | 风险 | 处置 |
+|---|---|---|
+| `chain_planner_translate.go:93-98` 是 nfs 配置的**唯一**读点 | 改读取顺序影响链上全部 nfs 用例（168 例） | 过渡期双读（层优先 + 顶层兜底 + 并存判死），P5 改写完成后删顶层路径 |
+| `strategy_convert.go:1473` `case "nfs"`（已收敛；P1 期号已漂移，P6 修轮注记） | 若不同步删除会形成"两个真相" | 由并存判死挡住；随后删 case |
+| `legacy_migrate_test.go` 直挂 `Metadata["nfs"]` 面（P1 期行号注记漂移，保留；P6 修轮注记） | 与目标读取路径并存 | 保留（legacy 迁移面）；新增层 config 用例并行 |
+| `layerDynAllowlist`（`layer_dyn.go` allowlist（P1 期号已漂移，P6 修轮注记）无 `nfs` | 迁层后写业务动态对象会被拒（"does not support dynamic"） | 随 G-NFS-4 逐字段裁定后同批登记 |
+| `pipe_gate.sh` presence 红线列表不含 nfs | 去扁平后无红线守门 | P5 加 `nfs` 进 `_pres_key` |
+| 门 2-4 覆盖反查未登记 | `coverage_gate.py` 出口 2（黄） | （已落码：P4 commit `a74ae7b` + P6 修轮 `check_nfs`） |
+
+### 14.8 回滚方式（§8.8）
+
+- 实施拆两个提交（`feat(nfs): 层条目 config 读取路径` / `test(nfs): 用例去扁平改写`）；回滚后者即回到过渡形态（顶层 `nfs` + `flow_control`，门 2-1 黄不红）；
+- 合并后回归：按方案 v2 §5 门 2 红回滚条款——`git revert` 用例提交与 D/T 条目文档提交同步，不留双头；
+- wire 面零改动的意义：回滚不影响已收官的字节级场景（§6 S1–S16 与 94 个协议侧测试函数不随本次改动变化）。
+
+---
+
+## 15. 缺口立项清单（G-NFS-1…10）
+
+| 立项号 | 缺口 | 类别 | 去向 / 触发条件 | 挡不挡 P4 开工 |
+|---|---|---|---|---|
+| **G-NFS-1** | 配置载体去扁平：顶层 `nfs` 子映射（201/201）+ 顶层 `count`（201/201）→ `layers[].nfs` + `flow_control`；含 `pipe_gate.sh` presence 红线与 `coverage_gate.py` 登记 | 代码 + 用例 | D-NFS-1（§14）全流程；P5 执行 | 不挡（wire 面不动）；**挡去扁平完成式** |
+| **G-NFS-2** | 覆盖缺口 10 点：v3 `COMMIT`(proc 21) 1 点；MOUNT proc 0/2/4/5 4 点；v4 opcode 3/11/19/26/27 5 点（编码器已具备） | 用例（A′） | 补例（沿用 §12.2 逐格表）；不涉代码 | 不挡 |
+| **G-NFS-3** | 多会话/多流显式表达缺失 → 落定（N1）：多流一律 `flow_control`，legacy `sessions>1` 在链上**双拒绝**（`layer_gen.go:88-90` 生成器级 + `:201-203` 校验级，校验级先于 `Planner.Validate :204`）；t195/T-200 按此口径重建为多流复合大场景（`nfs_t195_v3_multiflow_composite`，C1） | 用例（A′） | 裁定 N1 已执行；复合例 C1 已落码；旧 12 例多会话面=3 链级负例（t108/t175/t199，锚词统一链级串）+ T-195 重建 | 关单（口径面） |
+| **G-NFS-4** | 业务动态字段清单未裁定：`layerDynAllowlist` 无 nfs；§13.3(b) 建议开 `xid_base`（inc）等 3 键 | 代码 + 设计 | 迁层同批落地（§14.7 冲突点行）；需 D-条目补「动态字段清单」小节 | 不挡 |
+| **G-NFS-5** | `xid_incr` 口径 → 落定（N2）：**未设 = 0，按代码事实定稿**（`layer_gen.go:95-97` 不强制到 1；`:136` 按 0 递增）；§3.1/§7 T-013（须显式写 `xid_incr: 1`）/T-016（0 → 兜底 1）已回修（v2.1.1）；行为面由 t001/t002（未设时 3 个 call 全 XID=0x1）+ `nfs_t016_xid_base_zero` 断言 | 文档（已回修） | 裁定 N2 已执行；**T-013 本体仍缺例**（行为已被 t001/t002 覆盖——A′ open） | 文档面关单 |
+| **G-NFS-6** | `stateid.other` 口径 → 落定（N3）：**按代码事实定稿**——`[12]byte` 只认 JSON 数字数组（§3.5/§8.4 V27/V28/V29 已回修，v2.1.1；旧锚词废止）；数组形正例 `nfs_t135_v4_stateid_other12` 在案；T-133/T-134 作废（不动补例） | 文档（已回修） | 裁定 N3 已执行 | 文档面关单 |
+| **G-NFS-7** | v3 MOUNT 分连接偏离 + 缺关联字段：真实客户端 rpcbind(111)+mountd 独立端口（Linux `nfs(5)` `mountport=`/`mounthost=`），本设计同连接（§9.5 #1）；§3.8 关联字段（`driven_by`）无载体 | 设计登记 + 可选代码 | §9.5 #1 保留（合成流量可控优先）；若要覆盖须新增双连接编排 | 不挡 |
+| **G-NFS-8** | v4 回调通道（CB_COMPOUND，RFC 7530 §18.1）不生成；NAT 面不适用（NFS 无被动模式） | 明确不支持 | §1.4 规则 4 + §9.5 #5 保留；不写进实现 | 不挡 |
+| **G-NFS-9** | 交错/保活/重传/超时四无表达（§3.12 交错调度、§3.15③ 长保活、§4.6 重传与超时、§9.5 #3/#8） | 明确不支持（登记）+ 工程立项 | §3.15③ 与 §4.6 逐条登记；如需覆盖先做工程评估 | 不挡 |
+| **G-NFS-10** | 地址族对称缺失：IPv6 用例 0/201（`ip.src`/`ip.dst` 写 v6 字面量即可表达，（P1 期 ipv6 层注记；P6 修轮仅注记行号漂移）），9.24 要求两族逐格对照 | 用例（A′） | 补 IPv6 对称例（TCP+UDP 各至少一例） | 不挡 |
+
+**「明确不解决」登记**（§1.12 口径：只适用于该字段根本不被消费的场景，且用例配置必须删除该字段）：本协议**无**此类字段——顶层 `count` 与顶层 `nfs` 子映射都**被消费**（引擎读 `Metadata["nfs"]`），故不得走"明确不解决"，只能走 G-NFS-1 的迁入计划（§14）。G-NFS-8/G-NFS-9 是**功能面明确不支持**（非字段），不影响该口径。
+
+---
+
+
+
 
 
