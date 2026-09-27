@@ -700,7 +700,26 @@ func buildDefaultRegistry() {
 			"wire_fault":       {Type: "object"},
 		}})
 	r.Register(LayerSchema{Name: "dameng", Category: CategoryTerminal, DependsOn: []string{"tcp"},
-		FieldContract: map[string]string{"tcp.dst_port": "5236"}})
+		// D-DAMENG-1：TCP-only 终结层（DM8 经 TCP 5236；链夹 udp 判死走
+		// complete.go 通用 tcp-only 逻辑 `rides tcp only (carrier)`——
+		// DependsOn=[tcp] 且无 udp ⟹ tcpOnly 自动成立）。
+		TransportOn:   []string{"tcp"},
+		FieldContract: map[string]string{"tcp.dst_port": "5236"},
+		Fields: map[string]FieldSchema{
+			// D-DAMENG-1 G-DM-2：dameng 层五键（§2.1/§2.2 层内配置键）。
+			// wire_profile/wire_fault 字符串走 completedConfig 缺省回填；
+			// events/sessions 数组缺省 []interface{}{}（postgresql 同款）；
+			// payload_size 缺省 ""（validator 仅接受 profile_minimum_nonempty）。
+			"wire_profile": {Type: "string", Default: ""},
+			"events":       {Type: "list", Default: []interface{}{}},
+			"sessions":     {Type: "list", Default: []interface{}{}},
+			"payload_size": {Type: "string", Default: ""},
+			// wire_fault 否定测试故障对象 {"kind":..., "value":...}——
+			// Default nil（NOT "") so completedConfig omits it: an injected
+			// "" would survive the JSON round-trip as WireFault='""' and be
+			// mis-read as a fault (postgresql 同款理由)。
+			"wire_fault": {Type: "object"},
+		}})
 	r.Register(LayerSchema{Name: "postgresql", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		// P0a: postgresql 提为共享 PG v3 wire 层（kingbase 作其 dialect 变体，
 		// 不当独立层）。FieldContract 声明"直接承载层" tcp 的 dst_port 契约值：

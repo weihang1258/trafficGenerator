@@ -455,13 +455,6 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
-	// D-CQL-1（G-CQL-1）：cql 在库旧策略顶层 cql → ValidationErrors（hl7
-	// 同款；在库 0 行纯防御——新协议去扁平后顶层 cql 即判死）。
-	if protocol == "cql" {
-		if v, ok := cfg["cql"]; ok && v != nil {
-			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
-		}
-	}
 
 	// D-MMSE-1：mmse 在库旧策略顶层 mmse → ValidationErrors（hl7 同款；
 	// 在库 0 行纯防御）。
@@ -496,6 +489,27 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	// 同款；空 map 也死——顶层 s7 子映射 presence 判死，层链形状不触发）。
 	if protocol == "s7" {
 		if v, ok := cfg["s7"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
+	// D-CQL-1：cql 在库旧策略顶层 cql → ValidationErrors（amqp 同款）。
+	if protocol == "cql" {
+		if v, ok := cfg["cql"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
+	// D-DOIP-1：doip 在库旧策略顶层 doip → ValidationErrors（amqp 同款）。
+	if protocol == "doip" {
+		if v, ok := cfg["doip"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
+	// D-DAMENG-1（§10.6 残留洞升 G-DM-6 后 P4 落码）：dameng 在库旧策略
+	// 顶层 dameng → ValidationErrors（enip 同款；空 map 也死——判死形状
+	// 「层链+顶层空子映射并存」。层链形状不触发：cells 有 layers 且无
+	// 顶层 dameng 键时 CheckProtoFlat 返回空）。
+	if protocol == "dameng" {
+		if v, ok := cfg["dameng"]; ok && v != nil {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
@@ -1530,6 +1544,10 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["dameng"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*DamengConfig](&spec, sub, "dameng", &spec.Dameng)
 		}
+		// D-DAMENG-1 G-DM-2：dameng 目的端口默认 5236（doip 13400 同款；
+		// flat 兼容路径缺省——链路径在 validateSpecBase 补齐）。
+		// 仅当用户未指定 dst_port 时覆盖。
+		setDefaultDstPort(&spec, cfg, 5236)
 		// case "kingbase" 已收敛：kingbase 不再独立解析，改由 postgresql 层 +
 		// dialect=kingbase 表达（18-layer-config-design.md §2.2/§4.3/§7 F4）。
 		// 配置走 case "postgresql"（spec.PostgreSQL，dialect=kingbase）。
@@ -8535,6 +8553,37 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "bgp" {
 		if v, ok := cfg["bgp"]; ok && v != nil {
 			return "protocol bgp no longer accepts a top-level bgp sub-config (move it into the bgp layer of an [ip,tcp,bgp] layers chain; the layer chain is the only config truth)"
+		}
+	}
+	// D-CQL-1（G-CQL-1）：cql 顶层 cql 子映射 presence 判死（tds 先例；
+	// 空 map 也死——业务键 wire_profile/events/sessions/wire_fault 迁
+	// layers[i].cql）。层链形状不触发。
+	if protocol == "cql" {
+		if v, ok := cfg["cql"]; ok && v != nil {
+			return "protocol cql no longer accepts a top-level cql sub-config (move it into the cql layer of an [ip,tcp,cql] layers chain)"
+		}
+	}
+	// D-S7-85（G-S7-1）：s7 顶层 s7 子映射 presence 判死（amqp 先例；空
+	// map 也死——配置住 s7 层，层链是唯一真相）。层链形状不触发。
+	if protocol == "s7" {
+		if v, ok := cfg["s7"]; ok && v != nil {
+			return "protocol s7 no longer accepts a top-level s7 sub-config (move it into the s7 layer of an [ip,tcp,s7] layers chain)"
+		}
+	}
+	// D-DOIP-1：doip 顶层 doip 子映射 presence 判死（enip 先例；空 map
+	// 也死——G-DOIP-5；十三键迁 layers[i].doip）。层链形状不触发。
+	if protocol == "doip" {
+		if v, ok := cfg["doip"]; ok && v != nil {
+			return "protocol doip no longer accepts a top-level doip sub-config (move it into the doip layer of an [ip,tcp,doip] layers chain; the layer chain is the only config truth)"
+		}
+	}
+	// D-DAMENG-1（G-DM-6 框架级判死洞 P4 落码）：dameng 顶层 dameng 子
+	// 映射 presence 判死（enip 先例；空 map 也死——契约 §10.6 残留洞登记
+	// 时未落码，存量 14 例正用此形状，改写后此门即有执法对象）。层链形
+	// 状不触发。
+	if protocol == "dameng" {
+		if v, ok := cfg["dameng"]; ok && v != nil {
+			return "protocol dameng no longer accepts a top-level dameng sub-config (move it into the dameng layer of an [ip,tcp,dameng] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-XMR-1：xmrmining 顶层 xmrmining 子映射 presence 判死（edp 先例；空

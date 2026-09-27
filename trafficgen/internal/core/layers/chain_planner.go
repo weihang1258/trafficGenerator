@@ -49,6 +49,13 @@ const doipPort = 13400
 // protocol 包反向依赖 layers）。
 const gbtPort = 10020
 
+// damengPort is the Dameng DM8 database service port (5236)。layers 包内
+// 复刻（不能引用 protocol/dameng 的 DefaultPort——protocol 包反向依赖
+// layers）。D-DAMENG-1 G-DM-2：链路径目的端口缺省（registry FieldContract
+// 同值 5236——validateSpecBase DstPort switch 承接，strategy_convert
+// mapToFlowSpec 兼容路径则走 flat 键）。
+const damengPort = 5236
+
 // mcpStdioPort is the MCP stdio default port (22, plan.go:61-68 同款)。
 // layers 包内复刻（不能引用 protocol/mcp 的 DefaultPortStdio——protocol 包
 // 反向依赖 layers）。
@@ -307,7 +314,10 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 	// 缺省（setDefaultDstPort 44818）——不先回填，validator 看到的是缺省
 	// 44818 而非层值 502，端口域检查被旁路（下块回填后 validator 复核）。
 	// 仅 enip（回填语义 = 下方通用回填块同款：显式标量才回填，dyn 对象跳过）。
-	if p.name == "enip" {
+	// D-DAMENG-1（neg_port 实证）：dameng 同列——层内 tcp.dst_port=5237 不
+	// 先回填则 spec.DstPort 停在 validateSpecBase 的缺省 5236，dameng
+	// Validate 的端口域检查被旁路（负例假通过）。
+	if p.name == "enip" || p.name == "dameng" {
 		for _, l := range chain {
 			if l.Name != "tcp" && l.Name != "udp" {
 				continue
@@ -662,6 +672,10 @@ func validateBaseDstPortHandled(name string) bool {
 		"ntp", "ssdp", "stun", "rtmfp", "ldp", "pcep", "cflow", "rip", "dhcp",
 		"dhcpv6", "doip", "gbt32960", "mcp", "modbus", "mqtt", "nfs", "smb",
 		"tds", "moxa", "someip", "postgresql", "goose", "sv",
+		// D-DAMENG-1 G-DM-2：dameng 端口语义由本文件 DstPort switch 承接
+		// （缺省 damengPort 5236），同 doip/gbt32960 模式——通用
+		// FieldContract 块不得覆盖（用户显式值优先语义在 switch 内）。
+		"dameng",
 		"igmp", "ospf", "pim", "isis", "icmpv6", "icmp", "h323", "mpls", "arp",
 		// D-NGAP-1：ngap 端口住层（SCTP 联结端口语义），同 h323/mpls。
 		// D-TELNET-1：telnet 同款（TCP 联结端口语义）。
@@ -1064,6 +1078,11 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// strategy_convert mapToFlowSpec 同款默认——用户显式写
 			// dst_port 时已非零不落此分支）。
 			spec.DstPort = gbtPort
+		case "dameng":
+			// D-DAMENG-1 G-DM-2：Dameng 目的端口默认 5236（protocol/
+			// dameng DefaultPort 同款——用户显式写 dst_port 时已非零不落
+			// 此分支，写 5236 以外由 dameng Validate 拒绝，锚词 "5236"）。
+			spec.DstPort = damengPort
 		case "mcp":
 			// MCP 目的端口默认（legacy Plan plan.go:61-68 同款）：
 			// stdio → 22（DefaultPortStdio）、http_sse/streamable → 8081

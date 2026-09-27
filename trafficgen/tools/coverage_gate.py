@@ -1402,6 +1402,122 @@ def check_s7(cases):
     rows.append(("12 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
     return rows
 
+
+def check_dameng(cases):
+    """D-DAMENG-1 P4/P5 反查表（13 正 + 21 负 = 34 例）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线（G-DM-2/G-DM-6）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 dameng", '"dameng": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 dameng（已准入）", '"dameng"' not in pt[i_neg:i_neg + 900], "已摘除"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "dameng"')
+    reg_block = rg[i_reg:rg.index('Name: "postgresql"', i_reg)]
+    rows.append(("registry dameng 行（DependsOn tcp + TransportOn tcp + FieldContract 5236 + Fields 五键）",
+                 'DependsOn: []string{"tcp"}' in reg_block
+                 and '"tcp.dst_port": "5236"' in reg_block
+                 and '"wire_profile"' in reg_block and '"events"' in reg_block
+                 and '"sessions"' in reg_block and '"payload_size"' in reg_block
+                 and '"wire_fault"' in reg_block, "在案"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case dameng（严格往返解码 + ValidationErrors）",
+                 'case "dameng":' in tr and "dameng layer config decode" in tr
+                 and "DisallowUnknownFields" in tr, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("DamengConfig UnmarshalJSON 严格解码", "func (c *DamengConfig) UnmarshalJSON" in ty, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go ChainPlanner(dameng) 接线", 'NewChainPlanner("dameng")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat presence 判死顶层 dameng",
+                 "no longer accepts a top-level dameng sub-config" in sc, "在案"))
+    rows.append(("strategy_convert 存量兼容块记 ValidationErrors",
+                 'if protocol == "dameng" {' in sc, "在案"))
+    rows.append(("mapToFlowSpec 5236 缺省端口（flat 兼容面）",
+                 "setDefaultDstPort(&spec, cfg, 5236)" in sc, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain_planner dameng 层值回填先于 validator（neg_port 实证）",
+                 'p.name == "dameng"' in cp, "在案"))
+    rows.append(("chain_planner validateSpecBase 5236 缺省（G-DM-2）",
+                 'case "dameng":' in cp and "spec.DstPort = damengPort" in cp, "在案"))
+    gl = json.loads((tg / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
+    gfields = gl["layers"]["dameng"]["fields"]
+    rows.append(("schemagen 重跑（generated dameng 层含五键 + transport_on tcp）",
+                 all(gfields.get(k, {}).get("type") in ("string", "list", "object")
+                     for k in ("wire_profile", "events", "sessions", "payload_size", "wire_fault"))
+                 and gl["layers"]["dameng"].get("transport_on") == ["tcp"], "在案"))
+    vt = (tg / "tools" / "pipe_gate.sh").read_text()
+    rows.append(("pipe_gate presence 红线登记 dameng",
+                 "|dameng|" in vt or "|dameng)" in vt, "在案"))
+    ct = (tg / "internal" / "core" / "layers" / "dameng_chain_test.go")
+    rows.append(("链级红例在案（dameng_chain_test.go，6 族）", ct.exists(), "在案"))
+
+    # 2. 行为面（builder/planner 关键件 + G-DM-5）。
+    bl = (tg / "internal" / "protocol" / "dameng" / "builder.go").read_text()
+    for prim, name in [
+        ("func buildPacket", "占位字节装配（profile 名）"),
+        ("func checkWireFault", "wire_fault 双 kind + 非法形"),
+        ("truncated message length", "truncate 锚词"),
+        ("over implementation limit", "over_limit 锚词"),
+    ]:
+        rows.append((f"关键件：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "dameng" / "planner.go").read_text()
+    for prim, name in [
+        ("func validateEventSequence", "DM8 状态机（首 connect/末 close/认证门）"),
+        ("first event must be connect", "首事件锚词"),
+        ("close must be the last event", "close 末位锚词"),
+        ("before successful authentication", "认证门锚词"),
+        ("inconsistent with kind", "G-DM-5 方向一致锚词"),
+        ("is not the default %d", "5236 端口域锚词"),
+        ("mutually exclusive", "events/sessions 互斥锚词"),
+    ]:
+        rows.append((f"关键件：{name}", prim in pl, "在案"))
+
+    # 3. 用例面（34 例 = 13 正 + 21 负）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "dameng_connect", "dameng_auth_success", "dameng_auth_error_then_close",
+        "dameng_sql_success", "dameng_sql_error", "dameng_close_clean",
+        "dameng_length_boundary", "dameng_ipv4", "dameng_ipv6",
+        "dameng_multi_session", "dameng_multi_flow_dynamic",
+        "dameng_long_sql_mss", "dameng_pcap_nic_consistency",
+        "dameng_neg_udp", "dameng_neg_port", "dameng_neg_profile",
+        "dameng_neg_state", "dameng_neg_truncated", "dameng_neg_oversize",
+        "dameng_neg_direction_mismatch", "dameng_neg_unknown_kind",
+        "dameng_neg_empty_sql", "dameng_neg_sql_before_auth",
+        "dameng_neg_sql_after_auth_error", "dameng_neg_close_not_last",
+        "dameng_neg_auth_response_without_request", "dameng_neg_connect_not_first",
+        "dameng_neg_events_sessions_exclusive", "dameng_neg_session_empty_events",
+        "dameng_neg_wire_fault_unknown_kind", "dameng_neg_wire_fault_wrong_shape",
+        "dameng_neg_payload_size", "dameng_neg_unknown_layer_field",
+        "dameng_neg_top_dameng_presence_reject",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("用例总数 34（13 正+21 负，含 1 presence）",
+                 len(cases) == 34 and len(pos) == 13 and len(neg) == 21,
+                 f"{len(cases)} 例 / {len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("正例顶层键=0（仅 layers + flow_control/output/group_id 框架键）",
+                 all(set((c.get("spec_json") or {}).keys()) <= {"layers", "flow_control", "output", "output_config", "group_id"}
+                     for c in pos), "穷尽"))
+    rows.append(("负例 expect 纯净（仅 expect_error + error_contains）",
+                 all(set((c.get("expect") or {}).keys()) == {"expect_error", "error_contains"}
+                     for c in neg), "纯净"))
+    anchors = {"tcp", "5236", "profile", "state", "truncated", "limit",
+               "inconsistent", "unknown kind", "empty SQL", "before successful authentication",
+               "close must be the last", "without auth_request", "first event must be connect",
+               "mutually exclusive", "empty events", "invalid wire_fault",
+               "payload_size", "unknown field", "top-level"}
+    got = {(c.get("expect") or {}).get("error_contains") for c in neg}
+    missing = sorted(a for a in anchors if a not in got)
+    rows.append((f"负例锚词覆盖 {len(anchors)} 族", not missing, missing or "全覆盖"))
+    return rows
+
+
 def check_sstp(cases):
     """D-SSTP-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -6468,7 +6584,7 @@ def check_spnego(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng}
 
 
 def main(argv):

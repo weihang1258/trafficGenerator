@@ -1,854 +1,1983 @@
 [
-  {
-    "id": "dameng_connect",
-    "proto": "dameng",
-    "summary": "S1: TCP 5236 connect event",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "dameng": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5236,
-      "dameng": {
-        "wire_profile": "dm8_profile_pending",
-        "events": [
-          {
-            "kind": "connect",
-            "direction": "c2s",
-            "profile": "connect_default"
-          }
-        ]
-      }
+ {
+  "id": "dameng_connect",
+  "proto": "dameng",
+  "summary": "S1: TCP 5236 connect event",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
-    "expect": {
-      "packet_count": 8,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": true,
-      "fields": [
-        {
-          "packet": 4,
-          "field": "tcp.dstport",
-          "value": "5236"
-        },
-        {
-          "packet": 4,
-          "field": "tcp.len",
-          "nonzero": true
-        }
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       }
       ]
-    },
-    "notes": []
+     }
+    }
+   ]
   },
-  {
-    "id": "dameng_auth_success",
-    "proto": "dameng",
-    "summary": "S2: connect and authentication success",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "dameng": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5236,
-      "dameng": {
-        "wire_profile": "dm8_profile_pending",
-        "events": [
-          {
-            "kind": "connect",
-            "direction": "c2s",
-            "profile": "connect_default"
-          },
-          {
-            "kind": "auth_request",
-            "direction": "c2s",
-            "profile": "auth_default",
-            "username": "SYSDBA"
-          },
-          {
-            "kind": "auth_response",
-            "direction": "s2c",
-            "profile": "auth_default",
-            "result": "success"
-          }
-        ]
-      }
+  "expect": {
+   "packet_count": 8,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "5236"
     },
-    "expect": {
-      "packet_count": 10,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": true,
-      "fields": [
-        {
-          "packet": 4,
-          "field": "tcp.dstport",
-          "value": "5236"
-        },
-        {
-          "packet": 6,
-          "field": "tcp.srcport",
-          "value": "5236"
-        },
-        {
-          "packet": 5,
-          "field": "tcp.len",
-          "nonzero": true
-        }
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ]
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_auth_success",
+  "proto": "dameng",
+  "summary": "S2: connect and authentication success",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "success"
+       }
       ]
-    },
-    "notes": []
+     }
+    }
+   ]
   },
-  {
-    "id": "dameng_sql_success",
-    "proto": "dameng",
-    "summary": "S3: authenticated SELECT success",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "dameng": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5236,
-      "dameng": {
-        "wire_profile": "dm8_profile_pending",
-        "events": [
-          {
-            "kind": "connect",
-            "direction": "c2s",
-            "profile": "connect_default"
-          },
-          {
-            "kind": "auth_request",
-            "direction": "c2s",
-            "profile": "auth_default",
-            "username": "SYSDBA"
-          },
-          {
-            "kind": "auth_response",
-            "direction": "s2c",
-            "profile": "auth_default",
-            "result": "success"
-          },
-          {
-            "kind": "sql_request",
-            "direction": "c2s",
-            "profile": "sql_select_default",
-            "sql": "SELECT 1"
-          },
-          {
-            "kind": "sql_response",
-            "direction": "s2c",
-            "profile": "sql_select_default",
-            "result": "success"
-          }
-        ]
-      }
+  "expect": {
+   "packet_count": 10,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "5236"
     },
-    "expect": {
-      "packet_count": 12,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": true,
-      "fields": [
-        {
-          "packet": 4,
-          "field": "tcp.dstport",
-          "value": "5236"
-        },
-        {
-          "packet": 6,
-          "field": "tcp.srcport",
-          "value": "5236"
-        },
-        {
-          "packet": 8,
-          "field": "tcp.srcport",
-          "value": "5236"
-        },
-        {
-          "packet": 8,
-          "field": "tcp.len",
-          "nonzero": true
-        }
+    {
+     "packet": 6,
+     "field": "tcp.srcport",
+     "value": "5236"
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ]
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_sql_success",
+  "proto": "dameng",
+  "summary": "S3: authenticated SELECT success",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "success"
+       },
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_select_default",
+        "sql": "SELECT 1"
+       },
+       {
+        "kind": "sql_response",
+        "direction": "s2c",
+        "profile": "sql_select_default",
+        "result": "success"
+       }
       ]
-    },
-    "notes": []
+     }
+    }
+   ]
   },
-  {
-    "id": "dameng_sql_error",
-    "proto": "dameng",
-    "summary": "S4: SQL error response remains a distinct event",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "dameng": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5236,
-      "dameng": {
-        "wire_profile": "dm8_profile_pending",
-        "events": [
-          {
-            "kind": "connect",
-            "direction": "c2s",
-            "profile": "connect_default"
-          },
-          {
-            "kind": "auth_request",
-            "direction": "c2s",
-            "profile": "auth_default",
-            "username": "SYSDBA"
-          },
-          {
-            "kind": "auth_response",
-            "direction": "s2c",
-            "profile": "auth_default",
-            "result": "success"
-          },
-          {
-            "kind": "sql_request",
-            "direction": "c2s",
-            "profile": "sql_error_default",
-            "sql": "SELECT missing_column FROM missing_table"
-          },
-          {
-            "kind": "sql_response",
-            "direction": "s2c",
-            "profile": "sql_error_default",
-            "result": "error"
-          }
-        ]
-      }
+  "expect": {
+   "packet_count": 12,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "5236"
     },
-    "expect": {
-      "packet_count": 12,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": true,
-      "fields": [
-        {
-          "packet": 7,
-          "field": "tcp.dstport",
-          "value": "5236"
-        },
-        {
-          "packet": 8,
-          "field": "tcp.srcport",
-          "value": "5236"
-        },
-        {
-          "packet": 8,
-          "field": "tcp.len",
-          "nonzero": true
-        }
+    {
+     "packet": 6,
+     "field": "tcp.srcport",
+     "value": "5236"
+    },
+    {
+     "packet": 8,
+     "field": "tcp.srcport",
+     "value": "5236"
+    },
+    {
+     "packet": 8,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ]
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_sql_error",
+  "proto": "dameng",
+  "summary": "S4: SQL error response remains a distinct event",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "success"
+       },
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_error_default",
+        "sql": "SELECT missing_column FROM missing_table"
+       },
+       {
+        "kind": "sql_response",
+        "direction": "s2c",
+        "profile": "sql_error_default",
+        "result": "error"
+       }
       ]
-    },
-    "notes": []
+     }
+    }
+   ]
   },
-  {
-    "id": "dameng_length_boundary",
-    "proto": "dameng",
-    "summary": "S5: profile minimum non-empty payload boundary",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "dameng": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5236,
-      "dameng": {
-        "wire_profile": "length_boundary",
-        "events": [
-          {
-            "kind": "connect",
-            "direction": "c2s",
-            "profile": "connect_default"
-          },
-          {
-            "kind": "auth_request",
-            "direction": "c2s",
-            "profile": "auth_default",
-            "username": "SYSDBA"
-          },
-          {
-            "kind": "auth_response",
-            "direction": "s2c",
-            "profile": "auth_default",
-            "result": "success"
-          },
-          {
-            "kind": "sql_request",
-            "direction": "c2s",
-            "profile": "sql_select_default",
-            "sql": "SELECT 1"
-          },
-          {
-            "kind": "sql_response",
-            "direction": "s2c",
-            "profile": "sql_select_default",
-            "result": "success"
-          }
-        ],
-        "payload_size": "profile_minimum_nonempty"
-      }
+  "expect": {
+   "packet_count": 12,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 7,
+     "field": "tcp.dstport",
+     "value": "5236"
     },
-    "expect": {
-      "packet_count": 12,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": true,
-      "fields": [
-        {
-          "packet": 4,
-          "field": "tcp.dstport",
-          "value": "5236"
-        },
-        {
-          "packet": 4,
-          "field": "tcp.len",
-          "nonzero": true
-        }
+    {
+     "packet": 8,
+     "field": "tcp.srcport",
+     "value": "5236"
+    },
+    {
+     "packet": 8,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ]
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_length_boundary",
+  "proto": "dameng",
+  "summary": "S5: profile minimum non-empty payload boundary",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "length_boundary",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "success"
+       },
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_select_default",
+        "sql": "SELECT 1"
+       },
+       {
+        "kind": "sql_response",
+        "direction": "s2c",
+        "profile": "sql_select_default",
+        "result": "success"
+       }
+      ],
+      "payload_size": "profile_minimum_nonempty"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 12,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "5236"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ]
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_ipv4",
+  "proto": "dameng",
+  "summary": "S6: IPv4 authenticated SQL session",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "success"
+       },
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_select_default",
+        "sql": "SELECT 1"
+       },
+       {
+        "kind": "sql_response",
+        "direction": "s2c",
+        "profile": "sql_select_default",
+        "result": "success"
+       }
       ]
-    },
-    "notes": []
+     }
+    }
+   ]
   },
-  {
-    "id": "dameng_ipv4",
-    "proto": "dameng",
-    "summary": "S6: IPv4 authenticated SQL session",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "dameng": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5236,
-      "dameng": {
-        "wire_profile": "dm8_profile_pending",
-        "events": [
-          {
-            "kind": "connect",
-            "direction": "c2s",
-            "profile": "connect_default"
-          },
-          {
-            "kind": "auth_request",
-            "direction": "c2s",
-            "profile": "auth_default",
-            "username": "SYSDBA"
-          },
-          {
-            "kind": "auth_response",
-            "direction": "s2c",
-            "profile": "auth_default",
-            "result": "success"
-          },
-          {
-            "kind": "sql_request",
-            "direction": "c2s",
-            "profile": "sql_select_default",
-            "sql": "SELECT 1"
-          },
-          {
-            "kind": "sql_response",
-            "direction": "s2c",
-            "profile": "sql_select_default",
-            "result": "success"
-          }
-        ]
-      }
+  "expect": {
+   "packet_count": 12,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "ip.version",
+     "value": "4"
     },
-    "expect": {
-      "packet_count": 12,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": true,
-      "fields": [
-        {
-          "packet": 4,
-          "field": "ip.version",
-          "value": "4"
-        },
-        {
-          "packet": 4,
-          "field": "tcp.dstport",
-          "value": "5236"
-        }
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "5236"
+    }
+   ]
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_ipv6",
+  "proto": "dameng",
+  "summary": "S7: IPv6 authenticated SQL session",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "2001:db8::1",
+      "dst": "2001:db8::2"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "success"
+       },
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_select_default",
+        "sql": "SELECT 1"
+       },
+       {
+        "kind": "sql_response",
+        "direction": "s2c",
+        "profile": "sql_select_default",
+        "result": "success"
+       }
       ]
-    },
-    "notes": []
+     }
+    }
+   ]
   },
-  {
-    "id": "dameng_ipv6",
-    "proto": "dameng",
-    "summary": "S7: IPv6 authenticated SQL session",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "dameng": {}
-        }
-      ],
-      "src_ip": "2001:db8::1",
-      "dst_ip": "2001:db8::2",
-      "src_port": 12345,
-      "dst_port": 5236,
-      "dameng": {
-        "wire_profile": "dm8_profile_pending",
-        "events": [
-          {
-            "kind": "connect",
-            "direction": "c2s",
-            "profile": "connect_default"
-          },
-          {
-            "kind": "auth_request",
-            "direction": "c2s",
-            "profile": "auth_default",
-            "username": "SYSDBA"
-          },
-          {
-            "kind": "auth_response",
-            "direction": "s2c",
-            "profile": "auth_default",
-            "result": "success"
-          },
-          {
-            "kind": "sql_request",
-            "direction": "c2s",
-            "profile": "sql_select_default",
-            "sql": "SELECT 1"
-          },
-          {
-            "kind": "sql_response",
-            "direction": "s2c",
-            "profile": "sql_select_default",
-            "result": "success"
-          }
-        ]
-      }
+  "expect": {
+   "packet_count": 12,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "ipv6.version",
+     "value": "6"
     },
-    "expect": {
-      "packet_count": 12,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": true,
-      "fields": [
-        {
-          "packet": 4,
-          "field": "ipv6.version",
-          "value": "6"
-        },
-        {
-          "packet": 4,
-          "field": "tcp.dstport",
-          "value": "5236"
-        },
-        {
-          "packet": 6,
-          "field": "tcp.srcport",
-          "value": "5236"
-        }
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "5236"
+    },
+    {
+     "packet": 6,
+     "field": "tcp.srcport",
+     "value": "5236"
+    }
+   ]
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_multi_session",
+  "proto": "dameng",
+  "summary": "S8: two independent authenticated sessions",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "sessions": [
+       {
+        "src_port": 12345,
+        "events": [
+         {
+          "kind": "connect",
+          "direction": "c2s",
+          "profile": "connect_default"
+         },
+         {
+          "kind": "auth_request",
+          "direction": "c2s",
+          "profile": "auth_default"
+         },
+         {
+          "kind": "auth_response",
+          "direction": "s2c",
+          "profile": "auth_default",
+          "result": "success"
+         }
+        ]
+       },
+       {
+        "src_port": 12346,
+        "events": [
+         {
+          "kind": "connect",
+          "direction": "c2s",
+          "profile": "connect_default"
+         },
+         {
+          "kind": "auth_request",
+          "direction": "c2s",
+          "profile": "auth_default"
+         },
+         {
+          "kind": "auth_response",
+          "direction": "s2c",
+          "profile": "auth_default",
+          "result": "success"
+         }
+        ]
+       }
       ]
-    },
-    "notes": []
+     }
+    }
+   ]
   },
-  {
-    "id": "dameng_multi_session",
-    "proto": "dameng",
-    "summary": "S8: two independent authenticated sessions",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "dameng": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5236,
-      "dameng": {
-        "wire_profile": "dm8_profile_pending",
-        "sessions": [
-          {
-            "src_port": 12345,
-            "events": [
-              {
-                "kind": "connect",
-                "direction": "c2s",
-                "profile": "connect_default"
-              },
-              {
-                "kind": "auth_request",
-                "direction": "c2s",
-                "profile": "auth_default",
-                "username": "SYSDBA"
-              },
-              {
-                "kind": "auth_response",
-                "direction": "s2c",
-                "profile": "auth_default",
-                "result": "success"
-              }
-            ]
-          },
-          {
-            "src_port": 12346,
-            "events": [
-              {
-                "kind": "connect",
-                "direction": "c2s",
-                "profile": "connect_default"
-              },
-              {
-                "kind": "auth_request",
-                "direction": "c2s",
-                "profile": "auth_default",
-                "username": "SYSDBA"
-              },
-              {
-                "kind": "auth_response",
-                "direction": "s2c",
-                "profile": "auth_default",
-                "result": "success"
-              }
-            ]
-          }
-        ]
-      }
+  "expect": {
+   "packet_count": 20,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "field": "tcp.srcport",
+     "distinct_values": [
+      "12345",
+      "12346"
+     ],
+     "distinct_exclude": [
+      "5236"
+     ]
     },
-    "expect": {
-      "packet_count": 20,
-      "has_handshake": true,
-      "terminates": true,
-      "has_payload": true,
-      "fields": [
-        {
-          "field": "tcp.srcport",
-          "distinct_values": [
-            "12345",
-            "12346"
-          ],
-          "distinct_exclude": [
-            "5236"
-          ]
-        },
-        {
-          "field": "tcp.dstport",
-          "distinct_values": [
-            "5236"
-          ],
-          "distinct_exclude": [
-            "12345",
-            "12346"
-          ]
-        }
+    {
+     "field": "tcp.dstport",
+     "distinct_values": [
+      "5236"
+     ],
+     "distinct_exclude": [
+      "12345",
+      "12346"
+     ]
+    }
+   ]
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_udp",
+  "proto": "dameng",
+  "summary": "N1: UDP carrier is rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 5236
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       }
       ]
-    },
-    "notes": []
+     }
+    }
+   ]
   },
-  {
-    "id": "dameng_neg_udp",
-    "proto": "dameng",
-    "summary": "N1: UDP carrier is rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "dameng": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5236,
-      "dameng": {
-        "wire_profile": "dm8_profile_pending",
-        "events": [
-          {
-            "kind": "connect",
-            "direction": "c2s",
-            "profile": "connect_default"
-          }
-        ]
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "tcp"
-    },
-    "notes": []
+  "expect": {
+   "expect_error": true,
+   "error_contains": "tcp"
   },
-  {
-    "id": "dameng_neg_port",
-    "proto": "dameng",
-    "summary": "N2: nonstandard destination port is rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "dameng": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_port",
+  "proto": "dameng",
+  "summary": "N2: nonstandard destination port is rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
       "src_port": 12345,
-      "dst_port": 5237,
-      "dameng": {
-        "wire_profile": "dm8_profile_pending",
-        "events": [
-          {
-            "kind": "connect",
-            "direction": "c2s",
-            "profile": "connect_default"
-          }
-        ]
-      }
+      "dst_port": 5237
+     }
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "5236"
-    },
-    "notes": []
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       }
+      ]
+     }
+    }
+   ]
   },
-  {
-    "id": "dameng_neg_profile",
-    "proto": "dameng",
-    "summary": "N3: unknown wire profile is rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "dameng": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5236,
-      "dameng": {
-        "wire_profile": "unknown_profile",
-        "events": [
-          {
-            "kind": "connect",
-            "direction": "c2s",
-            "profile": "connect_default"
-          }
-        ]
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "profile"
-    },
-    "notes": []
+  "expect": {
+   "expect_error": true,
+   "error_contains": "5236"
   },
-  {
-    "id": "dameng_neg_state",
-    "proto": "dameng",
-    "summary": "N4: SQL before authentication is rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "dameng": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5236,
-      "dameng": {
-        "wire_profile": "dm8_profile_pending",
-        "events": [
-          {
-            "kind": "sql_request",
-            "direction": "c2s",
-            "profile": "sql_select_default",
-            "sql": "SELECT 1"
-          }
-        ]
-      }
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_profile",
+  "proto": "dameng",
+  "summary": "N3: unknown wire profile is rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "state"
+    {
+     "tcp": {
+      "src_port": 12345
+     }
     },
-    "notes": []
+    {
+     "dameng": {
+      "wire_profile": "unknown_profile",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       }
+      ]
+     }
+    }
+   ]
   },
-  {
-    "id": "dameng_neg_truncated",
-    "proto": "dameng",
-    "summary": "N5: truncated application message is rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "dameng": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5236,
-      "dameng": {
-        "wire_profile": "dm8_profile_pending",
-        "events": [
-          {
-            "kind": "connect",
-            "direction": "c2s",
-            "profile": "connect_default"
-          },
-          {
-            "kind": "auth_request",
-            "direction": "c2s",
-            "profile": "auth_default",
-            "username": "SYSDBA"
-          },
-          {
-            "kind": "auth_response",
-            "direction": "s2c",
-            "profile": "auth_default",
-            "result": "success"
-          },
-          {
-            "kind": "sql_request",
-            "direction": "c2s",
-            "profile": "sql_select_default",
-            "sql": "SELECT 1"
-          },
-          {
-            "kind": "sql_response",
-            "direction": "s2c",
-            "profile": "sql_select_default",
-            "result": "success"
-          }
-        ],
-        "wire_fault": {
-          "kind": "truncate_message",
-          "value": 1
-        }
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "truncated"
-    },
-    "notes": []
+  "expect": {
+   "expect_error": true,
+   "error_contains": "profile"
   },
-  {
-    "id": "dameng_neg_oversize",
-    "proto": "dameng",
-    "summary": "N6: message over implementation limit is rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "dameng": {}
-        }
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_state",
+  "proto": "dameng",
+  "summary": "N4: SQL before authentication is rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_select_default",
+        "sql": "SELECT 1"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "state"
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_truncated",
+  "proto": "dameng",
+  "summary": "N5: truncated application message is rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "success"
+       },
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_select_default",
+        "sql": "SELECT 1"
+       },
+       {
+        "kind": "sql_response",
+        "direction": "s2c",
+        "profile": "sql_select_default",
+        "result": "success"
+       }
       ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5236,
-      "dameng": {
-        "wire_profile": "dm8_profile_pending",
-        "events": [
-          {
-            "kind": "connect",
-            "direction": "c2s",
-            "profile": "connect_default"
-          },
-          {
-            "kind": "auth_request",
-            "direction": "c2s",
-            "profile": "auth_default",
-            "username": "SYSDBA"
-          },
-          {
-            "kind": "auth_response",
-            "direction": "s2c",
-            "profile": "auth_default",
-            "result": "success"
-          },
-          {
-            "kind": "sql_request",
-            "direction": "c2s",
-            "profile": "sql_select_default",
-            "sql": "SELECT 1"
-          },
-          {
-            "kind": "sql_response",
-            "direction": "s2c",
-            "profile": "sql_select_default",
-            "result": "success"
-          }
-        ],
-        "wire_fault": {
-          "kind": "message_limit",
-          "value": "over_limit"
-        }
+      "wire_fault": {
+       "kind": "truncate_message",
+       "value": 1
       }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "truncated"
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_oversize",
+  "proto": "dameng",
+  "summary": "N6: message over implementation limit is rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "limit"
+    {
+     "tcp": {
+      "src_port": 12345
+     }
     },
-    "notes": []
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "success"
+       },
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_select_default",
+        "sql": "SELECT 1"
+       },
+       {
+        "kind": "sql_response",
+        "direction": "s2c",
+        "profile": "sql_select_default",
+        "result": "success"
+       }
+      ],
+      "wire_fault": {
+       "kind": "message_limit",
+       "value": "over_limit"
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "limit"
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_auth_error_then_close",
+  "proto": "dameng",
+  "summary": "S3b: auth error then clean close",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "error"
+       },
+       {
+        "kind": "close",
+        "direction": "c2s",
+        "profile": "close_default"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 11,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 7,
+     "field": "tcp.dstport",
+     "value": "5236"
+    }
+   ]
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_close_clean",
+  "proto": "dameng",
+  "summary": "S6: full success order plus trailing close",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "success"
+       },
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_select_default",
+        "sql": "SELECT 1"
+       },
+       {
+        "kind": "sql_response",
+        "direction": "s2c",
+        "profile": "sql_select_default",
+        "result": "success"
+       },
+       {
+        "kind": "close",
+        "direction": "c2s",
+        "profile": "close_default"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 13,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tcp.dstport",
+     "value": "5236"
+    },
+    {
+     "packet": 9,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ]
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_multi_flow_dynamic",
+  "proto": "dameng",
+  "summary": "MF: flows=3 dynamic src ports over single-connect baseline",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": {
+       "strategy": "inc",
+       "range": [
+        12345,
+        12347
+       ],
+       "step": 1
+      }
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 24,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "field": "tcp.srcport",
+     "distinct_values": [
+      "12345",
+      "12346",
+      "12347"
+     ],
+     "distinct_exclude": [
+      "5236"
+     ]
+    },
+    {
+     "field": "tcp.dstport",
+     "distinct_values": [
+      "5236"
+     ],
+     "distinct_exclude": [
+      "12345",
+      "12346",
+      "12347"
+     ]
+    }
+   ]
+  },
+  "notes": [],
+  "strategy_fc": {
+   "type": "flows",
+   "value": 3
   }
+ },
+ {
+  "id": "dameng_long_sql_mss",
+  "proto": "dameng",
+  "summary": "LG: 3000B SQL still one segment per event, session unbroken",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "success"
+       },
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_select_default",
+        "sql": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       },
+       {
+        "kind": "sql_response",
+        "direction": "s2c",
+        "profile": "sql_select_default",
+        "result": "success"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 12,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 7,
+     "field": "tcp.dstport",
+     "value": "5236"
+    },
+    {
+     "packet": 7,
+     "field": "tcp.len",
+     "nonzero": true
+    }
+   ]
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_pcap_nic_consistency",
+  "proto": "dameng",
+  "summary": "NIC fixture pcap-side (port/direction consistency; port_group dual-path NIC run open)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "success"
+       },
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_select_default",
+        "sql": "SELECT 1"
+       },
+       {
+        "kind": "sql_response",
+        "direction": "s2c",
+        "profile": "sql_select_default",
+        "result": "success"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 12,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "5236"
+    },
+    {
+     "packet": 6,
+     "field": "tcp.srcport",
+     "value": "5236"
+    }
+   ]
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_direction_mismatch",
+  "proto": "dameng",
+  "summary": "N: explicit direction inconsistent with kind",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "s2c",
+        "profile": "connect_default"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "inconsistent"
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_unknown_kind",
+  "proto": "dameng",
+  "summary": "N: unregistered event kind",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "bind",
+        "direction": "c2s",
+        "profile": "connect_default"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "unknown kind"
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_empty_sql",
+  "proto": "dameng",
+  "summary": "N: sql_request without sql text",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "success"
+       },
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_select_default"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "empty SQL"
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_sql_before_auth",
+  "proto": "dameng",
+  "summary": "N: sql before successful auth",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_select_default",
+        "sql": "SELECT 1"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "before successful authentication"
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_sql_after_auth_error",
+  "proto": "dameng",
+  "summary": "N: sql after auth error",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "error"
+       },
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_select_default",
+        "sql": "SELECT 1"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "before successful authentication"
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_close_not_last",
+  "proto": "dameng",
+  "summary": "N: close not last",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "close",
+        "direction": "c2s",
+        "profile": "close_default"
+       },
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_select_default",
+        "sql": "SELECT 1"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "close must be the last"
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_auth_response_without_request",
+  "proto": "dameng",
+  "summary": "N: auth_response without prior auth_request",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "success"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "without auth_request"
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_connect_not_first",
+  "proto": "dameng",
+  "summary": "N: first event not connect",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "first event must be connect"
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_events_sessions_exclusive",
+  "proto": "dameng",
+  "summary": "N: events and sessions coexist",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       }
+      ],
+      "sessions": [
+       {
+        "src_port": 12345,
+        "events": [
+         {
+          "kind": "connect",
+          "direction": "c2s",
+          "profile": "connect_default"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "mutually exclusive"
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_session_empty_events",
+  "proto": "dameng",
+  "summary": "N: session with empty events",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "sessions": [
+       {
+        "src_port": 12345,
+        "events": []
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "empty events"
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_wire_fault_unknown_kind",
+  "proto": "dameng",
+  "summary": "N: wire_fault unknown kind",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "success"
+       },
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_select_default",
+        "sql": "SELECT 1"
+       },
+       {
+        "kind": "sql_response",
+        "direction": "s2c",
+        "profile": "sql_select_default",
+        "result": "success"
+       }
+      ],
+      "wire_fault": {
+       "kind": "bogus"
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "unknown kind"
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_wire_fault_wrong_shape",
+  "proto": "dameng",
+  "summary": "N: wire_fault wrong shape",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "success"
+       },
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_select_default",
+        "sql": "SELECT 1"
+       },
+       {
+        "kind": "sql_response",
+        "direction": "s2c",
+        "profile": "sql_select_default",
+        "result": "success"
+       }
+      ],
+      "wire_fault": "truncate"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "invalid wire_fault"
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_payload_size",
+  "proto": "dameng",
+  "summary": "N: unsupported payload_size",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "success"
+       },
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_select_default",
+        "sql": "SELECT 1"
+       },
+       {
+        "kind": "sql_response",
+        "direction": "s2c",
+        "profile": "sql_select_default",
+        "result": "success"
+       }
+      ],
+      "payload_size": "huge"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "payload_size"
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_unknown_layer_field",
+  "proto": "dameng",
+  "summary": "N: dameng layer 6th key beyond 5-key whitelist",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       },
+       {
+        "kind": "auth_request",
+        "direction": "c2s",
+        "profile": "auth_default"
+       },
+       {
+        "kind": "auth_response",
+        "direction": "s2c",
+        "profile": "auth_default",
+        "result": "success"
+       },
+       {
+        "kind": "sql_request",
+        "direction": "c2s",
+        "profile": "sql_select_default",
+        "sql": "SELECT 1"
+       },
+       {
+        "kind": "sql_response",
+        "direction": "s2c",
+        "profile": "sql_select_default",
+        "result": "success"
+       }
+      ],
+      "bogus_key": 1
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "unknown field"
+  },
+  "notes": []
+ },
+ {
+  "id": "dameng_neg_top_dameng_presence_reject",
+  "proto": "dameng",
+  "summary": "D-DAMENG-1 presence: layers + top-level dameng {} coexist = reject",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345
+     }
+    },
+    {
+     "dameng": {
+      "wire_profile": "dm8_profile_pending",
+      "events": [
+       {
+        "kind": "connect",
+        "direction": "c2s",
+        "profile": "connect_default"
+       }
+      ]
+     }
+    }
+   ],
+   "dameng": {}
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "top-level"
+  },
+  "notes": []
+ }
 ]

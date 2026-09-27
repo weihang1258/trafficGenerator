@@ -2637,6 +2637,35 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			}
 			spec.SMB = smbCfg
 		}
+	case "dameng":
+		// D-DAMENG-1 G-DM-2：层 config（wire_profile/events/sessions/
+		// payload_size/wire_fault）经 JSON 往返解码为 core.DamengConfig
+		//（postgresql :2009-2036 同款——json tag 覆盖全部字段）。层优先：
+		// spec.Dameng 已存在（引擎直调/单测路径）则不覆盖；扁平入口已由
+		// CheckProtoFlat 判死顶层 dameng 子映射（存量行经
+		// strategy_convert 兼容块记 ValidationErrors）。空层 config 翻译出
+		// 非 nil 空配置 → validator 按 P0b 缺省流承接（层 config 未知键在
+		// config 层即拒：DamengConfig UnmarshalJSON
+		// DisallowUnknownFields）。
+		if spec.Dameng != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		cfgD := completedConfig(s, term.Config)
+		rawD, err := json.Marshal(cfgD)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("dameng layer config encode: %v", err))
+			return
+		}
+		var dcfg core.DamengConfig
+		decD := json.NewDecoder(bytes.NewReader(rawD))
+		decD.DisallowUnknownFields()
+		if err := decD.Decode(&dcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("dameng layer config decode: %v", err))
+			return
+		}
+		spec.Dameng = &dcfg
 	case "xmpp":
 		// D-XMPP-1：层 config 经 core.ParseXmppConfigFromMap 复用扁平
 		// 解析单一真相（messages 记录 direction/to/body 与 flat 同构）。
