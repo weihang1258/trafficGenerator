@@ -374,10 +374,15 @@
           "packet": 13,
           "offset": 62,
           "hex": "24 08"
+        },
+        {
+          "packet": 13,
+          "offset": 64,
+          "hex": "00 08 12 52 00 00 00 00 00 09 14 95 30 30 30 30 30"
         }
       ],
       "notes": [
-        "SQLCARD 的 SQLCODE=0、SQLSTATE=00000 必须由实现提供可观察字段或重组字节断言。"
+        "SQLCARD 响应带 SQLCODE(0x1252)+SQLSTATE(0x1495) 参数（offset 64 = 参数区起点，链路径 layer_gen 语义）；SQLCODE=0、SQLSTATE=00000。"
       ]
     }
   },
@@ -461,10 +466,15 @@
           "packet": 13,
           "offset": 62,
           "hex": "24 08"
+        },
+        {
+          "packet": 13,
+          "offset": 64,
+          "hex": "00 08 12 52 ff ff ff 34 00 09 14 95 34 32 37 30 34"
         }
       ],
       "notes": [
-        "SQLCARD 的 SQLCODE=-204、SQLSTATE=42704 是应用错误，不应转成 task/config error。"
+        "SQLCARD 响应带 SQLCODE=-204(0xffffff34)+SQLSTATE=42704；应用错误不转 task/config error，连接正常终止。"
       ]
     }
   },
