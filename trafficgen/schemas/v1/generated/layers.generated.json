@@ -512,17 +512,11 @@
         "discovery": {
           "type": "object"
         },
-        "eid": {
-          "type": "string"
-        },
         "entity_status": {
           "type": "object"
         },
         "generic_nack": {
           "type": "object"
-        },
-        "gid": {
-          "type": "string"
         },
         "logical_address": {
           "type": "uint16",
@@ -541,9 +535,6 @@
         "tester_address": {
           "type": "uint16",
           "max": 65535
-        },
-        "vin": {
-          "type": "string"
         }
       }
     },

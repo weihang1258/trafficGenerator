@@ -253,16 +253,20 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "dnp3", Category: CategoryTerminal,
 		DependsOn: []string{"tcp"},
 	})
-	// D-DOIP-1：doip（tcp 终结层；层七键对齐 core.DoIPConfig json 标签——
-	// 键名=标签名。oem_specific/user_data 等字节片由扁平 getByteSlice/
-	// getHexBytes 承接双语义（字符串原样字节/hex 解码/数字数组），JSON
-	// 往返会误读——srv6 inner_payload/tftp data_payload_pattern 同陷阱，
-	// 翻译侧复用扁平 parseDoIPConfig 单一真相。discovery/entity_status/
-	// power_mode 三键在册（ValidateLayerConfig 未知键即拒之前先过值面）→
-	// 生成器/校验器同步显式拒绝（UDP 面链上不可达）；vin/eid/gid 死配置
-	// 同册（生成器零读取，G-DOIP-7）。端口契约 tcp.dst_port=13400（缺省
-	// 补齐，enip :44818 同款）。顶层 `doip` 子映射由 CheckProtoFlat
-	// presence 判死，层链是唯一配置真相。
+	// D-DOIP-1：doip（tcp 终结层；层十键——业务七键（契约 §15.3：
+	// protocol_version/logical_address/tester_address/activation/messages/
+	// alive_check/generic_nack）+ UDP 三键在册。三键必须可表达，否则负例
+	// #20–#22 命中 `unknown field` 而非契约锚词「<key> … not supported」
+	// （enip io_data/transport 先例：在册 = 走链级预检/生成器拒绝，锚词
+	// 到位）。字节片（oem_specific/user_data）由扁平 getByteSlice/
+	// getHexBytes 承接双语义（原文字节/hex/数字数组），JSON 往返会误读——
+	// srv6 inner_payload/tftp data_payload_pattern 同陷阱，翻译侧复用扁平
+	// parseDoIPConfig 单一真相。vin/eid/gid **不入册**：死配置（校验嵌在
+	// 已删的 Discovery 块 doip.go:62-88，生成器 layer_gen.go 零读取），
+	// 入册会造出「写了被静默忽略」面（契约 §1.12 不许登记保留）——未入册
+	// 即 unknown field 响亮拒绝。端口契约 tcp.dst_port=13400（缺省补齐，
+	// enip :44818 同款）。顶层 `doip` 子映射由 CheckProtoFlat presence
+	// 判死，层链是唯一配置真相。
 	r.Register(LayerSchema{Name: "doip", Category: CategoryTerminal,
 		DependsOn:   []string{"tcp"},
 		TransportOn: []string{"tcp"},
@@ -271,16 +275,13 @@ func buildDefaultRegistry() {
 			"protocol_version": {Type: "uint8", Min: 0, Max: 255},
 			"logical_address":  {Type: "uint16", Min: 0, Max: 65535},
 			"tester_address":   {Type: "uint16", Min: 0, Max: 65535},
-			"vin":              {Type: "string"},
-			"eid":              {Type: "string"},
-			"gid":              {Type: "string"},
-			"discovery":        {Type: "object"},
-			"entity_status":    {Type: "object"},
-			"power_mode":       {Type: "object"},
 			"activation":       {Type: "object"},
 			"messages":         {Type: "list"},
 			"alive_check":      {Type: "object"},
 			"generic_nack":     {Type: "object"},
+			"discovery":        {Type: "object"},
+			"entity_status":    {Type: "object"},
+			"power_mode":       {Type: "object"},
 		},
 	})
 	// ---- P4a：gbt32960（tcp 终结层。GB/T 32960.3-2016——车辆/平台状态机
