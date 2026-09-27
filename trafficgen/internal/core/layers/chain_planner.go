@@ -655,7 +655,7 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 		break
 	}
 	// 通用 FieldContract 端口应用（P0b-1 通用化，design §1.3/§10.3 R2）：
-	// switch 未覆盖且用户未显式写的层（amqp/bgp/dameng/drda/hds/hls/http/
+	// switch 未覆盖且用户未显式写的层（amqp/bgp/hds/hls/http/
 	// http_flv/iec104/mongodb/s7/thrift/tns），其目的端口由 terminal 层
 	// FieldContract 的 <carrier>.dst_port 常量补齐（fieldContractDstPort 读
 	// tcp/udp 两载体）。若契约也未声明，才报 destination port is required。
@@ -1231,7 +1231,7 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// 这里不放 default——validateSpecBase 先于契约块（272-315）运行，
 			// 若在此拒绝 0 会挡住契约赋值。保持 0，让契约块写入契约端口。
 		default:
-			// 不在此报错——switch 未覆盖的层（amqp/bgp/dameng/drda/hds/hls/http/
+			// 不在此报错——switch 未覆盖的层（amqp/bgp/hds/hls/http/
 			// http_flv/iec104/mongodb/s7/thrift/tns）其目的端口由 terminal 层
 			// FieldContract 的 <carrier>.dst_port 常量声明（design §1.3/§10.3
 			// R2 通用化）。validateSpecBase 无 chain 无法读契约，故保持 0 继续，
