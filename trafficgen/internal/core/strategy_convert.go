@@ -440,6 +440,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-DOIP-1：doip 在库旧策略顶层 doip → ValidationErrors（enip 同款；
+	// 空 map 也死——判死形状「层链+顶层空子映射并存」wired 面；G-DOIP-5
+	// 与翻译分支同提交，防双轨）。
+	if protocol == "doip" {
+		if v, ok := cfg["doip"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-HL7-1：hl7 在库旧策略顶层 hl7 → ValidationErrors（megaco 同款；
 	// 在库 0 行纯防御）。
 	if protocol == "hl7" {
@@ -8707,6 +8715,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "s7" {
 		if v, ok := cfg["s7"]; ok && v != nil {
 			return "protocol s7 no longer accepts a top-level s7 sub-config (move it into the s7 layer of an [ip,tcp,s7] layers chain)"
+		}
+	}
+	// D-DOIP-1：doip 顶层 doip 子映射 presence 判死（enip 先例；空 map
+	// 也死——G-DOIP-5；十三键迁 layers[i].doip）。层链形状不触发。
+	if protocol == "doip" {
+		if v, ok := cfg["doip"]; ok && v != nil {
+			return "protocol doip no longer accepts a top-level doip sub-config (move it into the doip layer of an [ip,tcp,doip] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-*-1 raw 自驱八协议：顶层同名子映射 presence 判死（mcp 先例；空

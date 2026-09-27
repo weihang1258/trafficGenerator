@@ -2704,6 +2704,18 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.TFTP == nil {
 			spec.TFTP = core.ParseTFTPConfigFromMap(completedConfig(s, term.Config))
 		}
+	case "doip":
+		// D-DOIP-1：层 config 经 core.ParseDoIPConfigFromMap 复用扁平
+		// 解析单一真相（oem_specific/user_data 等字节片 getByteSlice/
+		// getHexBytes 双语义 + nack_code/has_sub_function 指针三态由扁平
+		// parse 承接，JSON 往返会误读——srv6 inner_payload/tftp
+		// data_payload_pattern 同陷阱）。空层 config 也翻译出非 nil
+		// （validator 首命中 DoIP config is required，不静默缺省流）。
+		// 端口=FieldContract tcp.dst_port=13400 通用补齐（enip 44818
+		// 同款），无端口回填分支（doip 层无端口字段）。
+		if spec.DoIP == nil {
+			spec.DoIP = core.ParseDoIPConfigFromMap(completedConfig(s, term.Config))
+		}
 	case "fins":
 		// D-FINS-1：层 config map 直存 Metadata（GetConfig map 分支既有
 		// types.go:159-168；Data []byte 经 JSON 数字数组无双语义，无 srv6

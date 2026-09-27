@@ -2163,6 +2163,140 @@ def check_cql(cases):
     rows.append((f"负例锚词覆盖 {len(anchors)} 族", not missing, missing or sorted(got)))
     return rows
 
+
+def check_doip(cases):
+    """D-DOIP-1 P5 反查表（80 例 = 50 正 + 30 负）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("doip"), dict):
+                lays.append((c.get("id", "?"), l["doip"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 doip", '"doip": true' in pg, "在列"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case doip（层条目→spec.DoIP）",
+                 'case "doip":' in tr and "core.ParseDoIPConfigFromMap" in tr, "在案"))
+    do = (tg / "internal" / "core" / "doip.go").read_text()
+    rows.append(("ParseDoIPConfigFromMap 导出解析单一真相",
+                 "func ParseDoIPConfigFromMap" in do, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "doip"')
+    reg_block = rg[i_reg:rg.index('Name: "gbt32960"', i_reg)]
+    rows.append(("registry doip 行（DependsOn tcp + TransportOn tcp + FieldContract 13400 + Fields 十键）",
+                 'DependsOn:   []string{"tcp"}' in reg_block
+                 and 'TransportOn: []string{"tcp"}' in reg_block
+                 and '"tcp.dst_port": "13400"' in reg_block
+                 and all(f'"{k}"' in reg_block for k in (
+                     "protocol_version", "logical_address", "tester_address",
+                     "activation", "messages", "alive_check", "generic_nack",
+                     "discovery", "entity_status", "power_mode")), "在案"))
+    rows.append(("vin/eid/gid 未入册（死配置响亮拒，G-DOIP-7）",
+                 all(f'"{k}"' not in reg_block for k in ("vin", "eid", "gid")), "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat 顶层 doip 子映射 presence 判死",
+                 "protocol doip no longer accepts a top-level doip sub-config" in sc, "在案"))
+    rows.append(("mapToFlowSpec 顶层 doip → ValidationErrors（在库旧策略执法）",
+                 'if protocol == "doip" {' in sc, "在案"))
+    rows.append(("strategy_convert case doip + 13400 缺省端口",
+                 'case "doip":' in sc and "setDefaultDstPort(&spec, cfg, 13400)" in sc, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    i_vl = vl.index('if protocol == "doip" {')
+    vl_block = vl[i_vl:vl.index("effective, err := ValidateLayers", i_vl)]
+    rows.append(("链上不可达三支预检（discovery/entity_status/power_mode）",
+                 "discovery (UDP vehicle discovery) is not supported" in vl_block
+                 and "entity_status (UDP entity status) is not supported" in vl_block
+                 and "power_mode (UDP power mode) is not supported" in vl_block, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain_planner doip 目的端口缺省 13400", "doipPort = 13400" in cp, "在案"))
+    gen = (tg / "internal" / "protocol" / "doip" / "layer_gen.go").read_text()
+    rows.append(("生成器 UDP 三键显式拒 + 激活失败拒 + init 注册",
+                 "discovery (UDP) is not supported on the layer chain" in gen
+                 and "activation failed (response_code 0x%02X) is not supported" in gen
+                 and "func init" in gen, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(doip)",
+                 "internal/protocol/doip" in mn and 'NewChainPlanner("doip")' in mn, "在案"))
+
+    # 2. 用例面（76 例 = 46 正 + 30 负）。
+    ids = {c.get("id", "") for c in cases}
+    rows.append(("用例总数 80", len(cases) == 80, f"{len(cases)} 例"))
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("50 正 + 30 负", len(pos) == 50 and len(neg) == 30, f"{len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("契约特色例在案（full_flow / multiflow / options / read_write_did）",
+                 {"doip_tcp_full_flow", "doip_tcp_multiflow_dynamic",
+                  "doip_tcp_options_nohandshake", "doip_tcp_diag_uds_read_write_did"} <= ids, "在案"))
+    rows.append(("多流动态在案（strategy_fc flows=2 + 层内 inc）",
+                 any(c.get("id") == "doip_tcp_multiflow_dynamic"
+                     and (c.get("strategy_fc") or {}).get("value") == 2 for c in cases), "在案"))
+    rows.append(("presence 负例在案（layers+顶层 doip:{}）",
+                 "doip_neg_presence" in ids, "在案"))
+    rows.append(("游离键负例在案（src_ip / count）",
+                 {"doip_neg_stray_src_ip", "doip_neg_stray_count"} <= ids, "在案"))
+    rows.append(("UDP 三阶段负例在案",
+                 {"doip_neg_udp_phase_discovery", "doip_neg_udp_phase_entity_status",
+                  "doip_neg_udp_phase_power_mode"} <= ids, "在案"))
+    rows.append(("载体负例在案（[ip,udp,doip]）", "doip_neg_udp_carrier" in ids, "在案"))
+    rows.append(("确认缺失负例在案（RC=0x11 无 confirmation）",
+                 "doip_neg_activation_confirmation_missing" in ids, "在案"))
+    bad_top = [c.get("id") for c in pos
+               if set((c.get("spec_json") or {}).keys()) - {"layers", "flow_control", "output", "output_config", "group_id"}]
+    rows.append(("非负例顶层键=0（白名单制）", not bad_top, bad_top or "全部合规"))
+    v6ids = [c.get("id") for c in cases
+             if c.get("id") in ("doip_ipv6_activation", "doip_ipv6_alive")
+             and ":" in json.dumps((c.get("spec_json") or {}).get("layers") or [])]
+    rows.append(("IPv6 例在案（ip 层 v6 字面量，地址族由字面量判）",
+                 len(v6ids) == 2, ",".join(v6ids) or "无"))
+
+    # 3. 层键覆盖（契约 §15.3 十键在册者逐键有用例）。
+    for k in ["protocol_version", "logical_address", "tester_address", "activation",
+              "messages", "alive_check", "generic_nack",
+              "discovery", "entity_status", "power_mode"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((f"层键覆盖：{k}", hit is not None, hit or "无用例"))
+
+    # 4. 锚词面（30 负例：值域 22 + 链级 6 + presence/游离 2 类）。
+    for needle, name in [
+        ("no longer accepts a top-level doip sub-config", "presence 判死"),
+        ("no longer accepts flat config field src_ip", "游离键 src_ip"),
+        ("no longer accepts flat config field count", "游离键 count"),
+        ("carrier", "udp 载体"),
+        ("discovery (UDP vehicle discovery) is not supported", "discovery 链上不可达"),
+        ("entity_status (UDP entity status) is not supported", "entity_status 链上不可达"),
+        ("power_mode (UDP power mode) is not supported", "power_mode 链上不可达"),
+        ("activation failed (response_code 0x00)", "RC=0x00 拒绝"),
+        ("activation failed (response_code 0x01)", "RC=0x01 拒绝"),
+        ("activation failed (response_code 0x04)", "RC=0x04 拒绝"),
+        ("activation failed (response_code 0x05)", "RC=0x05 拒绝"),
+        ("activation failed (response_code 0x07)", "RC=0x07 拒绝"),
+        ("activation failed (response_code 0x11)", "RC=0x11 无确认"),
+        ("ActivationType must be 0x00, 0x01, or 0xE0-0xFF", "ActivationType 值域"),
+        ("ResponseCode must be 0x00-0x07, 0x10, or 0x11", "ResponseCode 值域"),
+        ("NackCode must be 0x02-0x08", "0x8003 NackCode 值域"),
+        ("GenericNack.NackCode must be 0x00-0x04", "0x0000 NackCode 值域"),
+        ("AckCode must be 0x00", "AckCode 值域"),
+        ("NegativeResponseCode must be 0x01-0x7F", "UDS NRC 值域"),
+        ("is not supported", "UDS SID 表"),
+        ("does not support sub-function", "HasSubFunction 冲突"),
+        ("Key must be empty for even sub-function response", "0x27 偶响应带 Key"),
+        ("must match TesterAddress", "SA 一致性"),
+        ("Messages require Activation", "messages 无 activation"),
+        ("ProtocolVersion must be 0x01 or 0x02", "PV 值域"),
+        ("V1 does not support OEM-specific data", "V1+OEM 拒"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    # 5. 死配置纪律（G-DOIP-7）：vin/eid/gid 零出现。
+    dead = [cid for cid, m in lays if any(k in m for k in ("vin", "eid", "gid"))]
+    rows.append(("vin/eid/gid 零出现（死配置删键）", not dead, dead or "零出现"))
+    return rows
 def check_enip(cases):
     """D-ENIP-1 P4 反查表。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -2395,7 +2529,8 @@ def check_bgp(cases):
                  and gfields.get("sessions", {}).get("type") == "list"
                  and "default" not in gfields.get("events", {}), "在案"))
     vt = (tg / "tools" / "pipe_gate.sh").read_text()
-    rows.append(("pipe_gate presence 红线登记 bgp", "|enip|bgp)" in vt, "在案"))
+    rows.append(("pipe_gate presence 红线登记 bgp",
+                 "|bgp|" in vt or "|bgp)" in vt, "在案"))
 
     # 2. 行为面（builder/planner 关键件 + G-BGP-7）。
     bl = (tg / "internal" / "protocol" / "bgp" / "builder.go").read_text()
@@ -6333,7 +6468,7 @@ def check_spnego(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip}
 
 
 def main(argv):

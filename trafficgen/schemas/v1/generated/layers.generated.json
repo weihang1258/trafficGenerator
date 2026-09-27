@@ -521,7 +521,47 @@
       "depends_on": [
         "tcp"
       ],
-      "fields": {}
+      "transport_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "13400"
+      },
+      "fields": {
+        "activation": {
+          "type": "object"
+        },
+        "alive_check": {
+          "type": "object"
+        },
+        "discovery": {
+          "type": "object"
+        },
+        "entity_status": {
+          "type": "object"
+        },
+        "generic_nack": {
+          "type": "object"
+        },
+        "logical_address": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "messages": {
+          "type": "list"
+        },
+        "power_mode": {
+          "type": "object"
+        },
+        "protocol_version": {
+          "type": "uint8",
+          "max": 255
+        },
+        "tester_address": {
+          "type": "uint16",
+          "max": 65535
+        }
+      }
     },
     "drda": {
       "category": "terminal",
