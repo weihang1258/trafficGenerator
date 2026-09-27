@@ -2,9 +2,9 @@
 
 > 版本：v1.3.0（P4–P6 落地回写：交付实况 + #13 形状订正；v1.2.0 = P3 完整产物 + 断言通道实测复校）  
 > 日期：2026-09-27  
-> 配套设计：`docs/protocol-designs/61-spnego-design.md`（v1.4.0）  
+> 配套设计：`docs/protocol-designs/61-spnego-design.md`（v1.5.0）  
 > 机器契约：`trafficgen/test/protocol_pcap/cases/spnego.json`  
-> 状态：**P4–P6 已交付**：`spnego` 层已注册，`cases/spnego.json` = 20 个语义用例（14 正 + 6 负，占位移除），lane suite 20/20 绿（P6 修轮后复跑）。本文既定的 PCAP（抓包文件）/NIC（网卡）断言现已全部可运行并被套件执行。P1–P3 期口径（保留备查）：v1.1.0 追加 §8 P3 固定动作（§3.15 三项 / A′B′ 两分类 / 9.52 对账两行 + 出处声明 / 3.14 豁免边界审计 / 三源回指 / 断言契约核对），并将 §3 项 7 的 `NegTokenTarg` 字段序按 RFC 2478 §3.2.1 原文勘误（与 design §10.3 H1 行一致）。v1.2.0 复校断言通道：裸 TCP 的 `tshark -V` 无 `OID: 1.3.6.1.5.5.2` 行（唯一证据=frames hex），`decode_as` 合法目标数 **317**；HTTP profile 链形可达性按 design v1.4.0 §10.6 证据（框架 `0c355be`）。
+> 状态：**P4–P6 已交付**：`spnego` 层已注册，`cases/spnego.json` = 20 个语义用例（14 正 + 6 负，占位移除），lane suite 20/20 绿（P6 修轮后复跑）。本文既定的 PCAP（抓包文件）/NIC（网卡）断言现已全部可运行并被套件执行。P1–P3 期口径（保留备查）：v1.1.0 追加 §8 P3 固定动作（§3.15 三项 / A′B′ 两分类 / 9.52 对账两行 + 出处声明 / 3.14 豁免边界审计 / 三源回指 / 断言契约核对），并将 §3 项 7 的 `NegTokenTarg` 字段序按 RFC 2478 §3.2.1 原文勘误（与 design §10.3 H1 行一致）。v1.2.0 复校断言通道：裸 TCP 的 `tshark -V` 无 `OID: 1.3.6.1.5.5.2` 行（唯一证据=frames hex），`decode_as` 合法目标数 **317**；HTTP profile 链形可达性按 design §10.6 证据（框架 `0c355be`；v1.4.0 首版，v1.5.0 保留）。
 
 ## 1. 测试原则和未注册边界
 
