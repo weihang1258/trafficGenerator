@@ -1,6 +1,6 @@
 // Package spnego — casegen 一次性用例生成器（D-SPNEGO-1 P5）。
 //
-// 20 例（14 正 + 6 负），按用例文档 §2 权威序（61-spnego-testcase.md v1.2.0）。
+// 20 例（14 正 + 6 负），按用例文档 §2 权威序（61-spnego-testcase.md v1.3.0）。
 // 正例帧断言取自全链真实回放（BuildLayersPlanner→Plan——单权威，无重复编码）
 // + tshark 字段名（design §10.4 ③ OID 名库 + §10.7 M-shape-5 通道分流）：
 // HTTP carrier 走 `spnego.*`/`http.*` 字段，裸 TCP carrier 走 frames hex
