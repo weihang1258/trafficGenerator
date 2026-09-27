@@ -432,6 +432,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-RTMFP-1：rtmfp 在库旧策略顶层 rtmfp → ValidationErrors（tds 同款；
+	// 空 map 也死——契约 §12-P2 判死形状「层链+顶层空子映射并存」wired 面；
+	// 24 例并存现状的执法口）。
+	if protocol == "rtmfp" {
+		if v, ok := cfg["rtmfp"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-ENIP-1（G-ENIP-3，§14-P2）：enip 在库旧策略顶层 enip →
 	// ValidationErrors（sstp 同款；空 map 也死——判死形状「层链+顶层空子
 	// 映射并存」wired 面；135/135 例并存现状的执法口）。
@@ -626,6 +634,10 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// RTMFP (Adobe Real-Time Media Flow Protocol) 默认端口 1935.
 		// 仅当用户未指定 dst_port 时覆盖 — 与 DNS/FTP/SIP/RTSP 模式一致.
+		// （G-RTMFP-3 修：strategy_convert.go:570-571 死注释复活——amqp/
+		// rtmp 同款 setDefaultDstPort 调用补齐，链路径缺省由
+		// chain_planner.go:975-977 承接。）
+		setDefaultDstPort(&spec, cfg, 1935)
 	case "amqp":
 		if sub, ok := cfg["amqp"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*AMQPConfig](&spec, sub, "amqp", &spec.AMQP)
@@ -8650,6 +8662,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "tds" {
 		if v, ok := cfg["tds"]; ok && v != nil {
 			return "protocol tds no longer accepts a top-level tds sub-config (move it into the tds layer of an [ip,tcp,tds] layers chain)"
+		}
+	}
+	// D-RTMFP-1：rtmfp 顶层 rtmfp 子映射 presence 判死（tds 先例；空 map
+	// 也死——契约 §12-P2 判死形状「层链+顶层空子映射并存」。层链形状不触发。
+	if protocol == "rtmfp" {
+		if v, ok := cfg["rtmfp"]; ok && v != nil {
+			return "protocol rtmfp no longer accepts a top-level rtmfp sub-config (move it into the rtmfp layer of an [ip,udp,rtmfp] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-ENIP-1（G-ENIP-3，§14-P2）：enip 顶层 enip 子映射 presence 判死

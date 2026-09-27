@@ -2961,7 +2961,34 @@
       "depends_on": [
         "udp"
       ],
-      "fields": {}
+      "transport_on": [
+        "udp"
+      ],
+      "fields": {
+        "keepalive_interval": {
+          "type": "int",
+          "default": 0
+        },
+        "ping_count": {
+          "type": "int",
+          "default": 0
+        },
+        "profile": {
+          "type": "string",
+          "default": ""
+        },
+        "role": {
+          "type": "string",
+          "default": ""
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "wire_fault": {
+          "type": "object"
+        }
+      }
     },
     "rtmp": {
       "category": "terminal",

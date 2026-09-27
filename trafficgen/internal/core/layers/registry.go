@@ -420,10 +420,22 @@ func buildDefaultRegistry() {
 	// ---- P4a：rtmfp（udp 终结层。Adobe RTMFP——Real-Time Media Flow
 	// Protocol，UDP 承载的实时音视频/数据流协议，握手 → cookie/session →
 	// 可靠/不可靠消息 → 分片/ACK/重传 → 保活 → 关闭，wire 字节由 build*
-	// 纯函数产出），UDP 语义（数据报/checksum）交给 udp 层生成器；配置
-	// 经 spec.RTMFP flat 键携带、FlowMeta 直传生成器；目的端口默认 1935。
+	// 纯函数产出），UDP 语义（数据报/checksum）交给 udp 层生成器；业务键
+	// 住 rtmfp 层条目（D-RTMFP-1：层链唯一真相，translateTerminalConfig
+	// 经 JSON 严格往返解码为 core.RTMFPConfig），FlowMeta 直传生成器；
+	// 目的端口默认 1935。Fields 表为本层键名白名单（ValidateLayerConfig
+	// 凭它放行 sessions[] 等嵌套值；值语义在 planner 校验器）。
 	r.Register(LayerSchema{Name: "rtmfp", Category: CategoryTerminal,
-		DependsOn: []string{"udp"},
+		DependsOn:   []string{"udp"},
+		TransportOn: []string{"udp"}, // RTMFP 仅 UDP 载体——transport-dup 检查据此报 carrier 锚词
+		Fields: map[string]FieldSchema{
+			"profile":            {Type: "string", Default: ""},
+			"role":               {Type: "string", Default: ""},
+			"keepalive_interval": {Type: "int", Default: 0, Min: 0, Max: 0},
+			"ping_count":         {Type: "int", Default: 0, Min: 0, Max: 0},
+			"wire_fault":         {Type: "object"},
+			"sessions":           {Type: "list", Default: []interface{}{}},
+		},
 	})
 	// ---- wireguard（udp 终结层。WireGuard——Noise_IKpsk2 发送发起/响应/
 	// cookie/传输数据报文序列）。UDP 语义（数据报/checksum）交给 udp 层
