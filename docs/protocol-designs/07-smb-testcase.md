@@ -1,6 +1,6 @@
 # SMB2/SMB3（服务器消息块 v2/v3，MS-SMB2）测试用例契约
 
-> 版本：v1.0.0（P1–P3 产物）
+> 版本：v1.0.1（P1–P3 产物 + P6 修轮入版；§7 修订行见文件尾）
 > 日期：2026-09-26
 > 配套设计：`docs/protocol-designs/07-smb-design.md` v2.2.0（P1 矩阵 §12 / 三路对照 §13 / 门1 表 §14 / D-SMB-1 §15 / 缺口 §17）
 > 机器契约：`trafficgen/test/protocol_pcap/cases/smb.json`（存量 **279** 例，旧扁平形，待 P5 按本文 §4 改写）

@@ -3,7 +3,7 @@
 **协议名称**：SMB2 / SMB3（Server Message Block v2 / v3，服务器消息块 v2/v3，MS-SMB2）
 **默认端口**：TCP 445（Direct TCP，直连 TCP），可选 139（NetBIOS Session Service，NBSS 会话服务）
 **规范来源**：MS-SMB2（[MS-SMB2] Microsoft Open Specifications，§2.2 / §3.x）
-**项目状态**：**已实现并入链**（P4 `481d874` 层链接线 + P5 `012bf48` 去扁平改写；层注册 `registry.go:1171`、translate `chain_planner_translate.go:2607`、presence 判死 `strategy_convert.go:8517`、载体预检 `validate_layers.go:511`）
+**项目状态**：**已实现并入链**（P4 `481d874` 层链接线 + P5 `012bf48` 去扁平改写；层注册 `registry.go:1171`、translate `chain_planner_translate.go:2607`、presence 判死 `strategy_convert.go:8510`、载体预检 `validate_layers.go:511`）
 **文档版本**：v2.2.1（2026-09-27）
 **目标**：为 trafficgen 增加 SMB2/SMB3 流量生成能力，覆盖协商、认证、树连接、文件 I/O、目录枚举、断开会话全流程；不实现真正的签名/加密算法（生成占位字段）。
 
@@ -2889,7 +2889,8 @@ var commandOpcodes = map[string]uint16{
 | v2.0.0 | 2026-08-05 | 基于深度审计报告 `audit/07-smb-audit-deep.md` 完整重写：修复 2 个 CRITICAL + 5 个 HIGH（SMB2 头 64 字节布局系统性偏移错误、Command/CreditRequest/Flags 字段缺失、TreeId 偏移 36 非 28、SessionId 偏移 40 非 32、MessageId 偏移 24 非 16、CreditCharge SMB 2.0.2 必须填 0、Flags 响应必须设 bit0）；新增 15 个 HexDump 场景（S1-S15）；测试用例扩展至 315 条（T001-T315）；所有偏移按 MS-SMB2 §2.2.1.2 原文逐字段核对 |
 | v2.1.0 | 2026-08-05 | 基于复审报告 `audit/07-smb-audit-r1-v2.md` 修复 7 个 CRITICAL（NEGOTIATE resp SecurityBufferOffset 64→128、NEGOTIATE req NegotiateContextOffset 104→112、S1 resp 三段重叠重排为 128/128/256、8 处 NBSS 长度修正、READ resp DataOffset 64→80、QUERY_DIRECTORY req FileNameOffset 72→96、S10 目录条目 FileNameLength/NextEntryOffset/文件名三处统一为 file.txt=16B+116B）；S1 req 补 Preauth/Encryption 间 2B padding（8B 对齐）；新增本节 7 个 CRITICAL 修复明细 |
 | v2.2.0 | 2026-09-26 | **P1–P3 补足（#50 smb 文档轨）**：§1–§11 历史正文原样保留（10.2 逐条核对见报告）；新增附录 A（§12 P1 规范矩阵 8 行 + 三张子表、§13 三路对照与候选方案对比 + 裁定 S1/S2、§14 门1 §1–§14 十四行对照表（§1/§3/§12 强制展开）、§15 D-SMB-1 P2 代码设计草稿、§16 P3 对接清单、§17 缺口立项清单 G-SMB-1…G-SMB-9）；**如实记录**：①层链配置今天跑不通（生成器只读 `Meta.SMB` ← 顶层 `smb` 子映射）②`smb` 层内建 NTLMSSP 编码与 #45 ntlm 车道权威重叠（G-SMB-2，P4 前必裁）③design §8 中文错误文案与实现/cases 英文锚词不一致（G-SMB-7） |
-| v2.2.1 | 2026-09-27 | **P6 修轮文档面（#50 smb，打回项 G1/G2/G4/G5 的文书动作；纯文本修订，零线路/零代码改动）**：①本文件自 `/tmp/stale-docs-backup/` 落仓（v2.2.0 附录即成品），`07-smb-testcase.md` v1.0.1 同步落仓；②§14 门1 表证据列按 P4 落码实读回填（registry 行 1171、translate 2607、判死 8517、载体预检 511、端口缺省 1145）；③§14.1/§14.13 的「今天跑不通 / 今天不判死」两处 P1 期时态按 P4 实况改写（并登记 netbios 139 缺省不可达 N1，须显式写 `tcp.dst_port`）；④§17 G-SMB-1/2/8/9 状态回填 + 新立 G-SMB-10（多树/多句柄不可表达）/G-SMB-11（FLUSH/IOCTL 成功面迁移计划）/G-SMB-12（43 例 prose 包数旧口径）；⑤「明确不解决」清单补 T159/T160/SET_INFO/CreateAction≠1 三条（逐条给原因）。台账实况与逐点重分类见 `07-smb-testcase.md` §6 |
+| v2.2.2 | 2026-09-27 | **P6 关单同批行号刷新（scoped 复评 ② 项）**：6 处 `strategy_convert.go:8517` 引文按现仓库实测改为 `:8510`（后续协议修轮插入使 smb 块上移 7 行，同一语句，未指错）；随批登记 |
+| v2.2.1 | 2026-09-27 | **P6 修轮文档面（#50 smb，打回项 G1/G2/G4/G5 的文书动作；纯文本修订，零线路/零代码改动）**：①本文件自 `/tmp/stale-docs-backup/` 落仓（v2.2.0 附录即成品），`07-smb-testcase.md` v1.0.1 同步落仓；②§14 门1 表证据列按 P4 落码实读回填（registry 行 1171、translate 2607、判死 8510、载体预检 511、端口缺省 1145）；③§14.1/§14.13 的「今天跑不通 / 今天不判死」两处 P1 期时态按 P4 实况改写（并登记 netbios 139 缺省不可达 N1，须显式写 `tcp.dst_port`）；④§17 G-SMB-1/2/8/9 状态回填 + 新立 G-SMB-10（多树/多句柄不可表达）/G-SMB-11（FLUSH/IOCTL 成功面迁移计划）/G-SMB-12（43 例 prose 包数旧口径）；⑤「明确不解决」清单补 T159/T160/SET_INFO/CreateAction≠1 三条（逐条给原因）。台账实况与逐点重分类见 `07-smb-testcase.md` §6 |
 
 ### 11.1 v2.0.0 修复的 CRITICAL 问题
 
@@ -3030,7 +3031,7 @@ v2.0.0 是**不兼容重写**：
 
 | # | 规范要求（条款） | 业务场景 | 代码现状（实读） | 缺口 |
 |---|---|---|---|---|
-| 1 | **连接模型**：SMB2/SMB3 运行在 TCP/445（Direct TCP）或 TCP/139（NetBIOS Session Service，每 PDU 前置 4B NBSS 长度前缀）；**一条 TCP 连接 = 一个 SMB2 会话**，控制面与数据面同连接不分离（文件 I/O 与信令复用同 socket）；客户端主动建连（MS-SMB2 §2.1/§3.2；本文件 §1.1/§2.2） | 域内文件共享批量会话；445/139 两档端口（企业网封锁 445 时回退 139） | **已接线**：registry `smb` 行 `CategoryTerminal` + `DependsOn ["tcp"]`（`registry.go:1171-1172`）；生成器已注册（`cmd/server/main.go:150` 空白导入、`:622` `NewChainPlanner("smb")`）；端口默认化在 `chain_planner.go:1140-1150`（direct/空→445、netbios→139，与 `strategy_convert.go` mapToFlowSpec 同款）；生成器每 PDU 一事件、TCP 语义（握手/seq-ack/挥手/分段）交 tcp 层（`internal/protocol/smb/layer_gen.go:1-70` divergence 段） | **层链形状 P4 已接线**（`481d874`）：translate `case "smb"`（`chain_planner_translate.go:2607`）把层配置解析为 `spec.SMB`；presence 判死（`strategy_convert.go:8517`）；载体预检（`validate_layers.go:511`）。**残留**：netbios→139 缺省在链路径不可达（端口缺省跑在 translate 之前的 `validateSpecBase`，此时 `spec.SMB` 仍为 nil，恒落 445）→ netbios 用例须**显式**写 `tcp.dst_port: 139`（N1，见 p6-review §7） |
+| 1 | **连接模型**：SMB2/SMB3 运行在 TCP/445（Direct TCP）或 TCP/139（NetBIOS Session Service，每 PDU 前置 4B NBSS 长度前缀）；**一条 TCP 连接 = 一个 SMB2 会话**，控制面与数据面同连接不分离（文件 I/O 与信令复用同 socket）；客户端主动建连（MS-SMB2 §2.1/§3.2；本文件 §1.1/§2.2） | 域内文件共享批量会话；445/139 两档端口（企业网封锁 445 时回退 139） | **已接线**：registry `smb` 行 `CategoryTerminal` + `DependsOn ["tcp"]`（`registry.go:1171-1172`）；生成器已注册（`cmd/server/main.go:150` 空白导入、`:622` `NewChainPlanner("smb")`）；端口默认化在 `chain_planner.go:1140-1150`（direct/空→445、netbios→139，与 `strategy_convert.go` mapToFlowSpec 同款）；生成器每 PDU 一事件、TCP 语义（握手/seq-ack/挥手/分段）交 tcp 层（`internal/protocol/smb/layer_gen.go:1-70` divergence 段） | **层链形状 P4 已接线**（`481d874`）：translate `case "smb"`（`chain_planner_translate.go:2607`）把层配置解析为 `spec.SMB`；presence 判死（`strategy_convert.go:8510`）；载体预检（`validate_layers.go:511`）。**残留**：netbios→139 缺省在链路径不可达（端口缺省跑在 translate 之前的 `validateSpecBase`，此时 `spec.SMB` 仍为 nil，恒落 445）→ netbios 用例须**显式**写 `tcp.dst_port: 139`（N1，见 p6-review §7） |
 | 2 | **命令/消息表**：19 条命令（NEGOTIATE 0x0000 … OPLOCK_BREAK 0x0012）各有请求/响应结构（MS-SMB2 §2.2.1.2 命令码表 + §2.2.3–§2.2.19 逐命令体）；每命令 req/resp StructureSize 成对（本文件 §3.2 表） | 协商→认证→树连接→文件 I/O→查询/锁/设备控制全命令面 | **已实现 19 命令结构**（`constants.go` 命令码表 + `builder.go` `build*RequestBody`/`build*ResponseBody` 纯函数）；planner 实际产出的 op 子集 10 种（`validOpTypes`：read/write/close/query_directory/query_info/**set_info/flush/echo/lock/ioctl**，`constants.go:134-145`） | 未产命令（OPLOCK_BREAK/CHANGE_NOTIFY/CANCEL/session binding/compounded/ASYNC）**明确不支持**（本文件 §1.3；§12.2 逐格给结论）；**实现为准**（§7/T233/V23 清单与实现一致，含 lock/ioctl） |
 | 3 | **状态机**：`NEGOTIATE → SESSION_SETUP×N → TREE_CONNECT → CREATE → Operations → CLOSE → TREE_DISCONNECT → LOGOFF`；MessageId 会话内单调、SessionId（跨会话唯一）/TreeId（会话内）/FileId（CREATE 派生）分配后回填复用（MS-SMB2 §3.2/§3.3；本文件 §4.1–§4.4） | 完整会话 + 错误注入提前拆解（9 个 ErrorOnCommand 值） | **已实现**：`layer_gen.go` `Generate` 逐命令同序 + `sessionState{messageID,fileID,dialectRev}`；Include* 门控与 ErrorOnCommand 跳过语义、`EncryptionRequired → TRANSFORM_HEADER` 包裹、`SigningRequired → FlagSigned` 全部复刻（`layer_gen.go:1-70` 差异表 + `emit_session.go:130-131` 非末轮 `StatusMoreProcessingRequired`）；SessionId 走包级原子计数器（`smb.go:63-66` `nextSessionID`） | 无（异步/compounded 明确不支持）；**包数口径差异**：legacy 挥手 3 包（`smb.go:310-317`）vs 链上 tcp 层 4 包（`layer_gen.go` divergence 段）→ 存量 262 例已钉 packet_count **P5 已全量重跑重钉**（§14.6；07-smb-testcase §4.2） |
 | 4 | **字段表**：SMB2 SYNC 头 64B 13 字段（偏移 0/4/6/8/12/14/16/20/24/32/36/40/48）+ 各命令体定长/变长字段、字节序（LE，NBSS 长度 BE）、对齐（8B context 对齐）（本文件 §3.1–§3.27） | 字节级构包与解析对齐 | **已实现**：`builder.go` `buildSMB2Header`/`buildNBSSHeader`/`buildTransformHeader`/`align8`；本文件 §3.1 偏移速查表 + §6 S1–S15 HexDump（v2.1.0 已按 MS-SMB2 §2.2.1.2 原文逐字段复核） | **P6 实况**：层链已接线（G-SMB-1 关单）+ 296 例逐字节钉值（P5 全量重钉 + P6 17 例 frames 帧钉）；余 prose 口径 → G-SMB-12 |
@@ -3174,7 +3175,7 @@ v2.0.0 是**不兼容重写**：
 
 | § | 本协议怎么满足 | 证据 |
 |---|---|---|
-| §1 层链唯一真相 | 见 §14.1 强制展开：旧键 5 类逐个给去向 + 纯 layers 目标 spec_json 样例（含动态形）+ presence 负例形状（§14.13）；非负例顶层键目标 = 0（P5 门 2-1 验收）；**P4 已接线**：层配置经 translate 落 `spec.SMB`，缺 tcp 载体/udp 载体/混族三态预检判死 | §14.1 + `registry.go:1171`（smb 行）+ `chain_planner_translate.go:2607`（case "smb"）+ `strategy_convert.go:8517`（presence 判死）+ `validate_layers.go:511`（载体预检）+ `chain_planner.go:1145`（端口缺省） |
+| §1 层链唯一真相 | 见 §14.1 强制展开：旧键 5 类逐个给去向 + 纯 layers 目标 spec_json 样例（含动态形）+ presence 负例形状（§14.13）；非负例顶层键目标 = 0（P5 门 2-1 验收）；**P4 已接线**：层配置经 translate 落 `spec.SMB`，缺 tcp 载体/udp 载体/混族三态预检判死 | §14.1 + `registry.go:1171`（smb 行）+ `chain_planner_translate.go:2607`（case "smb"）+ `strategy_convert.go:8510`（presence 判死）+ `validate_layers.go:511`（载体预检）+ `chain_planner.go:1145`（端口缺省） |
 | §2 策略/任务 | 策略 = 单一 SMB 流量模板（自带 `flow_control` flows/bps/time）；任务 = 多策略合跑 + 总量封顶；框架语义未动 | 本文件 §5.1；CORE_MEMORY §2 |
 | §3 五件套 | 见 §14.3 强制展开：会话表 / 事务序列 / 关联关系 / 插入位置 / 时间线；**有长连接 → `sessions[]` 面不豁免**（多会话由 `flows=N` 独立四元组承担，见 §13.2 方案 C 裁定） | §14.3 + §7.9 T156–T170a |
 | §4 查规范 | MS-SMB2（+MS-FSCC/MS-ERREF/MS-NLMP）；tshark `smb2.*` 533 字段实测；P1 矩阵 §12（8 行 + 76 格 + 28 行）、三路对照 §13.1 | §12/§13 |
@@ -3295,7 +3296,7 @@ v2.0.0 是**不兼容重写**：
 
 **目标判死负例**：`{"layers": [{"tcp": {}}, {"smb": {}}], "smb": {}}`（层链 + 顶层同名子映射并存，空子映射也判死）与 `{"layers": [...], "src_ip": "10.0.0.1"}`。
 
-**P4 实况（本段 P1 期时态已改写）**：①顶层四元组 `src_ip/dst_ip/src_port/dst_port/count` + `layers` 并存 → **已判死**（`schema/semantic.go:186` `checkLayerFlatConflict`）；②顶层 `smb` 子映射 + `layers` 并存 → **已判死**（`CheckProtoFlat`（`strategy_convert.go:8517`），非 nil 即拒，空 map 也拒；静态门 `pipe_gate.sh` presence 红线已登记 smb）。
+**P4 实况（本段 P1 期时态已改写）**：①顶层四元组 `src_ip/dst_ip/src_port/dst_port/count` + `layers` 并存 → **已判死**（`schema/semantic.go:186` `checkLayerFlatConflict`）；②顶层 `smb` 子映射 + `layers` 并存 → **已判死**（`CheckProtoFlat`（`strategy_convert.go:8510`），非 nil 即拒，空 map 也拒；静态门 `pipe_gate.sh` presence 红线已登记 smb）。
 
 ## §15. D-SMB-1 P2 代码设计草稿（CORE_MEMORY §8 八要素；门1 获批 = 定稿）
 
@@ -3356,7 +3357,7 @@ v2.0.0 是**不兼容重写**：
 
 | 立项号 | 缺口 | 证据/去向 | P6 状态回填 |
 |---|---|---|---|
-| **G-SMB-1** | ~~层链配置今天跑不通~~ → **已闭（P4 `481d874`）** | D-SMB-1 §8.1/§8.7；translate `case "smb"`（`chain_planner_translate.go:2607`）；严格解码（`smb_layer_decode.go`）；`smb_chain_test.go` 9 链级红例绿 | 关单：层链接线 + presence 判死（`strategy_convert.go:8517`）+ 载体预检（`validate_layers.go:511`）+ pipe_gate presence 红线登记 smb |
+| **G-SMB-1** | ~~层链配置今天跑不通~~ → **已闭（P4 `481d874`）** | D-SMB-1 §8.1/§8.7；translate `case "smb"`（`chain_planner_translate.go:2607`）；严格解码（`smb_layer_decode.go`）；`smb_chain_test.go` 9 链级红例绿 | 关单：层链接线 + presence 判死（`strategy_convert.go:8510`）+ 载体预检（`validate_layers.go:511`）+ pipe_gate presence 红线登记 smb |
 | **G-SMB-2** | NTLMSSP 编码权威重叠（跨协议）→ **team-lead 裁定 (c) coexist** | `emit_session.go` 内建 Type1/2/3 blob（全会话流）/`gss.go:9-12` 边界注记；ntlm 层管独立交换（G-NTLM-3） | 关单：gss.go 边界注记 +5 行（`f4d93a8`）；漂移重合 = framework backlog |
 | **G-SMB-3** | 现网/规范取证面：①Windows 10/11、Server 2012–2022、Samba 4.x、macOS SMBX 的方言集与签名策略（本机零抓包）②**是否存在独立 [MS-SMB3] 规范文档**（本机未取证，不得臆造条款号）③开源实现版本/commit 未取证 | §12.4 六行（确认方式已逐行写清：抓包命令/官方文档名/samba man page）；§13.1 路①′ | **仍 open**（本车道无取证环境，不降要求） |
 | **G-SMB-4** | 多会话/多流形状未显式化：`sessions[]` 面（§13.2 方案 C 不选为主形状）与 SMB3 multichannel（明确不实现）在文档与用例中的边界声明 | §13.2；`layer_gen.go:1-70`；T156–T170a 承载多会话 | 关单：方案 C 裁定 + §14.3 注记；落盘两流顺序发射（无真交错）= 引擎逐流模型注记（p6-review N3） |
