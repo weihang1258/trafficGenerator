@@ -441,6 +441,102 @@ func TestValidateHeartbeatBeforeOpen(t *testing.T) {
 	}
 }
 
+// aGuardHandshake 返回最小合法六步握手（不含 protocol header）。
+func aGuardHandshake() []core.AMQPEvent {
+	return []core.AMQPEvent{
+		{Kind: "method", Direction: "s2c", Channel: 0, ClassID: 10, MethodID: 10},
+		{Kind: "method", Direction: "c2s", Channel: 0, ClassID: 10, MethodID: 11},
+		{Kind: "method", Direction: "s2c", Channel: 0, ClassID: 10, MethodID: 30},
+		{Kind: "method", Direction: "c2s", Channel: 0, ClassID: 10, MethodID: 31},
+		{Kind: "method", Direction: "c2s", Channel: 0, ClassID: 10, MethodID: 40},
+		{Kind: "method", Direction: "s2c", Channel: 0, ClassID: 10, MethodID: 41},
+	}
+}
+
+func aGuardMethod(dir string, ch uint16, class, method uint16) core.AMQPEvent {
+	return core.AMQPEvent{Kind: "method", Direction: dir, Channel: ch, ClassID: class, MethodID: method}
+}
+
+// TestValidateChannelAndStateGuards 覆盖 P6 m1 点名的未测分支（CLAUDE.md §3
+// 一条分支一测试）：channel.open on channel 0 (reserved)、open before open-ok、
+// open-ok without open、method after connection close、unknown method、
+// content interleave、unknown kind。每条钉各自锚词。
+func TestValidateChannelAndStateGuards(t *testing.T) {
+	withHeader := func(evs ...core.AMQPEvent) []core.AMQPEvent {
+		return append([]core.AMQPEvent{{Kind: "protocol_header", Direction: "c2s"}}, evs...)
+	}
+	openCh := func(evs []core.AMQPEvent, ch uint16) []core.AMQPEvent {
+		return append(evs, aGuardMethod("c2s", ch, 20, 10), aGuardMethod("s2c", ch, 20, 11))
+	}
+
+	interleave := openCh(aGuardHandshake(), 1)
+	interleave = openCh(interleave, 2)
+	interleave = append(interleave,
+		aGuardMethod("c2s", 1, 60, 40), // contentSeq 起于 ch1
+		aGuardMethod("c2s", 2, 60, 80)) // ch2 上的非 content 事件 → 交错
+
+	tests := []struct {
+		name   string
+		events []core.AMQPEvent
+		anchor string
+	}{
+		{
+			// planner.go:293 守卫：channel 0 保留给连接控制，禁止业务 channel.open。
+			name:   "channel.open on reserved channel 0",
+			events: withHeader(append(aGuardHandshake(), aGuardMethod("c2s", 0, 20, 10))...),
+			anchor: "channel.open on channel 0 (reserved)",
+		},
+		{
+			// planner.go:289：握手未完成即开 channel。
+			name:   "channel.open before connection open-ok",
+			events: withHeader(aGuardMethod("c2s", 1, 20, 10)),
+			anchor: "channel.open before connection open-ok",
+		},
+		{
+			// planner.go:296：未 open 直接回 open-ok。
+			name:   "channel.open-ok without open",
+			events: withHeader(append(aGuardHandshake(), aGuardMethod("s2c", 3, 20, 11))...),
+			anchor: "channel.open-ok without open on channel 3",
+		},
+		{
+			// planner.go:201-211：connection.close 之后只许 close/close-ok。
+			name: "method after connection close",
+			events: withHeader(append(aGuardHandshake(),
+				aGuardMethod("c2s", 0, 10, 50),
+				aGuardMethod("c2s", 1, 20, 10))...),
+			anchor: "method after connection close",
+		},
+		{
+			// planner.go:356：class/method 不在受理集。
+			name:   "unknown method",
+			events: withHeader(append(aGuardHandshake(), aGuardMethod("c2s", 1, 99, 99))...),
+			anchor: "unknown method class 99 method 99",
+		},
+		{
+			// planner.go:361：content 序列未结束即切 channel（AMQP 禁止交错）。
+			name:   "content interleave across channels",
+			events: withHeader(interleave...),
+			anchor: "content interleave across channels",
+		},
+		{
+			// planner.go:414：kind 不在 {method,header,body,heartbeat}。
+			name:   "unknown kind",
+			events: withHeader(append(aGuardHandshake(), core.AMQPEvent{Kind: "bogus", Direction: "c2s"})...),
+			anchor: "unknown kind",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateAMQPConfig(&core.FlowSpec{AMQP: &core.AMQPConfig{
+				Connections: []core.AMQPConnection{{Events: tc.events}},
+			}})
+			if err == nil || !strings.Contains(err.Error(), tc.anchor) {
+				t.Fatalf("err=%v want anchor %q", err, tc.anchor)
+			}
+		})
+	}
+}
+
 func TestValidateContentLength(t *testing.T) {
 	// Header bodySize=5 but body event sends 3 bytes.
 	err := validateAMQPConfig(&core.FlowSpec{AMQP: &core.AMQPConfig{

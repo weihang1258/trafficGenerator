@@ -361,6 +361,36 @@
     },
     {
      "field": "amqp.method.class",
+     "packet": 13,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 13,
+     "value": "40"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 13,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 14,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 14,
+     "value": "41"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 14,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
      "packet": 15,
      "value": "10"
     },
@@ -666,6 +696,36 @@
    "fields": [
     {
      "field": "amqp.method.class",
+     "packet": 11,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 11,
+     "value": "10"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 11,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 12,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 12,
+     "value": "11"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 12,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
      "packet": 13,
      "value": "40"
     },
@@ -680,6 +740,31 @@
      "value": "1"
     },
     {
+     "field": "amqp.method.arguments.exchange",
+     "packet": 13,
+     "value": "amq.direct"
+    },
+    {
+     "field": "amqp.method.arguments.type",
+     "packet": 13,
+     "value": "direct"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 14,
+     "value": "40"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 14,
+     "value": "11"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 14,
+     "value": "1"
+    },
+    {
      "field": "amqp.method.class",
      "packet": 15,
      "value": "50"
@@ -690,6 +775,11 @@
      "value": "10"
     },
     {
+     "field": "amqp.channel",
+     "packet": 15,
+     "value": "1"
+    },
+    {
      "field": "amqp.method.class",
      "packet": 16,
      "value": "50"
@@ -698,6 +788,11 @@
      "field": "amqp.method.method",
      "packet": 16,
      "value": "11"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 16,
+     "value": "1"
     }
    ],
    "frames": [
@@ -708,7 +803,7 @@
     }
    ],
    "notes": [
-    "旧 min_packets=16；实测 20（3+13+4）"
+    "旧 min_packets=16；实测 20（3+13+4）；declare-ok 与 exchange 参数（name/type）逐帧钉"
    ],
    "packet_count": 20
   }
@@ -836,6 +931,36 @@
    "fields": [
     {
      "field": "amqp.method.class",
+     "packet": 11,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 11,
+     "value": "10"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 11,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 12,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 12,
+     "value": "11"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 12,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
      "packet": 13,
      "value": "60"
     },
@@ -843,6 +968,11 @@
      "field": "amqp.method.method",
      "packet": 13,
      "value": "40"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 13,
+     "value": "1"
     },
     {
      "field": "amqp.type",
@@ -858,6 +988,11 @@
      "field": "amqp.header.body-size",
      "packet": 14,
      "value": "6"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 14,
+     "value": "1"
     },
     {
      "field": "amqp.type",
@@ -1004,6 +1139,61 @@
   "expect": {
    "fields": [
     {
+     "field": "amqp.method.class",
+     "packet": 11,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 11,
+     "value": "10"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 11,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 12,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 12,
+     "value": "11"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 12,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 13,
+     "value": "60"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 13,
+     "value": "40"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 13,
+     "value": "1"
+    },
+    {
+     "field": "amqp.type",
+     "packet": 14,
+     "value": "2"
+    },
+    {
+     "field": "amqp.header.class",
+     "packet": 14,
+     "value": "60"
+    },
+    {
      "field": "amqp.header.body-size",
      "packet": 14,
      "value": "200"
@@ -1014,9 +1204,19 @@
      "value": "3"
     },
     {
+     "field": "amqp.channel",
+     "packet": 15,
+     "value": "1"
+    },
+    {
      "field": "amqp.type",
      "packet": 16,
      "value": "3"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 16,
+     "value": "1"
     }
    ],
    "frames": [
@@ -1027,7 +1227,7 @@
     }
    ],
    "notes": [
-    "旧 min_packets=16；实测 20（3+13+4，body 拆 2 段）；单帧线上长 7+Size+1≤frame_max"
+    "旧 min_packets=16；实测 20（3+13+4，body 拆 2 段）；两段同为 BODY type=3 且同 channel；单帧线上长 7+Size+1≤frame_max"
    ],
    "packet_count": 20
   }
@@ -1185,6 +1385,71 @@
    "fields": [
     {
      "field": "amqp.method.class",
+     "packet": 11,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 11,
+     "value": "10"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 11,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 12,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 12,
+     "value": "11"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 12,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 13,
+     "value": "60"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 13,
+     "value": "20"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 13,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.arguments.consumer_tag",
+     "packet": 13,
+     "value": "ctag1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 14,
+     "value": "60"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 14,
+     "value": "21"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 14,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
      "packet": 15,
      "value": "60"
     },
@@ -1192,6 +1457,46 @@
      "field": "amqp.method.method",
      "packet": 15,
      "value": "60"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 15,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.arguments.consumer_tag",
+     "packet": 15,
+     "value": "ctag1"
+    },
+    {
+     "field": "amqp.method.arguments.delivery_tag",
+     "packet": 15,
+     "value": "1"
+    },
+    {
+     "field": "amqp.type",
+     "packet": 16,
+     "value": "2"
+    },
+    {
+     "field": "amqp.header.class",
+     "packet": 16,
+     "value": "60"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 16,
+     "value": "1"
+    },
+    {
+     "field": "amqp.type",
+     "packet": 17,
+     "value": "3"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 17,
+     "value": "1"
     },
     {
      "field": "amqp.method.class",
@@ -1202,6 +1507,16 @@
      "field": "amqp.method.method",
      "packet": 18,
      "value": "80"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 18,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.arguments.delivery_tag",
+     "packet": 18,
+     "value": "1"
     }
    ],
    "frames": [
@@ -1212,7 +1527,7 @@
     }
    ],
    "notes": [
-    "旧 min_packets=18；实测 22（3+15+4）；同 channel 同 tag 关联"
+    "旧 min_packets=18；实测 22（3+15+4）；同 channel 同 tag 关联：consume 与 deliver 的 consumer_tag=ctag1 同值、deliver 与 ack 的 delivery_tag=1 同值；content 三帧 method→HEADER→BODY 同 channel"
    ],
    "packet_count": 22
   }
@@ -1329,6 +1644,36 @@
    "fields": [
     {
      "field": "amqp.method.class",
+     "packet": 11,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 11,
+     "value": "10"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 11,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 12,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 12,
+     "value": "11"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 12,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
      "packet": 13,
      "value": "60"
     },
@@ -1336,6 +1681,11 @@
      "field": "amqp.method.method",
      "packet": 13,
      "value": "70"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 13,
+     "value": "1"
     },
     {
      "field": "amqp.method.class",
@@ -1346,6 +1696,11 @@
      "field": "amqp.method.method",
      "packet": 14,
      "value": "72"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 14,
+     "value": "1"
     }
    ],
    "frames": [
@@ -1498,6 +1853,36 @@
    "fields": [
     {
      "field": "amqp.method.class",
+     "packet": 11,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 11,
+     "value": "10"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 11,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 12,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 12,
+     "value": "11"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 12,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
      "packet": 13,
      "value": "90"
     },
@@ -1505,6 +1890,26 @@
      "field": "amqp.method.method",
      "packet": 13,
      "value": "10"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 13,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 14,
+     "value": "90"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 14,
+     "value": "11"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 14,
+     "value": "1"
     },
     {
      "field": "amqp.method.class",
@@ -1517,6 +1922,26 @@
      "value": "20"
     },
     {
+     "field": "amqp.channel",
+     "packet": 15,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 16,
+     "value": "90"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 16,
+     "value": "21"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 16,
+     "value": "1"
+    },
+    {
      "field": "amqp.method.class",
      "packet": 17,
      "value": "90"
@@ -1525,6 +1950,26 @@
      "field": "amqp.method.method",
      "packet": 17,
      "value": "30"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 17,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 18,
+     "value": "90"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 18,
+     "value": "31"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 18,
+     "value": "1"
     }
    ],
    "frames": [
@@ -1535,7 +1980,7 @@
     }
    ],
    "notes": [
-    "旧 min_packets=18；实测 22（3+15+4）；confirm.select（85/10）→ A′ T-21"
+    "旧 min_packets=18；实测 22（3+15+4）；六方法逐帧同 channel：select/select-ok(10/11)、commit/commit-ok(20/21)、rollback/rollback-ok(30/31)；confirm.select（85/10）→ A′ T-21"
    ],
    "packet_count": 22
   }
@@ -1675,14 +2120,89 @@
   "expect": {
    "fields": [
     {
+     "field": "amqp.method.class",
+     "packet": 11,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 11,
+     "value": "10"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 11,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 12,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 12,
+     "value": "11"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 12,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 13,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 13,
+     "value": "10"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 13,
+     "value": "2"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 14,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 14,
+     "value": "11"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 14,
+     "value": "2"
+    },
+    {
      "field": "amqp.type",
      "packet": 15,
      "value": "8"
     },
     {
+     "field": "amqp.channel",
+     "packet": 15,
+     "value": "0"
+    },
+    {
+     "field": "amqp.length",
+     "packet": 15,
+     "value": "0"
+    },
+    {
      "field": "amqp.method.class",
      "packet": 16,
      "value": "60"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 16,
+     "value": "40"
     },
     {
      "field": "amqp.channel",
@@ -1693,6 +2213,11 @@
      "field": "amqp.method.class",
      "packet": 17,
      "value": "60"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 17,
+     "value": "40"
     },
     {
      "field": "amqp.channel",
@@ -1708,7 +2233,7 @@
     }
    ],
    "notes": [
-    "旧 min_packets=17；实测 21（3+14+4）"
+    "旧 min_packets=17；实测 21（3+14+4）；channel 1/2 各自 open/open-ok 后同流 publish 归属各自 channel，heartbeat 走 channel 0"
    ],
    "packet_count": 21
   }
@@ -2050,6 +2575,36 @@
   "expect": {
    "fields": [
     {
+     "field": "amqp.method.class",
+     "packet": 11,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 11,
+     "value": "10"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 11,
+     "value": "1"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 12,
+     "value": "20"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 12,
+     "value": "11"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 12,
+     "value": "1"
+    },
+    {
      "field": "amqp.type",
      "packet": 13,
      "value": "8"
@@ -2060,12 +2615,52 @@
      "value": "0"
     },
     {
+     "field": "amqp.length",
+     "packet": 13,
+     "value": "0"
+    },
+    {
+     "field": "amqp.method.class",
+     "packet": 14,
+     "value": "60"
+    },
+    {
+     "field": "amqp.method.method",
+     "packet": 14,
+     "value": "40"
+    },
+    {
+     "field": "amqp.channel",
+     "packet": 14,
+     "value": "1"
+    },
+    {
+     "field": "amqp.type",
+     "packet": 15,
+     "value": "2"
+    },
+    {
+     "field": "amqp.header.class",
+     "packet": 15,
+     "value": "60"
+    },
+    {
+     "field": "amqp.header.body-size",
+     "packet": 15,
+     "value": "0"
+    },
+    {
      "field": "amqp.type",
      "packet": 16,
      "value": "8"
     },
     {
      "field": "amqp.channel",
+     "packet": 16,
+     "value": "0"
+    },
+    {
+     "field": "amqp.length",
      "packet": 16,
      "value": "0"
     }
@@ -2083,7 +2678,7 @@
     }
    ],
    "notes": [
-    "旧 min_packets=16；实测 20（3+13+4）"
+    "旧 min_packets=16；实测 20（3+13+4）；空 properties HEADER 的 BodySize=0 与 heartbeat size=0 同例混排"
    ],
    "packet_count": 20
   }
