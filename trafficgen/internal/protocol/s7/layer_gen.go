@@ -130,6 +130,8 @@ func sessionBaseRef(cfg *S7Config) uint16 {
 func buildS7Pair(cfg *S7Config, cmd S7Command, ref uint16) (req, res []byte, respond bool, err error) {
 	cmd.PDURef = ref
 	switch cmd.Kind {
+	case "", kindRead:
+		req, err = BuildRead(cfg, cmd)
 	case "write":
 		req, err = BuildWrite(cfg, cmd)
 	case "readsZL", "read_szl":
@@ -147,8 +149,11 @@ func buildS7Pair(cfg *S7Config, cmd S7Command, ref uint16) (req, res []byte, res
 			return nil, nil, false, err
 		}
 		return nil, res, true, nil
-	default: // read
-		req, err = BuildRead(cfg, cmd)
+	default:
+		// D-S7-85 §14 ②（G-S7-2）：未知 kind 拒绝——此前 default 分支静默当
+		// read，拼错的配置产出合法 read 会话（假成功）。Planner.Validate
+		// 先拦；此处是直调路径的背 door。
+		return nil, nil, false, fmt.Errorf("s7: unknown kind %q", cmd.Kind)
 	}
 	if err != nil {
 		return nil, nil, false, err
@@ -168,8 +173,10 @@ func buildS7Response(cfg *S7Config, cmd S7Command) ([]byte, error) {
 		return BuildWriteAck(cfg, cmd)
 	case "readsZL", "read_szl":
 		return BuildReadSZLAck(cfg, cmd)
-	default:
+	case "", kindRead:
 		return BuildReadAck(cfg, cmd)
+	default:
+		return nil, fmt.Errorf("s7: unknown kind %q", cmd.Kind)
 	}
 }
 

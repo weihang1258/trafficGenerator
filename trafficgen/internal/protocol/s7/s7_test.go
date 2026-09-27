@@ -63,6 +63,47 @@ func TestPlannerRejectsInvalidS7Config(t *testing.T) {
 	}
 }
 
+// D-S7-85 §14 ②：三条校验收紧（G-S7-2 未知 kind / G-S7-3 transport_size
+// 越界 / G-S7-4 sessions 越界）。此前三者在生成器里全部静默放行（未知 kind
+// 当 read、越界 size 直落字节、sessions 无上界线性展开）——配置错误产出
+// "合法"包流（假成功）。
+func TestPlannerRejectsTightenedDomains(t *testing.T) {
+	cases := []struct {
+		name string
+		cfg  *S7Config
+		want string
+	}{
+		{"unknown_kind", &S7Config{Commands: []S7Command{{Kind: "reed", Items: []S7Item{{Area: 0x84, Length: 1}}}}}, `unknown kind "reed"`},
+		{"transport_size_high", &S7Config{Commands: []S7Command{{Kind: "read", Items: []S7Item{{Area: 0x84, TransportSize: 0x0a, Length: 1}}}}}, "invalid transport_size 0x0a"},
+		{"transport_size_low", &S7Config{Commands: []S7Command{{Kind: "read", Items: []S7Item{{Area: 0x84, TransportSize: 0xff, Length: 1}}}}}, "invalid transport_size 0xff"},
+		{"sessions_over", &S7Config{Sessions: 17, Commands: []S7Command{}}, "invalid sessions 17"},
+		{"sessions_negative", &S7Config{Sessions: -1, Commands: []S7Command{}}, "invalid sessions -1"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := (Planner{}).Validate(core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345, DstPort: 102, S7: tc.cfg})
+			if err == nil || !contains(err.Error(), tc.want) {
+				t.Fatalf("Validate error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+	// size=0 是"未设置"（写请求数据区尺寸由 value 长度决定；读请求该域由
+	// 调用方配置，缺省路径 planner 注入 4）——必须放行（探针：12 包会话）。
+	if err := (Planner{}).Validate(core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345, DstPort: 102,
+		S7: &S7Config{Commands: []S7Command{{Kind: "read", Items: []S7Item{{Area: 0x84, DBNumber: 1, Length: 1}}}}}}); err != nil {
+		t.Fatalf("transport_size unset (0) rejected: %v", err)
+	}
+	// 边界合法值必须放行（16 会话 / size 0x09 / 空 kind 缺省 read）。
+	ok := &S7Config{Sessions: 16, Commands: []S7Command{
+		{Kind: "", Items: []S7Item{{Area: 0x84, TransportSize: 0x09, Length: 1}}},
+		{Kind: "readsZL", SzlID: 0x132, SzlIndex: 4},
+		{Kind: "keepalive"},
+	}}
+	if err := (Planner{}).Validate(core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345, DstPort: 102, S7: ok}); err != nil {
+		t.Fatalf("boundary-legal config rejected: %v", err)
+	}
+}
+
 func TestPlannerEmitsS7SessionAndLayerGeneratorEvents(t *testing.T) {
 	cfg := &S7Config{Commands: []S7Command{{Kind: "read", Items: []S7Item{{Area: 0x84, DBNumber: 1, Address: 0, TransportSize: 4, Length: 1}}}}}
 	ch, err := (Planner{}).Plan(context.Background(), core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345, DstPort: 102, S7: cfg})

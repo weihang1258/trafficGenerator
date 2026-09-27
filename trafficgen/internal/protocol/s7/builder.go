@@ -56,7 +56,7 @@ func readValueForItem(item S7Item) []byte {
 	for len(out) < int(n)*2 {
 		out = append(out, v...)
 	}
-	return out[: int(n)*2]
+	return out[:int(n)*2]
 }
 
 // finalize patches the TPKT total-length field (bytes 2-3, big-endian) from the
@@ -104,9 +104,9 @@ func BuildSetup(cfg *S7Config, response bool) ([]byte, error) {
 func itemSpec(item S7Item) []byte {
 	addr := item.Address*8 + uint32(item.Bit)
 	return []byte{
-		0x12, 0x0a,                      // variable spec type + length of following address spec
-		0x10,                            // syntax id S7ANY
-		item.TransportSize,               // transport size
+		0x12, 0x0a, // variable spec type + length of following address spec
+		0x10,               // syntax id S7ANY
+		item.TransportSize, // transport size
 		byte(item.Length >> 8), byte(item.Length),
 		byte(item.DBNumber >> 8), byte(item.DBNumber),
 		item.Area,
@@ -351,6 +351,13 @@ func validateCommand(cmd S7Command) error {
 			}
 			if item.Bit > 7 {
 				return fmt.Errorf("s7: invalid bit %d", item.Bit)
+			}
+			// D-S7-85 §14 ②（G-S7-3）：transport_size 域 0x01–0x09（21-s7
+			// §2.4 编码表）。越界此前直落 S7ANY 字节，PLC 侧语义未定义而
+			// 生成器静默成功——假成功面。0 = 未设置（写请求数据区的尺寸由
+			// value 长度决定，见 BuildWrite），按缺省放行。
+			if item.TransportSize != 0 && (item.TransportSize < 0x01 || item.TransportSize > 0x09) {
+				return fmt.Errorf("s7: invalid transport_size 0x%02x", item.TransportSize)
 			}
 			if item.Length == 0 {
 				return fmt.Errorf("s7: length must be > 0")

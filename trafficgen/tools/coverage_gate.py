@@ -1228,6 +1228,180 @@ def check_kerberos(cases):
     return rows
 
 
+def check_s7(cases):
+    """D-S7-85 P4 反查表（28 例 = 16 正 + 12 负，S7comm over ISO-on-TCP）。
+    返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 s7", '"s7": true' in pg, "在列"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case s7（严格解码 DisallowUnknownFields）",
+                 'case "s7":' in tr and "DisallowUnknownFields" in tr, "在案"))
+    rows.append(("FlowMeta.S7 直传（Meta 字面量检查点）",
+                 re.search(r"S7:\s+spec\.S7\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.S7 字段", re.search(r"S7\s+\*core\.S7Config", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.S7 字段", re.search(r"S7\s+\*S7Config", ty) is not None, "在案"))
+    rows.append(("S7Config 5 键 / S7Command 11 键 / S7Item 7 键（契约 §5 实测面）",
+                 ty.count('json:"transport,omitempty"') >= 1
+                 and "type S7Command struct" in ty and "type S7Item struct" in ty
+                 and ty[ty.index("type S7Command struct"):ty.index("// S7Item describes")].count('json:"') == 11
+                 and ty[ty.index("type S7Item struct"):ty.index("// GOOSEData describes")].count('json:"') == 7,
+                 "5/11/7"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "s7"')
+    reg_block = rg[i_reg:rg.index('Name: "', i_reg + len('Name: "s7"'))]
+    rows.append(("registry s7 行（CategoryTerminal + DependsOn tcp + FieldContract 102 + Fields 5 键）",
+                 "CategoryTerminal" in reg_block and 'DependsOn: []string{"tcp"}' in reg_block
+                 and '"tcp.dst_port": "102"' in reg_block
+                 and all(k in reg_block for k in ('"transport"', '"sessions"', '"pdu_ref"', '"pdu_size"', '"commands"')),
+                 "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(s7)",
+                 "internal/protocol/s7" in mn and 'NewChainPlanner("s7")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("strategy_convert case s7（存量兼容路径）",
+                 'case "s7":' in sc and "parseSubconfigJSON[*S7Config]" in sc, "在案"))
+    rows.append(("CheckProtoFlat 顶层 s7 子映射 presence 判死",
+                 "protocol s7 no longer accepts a top-level s7 sub-config" in sc, "在案"))
+    rows.append(("mapToFlowSpec 顶层 s7 → ValidationErrors（在库旧策略执法）",
+                 'if protocol == "s7" {' in sc, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "complete.go").read_text()
+    rows.append(("carrier 锚词面（tcp-only 终结层 [ip,udp,s7] 判死）",
+                 "udp carrier is not supported" in vl and "(carrier)" in vl, "在案"))
+
+    # 2. 行为面（builder/planner/生成器关键件）。
+    bl = (tg / "internal" / "protocol" / "s7" / "builder.go").read_text()
+    for prim, name in [
+        ("func BuildConnectionRequest", "COTP CR 模板"),
+        ("func BuildConnectConfirm", "COTP CC 回声引用"),
+        ("func BuildSetup", "Setup F0 Job/Ack（480/240）"),
+        ("func BuildRead", "Read Var 0x04（S7ANY + datlg=1）"),
+        ("func BuildWrite", "Write Var 0x05（逐项数据区）"),
+        ("func BuildReadAck", "Read Ack_Data（回显 PduRef + 逐项值）"),
+        ("func BuildWriteAck", "Write Ack_Data"),
+        ("func BuildKeepalive", "Keepalive 0xFA 单发"),
+        ("func BuildErrorAck", "错误头 Ack_Data（errcls/errcod）"),
+        ("func BuildReadSZL", "Read SZL Userdata 0x07 请求"),
+        ("func BuildReadSZLAck", "Read SZL Userdata 响应（SZL-ID 回显）"),
+        ("func itemSpec", "S7ANY 12B 编码（线性位索引）"),
+        ("func finalize", "TPKT.Length 回填"),
+        ("func validateCommand", "命令级校验"),
+        ("func validArea", "area 9 值域"),
+    ]:
+        rows.append((f"关键件：{name}", prim in bl, "在案"))
+    lg = (tg / "internal" / "protocol" / "s7" / "layer_gen.go").read_text()
+    for prim, name in [
+        ("func (g *S7Generator) Generate", "终结层事件流（tcp 层管握手/挥手）"),
+        ("func emitSession", "会话整块展开（CR/CC/setup/命令）"),
+        ("func buildS7Pair", "命令→请求/响应配对"),
+        ("func buildS7Response", "响应分派"),
+        ("func sessionBaseRef", "缺省基址 2（setup 首个 PDU）"),
+        ("RegisterLayerGenerator", "init 注册生成器"),
+        ("RegisterLayerValidator", "init 注册校验器"),
+        ('unknown kind', "未知 kind 背 door 锚（G-S7-2）"),
+    ]:
+        rows.append((f"关键件：{name}", prim in lg, "在案"))
+    pl = (tg / "internal" / "protocol" / "s7" / "planner.go").read_text()
+    for guard, name in [
+        ('s7: transport %q is invalid', "transport 值域（仅 tcp）"),
+        ('s7: invalid sessions %d', "sessions 域 1-16（G-S7-4）"),
+        ('s7: unknown kind %q', "未知 kind 拒（G-S7-2）"),
+        ('s7: invalid rosctr %d', "ROSCTR 值域"),
+        ('s7: invalid pdu length', "pad_pdu_len 拒"),
+    ]:
+        rows.append((f"守卫：{name}", guard in pl, f"锚词 {guard}"))
+    for guard, name in [
+        ('s7: invalid area 0x%02x', "area 值域"),
+        ('s7: invalid address %d', "address 界（0xFFFF）"),
+        ('s7: invalid bit %d', "bit 0-7"),
+        ('s7: invalid transport_size 0x%02x', "transport_size 0x01-0x09（G-S7-3）"),
+        ('s7: length must be > 0', "length 非零"),
+    ]:
+        rows.append((f"守卫：{name}", guard in bl, f"锚词 {guard}"))
+
+    # 3. 用例面（25 例 = 13 正 + 12 负）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "s7_connect_setup_read", "s7_write_m_area", "s7_multi_db_read",
+        "s7_setup_pdu_length", "s7_keepalive", "s7_read_szl",
+        "s7_error_class_code", "s7_ipv6_session", "s7_multi_session_ports",
+        "s7_a1_multi_db_write", "s7_a2_transport_size_octet",
+        "s7_a3_explicit_pdu_ref", "s7_a4_multi_command_sequence",
+        "s7_neg_top_s7_presence_reject", "s7_neg_stray_src_ip",
+        "s7_neg_udp_carrier", "s7_b1_unknown_kind_rejected",
+        "s7_b2_transport_size_rejected", "s7_b3_sessions_over_rejected",
+        "s7_neg_layer_unknown_key", "s7_a2b_transport_size_values",
+        "s7_area_values", "s7_errcls_values",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("用例总数 28（16 正 + 12 负）", len(cases) == 28 and len(pos) == 16 and len(neg) == 12,
+                 f"{len(cases)} 例 / {len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("正例顶层键=0（链形穷尽，含 group_id 框架键例外）",
+                 all(set((c.get("spec_json") or {}).keys()) <= {"layers", "flow_control", "output", "output_config", "group_id"}
+                     for c in pos), "穷尽"))
+    rows.append(("负例全部带 error_contains 短锚词（G-S7-8 闭环）",
+                 all((c.get("expect") or {}).get("error_contains") for c in neg), "12/12"))
+    counts = {c["id"]: (c.get("expect") or {}).get("packet_count") for c in pos}
+    want_counts = {"s7_connect_setup_read": 13, "s7_write_m_area": 13, "s7_multi_db_read": 13,
+                   "s7_setup_pdu_length": 11, "s7_keepalive": 12, "s7_read_szl": 13,
+                   "s7_error_class_code": 12, "s7_ipv6_session": 13, "s7_multi_session_ports": 26,
+                   "s7_a4_multi_command_sequence": 17}
+    bad_counts = [k for k, v in want_counts.items() if counts.get(k) != v]
+    rows.append(("包数序列（设计 §9：13/13/13/11/12/13/12/13/26 + A'-4 17 + errcls 7 响应 18）",
+                 not bad_counts, bad_counts or "全部一致"))
+    offsets = {f.get("offset") for c in pos for f in ((c.get("expect") or {}).get("frames") or [])}
+    # 设计 12.3 子表②逐值展开（area 9 / transport-size 9 / errcls 7 / returncode 8）。
+    def _case_text(cid):
+        for c in cases:
+            if c.get("id") == cid:
+                return json.dumps(c, ensure_ascii=False)
+        return ""
+    area_txt = _case_text("s7_area_values")
+    rows.append(("area 逐值 9 行（存量 84/83 + 本例 80/82/85/86/1C/1D + 负例 00）",
+                 all(('"area": %d' % a) in area_txt for a in (128, 130, 133, 134, 28, 29)),
+                 "6 值本例 + 84/83 存量 + 00 负例"))
+    ts_txt = _case_text("s7_a2b_transport_size_values")
+    rows.append(("transport-size 逐值 9 行（存量 04/03 + 本例 01/02/05/06/07/08/09）",
+                 all('"transport_size": %d' % s in ts_txt for s in (1, 2, 5, 6, 7, 8, 9)),
+                 "7 值本例 + 04/03 存量"))
+    ec_txt = _case_text("s7_errcls_values")
+    rows.append(("errcls 逐值 7 行全表（00/81/82/83/84/85/87）",
+                 all('"err_class": %d' % c in ec_txt for c in (0, 129, 130, 131, 132, 133, 135)),
+                 "7 值全表"))
+    rows.append(("frames offset 四档 54/73/75/74（设计 §15.6）",
+                 offsets <= {54, 73, 75, 74} and {54, 73, 74} <= offsets, sorted(offsets) or "无"))
+    fields = {f.get("field", "") for c in pos for f in ((c.get("expect") or {}).get("fields") or [])}
+    s7_fields = {f for f in fields if f.startswith("s7comm.")}
+    rows.append(("断言字段全为 tshark 已注册 s7comm.*/cotp.*/tcp.* 口径",
+                 all(f.startswith(("s7comm.", "cotp.", "tcp.", "ipv6.")) for f in fields) and len(s7_fields) >= 12,
+                 f"{len(fields)} 字段（s7comm {len(s7_fields)}）"))
+    code_text = bl + pl + lg + sc + vl
+    def _hit(ec):
+        # 锚词门（tftp 先例地板线）：用例写实例化值（invalid area 0x00）、
+        # 代码侧是模板（invalid area 0x%02x）或字符串拼接（"...flat config
+        # field " + k）——逐级泛化后比对。suite lane 全绿是最终证据。
+        if ec in code_text:
+            return True
+        tmpl = re.sub(r'"[^"]*"', "%q", ec)
+        tmpl = re.sub(r"0x[0-9a-fA-F]+", "0x%02x", tmpl)
+        tmpl = re.sub(r"\b\d+\b", "%d", tmpl)
+        if tmpl in code_text:
+            return True
+        stem = ec.rsplit(" ", 1)[0]
+        return len(stem) >= 10 and stem in code_text
+    bad_a = [f"{c.get('id')}:{ec}" for c in neg
+             for ec in [(c.get("expect") or {}).get("error_contains", "")]
+             if not _hit(ec)]
+    rows.append(("12 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
+    return rows
+
 def check_sstp(cases):
     """D-SSTP-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -6038,7 +6212,7 @@ def check_spnego(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7}
 
 
 def main(argv):

@@ -496,7 +496,10 @@ func IsMalformedWhitelisted(caseID string, flags ...string) bool {
 	// 数据区 → "[Malformed Packet: S7COMM]"（设计 §9.3 S12 帧 15 已文档化）。
 	// 字节级已对探针 pcap 验证：errcls=0x04/errcod=0x01/param=0x05，字段 tshark
 	// 仍正确解析（errcls/errcod/func），仅 dissector 残留。属已知伪影非帧缺陷。
-	case caseID == "s7_error_class_code":
+	// D-S7-85 P4：errcls 逐值例（7 值全表，7 帧同一形状）同伪影——帧字节经
+	// pcap 探针逐帧核过（rosctr=3/errcls=<值>/errcod=0x01/func=0x05，TPKT 长
+	// 0x0014 与体长自洽），tshark 字段仍正确解析。
+	case caseID == "s7_error_class_code", caseID == "s7_errcls_values":
 		return true
 	// FINS 0104 Multiple Memory Area Read 请求伪影：packet-omron-fins.c 的
 	// 0104 分支按 count 循环读 4 字节/组（区码+地址2+bit），忽略每组的
