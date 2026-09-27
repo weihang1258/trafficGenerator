@@ -2588,6 +2588,23 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			}
 			spec.Metadata["fins"] = cfgMap
 		}
+	case "nfs":
+		// D-NFS-1：层 config map 直存 Metadata（GetConfig map 分支经
+		// nfsConfigFromJSONMap 往返；[12]byte 只认 JSON 数字数组——G-NFS-6
+		// 裁定：文档回修，非法形态走反序列化失败）。仅在 Metadata 缺席时
+		// 落层值：既有 Metadata（引擎直调/存量行带类型配置）不被空层覆盖，
+		// carrier 门仍读原值（fins 同款锁）。空层 {} 也翻译出非 nil 空配置
+		// → 生成器/validator 报 no config（与 legacy 无配置同款拒绝）。
+		if spec.Metadata == nil {
+			spec.Metadata = make(map[string]interface{})
+		}
+		if _, exists := spec.Metadata["nfs"]; !exists {
+			cfgMap := term.Config
+			if cfgMap == nil {
+				cfgMap = map[string]interface{}{}
+			}
+			spec.Metadata["nfs"] = cfgMap
+		}
 	case "socks5":
 		if spec.Socks != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略
