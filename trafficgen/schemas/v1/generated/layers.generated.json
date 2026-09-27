@@ -644,6 +644,10 @@
         "tcp.dst_port": "446"
       },
       "fields": {
+        "association": {
+          "type": "string",
+          "default": ""
+        },
         "ccsid": {
           "type": "uint16",
           "default": 0,
@@ -658,6 +662,10 @@
           "type": "uint16",
           "default": 0,
           "max": 65535
+        },
+        "dss_length": {
+          "type": "int",
+          "default": 0
         },
         "dss_segments": {
           "type": "list",
@@ -678,6 +686,10 @@
         "session_start": {
           "type": "int",
           "default": 0
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
         },
         "sql": {
           "type": "object"

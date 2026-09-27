@@ -321,7 +321,9 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 	// 端口真相，缺省 2055 恒落 spec——不回填则 IPFIX 例（层写 4739）被
 	// validator 判 "ipfix profile requires udp port 4739, got 2055" 全红，
 	// 且 neg_udp_port（v9 层写 4739）反向漏放。
-	if p.name == "enip" || p.name == "dameng" || p.name == "cflow" {
+	// D-DRDA-1：drda 同款（契约端口 446 的域校验住 planner.Validate，
+	// 显式 5000 不先回填则同样旁路）。
+	if p.name == "enip" || p.name == "dameng" || p.name == "cflow" || p.name == "drda" {
 		for _, l := range chain {
 			if l.Name != "tcp" && l.Name != "udp" {
 				continue

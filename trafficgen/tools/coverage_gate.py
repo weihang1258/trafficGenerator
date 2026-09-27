@@ -6571,6 +6571,109 @@ def check_tds(cases):
         rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
     return rows
 
+def check_drda(cases):
+    """D-DRDA-1 P4 反查表（9 改写正 + T-11 A' + 3 负 = 12）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("drda"), dict):
+                lays.append((c.get("id", "?"), l["drda"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 drda", '"drda": true' in pg, "在列"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case drda（层 config→DRDAConfig）", 'case "drda":' in tr and "spec.DRDA = &dcfg" in tr, "在案"))
+    rows.append(("FlowMeta.DRDA 直传", re.search(r"DRDA:\s+spec\.DRDA\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.DRDA 字段", re.search(r"DRDA\s+\*core\.DRDAConfig", gen) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "drda"')
+    reg_block = rg[i_reg:rg.index('Name: "thrift"', i_reg)]
+    rows.append(("registry drda 行（DependsOn tcp + FieldContract 446 + 13 键）",
+                 'DependsOn: []string{"tcp"}' in reg_block
+                 and '"tcp.dst_port": "446"' in reg_block
+                 and all(k in reg_block for k in
+                         ['"association"', '"transport"', '"session_start"', '"ccsid"',
+                          '"correlator_start"', '"correlator_inc"', '"security_user"',
+                          '"security_token"', '"rdb_name"', '"sql"', '"dss_segments"',
+                          '"dss_length"', '"sessions"']), "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(drda)",
+                 "internal/protocol/drda" in mn and 'NewChainPlanner("drda")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("strategy_convert case drda 收敛（446 缺省，不读顶层 drda）",
+                 'case "drda":' in sc and "setDefaultDstPort(&spec, cfg, 446)" in sc
+                 and "parseSubconfigJSON[*DRDAConfig]" not in sc, "在案"))
+    rows.append(("CheckProtoFlat presence 判死顶层 drda",
+                 "no longer accepts a top-level drda sub-config" in sc, "在案"))
+    rows.append(("mapToFlowSpec 顶层 drda → ValidationErrors（在库旧策略执法）",
+                 'if protocol == "drda" {' in sc, "在案"))
+
+    # 2. 行为面（builder/planner/生成器关键件）。
+    bl = (tg / "internal" / "protocol" / "drda" / "builder.go").read_text()
+    for prim, name in [
+        ("func ddmBuild", "DDM 10 字节头装配"),
+        ("func param", "参数 TLV 装配"),
+        ("DDMChained", "chained format 0x41"),
+    ]:
+        rows.append((f"原语：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "drda" / "planner.go").read_text()
+    for guard, name in [
+        ("dss_length %d is invalid", "dss_length 下界锚（:35）"),
+        ("dss_length %d mismatches segment length %d", "dss_length 失配锚（:39）"),
+        ("func buildDefaultSegments", "association 四档截断"),
+        ("func respCodePoint", "请求→响应码点映射"),
+    ]:
+        rows.append((f"关键件：{name}", guard in pl, "在案"))
+    lg = (tg / "internal" / "protocol" / "drda" / "layer_gen.go").read_text()
+    for prim, name in [
+        ("func (g *DRDAGenerator) Generate", "终结层事件流"),
+        ("CorrelatorStart", "correlator 缺省"),
+        ("Sessions", "多会话展开"),
+        ("0x1252", "SQLCODE 响应参数"),
+        ("0x1495", "SQLSTATE 响应参数"),
+    ]:
+        rows.append((f"关键件：{name}", prim in lg, "在案"))
+
+    # 3. 用例面（12 例 = 9 正 + 3 负；含 T-11 A' + presence）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "drda_excsat", "drda_security_check", "drda_database_connect",
+        "drda_sql_success", "drda_sql_error", "drda_dss_min_length",
+        "drda_ipv6_excsat", "drda_multi_session", "drda_chained_format",
+        "drda_dss_length_mismatch", "drda_udp_rejected",
+        "drda_neg_presence_top_level_drda", "drda_neg_dst_port_contract",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    n_neg = sum(1 for c in cases if (c.get("expect") or {}).get("expect_error"))
+    rows.append(("用例总数 13（9 正+4 负，含 T-11 与 presence/端口契约）",
+                 len(cases) == 13 and n_neg == 4, f"{len(cases)} 例 / 负 {n_neg}"))
+    rows.append(("非负例顶层键=0（仅 layers/flow_control/output 家族）",
+                 all(set((c.get("spec_json") or {}).keys()) <= {"layers", "flow_control", "output", "output_config", "group_id"}
+                     for c in cases if not (c.get("expect") or {}).get("expect_error")), "穷尽"))
+    bad_keys = [c.get("id") for c in cases if (c.get("expect") or {}).get("expect_error")
+                and set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}", not bad_keys, bad_keys or "全部合规"))
+    for k in ["association", "ccsid", "correlator_start", "security_user",
+              "security_token", "rdb_name", "sql", "dss_segments",
+              "dss_length", "sessions"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((f"层键覆盖：{k}", hit is not None, hit or "无用例"))
+    for needle, name in [
+        ("top-level drda sub-config", "presence 判死"),
+        ("dst_port must be 446", "端口契约锚词"),
+        ("dss_length", "dss_length 锚词"),
+        ("tcp", "udp 载体锚词"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+    return rows
+
 def check_spnego(cases):
     """D-SPNEGO-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -7200,7 +7303,7 @@ def check_rtmfp(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda}
 
 
 def main(argv):
