@@ -71,15 +71,18 @@ func (f sfr) m() map[string]interface{} {
 	return m
 }
 
-// scase 是生成中的一例。
+// scase 是生成中的一例。flows = 该例实际生成的流数（strategy_flow_control
+// 的 flows 值；>1 时套件捕获含多流，packet_count = 单流回放包数 × flows）。
 type scase struct {
-	id      string
-	summary string
-	spec    map[string]interface{}
-	fields  []sfld
-	frames  []sfr
-	pcount  int
-	err     string
+	id         string
+	summary    string
+	spec       map[string]interface{}
+	strategyFC map[string]interface{}
+	flows      int
+	fields     []sfld
+	frames     []sfr
+	pcount     int
+	err        string
 }
 
 func (c *scase) emit(t *testing.T) map[string]interface{} {
@@ -103,12 +106,23 @@ func (c *scase) emit(t *testing.T) map[string]interface{} {
 		if fr != nil {
 			expect["frames"] = fr
 		}
-		expect["packet_count"] = c.pcount
+		flows := c.flows
+		if flows == 0 {
+			flows = 1
+		}
+		expect["packet_count"] = c.pcount * flows
 	}
-	return map[string]interface{}{
+	out := map[string]interface{}{
 		"id": c.id, "proto": "spnego", "summary": c.summary,
 		"spec_json": c.spec, "expect": expect,
 	}
+	// 多流例：flows 走 strategy_flow_control（策略级真值；spec_json 内的
+	// flow_control 是声明性记录，不驱动流数——套件据 case 的 strategy_fc
+	// 设置 generate_traffic 参数，dns_name_dynamic 先例）。
+	if c.strategyFC != nil {
+		out["strategy_fc"] = c.strategyFC
+	}
+	return out
 }
 
 // sLayers 组装一例的 spec_json（四元组住 ip/tcp 层；顶层仅 layers +
@@ -353,33 +367,40 @@ func TestSPNEGOCasegenOnce(t *testing.T) {
 				}},
 			}, 1),
 		},
-		// #13 多会话/多流（HTTP keep-alive 双事务-ish + 双裸 TCP stream 会话隔离）。
+		// #13 多流多会话（flows=2 × 动态 src_port = 两条独立 TCP stream；
+		// 每流承载 s1(krb+mskrb→accept_completed) 与 s2(NTLM→reject 异常
+		// 终止) 两会话；候选列表/选定机制/状态/四元组按流按会话隔离）。
+		// 交织维度 ≥3：多会话 × 多事务（每流 2 次协商）× 多流（2 四元组）
+		// × 异常分支（s2 reject）。
 		{
-			id: "spnego_multi_session_stream", summary: "多会话隔离：s1(HTTP profile/80) + s2(裸 TCP/445) 并行；OID/token/MIC/状态/四元组隔离",
+			id: "spnego_multi_session_stream", summary: "多流多会话隔离：flows=2 两条独立 TCP stream（45061/45062→445，四元组隔离）+ 每流 s1(Kerberos+msKrb5→accept_completed)/s2(NTLM→reject 异常终止) 会话；候选列表/选定机制/状态不串用",
 			spec: map[string]interface{}{
 				"layers": []interface{}{
 					map[string]interface{}{"ip": cli},
-					map[string]interface{}{"tcp": map[string]interface{}{"src_port": 45062, "dst_port": 80}},
-					map[string]interface{}{"http": map[string]interface{}{"method": "GET", "uri": "/", "keep_alive": true}},
+					map[string]interface{}{"tcp": map[string]interface{}{
+						"src_port": map[string]interface{}{"strategy": "inc", "range": []interface{}{45061, 45070}, "step": 1},
+						"dst_port": 445,
+					}},
 					map[string]interface{}{"spnego": map[string]interface{}{
-						"profile": "http", "negotiation": "init_resp",
+						"profile": "tcp", "negotiation": "init_resp",
 						"mech_types": []interface{}{krb, mskrb},
 						"mech_token": map[string]interface{}{"opaque": true},
 						"sessions": []interface{}{
-							map[string]interface{}{"id": "s1", "events": []interface{}{
-								sEv("challenge"), sEv("init"), sEv("resp"),
-								map[string]interface{}{"kind": "http_success"},
+							map[string]interface{}{"id": "s1", "neg_result": 0, "events": []interface{}{
+								sEv("init"), sEv("resp"),
 							}},
-							map[string]interface{}{"id": "s2http", "mech_types": []interface{}{ntlmOID},
-								"supported_mech": ntlmOID, "events": []interface{}{
-									sEv("challenge"), sEv("init"), sEv("resp"),
-									map[string]interface{}{"kind": "http_success"},
+							map[string]interface{}{"id": "s2", "mech_types": []interface{}{ntlmOID},
+								"supported_mech": ntlmOID, "neg_result": 2,
+								"events": []interface{}{
+									sEv("init"), sEv("resp"),
 								}},
 						},
 					}},
 				},
-				"flow_control": map[string]interface{}{"flows": 1},
+				"flow_control": map[string]interface{}{"flows": 2},
 			},
+			strategyFC: map[string]interface{}{"type": "flows", "value": 2},
+			flows:      2,
 		},
 		// #14 PCAP/NIC 一致性（稳定 fixture）。
 		{
@@ -500,10 +521,12 @@ func nailExpect(t *testing.T, i int, c *scase, pkts []core.PacketConfig) ([]sfld
 			{1, "ip.proto", "6", false, 0, nil, nil},
 		}, hexOf(pkts, 4, 54)
 	case "spnego_mech_oid_variants":
+		// m1（P6 修轮）：resp 帧同样钉死——supportedMech 必须 ∈ 原始列表，
+		// 且本档显式选定列表第三项 NTLM（selectedMech 绑定面，非仅 init 侧）。
 		return []sfld{
 			{1, "tcp.dstport", "445", false, 0, nil, nil},
 			{1, "ip.proto", "6", false, 0, nil, nil},
-		}, hexOf(pkts, 4, 54)
+		}, append(hexOf(pkts, 4, 54), hexOf(pkts, 5, 54)...)
 	case "spnego_mech_token_opaque":
 		return []sfld{
 			{1, "tcp.dstport", "445", false, 0, nil, nil},
@@ -525,10 +548,33 @@ func nailExpect(t *testing.T, i int, c *scase, pkts []core.PacketConfig) ([]sfld
 			{1, "ip.proto", "6", false, 0, nil, nil},
 		}, hexOf(pkts, 5, 54)
 	case "spnego_multi_session_stream":
+		// 单流回放 11 包（3 握手 + 4 事件 + 4 挥手）；flows=2 → 全局第 12–22
+		// 包为第二条流，字节与第一条逐字节相同（仅四元组不同）——按流基数
+		// 折算回单流回放索引取 hex。
+		const sPerFlow = 11
+		up := func(n int) string {
+			i := n
+			if n > sPerFlow {
+				i = n - sPerFlow
+			}
+			return sWirePin(pkts, i)
+		}
 		return []sfld{
-			{1, "tcp.dstport", "80", false, 0, nil, nil},
+			{1, "tcp.dstport", "445", false, 0, nil, nil},
+			{1, "tcp.srcport", "45061", false, 0, nil, nil},
+			{12, "tcp.srcport", "45062", false, 0, nil, nil},
 			{1, "ip.proto", "6", false, 0, nil, nil},
-		}, nil
+			// 全捕获恰两条客户端流（四元组隔离）：distinct 语义=恰好这些值，
+			// 服务端方向 srcport 445 排除。
+			{0, "tcp.srcport", "", false, 0, []string{"45061", "45062"}, []string{"445"}},
+		}, []sfr{
+			{4, 54, up(4)},   // 流 1 s1 init（krb+mskrb 双候选）
+			{5, 54, up(5)},   // 流 1 s1 resp（accept_completed 0 + supportedMech=krb）
+			{6, 54, up(6)},   // 流 1 s2 init（NTLM 单候选——候选列表不串用）
+			{7, 54, up(7)},   // 流 1 s2 resp（reject 2——异常终止分支）
+			{15, 54, up(15)}, // 流 2 s1 init（同字节、独立四元组）
+			{18, 54, up(18)}, // 流 2 s2 resp（reject——两流状态一致且各流独立）
+		}
 	case "spnego_pcap_nic_consistency":
 		return []sfld{
 			{1, "tcp.dstport", "80", false, 0, nil, nil},

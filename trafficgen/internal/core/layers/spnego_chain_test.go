@@ -1,6 +1,7 @@
 package layers_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/hex"
@@ -720,15 +721,17 @@ func TestSPNEGOChain_CarrierShapes(t *testing.T) {
 	}
 }
 
-// ---- ⑨ 多会话隔离（候选列表/选定 OID/协商结果逐会话独立）----
+// ---- ⑨ 多会话隔离（候选列表/选定 OID/协商结果逐会话独立）+ 多流形状 ----
 
 func TestSPNEGOChain_MultiSessionIsolation(t *testing.T) {
+	// 与用例 #13 同形：配置级候选列表 [krb, msKrb5] 供 s1（accept_completed），
+	// s2 会话级覆盖为 NTLM 单候选 + reject(2) 异常终止。
 	pkts := sDrive(t, sIP(map[string]interface{}{
 		"mech_types": []interface{}{"1.2.840.113554.1.2.2", "1.2.840.48018.1.2.2"},
+		"neg_result": 0,
 		"sessions": []interface{}{
 			map[string]interface{}{
-				"id":         "s1",
-				"mech_types": []interface{}{"1.2.840.113554.1.2.2"},
+				"id": "s1",
 				"events": []interface{}{
 					map[string]interface{}{"kind": "init"},
 					map[string]interface{}{"kind": "resp"},
@@ -750,13 +753,24 @@ func TestSPNEGOChain_MultiSessionIsolation(t *testing.T) {
 	if len(data) != 4 {
 		t.Fatalf("want 4 data segments (2 sessions x 2), got %d", len(data))
 	}
-	// s1 init 只携带 Kerberos；s2 init 只携带 NTLM（候选列表不串用）。
+	// s1 init 携带配置级双候选（krb + msKrb5）、无 NTLM；s2 init 只携带 NTLM
+	// （候选列表不串用）。
 	h0, h2 := hex.EncodeToString(data[0].Payload), hex.EncodeToString(data[2].Payload)
-	if !strings.Contains(h0, sOIDKrb) || strings.Contains(h0, sOIDNTLM) {
-		t.Fatalf("s1 候选列表泄漏: %s", h0)
+	if !strings.Contains(h0, sOIDKrb) || !strings.Contains(h0, sOIDMsKrb) || strings.Contains(h0, sOIDNTLM) {
+		t.Fatalf("s1 候选列表泄漏/缺项: %s", h0)
 	}
 	if !strings.Contains(h2, sOIDNTLM) || strings.Contains(h2, sOIDKrb) {
 		t.Fatalf("s2 候选列表泄漏: %s", h2)
+	}
+	// s1 resp：accept_completed(0) + supportedMech=krb（列表首项，选定∈原始列表）。
+	_b := sCheckTLV(t, data[1].Payload, 0, 0xA1, "s1 negTokenResp")
+	_s := sCheckTLV(t, _b, 0, 0x30, "s1 SEQUENCE")
+	_st := sCheckTLV(t, _s, 0, 0xA0, "s1 negState")
+	if enum := sCheckTLV(t, _st, 0, 0x0A, "s1 ENUMERATED"); len(enum) != 1 || enum[0] != 0 {
+		t.Fatalf("s1 negState % x, want 00 (accept-completed)", enum)
+	}
+	if !strings.Contains(hex.EncodeToString(data[1].Payload), sOIDKrb) {
+		t.Fatalf("s1 supportedMech 缺 Kerberos: %s", hex.EncodeToString(data[1].Payload))
 	}
 	// s2 resp 的 negState=reject(2)、supportedMech=NTLM（会话级覆盖生效）。
 	resp := data[3].Payload
@@ -769,6 +783,45 @@ func TestSPNEGOChain_MultiSessionIsolation(t *testing.T) {
 	}
 	if !strings.Contains(hex.EncodeToString(resp), sOIDNTLM) {
 		t.Fatalf("s2 supportedMech 缺 NTLM: %s", hex.EncodeToString(resp))
+	}
+	// 状态隔离：s1 完成态与 s2 reject 态不串用（两条 resp 的 negState 不同）。
+	if bytes.Equal(data[1].Payload, data[3].Payload) {
+		t.Fatal("s1/s2 resp 不得相同（状态隔离）")
+	}
+}
+
+// TestSPNEGOChain_MultiFlowDynSrcPort：#13 的 tcp.src_port 动态对象（对象值
+// = 逐流端口池，tcp 层 allowlist 在案）必须通过链校验并被剥离，逐流端口由
+// worker 经 core.ResolvePortValue 解析（同一 allowlist + 同一解析函数）。
+func TestSPNEGOChain_MultiFlowDynSrcPort(t *testing.T) {
+	dyn := map[string]interface{}{"strategy": "inc", "range": []interface{}{45061, 45070}, "step": 1}
+	layersArr := []interface{}{
+		map[string]interface{}{"ip": map[string]interface{}{"src": sCli, "dst": sSrv}},
+		map[string]interface{}{"tcp": map[string]interface{}{"src_port": dyn, "dst_port": 445}},
+		map[string]interface{}{"spnego": map[string]interface{}{
+			"profile": "tcp", "negotiation": "init_resp",
+			"sessions": []interface{}{map[string]interface{}{
+				"id":     "s1",
+				"events": []interface{}{map[string]interface{}{"kind": "init"}, map[string]interface{}{"kind": "resp"}},
+			}},
+		}},
+	}
+	// 链校验通过（对象形态合法、allowlist 在案）+ Plan 出包（端口由 spec 承载）。
+	pkts := sDrive(t, layersArr)
+	if got := len(sData(pkts)); got != 2 {
+		t.Fatalf("dyn src_port chain: want 2 data segments, got %d", got)
+	}
+	// 逐流解析（worker 路径同函数 ResolvePortValue）：flow 0/1 → 45061/45062。
+	raw, err := json.Marshal(dyn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sc core.StrategyConfig
+	if err := json.Unmarshal(raw, &sc); err != nil {
+		t.Fatalf("parse dyn strategy: %v", err)
+	}
+	if p0, p1 := core.ResolvePortValue(&sc, 0), core.ResolvePortValue(&sc, 1); p0 != 45061 || p1 != 45062 {
+		t.Fatalf("dyn src_port 逐流解析 = %d/%d, want 45061/45062 (#13 两流四元组)", p0, p1)
 	}
 }
 
@@ -874,6 +927,65 @@ func TestSPNEGOChain_CaseFileAudit(t *testing.T) {
 		}
 		if exp["packet_count"] == nil {
 			t.Fatalf("%s: positive case must carry packet_count", id)
+		}
+		// strategy_fc（真正生效的流控载体）若在场，须与 spec 内 flow_control 一致。
+		if fc, ok := c["strategy_fc"].(map[string]interface{}); ok {
+			if fc["type"] != "flows" {
+				t.Fatalf("%s: strategy_fc type must be flows, got %v", id, fc["type"])
+			}
+			val, _ := fc["value"].(float64)
+			specFC, _ := sj["flow_control"].(map[string]interface{})
+			specFlows, _ := specFC["flows"].(float64)
+			if val != specFlows || val < 2 {
+				t.Fatalf("%s: strategy_fc flows=%v must match flow_control.flows=%v and be >=2", id, val, specFlows)
+			}
+		}
+	}
+	// #13（C1 修复面）：双流 × 双会话 × 异常分支三面形状必须落盘。
+	{
+		var c map[string]interface{}
+		for _, x := range cases {
+			if x["id"] == "spnego_multi_session_stream" {
+				c = x
+			}
+		}
+		if c == nil {
+			t.Fatalf("#13 spnego_multi_session_stream missing")
+		}
+		if c["strategy_fc"] == nil {
+			t.Fatalf("#13 must carry strategy_fc (flow count carrier)")
+		}
+		sj, _ := c["spec_json"].(map[string]interface{})
+		lyrs, _ := sj["layers"].([]interface{})
+		var sp map[string]interface{}
+		for _, l := range lyrs {
+			m, _ := l.(map[string]interface{})
+			if v, ok := m["spnego"].(map[string]interface{}); ok {
+				sp = v
+			}
+			if v, ok := m["tcp"].(map[string]interface{}); ok {
+				port, ok := v["src_port"].(map[string]interface{})
+				if !ok || port["strategy"] != "inc" || port["range"] == nil {
+					t.Fatalf("#13 tcp.src_port must be a dynamic strategy object (four-tuple isolation), got %v", v["src_port"])
+				}
+			}
+		}
+		if sp == nil {
+			t.Fatalf("#13 spnego layer missing")
+		}
+		ss, _ := sp["sessions"].([]interface{})
+		if len(ss) < 2 {
+			t.Fatalf("#13 needs >=2 sessions, got %d", len(ss))
+		}
+		var hasReject bool
+		for _, s := range ss {
+			m, _ := s.(map[string]interface{})
+			if nr, ok := m["neg_result"].(float64); ok && nr != 0 {
+				hasReject = true
+			}
+		}
+		if !hasReject {
+			t.Fatalf("#13 needs an abnormal/reject branch (neg_result != 0) among sessions")
 		}
 	}
 	if cases[0]["id"] != "spnego_http_ipv4_init" || cases[19]["id"] != "spnego_neg_carrier_profile" {
