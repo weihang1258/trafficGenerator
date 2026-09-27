@@ -1,10 +1,10 @@
 # OCSP（在线证书状态协议，Online Certificate Status Protocol）测试用例契约
 
-> 版本：v1.0.0（设计阶段）  
-> 日期：2026-08-20  
-> 配套设计：`docs/protocol-designs/62-ocsp-design.md`  
+> 版本：v1.1.1（P1–P3 产物 + P4–P6 交付回写）  
+> 日期：2026-09-25（v1.1.1 回写 2026-09-27）  
+> 配套设计：`docs/protocol-designs/62-ocsp-design.md` v1.1.1（P1 矩阵 §10/三路对照 §11/门1表 §12/D-OCSP-1 §13）  
 > 机器契约：`trafficgen/test/protocol_pcap/cases/ocsp.json`  
-> 状态：`ocsp` 层尚未注册；本文定义实现后的 PCAP（抓包文件）/NIC（网卡）断言，不宣称当前 suite（测试套件）可运行。
+> 状态：**P4–P6 已完成**（D-OCSP-1 已验收，2026-09-27）——`ocsp` 层已注册并入链；本文 §2 的 20 ID（14 正 + 6 负）即交付集，suite 20/20 全绿 + pcap 落盘；v1.1.0 的 P3 固定动作（§3.15/A′/B′/9.52/3.14/三源回指）为设计基线，未改。
 
 ## 1. 测试原则和未注册边界
 
@@ -54,7 +54,7 @@ OCSP carrier（载体）为 HTTP POST、RFC 5019 GET 或裸 TCP stream（字节�
 13. **`ocsp_multi_session_stream`**：至少两个 HTTP keep-alive 请求和两个裸 TCP streams/会话并行；断言 CertID、nonce、响应、重组缓存和时间窗口隔离，不假设跨流包序，`packet_count=16`。
 14. **`ocsp_pcap_nic_consistency`**：同一明文 HTTP 或裸 TCP fixture 分别输出 PCAP 并在 NIC 捕获；断言 TCP carrier、方向、80/443/实际端口、HTTP method/header（明文时）、DER 外层、Basic OID 和 status 一致。过滤器推荐 `tcp port 80 or tcp port 443`，`packet_count=12`。
 
-无解密/私钥/issuer 证书链时，不添加“signature valid”、证书可信、serial 属于某证书、issuer hash 匹配、nonce 随机质量或签名者身份断言。若 tshark（抓包解析器）无 `ocsp.*` 字段，使用通用 `tcp`/`http`/`tls` 和稳定 raw frames；不自创字段名。
+无解密/私钥/issuer 证书链时，不添加“signature valid”、证书可信、serial 属于某证书、issuer hash 匹配、nonce 随机质量或签名者身份断言。tshark（抓包解析器）`ocsp.*` 字段以 §8.6 所列 53 个为准；缺失时退化通用 `tcp`/`http`/`tls` 和稳定 raw frames；不自创字段名。
 
 ## 4. 负例契约
 
@@ -84,8 +84,52 @@ OCSP carrier（载体）为 HTTP POST、RFC 5019 GET 或裸 TCP stream（字节�
 
 ## 6. 实现后执行建议
 
-注册 `ocsp` layer 后，先检查 JSON parser、ID 顺序、正负 expect 键集合、DER offsets/length、CertID hash、certStatus tags、nonce 双层扩展和 HTTP GET/POST carrier，再运行 1–14 的 PCAP/NIC 正例和 15–20 的错误传播。若环境没有 OCSP dissector，使用通用 HTTP/TCP/TLS 字段与 raw frames；不能将唯一 placeholder 运行结果报告为 OCSP suite 通过。
+注册 `ocsp` layer 后，先检查 JSON parser、ID 顺序、正负 expect 键集合、DER offsets/length、CertID hash、certStatus tags、nonce 双层扩展和 HTTP GET/POST carrier，再运行 1–14 的 PCAP/NIC 正例和 15–20 的错误传播。本机 tshark 有 53 个 `ocsp.*` 字段（`ocsp.responseStatus`/`ocsp.issuerNameHash`/`ocsp.issuerKeyHash`/`ocsp.serialNumber`/`ocsp.ReOcspNonce`/`ocsp.certStatus` 等）；若环境缺 dissector 才退化通用 HTTP/TCP/TLS 字段与 raw frames。不能将唯一 placeholder 运行结果报告为 OCSP suite 通过。
 
 ## 7. 修订记录
 
+- v1.1.1（2026-09-27）：P4–P6 交付回写与本文入版（原 v1.1.0 未曾入仓，随关单补提交）。交付事实=实现 `31ae72e` / 集成 `ed131c5` / 关单 `d971856`；§2 的 20 ID 即交付集（14 正 + 6 负），断言通道与 packet_count 映射按 §3/§4 原契约执行：suite 20/20 全绿、`coverage_gate` 54/54、`verify.py` 104 点 0 失败；248 表落 `docs/protocol-designs/248/46-ocsp-248-table.md`。
+- v1.1.0（2026-09-25）：P3 产物。新增 §8 P3 固定动作（§3.15 三项逐项一例或立项 + A′/B′ 两分类表 + 9.52 对账两行与清单出处声明 + 3.14 豁免边界审计 + 三源回指行 + 断言契约核对结论）。20 ID 断言契约（§2–§4）原样保留，已核对与 design §8 一致（14 正+6 负、同序）。
 - v1.0.0（2026-08-20）：建立 14 个 RFC 6960/8954 正例和 6 个严格负例，覆盖 HTTP POST/GET、TCP/HTTP 80/443、OCSPRequest/OCSPResponse/BasicOCSPResponse/SingleResponse、CertID、三种 certStatus、nonce、签名/证书 opaque 边界、DER 长度、keep-alive/重试、IPv4/IPv6、PCAP/NIC 和错误传播；不修改 Go 实现。
+
+## 8. P3 固定动作（CORE_MEMORY §3.15/§9.52/§9.14/覆盖审计要求面）
+
+### 8.1 §3.15 三项逐项一例或立项（无例无项即缺口）
+
+| # | 三项 | 本协议对照 | 用例/立项 |
+|---|---|---|---|
+| ① | 同连接/同流内的多轮操作 | HTTP keep-alive 同连接多事务（t1 单查→t2 批量）；裸 TCP 同 stream 多消息 | 已覆：#13（含 t1→t2 序列） |
+| ② | 非正常结束 | tryLater 中断分支；revoked 判定即“吊销”终止分支；malformed 拒收 | 已覆半程：#9（非成功 status）+#13（tryLater→重试/中断）；服务端主动 abort（FIN/RST  mid-transaction）→立项 G-OCSP-1（含） |
+| ③ | 长保活 | keep-alive 空闲复用多事务 | 已覆：#13 |
+
+无空项。②的服务端主动 abort 面进 B′（G-OCSP-1），不删用例。
+
+### 8.2 A′/B′ 两分类表（要求面反推：数据/业务/现网/多流四类审计）
+
+A′（现有引擎可构建→20 ID 内已覆或 P4 fixture 可建）：
+
+| 面 | 要求点 | 去向 |
+|---|---|---|
+| 数据 | CertID 双算法/serial 边界/DER 短长形/三 certStatus/时间窗/nonce 双层/签名 opaque | #4/#5/#7/#8/#10/#11/#12 已覆 |
+| 业务 | 单查/批量顺序保持/request→response 匹配/tryLater 重试/keep-alive 多事务 | #1/#6/#9/#13 已覆 |
+| 现网 | POST 基线/GET 形态/HTTPS opaque/200+content-type | #1/#9/#14 已覆 |
+| 多流 | keep-alive 并发会话/裸 TCP 双 stream/IPv4+IPv6 | #3/#13 已覆 |
+
+B′（引擎结构缺口→D-OCSP-1“明确不解决+迁入计划”，见 design §14 缺口立项）：G-OCSP-1（服务端主动错误语义 internalError/sigRequired 主动面+abort）、G-OCSP-2（openssl 回环抓包核对，确认方式已写清）、G-OCSP-3（代理转发形 fixture）。
+
+### 8.3 9.52 对账两行 + 清单出处声明
+
+- 清单出处声明：本清单来源=规范/官方文档反推（RFC 6960 §4.1/§4.2/§4.3 + RFC 8954 §2 + RFC 5019 §3/§5 + RFC 5280 + X.690），非引擎能力面反推。
+- 对账两行：规范逻辑点总数=42（design §10.2 矩阵 30 格 + §10.3 变体 12 行）；用例覆盖数=34 点（矩阵 22 格 + 变体 12 行，#13 内 tryLater→重试事务 P4 显式加），B′ 立项覆盖 8 点（G-OCSP-1；G-OCSP-2/3 为确认项/迁入项不计覆盖点），合计 42 无遗漏。反查 20/20 绿≠覆盖全，此对账为覆盖审计有效口径。
+
+### 8.4 3.14 豁免边界审计
+
+`sessions[]` 显式声明不豁免（本协议有长连接 HTTP keep-alive + 多会话，sessions[] 必写，design §12.3 会话表 s1/s2/s3）。多流并发（#13 双会话交错）与单包多载荷（#6 批量 requestList≥2，多 question 形）各至少一例——两项均有，无豁免逃逸。
+
+### 8.5 三源回指行
+
+RFC 6960（请求/响应/传输/错误码）+ RFC 8954（SHA-256 CertID）+ RFC 5019（GET/cache）+ RFC 5280（PKIX）+ X.690（DER）→ D-OCSP-1（design §13）→ `test/protocol_pcap/cases/ocsp.json`（20 例）。ID 权威=本文 §2（14 正+6 负）；对账 20=14+6。
+
+### 8.6 断言契约核对结论（与 design §8 一致）
+
+本文 §2 的 20 ID 与 design §8 逐 ID、逐序、逐类型核对一致（14 正 #1–#14 + 6 负 #15–#20，顺序相同，packet_count 约定值相同：8/8/8/6/6/8/6/8/8/8/8/6/16/12）。存量审计（9.14）：`ocsp_neg_unregistered` 注册前置占位随注册移除；无存量语义用例。断言通道：fields 用 `ocsp.*`（53 相关字段已实证：`ocsp.responseStatus`/`ocsp.issuerNameHash`/`ocsp.issuerKeyHash`/`ocsp.serialNumber`/`ocsp.ReOcspNonce` 等）+ 载体 `http.*`/`tcp.dstport`/`ip.proto`/`ipv6.nxt`；DER 顶层/长度走 frames hex 钉；不自创字段名。
