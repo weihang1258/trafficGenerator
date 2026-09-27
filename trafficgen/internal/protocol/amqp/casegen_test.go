@@ -3,8 +3,9 @@
 // 24 例（14 正 + 6 负 + 4 链级红例），按用例文档 §2 权威序 + 契约 §13-P2
 // 四件套。正例帧断言取自全链真实回放（BuildLayersPlanner→Plan，与套件
 // 同路径——单权威，无重复编码）：frames 只钉 protocol header / heartbeat
-// 等可复算前缀（testcase §1）；fields 逐包断言取自旧 JSON（先跑后钉在
-// P5 lane suite 落盘 pcap + tshark 双通道校准，包号以实测为准）。
+// 等可复算前缀（testcase §1）；fields 逐包断言为 legacy 完整钉子集的回补
+// + 参数面（exchange/type/consumer_tag/delivery_tag）补齐，全部以 lane8
+// suite 落盘 pcap 的 tshark 逐帧复核为准（先跑后钉）。
 //
 // TCP 算术（实测）：3 握手 + N 数据段（每事件一段；body 分段按 splitBody
 // 增段）+ 4 挥手。单事件 header-only → 8；7 事件握手 → 14；publish 12
@@ -273,6 +274,12 @@ func TestGenerateAMQPCases(t *testing.T) {
 				{12, "amqp.method.class", "20", 0, false, nil, nil},
 				{12, "amqp.method.method", "11", 0, false, nil, nil},
 				{12, "amqp.channel", "1", 0, false, nil, nil},
+				{13, "amqp.method.class", "20", 0, false, nil, nil},
+				{13, "amqp.method.method", "40", 0, false, nil, nil},
+				{13, "amqp.channel", "1", 0, false, nil, nil},
+				{14, "amqp.method.class", "20", 0, false, nil, nil},
+				{14, "amqp.method.method", "41", 0, false, nil, nil},
+				{14, "amqp.channel", "1", 0, false, nil, nil},
 				{15, "amqp.method.class", "10", 0, false, nil, nil},
 				{15, "amqp.method.method", "50", 0, false, nil, nil},
 				{16, "amqp.method.class", "10", 0, false, nil, nil},
@@ -323,16 +330,29 @@ func TestGenerateAMQPCases(t *testing.T) {
 			"exchange/queue declare 参数和响应",
 			aChain(cfg), 20,
 			[]afld{
+				{11, "amqp.method.class", "20", 0, false, nil, nil},
+				{11, "amqp.method.method", "10", 0, false, nil, nil},
+				{11, "amqp.channel", "1", 0, false, nil, nil},
+				{12, "amqp.method.class", "20", 0, false, nil, nil},
+				{12, "amqp.method.method", "11", 0, false, nil, nil},
+				{12, "amqp.channel", "1", 0, false, nil, nil},
 				{13, "amqp.method.class", "40", 0, false, nil, nil},
 				{13, "amqp.method.method", "10", 0, false, nil, nil},
 				{13, "amqp.channel", "1", 0, false, nil, nil},
+				{13, "amqp.method.arguments.exchange", "amq.direct", 0, false, nil, nil},
+				{13, "amqp.method.arguments.type", "direct", 0, false, nil, nil},
+				{14, "amqp.method.class", "40", 0, false, nil, nil},
+				{14, "amqp.method.method", "11", 0, false, nil, nil},
+				{14, "amqp.channel", "1", 0, false, nil, nil},
 				{15, "amqp.method.class", "50", 0, false, nil, nil},
 				{15, "amqp.method.method", "10", 0, false, nil, nil},
+				{15, "amqp.channel", "1", 0, false, nil, nil},
 				{16, "amqp.method.class", "50", 0, false, nil, nil},
 				{16, "amqp.method.method", "11", 0, false, nil, nil},
+				{16, "amqp.channel", "1", 0, false, nil, nil},
 			},
 			[]afr{{Packet: 4, Offset: 54, Hex: "41 4D 51 50 00 00 09 01"}},
-			"旧 min_packets=16；实测 20（3+13+4）")
+			"旧 min_packets=16；实测 20（3+13+4）；declare-ok 与 exchange 参数（name/type）逐帧钉")
 	}
 
 	// ⑥ amqp_basic_publish（旧 15 → 实测 19）：12 事件。
@@ -350,11 +370,19 @@ func TestGenerateAMQPCases(t *testing.T) {
 			"publish→HEADER→BODY、BodySize=6",
 			aChain(cfg), 19,
 			[]afld{
+				{11, "amqp.method.class", "20", 0, false, nil, nil},
+				{11, "amqp.method.method", "10", 0, false, nil, nil},
+				{11, "amqp.channel", "1", 0, false, nil, nil},
+				{12, "amqp.method.class", "20", 0, false, nil, nil},
+				{12, "amqp.method.method", "11", 0, false, nil, nil},
+				{12, "amqp.channel", "1", 0, false, nil, nil},
 				{13, "amqp.method.class", "60", 0, false, nil, nil},
 				{13, "amqp.method.method", "40", 0, false, nil, nil},
+				{13, "amqp.channel", "1", 0, false, nil, nil},
 				{14, "amqp.type", "2", 0, false, nil, nil},
 				{14, "amqp.header.class", "60", 0, false, nil, nil},
 				{14, "amqp.header.body-size", "6", 0, false, nil, nil},
+				{14, "amqp.channel", "1", 0, false, nil, nil},
 				{15, "amqp.type", "3", 0, false, nil, nil},
 				{15, "amqp.channel", "1", 0, false, nil, nil},
 			},
@@ -379,12 +407,25 @@ func TestGenerateAMQPCases(t *testing.T) {
 			"200B body frame_max=128 多 BODY 拆分",
 			aChain(cfg), 20,
 			[]afld{
+				{11, "amqp.method.class", "20", 0, false, nil, nil},
+				{11, "amqp.method.method", "10", 0, false, nil, nil},
+				{11, "amqp.channel", "1", 0, false, nil, nil},
+				{12, "amqp.method.class", "20", 0, false, nil, nil},
+				{12, "amqp.method.method", "11", 0, false, nil, nil},
+				{12, "amqp.channel", "1", 0, false, nil, nil},
+				{13, "amqp.method.class", "60", 0, false, nil, nil},
+				{13, "amqp.method.method", "40", 0, false, nil, nil},
+				{13, "amqp.channel", "1", 0, false, nil, nil},
+				{14, "amqp.type", "2", 0, false, nil, nil},
+				{14, "amqp.header.class", "60", 0, false, nil, nil},
 				{14, "amqp.header.body-size", "200", 0, false, nil, nil},
 				{15, "amqp.type", "3", 0, false, nil, nil},
+				{15, "amqp.channel", "1", 0, false, nil, nil},
 				{16, "amqp.type", "3", 0, false, nil, nil},
+				{16, "amqp.channel", "1", 0, false, nil, nil},
 			},
 			[]afr{{Packet: 4, Offset: 54, Hex: "41 4D 51 50 00 00 09 01"}},
-			"旧 min_packets=16；实测 20（3+13+4，body 拆 2 段）；单帧线上长 7+Size+1≤frame_max")
+			"旧 min_packets=16；实测 20（3+13+4，body 拆 2 段）；两段同为 BODY type=3 且同 channel；单帧线上长 7+Size+1≤frame_max")
 	}
 
 	// ⑧ amqp_basic_consume_deliver_ack（旧 18 → 实测 22）：15 事件。
@@ -407,13 +448,36 @@ func TestGenerateAMQPCases(t *testing.T) {
 			"consume→deliver→HEADER→BODY→ack 关联",
 			aChain(cfg), 22,
 			[]afld{
+				{11, "amqp.method.class", "20", 0, false, nil, nil},
+				{11, "amqp.method.method", "10", 0, false, nil, nil},
+				{11, "amqp.channel", "1", 0, false, nil, nil},
+				{12, "amqp.method.class", "20", 0, false, nil, nil},
+				{12, "amqp.method.method", "11", 0, false, nil, nil},
+				{12, "amqp.channel", "1", 0, false, nil, nil},
+				{13, "amqp.method.class", "60", 0, false, nil, nil},
+				{13, "amqp.method.method", "20", 0, false, nil, nil},
+				{13, "amqp.channel", "1", 0, false, nil, nil},
+				{13, "amqp.method.arguments.consumer_tag", "ctag1", 0, false, nil, nil},
+				{14, "amqp.method.class", "60", 0, false, nil, nil},
+				{14, "amqp.method.method", "21", 0, false, nil, nil},
+				{14, "amqp.channel", "1", 0, false, nil, nil},
 				{15, "amqp.method.class", "60", 0, false, nil, nil},
 				{15, "amqp.method.method", "60", 0, false, nil, nil},
+				{15, "amqp.channel", "1", 0, false, nil, nil},
+				{15, "amqp.method.arguments.consumer_tag", "ctag1", 0, false, nil, nil},
+				{15, "amqp.method.arguments.delivery_tag", "1", 0, false, nil, nil},
+				{16, "amqp.type", "2", 0, false, nil, nil},
+				{16, "amqp.header.class", "60", 0, false, nil, nil},
+				{16, "amqp.channel", "1", 0, false, nil, nil},
+				{17, "amqp.type", "3", 0, false, nil, nil},
+				{17, "amqp.channel", "1", 0, false, nil, nil},
 				{18, "amqp.method.class", "60", 0, false, nil, nil},
 				{18, "amqp.method.method", "80", 0, false, nil, nil},
+				{18, "amqp.channel", "1", 0, false, nil, nil},
+				{18, "amqp.method.arguments.delivery_tag", "1", 0, false, nil, nil},
 			},
 			[]afr{{Packet: 4, Offset: 54, Hex: "41 4D 51 50 00 00 09 01"}},
-			"旧 min_packets=18；实测 22（3+15+4）；同 channel 同 tag 关联")
+			"旧 min_packets=18；实测 22（3+15+4）；同 channel 同 tag 关联：consume 与 deliver 的 consumer_tag=ctag1 同值、deliver 与 ack 的 delivery_tag=1 同值；content 三帧 method→HEADER→BODY 同 channel")
 	}
 
 	// ⑨ amqp_basic_get_empty（旧 14 → 实测 18）：11 事件。
@@ -427,10 +491,18 @@ func TestGenerateAMQPCases(t *testing.T) {
 			"basic.get(70) 与显式 get-empty(72)",
 			aChain(cfg), 18,
 			[]afld{
+				{11, "amqp.method.class", "20", 0, false, nil, nil},
+				{11, "amqp.method.method", "10", 0, false, nil, nil},
+				{11, "amqp.channel", "1", 0, false, nil, nil},
+				{12, "amqp.method.class", "20", 0, false, nil, nil},
+				{12, "amqp.method.method", "11", 0, false, nil, nil},
+				{12, "amqp.channel", "1", 0, false, nil, nil},
 				{13, "amqp.method.class", "60", 0, false, nil, nil},
 				{13, "amqp.method.method", "70", 0, false, nil, nil},
+				{13, "amqp.channel", "1", 0, false, nil, nil},
 				{14, "amqp.method.class", "60", 0, false, nil, nil},
 				{14, "amqp.method.method", "72", 0, false, nil, nil},
+				{14, "amqp.channel", "1", 0, false, nil, nil},
 			},
 			[]afr{{Packet: 4, Offset: 54, Hex: "41 4D 51 50 00 00 09 01"}},
 			"旧 min_packets=14；实测 18（3+11+4）；不自动生成 HEADER/BODY")
@@ -448,15 +520,33 @@ func TestGenerateAMQPCases(t *testing.T) {
 			"tx.select/commit/rollback 六方法（class 90）",
 			aChain(cfg), 22,
 			[]afld{
+				{11, "amqp.method.class", "20", 0, false, nil, nil},
+				{11, "amqp.method.method", "10", 0, false, nil, nil},
+				{11, "amqp.channel", "1", 0, false, nil, nil},
+				{12, "amqp.method.class", "20", 0, false, nil, nil},
+				{12, "amqp.method.method", "11", 0, false, nil, nil},
+				{12, "amqp.channel", "1", 0, false, nil, nil},
 				{13, "amqp.method.class", "90", 0, false, nil, nil},
 				{13, "amqp.method.method", "10", 0, false, nil, nil},
+				{13, "amqp.channel", "1", 0, false, nil, nil},
+				{14, "amqp.method.class", "90", 0, false, nil, nil},
+				{14, "amqp.method.method", "11", 0, false, nil, nil},
+				{14, "amqp.channel", "1", 0, false, nil, nil},
 				{15, "amqp.method.class", "90", 0, false, nil, nil},
 				{15, "amqp.method.method", "20", 0, false, nil, nil},
+				{15, "amqp.channel", "1", 0, false, nil, nil},
+				{16, "amqp.method.class", "90", 0, false, nil, nil},
+				{16, "amqp.method.method", "21", 0, false, nil, nil},
+				{16, "amqp.channel", "1", 0, false, nil, nil},
 				{17, "amqp.method.class", "90", 0, false, nil, nil},
 				{17, "amqp.method.method", "30", 0, false, nil, nil},
+				{17, "amqp.channel", "1", 0, false, nil, nil},
+				{18, "amqp.method.class", "90", 0, false, nil, nil},
+				{18, "amqp.method.method", "31", 0, false, nil, nil},
+				{18, "amqp.channel", "1", 0, false, nil, nil},
 			},
 			[]afr{{Packet: 4, Offset: 54, Hex: "41 4D 51 50 00 00 09 01"}},
-			"旧 min_packets=18；实测 22（3+15+4）；confirm.select（85/10）→ A′ T-21")
+			"旧 min_packets=18；实测 22（3+15+4）；六方法逐帧同 channel：select/select-ok(10/11)、commit/commit-ok(20/21)、rollback/rollback-ok(30/31)；confirm.select（85/10）→ A′ T-21")
 	}
 
 	// ⑪ amqp_keepalive_multi_channel（旧 17 → 实测 21）：14 事件。
@@ -475,14 +565,30 @@ func TestGenerateAMQPCases(t *testing.T) {
 			"双 channel + heartbeat 隔离",
 			aChain(cfg), 21,
 			[]afld{
+				{11, "amqp.method.class", "20", 0, false, nil, nil},
+				{11, "amqp.method.method", "10", 0, false, nil, nil},
+				{11, "amqp.channel", "1", 0, false, nil, nil},
+				{12, "amqp.method.class", "20", 0, false, nil, nil},
+				{12, "amqp.method.method", "11", 0, false, nil, nil},
+				{12, "amqp.channel", "1", 0, false, nil, nil},
+				{13, "amqp.method.class", "20", 0, false, nil, nil},
+				{13, "amqp.method.method", "10", 0, false, nil, nil},
+				{13, "amqp.channel", "2", 0, false, nil, nil},
+				{14, "amqp.method.class", "20", 0, false, nil, nil},
+				{14, "amqp.method.method", "11", 0, false, nil, nil},
+				{14, "amqp.channel", "2", 0, false, nil, nil},
 				{15, "amqp.type", "8", 0, false, nil, nil},
+				{15, "amqp.channel", "0", 0, false, nil, nil},
+				{15, "amqp.length", "0", 0, false, nil, nil},
 				{16, "amqp.method.class", "60", 0, false, nil, nil},
+				{16, "amqp.method.method", "40", 0, false, nil, nil},
 				{16, "amqp.channel", "1", 0, false, nil, nil},
 				{17, "amqp.method.class", "60", 0, false, nil, nil},
+				{17, "amqp.method.method", "40", 0, false, nil, nil},
 				{17, "amqp.channel", "2", 0, false, nil, nil},
 			},
 			[]afr{{Packet: 4, Offset: 54, Hex: "41 4D 51 50 00 00 09 01"}},
-			"旧 min_packets=17；实测 21（3+14+4）")
+			"旧 min_packets=17；实测 21（3+14+4）；channel 1/2 各自 open/open-ok 后同流 publish 归属各自 channel，heartbeat 走 channel 0")
 	}
 
 	// ⑫ amqp_multi_connection（旧 17 → 实测 21）：双连接各 7 事件同流直发。
@@ -537,16 +643,30 @@ func TestGenerateAMQPCases(t *testing.T) {
 			"frame_max=4096 + 空 properties header + heartbeat 混排",
 			aChain(cfg), 20,
 			[]afld{
+				{11, "amqp.method.class", "20", 0, false, nil, nil},
+				{11, "amqp.method.method", "10", 0, false, nil, nil},
+				{11, "amqp.channel", "1", 0, false, nil, nil},
+				{12, "amqp.method.class", "20", 0, false, nil, nil},
+				{12, "amqp.method.method", "11", 0, false, nil, nil},
+				{12, "amqp.channel", "1", 0, false, nil, nil},
 				{13, "amqp.type", "8", 0, false, nil, nil},
 				{13, "amqp.channel", "0", 0, false, nil, nil},
+				{13, "amqp.length", "0", 0, false, nil, nil},
+				{14, "amqp.method.class", "60", 0, false, nil, nil},
+				{14, "amqp.method.method", "40", 0, false, nil, nil},
+				{14, "amqp.channel", "1", 0, false, nil, nil},
+				{15, "amqp.type", "2", 0, false, nil, nil},
+				{15, "amqp.header.class", "60", 0, false, nil, nil},
+				{15, "amqp.header.body-size", "0", 0, false, nil, nil},
 				{16, "amqp.type", "8", 0, false, nil, nil},
 				{16, "amqp.channel", "0", 0, false, nil, nil},
+				{16, "amqp.length", "0", 0, false, nil, nil},
 			},
 			[]afr{
 				{Packet: 4, Offset: 54, Hex: "41 4D 51 50 00 00 09 01"},
 				wholeFrame(t, pkts, 11, 54),
 			},
-			"旧 min_packets=16；实测 20（3+13+4）")
+			"旧 min_packets=16；实测 20（3+13+4）；空 properties HEADER 的 BodySize=0 与 heartbeat size=0 同例混排")
 	}
 
 	// ============================================================
