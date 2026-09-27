@@ -6,38 +6,39 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "s7": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 102,
-      "s7": {
-        "transport": "tcp",
-        "sessions": 1,
-        "commands": [
-          {
-            "kind": "read",
-            "items": [
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "sessions": 1,
+            "commands": [
               {
-                "area": 132,
-                "db_number": 1,
-                "address": 0,
-                "transport_size": 4,
-                "length": 1
+                "kind": "read",
+                "items": [
+                  {
+                    "area": 132,
+                    "db_number": 1,
+                    "address": 0,
+                    "transport_size": 4,
+                    "length": 1
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
-    "decode_as": [
-      "tcp.port==102,tpkt"
-    ],
     "expect": {
       "packet_count": 13,
       "fields": [
@@ -123,6 +124,10 @@
         "S1-S6 模板 (21-s7-design.md 第6章); 帧4/5 为 COTP CR/CC 无 S7 头",
         "pduref=0x0002(setup)/0x0003(read, 注意 sv: 各命令自增, 响应同值回显 same_as_packet=8)"
       ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 1
     }
   },
   {
@@ -132,43 +137,44 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "s7": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 102,
-      "s7": {
-        "transport": "tcp",
-        "sessions": 1,
-        "commands": [
-          {
-            "kind": "write",
-            "items": [
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "sessions": 1,
+            "commands": [
               {
-                "area": 131,
-                "address": 100,
-                "bit": 0,
-                "transport_size": 3,
-                "length": 1
+                "kind": "write",
+                "items": [
+                  {
+                    "area": 131,
+                    "address": 100,
+                    "bit": 0,
+                    "transport_size": 3,
+                    "length": 1
+                  }
+                ],
+                "value": [
+                  [
+                    1
+                  ]
+                ]
               }
-            ],
-            "value": [
-              [
-                1
-              ]
             ]
           }
-        ]
-      }
+        }
+      ]
     },
-    "decode_as": [
-      "tcp.port==102,tpkt"
-    ],
     "expect": {
       "packet_count": 13,
       "fields": [
@@ -214,6 +220,10 @@
         "area 131=0x83 标志区(Merker); BIT 传输尺寸 transp_size=1 元素 1; 线性位索引 addr24=100*8+0=800=0x320 -> 00 03 20 (tshark 实测 Byte=100 Bit=0, 非 nibble packed)",
         "S7 模板: 参数区 S7ANY(BIT)+数据项(rc00 transp03 len1 val01), 与 design §6 S7/S8 一致; 帧9 = Write Ack_Data errcls00 errcod05 返回码 00 00"
       ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 1
     }
   },
   {
@@ -223,45 +233,46 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "s7": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 102,
-      "s7": {
-        "transport": "tcp",
-        "sessions": 1,
-        "commands": [
-          {
-            "kind": "read",
-            "items": [
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "sessions": 1,
+            "commands": [
               {
-                "area": 132,
-                "db_number": 1,
-                "address": 0,
-                "transport_size": 4,
-                "length": 1
-              },
-              {
-                "area": 132,
-                "db_number": 2,
-                "address": 2,
-                "transport_size": 4,
-                "length": 1
+                "kind": "read",
+                "items": [
+                  {
+                    "area": 132,
+                    "db_number": 1,
+                    "address": 0,
+                    "transport_size": 4,
+                    "length": 1
+                  },
+                  {
+                    "area": 132,
+                    "db_number": 2,
+                    "address": 2,
+                    "transport_size": 4,
+                    "length": 1
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
-    "decode_as": [
-      "tcp.port==102,tpkt"
-    ],
     "expect": {
       "packet_count": 13,
       "fields": [
@@ -308,6 +319,10 @@
         "item.db/item.area/data.returncode 在双 item 帧为逗号多值 tshark 字段, FieldAssert 只支持单值 → 改由 FrameAssert 断言 S7ANY 双项参数区(p8@73, 覆盖 DB1字0=00 00/DB2字2=00 02)与数据区共享结构头(p9@75 ff 04 00 02)",
         "offset 73/75 由 payload-相对偏移导出: p8 S7头10B(TPKT4+COTP3+protid/rosctr/redid/pduref/parlg/datlg)后接 04 02=2B,首 S7ANY@54+19=73,次项@85; p9 S7头12B(raw: 32 03 00 00 05 00 00 02 00 0c 00 00)后接 04 02=2B,数据区首 item@54+21=75"
       ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 1
     }
   },
   {
@@ -317,25 +332,26 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "s7": {}
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "sessions": 1,
+            "commands": []
+          }
         }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 102,
-      "s7": {
-        "transport": "tcp",
-        "sessions": 1,
-        "commands": []
-      }
+      ]
     },
-    "decode_as": [
-      "tcp.port==102,tpkt"
-    ],
     "expect": {
       "packet_count": 11,
       "fields": [
@@ -386,6 +402,10 @@
         "pdu_length 字段: tshark s7comm.param.pdu_length; 480=0x1E0 请求, 240=0xF0 响应",
         "setup 后无业务命令 (commands 空) -> 会话即结束"
       ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 1
     }
   },
   {
@@ -395,29 +415,30 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "s7": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 102,
-      "s7": {
-        "transport": "tcp",
-        "sessions": 1,
-        "commands": [
-          {
-            "kind": "keepalive"
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
           }
-        ]
-      }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "sessions": 1,
+            "commands": [
+              {
+                "kind": "keepalive"
+              }
+            ]
+          }
+        }
+      ]
     },
-    "decode_as": [
-      "tcp.port==102,tpkt"
-    ],
     "expect": {
       "packet_count": 12,
       "fields": [
@@ -451,8 +472,12 @@
       ],
       "notes": [
         "keepalive 无响应: 会话在 setup 后单发 0xFA, 无 down ack",
-        "packet_count=7 = 3握手+2 CR/CC+1 setup Job+1 keepalive"
+        "packet_count=12 = 握手3+CR/CC2+setup2+keepalive1+挥手4(ACK交错),先跑后钉(P4实测)"
       ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 1
     }
   },
   {
@@ -462,31 +487,32 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "s7": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 102,
-      "s7": {
-        "transport": "tcp",
-        "sessions": 1,
-        "commands": [
-          {
-            "kind": "readsZL",
-            "szl_id": 306,
-            "szl_index": 4
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
           }
-        ]
-      }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "sessions": 1,
+            "commands": [
+              {
+                "kind": "readsZL",
+                "szl_id": 306,
+                "szl_index": 4
+              }
+            ]
+          }
+        }
+      ]
     },
-    "decode_as": [
-      "tcp.port==102,tpkt"
-    ],
     "expect": {
       "packet_count": 13,
       "fields": [
@@ -542,6 +568,10 @@
         "Read SZL 走 Userdata(ROSCTR=7) 非 Job; 参数头 000112",
         "szl_id 306=0x0132 (CPU 状态); szl_index 4=0x0004; SZL-ID on 帧10"
       ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 1
     }
   },
   {
@@ -551,31 +581,32 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "s7": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 102,
-      "s7": {
-        "transport": "tcp",
-        "sessions": 1,
-        "commands": [
-          {
-            "kind": "error",
-            "err_class": 4,
-            "err_code": 1
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
           }
-        ]
-      }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "sessions": 1,
+            "commands": [
+              {
+                "kind": "error",
+                "err_class": 4,
+                "err_code": 1
+              }
+            ]
+          }
+        }
+      ]
     },
-    "decode_as": [
-      "tcp.port==102,tpkt"
-    ],
     "expect": {
       "packet_count": 12,
       "fields": [
@@ -611,6 +642,10 @@
         "错误响应头 12B: errcls/errcod at bytes 16-17 (0x04 0x01); Wireshark 会标 Malformed(伪影, design 9.3)",
         "kind=error 产出独立 Ack_Data 报文, 非对请求的应答(测试独立校验错误头)"
       ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 1
     }
   },
   {
@@ -620,38 +655,39 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10::1",
+            "dst": "20::1"
+          }
         },
         {
-          "s7": {}
-        }
-      ],
-      "src_ip": "10::1",
-      "dst_ip": "20::1",
-      "src_port": 12345,
-      "dst_port": 102,
-      "s7": {
-        "transport": "tcp",
-        "sessions": 1,
-        "commands": [
-          {
-            "kind": "read",
-            "items": [
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "sessions": 1,
+            "commands": [
               {
-                "area": 132,
-                "db_number": 1,
-                "address": 0,
-                "transport_size": 4,
-                "length": 1
+                "kind": "read",
+                "items": [
+                  {
+                    "area": 132,
+                    "db_number": 1,
+                    "address": 0,
+                    "transport_size": 4,
+                    "length": 1
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
-    "decode_as": [
-      "tcp.port==102,tpkt"
-    ],
     "expect": {
       "packet_count": 13,
       "fields": [
@@ -692,6 +728,10 @@
         "IPv6: EtherTypeFor -> 0x86DD; 帧载荷偏移 74 = eth14+ip40+tcp20",
         "S3 模板在 IPv6 下字节不变, 仅帧内偏移不同"
       ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 1
     }
   },
   {
@@ -701,38 +741,39 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "s7": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 102,
-      "s7": {
-        "transport": "tcp",
-        "sessions": 2,
-        "commands": [
-          {
-            "kind": "read",
-            "items": [
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "sessions": 2,
+            "commands": [
               {
-                "area": 132,
-                "db_number": 1,
-                "address": 0,
-                "transport_size": 4,
-                "length": 1
+                "kind": "read",
+                "items": [
+                  {
+                    "area": 132,
+                    "db_number": 1,
+                    "address": 0,
+                    "transport_size": 4,
+                    "length": 1
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
-    "decode_as": [
-      "tcp.port==102,tpkt"
-    ],
     "expect": {
       "packet_count": 26,
       "fields": [
@@ -759,6 +800,10 @@
         "多会话 (sessions=2): 各会话完整 CR/CC/setup/read, 独立 srcPort(基础+会话号)",
         "交织非确定 -> 用 distinct_values 断言端口与路径存在, 不用帧定位"
       ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 1
     }
   },
   {
@@ -768,42 +813,47 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "s7": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 102,
-      "s7": {
-        "transport": "tcp",
-        "sessions": 1,
-        "commands": [
-          {
-            "kind": "read",
-            "force_rosctr": 9,
-            "items": [
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "sessions": 1,
+            "commands": [
               {
-                "area": 132,
-                "db_number": 1,
-                "address": 0,
-                "transport_size": 4,
-                "length": 1
+                "kind": "read",
+                "force_rosctr": 9,
+                "items": [
+                  {
+                    "area": 132,
+                    "db_number": 1,
+                    "address": 0,
+                    "transport_size": 4,
+                    "length": 1
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "notes": [
         "s7: invalid rosctr 9 -> Validate 拒绝 (0x32, ROSCTR 仅 1/2/3/7)",
         "负向: 无 fields/frames/packet_count, 任务按预期失败"
-      ]
+      ],
+      "error_contains": "invalid rosctr 9"
     }
   },
   {
@@ -813,40 +863,45 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "s7": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 102,
-      "s7": {
-        "transport": "tcp",
-        "sessions": 1,
-        "commands": [
-          {
-            "kind": "read",
-            "items": [
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "sessions": 1,
+            "commands": [
               {
-                "area": 0,
-                "db_number": 1,
-                "address": 0,
-                "transport_size": 4,
-                "length": 1
+                "kind": "read",
+                "items": [
+                  {
+                    "area": 0,
+                    "db_number": 1,
+                    "address": 0,
+                    "transport_size": 4,
+                    "length": 1
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "notes": [
         "s7: invalid area 0 (合法 0x81/0x82/0x83/0x84/0x85/0x86/0x1C/0x1D)"
-      ]
+      ],
+      "error_contains": "invalid area 0x00"
     }
   },
   {
@@ -856,41 +911,46 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "s7": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 102,
-      "s7": {
-        "transport": "tcp",
-        "sessions": 1,
-        "commands": [
-          {
-            "kind": "read",
-            "pad_pdu_len": true,
-            "items": [
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "sessions": 1,
+            "commands": [
               {
-                "area": 132,
-                "db_number": 1,
-                "address": 0,
-                "transport_size": 4,
-                "length": 1
+                "kind": "read",
+                "pad_pdu_len": true,
+                "items": [
+                  {
+                    "area": 132,
+                    "db_number": 1,
+                    "address": 0,
+                    "transport_size": 4,
+                    "length": 1
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "notes": [
         "pad_pdu_len -> TPKT.Length 与 body 不符, Validate 在构建前拦截"
-      ]
+      ],
+      "error_contains": "invalid pdu length"
     }
   },
   {
@@ -900,40 +960,45 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "s7": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 102,
-      "s7": {
-        "transport": "tcp",
-        "sessions": 1,
-        "commands": [
-          {
-            "kind": "read",
-            "items": [
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "sessions": 1,
+            "commands": [
               {
-                "area": 131,
-                "address": 100,
-                "bit": 8,
-                "transport_size": 3,
-                "length": 1
+                "kind": "read",
+                "items": [
+                  {
+                    "area": 131,
+                    "address": 100,
+                    "bit": 8,
+                    "transport_size": 3,
+                    "length": 1
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "notes": [
         "bit 越界(>7): 只能 0-7; 24 位地址组装时 bit 低半字节"
-      ]
+      ],
+      "error_contains": "invalid bit 8"
     }
   },
   {
@@ -943,26 +1008,871 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "s7": {}
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "udp",
+            "sessions": 1,
+            "commands": []
+          }
         }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 102,
-      "s7": {
-        "transport": "udp",
-        "sessions": 1,
-        "commands": []
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "notes": [
         "S7comm 无 UDP 变体, transport!=tcp 拒绝"
+      ],
+      "error_contains": "transport \"udp\" is invalid"
+    }
+  },
+  {
+    "id": "s7_neg_top_s7_presence_reject",
+    "proto": "s7",
+    "summary": "D-S7-85 presence: layers + top-level s7 {} coexist = reject",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {}
+        }
+      ],
+      "s7": {}
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "no longer accepts a top-level s7 sub-config"
+    }
+  },
+  {
+    "id": "s7_neg_stray_src_ip",
+    "proto": "s7",
+    "summary": "D-S7-85 M5 stray-key negative: layers + top-level flat field src_ip = reject",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp"
+          }
+        }
+      ],
+      "src_ip": "10.9.9.9"
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "no longer accepts flat config field src_ip"
+    }
+  },
+  {
+    "id": "s7_neg_udp_carrier",
+    "proto": "s7",
+    "summary": "D-S7-85 carrier: [ip,udp,s7] udp carrier rejected (tcp-only terminal)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "carrier"
+    }
+  },
+  {
+    "id": "s7_a1_multi_db_write",
+    "proto": "s7",
+    "summary": "A'-1: write 2 items (DB1.W0 + DB2.W2) with per-item values -> single Write job, itemcount=2",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "commands": [
+              {
+                "kind": "write",
+                "items": [
+                  {
+                    "area": 132,
+                    "db_number": 1,
+                    "address": 0,
+                    "transport_size": 4,
+                    "length": 1
+                  },
+                  {
+                    "area": 132,
+                    "db_number": 2,
+                    "address": 2,
+                    "transport_size": 4,
+                    "length": 1
+                  }
+                ],
+                "value": [
+                  [
+                    18,
+                    52
+                  ],
+                  [
+                    86,
+                    120
+                  ]
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "s7comm.param.func",
+          "value": "0x05"
+        },
+        {
+          "packet": 8,
+          "field": "s7comm.param.itemcount",
+          "value": "2"
+        },
+        {
+          "packet": 9,
+          "field": "s7comm.header.rosctr",
+          "value": "3"
+        },
+        {
+          "packet": 9,
+          "field": "s7comm.param.func",
+          "value": "0x05"
+        }
+      ],
+      "frames": [],
+      "notes": [
+        "A'-1 (design 15.2): multi-item write, data section per item [00 sz len value]"
+      ]
+    }
+  },
+  {
+    "id": "s7_a2_transport_size_octet",
+    "proto": "s7",
+    "summary": "A'-2: transport_size=0x09 (OCTET STRING) request face representative",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "commands": [
+              {
+                "kind": "read",
+                "items": [
+                  {
+                    "area": 132,
+                    "db_number": 1,
+                    "address": 0,
+                    "transport_size": 9,
+                    "length": 4
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "s7comm.param.func",
+          "value": "0x04"
+        },
+        {
+          "packet": 8,
+          "field": "s7comm.param.itemcount",
+          "value": "1"
+        }
+      ],
+      "frames": [],
+      "notes": [
+        "A'-2 (design 15.2): transport-size 逐值代表面 (0x09); 余值 01/02/05/06/07/08 走 A' 展开或立项"
+      ]
+    }
+  },
+  {
+    "id": "s7_a3_explicit_pdu_ref",
+    "proto": "s7",
+    "summary": "A'-3: explicit pdu_ref=100 start -> setup ref 100, read ref 101, response echoes 101",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "pdu_ref": 100,
+            "commands": [
+              {
+                "kind": "read",
+                "items": [
+                  {
+                    "area": 132,
+                    "db_number": 1,
+                    "address": 0,
+                    "transport_size": 4,
+                    "length": 1
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "s7comm.header.pduref",
+          "value": "100"
+        },
+        {
+          "packet": 8,
+          "field": "s7comm.header.pduref",
+          "value": "101"
+        },
+        {
+          "packet": 9,
+          "field": "s7comm.header.pduref",
+          "same_as_packet": 8
+        }
+      ],
+      "frames": [],
+      "notes": [
+        "A'-3 (design 15.2): sessionBaseRef 缺省 2 的对照——显式 pdu_ref 起始回显"
+      ]
+    }
+  },
+  {
+    "id": "s7_a4_multi_command_sequence",
+    "proto": "s7",
+    "summary": "A'-4: 9.11 多动作下限——read -> write -> readsZL 三事务同会话 (17 包)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "commands": [
+              {
+                "kind": "read",
+                "items": [
+                  {
+                    "area": 132,
+                    "db_number": 1,
+                    "address": 0,
+                    "transport_size": 4,
+                    "length": 1
+                  }
+                ]
+              },
+              {
+                "kind": "write",
+                "items": [
+                  {
+                    "area": 131,
+                    "address": 100,
+                    "bit": 0,
+                    "transport_size": 3,
+                    "length": 1
+                  }
+                ],
+                "value": [
+                  [
+                    1
+                  ]
+                ]
+              },
+              {
+                "kind": "readsZL",
+                "szl_id": 306,
+                "szl_index": 4
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 17,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "s7comm.param.func",
+          "value": "0x04"
+        },
+        {
+          "packet": 10,
+          "field": "s7comm.param.func",
+          "value": "0x05"
+        },
+        {
+          "packet": 12,
+          "field": "s7comm.header.rosctr",
+          "value": "7"
+        },
+        {
+          "packet": 13,
+          "field": "s7comm.header.rosctr",
+          "value": "7"
+        },
+        {
+          "packet": 10,
+          "field": "s7comm.header.pduref",
+          "value": "4"
+        },
+        {
+          "packet": 12,
+          "field": "s7comm.header.pduref",
+          "value": "5"
+        }
+      ],
+      "frames": [],
+      "notes": [
+        "A'-4 (design 15.2 / 9.11 多动作下限): 同连接三事务序列 read->write->readsZL; setup=ref2, 命令逐条 +1"
+      ]
+    }
+  },
+  {
+    "id": "s7_b1_unknown_kind_rejected",
+    "proto": "s7",
+    "summary": "B'-1/G-S7-2: unknown kind 'reed' -> Validate reject (此前静默当 read)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "commands": [
+              {
+                "kind": "reed"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown kind \"reed\""
+    }
+  },
+  {
+    "id": "s7_b2_transport_size_rejected",
+    "proto": "s7",
+    "summary": "B'-2/G-S7-3: transport_size=0x0a 越界 -> Validate reject (此前直落字节)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "commands": [
+              {
+                "kind": "read",
+                "items": [
+                  {
+                    "area": 132,
+                    "db_number": 1,
+                    "address": 0,
+                    "transport_size": 10,
+                    "length": 1
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid transport_size 0x0a"
+    }
+  },
+  {
+    "id": "s7_b3_sessions_over_rejected",
+    "proto": "s7",
+    "summary": "B'-3/G-S7-4: sessions=17 越界 (基线 §8.9 1-16) -> Validate reject",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "sessions": 17,
+            "commands": []
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid sessions 17"
+    }
+  },
+  {
+    "id": "s7_neg_layer_unknown_key",
+    "proto": "s7",
+    "summary": "D-S7-85 strict decode: unknown key in s7 layer config -> reject (DisallowUnknownFields)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "bogus": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown field \"bogus\""
+    }
+  },
+  {
+    "id": "s7_a2b_transport_size_values",
+    "proto": "s7",
+    "summary": "A'-2 逐值: transport_size 请求面 01/02/05/06/07/08/09 七值单帧 itemcount=7",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "commands": [
+              {
+                "kind": "read",
+                "items": [
+                  {
+                    "area": 132,
+                    "db_number": 1,
+                    "address": 0,
+                    "transport_size": 1,
+                    "length": 1
+                  },
+                  {
+                    "area": 132,
+                    "db_number": 1,
+                    "address": 1,
+                    "transport_size": 2,
+                    "length": 1
+                  },
+                  {
+                    "area": 132,
+                    "db_number": 1,
+                    "address": 2,
+                    "transport_size": 5,
+                    "length": 1
+                  },
+                  {
+                    "area": 132,
+                    "db_number": 1,
+                    "address": 3,
+                    "transport_size": 6,
+                    "length": 1
+                  },
+                  {
+                    "area": 132,
+                    "db_number": 1,
+                    "address": 4,
+                    "transport_size": 7,
+                    "length": 1
+                  },
+                  {
+                    "area": 132,
+                    "db_number": 1,
+                    "address": 5,
+                    "transport_size": 8,
+                    "length": 1
+                  },
+                  {
+                    "area": 132,
+                    "db_number": 1,
+                    "address": 6,
+                    "transport_size": 9,
+                    "length": 1
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "s7comm.param.func",
+          "value": "0x04"
+        },
+        {
+          "packet": 8,
+          "field": "s7comm.param.itemcount",
+          "value": "7"
+        }
+      ],
+      "frames": [],
+      "notes": [
+        "A'-2 (design 12.3/15.2): 传输尺寸请求面逐值展开; 04/03 由存量例覆盖, 本例补 01/02/05/06/07/08/09"
+      ]
+    }
+  },
+  {
+    "id": "s7_area_values",
+    "proto": "s7",
+    "summary": "area 逐值: 0x80/0x82/0x85/0x86/0x1C/0x1D 六值单帧 itemcount=6（84/83 存量覆盖，00 负例）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "commands": [
+              {
+                "kind": "read",
+                "items": [
+                  {
+                    "area": 128,
+                    "db_number": 1,
+                    "address": 0,
+                    "transport_size": 4,
+                    "length": 1
+                  },
+                  {
+                    "area": 130,
+                    "db_number": 1,
+                    "address": 1,
+                    "transport_size": 4,
+                    "length": 1
+                  },
+                  {
+                    "area": 133,
+                    "db_number": 1,
+                    "address": 2,
+                    "transport_size": 4,
+                    "length": 1
+                  },
+                  {
+                    "area": 134,
+                    "db_number": 1,
+                    "address": 3,
+                    "transport_size": 4,
+                    "length": 1
+                  },
+                  {
+                    "area": 28,
+                    "db_number": 1,
+                    "address": 4,
+                    "transport_size": 4,
+                    "length": 1
+                  },
+                  {
+                    "area": 29,
+                    "db_number": 1,
+                    "address": 5,
+                    "transport_size": 4,
+                    "length": 1
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "s7comm.param.itemcount",
+          "value": "6"
+        }
+      ],
+      "frames": [],
+      "notes": [
+        "design 12.3 子表② area 9 行逐值展开; 本例补 6 个待确认值"
+      ]
+    }
+  },
+  {
+    "id": "s7_errcls_values",
+    "proto": "s7",
+    "summary": "errcls 逐值: 7 值全表 00/81/82/83/84/85/87 各一错误头 Ack_Data",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 102
+          }
+        },
+        {
+          "s7": {
+            "transport": "tcp",
+            "commands": [
+              {
+                "kind": "error",
+                "err_class": 0,
+                "err_code": 1
+              },
+              {
+                "kind": "error",
+                "err_class": 129,
+                "err_code": 1
+              },
+              {
+                "kind": "error",
+                "err_class": 130,
+                "err_code": 1
+              },
+              {
+                "kind": "error",
+                "err_class": 131,
+                "err_code": 1
+              },
+              {
+                "kind": "error",
+                "err_class": 132,
+                "err_code": 1
+              },
+              {
+                "kind": "error",
+                "err_class": 133,
+                "err_code": 1
+              },
+              {
+                "kind": "error",
+                "err_class": 135,
+                "err_code": 1
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "s7comm.header.errcls",
+          "value": "0x00"
+        },
+        {
+          "packet": 9,
+          "field": "s7comm.header.errcls",
+          "value": "0x81"
+        },
+        {
+          "packet": 10,
+          "field": "s7comm.header.errcls",
+          "value": "0x82"
+        },
+        {
+          "packet": 11,
+          "field": "s7comm.header.errcls",
+          "value": "0x83"
+        },
+        {
+          "packet": 12,
+          "field": "s7comm.header.errcls",
+          "value": "0x84"
+        },
+        {
+          "packet": 13,
+          "field": "s7comm.header.errcls",
+          "value": "0x85"
+        },
+        {
+          "packet": 14,
+          "field": "s7comm.header.errcls",
+          "value": "0x87"
+        }
+      ],
+      "frames": [],
+      "notes": [
+        "design 12.3 子表② errcls 7 行逐值展开; 每 error 命令产 1 响应包 (无请求)"
       ]
     }
   }
