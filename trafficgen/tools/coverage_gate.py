@@ -2059,6 +2059,125 @@ def check_sstp(cases):
     return rows
 
 
+def check_bgp(cases):
+    """D-BGP-1 P4/P5 反查表（20 正 + 23 负 = 43 例）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线（G-BGP-5/G-BGP-6）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 bgp", '"bgp": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 bgp（已准入）", '"bgp"' not in pt[i_neg:i_neg + 900], "已摘除"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "bgp"')
+    reg_block = rg[i_reg:rg.index('Name: "ldp"', i_reg)]
+    rows.append(("registry bgp 行（DependsOn tcp + FieldContract 179）",
+                 'DependsOn: []string{"tcp"}' in reg_block
+                 and '"tcp.dst_port": "179"' in reg_block, "在案"))
+    rows.append(("G-BGP-5① registry Fields 增 events/sessions（nil Default 保缺键语义）",
+                 '"events"' in reg_block and '"sessions"' in reg_block
+                 and reg_block.count('{Type: "list"}') >= 2, "在案"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("G-BGP-5② translate 层 config 严格往返解码进 spec.BGP",
+                 "bgp layer config encode" in tr and "bgp layer config decode" in tr
+                 and "DisallowUnknownFields" in tr, "在案"))
+    rows.append(("FlowMeta.BGP 直传", re.search(r"BGP:\s+spec\.BGP\b", tr) is not None, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go ChainPlanner(bgp) 接线", 'NewChainPlanner("bgp")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("G-BGP-6 CheckProtoFlat presence 判死顶层 bgp",
+                 "no longer accepts a top-level bgp sub-config" in sc, "在案"))
+    rows.append(("strategy_convert 存量兼容块记 ValidationErrors",
+                 'if protocol == "bgp" {' in sc, "在案"))
+    rows.append(("mapToFlowSpec 179 缺省端口（flat 兼容面）",
+                 "setDefaultDstPort(&spec, cfg, 179)" in sc, "在案"))
+    gl = json.loads((tg / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
+    gfields = gl["layers"]["bgp"]["fields"]
+    rows.append(("schemagen 重跑（generated bgp 层含 events/sessions 且无 Default）",
+                 gfields.get("events", {}).get("type") == "list"
+                 and gfields.get("sessions", {}).get("type") == "list"
+                 and "default" not in gfields.get("events", {}), "在案"))
+    vt = (tg / "tools" / "pipe_gate.sh").read_text()
+    rows.append(("pipe_gate presence 红线登记 bgp", "|enip|bgp)" in vt, "在案"))
+
+    # 2. 行为面（builder/planner 关键件 + G-BGP-7）。
+    bl = (tg / "internal" / "protocol" / "bgp" / "builder.go").read_text()
+    for prim, name in [
+        ("func BuildOpen", "OPEN 编码（29 字节固定体）"),
+        ("func BuildKeepalive", "KEEPALIVE 编码（19 字节）"),
+        ("func BuildUpdate", "UPDATE 编码（withdrawn/属性/NLRI 三区）"),
+        ("func BuildNotification", "NOTIFICATION 编码"),
+        ("func encodePrefix", "前缀截断编码（ceil(plen/8)）"),
+        ("func encodeAttributes", "六类路径属性编码"),
+        ("func appendPathAttr", "属性 flags/type/length 装配"),
+        ("G-BGP-7", "hold_time 1–2 拒绝（RFC 4271 §4.2）"),
+        ("bgp: message length %d exceeds 4096", "4096 边界锚词（编码面 + 校验面）"),
+    ]:
+        rows.append((f"关键件：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "bgp" / "planner.go").read_text()
+    for prim, name in [
+        ("func validateEventSequence", "RFC 4271 §8 状态机（OPEN 成对/KA-UPDATE 需 OPEN/NOTIF 末位）"),
+        ("exactly two OPEN messages", "OPEN 成对锚词"),
+        ("notification must be the last", "NOTIF 末位锚词"),
+        ("state violation", "状态违规锚词"),
+    ]:
+        rows.append((f"关键件：{name}", prim in pl, "在案"))
+    lg = (tg / "internal" / "protocol" / "bgp" / "layer_gen.go").read_text()
+    rows.append(("关键件：defaultDualEvents 缺省 6 事件流",
+                 "func defaultDualEvents" in lg and "events == nil" in lg, "在案"))
+    rows.append(("关键件：多会话展开（sessions>1 逐 session SrcPort）",
+                 "len(cfg.Sessions) > 1" in lg and "s.SrcPort" in lg, "在案"))
+    ct = (tg / "internal" / "core" / "layers" / "bgp_chain_test.go")
+    rows.append(("链级红例在案（bgp_chain_test.go）", ct.exists(), "在案"))
+
+    # 3. 用例面（43 例 = 20 正 + 23 负）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "bgp_connect", "bgp_open_keepalive", "bgp_update_attributes",
+        "bgp_update_withdraw", "bgp_notification_hold_expired", "bgp_hold_time_zero",
+        "bgp_ipv4_nlri_32", "bgp_ipv6_transport", "bgp_multi_session",
+        "bgp_keepalive_length_boundary",
+        "bgp_a_multi_update_rounds", "bgp_a_update_multi_session", "bgp_a_origin_egp",
+        "bgp_a_origin_incomplete", "bgp_a_community_no_advertise",
+        "bgp_a_multi_flow_dynamic", "bgp_a_default_events_nil",
+        "bgp_a_server_abort_rst", "bgp_a_update_combined_withdraw_nlri",
+        "bgp_a_notification_multi_session",
+        "bgp_neg_udp", "bgp_neg_presence_top_level_bgp", "bgp_neg_flat_count",
+        "bgp_neg_stray_src_mac", "bgp_neg_static_copy_multiflow",
+        "bgp_a_neg_hold_time_small",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("用例总数 43（20 正+23 负）", len(cases) == 43 and len(pos) == 20 and len(neg) == 23,
+                 f"{len(cases)} 例 / {len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("正例顶层键=0（仅 layers + group_id 框架键）",
+                 all(set((c.get("spec_json") or {}).keys()) <= {"layers", "group_id"} for c in pos),
+                 "穷尽"))
+    rows.append(("负例 expect 纯净（仅 expect_error + error_contains）",
+                 all(set((c.get("expect") or {}).keys()) == {"expect_error", "error_contains"}
+                     for c in neg), "纯净"))
+    # 4. 锚词面（§7 十四行 + A' 负例 + M5 三条）。
+    anchors = {"tcp", "profile", "marker", "length", "type", "version", "as",
+               "state", "address", "exactly two", "last", "error_code", "identifier",
+               "next_hop", "4096", "hold_time", "top-level",
+               "no longer accepts flat config field count", "src_mac", "static four-tuple"}
+    got = {(c.get("expect") or {}).get("error_contains") for c in neg}
+    missing = sorted(a for a in anchors if a not in got)
+    rows.append((f"负例锚词覆盖 {len(anchors)} 族", not missing, missing or "全覆盖"))
+    # 5. 先跑后钉面：A' 正例的 frames/fields 均已由 tshark 实测钉死。
+    pinned = ["bgp_a_multi_update_rounds", "bgp_a_origin_egp", "bgp_a_origin_incomplete",
+              "bgp_a_community_no_advertise", "bgp_a_update_combined_withdraw_nlri",
+              "bgp_a_default_events_nil", "bgp_a_server_abort_rst"]
+    unpinned = [i for i in pinned
+                if not next((c for c in cases if c.get("id") == i), {}).get("expect", {}).get("frames")
+                and not next((c for c in cases if c.get("id") == i), {}).get("expect", {}).get("fields")]
+    rows.append(("先跑后钉：A' 断言均为实测（frames/fields 非空）", not unpinned, unpinned or "已钉"))
+    return rows
+
+
 CHECKS = {
     "smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
@@ -5919,7 +6038,7 @@ def check_spnego(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp}
 
 
 def main(argv):
