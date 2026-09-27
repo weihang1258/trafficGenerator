@@ -1385,13 +1385,13 @@ def check_smb(cases):
     ]:
         rows.append((f"守卫：{name}", anchor in vd, f"锚词 {anchor}"))
 
-    # 3. 用例面（279 例；诊断族 probe_smb 不进分母）。
+    # 3. 用例面（296 例 = 279 存量 + P6 补 17 原子例；诊断族 probe_smb 不进分母）。
     ids = [c.get("id", "") for c in cases]
     idset = set(ids)
-    rows.append(("用例总数 279", len(cases) == 279, f"{len(cases)} 例"))
+    rows.append(("用例总数 296", len(cases) == 296, f"{len(cases)} 例"))
     pos = [c for c in cases if "expect_error" not in (c.get("expect") or {})]
     neg = [c for c in cases if "expect_error" in (c.get("expect") or {})]
-    rows.append((f"{len(pos)} 正 + {len(neg)} 负（17 负）", len(neg) == 17 and len(pos) == 262,
+    rows.append((f"{len(pos)} 正 + {len(neg)} 负（17 负）", len(neg) == 17 and len(pos) == 279,
                  f"{len(pos)} 正 / {len(neg)} 负"))
     rows.append(("正例均带 packet_count", all((c.get("expect") or {}).get("packet_count") for c in pos), "全部在案"))
     bad_keys = [c.get("id") for c in neg

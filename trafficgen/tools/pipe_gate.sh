@@ -47,7 +47,9 @@ for c in d:
     sj = c.get("spec_json", {}) or {}
     if "layers" in sj:
         for k in list(sj.keys()):
-            if k not in ("layers","strategy_fc","ttl","flow_control","output","output_config") and isinstance(sj[k], dict):
+            # group_id 是多流例的合法顶层键（coverage_gate 白名单同款），
+            # 不是协议子映射——启发式须排除，否则 flows>1 用例误报黄灯。
+            if k not in ("layers","strategy_fc","ttl","flow_control","output","output_config","group_id") and isinstance(sj[k], dict):
                 bad.append(c["id"] + ":顶层子映射+" + k)
                 break
 print("\n".join(sorted(set(bad))))
@@ -83,7 +85,9 @@ PYEOF
     # （cwmp 先例；presence 负例豁免，其余顶层 megaco 共存即红）。
     # D-NFS-1：nfs 配置迁层（顶层 nfs 交 CheckProtoFlat 判死），presence
     # 红线切自键（megaco 先例；presence 负例豁免，其余顶层 nfs 共存即红）。
-    dns|mqtt|smtp|pop3|imap|mcp|srv6|fins|goose|sv|icmpv6|h323|mpls|ngap|telnet|sip|radius|pppoe|ldap|rtmp|rtsp|pptp|vnc|xmpp|sctp|jt808|jt809|jtt905|arp|icmp|megaco|hl7|mmse|nfs)
+    # D-SMB-1：smb 配置迁层（顶层 smb 交 CheckProtoFlat 判死），presence
+    # 红线切自键（nfs 先例；presence 负例豁免，其余顶层 smb 共存即红）。
+    dns|mqtt|smtp|pop3|imap|mcp|srv6|fins|goose|sv|icmpv6|h323|mpls|ngap|telnet|sip|radius|pppoe|ldap|rtmp|rtsp|pptp|vnc|xmpp|sctp|jt808|jt809|jtt905|arp|icmp|megaco|hl7|mmse|nfs|smb)
       _pres_key="$PROTO"
       ;;
   esac
