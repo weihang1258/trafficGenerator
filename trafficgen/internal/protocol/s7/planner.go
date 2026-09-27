@@ -20,7 +20,21 @@ func (p Planner) Validate(spec core.FlowSpec) error {
 	if cfg.Transport != "" && cfg.Transport != transportTCP {
 		return fmt.Errorf("s7: transport %q is invalid", cfg.Transport)
 	}
+	// D-S7-85 §14 ②（G-S7-4）：sessions 域 1–16（基线 §8.9）。0 = 未设置
+	// （生成器 n<1→1 缺省单会话），负值与 >16 拒绝——越界会按会话数线性
+	// 展开包序列，静默放行即无界放大。
+	if cfg.Sessions < 0 || cfg.Sessions > maxSessions {
+		return fmt.Errorf("s7: invalid sessions %d", cfg.Sessions)
+	}
 	for _, c := range cfg.Commands {
+		// D-S7-85 §14 ②（G-S7-2）：未知 kind 拒绝。此前 buildS7Pair 的
+		// default 分支静默当 read，配置拼错（"reed"）产出的是合法 read 会话
+		// ——假成功。空串是文档缺省（§1：缺省 kind 走 read 分支）。
+		switch c.Kind {
+		case "", kindRead, "write", "keepalive", "readsZL", "read_szl", "error":
+		default:
+			return fmt.Errorf("s7: unknown kind %q", c.Kind)
+		}
 		if c.ForceROSCTR != nil && *c.ForceROSCTR != rosctrJob && *c.ForceROSCTR != rosctrAckData && *c.ForceROSCTR != rosctrUserdata {
 			return fmt.Errorf("s7: invalid rosctr %d", *c.ForceROSCTR)
 		}
