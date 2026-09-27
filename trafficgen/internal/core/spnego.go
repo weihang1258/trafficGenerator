@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-// SPNEGO（D-SPNEGO-1 #47，契约 61-spnego v1.4.0）配置类型。
+// SPNEGO（D-SPNEGO-1 #47，契约 61-spnego v1.5.0）配置类型。
 //
 // 字段名对齐契约 §2 键表：`profile`/`negotiation`/`mech_types`/`supported_mech`/
 // `neg_result`/`req_flags`/`neg_hints`/`mech_token`/`response_token`/
