@@ -2569,7 +2569,7 @@ def check_enip(cases):
                  'if protocol == "enip" {' in sc, "在案"))
     cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
     rows.append(("chain_planner enip 层值回填先于 validator（T-115 端口域）",
-                 'if p.name == "enip" {' in cp, "在案"))
+                 'p.name == "enip" || p.name == "dameng"' in cp, "在案"))
 
     # 2. 行为面（builder/生成器关键件）。
     bl = (tg / "internal" / "protocol" / "enip" / "builder.go").read_text()
@@ -2672,7 +2672,7 @@ def check_cflow(cases):
                  and "mixed address family in ip layer" in vl_block, "在案"))
     cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
     rows.append(("chain_planner cflow 层值回填先于 validator（双 profile 端口域）",
-                 'p.name == "enip" || p.name == "cflow"' in cp, "在案"))
+                 '"dameng" || p.name == "cflow" || p.name == "drda"' in cp, "在案"))
     rows.append(("chain_planner cflow 目的端口缺省 2055（base）+ profile 感知覆盖 4739",
                  'case "cflow":' in cp and "spec.DstPort = 2055" in cp
                  and 'profile == "ipfix_rfc7011"' in cp and "spec.DstPort = 4739" in cp, "在案"))
