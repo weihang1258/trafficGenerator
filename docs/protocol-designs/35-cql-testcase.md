@@ -1,10 +1,10 @@
 # CQL/Cassandra Native Protocol（CQL/Cassandra 原生协议）测试用例设计
 
-> 版本：v2.0.0（P1–P3 完整产物）  
-> 日期：2026-09-26  
-> 配套设计：`docs/protocol-designs/35-cql-design.md`（v2.0.0，P1 矩阵 §9 + 门1 表 §11 + D-CQL-1 §12）  
-> 机器契约：`trafficgen/test/protocol_pcap/cases/cql.json`  
-> 状态：`cql` 层已注册（`registry.go:807`）、builder/planner/layer_gen 已落码（`internal/protocol/cql/` 770 行）；17 例存量仍为旧扁平形（17/17 顶层 `src_ip/dst_ip/src_port/dst_port/cql`，0/17 有 `ip` 层，0/17 有 `flow_control`），纯 layers 目标形**今天跑不通**（层 Fields 空，G-CQL-1）；P1 实测 2 处线格式违规范（W1 v4 QUERY flags 宽度、W2 v5 envelope，design §9.6）。运行态由 B 轨 lane 校准，本文不宣称当前 suite 可运行。
+> 版本：v2.0.1（P6 F1–F3 同期同步；P1 写作时 v2.0.0）  
+> 日期：2026-09-28  
+> 配套设计：`docs/protocol-designs/35-cql-design.md`（v2.0.1，P6 F4 同期同步；P1 写作时 v2.0.0）  
+> 机器契约：`trafficgen/test/protocol_pcap/cases/cql.json`（P6 实测 30 例 = 15 正 + 15 负；P1 写作时 17 例存量旧扁平形）  
+> 状态：P6 F1–F3 落盘（§2 F1/F2 标注 + §5 F3 包数表 + 本修订记录）；W1/W2 处置见 design §9.6（P4 已处置，P6 已验）。
 
 ## 1. 测试原则
 
@@ -22,10 +22,10 @@ frame 头为 `version|flags|stream(2)|opcode|length(4)`；IPv4 无 option 时 pa
 | 2 | `cql_options_supported` | 正 | OPTIONS→SUPPORTED multimap | 2 | 9 |
 | 3 | `cql_auth_empty_sasl` | 正 | AUTHENTICATE/AUTH_RESPONSE/AUTH_SUCCESS | 3 | 10 |
 | 4 | `cql_query_void` | 正 | STARTUP/READY/QUERY/RESULT VOID/READY | 5 | 12 |
-| 5 | `cql_prepare_execute` | 正 | PREPARE/EXECUTE 请求 | 2 | 9 |
+| 5 | `cql_prepare_execute` | 正 | PREPARE/EXECUTE 请求（P6 F1：实测 4 事件/11 包，startup/ready 前置） | 4 | 11 |
 | 6 | `cql_error_server` | 正 | 合法 ERROR 应用响应 | 1 | 8 |
 | 7 | `cql_ipv6` | 正 | IPv6 v4 会话 | 4 | 11 |
-| 8 | `cql_v5_tracing` | 正 | v5 version 和 flags | 4 | 11 |
+| 8 | `cql_v5_tracing` | 正 | v5 version 和 flags（P6 F2：改形握手前 4 事件 options/supported/startup/ready，W2 B2 过渡档） | 4 | 11 |
 | 9 | `cql_multi_session` | 正 | 两条独立 session | 4 | 18 |
 | 10 | `cql_length_boundary` | 正 | length=0 OPTIONS | 1 | 8 |
 | 11 | `cql_connect` | 正 | TCP connect，无应用事件 | 0 | 7 |
@@ -74,7 +74,7 @@ STARTUP→READY→QUERY→RESULT VOID→READY，12 包。packet 6 QUERY 文本�
 
 ### 3.5 `cql_prepare_execute`（T-CQL-S5）
 
-两个 c2s 请求，9 包。PREPARE 的 long string 是 `SELECT v FROM ks.t WHERE k = ?`；EXECUTE 使用 `[short bytes]` 的 `pid-1`、consistency=1、flags=0。两帧 offset 54 由 JSON 完整锚定；不隐式制造 PREPARE response，prepared metadata 和 bound values 留作 profile 边界。
+P6 F1：实测 4 事件（startup/ready/prepare/execute）/11 包（P5 按 design §9.2 缺失格补 startup/ready 前置）。PREPARE 的 long string 是 `SELECT v FROM ks.t WHERE k = ?`；EXECUTE 使用 `[short bytes]` 的 `pid-1`、consistency=1、flags=0。两帧 offset 54 由 JSON 完整锚定；不隐式制造 PREPARE response，prepared metadata 和 bound values 留作 profile 边界。
 
 ### 3.6 `cql_error_server`（T-CQL-S6）
 
@@ -86,7 +86,7 @@ v4 profile、IPv6 地址、STARTUP→READY→QUERY→RESULT VOID，11 包。pack
 
 ### 3.8 `cql_v5_tracing`（T-CQL-S8）
 
-v5 profile，STARTUP（`CQL_VERSION=5.0.0`）→READY→QUERY→RESULT VOID，11 包。QUERY frame 的 version=`0x05`、flags=`0x02`、opcode=`0x07`、tcp.len=27；v5 beta、tracing response UUID、result metadata 不从 flags 猜测，当前只锁定 header 和基础 QUERY body。
+v5 profile，P6 F2 实测形：握手前 4 事件（options/supported/startup/ready），11 包；W2 过渡档下 v5 握手后事件拒（锚词 `envelope`）。options 帧 `05 00 00 00 05 …`；SUPPORTED multimap 含 `CQL_VERSION` 5.0.0 + `COMPRESSION` snappy（tcp.len=56）；v5 beta、tracing response UUID、result metadata 不从 flags 猜测，只锁定 header 和基础帧。
 
 ### 3.9 `cql_multi_session`（T-CQL-S9）
 
@@ -118,7 +118,7 @@ v5 profile，STARTUP（`CQL_VERSION=5.0.0`）→READY→QUERY→RESULT VOID，11
 ## 5. 三方一致性检查清单
 
 1. 本文、设计 §6 和 JSON 都是 17 个唯一 id，顺序一致。
-2. 正例包数严格为 `[9,9,10,12,9,8,11,11,18,8,7]`；负例不出现 `packet_count`。
+2. P6 F3 实测：30 例（15 正 15 负），正例包数 `[9,9,10,12,11,8,11,11,18,8,7,13,11,11,14]`（第 5 位 9→11 系 F1 补前置；后 4 例为 A′ 正）；负例不出现 `packet_count`。（P1 写作时为 17 例/11 正 6 负/`[9,9,10,12,9,8,11,11,18,8,7]`。）
 3. 正例均有 `has_handshake=true`、`terminates=true`；除 `cql_connect` 外均有 `has_payload=true` 和至少一个 frame/field。
 4. IPv4 frame offset 只用 54，IPv6 只用 74；所有偏移都从数据包 4 或之后的应用包开始。
 5. v4/v5、方向位、opcode、length、OPTIONS 空 body、AUTH_RESPONSE 空 bytes、QUERY flags 均有 observable；私有 SASL/压缩/metadata 不写固定事实。
@@ -130,6 +130,7 @@ v5 profile，STARTUP（`CQL_VERSION=5.0.0`）→READY→QUERY→RESULT VOID，11
 
 ## 7. 修订记录
 
+- v2.0.1（2026-09-28，P6 F1–F4 同期同步）：F1 prepare_execute 9→11 包/4 事件（P5 补 startup/ready 前置）；F2 v5_tracing 改形握手前 4 事件（W2 B2 过渡档）；F3 总数 17→30（15正15负）+ 包数表更新；F4 见 design §9.1/§9.6 W1/W2 标"P4 已处置"。
 - v2.0.0（2026-09-26）：P1–P3 完整产物。新增 §8 存量 17 例逐条去向审计（9.14）与 §9 P3 固定动作（§3.15 三项 / A′·B′ 两分类 / 9.52 对账两行 / 3.14 豁免审计 / 三源回指 / 断言通道实测）；§1–§6 正文保留（旧文逐条核对见 design §14.2）；状态行按注册/落码实测改写。
 - v1.0.0（2026-08-20）：建立 11 个正例和 6 个负例；覆盖 CQL v4/v5、STARTUP/OPTIONS/READY/SUPPORTED、认证 bytes 边界、QUERY/PREPARE/EXECUTE/RESULT/ERROR、IPv4/IPv6、多会话、frame length/非法 opcode/状态/UDP/上限负例。
 
