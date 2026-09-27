@@ -1529,12 +1529,12 @@ def check_nfs(cases):
         rows.append((name, hit is not None, hit or "无用例"))
 
     # 4. 锚词面（主锚词族在负例 expect 中；保持与 suite 绿一致）。
-    # ttl 红例锚词为 shape 门原文 "maximum"（300/1 > 255）；族名记作 maximum。
+    # ttl 红例锚词为 ValidateConfigRanges 原文 "ttl 300 invalid"；族名记作 ttl。
     anchors = {"version must be 3 or 4", "multi-stream expansion is not supported on the layer chain",
                "NFSv4 requires TCP", "UDP RPC message exceeds 65507", "MOUNT v3 procedure out of range",
                "attrmask contains NFSv4.1+ attributes", "layers: layer",
                "no longer accepts a top-level nfs sub-config", "no longer accepts flat config field count",
-               "src_mac", "maximum", "static copy"}
+               "src_mac", "ttl 300 invalid", "static copy"}
     got = {(c.get("expect") or {}).get("error_contains") for c in neg}
     missing = sorted(a for a in anchors if not any(a in (g or "") for g in got))
     rows.append(("负例锚词覆盖十二族", not missing, missing or sorted(got)))
