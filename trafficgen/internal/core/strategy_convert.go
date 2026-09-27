@@ -418,6 +418,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-CFLOW-1：cflow 在库旧策略顶层 cflow → ValidationErrors（tds 同款；
+	// 空 map 也死——顶层 cflow 子映射 presence 判死，层链形状不触发）。
+	if protocol == "cflow" {
+		if v, ok := cfg["cflow"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-TFTP-1：tftp 在库旧策略顶层 tftp → ValidationErrors（sstp 同款；
 	// 空 map 也死——契约 §13-P2 判死形状「层链+顶层空子映射并存」wired 面）。
 	if protocol == "tftp" {
@@ -1520,9 +1527,12 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			parseSubconfigJSON[*ThriftConfig](&spec, sub, "thrift", &spec.Thrift)
 		}
 	case "cflow":
-		if sub, ok := cfg["cflow"].(map[string]interface{}); ok {
-			parseSubconfigJSON[*CFlowConfig](&spec, sub, "cflow", &spec.CFlow)
-		}
+		// D-CFLOW-1：配置住 cflow 层（顶层 cflow 子映射由 CheckProtoFlat
+		// 判死）；此处仅守 out-of-band 配置（引擎直调/存量行带类型配置），
+		// nfs 同款——层链形状下顶层 cflow 不可达。目的端口默认 2055
+		// （v9；IPFIX 4739 的 profile 感知缺省住链路径
+		// chain_planner.ValidateSpec——本函数无法从扁平键读出 profile）。
+		setDefaultDstPort(&spec, cfg, 2055)
 	}
 
 	// GroupID: optional strategy for cross-flow ordering. When cfg has
@@ -8650,6 +8660,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "tds" {
 		if v, ok := cfg["tds"]; ok && v != nil {
 			return "protocol tds no longer accepts a top-level tds sub-config (move it into the tds layer of an [ip,tcp,tds] layers chain)"
+		}
+	}
+	// D-CFLOW-1：cflow 顶层 cflow 子映射 presence 判死（tds 先例；空 map
+	// 也死——配置住 cflow 层，层链是唯一真相）。层链形状不触发。
+	if protocol == "cflow" {
+		if v, ok := cfg["cflow"]; ok && v != nil {
+			return "protocol cflow no longer accepts a top-level cflow sub-config (move it into the cflow layer of an [ip,udp,cflow] layers chain)"
 		}
 	}
 	// D-ENIP-1（G-ENIP-3，§14-P2）：enip 顶层 enip 子映射 presence 判死

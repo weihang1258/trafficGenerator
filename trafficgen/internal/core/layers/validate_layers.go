@@ -547,6 +547,42 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 		}
 	}
 
+	if protocol == "cflow" {
+		// D-CFLOW-1（G-CFLOW-4）：缺 udp 载体预检（bacnet/dtls 预检同构——
+		// DependsOn udp 自动补全前拦，裸 cflow 层不被补全掩盖成合法链）。
+		// 夹 tcp 载体的拒绝走通用 TransportOn 机制（registry TransportOn=
+		// ["udp"] → complete.go V3 块报 "tcp carrier is not supported ...
+		// (carrier)"，同锚词同文案——一处一面，不在此重复）。
+		// ip 层 src/dst 混族 → 拒（amqp 同面，锚词 family）。
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			hasUDP, hasTCP := false, false
+			for _, item := range probe {
+				if _, ok := item["udp"]; ok {
+					hasUDP = true
+				}
+				if _, ok := item["tcp"]; ok {
+					hasTCP = true
+				}
+				if rawIP, ok := item["ip"]; ok && len(rawIP) > 0 {
+					var ipcfg map[string]interface{}
+					if err := json.Unmarshal(rawIP, &ipcfg); err == nil {
+						srcA, _ := ipcfg["src"].(string)
+						dstA, _ := ipcfg["dst"].(string)
+						if srcA != "" && dstA != "" && strings.Contains(srcA, ":") != strings.Contains(dstA, ":") {
+							return nil, fmt.Errorf("cflow chain: mixed address family in ip layer (src %q / dst %q) — src and dst must be the same family (family)", srcA, dstA)
+						}
+					}
+				}
+			}
+			// tcp 在场时不拦：留给通用 V3 块报载体冲突（锚词 carrier，
+			// 指向 tcp 而非误报"缺 udp"）。
+			if !hasUDP && !hasTCP {
+				return nil, fmt.Errorf("cflow chain: missing udp carrier — cflow requires an [ip,udp,cflow] chain (carrier)")
+			}
+		}
+	}
+
 	if protocol == "enip" {
 		// D-ENIP-1（G-ENIP-1/G-ENIP-2/C 类口径，§15 8.5②/8.7）：链上不可达
 		// 形在 create 期同步判死（生成器 drive 期错误会被 Plan goroutine

@@ -2759,6 +2759,42 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.Payload = rawT
+	case "cflow":
+		// D-CFLOW-1：层条目 layers[].cflow 经 JSON 往返解码为
+		// core.CFlowConfig（enip 严格解码同款——未知键在翻译期拒）。
+		// 层优先（enip 空壳例外同款）：本函数头部 :717 已把 nil 的
+		// spec.CFlow 填成空壳（非 nil 无信息），故判别式必须看内容——
+		// 有内容的 spec.CFlow = 预 resolve 的 flat/直调值，翻译跳过
+		// （flat 权威）；空壳继续翻译。扁平入口已由 CheckProtoFlat 判死
+		// 顶层 cflow 子映射（存量行经 strategy_convert 记 ValidationErrors）。
+		// 空层 config 翻译出空壳（非 nil）→ validator 报 "cflow: config
+		// is required" 语义由 Planner.Validate 的 spec.CFlow 非空 +
+		// profile 未知检查承接。
+		if spec.CFlow != nil && (spec.CFlow.Profile != "" ||
+			len(spec.CFlow.Templates) > 0 || len(spec.CFlow.Records) > 0 ||
+			len(spec.CFlow.Sets) > 0 || len(spec.CFlow.Exporters) > 0 ||
+			len(spec.CFlow.Sessions) > 0 || spec.CFlow.Options != nil ||
+			spec.CFlow.WireFault != nil) {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		if len(term.Config) == 0 {
+			return
+		}
+		rawC, err := json.Marshal(term.Config)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("cflow layer config encode: %v", err))
+			return
+		}
+		var ccfg core.CFlowConfig
+		decC := json.NewDecoder(bytes.NewReader(rawC))
+		decC.DisallowUnknownFields()
+		if err := decC.Decode(&ccfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("cflow layer config decode: %v", err))
+			return
+		}
+		spec.CFlow = &ccfg
 	}
 }
 
