@@ -547,6 +547,45 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 		}
 	}
 
+	if protocol == "enip" {
+		// D-ENIP-1（G-ENIP-1/G-ENIP-2/C 类口径，§15 8.5②/8.7）：链上不可达
+		// 形在 create 期同步判死（生成器 drive 期错误会被 Plan goroutine
+		// 吞成空流——hl7 裁定2/megaco 修轮⑨同教训；三支锚词与生成器
+		// layer_gen.go:56-71 逐字一致，双路闭合）。
+		//   - io_data 非空（UDP I/O 面）→ 拒；
+		//   - transport:"udp"（链无 UDP 混合流）→ 拒；
+		//   - session_count/flow_count > 1（多单元展开）→ 拒。
+		// 混合地址族走通用 same-version 检查（锚词 address），此处不重复。
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			for _, item := range probe {
+				rawE, ok := item["enip"]
+				if !ok || len(rawE) == 0 {
+					continue
+				}
+				var ecfg struct {
+					IOData       json.RawMessage `json:"io_data"`
+					Transport    string          `json:"transport"`
+					SessionCount int             `json:"session_count"`
+					FlowCount    int             `json:"flow_count"`
+				}
+				if json.Unmarshal(rawE, &ecfg) != nil {
+					continue
+				}
+				if len(ecfg.IOData) > 0 && string(ecfg.IOData) != "null" {
+					return nil, fmt.Errorf("enip chain: io_data (UDP I/O frames) is not supported on a tcp-layer chain (io_data)")
+				}
+				if ecfg.Transport == "udp" {
+					return nil, fmt.Errorf("enip chain: transport \"udp\" is not supported on a tcp-layer chain (transport)")
+				}
+				if ecfg.SessionCount > 1 || ecfg.FlowCount > 1 {
+					return nil, fmt.Errorf("enip chain: session_count=%d/flow_count=%d (multi-unit expansion) is not supported on a tcp-layer chain (multi-unit expansion)",
+						ecfg.SessionCount, ecfg.FlowCount)
+				}
+			}
+		}
+	}
+
 	effective, err := ValidateLayers(layersJSON, protocol)
 	if err != nil {
 		return nil, err

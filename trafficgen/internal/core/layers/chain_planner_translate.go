@@ -2363,6 +2363,47 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.AMQP = &acfg
+	case "enip":
+		// D-ENIP-1（G-ENIP-3）：层优先（flat 判死后无双轨——CheckProtoFlat
+		// 已拒顶层 enip 子映射）。ftp :2332 空壳例外同款：spec.ENIP 非 nil
+		// 但为空壳（Scenario/Transport/Commands/IOData/SessionCount/
+		// FlowCount 全空——mapToFlowSpec 只在 cfg["enip"] 存在时建 ENIP，
+		// layer_gen_test 等直调构造的空壳无信息）时层翻译继续（空壳无信息，
+		// 层 config 才是真相）；有内容的 spec.ENIP = 预 resolve 的
+		// flat/直调值，翻译跳过（flat 权威——直接构造 spec 的调用方/单测
+		// 仍是 flat 优先，顶层 enip 另由 CheckProtoFlat 判死）。空层 config
+		// 翻译出空壳（非 nil）→ validator 报 "enip config is required"
+		// 语义由 Planner.Validate 的 spec.ENIP 非空 + Commands 空检查承接
+		// （层 config 未知键在 config 层即拒：ENIPConfig UnmarshalJSON
+		// DisallowUnknownFields）。
+		if spec.ENIP != nil && (spec.ENIP.Scenario != "" ||
+			spec.ENIP.Transport != "" || len(spec.ENIP.Commands) > 0 ||
+			spec.ENIP.IOData != nil || spec.ENIP.SessionCount != 0 ||
+			spec.ENIP.FlowCount != 0) {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		// D-ENIP-1（G-ENIP-3）：层 config 六键经 JSON 往返解码为
+		// core.ENIPConfig（sstp/kerberos/ntlm 严格解码同款——struct 侧
+		// 必须零未知键容忍；parseENIP* 在 strategy_convert 包未导出，
+		// layers 不可见；generateFromLayer 复用同一解析器零语义分叉见
+		// 设计 §15 8.2）。commands/io_data 嵌套值走 Planner.Validate
+		// 全量校验（未知命令码/非法引用在协议级校验器拒，非翻译期）。
+		cfgE := completedConfig(s, term.Config)
+		rawE, err := json.Marshal(cfgE)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("enip layer config encode: %v", err))
+			return
+		}
+		var ecfg core.ENIPConfig
+		decE := json.NewDecoder(bytes.NewReader(rawE))
+		decE.DisallowUnknownFields()
+		if err := decE.Decode(&ecfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("enip layer config decode: %v", err))
+			return
+		}
+		spec.ENIP = &ecfg
 	case "ftp":
 		// 只在扁平路径确实携带了业务内容（sessions/banner/commands/data_channel）
 		// 时才跳过翻译。mapToFlowSpec 对协议 ftp 总会创建一个 FTPConfig

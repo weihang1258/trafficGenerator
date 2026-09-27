@@ -73,8 +73,14 @@ func (g *ENIPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 		return fmt.Errorf("enip generator: no commands configured")
 	}
 
-	// from_response 配置合法性校验（H-2，与 legacy planUnit 前置一致）：
+	// from_response 配置合法性校验（H-2，与 legacy Plan 前置一致）：
 	// 引用目标必须在响应表（本生成器保留 down 命令的响应，同 planUnit）。
+	// 注：Plan 同步面（ValidateSpec→protocolValidator→Planner.Validate）
+	// 不覆盖此检查——Generate 跑在 drive goroutine 内，错误被吞成空流
+	// （T-117/T-118 实证 "planner produced 0 packet configs"）。
+	// TODO(G-ENIP-8)：把 validateFromResponseConfig 并入 Planner.Validate，
+	// 让 T-117/T-118 在同步面以原锚词拒绝；届时本检查保留为防御性复核。
+	// 当前链级负例锚词按同步面实际错误钉（"planner produced 0 packet"）。
 	if err := validateFromResponseConfig(cfg); err != nil {
 		return err
 	}

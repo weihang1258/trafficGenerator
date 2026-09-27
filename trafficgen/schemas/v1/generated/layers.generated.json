@@ -605,7 +605,29 @@
       "depends_on": [
         "tcp"
       ],
-      "fields": {}
+      "field_contract": {
+        "tcp.dst_port": "44818"
+      },
+      "fields": {
+        "commands": {
+          "type": "list"
+        },
+        "flow_count": {
+          "type": "int"
+        },
+        "io_data": {
+          "type": "object"
+        },
+        "scenario": {
+          "type": "string"
+        },
+        "session_count": {
+          "type": "int"
+        },
+        "transport": {
+          "type": "string"
+        }
+      }
     },
     "eth": {
       "category": "l2",

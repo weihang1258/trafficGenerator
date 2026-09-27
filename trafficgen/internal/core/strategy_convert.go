@@ -425,6 +425,21 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-NFS-1：nfs 在库旧策略顶层 nfs → ValidationErrors（mmse 同款；
+	// 在库 0 行纯防御——新协议去扁平后顶层 nfs 即判死）。
+	if protocol == "nfs" {
+		if v, ok := cfg["nfs"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
+	// D-ENIP-1（G-ENIP-3，§14-P2）：enip 在库旧策略顶层 enip →
+	// ValidationErrors（sstp 同款；空 map 也死——判死形状「层链+顶层空子
+	// 映射并存」wired 面；135/135 例并存现状的执法口）。
+	if protocol == "enip" {
+		if v, ok := cfg["enip"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-HL7-1：hl7 在库旧策略顶层 hl7 → ValidationErrors（megaco 同款；
 	// 在库 0 行纯防御）。
 	if protocol == "hl7" {
@@ -8642,6 +8657,15 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "tds" {
 		if v, ok := cfg["tds"]; ok && v != nil {
 			return "protocol tds no longer accepts a top-level tds sub-config (move it into the tds layer of an [ip,tcp,tds] layers chain)"
+		}
+	}
+	// D-ENIP-1（G-ENIP-3，§14-P2）：enip 顶层 enip 子映射 presence 判死
+	// （sstp 先例；空 map 也死——135/135 例并存现状的执法口；§14.1 六键
+	// commands/io_data/transport/scenario/session_count/flow_count 迁
+	// layers[i].enip）。层链形状不触发。
+	if protocol == "enip" {
+		if v, ok := cfg["enip"]; ok && v != nil {
+			return "protocol enip no longer accepts a top-level enip sub-config (move it into the enip layer of an [ip,tcp,enip] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-*-1 raw 自驱八协议：顶层同名子映射 presence 判死（mcp 先例；空

@@ -301,6 +301,26 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 	// 协议级校验（波 4 起）：终结层协议包经 RegisterLayerValidator 注册
 	// 其 Validate（如 dns 包对 DNSConfig 的检查），链上未注册校验器的层
 	// 跳过。校验器只校验不默认化（默认化由 validateSpecBase 统一负责）。
+	//
+	// D-ENIP-1 层值回填前置（T-115，链上端口域）：层内 tcp.dst_port 是链
+	// 形状的端口真相，spec.DstPort 在 Task 5 扁平判死后恒为 mapToFlowSpec
+	// 缺省（setDefaultDstPort 44818）——不先回填，validator 看到的是缺省
+	// 44818 而非层值 502，端口域检查被旁路（下块回填后 validator 复核）。
+	// 仅 enip（回填语义 = 下方通用回填块同款：显式标量才回填，dyn 对象跳过）。
+	if p.name == "enip" {
+		for _, l := range chain {
+			if l.Name != "tcp" && l.Name != "udp" {
+				continue
+			}
+			if v, ok := l.Config["dst_port"]; ok && v != nil {
+				if _, isObj := v.(map[string]interface{}); !isObj {
+					if up, ok := configUint16(v); ok && up != 0 {
+						spec.DstPort = up
+					}
+				}
+			}
+		}
+	}
 	if v := protocolValidator(p.name); v != nil {
 		if err := v(&spec); err != nil {
 			return spec, err
