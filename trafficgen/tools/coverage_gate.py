@@ -1760,6 +1760,98 @@ def check_tftp(cases):
     return rows
 
 
+def check_nfs(cases):
+    """D-NFS-1 P6 反查表（192 例=168 正+24 负，NFSv3/v4 RPC 双载体。
+    返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线（nfs 早已准入；P4 收敛顶层 nfs 交 CheckProtoFlat 判死）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 nfs", '"nfs": true' in pg, "在列"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case nfs（层 config 直存 Metadata）", 'case "nfs":' in tr, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry nfs 行（DependsOn tcp + TransportOn tcp/udp）",
+                 'Name: "nfs"' in rg and 'TransportOn: []string{"tcp", "udp"}' in rg, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain 载体一致性校验（udp carrier requires）",
+                 "udp carrier requires nfs transport" in cp, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go ChainPlanner(nfs) 接线", 'NewChainPlanner("nfs")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("strategy_convert case nfs 收敛（端口缺省 2049，不读顶层 nfs）",
+                 'case "nfs":' in sc and "setDefaultDstPort(&spec, cfg, 2049)" in sc
+                 and 'spec.Metadata[NFSMetadataKey]' not in sc, "在案"))
+    rows.append(("CheckProtoFlat presence 判死顶层 nfs",
+                 "no longer accepts a top-level nfs sub-config" in sc, "在案"))
+    rows.append(("ValidationErrors 覆盖在库旧策略顶层 nfs",
+                 'protocol == "nfs"' in sc, "在案"))
+
+    # 2. 行为面（生成器/validator 关键件：载体门 + sessions 双拒绝 + 配置三形态）。
+    lg = (tg / "internal" / "protocol" / "nfs" / "layer_gen.go").read_text()
+    for prim, name in [
+        ("func configFromMeta", "配置三形态解析（nil/map/RawMessage）"),
+        ("no config (spec.nfs required)", "空配置拒绝锚词"),
+        ("multi-stream expansion is not supported on the layer chain", "sessions 双拒绝锚词"),
+        ("spec.TCP.Handshake = true", "握手/挥手校准进 spec.TCP"),
+    ]:
+        rows.append((f"关键件：{name}", prim in lg, "在案"))
+    bl = (tg / "internal" / "protocol" / "nfs" / "builder.go").read_text()
+    for prim, name in [
+        ("func encodeNFSTime3", "nfstime3 编码原语"),
+        ("func encodeBitmap4", "bitmap4 编码原语"),
+        ("func encodeFattr4AttrVals", "fattr4 attr_vals 长度前缀"),
+    ]:
+        rows.append((f"builder：{name}", prim in bl, "在案"))
+
+    # 3. 用例面（168 正 + 30 负；proto=nfs；顶层仅 layers + 红例执法键）。
+    pos = [c for c in cases if "packet_count" in (c.get("expect") or {})]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("198 例对账（168 正+30 负）", len(pos) == 168 and len(neg) == 30 and len(cases) == 198,
+                 f"{len(pos)}+{len(neg)}={len(cases)}"))
+    bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "nfs"]
+    rows.append(("proto 全=nfs（单准入名）", not bad_proto, bad_proto or "全 nfs"))
+    red_ids = {"nfs_neg_presence_top_level_nfs", "nfs_neg_flat_count", "nfs_neg_stray_src_mac",
+               "nfs_neg_stray_ttl", "nfs_neg_unknown_layer_field", "nfs_neg_static_copy_multiflow"}
+    leaked = sorted({k for c in cases if c.get("id") not in red_ids
+                     for k in (c.get("spec_json", {}) or {}) if k != "layers"})
+    rows.append(("顶层残留为零（仅 layers；红例执法键豁免）", not leaked, leaked or "零残留"))
+    red_presence = next((c.get("id", "?") for c in cases if c.get("id") == "nfs_neg_presence_top_level_nfs"), None)
+    rows.append(("presence 红例在案（M5 清单①）", red_presence is not None, red_presence or "无用例"))
+    empty_nfs = [c.get("id", "?") for c in cases if c.get("id") not in red_ids
+                 if not next((l.get("nfs") for l in (c.get("spec_json", {}) or {}).get("layers", []) or []
+                              if isinstance(l, dict) and "nfs" in l), None)]
+    rows.append(("层 nfs 条目非空（零空负载；presence 红例豁免）", not empty_nfs, empty_nfs[:5] or "全部填充"))
+    udp_pos = sorted({c.get("id", "?") for c in pos
+                        if any(isinstance(l2, dict) and "udp" in l2
+                               for l2 in (c.get("spec_json", {}) or {}).get("layers", []) or [])})
+    rows.append(("udp 载体仅 t018/t142 正例（负例 t019/t141 另计）",
+                 udp_pos == ["nfs_t018_transport_udp", "nfs_t142_v3_udp_65507_ok"], udp_pos or "零 udp"))
+    for kw, name in [
+        ("nfs_t001_v3_null_mount", "T-001 MOUNT 自动插入基线"),
+        ("nfs_t018_transport_udp", "T-018 UDP 载体（无 RM）"),
+        ("nfs_t191_v3_full_session", "T-191 复合大场景（21 包）"),
+        ("nfs_t171_v4_sessions1_default", "T-171 单会话默认口径"),
+        ("nfs_t016_xid_base_zero", "T-016 XID 零值兜底（裁定 N2）"),
+        ("nfs_t135_v4_stateid_other12", "T-135 stateid 数组形（裁定 N3）"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 4. 锚词面（主锚词族在负例 expect 中；保持与 suite 绿一致）。
+    # ttl 红例锚词为 ValidateConfigRanges 原文 "ttl 300 invalid"；族名记作 ttl。
+    anchors = {"version must be 3 or 4", "multi-stream expansion is not supported on the layer chain",
+               "NFSv4 requires TCP", "UDP RPC message exceeds 65507", "MOUNT v3 procedure out of range",
+               "attrmask contains NFSv4.1+ attributes", "layers: layer",
+               "no longer accepts a top-level nfs sub-config", "no longer accepts flat config field count",
+               "src_ip", "static copy"}
+    got = {(c.get("expect") or {}).get("error_contains") for c in neg}
+    missing = sorted(a for a in anchors if not any(a in (g or "") for g in got))
+    rows.append(("负例锚词覆盖十三族", not missing, missing or sorted(got)))
+    return rows
+
+
 CHECKS = {
     "smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
@@ -5617,7 +5709,7 @@ def check_spnego(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs}
 
 
 def main(argv):

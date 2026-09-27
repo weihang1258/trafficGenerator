@@ -192,14 +192,17 @@ func init() {
 		return &NFSGenerator{}, nil
 	})
 	layers.RegisterLayerValidator("nfs", func(spec *core.FlowSpec) error {
-		if err := (&Planner{}).Validate(*spec); err != nil {
-			return err
-		}
 		// 多流展开拒绝（enip/modbus 同款纪律）：legacy 每会话独立 4-tuple +
 		// 自动递增 srcPort（planSession 420-423），链一次一个 flow 无等价
 		// 物——Plan 期同步拒绝（生成器级检查为双保险，驱动错误会被吞成空流）。
+		// 位置在 Planner.Validate 之前：sessions 家族用例的判死面是链级
+		// 口径（multi-stream expansion），legacy V5/V6/V36 细节面在链上
+		// 不可达（D-NFS-1 §14.5）。
 		if cfg := GetConfig(*spec); cfg != nil && cfg.Sessions > 1 {
 			return fmt.Errorf("nfs: sessions (%d) multi-stream expansion is not supported on the layer chain (one flow per chain)", cfg.Sessions)
+		}
+		if err := (&Planner{}).Validate(*spec); err != nil {
+			return err
 		}
 		// 握手/挥手校准进 spec.TCP（modbus layer_gen.go:171-184 同款陷阱）：
 		// legacy nfs.go 恒产 TCP 握手/挥手（planSession 461-466/500-505 无

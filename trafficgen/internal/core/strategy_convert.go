@@ -440,6 +440,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-NFS-1：nfs 在库旧策略顶层 nfs → ValidationErrors（mmse 同款；
+	// 在库 0 行纯防御——新协议去扁平后顶层 nfs 即判死）。
+	if protocol == "nfs" {
+		if v, ok := cfg["nfs"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-OCSP-1：ocsp 在库旧策略顶层 ocsp → ValidationErrors（mmse 同款；
 	// 在库 0 行纯防御——新协议无存量迁移面）。
 	if protocol == "ocsp" {
@@ -1456,15 +1463,11 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		setDefaultDstPort(&spec, cfg, 9600)
 	case "nfs":
-		// The NFS planner reads *NFSConfig from FlowSpec.Metadata["nfs"].
-		// core cannot import protocol/nfs, so the raw JSON-decoded sub-map
-		// is attached and GetConfig deserializes it (map case).
-		if sub, ok := cfg["nfs"].(map[string]interface{}); ok {
-			if spec.Metadata == nil {
-				spec.Metadata = make(map[string]interface{})
-			}
-			spec.Metadata[NFSMetadataKey] = sub
-		}
+		// D-NFS-1：配置住 nfs 层子映射（顶层 nfs 子映射由 CheckProtoFlat
+		// 判死）；此处仅守 out-of-band 配置（引擎直调/存量行带类型配置），
+		// fins 同款——层链形状下顶层 nfs 不可达。目的端口默认 2049
+		// （legacy Plan 同款）。
+		setDefaultDstPort(&spec, cfg, 2049)
 	case "moxa":
 		if sub, ok := cfg["moxa"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*MOXAConfig](&spec, sub, "moxa", &spec.MOXA)
@@ -8518,6 +8521,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "pop3" {
 		if v, ok := cfg["pop3"]; ok && v != nil {
 			return "protocol pop3 no longer accepts a top-level pop3 sub-config (move it into the pop3 layer of an [ip,tcp,pop3] layers chain)"
+		}
+	}
+	// D-NFS-1：nfs 顶层 nfs 子映射 presence 判死（pop3 先例；空 map 也
+	// 死——配置住 nfs 层，层链是唯一真相）。层链形状不触发。
+	if protocol == "nfs" {
+		if v, ok := cfg["nfs"]; ok && v != nil {
+			return "protocol nfs no longer accepts a top-level nfs sub-config (move it into the nfs layer of an [ip,tcp,nfs] layers chain)"
 		}
 	}
 	// D-SSTP-1：sstp 顶层 sstp 子映射 presence 判死（kerberos 之后的 sstp
