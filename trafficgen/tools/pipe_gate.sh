@@ -51,7 +51,7 @@ for c in d:
     if "layers" in sj:
         for k in list(sj.keys()):
             # group_id 是框架级流绑定键（非协议旧扁平键；smb_tpos16x/
-            # gbt_t117 先例），D-NFS-1 P6 修轮登记在案，不算并存残留。
+            # gbt_t117 先例），D-NFS-1/D-SMB-1 P6 修轮登记在案，不算并存残留。
             if k not in ("layers","strategy_fc","ttl","flow_control","output","output_config","group_id") and isinstance(sj[k], dict):
                 bad.append(c["id"] + ":顶层子映射+" + k)
                 break
@@ -90,7 +90,9 @@ PYEOF
     # 红线切自键（megaco 先例；presence 负例豁免，其余顶层 nfs 共存即红）。
     # D-TFTP-1：tftp 配置迁层（顶层 tftp 交 CheckProtoFlat 判死），presence
     # 红线切自键（nfs 先例；presence 负例豁免，其余顶层 tftp 共存即红）。
-    dns|mqtt|smtp|pop3|imap|mcp|srv6|fins|goose|sv|icmpv6|h323|mpls|ngap|telnet|sip|radius|pppoe|ldap|rtmp|rtsp|pptp|vnc|xmpp|sctp|jt808|jt809|jtt905|arp|icmp|megaco|hl7|mmse|nfs|tftp)
+    # D-SMB-1：smb 配置迁层（顶层 smb 交 CheckProtoFlat 判死），presence
+    # 红线切自键（nfs 先例；presence 负例豁免，其余顶层 smb 共存即红）。
+    dns|mqtt|smtp|pop3|imap|mcp|srv6|fins|goose|sv|icmpv6|h323|mpls|ngap|telnet|sip|radius|pppoe|ldap|rtmp|rtsp|pptp|vnc|xmpp|sctp|jt808|jt809|jtt905|arp|icmp|megaco|hl7|mmse|nfs|tftp|smb)
       _pres_key="$PROTO"
       ;;
   esac

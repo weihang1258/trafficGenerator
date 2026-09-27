@@ -13689,5 +13689,943 @@
     "T283: WRITE resp StructureSize @122 = 11 00 (17)"
    ]
   }
+ },
+ {
+  "id": "smb_tpos501_err_create_access_denied",
+  "proto": "smb",
+  "summary": "T501: ErrorOnCommand=create + Status=0xC0000022(ACCESS_DENIED) \u2192 CREATE resp \u9519\u8bef\u4f53, \u8df3\u8fc7 READ/WRITE/CLOSE, \u4ec5 TD+LOGOFF",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "error_on_command": "create",
+      "error_response_status": "0xC0000022"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 23,
+   "fields": [
+    {
+     "packet": 14,
+     "field": "smb2.cmd",
+     "value": "5"
+    },
+    {
+     "packet": 15,
+     "field": "smb2.cmd",
+     "value": "5"
+    },
+    {
+     "packet": 15,
+     "field": "smb2.flags.response",
+     "value": "1"
+    },
+    {
+     "packet": 15,
+     "field": "smb2.nt_status",
+     "value": "0xc0000022"
+    },
+    {
+     "packet": 16,
+     "field": "smb2.cmd",
+     "value": "4"
+    },
+    {
+     "packet": 18,
+     "field": "smb2.cmd",
+     "value": "2"
+    }
+   ],
+   "notes": [
+    "T501: 0xC0000022=STATUS_ACCESS_DENIED (knownStatusCodes); CREATE \u9519\u8bef\u9762\u9519\u8bef\u7801\u53d6\u503c\u8865\u4f8b"
+   ]
+  }
+ },
+ {
+  "id": "smb_tpos502_err_treeconnect_network_name_deleted",
+  "proto": "smb",
+  "summary": "T502: ErrorOnCommand=tree_connect + Status=0xC0000120(NETWORK_NAME_DELETED) \u2192 TC resp \u9519\u8bef, \u8df3\u8fc7 CREATE",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "error_on_command": "tree_connect",
+      "error_response_status": "0xC0000120"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 19,
+   "fields": [
+    {
+     "packet": 12,
+     "field": "smb2.cmd",
+     "value": "3"
+    },
+    {
+     "packet": 12,
+     "field": "smb2.msg_id",
+     "value": "4"
+    },
+    {
+     "packet": 13,
+     "field": "smb2.cmd",
+     "value": "3"
+    },
+    {
+     "packet": 13,
+     "field": "smb2.nt_status",
+     "value": "0xc0000120"
+    },
+    {
+     "packet": 14,
+     "field": "smb2.cmd",
+     "value": "2"
+    },
+    {
+     "packet": 15,
+     "field": "smb2.flags.response",
+     "value": "1"
+    }
+   ],
+   "notes": [
+    "T502: 0xC0000120=STATUS_NETWORK_NAME_DELETED; TREE_CONNECT \u9519\u8bef\u9762\u9519\u8bef\u7801\u53d6\u503c\u8865\u4f8b"
+   ]
+  }
+ },
+ {
+  "id": "smb_tpos503_err_session_setup_smb_bad_tid",
+  "proto": "smb",
+  "summary": "T503: ErrorOnCommand=session_setup + Status=0xC000007B(INVALID_IMAGE_FORMAT) \u2192 \u6700\u540e\u4e00\u8f6e resp \u9519\u8bef, \u4ec5 LOGOFF",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "error_on_command": "session_setup",
+      "error_response_status": "0xC000007B"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 17,
+   "fields": [
+    {
+     "packet": 11,
+     "field": "smb2.flags.response",
+     "value": "1"
+    },
+    {
+     "packet": 11,
+     "field": "smb2.nt_status",
+     "value": "0xc000007b"
+    },
+    {
+     "packet": 12,
+     "field": "smb2.cmd",
+     "value": "2"
+    }
+   ],
+   "notes": [
+    "T503: 0xC000007B=STATUS_INVALID_IMAGE_FORMAT; SESSION_SETUP \u9519\u8bef\u9762\u9519\u8bef\u7801\u53d6\u503c\u8865\u4f8b"
+   ]
+  }
+ },
+ {
+  "id": "smb_tpos504_err_read_lock_conflict",
+  "proto": "smb",
+  "summary": "T504: ErrorOnCommand=read + Status=0xC0000021(FILE_LOCK_CONFLICT) \u2192 READ resp \u9519\u8bef, CLOSE+TD+LOGOFF \u7eed\u8d70",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "error_on_command": "read",
+      "error_response_status": "0xC0000021"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 27,
+   "fields": [
+    {
+     "packet": 16,
+     "field": "smb2.cmd",
+     "value": "8"
+    },
+    {
+     "packet": 17,
+     "field": "smb2.cmd",
+     "value": "8"
+    },
+    {
+     "packet": 17,
+     "field": "smb2.nt_status",
+     "value": "0xc0000021"
+    },
+    {
+     "packet": 18,
+     "field": "smb2.cmd",
+     "value": "6"
+    },
+    {
+     "packet": 20,
+     "field": "smb2.cmd",
+     "value": "4"
+    },
+    {
+     "packet": 22,
+     "field": "smb2.cmd",
+     "value": "2"
+    }
+   ],
+   "notes": [
+    "T504: 0xC0000021=STATUS_FILE_LOCK_CONFLICT; READ \u9519\u8bef\u9762\u9519\u8bef\u7801\u53d6\u503c\u8865\u4f8b"
+   ]
+  }
+ },
+ {
+  "id": "smb_tpos505_err_close_tid_mismatch",
+  "proto": "smb",
+  "summary": "T505: ErrorOnCommand=close + Status=0xC00003E3 \u2192 \u663e\u5f0f close op \u9519\u8bef (p16, resp p17 nt_status=0xc00003e3), CLOSE \u6070\u4e00\u5bf9(\u9690\u5f0f\u88ab\u6291\u5236), TD+LOGOFF \u7eed\u8d70, 25 \u5305",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "error_on_command": "close",
+      "error_response_status": "0xC00003E3",
+      "operations": [
+       {
+        "op_type": "close"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 25,
+   "fields": [
+    {
+     "packet": 16,
+     "field": "smb2.cmd",
+     "value": "6"
+    },
+    {
+     "packet": 16,
+     "field": "smb2.msg_id",
+     "value": "6"
+    },
+    {
+     "packet": 17,
+     "field": "smb2.cmd",
+     "value": "6"
+    },
+    {
+     "packet": 17,
+     "field": "smb2.nt_status",
+     "value": "0xc00003e3"
+    },
+    {
+     "packet": 18,
+     "field": "smb2.cmd",
+     "value": "4"
+    },
+    {
+     "packet": 20,
+     "field": "smb2.cmd",
+     "value": "2"
+    }
+   ],
+   "notes": [
+    "T505: 0xC00003E3=0xC00003E3 STATUS_USER_SESSION_DELETED (constants.go:112/174 knownStatusCodes); \u4e0e 132 \u7684 write-ops \u5f62\u72b6\u9519\u5f00\uff1a\u7eaf close op \u4f7f\u9519\u8bef\u843d\u5728\u663e\u5f0f close"
+   ]
+  }
+ },
+ {
+  "id": "smb_tpos506_err_write_bad_netpath",
+  "proto": "smb",
+  "summary": "T506: ErrorOnCommand=write + Status=0xC0000080(NOT_SUPPORTED) \u2192 WRITE resp \u9519\u8bef, CLOSE+TD+LOGOFF \u7eed\u8d70",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "error_on_command": "write",
+      "error_response_status": "0xC0000080",
+      "operations": [
+       {
+        "op_type": "write",
+        "offset": 0,
+        "data": "ABCDEFGHIJ"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 27,
+   "fields": [
+    {
+     "packet": 16,
+     "field": "smb2.cmd",
+     "value": "9"
+    },
+    {
+     "packet": 17,
+     "field": "smb2.nt_status",
+     "value": "0xc0000080"
+    },
+    {
+     "packet": 18,
+     "field": "smb2.cmd",
+     "value": "6"
+    },
+    {
+     "packet": 20,
+     "field": "smb2.cmd",
+     "value": "4"
+    },
+    {
+     "packet": 22,
+     "field": "smb2.cmd",
+     "value": "2"
+    }
+   ],
+   "notes": [
+    "T506: 0xC0000080=STATUS_NOT_SUPPORTED (knownStatusCodes); WRITE \u9519\u8bef\u9762\u9519\u8bef\u7801\u53d6\u503c\u8865\u4f8b"
+   ]
+  }
+ },
+ {
+  "id": "smb_tpos510_disposition_0",
+  "proto": "smb",
+  "summary": "T510: CreateDisposition=0(supersede) \u663e\u5f0f + file_path \u4f34\u5199 \u2192 \u5e27 158 = 00 00 00 00 (\u900f\u4f20; validate.go:248-256 createStageSet \u542f\u53d1\u5f0f)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "create_disposition": 0,
+      "file_path": "file.txt"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 29,
+   "frames": [
+    {
+     "packet": 14,
+     "offset": 158,
+     "hex": "00 00 00 00"
+    }
+   ],
+   "fields": [
+    {
+     "packet": 15,
+     "field": "smb2.cmd",
+     "value": "5"
+    }
+   ],
+   "notes": [
+    "T510: CreateDisposition=0 \u5355\u72ec\u7ed9\u4f1a\u88ab V21 \u542f\u53d1\u5f0f\u5f53\u672a\u8bbe\u7f6e\u5e76\u56de\u9000 1\uff08validate.go:248-256 \u9700 createStageSet \u4efb\u4e00\u4f34\u5199\u5b57\u6bb5\uff09\uff0c\u6545\u4f34\u5199 file_path=file.txt \u4f7f\u663e\u5f0f 0 \u900f\u4f20"
+   ]
+  }
+ },
+ {
+  "id": "smb_tpos513_disposition_3",
+  "proto": "smb",
+  "summary": "T513: CreateDisposition=3(open_if) \u663e\u5f0f \u2192 \u5e27 158 = 03 00 00 00 (\u900f\u4f20)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "create_disposition": 3
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 29,
+   "frames": [
+    {
+     "packet": 14,
+     "offset": 158,
+     "hex": "03 00 00 00"
+    }
+   ],
+   "fields": [
+    {
+     "packet": 15,
+     "field": "smb2.cmd",
+     "value": "5"
+    }
+   ],
+   "notes": [
+    "T513: CreateDisposition=3(open_if); 29 \u5305\u53e3\u5f84\uff1aCREATE \u540e\u4ecd\u8d70\u5b8c\u6574 read/write/close \u5e8f\u5217\uff08\u975e\u9519\u8bef\u6ce8\u5165\u5206\u652f\uff09"
+   ]
+  }
+ },
+ {
+  "id": "smb_tpos514_disposition_4",
+  "proto": "smb",
+  "summary": "T514: CreateDisposition=4(overwrite) \u663e\u5f0f \u2192 \u5e27 158 = 04 00 00 00 (\u900f\u4f20)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "create_disposition": 4
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 29,
+   "frames": [
+    {
+     "packet": 14,
+     "offset": 158,
+     "hex": "04 00 00 00"
+    }
+   ],
+   "fields": [
+    {
+     "packet": 15,
+     "field": "smb2.cmd",
+     "value": "5"
+    }
+   ],
+   "notes": [
+    "T514: CreateDisposition=4(overwrite); 29 \u5305\u53e3\u5f84\uff1aCREATE \u540e\u4ecd\u8d70\u5b8c\u6574 read/write/close \u5e8f\u5217\uff08\u975e\u9519\u8bef\u6ce8\u5165\u5206\u652f\uff09"
+   ]
+  }
+ },
+ {
+  "id": "smb_tpos515_disposition_5",
+  "proto": "smb",
+  "summary": "T515: CreateDisposition=5(overwrite_if) \u663e\u5f0f \u2192 \u5e27 158 = 05 00 00 00 (\u900f\u4f20)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "create_disposition": 5
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 29,
+   "frames": [
+    {
+     "packet": 14,
+     "offset": 158,
+     "hex": "05 00 00 00"
+    }
+   ],
+   "fields": [
+    {
+     "packet": 15,
+     "field": "smb2.cmd",
+     "value": "5"
+    }
+   ],
+   "notes": [
+    "T515: CreateDisposition=5(overwrite_if); 29 \u5305\u53e3\u5f84\uff1aCREATE \u540e\u4ecd\u8d70\u5b8c\u6574 read/write/close \u5e8f\u5217\uff08\u975e\u9519\u8bef\u6ce8\u5165\u5206\u652f\uff09"
+   ]
+  }
+ },
+ {
+  "id": "smb_tpos520_query_info_filesystem",
+  "proto": "smb",
+  "summary": "T520: QUERY_INFO InfoType=1(FileSystem) + FileInfoClass=3(FileFsVolumeInformation) \u663e\u5f0f \u2192 \u5e27 124-125 \u900f\u4f20",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "operations": [
+       {
+        "op_type": "query_info",
+        "info_type": 1,
+        "file_info_class": 3
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 27,
+   "fields": [
+    {
+     "packet": 16,
+     "field": "smb2.cmd",
+     "value": "16"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 16,
+     "offset": 122,
+     "hex": "29 00"
+    },
+    {
+     "packet": 16,
+     "offset": 124,
+     "hex": "01"
+    },
+    {
+     "packet": 16,
+     "offset": 125,
+     "hex": "03"
+    }
+   ],
+   "notes": [
+    "T520: InfoType 1/2/3 \u4e0e FileInfoClass \u5176\u4f59\u7c7b\u53d6\u503c\u9762\uff08T250/T251 \u53d8\u4f53\uff09"
+   ]
+  }
+ },
+ {
+  "id": "smb_tpos521_query_info_security",
+  "proto": "smb",
+  "summary": "T521: QUERY_INFO InfoType=2(Security) + FileInfoClass=0 \u7f3a\u7701\u56de\u9000 4 \u2192 \u5e27 124-125 = 02 04",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "operations": [
+       {
+        "op_type": "query_info",
+        "info_type": 2
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 27,
+   "fields": [
+    {
+     "packet": 16,
+     "field": "smb2.cmd",
+     "value": "16"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 16,
+     "offset": 124,
+     "hex": "02"
+    },
+    {
+     "packet": 16,
+     "offset": 125,
+     "hex": "04"
+    }
+   ],
+   "notes": [
+    "T521: InfoType=2(Security); FileInfoClass \u7f3a\u7701\u56de\u9000 4\uff08layer_gen.go:387-389\uff09"
+   ]
+  }
+ },
+ {
+  "id": "smb_tpos522_query_directory_infoclass_1",
+  "proto": "smb",
+  "summary": "T522: QUERY_DIRECTORY InfoClass=1(FileDirectoryInformation) \u663e\u5f0f \u2192 \u5e27 124 = 01",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "operations": [
+       {
+        "op_type": "query_directory",
+        "info_class": 1
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 27,
+   "fields": [
+    {
+     "packet": 16,
+     "field": "smb2.cmd",
+     "value": "14"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 16,
+     "offset": 122,
+     "hex": "21 00"
+    },
+    {
+     "packet": 16,
+     "offset": 124,
+     "hex": "01"
+    }
+   ],
+   "notes": [
+    "T522: FileInformationClass \u5176\u4f59\u7c7b\u53d6\u503c\u9762\uff08T244 \u53d8\u4f53\uff09"
+   ]
+  }
+ },
+ {
+  "id": "smb_tpos523_query_directory_infoclass_2",
+  "proto": "smb",
+  "summary": "T523: QUERY_DIRECTORY InfoClass=2(FileFullDirectoryInformation) \u663e\u5f0f \u2192 \u5e27 124 = 02",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.100",
+      "dst": "10.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "operations": [
+       {
+        "op_type": "query_directory",
+        "info_class": 2
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 27,
+   "fields": [
+    {
+     "packet": 16,
+     "field": "smb2.cmd",
+     "value": "14"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 16,
+     "offset": 122,
+     "hex": "21 00"
+    },
+    {
+     "packet": 16,
+     "offset": 124,
+     "hex": "02"
+    }
+   ],
+   "notes": [
+    "T523: \u540c\u4e0a\uff1bInfoClass \u7f3a\u7701\u503c 37 \u5df2\u7531 smb_tpos241 \u9489"
+   ]
+  }
+ },
+ {
+  "id": "smb_tpos530_ipv6_default_session",
+  "proto": "smb",
+  "summary": "T530: IPv6 \u8f7d\u4f53\u9ed8\u8ba4\u4f1a\u8bdd \u2192 \u4e0e IPv4 \u540c 8 \u9636\u6bb5, \u5e27\u504f\u79fb +20 (54\u219274 / 122\u2192142)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "2001:db8::100",
+      "dst": "2001:db8::1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {}
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 29,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "ipv6.src",
+     "value": "2001:db8::100"
+    },
+    {
+     "packet": 4,
+     "field": "ipv6.dst",
+     "value": "2001:db8::1"
+    },
+    {
+     "packet": 4,
+     "field": "smb2.cmd",
+     "value": "0"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "445"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 78,
+     "hex": "fe 53 4d 42"
+    },
+    {
+     "packet": 4,
+     "offset": 142,
+     "hex": "24 00 05 00 01 00"
+    }
+   ],
+   "notes": [
+    "T530: IPv6 \u65cf\u4f8b\u2461\uff08probe_ipv6_session \u4e3a\u2460\uff09\uff1bNBSS \u8d77\u70b9 74 = 14+40+20"
+   ]
+  }
+ },
+ {
+  "id": "smb_tpos531_ipv6_close_session",
+  "proto": "smb",
+  "summary": "T531: IPv6 \u8f7d\u4f53\u663e\u5f0f close \u4f1a\u8bdd \u2192 CLOSE \u6070\u4e00\u5bf9, CLOSE \u4f53\u8d77\u70b9 142 (IPv4 122 + 20)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "2001:db8::100",
+      "dst": "2001:db8::1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smb": {
+      "operations": [
+       {
+        "op_type": "close"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 25,
+   "fields": [
+    {
+     "packet": 16,
+     "field": "smb2.cmd",
+     "value": "6"
+    },
+    {
+     "packet": 17,
+     "field": "smb2.cmd",
+     "value": "6"
+    },
+    {
+     "packet": 17,
+     "field": "smb2.flags.response",
+     "value": "1"
+    },
+    {
+     "packet": 18,
+     "field": "smb2.cmd",
+     "value": "4"
+    },
+    {
+     "packet": 20,
+     "field": "smb2.cmd",
+     "value": "2"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 16,
+     "offset": 142,
+     "hex": "18 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T531: IPv6 \u65cf\u4f8b\u2462; close \u6291\u5236\u8bed\u4e49\u4e0e IPv4 \u540c\u6784"
+   ]
+  }
+ },
+ {
+  "id": "smb_tpos532_ipv6_netbios_139",
+  "proto": "smb",
+  "summary": "T532: IPv6 \u8f7d\u4f53 + netbios 139 \u2192 ipv6.nxt=6 + tcp.dstport=139 + NBSS \u524d\u7f00",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "2001:db8::100",
+      "dst": "2001:db8::1"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 139
+     }
+    },
+    {
+     "smb": {
+      "transport": "netbios"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 29,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "139"
+    },
+    {
+     "packet": 4,
+     "field": "smb2.cmd",
+     "value": "0"
+    },
+    {
+     "packet": 4,
+     "field": "ipv6.nxt",
+     "value": "6"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 74,
+     "hex": "00 00 00 b0"
+    }
+   ],
+   "notes": [
+    "T532: IPv6 \u65cf\u4f8b\u2463; \u8de8\u65cf\u7ec4\u5408\u9762\uff08139 \u8f7d\u4f53 + IPv6 \u5730\u5740\u65cf\uff09"
+   ]
+  }
  }
 ]
