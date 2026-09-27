@@ -1353,7 +1353,59 @@
       "field_contract": {
         "ip.protocol": "2"
       },
-      "fields": {}
+      "fields": {
+        "address_family": {
+          "type": "string"
+        },
+        "checksum_mode": {
+          "type": "string"
+        },
+        "events": {
+          "type": "list"
+        },
+        "group": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "max_response_code": {
+          "type": "uint8",
+          "max": 255
+        },
+        "max_response_time": {
+          "type": "uint8",
+          "max": 255
+        },
+        "profile": {
+          "type": "string"
+        },
+        "qqic": {
+          "type": "uint8",
+          "max": 255
+        },
+        "qrv": {
+          "type": "uint8",
+          "max": 255
+        },
+        "records": {
+          "type": "list"
+        },
+        "s_flag": {
+          "type": "uint8",
+          "max": 255
+        },
+        "source_count": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "sources": {
+          "type": "list"
+        },
+        "wire_fault": {
+          "type": "object"
+        }
+      }
     },
     "ike": {
       "category": "terminal",

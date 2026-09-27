@@ -1003,8 +1003,33 @@ func buildDefaultRegistry() {
 	// tcp/udp 传输层，IP 协议号 2/89/103 由 transportProtocol 按终结层名解析）；
 	// isis 是 L2-only [eth→isis] 链（LLC 载体）。配置经 FlowMeta.IGMP/OSPF/PIM/
 	// ISIS 直传终结层生成器（字段表仅供链校验/展示，全量语义在生成器内）。
+	//
+	// D-IGMP-1：igmp 层 15 业务键对齐 core.IGMPConfig json 标签（routing.go
+	// 12-28；键名=标签名）。无 Default（决策 F；缺省语义在生成器侧——空配置
+	// → v1 general query，layer_gen.go:60-63），V9 数值域只做类型界（s_flag/
+	// qrv/qqic 的位域语义与 profile/kind 互斥留 planner.go:103-129）；records/
+	// sources/events 为结构数组，元素级校验归 Planner.Validate（§10 锚词表）；
+	// wire_fault 为故障注入块（protocol/checksum 两 kind 在 planner.go:56-63
+	// 拒，record/source_count 经记录/源数校验拒；块内未知键不进执法面）。
 	r.Register(LayerSchema{Name: "igmp", Category: CategoryTerminal, DependsOn: []string{"ip"},
 		FieldContract: map[string]string{"ip.protocol": "2"}, // RFC 1112/2236/3376 IGMP IPPROTO=2
+		Fields: map[string]FieldSchema{
+			"profile":           {Type: "string"},
+			"kind":              {Type: "string"},
+			"group":             {Type: "string"},
+			"max_response_time": {Type: "uint8", Min: 0, Max: 255},
+			"max_response_code": {Type: "uint8", Min: 0, Max: 255},
+			"s_flag":            {Type: "uint8", Min: 0, Max: 255},
+			"qrv":               {Type: "uint8", Min: 0, Max: 255},
+			"qqic":              {Type: "uint8", Min: 0, Max: 255},
+			"records":           {Type: "list"},
+			"sources":           {Type: "list"},
+			"source_count":      {Type: "uint16", Min: 0, Max: 65535},
+			"checksum_mode":     {Type: "string"},
+			"wire_fault":        {Type: "object"},
+			"address_family":    {Type: "string"},
+			"events":            {Type: "list"},
+		},
 	})
 	r.Register(LayerSchema{Name: "ospf", Category: CategoryTerminal, DependsOn: []string{"ip"},
 		FieldContract: map[string]string{"ip.protocol": "89"}, // RFC 2328 OSPF IPPROTO=89

@@ -1096,6 +1096,27 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			spec.ICMP = ic
 		}
 		return
+	case "igmp":
+		// D-IGMP-1：层 config 经 core.ParseIGMPConfigFromMap 复用扁平解析
+		// 单一真相（json 往返；键名=IGMPConfig json 标签）。解码失败记
+		// ValidationErrors（cwmp/enip 同款——ValidateSpec 统一拦截 → task
+		// error，零假成功）；负例 #23 的判死通道即数值型 record_type
+		//（`json: cannot unmarshal number ... record_type`，锚词 record）。
+		// 未知键静默忽略是框架共享面（parseSubconfigJSON 同口径，G-IGMP-4
+		// 跨协议，不在本车道改）。层优先：spec.IGMP 已存在（引擎直调/flat
+		// 预 resolve）则不覆盖（goose/tds 同款）。空层 config 翻译出非 nil
+		// 空配置 → 生成器 P0b-2 缺省 v1 general query（layer_gen.go:60-63，
+		// profile/kind/group 空串在生成器内缺省化）。
+		if spec.IGMP == nil {
+			cfg, err := core.ParseIGMPConfigFromMap(completedConfig(s, term.Config))
+			if err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors,
+					fmt.Sprintf("igmp layer config decode: %v", err))
+				return
+			}
+			spec.IGMP = cfg
+		}
+		return
 	case "cwmp":
 		if spec.CWMP != nil {
 			return // flat 权优守卫（smtp 同款；新建路径顶层键已被判死，纯防御）

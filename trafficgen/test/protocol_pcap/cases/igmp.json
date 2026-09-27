@@ -1,2054 +1,2029 @@
 [
   {
-    "id": "igmp_v1_general_query",
-    "proto": "igmp",
-    "summary": "v1 General Query",
-    "spec_json": {
-      "layers": [
-        {
-          "ip": {}
-        },
-        {
-          "igmp": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "224.0.0.1",
-      "igmp": {
-        "profile": "v1",
-        "kind": "query",
-        "group": "0.0.0.0",
-        "max_response_time": 0
-      }
-    },
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "ip.ttl",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "ip.dst",
+          "packet": 1,
           "value": "224.0.0.1"
         },
         {
-          "packet": 1,
           "field": "igmp.type",
+          "packet": 1,
           "value": "0x11"
         },
         {
-          "packet": 1,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
-          "packet": 1,
           "field": "igmp.maddr",
+          "packet": 1,
           "value": "0.0.0.0"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "11 00",
           "offset": 34,
-          "hex": "11 00"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "00 00 00 00",
           "offset": 38,
-          "hex": "00 00 00 00"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "igmp_v1_report",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "igmp_v1_general_query",
     "proto": "igmp",
-    "summary": "v1 Membership Report",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "224.0.0.1",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
+          "igmp": {
+            "group": "0.0.0.0",
+            "kind": "query",
+            "max_response_time": 0,
+            "profile": "v1"
+          }
         }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "239.1.1.1",
-      "igmp": {
-        "profile": "v1",
-        "kind": "report",
-        "group": "239.1.1.1"
-      }
+      ]
     },
+    "summary": "v1 General Query"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "ip.ttl",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "ip.dst",
+          "packet": 1,
           "value": "239.1.1.1"
         },
         {
-          "packet": 1,
           "field": "igmp.type",
+          "packet": 1,
           "value": "0x12"
         },
         {
-          "packet": 1,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
-          "packet": 1,
           "field": "igmp.maddr",
+          "packet": 1,
           "value": "239.1.1.1"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "12 00",
           "offset": 34,
-          "hex": "12 00"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "ef 01 01 01",
           "offset": 38,
-          "hex": "ef 01 01 01"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "igmp_v2_general_query",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "igmp_v1_report",
     "proto": "igmp",
-    "summary": "v2 General Query",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "239.1.1.1",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
+          "igmp": {
+            "group": "239.1.1.1",
+            "kind": "report",
+            "profile": "v1"
+          }
         }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "224.0.0.1",
-      "igmp": {
-        "profile": "v2",
-        "kind": "query",
-        "group": "0.0.0.0",
-        "max_response_time": 10
-      }
+      ]
     },
+    "summary": "v1 Membership Report"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "ip.ttl",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "ip.dst",
+          "packet": 1,
           "value": "224.0.0.1"
         },
         {
-          "packet": 1,
           "field": "igmp.type",
+          "packet": 1,
           "value": "0x11"
         },
         {
-          "packet": 1,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
-          "packet": 1,
           "field": "igmp.max_resp",
+          "packet": 1,
           "value": "10"
         },
         {
-          "packet": 1,
           "field": "igmp.maddr",
+          "packet": 1,
           "value": "0.0.0.0"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "11 0a",
           "offset": 34,
-          "hex": "11 0a"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "00 00 00 00",
           "offset": 38,
-          "hex": "00 00 00 00"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "igmp_v2_group_specific_query",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "igmp_v2_general_query",
     "proto": "igmp",
-    "summary": "v2 Group-Specific Query",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "224.0.0.1",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
+          "igmp": {
+            "group": "0.0.0.0",
+            "kind": "query",
+            "max_response_time": 10,
+            "profile": "v2"
+          }
         }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "239.1.1.1",
-      "igmp": {
-        "profile": "v2",
-        "kind": "query",
-        "group": "239.1.1.1",
-        "max_response_time": 10
-      }
+      ]
     },
+    "summary": "v2 General Query"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "ip.ttl",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "ip.dst",
+          "packet": 1,
           "value": "239.1.1.1"
         },
         {
-          "packet": 1,
           "field": "igmp.type",
+          "packet": 1,
           "value": "0x11"
         },
         {
-          "packet": 1,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
-          "packet": 1,
           "field": "igmp.max_resp",
+          "packet": 1,
           "value": "10"
         },
         {
-          "packet": 1,
           "field": "igmp.maddr",
+          "packet": 1,
           "value": "239.1.1.1"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "11 0a",
           "offset": 34,
-          "hex": "11 0a"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "ef 01 01 01",
           "offset": 38,
-          "hex": "ef 01 01 01"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "igmp_v2_report",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "igmp_v2_group_specific_query",
     "proto": "igmp",
-    "summary": "v2 Membership Report",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "239.1.1.1",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
+          "igmp": {
+            "group": "239.1.1.1",
+            "kind": "query",
+            "max_response_time": 10,
+            "profile": "v2"
+          }
         }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "239.1.1.1",
-      "igmp": {
-        "profile": "v2",
-        "kind": "report",
-        "group": "239.1.1.1"
-      }
+      ]
     },
+    "summary": "v2 Group-Specific Query"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "ip.ttl",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "ip.dst",
+          "packet": 1,
           "value": "239.1.1.1"
         },
         {
-          "packet": 1,
           "field": "igmp.type",
+          "packet": 1,
           "value": "0x16"
         },
         {
-          "packet": 1,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
-          "packet": 1,
           "field": "igmp.maddr",
+          "packet": 1,
           "value": "239.1.1.1"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "16 00",
           "offset": 34,
-          "hex": "16 00"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "ef 01 01 01",
           "offset": 38,
-          "hex": "ef 01 01 01"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "igmp_v2_leave",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "igmp_v2_report",
     "proto": "igmp",
-    "summary": "v2 Leave Group",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "239.1.1.1",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
+          "igmp": {
+            "group": "239.1.1.1",
+            "kind": "report",
+            "profile": "v2"
+          }
         }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "224.0.0.2",
-      "igmp": {
-        "profile": "v2",
-        "kind": "leave",
-        "group": "239.1.1.1"
-      }
+      ]
     },
+    "summary": "v2 Membership Report"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "ip.ttl",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "ip.dst",
+          "packet": 1,
           "value": "224.0.0.2"
         },
         {
-          "packet": 1,
           "field": "igmp.type",
+          "packet": 1,
           "value": "0x17"
         },
         {
-          "packet": 1,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
-          "packet": 1,
           "field": "igmp.maddr",
+          "packet": 1,
           "value": "239.1.1.1"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "17 00",
           "offset": 34,
-          "hex": "17 00"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "ef 01 01 01",
           "offset": 38,
-          "hex": "ef 01 01 01"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "igmp_v3_general_query",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "igmp_v2_leave",
     "proto": "igmp",
-    "summary": "v3 General Query",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "224.0.0.2",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
+          "igmp": {
+            "group": "239.1.1.1",
+            "kind": "leave",
+            "profile": "v2"
+          }
         }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "224.0.0.1",
-      "igmp": {
-        "profile": "v3",
-        "kind": "query",
-        "group": "0.0.0.0",
-        "max_response_code": 10,
-        "s_flag": 0,
-        "qrv": 2,
-        "qqic": 125,
-        "sources": []
-      }
+      ]
     },
+    "summary": "v2 Leave Group (224.0.0.2)"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "ip.ttl",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "ip.dst",
+          "packet": 1,
           "value": "224.0.0.1"
         },
         {
-          "packet": 1,
           "field": "igmp.type",
+          "packet": 1,
           "value": "0x11"
         },
         {
-          "packet": 1,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
-          "packet": 1,
           "field": "igmp.max_resp",
+          "packet": 1,
           "value": "10"
         },
         {
-          "packet": 1,
           "field": "igmp.qrv",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "igmp.qqic",
+          "packet": 1,
           "value": "125"
         },
         {
-          "packet": 1,
           "field": "igmp.num_src",
+          "packet": 1,
           "value": "0"
         },
         {
-          "packet": 1,
           "field": "igmp.maddr",
+          "packet": 1,
           "value": "0.0.0.0"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "02 7d 00 00",
           "offset": 42,
-          "hex": "02 7d 00 00"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "igmp_v3_source_specific_query",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "igmp_v3_general_query",
     "proto": "igmp",
-    "summary": "v3 Source-Specific Query",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "224.0.0.1",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
+          "igmp": {
+            "group": "0.0.0.0",
+            "kind": "query",
+            "max_response_code": 10,
+            "profile": "v3",
+            "qqic": 125,
+            "qrv": 2,
+            "s_flag": 0,
+            "sources": []
+          }
         }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "239.1.1.1",
-      "igmp": {
-        "profile": "v3",
-        "kind": "query",
-        "group": "239.1.1.1",
-        "max_response_code": 10,
-        "s_flag": 0,
-        "qrv": 2,
-        "qqic": 125,
-        "sources": [
-          "198.51.100.1",
-          "198.51.100.2"
-        ]
-      }
+      ]
     },
+    "summary": "v3 General Query (MRC/QRV/QQIC)"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "ip.ttl",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "ip.dst",
+          "packet": 1,
           "value": "239.1.1.1"
         },
         {
-          "packet": 1,
           "field": "igmp.type",
+          "packet": 1,
           "value": "0x11"
         },
         {
-          "packet": 1,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
-          "packet": 1,
           "field": "igmp.num_src",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "igmp.saddr",
+          "packet": 1,
           "value": "198.51.100.1,198.51.100.2"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "02 7d 00 02",
           "offset": 42,
-          "hex": "02 7d 00 02"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "c6 33 64 01 c6 33 64 02",
           "offset": 46,
-          "hex": "c6 33 64 01 c6 33 64 02"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "igmp_v3_include_record",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "igmp_v3_source_specific_query",
     "proto": "igmp",
-    "summary": "v3 MODE_IS_INCLUDE Group Record",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "239.1.1.1",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "224.0.0.22",
-      "igmp": {
-        "profile": "v3",
-        "kind": "report",
-        "group": "239.1.1.1",
-        "records": [
-          {
-            "record_type": "mode_is_include",
+          "igmp": {
             "group": "239.1.1.1",
+            "kind": "query",
+            "max_response_code": 10,
+            "profile": "v3",
+            "qqic": 125,
+            "qrv": 2,
+            "s_flag": 0,
             "sources": [
               "198.51.100.1",
               "198.51.100.2"
             ]
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "v3 Source-Specific Query (S/QRV, 2 sources)"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "ip.ttl",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "ip.dst",
+          "packet": 1,
           "value": "224.0.0.22"
         },
         {
-          "packet": 1,
           "field": "igmp.type",
+          "packet": 1,
           "value": "0x22"
         },
         {
-          "packet": 1,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
-          "packet": 1,
           "field": "igmp.num_grp_recs",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "igmp.record_type",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "igmp.num_src",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "igmp.maddr",
+          "packet": 1,
           "value": "239.1.1.1"
         },
         {
-          "packet": 1,
           "field": "igmp.saddr",
+          "packet": 1,
           "value": "198.51.100.1,198.51.100.2"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "22 00",
           "offset": 34,
-          "hex": "22 00"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "01 00 00 02 ef 01 01 01",
           "offset": 42,
-          "hex": "01 00 00 02 ef 01 01 01"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "c6 33 64 01 c6 33 64 02",
           "offset": 50,
-          "hex": "c6 33 64 01 c6 33 64 02"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "igmp_v3_exclude_record",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "igmp_v3_include_record",
     "proto": "igmp",
-    "summary": "v3 MODE_IS_EXCLUDE Group Record",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "224.0.0.22",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "224.0.0.22",
-      "igmp": {
-        "profile": "v3",
-        "kind": "report",
-        "group": "239.1.1.1",
-        "records": [
-          {
-            "record_type": "mode_is_exclude",
+          "igmp": {
             "group": "239.1.1.1",
-            "sources": [
-              "198.51.100.1"
+            "kind": "report",
+            "profile": "v3",
+            "records": [
+              {
+                "group": "239.1.1.1",
+                "record_type": "mode_is_include",
+                "sources": [
+                  "198.51.100.1",
+                  "198.51.100.2"
+                ]
+              }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "v3 MODE_IS_INCLUDE Group Record"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "ip.ttl",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "ip.dst",
+          "packet": 1,
           "value": "224.0.0.22"
         },
         {
-          "packet": 1,
           "field": "igmp.type",
+          "packet": 1,
           "value": "0x22"
         },
         {
-          "packet": 1,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
-          "packet": 1,
           "field": "igmp.record_type",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "igmp.num_src",
+          "packet": 1,
           "value": "1"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "22 00",
           "offset": 34,
-          "hex": "22 00"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "02 00 00 01 ef 01 01 01",
           "offset": 42,
-          "hex": "02 00 00 01 ef 01 01 01"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "c6 33 64 01",
           "offset": 50,
-          "hex": "c6 33 64 01"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "igmp_v3_change_records",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "igmp_v3_exclude_record",
     "proto": "igmp",
-    "summary": "v3 mode-change records",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "224.0.0.22",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "224.0.0.22",
-      "igmp": {
-        "profile": "v3",
-        "kind": "report",
-        "group": "239.1.1.1",
-        "records": [
-          {
-            "record_type": "change_to_include_mode",
+          "igmp": {
             "group": "239.1.1.1",
-            "sources": []
-          },
-          {
-            "record_type": "change_to_exclude_mode",
-            "group": "239.1.1.2",
-            "sources": [
-              "198.51.100.3"
+            "kind": "report",
+            "profile": "v3",
+            "records": [
+              {
+                "group": "239.1.1.1",
+                "record_type": "mode_is_exclude",
+                "sources": [
+                  "198.51.100.1"
+                ]
+              }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "v3 MODE_IS_EXCLUDE Group Record"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "ip.ttl",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "ip.dst",
+          "packet": 1,
           "value": "224.0.0.22"
         },
         {
-          "packet": 1,
           "field": "igmp.type",
+          "packet": 1,
           "value": "0x22"
         },
         {
-          "packet": 1,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
-          "packet": 1,
           "field": "igmp.num_grp_recs",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "igmp.record_type",
+          "packet": 1,
           "value": "3,4"
         },
         {
-          "packet": 1,
           "field": "igmp.maddr",
+          "packet": 1,
           "value": "239.1.1.1,239.1.1.2"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "22 00",
           "offset": 34,
-          "hex": "22 00"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "03 00 00 00 ef 01 01 01",
           "offset": 42,
-          "hex": "03 00 00 00 ef 01 01 01"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "04 00 00 01 ef 01 01 02",
           "offset": 50,
-          "hex": "04 00 00 01 ef 01 01 02"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "c6 33 64 03",
           "offset": 58,
-          "hex": "c6 33 64 03"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "igmp_v3_allow_block_sources",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "igmp_v3_change_records",
     "proto": "igmp",
-    "summary": "v3 ALLOW_NEW_SOURCES and BLOCK_OLD_SOURCES",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "224.0.0.22",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "224.0.0.22",
-      "igmp": {
-        "profile": "v3",
-        "kind": "report",
-        "group": "239.1.1.1",
-        "records": [
-          {
-            "record_type": "allow_new_sources",
+          "igmp": {
             "group": "239.1.1.1",
-            "sources": [
-              "198.51.100.4"
-            ]
-          },
-          {
-            "record_type": "block_old_sources",
-            "group": "239.1.1.1",
-            "sources": [
-              "198.51.100.5",
-              "198.51.100.6"
+            "kind": "report",
+            "profile": "v3",
+            "records": [
+              {
+                "group": "239.1.1.1",
+                "record_type": "change_to_include_mode",
+                "sources": []
+              },
+              {
+                "group": "239.1.1.2",
+                "record_type": "change_to_exclude_mode",
+                "sources": [
+                  "198.51.100.3"
+                ]
+              }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "v3 mode-change records (empty + single source)"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "ip.ttl",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "ip.dst",
+          "packet": 1,
           "value": "224.0.0.22"
         },
         {
-          "packet": 1,
           "field": "igmp.type",
+          "packet": 1,
           "value": "0x22"
         },
         {
-          "packet": 1,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
-          "packet": 1,
           "field": "igmp.num_grp_recs",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "igmp.record_type",
+          "packet": 1,
           "value": "5,6"
         },
         {
-          "packet": 1,
           "field": "igmp.num_src",
+          "packet": 1,
           "value": "1,2"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "22 00",
           "offset": 34,
-          "hex": "22 00"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "05 00 00 01 ef 01 01 01",
           "offset": 42,
-          "hex": "05 00 00 01 ef 01 01 01"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "c6 33 64 04",
           "offset": 50,
-          "hex": "c6 33 64 04"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "06 00 00 02 ef 01 01 01",
           "offset": 54,
-          "hex": "06 00 00 02 ef 01 01 01"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "c6 33 64 05 c6 33 64 06",
           "offset": 62,
-          "hex": "c6 33 64 05 c6 33 64 06"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "igmp_profile_matrix",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "igmp_v3_allow_block_sources",
     "proto": "igmp",
-    "summary": "v1/v2/v3 profile matrix",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "224.0.0.22",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "events": [
-        {
-          "profile": "v1",
-          "kind": "query",
-          "group": "0.0.0.0"
-        },
-        {
-          "profile": "v2",
-          "kind": "report",
-          "group": "239.1.1.1"
-        },
-        {
-          "profile": "v3",
-          "kind": "report",
-          "group": "239.1.1.2",
-          "records": [
-            {
-              "record_type": "mode_is_include",
-              "group": "239.1.1.2",
-              "sources": [
-                "198.51.100.1"
-              ]
-            }
-          ]
+          "igmp": {
+            "group": "239.1.1.1",
+            "kind": "report",
+            "profile": "v3",
+            "records": [
+              {
+                "group": "239.1.1.1",
+                "record_type": "allow_new_sources",
+                "sources": [
+                  "198.51.100.4"
+                ]
+              },
+              {
+                "group": "239.1.1.1",
+                "record_type": "block_old_sources",
+                "sources": [
+                  "198.51.100.5",
+                  "198.51.100.6"
+                ]
+              }
+            ]
+          }
         }
       ]
     },
+    "summary": "v3 ALLOW_NEW_SOURCES + BLOCK_OLD_SOURCES"
+  },
+  {
     "expect": {
-      "packet_count": 3,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "ip.ttl",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "ip.dst",
+          "packet": 1,
           "value": "224.0.0.1"
         },
         {
-          "packet": 1,
           "field": "igmp.type",
+          "packet": 1,
           "value": "0x11"
         },
         {
-          "packet": 1,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
-          "packet": 1,
           "field": "igmp.maddr",
+          "packet": 1,
           "value": "0.0.0.0"
         },
         {
-          "packet": 2,
           "field": "ip.proto",
+          "packet": 2,
           "value": "2"
         },
         {
-          "packet": 2,
           "field": "ip.ttl",
+          "packet": 2,
           "value": "1"
         },
         {
-          "packet": 2,
           "field": "ip.dst",
+          "packet": 2,
           "value": "239.1.1.1"
         },
         {
-          "packet": 2,
           "field": "igmp.type",
+          "packet": 2,
           "value": "0x16"
         },
         {
-          "packet": 2,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 2
         },
         {
-          "packet": 2,
           "field": "igmp.maddr",
+          "packet": 2,
           "value": "239.1.1.1"
         },
         {
-          "packet": 3,
           "field": "ip.proto",
+          "packet": 3,
           "value": "2"
         },
         {
-          "packet": 3,
           "field": "ip.ttl",
+          "packet": 3,
           "value": "1"
         },
         {
-          "packet": 3,
           "field": "ip.dst",
+          "packet": 3,
           "value": "224.0.0.22"
         },
         {
-          "packet": 3,
           "field": "igmp.type",
+          "packet": 3,
           "value": "0x22"
         },
         {
-          "packet": 3,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 3
         },
         {
-          "packet": 3,
           "field": "igmp.record_type",
+          "packet": 3,
           "value": "1"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "11 00",
           "offset": 34,
-          "hex": "11 00"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "00 00 00 00",
           "offset": 38,
-          "hex": "00 00 00 00"
+          "packet": 1
         },
         {
-          "packet": 2,
+          "hex": "16 00",
           "offset": 34,
-          "hex": "16 00"
+          "packet": 2
         },
         {
-          "packet": 2,
+          "hex": "ef 01 01 01",
           "offset": 38,
-          "hex": "ef 01 01 01"
+          "packet": 2
         },
         {
-          "packet": 3,
+          "hex": "22 00",
           "offset": 34,
-          "hex": "22 00"
+          "packet": 3
         },
         {
-          "packet": 3,
+          "hex": "01 00 00 01 ef 01 01 02",
           "offset": 42,
-          "hex": "01 00 00 01 ef 01 01 02"
+          "packet": 3
         },
         {
-          "packet": 3,
+          "hex": "c6 33 64 01",
           "offset": 50,
-          "hex": "c6 33 64 01"
+          "packet": 3
         }
-      ]
-    }
-  },
-  {
-    "id": "igmp_retransmit_state",
+      ],
+      "has_payload": true,
+      "packet_count": 3
+    },
+    "id": "igmp_profile_matrix",
     "proto": "igmp",
-    "summary": "query/member state and retransmitted report",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "events": [
-        {
-          "profile": "v2",
-          "kind": "query",
-          "group": "0.0.0.0",
-          "state": "querying"
-        },
-        {
-          "profile": "v2",
-          "kind": "report",
-          "group": "239.1.1.1",
-          "state": "member"
-        },
-        {
-          "profile": "v2",
-          "kind": "report",
-          "group": "239.1.1.1",
-          "state": "member",
-          "retransmit": true
+          "igmp": {
+            "events": [
+              {
+                "group": "0.0.0.0",
+                "kind": "query",
+                "profile": "v1"
+              },
+              {
+                "group": "239.1.1.1",
+                "kind": "report",
+                "profile": "v2"
+              },
+              {
+                "group": "239.1.1.2",
+                "kind": "report",
+                "profile": "v3",
+                "records": [
+                  {
+                    "group": "239.1.1.2",
+                    "record_type": "mode_is_include",
+                    "sources": [
+                      "198.51.100.1"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
         }
       ]
     },
+    "summary": "v1/v2/v3 profile matrix (3 events)"
+  },
+  {
     "expect": {
-      "packet_count": 3,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "ip.ttl",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "ip.dst",
+          "packet": 1,
           "value": "224.0.0.1"
         },
         {
-          "packet": 1,
           "field": "igmp.type",
+          "packet": 1,
           "value": "0x11"
         },
         {
-          "packet": 1,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
-          "packet": 2,
           "field": "ip.proto",
+          "packet": 2,
           "value": "2"
         },
         {
-          "packet": 2,
           "field": "ip.ttl",
+          "packet": 2,
           "value": "1"
         },
         {
-          "packet": 2,
           "field": "ip.dst",
+          "packet": 2,
           "value": "239.1.1.1"
         },
         {
-          "packet": 2,
           "field": "igmp.type",
+          "packet": 2,
           "value": "0x16"
         },
         {
-          "packet": 2,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 2
         },
         {
-          "packet": 2,
           "field": "igmp.maddr",
+          "packet": 2,
           "value": "239.1.1.1"
         },
         {
-          "packet": 3,
           "field": "ip.proto",
+          "packet": 3,
           "value": "2"
         },
         {
-          "packet": 3,
           "field": "ip.ttl",
+          "packet": 3,
           "value": "1"
         },
         {
-          "packet": 3,
           "field": "ip.dst",
+          "packet": 3,
           "value": "239.1.1.1"
         },
         {
-          "packet": 3,
           "field": "igmp.type",
+          "packet": 3,
           "value": "0x16"
         },
         {
-          "packet": 3,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 3
         },
         {
-          "packet": 3,
           "field": "igmp.maddr",
-          "value": "239.1.1.1",
+          "packet": 3,
           "same_as_packet": 2
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "11 00",
           "offset": 34,
-          "hex": "11 00"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "00 00 00 00",
           "offset": 38,
-          "hex": "00 00 00 00"
+          "packet": 1
         },
         {
-          "packet": 2,
+          "hex": "16 00",
           "offset": 34,
-          "hex": "16 00"
+          "packet": 2
         },
         {
-          "packet": 2,
+          "hex": "ef 01 01 01",
           "offset": 38,
-          "hex": "ef 01 01 01"
+          "packet": 2
         },
         {
-          "packet": 3,
+          "hex": "16 00",
           "offset": 34,
-          "hex": "16 00"
+          "packet": 3
         },
         {
-          "packet": 3,
+          "hex": "ef 01 01 01",
           "offset": 38,
-          "hex": "ef 01 01 01"
+          "packet": 3
         }
-      ]
-    }
-  },
-  {
-    "id": "igmp_multi_group_sessions",
+      ],
+      "has_payload": true,
+      "packet_count": 3
+    },
+    "id": "igmp_retransmit_state",
     "proto": "igmp",
-    "summary": "multiple sessions and groups",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "events": [
-        {
-          "session": "a",
-          "profile": "v1",
-          "kind": "report",
-          "group": "239.1.1.1"
-        },
-        {
-          "session": "b",
-          "profile": "v2",
-          "kind": "report",
-          "group": "239.1.1.2"
-        },
-        {
-          "session": "c",
-          "profile": "v3",
-          "kind": "report",
-          "group": "239.1.1.3",
-          "records": [
-            {
-              "record_type": "mode_is_include",
-              "group": "239.1.1.3",
-              "sources": [
-                "198.51.100.3"
-              ]
-            }
-          ]
-        },
-        {
-          "session": "b",
-          "profile": "v2",
-          "kind": "leave",
-          "group": "239.1.1.2"
+          "igmp": {
+            "events": [
+              {
+                "group": "0.0.0.0",
+                "kind": "query",
+                "profile": "v2",
+                "state": "querying"
+              },
+              {
+                "group": "239.1.1.1",
+                "kind": "report",
+                "profile": "v2",
+                "state": "member"
+              },
+              {
+                "group": "239.1.1.1",
+                "kind": "report",
+                "profile": "v2",
+                "retransmit": true,
+                "state": "member"
+              }
+            ]
+          }
         }
       ]
     },
+    "summary": "querying → member, retransmit identical report"
+  },
+  {
     "expect": {
-      "packet_count": 4,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "ip.ttl",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "ip.dst",
+          "packet": 1,
           "value": "239.1.1.1"
         },
         {
-          "packet": 1,
           "field": "igmp.type",
+          "packet": 1,
           "value": "0x12"
         },
         {
-          "packet": 1,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
-          "packet": 1,
           "field": "igmp.maddr",
+          "packet": 1,
           "value": "239.1.1.1"
         },
         {
-          "packet": 2,
           "field": "ip.proto",
+          "packet": 2,
           "value": "2"
         },
         {
-          "packet": 2,
           "field": "ip.ttl",
+          "packet": 2,
           "value": "1"
         },
         {
-          "packet": 2,
           "field": "ip.dst",
+          "packet": 2,
           "value": "239.1.1.2"
         },
         {
-          "packet": 2,
           "field": "igmp.type",
+          "packet": 2,
           "value": "0x16"
         },
         {
-          "packet": 2,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 2
         },
         {
-          "packet": 2,
           "field": "igmp.maddr",
+          "packet": 2,
           "value": "239.1.1.2"
         },
         {
-          "packet": 3,
           "field": "ip.proto",
+          "packet": 3,
           "value": "2"
         },
         {
-          "packet": 3,
           "field": "ip.ttl",
+          "packet": 3,
           "value": "1"
         },
         {
-          "packet": 3,
           "field": "ip.dst",
+          "packet": 3,
           "value": "224.0.0.22"
         },
         {
-          "packet": 3,
           "field": "igmp.type",
+          "packet": 3,
           "value": "0x22"
         },
         {
-          "packet": 3,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 3
         },
         {
-          "packet": 3,
           "field": "igmp.maddr",
+          "packet": 3,
           "value": "239.1.1.3"
         },
         {
-          "packet": 4,
           "field": "ip.proto",
+          "packet": 4,
           "value": "2"
         },
         {
-          "packet": 4,
           "field": "ip.ttl",
+          "packet": 4,
           "value": "1"
         },
         {
-          "packet": 4,
           "field": "ip.dst",
+          "packet": 4,
           "value": "224.0.0.2"
         },
         {
-          "packet": 4,
           "field": "igmp.type",
+          "packet": 4,
           "value": "0x17"
         },
         {
-          "packet": 4,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 4
         },
         {
-          "packet": 4,
           "field": "igmp.maddr",
+          "packet": 4,
           "value": "239.1.1.2"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "12 00",
           "offset": 34,
-          "hex": "12 00"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "ef 01 01 01",
           "offset": 38,
-          "hex": "ef 01 01 01"
+          "packet": 1
         },
         {
-          "packet": 2,
+          "hex": "16 00",
           "offset": 34,
-          "hex": "16 00"
+          "packet": 2
         },
         {
-          "packet": 2,
+          "hex": "ef 01 01 02",
           "offset": 38,
-          "hex": "ef 01 01 02"
+          "packet": 2
         },
         {
-          "packet": 3,
+          "hex": "22 00",
           "offset": 34,
-          "hex": "22 00"
+          "packet": 3
         },
         {
-          "packet": 3,
+          "hex": "01 00 00 01 ef 01 01 03",
           "offset": 42,
-          "hex": "01 00 00 01 ef 01 01 03"
+          "packet": 3
         },
         {
-          "packet": 3,
+          "hex": "c6 33 64 03",
           "offset": 50,
-          "hex": "c6 33 64 03"
+          "packet": 3
         },
         {
-          "packet": 4,
+          "hex": "17 00",
           "offset": 34,
-          "hex": "17 00"
+          "packet": 4
         },
         {
-          "packet": 4,
+          "hex": "ef 01 01 02",
           "offset": 38,
-          "hex": "ef 01 01 02"
+          "packet": 4
         }
-      ]
-    }
-  },
-  {
-    "id": "igmp_ipv4_outer_invariants",
+      ],
+      "has_payload": true,
+      "packet_count": 4
+    },
+    "id": "igmp_multi_group_sessions",
     "proto": "igmp",
-    "summary": "IPv4 Protocol 2 TTL 1 and multicast destination",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
+          "igmp": {
+            "events": [
+              {
+                "group": "239.1.1.1",
+                "kind": "report",
+                "profile": "v1",
+                "session": "a"
+              },
+              {
+                "group": "239.1.1.2",
+                "kind": "report",
+                "profile": "v2",
+                "session": "b"
+              },
+              {
+                "group": "239.1.1.3",
+                "kind": "report",
+                "profile": "v3",
+                "records": [
+                  {
+                    "group": "239.1.1.3",
+                    "record_type": "mode_is_include",
+                    "sources": [
+                      "198.51.100.3"
+                    ]
+                  }
+                ],
+                "session": "c"
+              },
+              {
+                "group": "239.1.1.2",
+                "kind": "leave",
+                "profile": "v2",
+                "session": "b"
+              }
+            ]
+          }
         }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "239.1.1.9",
-      "igmp": {
-        "profile": "v2",
-        "kind": "report",
-        "group": "239.1.1.9"
-      }
+      ]
     },
+    "summary": "multi-session a/b/c across v1/v2/v3"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "ip.ttl",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "ip.dst",
+          "packet": 1,
           "value": "239.1.1.9"
         },
         {
-          "packet": 1,
           "field": "igmp.type",
+          "packet": 1,
           "value": "0x16"
         },
         {
-          "packet": 1,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
-          "packet": 1,
           "field": "igmp.maddr",
+          "packet": 1,
           "value": "239.1.1.9"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "16 00",
           "offset": 34,
-          "hex": "16 00"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "ef 01 01 09",
           "offset": 38,
-          "hex": "ef 01 01 09"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "igmp_v3_query_boundaries",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "igmp_ipv4_outer_invariants",
     "proto": "igmp",
-    "summary": "v3 MRC/QRV/QQIC/source-count boundaries",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "239.1.1.9",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
+          "igmp": {
+            "group": "239.1.1.9",
+            "kind": "report",
+            "profile": "v2"
+          }
         }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "239.1.1.4",
-      "igmp": {
-        "profile": "v3",
-        "kind": "query",
-        "group": "239.1.1.4",
-        "max_response_code": 255,
-        "s_flag": 1,
-        "qrv": 7,
-        "qqic": 255,
-        "sources": [
-          "198.51.100.1",
-          "198.51.100.2",
-          "198.51.100.3"
-        ]
-      }
+      ]
     },
+    "summary": "IPv4 carrier invariants (proto 2 / TTL 1 / group dst)"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "ip.ttl",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "ip.dst",
+          "packet": 1,
           "value": "239.1.1.4"
         },
         {
-          "packet": 1,
           "field": "igmp.type",
+          "packet": 1,
           "value": "0x11"
         },
         {
-          "packet": 1,
           "field": "igmp.checksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
-          "packet": 1,
           "field": "igmp.max_resp",
+          "packet": 1,
           "value": "31744"
         },
         {
-          "packet": 1,
           "field": "igmp.s",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "igmp.qrv",
+          "packet": 1,
           "value": "7"
         },
         {
-          "packet": 1,
           "field": "igmp.qqic",
+          "packet": 1,
           "value": "255"
         },
         {
-          "packet": 1,
           "field": "igmp.num_src",
+          "packet": 1,
           "value": "3"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "0f ff 00 03",
           "offset": 42,
-          "hex": "0f ff 00 03"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "c6 33 64 01 c6 33 64 02 c6 33 64 03",
           "offset": 46,
-          "hex": "c6 33 64 01 c6 33 64 02 c6 33 64 03"
-        }
-      ]
-    }
-  },
-  {
-    "id": "igmp_neg_ipv6",
-    "proto": "igmp",
-    "summary": "IPv6 is N/A and rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "ip": {}
-        },
-        {
-          "igmp": {}
+          "packet": 1
         }
       ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "ipv6": true,
-      "igmp": {
-        "profile": "v3",
-        "kind": "query",
-        "group": "ff02::1",
-        "address_family": "ipv6"
-      }
+      "has_payload": true,
+      "packet_count": 1
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "IPv6"
-    }
-  },
-  {
-    "id": "igmp_neg_nonmulticast_destination",
+    "id": "igmp_v3_query_boundaries",
     "proto": "igmp",
-    "summary": "non-multicast destination rejected",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "239.1.1.4",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "192.0.2.20",
-      "igmp": {
-        "profile": "v2",
-        "kind": "report",
-        "group": "239.1.1.1"
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "multicast"
-    }
-  },
-  {
-    "id": "igmp_neg_ttl_not_one",
-    "proto": "igmp",
-    "summary": "TTL other than one rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "ip": {}
-        },
-        {
-          "igmp": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 64,
-      "count": 1,
-      "dst_ip": "239.1.1.1",
-      "igmp": {
-        "profile": "v2",
-        "kind": "report",
-        "group": "239.1.1.1"
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "TTL"
-    }
-  },
-  {
-    "id": "igmp_neg_protocol_not_two",
-    "proto": "igmp",
-    "summary": "non-2 IPv4 protocol rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "ip": {}
-        },
-        {
-          "igmp": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "ip_protocol": 17,
-      "dst_ip": "239.1.1.1",
-      "igmp": {
-        "profile": "v2",
-        "kind": "report",
-        "group": "239.1.1.1",
-        "wire_fault": {
-          "kind": "protocol",
-          "value": 17
-        }
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "Protocol 2"
-    }
-  },
-  {
-    "id": "igmp_neg_bad_checksum",
-    "proto": "igmp",
-    "summary": "bad IGMP checksum rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "ip": {}
-        },
-        {
-          "igmp": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "239.1.1.1",
-      "igmp": {
-        "profile": "v2",
-        "kind": "report",
-        "group": "239.1.1.1",
-        "checksum_mode": "invalid",
-        "wire_fault": {
-          "kind": "checksum"
-        }
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "checksum"
-    }
-  },
-  {
-    "id": "igmp_neg_invalid_v3_record",
-    "proto": "igmp",
-    "summary": "invalid v3 record type or truncated source list rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "ip": {}
-        },
-        {
-          "igmp": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "224.0.0.22",
-      "igmp": {
-        "profile": "v3",
-        "kind": "report",
-        "group": "239.1.1.1",
-        "records": [
-          {
-            "record_type": 99,
-            "group": "239.1.1.1",
+          "igmp": {
+            "group": "239.1.1.4",
+            "kind": "query",
+            "max_response_code": 255,
+            "profile": "v3",
+            "qqic": 255,
+            "qrv": 7,
+            "s_flag": 1,
             "sources": [
-              "198.51.100.1"
+              "198.51.100.1",
+              "198.51.100.2",
+              "198.51.100.3"
             ]
           }
-        ],
-        "wire_fault": {
-          "kind": "record",
-          "record_type": 99,
-          "source_count": 2
         }
-      }
+      ]
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "record"
-    }
+    "summary": "v3 boundaries: MRC=255 float code, QRV=7, QQIC=255, 3 sources"
   },
   {
+    "expect": {
+      "error_contains": "IPv6",
+      "expect_error": true
+    },
+    "id": "igmp_neg_ipv6",
+    "proto": "igmp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
+        },
+        {
+          "igmp": {
+            "address_family": "ipv6",
+            "group": "ff02::1",
+            "kind": "query",
+            "profile": "v3"
+          }
+        }
+      ]
+    },
+    "summary": "IPv6 is N/A and rejected"
+  },
+  {
+    "expect": {
+      "error_contains": "multicast",
+      "expect_error": true
+    },
+    "id": "igmp_neg_nonmulticast_destination",
+    "proto": "igmp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "192.0.2.20",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
+        },
+        {
+          "igmp": {
+            "group": "239.1.1.1",
+            "kind": "report",
+            "profile": "v2"
+          }
+        }
+      ]
+    },
+    "summary": "unicast destination rejected"
+  },
+  {
+    "expect": {
+      "error_contains": "TTL",
+      "expect_error": true
+    },
+    "id": "igmp_neg_ttl_not_one",
+    "proto": "igmp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "239.1.1.1",
+            "src": "192.0.2.10",
+            "ttl": 64
+          }
+        },
+        {
+          "igmp": {
+            "group": "239.1.1.1",
+            "kind": "report",
+            "profile": "v2"
+          }
+        }
+      ]
+    },
+    "summary": "TTL != 1 rejected"
+  },
+  {
+    "expect": {
+      "error_contains": "Protocol 2",
+      "expect_error": true
+    },
+    "id": "igmp_neg_protocol_not_two",
+    "proto": "igmp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "239.1.1.1",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
+        },
+        {
+          "igmp": {
+            "group": "239.1.1.1",
+            "kind": "report",
+            "profile": "v2",
+            "wire_fault": {
+              "kind": "protocol",
+              "value": 17
+            }
+          }
+        }
+      ]
+    },
+    "summary": "non-2 IPv4 protocol rejected"
+  },
+  {
+    "expect": {
+      "error_contains": "checksum",
+      "expect_error": true
+    },
+    "id": "igmp_neg_bad_checksum",
+    "proto": "igmp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "239.1.1.1",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
+        },
+        {
+          "igmp": {
+            "checksum_mode": "invalid",
+            "group": "239.1.1.1",
+            "kind": "report",
+            "profile": "v2",
+            "wire_fault": {
+              "kind": "checksum"
+            }
+          }
+        }
+      ]
+    },
+    "summary": "injected bad checksum rejected"
+  },
+  {
+    "expect": {
+      "error_contains": "record",
+      "expect_error": true
+    },
+    "id": "igmp_neg_invalid_v3_record",
+    "proto": "igmp",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "224.0.0.22",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
+        },
+        {
+          "igmp": {
+            "group": "239.1.1.1",
+            "kind": "report",
+            "profile": "v3",
+            "records": [
+              {
+                "group": "239.1.1.1",
+                "record_type": 99,
+                "sources": [
+                  "198.51.100.1"
+                ]
+              }
+            ],
+            "wire_fault": {
+              "kind": "record"
+            }
+          }
+        }
+      ]
+    },
+    "summary": "numeric record_type rejected at decode"
+  },
+  {
+    "expect": {
+      "error_contains": "profile",
+      "expect_error": true
+    },
     "id": "igmp_neg_invalid_profile_version",
     "proto": "igmp",
-    "summary": "profile and message type mixed rejected",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "239.1.1.1",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
+          "igmp": {
+            "group": "239.1.1.1",
+            "kind": "leave",
+            "profile": "v1"
+          }
         }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "239.1.1.1",
-      "igmp": {
-        "profile": "v1",
-        "kind": "leave",
-        "group": "239.1.1.1"
-      }
+      ]
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "profile"
-    }
+    "summary": "v1 + leave (profile/kind mismatch) rejected"
   },
   {
+    "expect": {
+      "error_contains": "source count",
+      "expect_error": true
+    },
     "id": "igmp_neg_query_source_count_length",
     "proto": "igmp",
-    "summary": "v3 source count and encoded bytes mismatch rejected",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "239.1.1.1",
+            "src": "192.0.2.10",
+            "ttl": 1
+          }
         },
         {
-          "igmp": {}
+          "igmp": {
+            "group": "239.1.1.1",
+            "kind": "query",
+            "profile": "v3",
+            "source_count": 2,
+            "sources": [
+              "198.51.100.1"
+            ],
+            "wire_fault": {
+              "kind": "source_count"
+            }
+          }
         }
-      ],
-      "src_ip": "192.0.2.10",
-      "ttl": 1,
-      "count": 1,
-      "dst_ip": "239.1.1.1",
-      "igmp": {
-        "profile": "v3",
-        "kind": "query",
-        "group": "239.1.1.1",
-        "sources": [
-          "198.51.100.1"
-        ],
-        "source_count": 2,
-        "wire_fault": {
-          "kind": "source_count",
-          "declared": 2
-        }
-      }
+      ]
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "source count"
-    }
+    "summary": "source_count != len(sources) rejected"
   }
 ]

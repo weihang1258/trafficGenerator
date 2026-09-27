@@ -586,6 +586,33 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 		}
 	}
 
+	if protocol == "igmp" {
+		// D-IGMP-1 §14-P2 链级红例（bacnet/dcerpc 缺载体预检同构——
+		// DependsOn ip 会自动补 ip 层，裸 igmp 链不被补全掩盖；tcp/udp 夹层
+		// 不被 TransportOn 通用门拦下时同样在此同步拒）。igmp 是单载体
+		// raw-IP 终结层：无 tcp/udp 传输层、无端口语义。
+		//   - 链中夹 tcp/udp → 锚 carrier（[ip,tcp,igmp] / [ip,udp,igmp]）；
+		//   - 链缺 ip（裸 [igmp]）→ 锚 carrier（补全前判，否则被自动补全）。
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			hasIP := false
+			for _, item := range probe {
+				if _, ok := item["ip"]; ok {
+					hasIP = true
+				}
+				if _, ok := item["tcp"]; ok {
+					return nil, fmt.Errorf("igmp chain: tcp carrier is not supported — IGMP rides raw IP (protocol 2) only, no transport layer (carrier)")
+				}
+				if _, ok := item["udp"]; ok {
+					return nil, fmt.Errorf("igmp chain: udp carrier is not supported — IGMP rides raw IP (protocol 2) only, no transport layer (carrier)")
+				}
+			}
+			if !hasIP {
+				return nil, fmt.Errorf("igmp chain: missing ip carrier — IGMP requires an [ip,igmp] chain (carrier)")
+			}
+		}
+	}
+
 	effective, err := ValidateLayers(layersJSON, protocol)
 	if err != nil {
 		return nil, err
