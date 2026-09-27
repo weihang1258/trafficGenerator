@@ -2219,6 +2219,33 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.BACNET = &bc
+	case "rtmfp":
+		if spec.RTMFP != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		// D-RTMFP-1（G-RTMFP-3）：层 config（profile/role/keepalive_interval/
+		// ping_count/wire_fault/sessions）经 JSON 往返解码为 core.RTMFPConfig
+		// （bacnet/socks5 严格解码同款——struct 侧未知键不容忍，RTMFP 类型
+		// 无自定义 UnmarshalJSON 故 DisallowUnknownFields 全级生效）。
+		// 解码失败一律计 ValidationErrors 走任务错误——置空配置会被 validator
+		// 直通成默认流假成功（edp/bacnet 同款）。空层 {} 也翻译出非 nil
+		// 空配置 → validator 报 sessions 必需，不静默缺省流。
+		cfgR := completedConfig(s, term.Config)
+		rawR, err := json.Marshal(cfgR)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("rtmfp layer config encode: %v", err))
+			return
+		}
+		var rcfg core.RTMFPConfig
+		decR := json.NewDecoder(bytes.NewReader(rawR))
+		decR.DisallowUnknownFields()
+		if err := decR.Decode(&rcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("rtmfp layer config decode: %v", err))
+			return
+		}
+		spec.RTMFP = &rcfg
 	case "dcerpc":
 		if spec.DCERPC != nil {
 			return // flat 权威；二者并存时 flat 优先

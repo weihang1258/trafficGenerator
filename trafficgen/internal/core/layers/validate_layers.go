@@ -111,6 +111,39 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 			}
 		}
 	}
+	if protocol == "rtmfp" {
+		// D-RTMFP-1：udp 单载体预检（bacnet 预检同构——DependsOn udp 自动
+		// 补全前拦，裸 rtmfp 层不被补全掩盖）。
+		//   - 链夹 tcp → 拒（RTMFP 只走 UDP，契约 §11 铁律）；
+		//   - 缺 udp → 拒（[ip,rtmfp] 直连）；
+		//   - ip 层 src/dst 混族 → 拒（bacnet 同面）。
+		// 锚词按契约 §12-P2：carrier / family。
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			hasUDP := false
+			for _, item := range probe {
+				if _, ok := item["tcp"]; ok {
+					return nil, fmt.Errorf("rtmfp chain: tcp carrier is not supported — RTMFP rides udp only (carrier)")
+				}
+				if _, ok := item["udp"]; ok {
+					hasUDP = true
+				}
+				if rawIP, ok := item["ip"]; ok && len(rawIP) > 0 {
+					var ipcfg map[string]interface{}
+					if err := json.Unmarshal(rawIP, &ipcfg); err == nil {
+						src, _ := ipcfg["src"].(string)
+						dst, _ := ipcfg["dst"].(string)
+						if src != "" && dst != "" && strings.Contains(src, ":") != strings.Contains(dst, ":") {
+							return nil, fmt.Errorf("rtmfp chain: mixed address family in ip layer (src %q / dst %q) — src and dst must be the same family (family)", src, dst)
+						}
+					}
+				}
+			}
+			if !hasUDP {
+				return nil, fmt.Errorf("rtmfp chain: missing udp carrier — RTMFP requires an [ip,udp,rtmfp] chain (carrier)")
+			}
+		}
+	}
 	if protocol == "dcerpc" {
 		// D-DCERPC-1 裁定1：缺 tcp 载体在 ValidateLayers（含链补全）之前拦
 		// ——DependsOn tcp 会自动补 tcp 层，用户裸 dcerpc 层会被补全掩盖

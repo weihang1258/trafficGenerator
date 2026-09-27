@@ -7047,9 +7047,160 @@ def check_igmp(cases):
     return rows
 
 
+def check_rtmfp(cases):
+    """D-RTMFP-1 P4/P5 反查表（16 正 + 13 负 = 29 例）。返回 [(检查名, 通过?, 证据)]。
+
+    断言通道诚实声明：tshark 3.6.14 无 RTMFP dissector（rtmfp.* 0 字段实测），
+    正例断言只有 UDP 载体字段 + frames hex + 包数三通道——本表按此口径反查，
+    不查不存在的字段面。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线（P4a 已有 + P4 补层链缺件）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 rtmfp", '"rtmfp"' in pg and 'true' in pg.split('"rtmfp"')[1][:12], "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 rtmfp（已准入）", '"rtmfp"' not in pt[i_neg:i_neg + 600], "已摘除"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case rtmfp（严格解码）",
+                 'case "rtmfp":' in tr and "rtmfp layer config decode" in tr, "在案"))
+    rows.append(("FlowMeta.RTMFP 直传", re.search(r"RTMFP:\s+spec\.RTMFP\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.RTMFP 字段", re.search(r"RTMFP\s+\*core\.RTMFPConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.RTMFP 字段", re.search(r"RTMFP\s+\*RTMFPConfig", ty) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "rtmfp"')
+    reg_block = rg[i_reg:rg.index('Name: "', i_reg + len('Name: "rtmfp"'))]
+    rows.append(("registry rtmfp 行（DependsOn/TransportOn udp + 6 键 Fields）",
+                 'DependsOn:   []string{"udp"}' in reg_block
+                 and 'TransportOn: []string{"udp"}' in reg_block
+                 and reg_block.count("{Type:") >= 6, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(rtmfp)",
+                 "internal/protocol/rtmfp" in mn and 'NewChainPlanner("rtmfp")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat 顶层 rtmfp 子映射 presence 判死",
+                 "protocol rtmfp no longer accepts a top-level rtmfp sub-config" in sc, "在案"))
+    rows.append(("strategy_convert 在库旧策略 compat（ValidationErrors）",
+                 sc.count('CheckProtoFlat(protocol, cfg)') >= 14
+                 and 'if protocol == "rtmfp"' in sc, "在案"))
+    rows.append(("strategy_convert rtmfp 目的端口缺省 1935（G-RTMFP-3 死注释复活）",
+                 'case "rtmfp":' in sc and re.search(r'setDefaultDstPort\(&spec, cfg, 1935\)', sc) is not None, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain_planner rtmfp 目的端口缺省 1935",
+                 'case "rtmfp":' in cp and "spec.DstPort = 1935" in cp, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    i_vl = vl.index('if protocol == "rtmfp" {')
+    vl_block = vl[i_vl:vl.index("effective, err := ValidateLayers", i_vl)]
+    rows.append(("载体预检（夹 tcp 拒/缺 udp 拒/混合族）",
+                 "tcp carrier is not supported" in vl_block
+                 and "missing udp carrier" in vl_block
+                 and "mixed address family in ip layer" in vl_block, "在案"))
+    gendump = json.loads((tg / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
+    entry = gendump["layers"].get("rtmfp", {})
+    rows.append(("generated schema rtmfp 条目（depends_on udp + 6 键，与 registry 同代）",
+                 entry.get("depends_on") == ["udp"] and len(entry.get("fields", {})) == 6, "在案"))
+    # 反查表登记后不许再出现层链+顶层 rtmfp 并存的非负例。
+    bad_top = [c.get("id") for c in cases
+               if "layers" in (c.get("spec_json") or {})
+               and isinstance((c.get("spec_json") or {}).get("rtmfp"), dict)
+               and not ((c.get("expect") or {}).get("expect_error"))]
+    rows.append(("顶层 rtmfp presence 零残留（非负例）", not bad_top, bad_top or "零残留"))
+
+    # 2. 行为面（builder/planner 关键件；wire 面已落码 c12fe77，P4 只验证）。
+    bl = (tg / "internal" / "protocol" / "rtmfp" / "builder.go").read_text()
+    for prim, name in [
+        ("func buildHeader", "16B 头（marker/kind/len/session/flow/seq 大端）"),
+        ("func buildCookie", "cookie 确定性派生（sid ‖ sid^0xDEADBEEF）"),
+        ("func buildFragment", "fragment 前缀 idx(4)+count(4)+totalLen(4)"),
+        ("func buildAck", "ack 前缀 ranges_count(2)+[start(4)+end(4)]*N"),
+        ("func buildError", "error kind（marker 0x0C）"),
+    ]:
+        rows.append((f"关键件：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "rtmfp" / "planner.go").read_text()
+    for guard, name in [
+        ("header too short", "wire_fault short_header 锚词"),
+        ("length overruns payload", "wire_fault bad_length 锚词"),
+        ("session mismatch", "wire_fault session_mismatch 锚词"),
+        ("sequence regression", "wire_fault sequence_regress 锚词 + 自然守卫"),
+        ("fragment gap", "wire_fault fragment_gap 锚词 + 自然守卫"),
+        ("ack for unknown sequence", "wire_fault ack_unknown 锚词 + 自然守卫"),
+        ("state order violation", "wire_fault state_order 锚词 + 自然守卫"),
+        ("session leak", "wire_fault session_leak 锚词 + 自然守卫"),
+        ("unknown profile", "自然守卫 profile 白名单"),
+        ("unknown role", "自然守卫 role 白名单"),
+        ("unknown kind", "自然守卫 kind 白名单"),
+        ("invalid direction", "自然守卫 direction 值域"),
+        ("sessions is required", "空 sessions 拒"),
+    ]:
+        rows.append((f"守卫：{name}", guard in pl, f"锚词 {guard}"))
+    rows.append(("关键件：retransmit 别名映射（复用原序号，跳过回归检查）",
+                 'kind == "retransmit"' in pl and "origKind != \"retransmit\"" in pl, "在案"))
+    rows.append(("关键件：每事件一 datagram（EmitMsg 逐事件）",
+                 "evOut := layers.MessageEvent{" in pl and "req.EmitMsg(evOut)" in pl, "在案"))
+    blk = (tg / "internal" / "core" / "layers" / "rtmfp_chain_test.go").read_text()
+    for tc, name in [
+        ("TestRTMFPChain_LayerToSpecPlan", "链级①层条目→spec 翻译出包"),
+        ("TestRTMFPChain_PresenceAndStrayTopLevelKeys", "链级②presence/游离键判死"),
+        ("TestRTMFPChain_CarrierRejected", "链级③载体拒（carrier/family）"),
+        ("TestRTMFPChain_CaseFileAudit", "链级④用例文件收官自查"),
+    ]:
+        rows.append((f"链级红测：{name}", tc in blk, "在案"))
+
+    # 3. 用例面（29 例 = 16 正 + 13 负）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "rtmfp_handshake_ipv4", "rtmfp_handshake_ipv6", "rtmfp_reliable_flow",
+        "rtmfp_unreliable_flow", "rtmfp_retransmission", "rtmfp_fragment_reassembly",
+        "rtmfp_ping_pong", "rtmfp_close", "rtmfp_multi_flow", "rtmfp_multi_session",
+        "rtmfp_loss_and_ack_ranges", "rtmfp_binary_payload", "rtmfp_low_latency_profile",
+        "rtmfp_ipv4_ipv6_same_payload", "rtmfp_ipv6_same_payload", "rtmfp_keepalive_bounded",
+        "rtmfp_neg_short_header", "rtmfp_neg_length_overrun", "rtmfp_neg_cookie_session",
+        "rtmfp_neg_sequence_regress", "rtmfp_neg_fragment_gap", "rtmfp_neg_ack_unknown",
+        "rtmfp_neg_state_order", "rtmfp_neg_profile_carrier", "rtmfp_neg_session_leak",
+        "rtmfp_neg_top_rtmfp_presence_reject", "rtmfp_neg_stray_src_ip",
+        "rtmfp_neg_carrier_tcp", "rtmfp_neg_carrier_missing_udp",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    rows.append(("用例总数 29（16 正+13 负）", len(cases) == 29, f"{len(cases)} 例"))
+    pos = [c for c in cases if "expect_error" not in (c.get("expect") or {})]
+    neg = [c for c in cases if "expect_error" in (c.get("expect") or {})]
+    rows.append(("16 正 + 13 负", len(pos) == 16 and len(neg) == 13, f"{len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("正例均带 packet_count", all((c.get("expect") or {}).get("packet_count") for c in pos), "全部在案"))
+    rows.append(("正例均带 frames hex（G-RTMFP-4 补钉）",
+                 all((c.get("expect") or {}).get("frames") for c in pos), "全部在案"))
+    bad_keys = [c.get("id") for c in neg
+                if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}", not bad_keys, bad_keys or "全部合规"))
+    bad_top = [c.get("id") for c in pos
+               if any(k not in ("layers", "flow_control", "output") for k in (c.get("spec_json") or {}))]
+    rows.append(("正例顶层键=0（仅 layers/flow_control/output）", not bad_top, bad_top or "零残留"))
+    # 断言通道诚实性：任何用例都不得写 rtmfp.* 字段（无 dissector）。
+    bad_f = [c.get("id") for c in cases
+             for f in ((c.get("expect") or {}).get("fields") or [])
+             if str((f or {}).get("field", "")).startswith("rtmfp.")]
+    rows.append(("无 rtmfp.* 字段断言（tshark 0 字段实测）", not bad_f, bad_f or "零命中"))
+    # 锚词门：负例 error_contains 与代码锚词双向子串命中（tftp 先例口径）。
+    code_text = pl + sc + vl + bl + cp
+    def _hit(ec):
+        if ec in code_text:
+            return True
+        import re as _re2
+        skel = _re2.sub(r"\b\d+\b", "", ec)
+        words = [w for w in _re2.split(r"\s+", skel) if len(w.strip('",()[]:')) >= 3]
+        return len(words) >= 3 and all(w in code_text for w in words)
+    bad_a = [f"{c.get('id')}:{ec}" for c in neg
+             for ec in [(c.get("expect") or {}).get("error_contains", "")]
+             if not _hit(ec)]
+    rows.append(("13 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
+    return rows
+
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp}
 
 
 def main(argv):
