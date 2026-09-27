@@ -469,6 +469,15 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-DAMENG-1（§10.6 残留洞升 G-DM-6 后 P4 落码）：dameng 在库旧策略
+	// 顶层 dameng → ValidationErrors（enip 同款；空 map 也死——判死形状
+	// 「层链+顶层空子映射并存」。层链形状不触发：cells 有 layers 且无
+	// 顶层 dameng 键时 CheckProtoFlat 返回空）。
+	if protocol == "dameng" {
+		if v, ok := cfg["dameng"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 
 	// D-FTP-3 §5: 扁平四键收动态对象（引擎直调路径，REST 形状层已先 400）→
 	// spec.ValidationErrors 拒绝并指路层字段，worker 预检终态 error，绝不
@@ -1496,6 +1505,10 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["dameng"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*DamengConfig](&spec, sub, "dameng", &spec.Dameng)
 		}
+		// D-DAMENG-1 G-DM-2：dameng 目的端口默认 5236（doip 13400 同款；
+		// flat 兼容路径缺省——链路径在 validateSpecBase 补齐）。
+		// 仅当用户未指定 dst_port 时覆盖。
+		setDefaultDstPort(&spec, cfg, 5236)
 		// case "kingbase" 已收敛：kingbase 不再独立解析，改由 postgresql 层 +
 		// dialect=kingbase 表达（18-layer-config-design.md §2.2/§4.3/§7 F4）。
 		// 配置走 case "postgresql"（spec.PostgreSQL，dialect=kingbase）。
@@ -8494,6 +8507,15 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "edp" {
 		if v, ok := cfg["edp"]; ok && v != nil {
 			return "protocol edp no longer accepts a top-level edp sub-config (move it into the edp layer of an [ip,tcp,edp] layers chain; OneNET EDP framing lives in the edp layer)"
+		}
+	}
+	// D-DAMENG-1（G-DM-6 框架级判死洞 P4 落码）：dameng 顶层 dameng 子
+	// 映射 presence 判死（enip 先例；空 map 也死——契约 §10.6 残留洞登记
+	// 时未落码，存量 14 例正用此形状，改写后此门即有执法对象）。层链形
+	// 状不触发。
+	if protocol == "dameng" {
+		if v, ok := cfg["dameng"]; ok && v != nil {
+			return "protocol dameng no longer accepts a top-level dameng sub-config (move it into the dameng layer of an [ip,tcp,dameng] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-XMR-1：xmrmining 顶层 xmrmining 子映射 presence 判死（edp 先例；空

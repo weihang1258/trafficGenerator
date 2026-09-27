@@ -91,7 +91,8 @@ func (Planner) Validate(spec core.FlowSpec) error {
 
 // validateEventSequence enforces the DM8 state machine: connect first,
 // auth_response only after auth_request, SQL only after a successful
-// auth_response, matching request/response directions,
+// auth_response, matching request/response directions (G-DM-5: explicit
+// direction inconsistent with the kind's natural direction is rejected),
 // and close only as the last event.
 func validateEventSequence(evs []core.DamengEvent) error {
 	authOK := false
@@ -101,6 +102,13 @@ func validateEventSequence(evs []core.DamengEvent) error {
 		}
 		if i == 0 && ev.Kind != "connect" {
 			return fmt.Errorf("dameng: event %d: state: first event must be connect", i)
+		}
+		// D-DAMENG-1 G-DM-5：显式 direction 与 kind 自然方向不一致即拒。
+		// kindUp 给出自然方向；缺省（""）走自然方向不拦。
+		if nat, err := kindUp(ev.Kind); err == nil && ev.Direction != "" {
+			if (ev.Direction == "c2s") != nat {
+				return fmt.Errorf("dameng: event %d: direction %q inconsistent with kind %q", i, ev.Direction, ev.Kind)
+			}
 		}
 		if ev.Kind == "close" && i != len(evs)-1 {
 			return fmt.Errorf("dameng: event %d: state: close must be the last event", i)

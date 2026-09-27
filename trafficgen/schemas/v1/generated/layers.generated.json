@@ -356,10 +356,33 @@
       "depends_on": [
         "tcp"
       ],
+      "transport_on": [
+        "tcp"
+      ],
       "field_contract": {
         "tcp.dst_port": "5236"
       },
-      "fields": {}
+      "fields": {
+        "events": {
+          "type": "list",
+          "default": []
+        },
+        "payload_size": {
+          "type": "string",
+          "default": ""
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "wire_fault": {
+          "type": "object"
+        },
+        "wire_profile": {
+          "type": "string",
+          "default": ""
+        }
+      }
     },
     "dcerpc": {
       "category": "terminal",

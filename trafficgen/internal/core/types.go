@@ -1290,6 +1290,21 @@ type DamengConfig struct {
 	WireFault   json.RawMessage `json:"wire_fault,omitempty"`
 }
 
+// UnmarshalJSON strict-decodes the dameng layer config（未知键拒绝；
+// enip 同款——层 config 一级 DisallowUnknownFields，经 decD 路由；
+// D-DAMENG-1 G-DM-2）。
+func (c *DamengConfig) UnmarshalJSON(b []byte) error {
+	type alias DamengConfig
+	var a alias
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&a); err != nil {
+		return err
+	}
+	*c = DamengConfig(a)
+	return nil
+}
+
 // CQLEvent is one CQL/Cassandra native protocol event.
 type CQLEvent struct {
 	Kind        string                 `json:"kind,omitempty"`
