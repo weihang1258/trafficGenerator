@@ -1476,6 +1476,10 @@ DoIP 与 SOCKS5/RTSP/FTP/SIP/GBT32960/JT808/MCP/TDS/Modbus/ENIP 等同栈协议�
 
 ## §11. 修订记录
 
+### §11.0 v3.0.0（2026-09-26，P-PIPE `doip_tcp_activation_basic`–`doip_tcp_activation_oem_varlen` 补足；编号补位不重排下行）
+
+本次只**新增** §12–§19（`doip_tcp_activation_basic` 规范矩阵 / 三路对照与候选方案 / 门1 十四行表 / D-DOIP-1 / 性能设计与验收 / `doip_tcp_activation_oem_varlen` 对接清单 / 存量 115 例审计 / 缺口 9 项），**§1–§10 协议正文与 §11.1–§11.4 历史修订记录逐字保留**（已核对：无删除、无改写）。口径变化两点：①「存量用例数」由历史 203 条口径改为以机器契约 `cases/doip.json`（115 例）为审计基线；②新增「目标形状 = 纯 layers」基线（CORE_MEMORY §1），v2.0.1 的顶层扁平 `spec_json` 写法在 §14.1 逐键给出去向并标注「今天跑不通，需先补代码」（§1.9）。
+
 ### §11.1 v2.0.1（2026-08-05）
 
 基于 R1 复审报告 `docs/protocol-designs/audit/05-doip-audit-r1-v2.md`（17 项问题：3 CRITICAL + 4 HIGH + 6 MEDIUM + 4 LOW）全面返工：
@@ -1560,9 +1564,509 @@ v1.0/v1.1 修复 39 项审计问题，但深度对抗审计发现 26 项新问�
 
 ---
 
-**文档总行数**：约 1500 行
-**测试用例总数**：203 条（T001-T203，含 v2.0.1 新增 T027a/T119a/T120a）
+## §12. `doip_tcp_activation_basic` 规范矩阵（CORE_MEMORY §4 八项：规范要求 → 业务场景 → 代码现状 → 缺口）
+
+> 本节由 P-PIPE 文档轨（#57 doip）补足。全部「代码现状」为**实读行号**（本仓库 HEAD `0c355be`）。
+> 目标形状基线（CORE_MEMORY §1）：**纯 layers 链**，顶层只允许 `layers`/`flow_control` 家族/`output`（§1.11）。
+
+### §12.1 八项规范矩阵
+
+| # | 规范要求（出处） | 业务场景 | 代码现状（实读） | 缺口 |
+|---|---|---|---|---|
+| 4.1 | **连接模型**：TCP 13400 承载路由激活/诊断/探活/通用 NACK（每 ECU 一条独立 4-tuple）；UDP 13400 承载车辆发现/实体状态/电源模式；Tester 主动建连（0x0005），ECU 可主动探活（0x0007）（ISO 13400-2:2019 §7，本文 §1.2） | 诊断仪接车→发现车辆→激活路由→读 DTC/刷写；ECU 独立应答 | 双载体实现完整：UDP 三阶段 `doip.go:454-574`；TCP 握手 `doip.go:583-599`、挥手 `doip.go:773-791`。**链上单载体**：`registry.go:224-226` 注册 `CategoryTerminal` + `DependsOn ["tcp"]`（无 `TransportOn`/`OptionalOn`）；生成器 `layer_gen.go:61-74` 对 `Discovery`/`EntityStatus`/`PowerMode` 逐个显式拒绝；`[ip,udp,doip]` 由 `complete.go:447-460` 判死（锚词 `carrier`） | **G-DOIP-2** |
+| 4.2 | **命令/消息表**：16 个 PayloadType（0x0000–0x8003），逐条请求—响应配对与必选/可选字段（本文 §2.2–§2.16） | 发现请求↔公告；激活请求↔激活应答；诊断消息↔Ack/Nack；探活↔探活应答 | 16 型常量表 `types.go:80-97`；`build*` 纯函数逐字段装配 `doip.go:864-955`。**链上可达 8 型**（0x0000/0x0005/0x0006/0x0007/0x0008/0x8001/0x8002/0x8003），UDP 8 型（0x0001–0x0004、0x4001–0x4004）不可达 | **G-DOIP-2** |
+| 4.3 | **状态机**：建连→激活→业务（诊断/探活）→释放；激活失败（RC 0x00–0x07）→ECU FIN 提前终止（本文 §4、§6.11、§9.2） | 正常诊断流程；激活被拒后连接关闭；二次确认（0x11）后终态 | 七阶段状态机 `doip.go:577-791`（含失败 FIN+ACK `doip.go:636-645`）。链上 `layer_gen.go:112-245` 只产报文事件，握手/挥手/seq 归 tcp 层；**失败路径显式拒绝**（生成器 `layer_gen.go:148-150`、校验器 `layer_gen.go:297-306`） | **G-DOIP-3**；**G-DOIP-4**（`doip.go:618-623` 注释自认二次确认被拒不可表达） |
+| 4.4 | **字段表**：每字段宽度/字节序/取值/默认值（本文 §2.1–§2.16、§3.2 默认值表） | 报文字段逐字节可复算；V1/V2 宽度差异 | 常量表 `types.go:28-77`（含 `DoIPHeaderLen=8`/`VINLength=17`/`EIDLength=6`/`GIDLength=6`/`DefaultMSS=1460`/`MinMSS=536`）；`buildVehicleAnnouncement` `doip.go:865-891`（V1 去 SyncStatus 在 `:887-889`）；解析侧 `parser.go:23-51` | 无（TCP 面字段全量）；V1 面同 §4.8 |
+| 4.5 | **错误处理表**：0x0000 NackCode 5 值、0x0006 ResponseCode 13 值、0x8003 NackCode 7 值、UDS NRC 0x01–0x7F（本文 §2.3/§2.9/§2.15/§2.16/§8/§9） | 头部错、激活被拒、诊断消息被拒、UDS 否定响应 | 值域校验全量 `doip.go:26-232`（`validateUDS` `:235-268`）；解析错误面 `parser.go:26-51`；链上校验器 `layer_gen.go:274-321`（拒绝路径改判为错误） | **G-DOIP-3**（拒绝码不可发出）；用例面见 §18 |
+| 4.6 | **超时与活性**：0x0007/0x0008 探活；公告 500ms±100ms×3（ISO 13400-2:2019 §8.5.1）；超时单边报文（本文 §4.1/§4.5/§6.14） | ECU 主动探活保活；车辆上电公告 | 探活 `doip.go:743-764`；公告计数 `doip.go:507-514`（`DefaultAnnouncementCount=3`，时间由 worker Pacer）；超时单边 §6.14 | **G-DOIP-2**（公告属 UDP）；超时单边在链上归 tcp 层 `termination`，标「明确不解决」 |
+| 4.7 | **NAT/代理/被动模式**：规范无 FTP 式被动模式；发现支持广播/单播（IPv4 `255.255.255.255`、IPv6 `ff02::1` + MAC `33:33:00:00:00:01`，RFC 2464 §7）；Tester 侧 ephemeral 端口对 ECU 固定 13400（本文 §3.3） | 诊断仪跨网段接入；同网段广播发现 | 广播改写 `doip.go:473-482`（发现）与 `:554-563`（电源模式）；组播 MAC `types.go:149-157` | **G-DOIP-2**（广播面属 UDP）；NAT 现网行为无实测证据 → **G-DOIP-9** |
+| 4.8 | **版本/方言差异**：V1(0x01)/V2(0x02) 双版本；V1 差异 = 0x0004 无 SyncStatus（32B vs 33B）、0x0005/0x0006 禁 OEM、无 0x4003/0x4004（本文 §1.3/§8.1） | 旧 ECU 兼容；新 ECU 全功能 | V1 限制 `doip.go:52-59`；默认 `DefaultProtocolVersion=0x02` `types.go:31`；`ProtocolVersionV1=0x01` `types.go:34`；0x03/0x04（ISO13400_2019/AMD1）当前不接受（§1.3 已声明） | V1 键在链上无住处（**G-DOIP-1**）；0x03/0x04 标「明确不支持」 |
+
+**三路对照（§4.12–4.15）与候选方案对比（§4.17）见 §13**；八项逐行去向见 §18.4 台账。
+
+### §12.2 子表①：PayloadType × 链上终态矩阵（16 格，每格给结论，不留白）
+
+> 本节用例落点一律写**完整 ID**（`doip_tcp_*`/`doip_neg_*`，正文索引在 `05-doip-testcase.md` §2；#1–#16 正、#17–#41 负）。
+
+| PayloadType | 名称 | 规范载体 | 链上可达性（实读结论） | 用例落点 / 去向 |
+|---|---|---|---|---|
+| 0x0000 | Generic DoIP Header NACK | TCP/UDP | 可达（down 固定，`layer_gen.go:240-243`） | **`doip_tcp_generic_nack`** |
+| 0x0001 | Vehicle Identification Request | UDP | 不可达（`layer_gen.go:62-64` 拒 `discovery`） | **G-DOIP-2** 立项 |
+| 0x0002 | Vehicle Identification Request with EID | UDP | 不可达（同上） | **G-DOIP-2** |
+| 0x0003 | Vehicle Identification Request with VIN | UDP | 不可达（同上） | **G-DOIP-2** |
+| 0x0004 | Vehicle Announcement / Identification Response | UDP | 不可达（同上） | **G-DOIP-2** |
+| 0x0005 | Routing Activation Request | TCP | 可达（`layer_gen.go:123-126`） | **`doip_tcp_activation_basic`/`doip_tcp_activation_confirmation`/`doip_tcp_activation_oem_varlen`** |
+| 0x0006 | Routing Activation Response | TCP | 部分可达：RC=0x10 与 0x11+确认可达；RC=0x00–0x07、0x11 无确认被 `layer_gen.go:297-306` 拒 | **`doip_tcp_activation_basic`/`doip_tcp_activation_confirmation`** 已覆；拒绝码 → **G-DOIP-3** |
+| 0x0007 | Alive Check Request | TCP | 可达（down，`layer_gen.go:224-227`） | **`doip_tcp_alive_check`** |
+| 0x0008 | Alive Check Response | TCP | 可达（up，`layer_gen.go:228-236`） | **`doip_tcp_alive_check`** |
+| 0x4001 | DoIP Entity Status Request | UDP | 不可达（`layer_gen.go:65-67` 拒 `entity_status`） | **G-DOIP-2** |
+| 0x4002 | DoIP Entity Status Response | UDP | 不可达（同上） | **G-DOIP-2** |
+| 0x4003 | Diagnostic Power Mode Request | UDP | 不可达（`layer_gen.go:68-70` 拒 `power_mode`） | **G-DOIP-2** |
+| 0x4004 | Diagnostic Power Mode Response | UDP | 不可达（同上） | **G-DOIP-2** |
+| 0x8001 | Diagnostic Message | TCP | 可达（`layer_gen.go:198-201`，含 0x36 协议级分段 `:177-194`） | **`doip_tcp_diag_uds_session_control`…`doip_tcp_diag_nack`** |
+| 0x8002 | Diagnostic Message Ack | TCP | 可达（`NackCode==nil` 分支 `:205-208`） | **`doip_tcp_diag_ack`** |
+| 0x8003 | Diagnostic Message Nack | TCP | 可达（`NackCode!=nil` 分支 `:209-212`，值域 0x02–0x08） | **`doip_tcp_diag_nack`** |
+
+### §12.3 子表②：数据形态变体表（协议相关全部形态逐项）
+
+| # | 形态 | 规范依据 | 现状/覆盖 | 去向 |
+|---|---|---|---|---|
+| R1 | 协议版本双态 V1(0x01)/V2(0x02) | §1.3/§8.1 | `types.go:31/34`，`doip.go:43-49` | 已覆（`doip_tcp_activation_basic`/`doip_tcp_activation_v1`） |
+| R2 | InverseProtocolVersion = ~PV & 0xFF，不匹配拒 | §2.1/§8.1 | `types.go:133`；解析侧 `parser.go:31-34` | 已覆（`doip_tcp_activation_basic` frames + N-负例不可达→装配期自检） |
+| R3 | 0x0004 公告 payload 33B(V2)/32B(V1) | §2.7 | `doip.go:887-889` | **G-DOIP-2**（UDP） |
+| R4 | OEM-specific 变长 0B/4B/255B | §2.8/§2.9（H1 修复） | `doip.go:904-926` | 已覆（`doip_tcp_activation_oem_varlen`） |
+| R5 | ResponseCode 合法值域 0x00–0x07/0x10/0x11 校验 | §2.9/§8.2 | `doip.go:129-133` | 已覆（`doip_neg_response_code_reserved`） |
+| R6 | ResponseCode 拒绝码 0x00–0x07 **发出** | §4.3/§9.2 | 链上拒（`layer_gen.go:148-150`） | **G-DOIP-3** |
+| R7 | 0x11 二次确认四包序 | §4.3 子阶段 | `doip.go:624-631`；`layer_gen.go:134-145` | 已覆（`doip_tcp_activation_confirmation`） |
+| R8 | 0x11 二次确认被拒（最终 RC=0x05） | §4.3 子阶段 4' | **schema 不可表达**（`doip.go:618-623`） | **G-DOIP-4** |
+| R9 | ActivationType 值域 0x00/0x01/0xE0–0xFF | §2.8/§8.2 | `doip.go:124-128` | 已覆（`doip_neg_activation_type_reserved`） |
+| R10 | 0x8003 NackCode 0x02–0x08 七值 | §2.15/§8.2 | `doip.go:163-168` | 已覆（`doip_tcp_diag_nack`） |
+| R11 | 0x8002 AckCode 唯一 0x00 | §2.14/§8.2 | `doip.go:160-162` | 已覆（`doip_tcp_diag_ack` + `doip_neg_ack_code_reserved`） |
+| R12 | 0x0000 GenericNack NackCode 0x00–0x04 | §2.3/§8.2 | `doip.go:216-220` | 已覆（`doip_tcp_generic_nack`/`doip_neg_generic_nack_code_reserved`） |
+| R13 | UDS NRC 0x01–0x7F；0x00/0x80–0xFF 拒 | §2.16/§8.2（H6） | `doip.go:252-257` | 已覆（`doip_neg_uds_nrc_reserved`） |
+| R14 | UDS SID 表 10 值 | §2.16/§8.2 | `doip.go:236-242` | 已覆（`doip_tcp_diag_uds_session_control`…`doip_tcp_diag_nack`/`doip_neg_uds_sid_unsupported`） |
+| R15 | HasSubFunction 三态（nil/true/false） | §8.4（M8） | `doip.go:244-250`；序列化 `doip.go:974-997` | 已覆（`doip_tcp_diag_uds_read_write_did`/`doip_neg_uds_subfunction_conflict`） |
+| R16 | 0x27 奇偶 seed/key 四形 | §8.4（H3） | `doip.go:259-265`；序列化 `doip.go:1015-1026` | 已覆（`doip_tcp_diag_uds_security_access`） |
+| R17 | 0x36 BlockSeq n%256 回绕 | §8.4（M3） | `doip.go:689-701`；`layer_gen.go:183-193` | 已覆（`doip_tcp_diag_uds_transfer`） |
+| R18 | 0x36 协议级分段阈值 MSS-40 / 块长 MSS-42 | §5.2/§6.10 | `doip.go:683-687`；`layer_gen.go:177-181` | 已覆（`doip_tcp_diag_uds_transfer`） |
+| R19 | VIN 17B / EID 6B / GID 6B 长度边界 | §8.5 | `doip.go:79-87`——**校验嵌在 `Discovery != nil` 块内（`:62-88`）**，生成器 `layer_gen.go` 全文件不读这三键（实读 grep 零命中） | 明确不解决（UDP 面删键后该校验**永不可达**；三键随 §15.3 从层 config 删除，§1.12） |
+| R20 | EID 从 `spec.DstMAC` 派生四形（显式/有效/空/非法） | §3.2/§6.13.1-4 | `doip.go:321-331`（跨层读 `spec.DstMAC`）；EID 只服务 0x0004 公告 | **G-DOIP-7**（目标形状下无宿主，随 UDP 面出链；恢复 UDP 时需重裁定） |
+| R21 | Direction 三态 + 大小写不敏感 | §1.6/§8.6 | `types.go:205-214`；`doip.go:65/94/109/121/157/207` | 已覆（`doip_neg_direction_invalid_activation`/`doip_neg_direction_invalid_messages`/`doip_neg_direction_invalid_alive` + `doip_tcp_activation_basic`/`doip_tcp_alive_check` 的空值与大小写面） |
+| R22 | 地址族对称 IPv4/IPv6 | §3.3/§9.4 | `types.go:164-176`；`doip.go:313` | 已覆（`doip_ipv6_tcp_flow`） |
+| R23 | 广播/组播地址与 MAC（UDP 面） | §3.3 | `doip.go:473-482`/`:554-563` | **G-DOIP-2** |
+| R24 | EntityStatus.MaxDataSize 约束 0x8001 长度 | §8.5 | `doip.go:196-200` | 明确不解决（宿主键随 G-DOIP-2 移出，§1.12 要求用例删键） |
+| R25 | PayloadLength u32 理论上限 4GB-1 | §6.13.7/8 | `doip.go:192-194` | 明确不解决（实际不可达；以边界负例替代） |
+| R26 | MSS 档位（0 → 回退 1460；<536 拒） | §5.2（H5） | `doip.go:227-229`；`layer_gen.go:91-94` | 已覆（`doip_neg_v1_oem`/`doip_tcp_diag_uds_transfer`） |
+| R27 | TTL / DSCP / IP-ID 逐包推进 | §3.2 | `doip.go:292-295`、`:305-310` | 已覆（`doip_tcp_full_flow` frames） |
+| R28 | TCP seq/ack 单调（帧长推进发送方 seq） | §6.15 | `doip.go:411-417` | 已覆（链上归 tcp 层，`doip_tcp_full_flow`） |
+| R29 | 零长 payload 型（链上可达者：0x0007） | §2.10 | `layer_gen.go:225` | 已覆（`doip_tcp_alive_check`） |
+| R30 | UDS 0x34 参数形（dataFormatId/addrLenFmt/addr/size） | §10.1 附录 B | 序列化 `doip.go:1034-1037` | 已覆（`doip_tcp_diag_uds_transfer`） |
+
+**台账粒度声明（防误读）**：§18.4 的 54 点 = 八项 8 行 + 子表① 16 格 + 子表② 30 行；每行/格只计 1 点，行内子面缺口另登 §19，不折进 54 点、也不冒充覆盖。
+
+---
+
+## §13. 三路对照（§4.12–4.15）、子表③（§4.16）与候选方案对比（§4.17）
+
+### §13.1 三路对照
+
+| 路 | 出处（可复跑证据） | 定什么 | 本协议结论 |
+|---|---|---|---|
+| ① 规范原文（§4.12） | ISO 13400-2:2019 §7（载体）、§8.4.1（0x0000 NackCode）、§8.5.1（公告 ×3 / 500ms±100ms）、§8.5.3（FurtherActionRequired）、§8.5.5（VIN/GID SyncStatus）、§9.2.4（0x0005 与 ActivationType）、§9.3.6（0x0006 ResponseCode）、§10.3.2（SA/TA 一致性）、§10.4.3/§10.4.5（0x8002/0x8003 无长度字段）、§11.1（0x4002）、§11.2.2（0x4004） | 「必须是什么」 | 本文 §2 的 16 型表、值域表、默认值表即规范落点；**本机无 ISO 原文电子版**，全部引用转自本文 v2.0.x 既有条目（原审计已与 scapy/tshark 交叉核对）——本文不新增未核对的 ISO 章节断言 |
+| ② 现网行为（§4.13） | **无实测证据**：未抓诊断仪/车辆网关现网包，本机无厂商文档 | 「现网真跑成什么样」 | **待确认（G-DOIP-9）**。确认方式三选一已写死：**（a）** 抓一次实车/台架诊断会话（`tcpdump -i <iface> -w doip.pcap 'tcp port 13400 or udp port 13400'`，需一次完整「插枪→发现→激活→读 DID」），或 **（b）** 查任一 OEM 诊断规范（如 VW/Audi ODIS、ISO 13400-2 Annex 诊断仪厂商手册）的 DoIP 章节，或 **（c）** 问诊断仪工具厂。**未取得前，本节不写现网定论** |
+| ③ 可靠开源实现（§4.14） | scapy **2.7.0**，本机实测路径 `/usr/local/lib/python3.9/site-packages/scapy/contrib/automotive/doip.py`（525 行，`import scapy; scapy.VERSION` 实测 `2.7.0`） | 「别人已验证过的走法」 | 关键行逐条核对：PayloadType 表 `:104-122`（16 型，与本文 §2.2 逐值一致）；`protocol_version` 枚举 `:123-127`（0x01/0x02/0x03/0x04，本文只收 0x01/0x02）；`reserved_oem = XStrField(b"")` `:199`（**变长无长度前缀**——支撑本文 H1/C1 修复）；`previous_msg = XStrField(b"")` `:224`（**无 PrevDiag 长度字段**——支撑本文 v2.0.1 C1 修复）；`ack_code` 仅 `{0: "ACK"}` `:215`；`nack_code` `:217-223`（0x02–0x08 + 0x00/0x01 Reserved）；`routing_activation_response` `:180-196`（0x00–0x07 拒绝、**0x10 Success**、0x11 需确认——支撑 C1 整体偏移修复）；`diagnostic_power_mode` `:201-203`（0/1/2，支撑 H4）；`node_type` `:204-206`（0/1）。**scapy 偏差登记**：`:172-175` 的 `activation_type` 枚举含 `0x16/0x116/0xe016` 三项非 ISO 值（仅注释文本，非线格式）——只借鉴思路，不搬运 |
+| ④ tshark dissector（补充路，§14.9） | TShark **3.6.14**，`tshark -G fields \| awk -F'\t' '$3 ~ /^doip[.]/' \| wc -l` **实测 = 33** | 「解析器认什么字段」 | 33 个 `doip.*` 字段全列（实测）：`version/inverse/type/length/nack_code/vin/logical_address/logical_address_name/eid/gid/futher_action/sync_status/power_mode/node_type/max_sockets/sockets/max_data_size/source_address/source_address_name/target_address/target_address_name/activation_type_v1/activation_type/tester_logical_address/tester_logical_address_name/response_code/reserved_iso/reserved_oem/data/diag_ack_code/diag_nack_code/previous/illegal_length_field`。**注意**：dissector 把 FurtherActionRequired 拼成 `doip.futher_action`（拼写缺 `r`）——用例锚词必须照此拼，不自创 |
+
+**三路一致性（§4.15）**：① 与 ③ 在 16 型表、ResponseCode(0x10 Success)、NackCode(0x02–0x08)、PowerMode(0x00–0x02)、NodeType(0x00/0x01)、OEM/PrevDiag 变长六处**逐值一致**；④ 与 ①/③ 在字段名与宽度上一致（`doip.version=0x02`/`doip.inverse=0xfd`/`doip.type`/`doip.length` 逐包可校验）。② 缺证据 → 按 §4.15「以规范为底线」，设计取 ①/③ 交集，② 项一律登记 **G-DOIP-9** 待确认，**不写成定论**。
+
+### §13.2 子表③：现网行为 → 用例映射表（§4.16）
+
+| # | 现网行为项 | 产品名 + 版本 + 出处 | 映射用例 | 状态 |
+|---|---|---|---|---|
+| B1 | 诊断仪上电后广播/组播发现车辆 | **无证据**（未见文档/抓包） | — | **待确认（G-DOIP-9）**，确认方式见 §13.1 路② |
+| B2 | 车辆 ECU 周期公告（×3，500ms±100ms） | **无证据** | — | **待确认（G-DOIP-9）** |
+| B3 | 激活成功后同一 TCP 连接上多轮 UDS 交互 | **无证据**（结构由 ①/③ 支撑，时长/并发数无实测） | `doip_tcp_full_flow` | 结构已覆；现网参数待确认 |
+| B4 | 安全访问 0x27 先取 seed 再送 key（两轮） | **无证据** | `doip_tcp_diag_uds_security_access` | 结构已覆；现网参数待确认 |
+| B5 | 刷写 0x34→0x36×N→0x37 多块传输 | **无证据** | `doip_tcp_diag_uds_transfer` | 结构已覆；现网块长待确认 |
+| B6 | ECU 主动 0x0007 探活、Tester 回 0x0008 | **无证据** | `doip_tcp_alive_check` | 结构已覆 |
+| B7 | 激活被拒后连接关闭（不再发诊断） | **无证据** | — | **待确认（G-DOIP-9）** + 链上不可达（G-DOIP-3） |
+
+**无映射即缺口的处置**：B1/B2/B7 三项无证据且无法映射 → 按 §4.16 记 **G-DOIP-9**（确认方式已写清三选一），**不标已覆盖**。
+
+### §13.3 候选方案对比（§4.17）
+
+| 方案 | 走法 | 借鉴来源 | 优势 | 劣势 | 对性能/复杂度/兼容性影响 | 结论 |
+|---|---|---|---|---|---|---|
+| **A. 单层 + 单载体（TCP-only）** | doip 层注册为 tcp-only 终结层（`DependsOn ["tcp"]`、`TransportOn ["tcp"]`），只产 TCP 阶段事件；UDP 三阶段不迁入层 config | 现网 P4a 先例（enip 拒 UDP IOData `layer_gen.go:61-74`、hl7 tcp-only 判定 `complete.go:447-460`） | 与现链框架零冲突；握手/seq/挥手复用 tcp 层（少一份 TCP 实现，无重复分包风险）；内存/速率由既有 pacer 与 tcp 层统一管 | **丢 ISO 的 UDP 半边**（发现/状态/电源 8 型不可生成）——诊断仪「先发现再激活」的完整流程无法复刻；激活拒绝路径同样不可达 | 复杂度最低（单载体单连接）；性能与 gbt32960/mcp 同档；兼容性 = 与 ISO 部分不兼容（需 G-DOIP-2 收口） | **选中**（今天唯一可达形态），UDP 面立项 **G-DOIP-2** |
+| **B. 单层 + 双载体（同策略内 TCP+UDP 两条流）** | 一个 doip 层在同一策略内产 TCP 流 + UDP 子流，FlowID 后缀区分（本文 §5.1 `:udp:disc`/`:tcp:act`…） | **legacy 自身实现**：`doip.go:454-574` 已按此产出（UDP 三流 + TCP 流，`groupIDMeta` `:843-850` 绑同 worker）；scapy 的 `DoIPSocket`（TCP）与 `L3RawSocket`+UDP 双路示例 `doip.py:95-100` | 完整覆盖 ISO 16 型；legacy 已有可复用产出逻辑与 FlowID/GroupID 方案；诊断仪真实流程一致 | **链框架无「一个策略内混合载体」表达**：终结层唯一（`complete.go:395-441`）+ 传输层唯一（`:443-484`）双重判死；需改框架完成式补全与事件驱动两处（跨协议影响面大） | 复杂度高（框架级变更，影响全部 123 层）；性能需新增 UDP 子流调度；兼容性最好（与 ISO 全对齐） | **候选**（G-DOIP-2 的解决路径之一，须主线程裁定框架扩展，车道不得自改） |
+| **C. 两个终结层（`doip` + `doip_udp`）** | 拆两个注册层，各自单载体 | 无先例（全仓库 123 层无「同协议双终结层」先例） | 不改框架 | 与 §1「层链唯一真相」冲突（同一协议两份形状）；`DependsOn`/`FieldContract`/schema 三处重复维护，双头风险 | 复杂度中；兼容性差（用户需知两条链） | **否决**（§7.7 禁双头；本文 §9.4 单点真相） |
+| **D. 保留 flat 顶层 `doip` 子映射承载 UDP 面** | TCP 走链、UDP 走 flat | 无（正是 §1.4/§1.5 明令禁止的混用） | 改动最小 | 违反 §1.4「禁止 layers 与顶层协议子映射混用」、§1.11 白名单（`doip` 不在结构性键内）；门 2① 直接红 | — | **否决**（违核心记忆，非技术取舍） |
+
+**取舍理由（§4.15）**：规范要求 UDP；框架今天只表达单载体。设计取**方案 A 为今天唯一可达形态**（目标形状纯 layers 且门 2 可绿），同时**不把 UDP 判死**——按 §4.17 与 §5.5 记 **G-DOIP-2** 立项，确认方式=主线程裁定框架扩展（方案 B 路径），未裁定前用例配置**必须删掉** `discovery`/`entity_status`/`power_mode` 三键（§1.12「明确不解决」语义）。
+
+### §13.4 裁定 D-DOIP-1：依赖建模与链形（逐条先证，再给结论）
+
+| 证据 | 行号（实读） | 内容 |
+|---|---|---|
+| 注册现状 | `registry.go:224-226` | `Name: "doip"`、`Category: CategoryTerminal`、`DependsOn ["tcp"]`；**无 `TransportOn`、无 `OptionalOn`、无 `Fields`** |
+| 生成表现状 | `schemas/v1/generated/layers.generated.json`（123 层，`layers` 为 map） | `doip` 条目 = `{"category":"terminal","depends_on":["tcp"],"fields":{}}`（`fields` 空） |
+| 终结层唯一（V2） | `complete.go:395-441`（判死在 `:441`） | `terminalCount > 1` → `terminal layer %q duplicated` |
+| 变换器豁免（0c355be 后） | `complete.go:406-418`（`dependedOn`）、`:423`（豁免条件） | 豁免要求 `schema.TransformEvents && i < len(chain)-1 && dependedOn(...)`；`dependedOn` 现同时认 `DependsOn` 与 `OptionalOn`。**doip 无 `TransformEvents`，且无任何层 `DependsOn`/`OptionalOn` 含 `doip`** → 不适用 |
+| 传输层唯一（V3） | `complete.go:443-484` | `transportCount > 1` → 重复；tcp-only 判定（`TransportOn` 空时按 `DependsOn` 含 tcp 且不含 udp 推）→ 用户显式 `udp` 时报 `carrier` 锚词错误 |
+| 依赖顺序（V8） | `complete.go:485-500` | 每层 `DependsOn` 必须在其外层出现；`TransportOn` 可替代默认传输层 |
+| 载体替代语义 | `schema.go:76-82` | `TransportOn` = 本层可坐的传输层，首个为默认（须与 `DependsOn[0]` 一致） |
+
+**裁定**：目标链形 **`[ip, tcp, doip]`**（IPv6：`[ipv6, tcp, doip]`）；依赖声明 **`DependsOn ["tcp"]`（单值）+ `TransportOn ["tcp"]`（只放 L4）**，不设 `OptionalOn`、不设 `TransformEvents`。理由：doip 是 TCP 终结层、单载体，`TransportOn ["tcp"]` 把「只坐 TCP」写进 schema（`complete.go:447-460` 的 tcp-only 判定已能按缺省推出同结论，但显式声明是 hl7 先例的书面形状，见 `complete.go:447-450` 注释引 D-HL7-1 裁定2）；`DependsOn` 保持单值（多值会与 V8 顺序检查和 `TransportOn` 替代逻辑打架）。**`TransportOn` 多值（如 `["tcp","udp"]`）在本设计不取**——一旦声明 udp 可坐，`[ip,udp,doip]` 不再报 `carrier`，而生成器仍会拒 `discovery` 等键，错误锚词漂移且与「layer 只能表达 TCP 面」的现状矛盾。
+
+## §14. 门1 §1–§14 十四行对照表（CORE_MEMORY §15.1–15.3）
+
+> 证据三选一（§15.2）：文档章节 / 代码行 / 用例号。写不出 = 缺口立项，不许空着。§1/§3/§12 三行按 §15.3 强制展开（§14.1/§14.3/§14.12）。
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 见 §14.1 强制展开：旧键逐个写去向（`src_ip`→`ip.src` 等 6 键）；顶层 `doip` 子映射 → `layers[]` 的 `doip` 条目（**今天无住处，G-DOIP-1**）；数量走 `flow_control`；目标形状纯 layers `spec_json` 样例见 §14.1；非负例顶层键=0 的收官自查见 §14-P2 | 本契约 §14.1 + §18.2 改写清单 |
+| §2 策略/任务 | 策略 = 单 doip 流量模板，自带 `flow_control`（flows/bps/time）；任务 = 多策略合跑 + 总量封顶（框架语义未动，`doip` 不在 `worker`/`task` 特判名单内） | `internal/core/worker.go:294-320`（flowCount/封顶/逐流解析）；本契约 §14.12 |
+| §3 五件套 | 见 §14.3 强制展开：会话表 / 事务序列 / 关联关系 / 插入位置 / 时间线。**有长连接载体（TCP 13400 单连接承载多轮 UDS），不豁免** | 本契约 §14.3 + 用例 `doip_tcp_full_flow` |
+| §4 查规范 | ISO 13400-2:2019（§7/§8.4.1/§8.5.1/§8.5.3/§8.5.5/§9.2.4/§9.3.6/§10.3.2/§10.4.3/§10.4.5/§11.1/§11.2.2）+ UDS ISO 14229-1；三路对照 §13.1（scapy 2.7.0 实读行号 + tshark 3.6.14 实测 33 字段）；八项矩阵 §12.1 + 子表①② §12.2/§12.3 | 本契约 §12/§13 |
+| §5 依赖与错误 | 依赖声明 = `DependsOn ["tcp"]`（单值）+ `TransportOn ["tcp"]`（只放 L4），裁定见 §13.4；错误分支：值域校验 `doip.go:26-232`、链级拒绝 `layer_gen.go:148-150/297-306`、carrier 冲突 `complete.go:447-460`；无凭空字段（① 与 ③ 逐值核对，§13.1） | 本契约 §12.1/§13.4 + §15.5 |
+| §6 性能 | 见 §16「性能设计与验收」（6.1–6.8 要素）：声明式事件流 O(1) 内存、无全量聚合；pcap/NIC 双路验收；吞吐/并发/内存目标标「待 `doip_tcp_diag_uds_session_control` 基准」（§6.5 不许写承诺数字） | 本契约 §16 |
+| §7 三份文档 | `05-doip-design.md` + `05-doip-testcase.md`（per-protocol 草稿层，§7.4）+ D-DOIP-1（本契约 §15，门1 获批=定稿）+ T-DOIP（testcase §2）+ generated schema（`doip_tcp_diag_uds_session_control` 重跑，主线程） | 修订记录 + §15 |
+| §8 设计先行 | `doip_tcp_activation_basic`–`doip_tcp_activation_oem_varlen`（本契约 §12–§14）先于 `doip_tcp_diag_uds_session_control` 实现；门1 获批 = D-DOIP-1 定稿 = 开工门（§8.9） | 提交序 |
+| §9 测试三源 | 三源 = ISO 13400-2/UDS 条款（本文 §2/§4/§8）+ D-DOIP-1（§15）+ 已确认现网行为（**无证据 → G-DOIP-9 待确认，不冒充第三源**）；T-DOIP 41 ID 逐项回指；存量 115 例审计去向下 §18 | `05-doip-testcase.md` §2/§8 |
+| §10 评审闭环 | 每阶段对抗自重审（结论入 p123 报告）+ 收官隔离复审 + 修轮；红先绿后（§9.7） | `/tmp/pipe/57-doip/p123-report.md` |
+| §11 白话 | 每阶段先行一句白话结论 | 汇报 |
+| §12 动态清单 | 见 §14.12 强制展开：四元组 = `ip`/`tcp` 层（五策略全支持，allowlist `layer_dyn.go:18-63`）；业务字段**逐个列开/不开 + 理由**；序号算法实读行号（`tuple_generator.go:194-236`/`worker.go:300-309`） | 本契约 §14.12 |
+| §13 schema 派生 | `doip` 已在 `registry.go:224-226` 注册（层数 123 已含 doip，**不新增层**）；但 `fields` 为空 → 目标形状须补 `Fields` 并**重跑 schemagen**（`TestLayersGeneratedMatchesRegistry` 会红，§13.19）；struct 标签字面量锁定（§13.13）；`allowedProtocols` 已有 `"doip": true`（`internal/core/protocols.go:29`） | 本契约 §15.1 接线件 |
+| §14 真实流程 | suite 经 MCP 建任务 → 引擎真实生成 → tshark `doip.*`（33 字段实测）逐字段校对 + frames hex 双通道；先跑后钉（§14.20/§9.31）；pcap 落 `/tmp/mcp-pcaps/doip/` | testcase §6 |
+
+### §14.1 §1 强制展开：旧键逐个去向 + 纯 layers 目标形状 spec_json 样例
+
+**现状（实读）**：`cases/doip.json` 115 例的 `spec_json` 顶层键分布 —— `src_ip` 115、`dst_ip` 115、`src_port` 115、`doip` 115、`dst_mac` 3、`tcp` 2、`count` 0；其中 46 例已带 `layers`（但**同时**带顶层 `src_ip`/`dst_ip`/`src_port`/`doip` → 仍是 §1.4 混用形）。
+
+| 旧键 | 出现例数 | 去向 | 落点 |
+|---|---|---|---|
+| `src_ip` | 115 | 迁 `ip` 层 `src` | `layers[i].ip.src` |
+| `dst_ip` | 115 | 迁 `ip` 层 `dst` | `layers[i].ip.dst` |
+| `src_port` | 115 | 迁 `tcp` 层 `src_port` | `layers[i].tcp.src_port` |
+| `dst_port` | 0（未出现） | 迁 `tcp` 层 `dst_port`（默认 13400 由 `chain_planner.go:1038-1041` 补） | `layers[i].tcp.dst_port` |
+| `count` | 0（未出现） | 删；数量走 `flow_control.flows`（§1.3） | 顶层 `flow_control` |
+| `dst_mac` | 3 | 迁 `eth` 层 `dst_mac`（allowlist `layer_dyn.go:22` 已含 `eth.dst_mac`） | `layers[i].eth.dst_mac`；其下游的 EID 派生已死 → **G-DOIP-7** |
+| `tcp`（顶层子映射） | 2 | 迁 `tcp` 层 `mss`/`termination` | `layers[i].tcp.mss` / `.termination` |
+| `doip`（顶层子映射） | 115 | 迁 `layers[]` 的 `doip` 条目；层内**七键**（§15.3，去 `src_ip`/`dst_ip`/`src_port` 三键 + 不迁 UDP 三键 + 去死配置 `vin`/`eid`/`gid`） | **今天无住处 → G-DOIP-1**（`registry.go:224-226` 无 `Fields`；`chain_planner_translate.go:743-745` `len(s.Fields)==0` 直接 return；`complete.go:282-296` 对未知键报 `unknown field`） |
+| `discovery`/`entity_status`/`power_mode`（`doip` 子键） | 47 例含 | **不迁入层**；用例配置里删键（§1.12「明确不解决」） | **G-DOIP-2** |
+| `vin`/`eid`/`gid`（`doip` 子键） | 15/12 例含 | **不迁入层**（死配置：校验嵌在已删的 `Discovery != nil` 块，生成器零读取）；用例删键 | **G-DOIP-7** |
+
+**目标形状（纯 layers）spec_json 样例 —— 今日跑不通，需先补代码（§1.9 + G-DOIP-1）**：
+
+```json
+{
+  "layers": [
+    {"ip": {"src": "192.168.1.100", "dst": "192.168.1.200"}},
+    {"tcp": {"src_port": 40000, "dst_port": 13400, "mss": 1460, "handshake": true, "termination": true}},
+    {"doip": {
+      "protocol_version": 2,
+      "tester_address": 3712,
+      "logical_address": 1,
+      "activation": {"direction": "up", "activation_type": 0, "response_code": 16},
+      "messages": [{"direction": "up", "uds": {"service_id": 16, "sub_function": 3}}],
+      "alive_check": {"direction": "down"}
+    }}
+  ],
+  "flow_control": {"flows": 1}
+}
+```
+
+（`tester_address: 3712` = `0x0E80`；`response_code: 16` = `0x10` Success；`service_id: 16` = UDS `0x10`。多流时 `ip.src`/`tcp.src_port` 写动态对象，见 §14.12。）
+
+### §14.3 §3 强制展开：五件套（会话表 / 事务序列 / 关联关系 / 插入位置 / 时间线）
+
+**会话表**（§3.1/§3.2 每会话独立 ID、独立四元组、独立生命周期）：
+
+| 会话 ID | 载体 | 四元组（目标形状落点） | 生命周期 |
+|---|---|---|---|
+| `s1:tcp` | TCP 13400 | `ip.src`=Tester、`ip.dst`=ECU、`tcp.src_port`=Tester ephemeral、`tcp.dst_port`=13400 | SYN → 0x0005/0x0006 → 0x8001/0x8002/0x8003 ×N → 0x0007/0x0008 → FIN/FIN-ACK/ACK |
+| `s2:tcp`（多 ECU，可选） | TCP 13400（独立 4-tuple，独立 ECU 逻辑地址） | 独立 `ip.dst` + 独立 `tcp.src_port`（**必须与 s1 拉开间隔，§9.37**） | 同上，与 s1 并发 |
+| `s3:udp:*`（**今天不可达**） | UDP 13400 | `ip.dst`=广播/单播、`udp.src_port`/`udp.dst_port` | 发现/状态/电源三类单报文往返；**G-DOIP-2** |
+
+**事务序列**（§3.3/§3.4–3.7 每事务写全前置/触发/成功/失败四件事）：
+
+| 事务 | 前置条件 | 触发动作 | 成功分支 | 失败分支 |
+|---|---|---|---|---|
+| `t1` 路由激活 | TCP 三次握手完成（tcp 层） | 0x0005（SA=0x0E80, AT） | 收到 0x0006 RC=0x10 → 进 `t2`；RC=0x11 → 进 `t1'` | RC 0x00–0x07：**链上判错拒绝**（`layer_gen.go:297-306`，锚词 `activation failed`）；ISO 语义为 ECU FIN 关连 → **G-DOIP-3** |
+| `t1'` 二次确认 | 收到 RC=0x11 且 `ConfirmationRequired=true` | 重发 0x0005 | 收到 0x0006 RC=0x10 → 进 `t2` | 最终 RC=0x05（Rejected Confirmation）：**schema 不可表达 → G-DOIP-4**（`doip.go:618-623`） |
+| `t2..tn` 诊断事务（N 轮，同一 TCP 连接） | 激活成功 | 0x8001（SA/TA + UDS UserData，可含 0x36 分段） | 对端 0x8002 Ack（PrevDiag=被确认 UserData 副本） | `NackCode!=nil` → 对端 0x8003 Nack（NC 0x02–0x08）；UDS 层否定响应 `7F <SID> <NRC>` |
+| `tm` 探活事务（可插入任意位置） | 连接存活 | 0x0007（ECU→Tester，方向固定 down） | Tester 0x0008（SA=TesterAddress） | 超时单边：链上由 tcp 层 `termination` 表达（§6.14 的「单边不发」→ 标明确不解决） |
+| `tz` 通用 NACK（异常注入） | 激活之后 | 0x0000（NackCode 0x00–0x04，方向固定 down） | 单包 | — |
+
+**关联关系**（§3.8/§3.9/§3.10）：本协议**无「一条控制流关联多条数据/媒体流」的结构**（DoIP 的连接、逻辑地址、诊断消息全部住在**同一条 TCP 连接**上；ISO 13400-2 无 FTP 式控制/数据分离通道，0x36 大块数据仍在同一连接内）。故 §3.8 的 `driven_by{session,transaction,field}` **不适用**，理由与证据：① 16 型 PayloadType 表无一为「数据面」型（本文 §2.2）；② 代码侧无第二流产出（`doip.go` 全文件只有一条 `configChan` 与一组 FlowID 后缀，`:454-791`）；③ scapy 的 `DoIPSocket` 亦单连接（`doip.py:333`）。**多流覆盖改为**：`flows=N` 多**会话**并发（如 N 台 ECU 各一条 TCP 连接），每会话独立 4-tuple、独立逻辑地址、独立握手/序号/挥手（§3.10 的「独立 ID/四元组/握手」逐项满足）。
+
+**插入位置**：末端终结层（`layers` 数组末位 = `doip`）；其内**不再有链上层**（registry 无任何层依赖 `doip`）。0x0007 探活与 0x0000 NACK 的「插入诊断中间」在链上表现为**报文事件序列中的位置**（生成器内部顺序 `layer_gen.go:112-245`：激活 → 诊断 → 探活 → NACK），Wire 顺序由 tcp 层按事件序组装。
+
+**时间线**（§3.11/§3.12）：单会话内严格有序（激活 → 诊断 ×N → 探活 → 挥手，`layer_gen.go` 固定分支顺序）；跨会话**并发**（多 ECU 并发各一条连接，§9.23 正交维度之一）；**可交错性**：同连接内 UDS 请求-响应严格串行（0x8001 后紧跟其 0x8002/0x8003，`layer_gen.go:198-214`），不允许诊断消息与探活在同一连接内交错到「同 seq 段」；包时间戳由 worker Pacer 按 `bps` 产生（`doip.go:433` `Timestamp: time.Now()`），公告的 500ms±100ms 间隔**不由 Planner 注入**（§5.3，链上随 UDP 面一并 G-DOIP-2）。**禁止「同一模板连续重复发射」冒充编排**（§3.13）：多轮诊断必须写 `messages[]` 显式序列，探活必须写 `alive_check` 对象。
+
+---
+### §14.12 §12 强制展开：动态字段清单（逐个列开/不开 + 序号算法实读行号）
+
+**四元组（§12.2 至少覆盖，五策略全开）**——落点全在 `ip`/`tcp` 层，不在 `doip` 层：
+
+| 层.字段 | allowlist（实读） | 五策略 | 序号算法（实读行号） |
+|---|---|---|---|
+| `ip.src` | `layer_dyn.go:20` `"ip": {"src": true, "dst": true, "ttl": true}` | fixed/inc/rand/list/pattern | `ResolveIPValue` `tuple_generator.go:290`；IPv6 递增 `genIP6Inc` `:164-177`（`off = uint64(index*step) % span`）；IPv6 随机 `genIP6Rand` `:181-191`（`rand.NewSource(s.Seed + int64(index))`） |
+| `ip.dst` | 同上 | 五策略 | 同上 |
+| `tcp.src_port` | `layer_dyn.go:21` `"tcp": {"src_port": true, "dst_port": true}` | 五策略 | `genPort` `tuple_generator.go:194-236`：`fixed` `:196-197`；`list` `:198-202`（`List[index%len]`）；`inc` `:203-217`（`start + (index*step)%count`，**到尾回绕**）；`rand` `:218-228`（`rand.NewSource(s.Seed+int64(index))`，**同 seed 同 index 可复现**）；`pattern` `:229-232`（模板渲染后转数值） |
+| `tcp.dst_port` | 同上 | 五策略（诊断场景固定 13400；多 ECU 场景开 `inc` 拉开） | 同上；`ResolvePortValue` `tuple_generator.go:300` |
+
+**保底防撞（§2.8/§12.10）**：`flows>1` 且用户未显式写 `src_port` 时，worker 按 `DefaultSrcPort + i` 递增（`worker.go:300-309`；`DefaultSrcPort = 12345` `strategy_convert.go:49`）；层动态在**其后**解析并覆盖（`worker.go:311-314` 调用序）。**保底不算动态字段**，不能代替真正的动态写法。
+
+**业务字段（§12.3/§12.14 逐协议清单）**：
+
+| 业务字段 | 开/不开 | 理由（可判定，非偏好） |
+|---|---|---|
+| `doip.protocol_version` | **不开**（fixed 两档） | 版本是**链级载体属性**（V1/V2 宽度不同，混用产 malformed 报文，本文 §1.3/R1）；逐流变让同一策略内报文形状分裂。两档用两策略表达 |
+| `doip.tester_address` / `doip.logical_address` | **不开**（fixed） | 逻辑地址是**会话身份**（ISO 13400-2 §10.3.2 SA/TA 一致性硬约束，`doip.go:169-176`）：逐流变破坏「0x0005 SA ↔ 0x8001 SA / 0x0006 SLA ↔ 0x8001 TA」自洽。多 ECU 场景用**多会话/多策略**表达（每会话固定一对地址），这是 ISO 的正确用法 |
+| `doip.vin` | **不开**（fixed） | VIN 是车辆身份（17B ASCII 长度硬校验 `doip.go:79-81`）；同一 ECU 只有一个 VIN |
+| `doip.eid` / `doip.gid` | **不开**（fixed） | 实体/组标识是物理身份（通常等于 MAC）；逐流变等于伪造物理上不存在的 ECU |
+| `doip.activation.*`（AT/RC/OEM） | **不开**（fixed） | 激活是**状态机迁移**不是取值池；`ConfirmationRequired` 是布尔分支 |
+| `doip.messages[].uds.*`（SID/DID/NRC/BlockSeq…） | **不开**（fixed） | 诊断序列是**有序事务**（§3.3）：逐流改 SID 破坏「0x34→0x36→0x37」依赖链（本文 §6.10） |
+| `doip.alive_check.source_address` | **不开**（fixed） | 同逻辑地址一致性（`doip.go:210-212`） |
+| `doip.generic_nack.nack_code` | **不开**（fixed） | 头部错误码是异常注入选择器，非取值池 |
+
+**不开的总口径**：这些字段若开，**必须**先在 `layer_dyn.go` 的 `layerDynAllowlist`（`:18-63`）登记条目并在 `translateTerminalConfig` 做逐流回填；**当前 allowlist 无 `doip` 条目**（实读 `:18-63` 键为 `ip`/`tcp`/`udp`/`eth`/`http`/`tls`/`dns`/`mqtt`/`h323`/`mpls`/`ngap`/`telnet`/`sip`/`radius`），故今天**任何** `doip` 层字段写动态对象都会被 `validate_layers.go:355-370` 判 `does not support dynamic`。若现网多 ECU 场景证明需逐流地址池 → **G-DOIP-8** 立项。
+
+**序号算法代码位置（§12.16 抽查锚点）**：`tuple_generator.go:194-236`（端口五策略）+ `:164-191`（IPv6 地址 inc/rand）+ `worker.go:300-309`（保底递增）+ `layer_dyn.go:770-878`（`resolveLayerTuple` 逐流解析落 spec）。**以上全部实读，无编造**。
+
+### §14-P2 presence 负例形状（链级红例必含①）与白名单外游离键（②）
+
+| # | 负例形状 | 目标锚词 | 目标用例 |
+|---|---|---|---|
+| ① | **层链 + 顶层空子映射并存**（判死负例，非残留）：`{"layers":[{"ip":{}},{"tcp":{}},{"doip":{}}],"doip":{}}` | `no longer accepts a top-level doip sub-config` | **`doip_neg_flat_toplevel`**（**今天不成立**：`CheckProtoFlat` `strategy_convert.go:8273-8517` 无 `doip` 分支 → **G-DOIP-5**） |
+| ② | 白名单外游离键（§1.11）：顶层 `src_ip`/`dst_ip`/`src_port`/`dst_port`/`count`/`dst_mac`/`tcp` 任一 | 前五键走通用文案 `no longer accepts flat config field <k>`（`strategy_convert.go:8286-8293`）；`dst_mac`/`tcp` 无对应检查 → 同 **G-DOIP-5** 族 | **`doip_neg_flat_field`** |
+| ③ | 全部负例 `expect_error` 带错误锚词（方案 §2 链级红例清单③） | 见 testcase §4 逐行锚词 | `doip_neg_activation_denied`…`doip_neg_ack_code_reserved` |
+| ④ | 收官自查行「**非负例顶层键 = 0**」 | 程序化扫描：正例 `spec_json` 顶层键 ⊆ {`layers`,`flow_control`,`group_id`,`tuples`,`output`} | §18.5 自查命令 |
+
+## §15. D-DOIP-1 `doip_tcp_activation_confirmation` 代码设计草稿（CORE_MEMORY §8 八要素；门1 获批 = 定稿）
+
+> 全部行号为**实读**（HEAD `0c355be`）；未实读的接口/函数名不写。
+
+### §15.1 改哪几个文件（§8.1）
+
+| # | 文件 | 改动 | 归属 |
+|---|---|---|---|
+| 1 | `trafficgen/internal/core/layers/registry.go` | `doip` 注册行（`:224-226`）补 `Fields`（§15.3 七键）并把 `TransportOn` 显式写为 `["tcp"]` | **跨协议共享框架文件 → 按方案 §2 禁令停车上报主线程**（同 P4a 各协议插自有块的先例，但文件本身是共享面） |
+| 2 | `trafficgen/internal/core/layers/chain_planner_translate.go` | `translateTerminalConfig`（`:679`）新增 `case "doip"`（放置位置与 `case "mcp"` `:2300-2326` 同段），走 JSON 往返解码 `core.DoIPConfig` | 车道 B 分支内（方案 §3 明列「translate switch case」为合并冲突预期点） |
+| 3 | `trafficgen/internal/core/strategy_convert.go` | `CheckProtoFlat`（`:8273-8517`）新增 `protocol == "doip"` 顶层子映射判死分支 | 车道 B 分支内 |
+| 4 | `trafficgen/tools/coverage_gate.py` | 新增 `check_doip` 块（方案 §2 M1：出口必须 0，出口 2 视红） | 车道 B 分支内 |
+| 5 | `trafficgen/schemas/v1/generated/layers.generated.json` | schemagen 重跑产物（`doip` 条目 `fields` 由 `{}` 变为七键表） | **主线程独占**（方案 §0/§6 护栏 4：合并后统一重跑一次） |
+| — | `trafficgen/internal/protocol/doip/*.go` | **不改**（`doip.go`/`layer_gen.go`/`types.go`/`builder.go`/`parser.go` 已实现；仅「不动 UDP」等既有拒绝保持） | — |
+
+### §15.2 接口签名（§8.2）
+
+- `func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec)` — 既有签名（`chain_planner_translate.go:679`），**只加分支不加导出函数**。
+- `func CheckProtoFlat(protocol string, cfg map[string]interface{}) string` — 既有签名（`strategy_convert.go:8273`），只加分支。
+- `LayerSchema{Name, Category, DependsOn, TransportOn, Fields, …}` — 既有结构（`schema.go:69-100`）。
+- **不新增导出解析函数**：`parseDoIPConfig` 是 `strategy_convert` 包私有（`strategy_convert.go:8048`），`layers` 包不可见 → 翻译侧走 **JSON 往返**（`json.Marshal(completedConfig(...))` → `json.Unmarshal` 进 `core.DoIPConfig`），与 `case "mcp"` `:2314-2321` 同款零分叉。
+
+### §15.3 数据结构（§8.3）
+
+`doip` 层 config **七键**（= `core.DoIPConfig` `types.go:9523-9571` 的 16 键：**去掉** `src_ip`/`dst_ip`/`src_port`（地址端口归 `ip`/`tcp` 层）；**去掉** `discovery`/`entity_status`/`power_mode`（UDP 面，G-DOIP-2 不迁）；**去掉** `vin`/`eid`/`gid`（**死配置**：校验嵌在已删的 `Discovery != nil` 块 `doip.go:62-88`，生成器 `layer_gen.go` 零读取——按 §1.12「该字段根本不被消费」必须从用例配置删除，不许登记保留））：
+
+| 键 | 类型 | 缺省 | 语义 |
+|---|---|---|---|
+| `protocol_version` | int | 0 → 生成器回退 0x02（`layer_gen.go:76-79`） | V1/V2 |
+| `logical_address` | int | 0 → 0x0001（`layer_gen.go:86-89`） | ECU 逻辑地址 SLA |
+| `tester_address` | int | 0 → 0x0E80（`layer_gen.go:82-85`） | Tester 逻辑地址 SA |
+| `activation` | object | 无 | 0x0005/0x0006 阶段 |
+| `messages` | list | 无 | 0x8001/0x8002/0x8003 序列 |
+| `alive_check` | object | 无 | 0x0007/0x0008 |
+| `generic_nack` | object | 无 | 0x0000 |
+
+**缺省纪律（§13.20）**：**一律不设 `Default`** —— 零值即设计缺省（V2/0x0E80/0x0001/6B 零都已在生成器内回退，`layer_gen.go:76-94`），设 `Default` 会让 `completedConfig` 注入非零值、破坏「空层 `{}` 走 legacy 缺省」的对齐。键缺席走引擎缺省；显式 null 由调用方省略。
+
+### §15.4 主流程（§8.4）
+
+1. **形状校验**：`ValidateLayers` 逐层过 `ValidateLayerConfig`（`complete.go:282-296`：未知键 → `unknown field`）+ 动态对象门（`validate_layers.go:355-370`）。
+2. **补全**：`completedChain` → 补 `ip`（`tcp` 的 `DependsOn`）+ 补 `tcp`（`doip` 的 `DependsOn`）；用户显式写 `udp` → `complete.go:447-460` 报 `carrier`。
+3. **Spec 默认化**：`validateSpecBase`（`chain_planner.go:747-1164`）—— `doip` 分支保持 `src_port` 0 不默认化（`:815-818`）、目的端口默认 13400（`:1038-1041`）。
+4. **层 → spec 翻译**（**新增**）：`translateTerminalConfig` `case "doip"`：`spec.DoIP == nil` 时按层 config 解码（JSON 往返）；空层 `{}` 也翻译出非 nil `DoIPConfig`（validator 要求非 nil，`doip.go:39-41`）；`spec.DoIP != nil`（flat 直调）→ 早退不覆盖（mcp `:2301-2303` 同款守卫）。
+5. **层端口回填 spec**（既有，`:307-330`）：用户在 `tcp` 层显式写的 `src_port`/`dst_port` 回填，防 flowID/包序列端口分裂。
+6. **协议级校验**（既有，`chain_planner.go:301-305` → 注册表 `RegisterLayerValidator("doip", …)` `layer_gen.go:274-321`）：先 `Planner.Validate`（`doip.go:26-232`），再链级拒绝（UDP 三键 `:288-296`、激活失败 `:297-306`、`Activation==nil` 时改写 `spec.TCP.Handshake/Termination=false` `:312-319`）。
+7. **生成**：`ChainPlanner.Plan` → 终结层生成器 `DoIPGenerator.Generate`（`layer_gen.go:53-246`）经 `EmitMsg` 逐事件产出（方向 + 8B 头 + payload），`tcp` 层负责握手/seq-ack/挥手/MSS 分段；0x36 协议级分段在生成器内（`:177-194`）。
+8. **逐流**：worker `resolveLayerTuple`（`layer_dyn.go:770`）按流序号解析 `ip`/`tcp` 层动态（`worker.go:313-314`）。
+
+### §15.5 错误分支（§8.5，逐条给锚词）
+
+| # | 触发 | 锚词（原文） | 落点 |
+|---|---|---|---|
+| E1 | 层内未知键 | `layers: layer "doip": unknown field "x"` | `complete.go:282-296` |
+| E2 | 层内字段写动态对象 | `<where> does not support dynamic` | `validate_layers.go:355-370` |
+| E3 | 顶层 `doip` 子映射（`doip_tcp_diag_uds_read_write_did` 后） | `no longer accepts a top-level doip sub-config` → 文案以 `CheckProtoFlat` 新分支为准 | `strategy_convert.go:8273+`（**新增**） |
+| E4 | 顶层 `src_ip` 等旧键 | `no longer accepts flat config field src_ip` | `strategy_convert.go:8286-8293`（既有） |
+| E5 | `discovery`/`entity_status`/`power_mode` 非 nil | `doip: discovery (UDP) is not supported on the layer chain (tcp only)` | `layer_gen.go:288-296` |
+| E6 | 激活失败（RC 0x00–0x07、0x11 无确认） | `doip: activation failed (response_code 0xNN) is not supported on the layer chain (tcp layer takes over teardown)` | `layer_gen.go:297-306` |
+| E7 | `messages` 无 `activation` | `doip: Messages require Activation (diagnostic messages need routing activation first)` | `doip.go:138-140` |
+| E8 | 值域越界（RC/AT/NackCode/AckCode/NRC/SID/NodeType…） | 各字段锚词见 §2.3/§2.9/§2.15/§8.2 对应条目 | `doip.go:26-232` |
+| E9 | 显式 `udp` 载体 | `doip chain: udp carrier is not supported — doip rides tcp only (carrier)` | `complete.go:447-460` |
+| E10 | 长度越界（VIN/EID/GID） | `doip: VIN must be 17 bytes, got N` / `doip: EID must be 12 hex chars, got N` | `doip.go:79-87` |
+
+**假成功红线（§14.11/§14.12）**：驱动内「生成器报错 → 空流」契约（`layer_gen.go:280-283` 注释引 `chain_planner.go:382-386`）会把生成期错误吞成 `completed + 0 包` —— 因此**必须**在 `Validate` 同步拒绝（`layer_gen.go:274-321` 已是此设计），负例断言锚词取自 Validate 而非驱动期。
+
+### §15.6 性能边界（§8.6）
+
+| 项 | 值/依据 |
+|---|---|
+| 数据路径 | 纯事件流：`Generate` 逐事件 `EmitMsg`，无聚合、无切片累积（`layer_gen.go:97-110` 每次分配 8B 头 + payload；`chunks` 仅在 0x36 分段时按块产出，`：177-194`） |
+| 单流内存 | O(1)（除 `messages[]` 配置本身）；无 per-packet 持有 |
+| 事件量 | 1 流 = 激活 1–2 往返 + 2N 诊断事件 + 探活 1–2 + NACK 0–1；0x36 大块 = `ceil(Data / (MSS-42))` 个事件对 |
+| 速率 | 由 worker Pacer 按策略 `flow_control.bps` 统一限（不在协议层） |
+| 并发 | 会话数 = `flow_control.flows`；多会话各自独立 4-tuple，跨会话无共享状态（无锁） |
+| 待确认（§6.5） | 目标吞吐（包/秒、比特/秒）、单流最大报文、内存上限**标待确认**，`doip_tcp_diag_uds_session_control` 基准后填；不写承诺数字 |
+
+### §15.7 与现有逻辑的冲突点（§8.7）
+
+1. **双轨风险（最高）**：`mapToFlowSpec case "doip"`（`strategy_convert.go:1287-1290`）在翻译前先读顶层 `doip` 子映射填 `spec.DoIP` → 若不同批加 `CheckProtoFlat` 判死，层 config 会**静默被忽略**（`translateTerminalConfig` 的 flat 守卫早退），出现「配置写层不生效、写顶层才生效」的混搭缝（隔离复审 F1 同类）。**处置**：`CheckProtoFlat` 分支与翻译分支**同一提交**落地。
+2. **存量用例全红面**：46 例「`layers` + 顶层 `src_ip`/`dst_ip`/`src_port`/`doip` 混用」在加判死后必红；115 例全量需按 §18.2 改写清单同批处理（§14.4/§14.5）。
+3. **registry.go 是共享框架文件**：按方案 §2 禁令，车道不得自改 → 停车上报；注册行本身是 P4a 先例（各协议插自有块），但同文件的 `TransportOn` 写法变更会触发 schemagen 重跑。
+4. **schemagen 产物**：`:19` `TestLayersGeneratedMatchesRegistry` 会因 `Fields` 变化变红，必须在合并后由主线程重跑 `go run ./internal/core/layers/schemagen`（§13.19）。
+5. **协议包内既有拒绝**：`layer_gen.go:61-74`/`:288-296` 对 UDP 三键的拒绝**保留**——它是 G-DOIP-2 的现状证据，不随本次改动删除；`spec.TCP` 被 validator 改写（`:312-319`）与 `tcp` 层 config 的显式值关系需在 `doip_tcp_diag_uds_session_control` 用例中钉（Activation==nil 时校准 Handshake/Termination=false）。
+6. **与其它层无交集**：全仓库无层 `DependsOn`/`OptionalOn` 含 `doip`（`registry.go` 全文 grep 仅 `:216-226` 一处）→ 不影响 enip/gbt32960/mcp 等同族 tcp 终结层。
+
+### §15.8 回滚方式（§8.8）
+
+- **回滚单位 = 一次提交**（`registry.go` Fields+TransportOn、`chain_planner_translate.go` case、`strategy_convert.go` 判死分支、`coverage_gate.py` 块、schemagen 产物）；`git revert` 单提交即回到「层 config 无住处、顶层 flat 可用」现状，**协议包未动故 legacy 路径仍可用**。
+- 用例改写与 D/T 条目同批回退（方案 §3 门2 红回滚条款 m5：不留双头）。
+- 回滚后负例锚词回落 `unknown field`/`unknown layer` 族 → 相关负例一并回退，不留「锚词漂移的空跑负例」。
+
+---
+
+## §16. 性能设计与验收（CORE_MEMORY §6.1–6.8）
+
+| 要素 | 本协议落点 |
+|---|---|
+| 6.1 目标/预算/边界同写 | 见 §15.6：目标吞吐/内存上限/单流最大报文**标待确认**（`doip_tcp_diag_uds_session_control` 基准后填），但**结构边界已定**：单流事件量上界 = 激活 4 + 2N + 探活 2 + NACK 1；0x36 事件数 = `2 × ceil(Data/(MSS-42))` |
+| 6.2 指标列全 | 吞吐：跟 tcp 层同档（无额外分包/重组）；并发会话 = `flow_control.flows`（各独立 4-tuple）；单流最大报文 = `MSS`（`tcp.mss`，Default 1460，Min 536）；内存上限 = O(1)/流；队列上限 = 既有 `chain_planner.Plan` 通道 `256`（`chain_planner.go:1468` 同族）；CPU 并行度 = `PacketWorkers`（框架级） |
+| 6.3 两路验收 | **pcap 路**：`output_type=pcap` 落 `/tmp/mcp-pcaps/doip/`，tshark `doip.*`（33 字段）+ frames hex；**NIC 路**：`output_type=port_group` + `tcpdump -i <iface> 'tcp port 13400'`，比对 `doip.type`/`doip.length` 序列与 pcap 一致 |
+| 6.4 依据写清 | **流式**：生成器逐事件 `EmitMsg`（`layer_gen.go:97-110`），**无全量收集**；**每包新增内存** = 8B 头 + payload 长度（无额外拷贝层）；**共享状态**：无（单流内 `tcpClientSeq`/`tcpServerSeq` 由 tcp 层持有）；**锁**：无（生成器无 mutex）；**限速/多 worker**：速率由统一 Pacer 按策略 `bps` 限，多 worker 共享同一桶（框架既有语义，本协议不新增桶） |
+| 6.5 无基准不承诺 | 所有具体数字（pps/bps/内存 MB）标 **待确认**，来源=`doip_tcp_diag_uds_session_control` 实现后基准；不写进需求 |
+| 6.6 六类场景 | 基线（单会话 22 事件 `doip_tcp_full_flow`）；目标规模（N 轮诊断 + 0x36 大块 `doip_tcp_diag_uds_transfer`）；压力上限（`flows` 拉满 + `bps` 封顶）；长时间运行（多轮诊断 + 探活循环，≥10min）；并发交错（多 ECU 并发连接 `doip_tcp_multiflow_dynamic`）；资源耗尽/背压（`flow_control.bps` 收紧 + 队列积压观测，框架 `chain_planner` 通道） |
+| 6.7 断言实际量 | 断言：实际包数（`packet_count`）、实际速率（pcap 时间戳跨度算 bps）、内存（进程 RSS 前后差）、CPU、队列积压（`get_buffer_status` 类接口）、丢包/失败计数；**禁止只断言「任务没报错」** |
+| 6.8 超预算即不合格 | 若实际内存/吞吐越出 §15.6 的结构边界（如出现 O(N) 聚合）→ 设计不合格，回退重设计 |
+
+**验证方法（可直接执行）**：
+- 正向吞吐：`flowb_run_protocol_case`（`output_type=pcap`）跑 `doip_tcp_full_flow`/`doip_tcp_multiflow_dynamic`，取 `packet_count` 与 pcap 时间跨度算实测 pps/bps；
+- 内存：任务前后 `ps -o rss= -p <engine pid>` 差值；
+- 背压：把 `flow_control.bps` 调到平台下限（如 `1k`）跑 60s，观察完成时间与 `packet_count` 一致性（不丢包、不静默）。
+
+**失败边界（§6.8）**：① 出现「`completed` 但 0 包」= 红（§14.12）；② 实测 bps 与配置 `bps` 偏差 > 5% = 红（Pacer 语义框架级，不入本协议回滚面但必须登记）；③ 多 worker 下包序错乱（同一流内 DoIP 事件乱序）= 红（`_resequencer` 框架级）。
+
+---
+
+## §17. `doip_tcp_activation_oem_varlen` 测试对接清单（T-DOIP 草稿输入；正文落 `05-doip-testcase.md`）
+
+- **ID 权威**：`05-doip-testcase.md` §2（41 ID = 16 正 + 25 负，逐序）；本契约 §12/§13 的每一行/格回指到该表。
+- **§3.15 三项**（同连接多轮操作 / 非正常结束 / 长保活）逐项一例或立项 → testcase §8.1。
+- **A′/B′ 两分类表** → testcase §8.2（A′ = 现有引擎可构建的面，`doip_tcp_diag_uds_session_control` 并入；B′ = 引擎结构缺口 → §19 立项）。
+- **9.52 对账两行 + 清单出处声明** → testcase §8.3（本协议账：规范逻辑点总数 **54** vs 用例覆盖数 **39**，另不适用/明确不支持 3 + 立项 12，39+3+12=54）。
+- **3.14 豁免边界审计** → testcase §8.4（**有长连接载体，`sessions` 不豁免**；多流并发与单消息多载荷各需用例）。
+- **三源回指行** → testcase §8.5。
+- **断言通道**：`doip.*`（33 字段实测）+ frames hex（DoIP 头 8B 固定偏移：IPv4/TCP 起点 54，IPv6/TCP 起点 74）+ 载体 `ip.proto`/`ipv6.nxt`/`tcp.*`；**动态值只用** presence/nonzero/distinct/same_as（§9.34/§9.35）。
+- **未跑声明**：本次 `doip_tcp_activation_basic`–`doip_tcp_activation_oem_varlen` **不跑 suite**（不启动服务器），不宣称任何绿的结论。
+
+## §18. 存量 115 例审计去向与去扁平改写清单（§9.14 / §14.4）
+
+> 审计口径：**按族批量审计、每族点名**（逐例列名于本节），三分类 = 合入 / 等价覆盖 / 作废（含原因）。存量 = `cases/doip.json` **115 例**（实读）。
+> **前置事实**：全部 115 例的 `spec_json` 顶层都带 `src_ip`/`dst_ip`/`src_port`/`doip` 四键（旧扁平形）；其中 46 例另带 `layers`（**混用形**，§1.4 违规）。`count` 零出现，`dst_mac` 3 例，顶层 `tcp` 2 例。
+
+### §18.1 族划分与总账
+
+| 族 | 判据（实读 `spec_json.doip` 子键） | 例数 | 去向 |
+|---|---|---|---|
+| F1 UDP 单阶段 | 只含 `discovery`（22）/ 只含 `entity_status`（9）/ 只含 `power_mode`（9） | **40** | **整族作废 + G-DOIP-2 立项**（链不可达；配置按 §1.12 删键） |
+| F2 UDP+TCP 混合 | UDP 键与 `activation`/`messages` 并存 | **7** | **拆分**：UDP 段作废（G-DOIP-2）；TCP 段合入 `doip_tcp_full_flow`/`doip_tcp_multiflow_dynamic`（`maxdata_4000`/`maxdata_5000` 随 EntityStatus 删键作废） |
+| F3 激活阶段（纯 TCP） | 只有 `activation` | **22** | 成功面合入 `doip_tcp_activation_basic`/`doip_tcp_activation_v1`/`doip_tcp_activation_confirmation`/`doip_tcp_activation_oem_varlen`/`doip_tcp_options`；拒绝码面（`rc_0x01/0x04/0x05/0x07`）作废 + **G-DOIP-3**；值域负例合入 `doip_neg_activation_type_reserved`/`doip_neg_response_code_reserved` |
+| F4 诊断阶段（纯 TCP） | `activation`+`messages` | **33** | 合入 `doip_tcp_diag_uds_session_control`…`doip_tcp_diag_nack` / `doip_neg_nack_code_reserved`·`doip_neg_uds_nrc_reserved`…`doip_neg_sa_ta_consistency`·`doip_neg_ack_code_reserved`；`s11_activation_fail` 归 F3 拒绝面 |
+| F5 存活检查（纯 TCP） | `activation`+`alive_check` | **5+1** | 合入 `doip_tcp_alive_check`（`alive_mid_messages` 表插入位置） |
+| F6 通用 NACK（纯 TCP） | `activation`+`generic_nack` | **6** | 合入 `doip_tcp_generic_nack` / `doip_neg_generic_nack_code_reserved` |
+| F7 校验专用 | 只有 `messages` | **1** | 合入 `doip_neg_mss_below_min` |
+
+**合计** 40 + 7 + 22 + 33 + 6 + 6 + 1 = **115** ✓
+
+### §18.2 去扁平改写清单（逐键映射，`doip_tcp_diag_uds_read_write_did` 执行）
+
+| # | 改写动作 | 机检方式 |
+|---|---|---|
+| W1 | 顶层 `src_ip` → `layers[i].ip.src`；`dst_ip` → `layers[i].ip.dst`（**全部 115 例**） | 扫描后断言正例顶层键 ⊆ 白名单 |
+| W2 | 顶层 `src_port` → `layers[i].tcp.src_port`；`dst_port` 由 `chain_planner.go:1038-1041` 补 13400（或显式写） | 同上 |
+| W3 | 顶层 `doip` 子映射 → `layers[末].doip`（七键，§15.3）；子键去 `src_ip`/`dst_ip`/`src_port`；**UDP 三键 + 死配置 `vin`/`eid`/`gid` 删除**（62 例受影响） | 层内未知键由 `complete.go:282-296` 拒 |
+| W4 | 顶层 `dst_mac` → `layers[i].eth.dst_mac`（3 例）；**`doip.eid` 键整体删除**（死配置，§15.3）——EID 派生逻辑随 UDP 面出链，3 例的断言对象消失 → 归 F1 作废族 | 3 例名：`doip_eid_from_dstmac`/`doip_eid_invalid_mac`/`doip_eid_oversized_mac` |
+| W5 | 顶层 `tcp` 子映射 → `layers[i].tcp.mss` / `.termination`（2 例：`doip_mss_fallback`/`doip_termination_false`） | — |
+| W6 | `layers` 数组补全规范写法：`[{"ip":{}},{"tcp":{}},{"doip":{}}]`（现有 46 例写的是 `[{"tcp":{}},{"doip":{}}]`，缺 `ip` 条目，靠补全注入——改写写全） | — |
+| W7 | 负例锚词重钉：UDP 面负例（`far_*`/`sync_*`/`pm_0x03`/`entity_*`/`v1_pm`/`dir_*` 等 14 例）随键删除改钉 **G-DOIP-2 链级锚词**或整体作废 | 逐例锚词见 §18.3 |
+| W8 | `count` 键：零出现（无需迁移）；数量一律写 `flow_control.flows` | — |
+
+### §18.3 逐族点名审计（作废 / 合入 / 等价覆盖）
+
+**F1 UDP 单阶段（40 例）—— 整族作废（原因：链不可达 G-DOIP-2；配置键按 §1.12 必须删除）**
+- 发现 22：`doip_s1_discovery_broadcast`、`doip_s1_variant_request_up`、`doip_t004_eid_request`、`doip_t005_vin_request`、`doip_ipv6_discovery`、`doip_announce_1`、`doip_far_0x10`、`doip_far_0x11`(负)、`doip_far_0x20`(负)、`doip_far_0x40`(负)、`doip_sync_0x10`、`doip_sync_0x01`(负)、`doip_v1_announce_32b`、`doip_eid_from_dstmac`、`doip_eid_from_default_mac`、`doip_eid_short`(负)、`doip_vin_short`(负)、`doip_eid_invalid_mac`(负)、`doip_eid_oversized_mac`(负)、`doip_dir_upper`、`doip_dir_invalid`(负)、`doip_ipv6_v1`
+- 实体状态 9：`doip_s7_entity_status`、`doip_s7b_entity_down_default`、`doip_entity_gateway`、`doip_entity_nodetype_0x02`(负)、`doip_entity_sockets_255`、`doip_entity_cur_le_max`、`doip_entity_cur_gt_max`(负)、`doip_entity_maxdata_0`、`doip_ipv6_entity`
+- 电源模式 9：`doip_power_mode`、`doip_power_mode_response`、`doip_pm_0x00`、`doip_pm_0x02`、`doip_pm_0x03`(负)、`doip_pm_broadcast_ipv4`、`doip_pm_broadcast_ipv6`、`doip_pm_unicast`、`doip_v1_pm`(负)
+- **等价覆盖说明**：其中 9 例（`far`/`sync`/`pm`/`entity_nodetype`/`dir_invalid` 值域校验）的**校验逻辑仍在代码里**（`doip.go:61-115`），但宿主键从目标形状删除 → 无键可承载 → 归「作废」，**不冒充已覆盖**（§9.36：真实代码尚不支持某格时钉现状或立项，不许删用例也不许冒充覆盖——本处为「键被移出链」，故记作废 + 立项）。
+
+**F2 UDP+TCP 混合（7 例）—— 拆分**
+`doip_s15_full_diag_flow`、`doip_maxdata_4000`、`doip_maxdata_5000`、`doip_power_mode_after_teardown`、`doip_full_flow_22`、`doip_full_flow_22_ipv6`、`doip_s15_full_diag_flow_22`
+→ TCP 段（激活+诊断+探活+挥手）**合入 `doip_tcp_full_flow`**（IPv6 形合入 `doip_ipv6_tcp_flow`）；UDP 段作废；`maxdata_*` 两例随 `entity_status` 删键作废（R24 明确不解决）。
+
+**F3 激活阶段（22 例）**
+- **合入**（成功面）：`doip_s2_routing_activation`→`doip_tcp_activation_basic`；`doip_s2_variant_oem4b`/`doip_oem_255b`→`doip_tcp_activation_oem_varlen`；`doip_ipv6_activation`→`doip_ipv6_tcp_flow`；`doip_rc_0x11_confirm`→`doip_tcp_activation_confirmation`；`doip_at_0x01`/`doip_at_0xe0`→`doip_tcp_activation_basic`/`doip_tcp_activation_oem_varlen` 值域面；`doip_la_0x0000`/`doip_la_ffff`/`doip_ta_0x0000`→`doip_tcp_activation_basic` 地址边界面；`doip_pv_0x00`（V1 全流程）→`doip_tcp_activation_v1`；`doip_no_discovery_direct_activation`→`doip_tcp_activation_basic`；`doip_termination_false`→`doip_tcp_options`。
+- **作废（原因：激活拒绝路径链不可达，G-DOIP-3）**：`doip_rc_0x01`、`doip_rc_0x04`、`doip_rc_0x05`、`doip_rc_0x07`（旧断言=发出 RC 拒绝应答；链上该配置直接判错）。**替代覆盖**：新增负例 **`doip_neg_activation_denied`**（钉现状：RC=0x01 → 锚词 `activation failed`）——记「等价覆盖（改判负例）」而非单纯作废。
+- **合入（值域负例）**：`doip_rc_0x12`→`doip_neg_response_code_reserved`；`doip_at_0x02`→`doip_neg_activation_type_reserved`；`doip_v1_oem`→`doip_neg_direction_invalid_activation`。
+- **等价覆盖**：`doip_pv_0x03`/`doip_pv_0xff` → `doip_neg_response_code_reserved` 同族（协议版本值域）→ 并入 **`doip_neg_response_code_reserved`**（同族负例合并，指名去重）。
+
+**F4 诊断阶段（33 例）**
+- **合入**：`doip_s3_diag_uds10`→`doip_tcp_diag_uds_session_control`；`doip_uds_3e_tester_present`→`doip_tcp_diag_uds_session_control`；`doip_uds_22_response_sid`→`doip_tcp_diag_uds_read_write_did`；`doip_uds_27_*`（seed/send_key/odd/even）→`doip_tcp_diag_uds_security_access`；`doip_uds_blockseq_wrap`/`doip_s10_big_transfer`/`doip_big_transfer_segmented`→`doip_tcp_diag_uds_transfer`；`doip_s4_diag_nack`/`doip_nack_0x03/0x04/0x06`→`doip_tcp_diag_nack`；`doip_userdata_empty`→`doip_tcp_diag_uds_session_control`；`doip_sa_consistent`/`doip_sa_zero_boundary`/`doip_ta_ffff_boundary`→`doip_tcp_diag_uds_session_control` 地址面；`doip_mss_fallback`→`doip_tcp_diag_uds_transfer`/`doip_tcp_options`；`doip_uds_nrc`/`doip_uds_nrc_0x7f`/`doip_uds_nrc_0x00`→`doip_tcp_diag_uds_session_control`/`doip_neg_uds_nrc_reserved`；`doip_uds_10_nosubfunc_false`→`doip_tcp_diag_uds_read_write_did`。
+- **合入（负例）**：`doip_uds_27_even_response_key`→**`doip_neg_uds_key_on_even_response`**；`doip_uds_nrc_0xff`→`doip_neg_uds_nrc_reserved`；`doip_ack_code_0x01`→**`doip_neg_ack_code_reserved`**；`doip_nack_0x00`/`doip_nack_0x01`/`doip_nack_0x09`→`doip_neg_nack_code_reserved`；`doip_uds_unknown_sid`→`doip_neg_uds_sid_unsupported`；`doip_uds_22_subfunction`→`doip_neg_uds_subfunction_conflict`；`doip_sa_mismatch`→**`doip_neg_sa_ta_consistency`**。
+- **作废（原因：G-DOIP-3）**：`doip_s11_activation_fail`（旧断言=RC 拒绝后 FIN 且无诊断；链上不可表达）→ 替代覆盖 = `doip_neg_activation_denied` 族。
+
+**F5 存活检查（6 例）—— 合入 `doip_tcp_alive_check`**
+`doip_s5_alive_check`、`doip_alive_response`、`doip_alive_sa_consistent`、`doip_ipv6_alive` → `doip_tcp_alive_check`/`doip_ipv6_tcp_flow`；`doip_alive_sa_mismatch` → **`doip_neg_alive_sa_consistency`**；`doip_alive_mid_messages` → `doip_tcp_full_flow`（插入位置面）。
+
+**F6 通用 NACK（6 例）—— 合入 `doip_tcp_generic_nack`/`doip_neg_generic_nack_code_reserved`**
+`doip_s8_generic_nack`、`doip_generic_nack_0x00/0x02/0x03/0x04` → `doip_tcp_generic_nack`；`doip_generic_nack_0x05` → **`doip_neg_generic_nack_code_reserved`**。
+
+**F7 校验专用（1 例）** `doip_messages_without_activation` → **`doip_neg_mss_below_min`**（等价覆盖：锚词 `Messages require Activation` 不变，仅形状改 layers）。
+
+### §18.4 9.52 对账两行（清单出处声明）
+
+- **清单出处声明**：本清单来源 = **规范/官方文档反推**（ISO 13400-2:2019 §7/§8.4.1/§8.5.1/§8.5.3/§8.5.5/§9.2.4/§9.3.6/§10.3.2/§10.4.3/§10.4.5/§11.1/§11.2.2 + ISO 14229-1 UDS 服务表），**非**引擎能力面反推；引擎侧只作现状取证（`doip.go`/`layer_gen.go` 行号、scapy 2.7.0 实读行号、tshark 3.6.14 实测 33 字段）。
+- **对账两行**：**规范逻辑点总数 = 54**（§12.1 八项 8 行 + §12.2 子表① 16 格 + §12.3 子表② 30 行）；**用例覆盖数 = 38**（每点回指 T-DOIP ID，映射见 §12.1/§12.2/§12.3 「去向」列），另 **明确不支持/明确不解决 4**（八项 1 + 子表② R19/R24/R25）+ **立项 12**（八项 0 + 子表① 7 + 子表② R3/R6/R8/R20/R23）。**38 + 4 + 12 = 54 无遗漏**。
+- **粒度声明**：54 点按行/格计数，行内子面缺口另登 §19，不折进 54 点、不冒充覆盖。**反查 115 例全绿 ≠ 覆盖全**（存量 115 例是旧口径，且 47 例含链不可达的 UDP 面）。
+
+### §18.5 收官自查命令（机检，P5 执行）
+
+```bash
+# ① 非负例顶层键 = 0（白名单制，§1.13）
+python3 - <<'EOF'
+import json
+WL={"layers","flow_control","group_id","tuples","output"}
+for c in json.load(open("trafficgen/test/protocol_pcap/cases/doip.json")):
+    if c["expect"].get("expect_error"): continue
+    bad=[k for k in c["spec_json"] if k not in WL]
+    if bad: print(c["id"], "TOPLEVEL-LEAK", bad)
+EOF
+# ② presence 负例形状存在（§14-P2 ①）与游离键负例存在（②）
+grep -c 'doip_neg_flat_toplevel\|doip_neg_flat_field' trafficgen/test/protocol_pcap/cases/doip.json
+```
+
+## §19. 缺口立项清单（有缺口写「缺口立项」，不许空着）
+
+| 立项号 | 缺口 | 依据（实读） | 去向 |
+|---|---|---|---|
+| **G-DOIP-1** | `doip` 层业务配置**无住处**：层内写 `activation` 等键被 `unknown field` 拒；层 config 无 `Fields` 故翻译不启动 → 目标形状（纯 layers）今天表达不了 | `registry.go:224-226`（无 `Fields`）；`chain_planner_translate.go:743-745`（`len(s.Fields)==0` 即 return，且无 `case "doip"`）；`complete.go:282-296`（未知键拒） | **`doip_tcp_activation_confirmation` D-DOIP-1 已给解法**（§15）；`registry.go` 属共享框架文件 → **停车上报主线程**；不挡开工 |
+| **G-DOIP-2** | **UDP 三阶段（0x0001–0x0004 / 0x4001–0x4004）链上不可达** —— ISO 13400-2 的发现/实体状态/电源模式无法生成；受影响存量 47 例 | `layer_gen.go:61-74`（生成器拒）+ `:288-296`（校验器拒）；`complete.go:447-460`（`[ip,udp,doip]` 判死，锚词 `carrier`）；`registry.go:225` 单 `DependsOn ["tcp"]` | **框架级（方案 B 路径）→ 上报主线程裁定**；未裁定前按 §1.12「明确不支持 + 用例删键」；三条候选路径见 §13.3 |
+| **G-DOIP-3** | **路由激活拒绝路径（RC 0x00–0x07 / 0x11 无确认）链上不可达** —— ISO §9.2 的「ECU FIN 提前终止」无法表达（挥手归 tcp 层） | `layer_gen.go:148-150`（生成器拒）、`:297-306`（校验器拒）；legacy 失败 FIN `doip.go:636-645` | 现状钉负例 **`doip_neg_activation_denied`/`doip_neg_activation_confirmation_missing`**（9.36 的 B/C 类钉现状）；框架扩展另立项 → 上报主线程 |
+| **G-DOIP-4** | **0x11 二次确认被拒收尾（最终 RC=0x05 + FIN）schema 不可表达** —— `DoIPActivation` 只有单个 `ResponseCode` | `doip.go:618-623`（代码注释自认）；`types.go:9626-9642`（单字段结构） | D-DOIP-1 迁入计划：schema 扩展（加 `FinalResponseCode`）；不挡开工（用例标不适用） |
+| **G-DOIP-5** | **`CheckProtoFlat` 无 `doip` 顶层子映射 presence 分支** → §1.11/§1.13 门 2① 拦不住（今天顶层 `doip` 子映射照收）；同族 `dst_mac`/顶层 `tcp` 游离键无检查 | `strategy_convert.go:8273-8517`（doip 零命中，实测全文 `"doip"` 仅 `:1287`/`:8048` 两处） | **`doip_tcp_diag_uds_read_write_did` 必加**（与 §15 翻译分支同提交，防双轨）；门2 红回滚条款适用 |
+| **G-DOIP-6** | **`coverage_gate.py` 无 `check_doip` 块** → 覆盖反查对 doip 空转（方案 §2 M1：出口 0 才算过，出口 2 视红） | `trafficgen/tools/coverage_gate.py` 全文 `doip` 零命中 | 车道 B 分支内登记（合并冲突预期点） |
+| **G-DOIP-7** | **EID/VIN/GID 三键在目标形状下无宿主**（死配置）：校验嵌在已删的 `Discovery != nil` 块内，生成器零读取；3 例存量受影响 | `doip.go:79-87`（嵌套在 `:62-88`）；`layer_gen.go` 全文 grep `VIN\|EID\|GID` 零命中；`doip.go:321-331`（EID 派生） | **明确不解决 + 用例删键**（§1.12）；若 G-DOIP-2 恢复 UDP 面，则三键与 EID 派生来源需重裁定（届时再立新条目） |
+| **G-DOIP-8** | **`doip` 层业务字段零动态**（allowlist 无 doip）——现网多 ECU 逐流地址池无表达 | `layer_dyn.go:18-63`（无 `doip` 键）；`validate_layers.go:355-370`（对象即 `does not support dynamic`） | 三选一收口：①按 §14.12 理由「不开」（默认）②若现网多 ECU 证明需要 → 开 `tester_address`/`logical_address` 条目；**未取证前取 ①** |
+| **G-DOIP-9** | **现网行为无实测证据**（三路对照路② 空）：诊断仪发现时序、公告间隔、多 ECU 并发数、激活被拒后行为、NAT 形态 | 本机无抓包、无厂商文档（§13.1 路②） | 确认方式三选一已写死（抓包/查 OEM 规范/问工具厂）；取得证据前 §13.2 的 B1/B2/B7 标「待确认」，**不写现网定论** |
+
+**缺口数 = 9**。其中「明确不解决 + 迁入计划」项：R19（VIN/EID/GID 长度边界——三键删）、R24（`MaxDataSize` 约束宿主移出）、R25（u32 理论上限）、超时单边报文（归 tcp 层 `termination`）、0x03/0x04 协议版本（§1.3 已声明不收）、TLS/3496（§9.6 留后续扩展）、`doip: DoIP config is required`（`doip.go:39-41`，仅 flat/直调可达，链形状由补全保证 doip 层存在）——**每一项都在用例配置里删掉了对应字段**（§1.12 语义）。
+
+---
+
+**文档总行数**：约 2900 行
+**测试用例总数（历史口径）**：203 条（T001-T203，含 v2.0.1 新增 T027a/T119a/T120a）
+**现有用例文件（机器契约）**：`trafficgen/test/protocol_pcap/cases/doip.json` **115 例**（`doip_tcp_diag_uds_read_write_did` 按 §18.2 改写为纯 layers + 按 testcase §2 收敛为 41 ID）
 **HexDump 场景数**：15 个（S1-S15）
-**版本**：v2.0.1
-**编写日期**：2026-08-05
-**状态**：待实现（实现前最后一版，所有 CRITICAL/HIGH/MEDIUM/LOW 问题已修复）
+**版本**：v3.0.0（P-PIPE `doip_tcp_activation_basic`–`doip_tcp_activation_oem_varlen` 补足：新增 §12–§19）
+**编写日期**：2026-09-26
+**状态**：`doip_tcp_activation_basic`–`doip_tcp_activation_oem_varlen` 就绪（待门1 批准）；**不宣称 suite 可运行**（本次不跑套件、不启动服务器）
+
+## P6 附录（2026-09-28，P6 关单入版，主线程）
+
+- P6 判词：**通过**（无 P0/P1/M；`p6-review.md` 隔离终审：门3 三条点到、§9.53 `doip_tcp_multiflow_dynamic` 18 包逐包成立、suite 80/80 独立复跑、双门绿、5 锚词三方闭合）。
+- suite 实测：**80/80 = 50 正 + 30 负**（canonical :8081；P5 收敛：115→80，F1/F2 UDP 面 **47 例作废** → G-DOIP-2 open 框架 backlog，作废清单见 P4 报告；TCP 面 68 例改写纯 layers 形 + 新增 4 契约特色正例）。
+- 契约口径差（P6 裁定①，enip 先例）：T-DOIP 41 ID 为 P4/P5 前目标集，落地保留存量 ID 未逐字重命名——**P6 以实测 80 例为准**，不强制 ID 重命名轮。
+- 方法学偏离准予（P6 裁定②a/②b）：翻译复用扁平 parse（JSON 往返 oem 特例实证在案）+ UDP 三键入册（不入册则锚词失契约）；vin/eid/gid 不入册按 G-DOIP-7 维持。
+- G-DOIP-2 维持 open（UDP 三阶段链上不可达，47 例作废诚实声明）；G-DOIP-3/4/8/9 按契约维持；离线执行器未纳入 doip（MCP 套件为权威验收通道）。
+- 248 表：`docs/protocol-designs/248/57-doip-248-table.md`。
