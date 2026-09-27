@@ -23,12 +23,15 @@ d = json.load(open(sys.argv[1]))
 bad = []
 for c in d:
     sj = c.get("spec_json", {}) or {}
-    # 故意的扁平负例（expect_error + 锚词含 flat）是门 2-2 的断言对象，不算残留
     exp = c.get("expect", {}) or {}
-    if exp.get("expect_error") and "flat" in str(exp.get("error_contains", "")):
-        continue
+    anchor = str(exp.get("error_contains", ""))
+    # 故意的规范负例（expect_error + 锚词含 flat / 点名该键）是门 2-2 的断言
+    # 对象，不算残留。D-NFS-1 P6 修轮：ttl 越界走 ValidateConfigRanges shape
+    # 门（锚词 "ttl 300 invalid..."，不含 flat），按"锚词点名键名"逐键豁免。
     for k in ("src_ip","dst_ip","src_port","dst_port","count","src_mac","dst_mac","ttl"):
         if k in sj and sj[k] is not None:
+            if exp.get("expect_error") and ("flat" in anchor or k in anchor):
+                continue
             bad.append(c["id"] + ":" + k)
 print("\n".join(bad))
 PYEOF
@@ -47,7 +50,9 @@ for c in d:
     sj = c.get("spec_json", {}) or {}
     if "layers" in sj:
         for k in list(sj.keys()):
-            if k not in ("layers","strategy_fc","ttl","flow_control","output","output_config") and isinstance(sj[k], dict):
+            # group_id 是框架级流绑定键（非协议旧扁平键；smb_tpos16x/
+            # gbt_t117 先例），D-NFS-1 P6 修轮登记在案，不算并存残留。
+            if k not in ("layers","strategy_fc","ttl","flow_control","output","output_config","group_id") and isinstance(sj[k], dict):
                 bad.append(c["id"] + ":顶层子映射+" + k)
                 break
 print("\n".join(sorted(set(bad))))

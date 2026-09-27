@@ -111,7 +111,8 @@ func TestTDSChain_UDPCarrierRejected(t *testing.T) {
 	}
 }
 
-// ④用例文件收官自查：132 例；非负例顶层键 ⊆ 白名单；presence 负例在案。
+// ④用例文件收官自查：134 例（105 正 + 29 负 = 26 V-TDS + presence 1 + 游离键 2）；
+// 非负例顶层键 ⊆ 白名单；presence/游离键负例在案。
 func TestTDSChain_CaseFileAudit(t *testing.T) {
 	raw, err := os.ReadFile("../../../test/protocol_pcap/cases/tds.json")
 	if err != nil {
@@ -121,8 +122,8 @@ func TestTDSChain_CaseFileAudit(t *testing.T) {
 	if err := json.Unmarshal(raw, &cases); err != nil {
 		t.Fatalf("parse cases: %v", err)
 	}
-	if len(cases) != 132 {
-		t.Fatalf("want 132 cases (131 rewritten + 1 presence), got %d", len(cases))
+	if len(cases) != 134 {
+		t.Fatalf("want 134 cases (105 pos + 29 neg), got %d", len(cases))
 	}
 	allowed := map[string]bool{"layers": true, "flow_control": true, "output": true}
 	presence := false
