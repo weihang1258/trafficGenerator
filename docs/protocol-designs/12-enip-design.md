@@ -2,7 +2,7 @@
 
 **协议版本**：v2.0.1（基于 ODVA EtherNet/IP Volume 1 & 2 + CIP Common Specification，对照 OpENer/libplctag/EEIP.Java 参考实现）
 **传输层**：TCP（显式消息 + Class 3 隐式消息，端口 44818）+ UDP（Class 0/1 隐式 I/O，端口 44818）
-**状态**：设计阶段，未实现
+**项目状态**：**已实现并入链，P6 关单**（P4 `0c5c9e7`/P5 `adfeb76` 集成 `0628424`；P6 修轮复合例 `enip_t180_multiflow_txn_error_branch`；scoped 复评关单 2026-09-27）
 **字节序**：全部 little-endian（LE）
 **参考依据**：
 - OpENer `source/src/cip/ciptypes.h`（CIPServiceCode 枚举）
@@ -2666,7 +2666,7 @@ v2.0.0：15 个完整 HexDump 场景（S1-S15），每个场景含：
 
 ### 11.3 v2.1.0（2026-09-26，P-PIPE 文档轨 P1–P3 产物）
 
-> **增量重建来源（v2.1.1 补记）**：`/tmp/stale-docs-backup/docs_protocol_designs_12-enip-design.md`（3022 行，机核与库内 v2.0.1 前 2666 行逐行一致）＋ `/tmp/pipe/56-enip/p123-report.md` 互为补证；主 transcript 只含增量**骨架摘要**（+353 行结构、§12–§17 节名与门1 表行数），无正文文本——**缺失节清单：空**（§11.3/§12/§12.1–12.3/§13/§13.1–13.3/§14/§14.1/§14.3/§14.12/§14-P2/§14.13/§15 8.1–8.8/§16/§16.1–16.5/§17 全部来自备份原文，零编造）。
+> **增量重建来源（v2.1.1 补记）**：`/tmp/stale-docs-backup/docs_protocol-designs_12-enip-design.md`（3022 行，机核与库内 v2.0.1 前 2666 行逐行一致）＋ `/tmp/pipe/56-enip/p123-report.md` 互为补证；主 transcript 只含增量**骨架摘要**（+353 行结构、§12–§17 节名与门1 表行数），无正文文本——**缺失节清单：空**（§11.3/§12/§12.1–12.3/§13/§13.1–13.3/§14/§14.1/§14.3/§14.12/§14-P2/§14.13/§15 8.1–8.8/§16/§16.1–16.5/§17 全部来自备份原文，零编造）。
 
 **修订性质**：按 `/tmp/pipe/plan-concurrent-pipeline.md` v2 §2 文档轨契约补足 P1–P3。**不改既有 §1–§11 的技术结论**（v2.0.1 审计修复全部保留），只新增：§12 P1 八项规范矩阵 + 三子表、§13 三路对照与候选方案对比、§14 门1 §1–§14 十四行对照表（含 §1/§3/§12 强制展开、目标形状 spec_json 样例、presence 负例形状、去扁平改写清单）、§15 D-ENIP-1 P2 代码设计草稿、§16 P3 测试对接清单（含存量 135 例审计去向分类与 9.52 对账）、§17 缺口立项清单。
 
@@ -2682,6 +2682,15 @@ v2.0.0：15 个完整 HexDump 场景（S1-S15），每个场景含：
 - **验证实测（P6）**：lane6 MCP suite **137/137**（`RESULT: 137 pass, 0 fail, 0 error (of 137)`）；离线 `TestLayerChainSuite`（CHAIN_PROTO=enip）**137/137**；`coverage_gate.py enip` 绿；`pipe_gate.sh enip` 门2 静态四项绿。
 - **证据号回填**：§14 门1 十四行表逐条实读回填（含原号括注）；§12 章首增「行号口径」说明（符号名稳定锚优先）。
 
+### 11.5 v2.1.2（2026-09-27，P6 关单勘误）
+
+**修订性质**：scoped 复评（关单）遗留的纯文档勘误，不涉代码/用例/门。
+
+- worker.go 行号回填勘误：`resolveLayerTuple` 调用行实为 **:316**（修轮误改为 :321，:321 实为 `spec.FlowIndex = i` 赋值行）——§12 行号口径注记、§14 §12 行、§14.12、序号算法段、§8.4 五处回正。
+- §11.3 增量重建来源注记：备份文件名勘误为连字符拼写 `docs_protocol-designs_12-enip-design.md`（照抄下划线拼写会扑空）。
+- 行数记实：v2.1.1 关单提交词 3053 行，实测 3055 行（6ea037e 注记追加后）。
+- 复评结论：**关单**（C1 复合例 20 包逐点实测吻合、M1 契约入版基线机核一致、m1/m2/m3 全 PASS、canonical 137/137 + 门2 四项 + 反查 49/49 绿）。
+
 ---
 
 ## 12. P1 规范矩阵（CORE_MEMORY §4 八项：规范要求→业务场景→代码现状→缺口）
@@ -2689,7 +2698,7 @@ v2.0.0：15 个完整 HexDump 场景（S1-S15），每个场景含：
 > **深度口径**（§4.19–4.22）：矩阵三张子表——①命令×响应码矩阵（§12.2）②数据形态变体表（§12.3）③商业行为→用例映射表（§13.2）。条目三选一：已实现 / 明确不支持 / 不适用 + 对应用例号；无遗漏留白。
 > **数字口径**：本版所有行号为写作时实读（分支 `feat/unified-layerchain-architecture` HEAD）。`cases/enip.json` 计 135 例（91 正 + 44 负，脚本实测）。tshark 字段计数口径 `tshark -G fields | awk -F'\t' '$3 ~ /^enip\./'`（**必须带 `-F'\t'`**：不加时 awk 按空白切列，$3 落在 Blurb 文本上，会把 99 字段低估成 34——OCSP #46 已立此口径）= **99 字段**（本机 TShark 3.6.14）；同口径 `^cip\.` = **669 字段**。两个数字均为本版实测。用例内引用计数（如「26 处引用」）为 `spec_json` 命令数组脚本实测。
 
-> **行号口径（v2.1.1 P6 回填说明）**：§12–§17 正文的行号为 P1–P3 写作时实读快照。P4–P6 交付后部分符号已位移（实测对照：registry.go enip 行 193-200 → **229-240**；chain_planner_translate.go `case "enip"` 72-74 → **2366**；strategy_convert.go `parseENIPCommands` 7793-7852 → **7907-7963**、`parseENIPIOData` 7866 → **7980**、`parseENIPConfig` 7887 → **8001**、`getENIPSessionHandleStrategy` 7856 → **7970**、`CheckProtoFlat` 8273 → **8404**；worker.go FlowIndex 316 → **321**；cmd/server/main.go `NewChainPlanner("enip")` 618 → **626**；types.go 10125/10144/10224 → **10131/10214/10300**）。**门1 十四行表（§14）证据号已按交付树逐条回填**（CORE_MEMORY §15.8）；其余章节按**符号名**（函数/常量/键名）定位，不逐条回填行号——符号名是稳定锚，行号随并行车道合并漂移（layer_dyn.go 的 `:17-71`/`:18`/`:19`/`:726`/`:770-780` 与 enip.go 的 `:211`/`:235`/`:590`/`:627`/`:805`/`:879`/`:1236`、complete.go 的 `:293`/`:332`/`:398-441`/`:456-475`、semantic.go 的 `:142`/`:179-184`/`:198`、tuple_generator.go 的 `:290`/`:300` 经 P6 复核**未漂移**，原号有效）。
+> **行号口径（v2.1.1 P6 回填说明）**：§12–§17 正文的行号为 P1–P3 写作时实读快照。P4–P6 交付后部分符号已位移（实测对照：registry.go enip 行 193-200 → **229-240**；chain_planner_translate.go `case "enip"` 72-74 → **2366**；strategy_convert.go `parseENIPCommands` 7793-7852 → **7907-7963**、`parseENIPIOData` 7866 → **7980**、`parseENIPConfig` 7887 → **8001**、`getENIPSessionHandleStrategy` 7856 → **7970**、`CheckProtoFlat` 8273 → **8404**；cmd/server/main.go `NewChainPlanner("enip")` 618 → **626**；types.go 10125/10144/10224 → **10131/10214/10300**）。**门1 十四行表（§14）证据号已按交付树逐条回填**（CORE_MEMORY §15.8）；其余章节按**符号名**（函数/常量/键名）定位，不逐条回填行号——符号名是稳定锚，行号随并行车道合并漂移（layer_dyn.go 的 `:17-71`/`:18`/`:19`/`:726`/`:770-780` 与 enip.go 的 `:211`/`:235`/`:590`/`:627`/`:805`/`:879`/`:1236`、complete.go 的 `:293`/`:332`/`:398-441`/`:456-475`、semantic.go 的 `:142`/`:179-184`/`:198`、tuple_generator.go 的 `:290`/`:300`、worker.go 的 `:316`（`resolveLayerTuple(&spec, i)`；其后 :321 为 `spec.FlowIndex = i` 赋值行）经 P6 复核**未漂移**，原号有效）。
 
 ### 12.1 八项规范矩阵
 
@@ -2808,7 +2817,7 @@ v2.0.0：15 个完整 HexDump 场景（S1-S15），每个场景含：
 | §9 测试三源 | 三源 = ODVA 规范条款（§2–§4 表逐行）+ D-ENIP-1 + tshark `enip.*`（99 字段实测）+ 现网 Rockwell 出版物行为；9.52 对账两行 + 清单出处见 §16.4 | 本契约 §16.4 + `12-enip-testcase.md` v1.0.1 §6.3 |
 | §10 评审闭环 | 每阶段对抗自重审（结论见 `/tmp/pipe/56-enip/p123-report.md`）+ 收官隔离复审 + 修轮；红先绿后 | 报告文件（p123/p4/p6-review） |
 | §11 白话 | 每阶段白话一句先行（汇报） | 汇报 |
-| §12 动态清单 | 见 §14.12 强制展开：四元组住 `ip`/`tcp` 层（五策略全开，layer_dyn.go:17-71 allowlist、:18 `ip`/`:19` tcp`）；业务字段**不在** allowlist → G-ENIP-4；序号算法行号实读（tuple_generator.go:290/300、`resolveLayerTuple` layer_dyn.go:770-780、调用 worker.go:321（P1 原记 316，P6 实测 321）、SenderContext layer_gen.go:145/169 + enip.go:805/1085-1097） | 本契约 §14.12（行号 P6 回填） |
+| §12 动态清单 | 见 §14.12 强制展开：四元组住 `ip`/`tcp` 层（五策略全开，layer_dyn.go:17-71 allowlist、:18 `ip`/`:19` tcp`）；业务字段**不在** allowlist → G-ENIP-4；序号算法行号实读（tuple_generator.go:290/300、`resolveLayerTuple` layer_dyn.go:770-780、调用 worker.go:316、SenderContext layer_gen.go:145/169 + enip.go:805/1085-1097） | 本契约 §14.12（行号 P6 回填） |
 | §13 schema 派生 | registry enip 行六键（**registry.go:229-240**，原记 193-200）与 `parseENIPCommands`（strategy_convert.go:7907-7963）/`parseENIPIOData`（:7980）/`parseENIPConfig`（:8001）消费键对齐；**schemagen 已重跑**（P4）：`schemas/v1/generated/layers.generated.json` enip 行六键与 registry 逐键一致；struct 标签字面量锁 | registry.go:229-240 + generated json 实读 + `TestLayersGeneratedMatchesRegistry` |
 | §14 真实流程 | suite 经 MCP 建任务 → 引擎生成 → tshark `enip.*`（99 字段）+ frames hex 双通道；先跑后钉（14.6/14.20）；pcap 落盘逐例可复查（14.16） | §16.5 + P5/P6 lane6 suite（137/137）+ 离线链套件 137/137 |
 
@@ -2887,7 +2896,7 @@ v2.0.0：15 个完整 HexDump 场景（S1-S15），每个场景含：
 
 | 字段 | 住处 | 开策略（现状实测） | 理由 / 序号算法 |
 |---|---|---|---|
-| `src`（src_ip） | `ip` 层 | fixed/inc/rand/list/pattern **全开**（layer_dyn.go:18 `"ip": {"src": true, ...}`） | §12.2 四元组必备；多流并发锚点。算法：`resolveLayerTuple`（layer_dyn.go:770-780）按流序号解析，`ResolveIPValue`（tuple_generator.go:290）/ `ResolvePortValue`（:300）；调用点 worker.go:321（P1 原记 316；逐流，先保底后动态） |
+| `src`（src_ip） | `ip` 层 | fixed/inc/rand/list/pattern **全开**（layer_dyn.go:18 `"ip": {"src": true, ...}`） | §12.2 四元组必备；多流并发锚点。算法：`resolveLayerTuple`（layer_dyn.go:770-780）按流序号解析，`ResolveIPValue`（tuple_generator.go:290）/ `ResolvePortValue`（:300）；调用点 worker.go:316（逐流，先保底后动态） |
 | `dst`（dst_ip） | `ip` 层 | 全开（同上） | 多目标设备场景（现网多 PLC 轮询） |
 | `ttl` | `ip` 层 | 全开（layer_dyn.go:18 `"ttl": true`，`genSmallInt` layer_dyn.go:726） | 逐流 TTL 池 |
 | `src_port` | `tcp` 层 | 全开 + 未写动态时**保底递增** `12345+i` | §2.8；保底算法 worker.go:307-309（`flowCount > 1 && !spec.HasExplicitSrcPort` → `DefaultSrcPort + i`，`DefaultSrcPort=12345` @ strategy_convert.go:49）；层动态在保底**之后**解析并覆盖（worker.go:311-316 注释明示次序） |
@@ -2898,7 +2907,7 @@ v2.0.0：15 个完整 HexDump 场景（S1-S15），每个场景含：
 | `enip.io_data.sequence_counter` | `enip` 层 | **不开** | 现状算法实读：`buildIODataFrames`（enip.go:1236）逐帧写序号；链上 IOData 被拒（layer_gen.go:56-58）。注：T-141/T-142 summary 声明「2026-08 去 seq 前缀」——当前 ConnectedDataItem 已不编码 SequenceCounter，与契约 §3.3「2B SequenceCounter」字面不一致，P5 对账 |
 | `flow_control.flows` | 顶层 | 数量面（不属 §12 动态值；`strategy_fc` 现状为 `null`×118 / `{"type":"flows","value":1}`×17） | §1.3；多 flow 时 `src_port` 保底 + 层动态生效 |
 
-**序号算法代码位置（实读，非「待 P4 定」）**：四元组五策略解析 = `resolveLayerTuple`（layer_dyn.go:770-780）→ `ResolveIPValue`（tuple_generator.go:290）/ `ResolvePortValue`（:300，含 inc 的 `start+(index*step)%count` 回绕与 rand 的 `Seed+index` 可复现，layer_dyn.go:740-764 同款算法面）；调用点 = `worker.go:321`（P1 原记 316；`spec.FlowIndex = i` 前）。ENIP 业务字段的序号算法 = `layer_gen.go:163`（SenderContext 计数）与 `enip.go:1236+`（I/O 序号）；二者均**不在层动态面**（G-ENIP-4）。
+**序号算法代码位置（实读，非「待 P4 定」）**：四元组五策略解析 = `resolveLayerTuple`（layer_dyn.go:770-780）→ `ResolveIPValue`（tuple_generator.go:290）/ `ResolvePortValue`（:300，含 inc 的 `start+(index*step)%count` 回绕与 rand 的 `Seed+index` 可复现，layer_dyn.go:740-764 同款算法面）；调用点 = `worker.go:316`（其后 :321 为 `spec.FlowIndex = i` 赋值）。ENIP 业务字段的序号算法 = `layer_gen.go:163`（SenderContext 计数）与 `enip.go:1236+`（I/O 序号）；二者均**不在层动态面**（G-ENIP-4）。
 
 ### 14-P2 presence 负例形状（链级红例必含①）
 
@@ -2944,7 +2953,7 @@ v2.0.0：15 个完整 HexDump 场景（S1-S15），每个场景含：
 
 **8.2 接口签名**（示意，落码钉死）：`ParseENIPLayerConfig(cfg map[string]interface{}) (*core.ENIPConfig, error)`；`ValidateENIPLayer(spec *core.FlowSpec) error`（复用 `Planner.Validate` enip.go:211）；生成器内 `generateFromLayer(cfg *core.ENIPConfig) error`（复用现有循环 layer_gen.go:94-164）。
 **8.3 数据结构**：沿用 `core.ENIPConfig` / `ENIPCommand` / `CPFItem` / `ENIPIOData`（types.go:10125/10144/10224），不新增类型；层 config 只做「map → 同结构」的一次性解析（命令内蛇形键清单见 §14.1（以 `parseENIPCommands`:7793-7852 消费键为准））。
-**8.4 主流程**：schema 校验（层 config 字段范围 V9，validate_layers.go:616-660 注释面）→ `ValidateLayers` 完成链（validate_layers.go:632 入口、V9 循环 :687-701）→ `ChainPlanner` 翻译（层 config → `ENIPConfig`，chain_planner_translate.go:2366 改条件注入（P1 原记 72-74）→ worker 逐流 `resolveLayerTuple`（worker.go:321，四元组动态，P1 原记 316）→ enip 生成器逐命令产消息事件（layer_gen.go:94-164，`emitMsg` :171-178 取消逃生）→ tcp 层生成器补握手/seq-ack/挥手（`RegisterPlanner(layers.NewChainPlanner("enip"))` main.go:626 已注册（P1 原记 618），引擎侧入口现成）→ writer/pcap。
+**8.4 主流程**：schema 校验（层 config 字段范围 V9，validate_layers.go:616-660 注释面）→ `ValidateLayers` 完成链（validate_layers.go:632 入口、V9 循环 :687-701）→ `ChainPlanner` 翻译（层 config → `ENIPConfig`，chain_planner_translate.go:2366 改条件注入（P1 原记 72-74）→ worker 逐流 `resolveLayerTuple`（worker.go:316，四元组动态）→ enip 生成器逐命令产消息事件（layer_gen.go:94-164，`emitMsg` :171-178 取消逃生）→ tcp 层生成器补握手/seq-ack/挥手（`RegisterPlanner(layers.NewChainPlanner("enip"))` main.go:626 已注册（P1 原记 618），引擎侧入口现成）→ writer/pcap。
 **8.5 错误分支**：①层 config 未知键/类型错 → `layers: layer "enip": unknown field "…"`（complete.go:293）；②`io_data`/`transport:"udp"`/`session_count>1`/`flow_count>1` → 生成器显式报错（layer_gen.go:56-71，**不得静默单遍产 1 单元**——包数缩水即假通过）；③`from_response` 非法引用 → `validateFromResponseConfig`（enip.go:879-917，V-403/404/405）；④顶层旧键/协议子映射并存 → presence/白名单判死（§14-P2；CheckProtoFlat strategy_convert.go:8404（P1 原记 8273）+ checkLayerFlatConflict semantic.go:179）。全部传播为 task error（零假成功）。
 **8.6 性能边界（§6.1–6.8 对应）**：O(n) 流式——逐命令构建 `[]byte` 即 `EmitMsg`（layer_gen.go:160-164），无全量聚合、无按包增长结构；单命令内存 = 报文长度（≤ 65515 ENIP Length 上限，§9.5）+ 常量开销；共享状态仅 `responseTable`（按命令数 O(n)，仅 down/response 命令入表 layer_gen.go:142-144）与 `sessionHandle`/`senderCtxCounter` 标量；无锁、无 sleep（事件驱动，速率由 tcp 层/任务桶管）；worker 并行度 = 任务分片（`shard`，worker.go:319-330 hashKey/gID 同流同 shard 保 FIFO）。**诚实声明**：包/秒、并发流数、内存上界数字待 P5 基准后定（§6.5 不写承诺数字）。六类场景（基线/目标规模/压力上限/长运行时/并发交错/背压）P5 跑测覆盖。
 **8.7 与现有逻辑的冲突点**：①enip 层从「零 Fields」变为带 Fields——存量 `layers=[{tcp},{enip}]` 空 config 用例（69 例）不受影响（缺省=不写，V9 只校验显式键 validate_layers.go:616-660），但**顶层 `enip` 与层内 `enip` 并存**必须判死（否则双真相，§14-P2）；②`ENIP: spec.ENIP` 注入改条件化（chain_planner_translate.go:74）——无层 config 时行为逐字节不变（legacy 等价性，回归以 69 例空 config 链形为基线）；③生产 `Meta.ENIP` 的路径（`mapToFlowSpec` + worker/engine 直调）仍需可用（`layer_gen_test.go` 依赖）；④registry.go / strategy_convert.go / chain_planner_translate.go / generator.go 为跨协议共享文件——按 plan §3 属预期合并冲突点（FlowSpec/translate/validate_layers switch case），车道 B 只改 enip 本地块，合并序=完成序，非机械冲突走自查+评审闭环；⑤`schemagen` 重跑改 `layers.generated.json`（enip 字段表新增，层数不变）；⑥**v6 字面量**：仓库无 `ipv6` 层（registry 层名表 124 项无 ipv6），v6 走 `ip` 层字面量（地址族校验见 chain_planner.go:262 注释面）——本条目不引入新层。
