@@ -547,6 +547,30 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 		}
 	}
 
+	if protocol == "cql" {
+		// D-CQL-1（G-CQL-1）：tcp 唯一载体预检（amqp 预检同构——DependsOn
+		// tcp 自动补全前拦，裸/udp cql 层不被补全掩盖）。契约 §1 不变式1：
+		// `cql` 终结层只能位于 TCP 后；UDP/缺 TCP 拒绝（锚词 carrier，与
+		// complete.go tcp-only 分支的 "rides tcp only (carrier)" 同族；
+		// neg 用例锚词 "tcp" 两路皆中）。混合地址族通用 same-version 检查
+		// 在其后（锚词 address），此处不重复实现。
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			hasTCP := false
+			for _, item := range probe {
+				if _, ok := item["udp"]; ok {
+					return nil, fmt.Errorf("cql chain: udp carrier is not supported — cql rides tcp only (Cassandra native protocol over a TCP byte stream) (carrier)")
+				}
+				if _, ok := item["tcp"]; ok {
+					hasTCP = true
+				}
+			}
+			if !hasTCP {
+				return nil, fmt.Errorf("cql chain: missing tcp carrier — cql requires an [ip,tcp,cql] chain (carrier)")
+			}
+		}
+	}
+
 	if protocol == "enip" {
 		// D-ENIP-1（G-ENIP-1/G-ENIP-2/C 类口径，§15 8.5②/8.7）：链上不可达
 		// 形在 create 期同步判死（生成器 drive 期错误会被 Plan goroutine

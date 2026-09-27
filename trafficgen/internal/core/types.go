@@ -1302,7 +1302,6 @@ type CQLEvent struct {
 	Query       string                 `json:"query,omitempty"`
 	Consistency uint16                 `json:"consistency,omitempty"`
 	QueryFlags  uint32                 `json:"query_flags,omitempty"`
-	ResultKind  string                 `json:"result_kind,omitempty"`
 	PreparedID  string                 `json:"prepared_id,omitempty"`
 	Code        int32                  `json:"code,omitempty"`
 	Message     string                 `json:"message,omitempty"`

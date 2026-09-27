@@ -2809,6 +2809,30 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.S7 = &scfg
+	case "cql":
+		// D-CQL-1（G-CQL-1）：层 config 严格往返解码（amqp 同款——json
+		// 往返 + DisallowUnknownFields；未知键在 config 层即拒）。
+		// 层优先：spec.CQL 已存在（引擎直调/单测路径）则不覆盖；扁平入口
+		// 已由 CheckProtoFlat 判死顶层 cql 子映射。
+		if spec.CQL != nil {
+			return
+		}
+		cfgC := completedConfig(s, term.Config)
+		rawC, err := json.Marshal(cfgC)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("cql layer config encode: %v", err))
+			return
+		}
+		var ccfg core.CQLConfig
+		decC := json.NewDecoder(bytes.NewReader(rawC))
+		decC.DisallowUnknownFields()
+		if err := decC.Decode(&ccfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("cql layer config decode: %v", err))
+			return
+		}
+		spec.CQL = &ccfg
 	}
 }
 

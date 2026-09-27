@@ -2042,6 +2042,127 @@ def check_nfs(cases):
     return rows
 
 
+def check_cql(cases):
+    """D-CQL-1 P4 反查表（30 例 = 15 正 + 15 负；CQL/Cassandra native v4/v5）。
+    返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线（G-CQL-1）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 cql", '"cql": true' in pg, "在列"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case cql（严格解码）", 'case "cql":' in tr and "cql layer config decode" in tr, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.CQL 字段", re.search(r"CQL\s+\*core\.CQLConfig", gen) is not None, "在案"))
+    rows.append(("FlowMeta.CQL 直传（Meta 字面量检查点）",
+                 re.search(r"CQL:\s+spec\.CQL\b", tr) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "cql"')
+    reg_block = rg[i_reg:i_reg + 700]
+    rows.append(("registry cql 行（FieldContract 9042 + Fields 四键）",
+                 '"tcp.dst_port": "9042"' in reg_block and '"wire_profile"' in reg_block
+                 and '"events"' in reg_block and '"sessions"' in reg_block
+                 and '"wire_fault"' in reg_block, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat presence 判死顶层 cql",
+                 "no longer accepts a top-level cql sub-config" in sc, "在案"))
+    rows.append(("ValidationErrors 覆盖在库旧策略顶层 cql",
+                 'if protocol == "cql" {' in sc, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    rows.append(("载体预检（udp 拒/缺 tcp 拒，锚词 carrier）",
+                 'if protocol == "cql" {' in vl and "cql rides tcp only" in vl
+                 and "missing tcp carrier" in vl, "在案"))
+
+    # 2. 行为面（W1/W2/G-CQL-4/G-CQL-6 修正件）。
+    bl = (tg / "internal" / "protocol" / "cql" / "builder.go").read_text()
+    rows.append(("W1：flags 按 profile 选宽（appendQueryFlags）",
+                 "func appendQueryFlags" in bl and "reqVer == ReqV5" in bl, "在案"))
+    rows.append(("G-CQL-4：result_kind 死字段已删",
+                 "ResultKind" not in (tg / "internal" / "core" / "types.go").read_text().split("type CQLEvent struct")[1].split("}")[0], "已删"))
+    pl = (tg / "internal" / "protocol" / "cql" / "planner.go").read_text()
+    for prim, name in [
+        ("v5PreHandshakeKinds", "W2/G-CQL-3：v5 握手后 envelope 过渡档拒绝表"),
+        ("needs the v5 envelope framing", "W2：envelope 锚词"),
+        ("CQL_VERSION option", "G-CQL-6：STARTUP CQL_VERSION 强制"),
+        ("beta flag 0x10 is v5-only", "G-CQL-6：beta 逐 profile 位校验"),
+        ("warning flag 0x08 is response-only", "G-CQL-6：warning s2c-only"),
+        ("does not fit the v4 [byte] width", "W1：v4 query_flags 宽度溢出拒（不静默截断）"),
+        ("without a preceding AUTHENTICATE", "G-CQL-6：认证次序门"),
+    ]:
+        rows.append((f"关键件：{name}", prim in pl, "在案"))
+
+    # 3. 用例面（11 正 + 10 负）。
+    pos = [c for c in cases if "packet_count" in (c.get("expect") or {})]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("30 例对账（15 正+15 负）", len(pos) == 15 and len(neg) == 15 and len(cases) == 30,
+                 f"{len(pos)}+{len(neg)}={len(cases)}"))
+    bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "cql"]
+    rows.append(("proto 全=cql", not bad_proto, bad_proto or "全 cql"))
+    want_counts = sorted([9, 9, 10, 12, 11, 8, 11, 11, 18, 8, 7, 13, 11, 11, 14])
+    rows.append(("正例包数 15 例逐值对账",
+                 sorted(c["expect"]["packet_count"] for c in pos) == want_counts,
+                 sorted(c["expect"]["packet_count"] for c in pos)))
+    red_ids = {"cql_neg_presence_top_level_cql", "cql_neg_stray_src_ip", "cql_neg_stray_count"}
+    leaked = sorted({k for c in cases if c.get("id") not in red_ids
+                     for k in (c.get("spec_json", {}) or {}) if k not in ("layers",)})
+    rows.append(("非负例顶层键=0（红例执法键豁免）", not leaked, leaked or "零残留"))
+    for kw, name in [
+        ("cql_neg_presence_top_level_cql", "presence 红例（layers+顶层 cql{}）"),
+        ("cql_neg_stray_src_ip", "游离键红例 src_ip"),
+        ("cql_neg_stray_count", "游离键红例 count"),
+        ("cql_neg_udp", "udp 载体负例"),
+        ("cql_neg_missing_tcp", "缺 tcp 载体负例"),
+        ("cql_stream_correlation", "A' stream 非零关联（乱序响应回填）"),
+        ("cql_consistency_quorum", "A' consistency 非 ONE 值"),
+        ("cql_flags_tracing_s2c_warning", "A' frame flags 位（tracing/warning）"),
+        ("cql_multi_round_query", "A' 同连接多轮 QUERY"),
+        ("cql_neg_startup_missing_cql_version", "G-CQL-6 CQL_VERSION 负例"),
+        ("cql_neg_auth_order", "G-CQL-6 认证次序负例"),
+        ("cql_neg_v5_post_handshake_envelope", "W2 envelope 负例"),
+        ("cql_neg_beta_flag_v4", "G-CQL-6 beta 位负例"),
+        ("cql_neg_unknown_layer_field", "层内未知键负例"),
+        ("cql_v5_tracing", "v5 握手前 unframed 面（B2 过渡档）"),
+        ("cql_multi_session", "多会话双源端口"),
+        ("cql_ipv6", "IPv6 offset 74"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+    # W1 帧重钉证据：v4 QUERY/EXECUTE flags 单字节（帧尾 1 字节 00）。
+    qv = next((c for c in cases if c.get("id") == "cql_query_void"), None)
+    qv_ok = False
+    if qv:
+        fr = next((f for f in (qv.get("expect") or {}).get("frames", []) if f.get("packet") == 6), None)
+        qv_ok = bool(fr) and fr.get("hex", "").replace(" ", "").endswith("0001" + "00")
+    rows.append(("W1 帧重钉：v4 QUERY flags 单字节", qv_ok, "packet 6 帧尾 0001 00"))
+    v5 = next((c for c in cases if c.get("id") == "cql_v5_tracing"), None)
+    v5_events = []
+    if v5:
+        for l in (v5.get("spec_json", {}) or {}).get("layers", []) or []:
+            if isinstance(l, dict) and "cql" in l:
+                v5_events = [e.get("kind") for e in (l["cql"].get("events") or [])]
+    rows.append(("W2 过渡档：v5 例仅握手前事件",
+                 v5_events and all(k in ("options", "supported", "startup", "ready",
+                                         "authenticate", "auth_response", "auth_success") for k in v5_events),
+                 v5_events or "无用例"))
+    # A' 断言通道：cql.* 字段断言从 0 → 非零（G-CQL-7 §9.6 十字段面）。
+    cql_fields = sorted({f.get("field") for c in pos for f in (c.get("expect") or {}).get("fields", [])
+                         if str(f.get("field", "")).startswith("cql.")})
+    rows.append((f"cql.* 字段断言面（{len(cql_fields)} 字段）",
+                 {"cql.stream", "cql.opcode", "cql.consistency", "cql.flags"} <= set(cql_fields),
+                 cql_fields or "零断言"))
+    # result_kind 死字段清零（G-CQL-4）。
+    rows.append(("result_kind 键清零（G-CQL-4）", "result_kind" not in json.dumps(cases), "零残留"))
+
+    # 4. 锚词面。
+    anchors = {"no longer accepts a top-level cql sub-config", "no longer accepts flat config field",
+               "unknown field", "version", "opcode", "length",
+               "state", "limit", "tcp", "CQL_VERSION", "envelope", "beta"}
+    got = {(c.get("expect") or {}).get("error_contains") for c in neg}
+    missing = sorted(a for a in anchors if not any(a in (g or "") for g in got))
+    rows.append((f"负例锚词覆盖 {len(anchors)} 族", not missing, missing or sorted(got)))
+    return rows
+
 def check_enip(cases):
     """D-ENIP-1 P4 反查表。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -6212,7 +6333,7 @@ def check_spnego(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql}
 
 
 def main(argv):

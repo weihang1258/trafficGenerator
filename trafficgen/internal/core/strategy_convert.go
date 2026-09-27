@@ -447,6 +447,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-CQL-1（G-CQL-1）：cql 在库旧策略顶层 cql → ValidationErrors（hl7
+	// 同款；在库 0 行纯防御——新协议去扁平后顶层 cql 即判死）。
+	if protocol == "cql" {
+		if v, ok := cfg["cql"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 
 	// D-MMSE-1：mmse 在库旧策略顶层 mmse → ValidationErrors（hl7 同款；
 	// 在库 0 行纯防御）。
@@ -8676,6 +8683,14 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "tds" {
 		if v, ok := cfg["tds"]; ok && v != nil {
 			return "protocol tds no longer accepts a top-level tds sub-config (move it into the tds layer of an [ip,tcp,tds] layers chain)"
+		}
+	}
+	// D-CQL-1（G-CQL-1）：cql 顶层 cql 子映射 presence 判死（tds 先例；
+	// 空 map 也死——业务键 wire_profile/events/sessions/wire_fault 迁
+	// layers[i].cql）。层链形状不触发。
+	if protocol == "cql" {
+		if v, ok := cfg["cql"]; ok && v != nil {
+			return "protocol cql no longer accepts a top-level cql sub-config (move it into the cql layer of an [ip,tcp,cql] layers chain)"
 		}
 	}
 	// D-ENIP-1（G-ENIP-3，§14-P2）：enip 顶层 enip 子映射 presence 判死
