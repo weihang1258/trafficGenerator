@@ -62,7 +62,7 @@
 - **`cflow_ipfix_enterprise_ie`**：template 含标准 `sourceIPv4Address` 与 enterprise IE ID=0x8001、PEN=424242；断言 `cflow.template_ipfix_pen_provided=1`、`cflow.template_ipfix_field_type_enterprise=1`、`cflow.template_ipfix_field_pen=424242`、`cflow.enterprise_private_entry` 非空。不得断言未注册的厂商 IE 名称。
 - **`cflow_ipfix_variable_length_ie`**：template 的 enterprise IE length=65535（variable-length marker），Data Set 使用短字符串值；断言 template field length=65535、enterprise bit/PEN 和 `cflow.enterprise_private_entry` 非空；frame 固定 `00 0a` 与 Set ID，不把变量值当固定字段长度。
 - **`cflow_ipfix_observation_domain_sequence`**：version=10、sequence=0x01020304、OD=0x11223344，Data Set 仍引用 template 256；断言 `cflow.sequence=0x01020304`、`cflow.od_id=0x11223344`、`cflow.template_id=256` 和 dstport=4739。
-- **`cflow_ipfix_timeout_options_template`**：同一 Message 含 Options Template Set ID=3，scope field count=1、total field count=2，scope=observationPointId、option=active/inactive timeout；断言 `cflow.template_ipfix_scope_field_count=1`、`cflow.template_ipfix_total_field_count=2`、两个 timeout 字段。frame offset 42 固定 `00 0a`，不把 Options Set 数量当 header count。
+- **`cflow_ipfix_timeout_options_template`**：同一 Message 含 Options Template Set ID=3，scope field count=1（线上实测 total=3=Scope 1 + Data 2，P6 勘误：旧文 total=2 不相容，断言只钉 scope=1 + 两 timeout，见 P6 已知事项①）；scope=observationPointId、option=active/inactive timeout；断言 `cflow.template_ipfix_scope_field_count=1`、两个 timeout 字段。frame offset 42 固定 `00 0a`，不把 Options Set 数量当 header count。
 - **`cflow_ipfix_multi_exporter`**：两个 UDP/4739 messages，OD ID 分别 501/502，sequence 各自从 0 开始并含独立 template/data；断言 packet_count=2、OD distinct values=501/502、version=10 和 dstport=4739。模板不得跨 OD 解码。
 
 ### 3.3 长度/无 checksum 边界
