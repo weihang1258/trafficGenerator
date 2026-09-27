@@ -1229,7 +1229,7 @@ def check_kerberos(cases):
 
 
 def check_mms(cases):
-    """D-MMS-2 P4 反查表（17 例 = 11 正 + 6 负；[ip,tcp,mms] 终结层）。
+    """D-MMS-2 P4 反查表（18 例 = 11 正 + 7 负；[ip,tcp,mms] 终结层）。
     返回 [(检查名, 通过?, 证据)]。"""
     rows = []
     tg = Path(__file__).resolve().parent.parent
@@ -1308,11 +1308,12 @@ def check_mms(cases):
         "mms_neg_presence", "mms_neg_stray_src_ip",
         "mms_neg_dead_sequence_key", "mms_neg_unsupported_datatype",
         "mms_domain_overlong", "mms_multiflow",
+        "mms_neg_multisession_override",
     ]:
         rows.append((f"用例在案：{cid}", cid in ids, "在案"))
     n_neg = sum(1 for c in cases if (c.get("expect") or {}).get("expect_error"))
-    rows.append(("用例总数 17（11 正+6 负，含 1 presence + 1 游离键 + 2 G-MMS-2/3 + 1 A′ T-MMS-18 + 1 validator）",
-                 len(cases) == 17 and n_neg == 6, f"{len(cases)} 例 / 负 {n_neg}"))
+    rows.append(("用例总数 18（11 正+7 负，含 1 presence + 1 游离键 + 3 G-MMS-2/3 + 1 A′ T-MMS-18 + 1 validator）",
+                 len(cases) == 18 and n_neg == 7, f"{len(cases)} 例 / 负 {n_neg}"))
     rows.append(("正例顶层键=0（仅 layers/flow_control/output）",
                  all(set((c.get("spec_json") or {}).keys()) <= {"layers", "flow_control", "output"}
                      for c in cases if not (c.get("expect") or {}).get("expect_error")), "零残留"))
@@ -1328,7 +1329,8 @@ def check_mms(cases):
     rows.append(("多流例（flows=2 + ip.src 层内动态 + 逐流源端口 12345/12346）", mf_ok,
                  "mms_multiflow" if mf_ok else "形状不符"))
     anchors = {"no longer accepts a top-level mms", "no longer accepts flat config field src_ip",
-               "sequence.loop is not supported", "datatype", "name", "domain"}
+               "sequence.loop is not supported", "datatype", "name", "domain",
+               "multiSession[0].enableWrite is not supported"}
     got = {(c.get("expect") or {}).get("error_contains", "") for c in cases}
     missing = sorted(a for a in anchors if not any(a in (g or "") for g in got))
     rows.append((f"负例锚词覆盖 {len(anchors)} 族", not missing, missing or sorted(g for g in got if g)))

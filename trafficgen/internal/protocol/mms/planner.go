@@ -63,7 +63,73 @@ func (Planner) Validate(spec core.FlowSpec) error {
 	if spec.MMS.ErrorClassName != "" && spec.MMS.ErrorClassName != "definition" && spec.MMS.ErrorClassName != "service" && spec.MMS.ErrorClassName != "access" {
 		return fmt.Errorf("mms: error class %q invalid", spec.MMS.ErrorClassName)
 	}
+	// multiSession 子会话（契约 §2.2）：每项只覆盖 objects，其余键继承主配置
+	// （layer_gen.go:40-45 实证）。objects 走**同一条编码路径**，故同一套门
+	// 必须覆盖——否则主配置拒掉的错编码 datatype / 超长名配在子会话里照旧
+	// 落线（G-MMS-3 第二入口）；objects 之外的键则读都不读，属死配置，按
+	// §2.3 判死并点名（layer_gen 显式 `sess.MultiSession = nil` 丢弃嵌套）。
+	for i := range spec.MMS.MultiSession {
+		sub := &spec.MMS.MultiSession[i]
+		where := fmt.Sprintf("multiSession[%d]", i)
+		for _, o := range sub.Objects {
+			if len(o.Name) == 0 || len([]byte(o.Name)) > 32 {
+				return fmt.Errorf("mms: %s object name %q exceeds 32 bytes or is empty", where, o.Name)
+			}
+			if o.Domain != "" && len([]byte(o.Domain)) > 32 {
+				return fmt.Errorf("mms: %s domain exceeds 32 bytes", where)
+			}
+			if !validType(o.Datatype) {
+				return fmt.Errorf("mms: %s datatype %q invalid", where, o.Datatype)
+			}
+		}
+		for _, k := range deadMultiSessionKeys(sub) {
+			return fmt.Errorf("mms: %s.%s is not supported (a sub-session overrides objects only; every other key is inherited from the main config and this one is never read; remove it)", where, k)
+		}
+	}
 	return nil
+}
+
+// deadMultiSessionKeys reports which sub-session keys the generator never
+// reads (everything but Objects) — see the multiSession block in Validate.
+func deadMultiSessionKeys(sub *core.MMSConfig) []string {
+	var out []string
+	if sub.Transport != "" {
+		out = append(out, "transport")
+	}
+	if sub.Association != nil {
+		out = append(out, "association")
+	}
+	if sub.IEDName != "" {
+		out = append(out, "iedName")
+	}
+	if sub.EnableRead {
+		out = append(out, "enableRead")
+	}
+	if sub.EnableWrite {
+		out = append(out, "enableWrite")
+	}
+	if sub.EnableInformationReport {
+		out = append(out, "enableInformationReport")
+	}
+	if sub.EnableGetNameList {
+		out = append(out, "enableGetNameList")
+	}
+	if sub.EnableIdentify {
+		out = append(out, "enableIdentify")
+	}
+	if sub.Sequence != nil {
+		out = append(out, "sequence")
+	}
+	if len(sub.MultiSession) > 0 {
+		out = append(out, "multiSession")
+	}
+	if sub.ErrorClassName != "" {
+		out = append(out, "errorClassName")
+	}
+	if sub.ErrorValue != 0 {
+		out = append(out, "errorValue")
+	}
+	return out
 }
 
 // validType gates the datatypes the builder encodes for real. float /

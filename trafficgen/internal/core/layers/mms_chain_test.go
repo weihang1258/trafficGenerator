@@ -205,7 +205,7 @@ func TestMMSChain_IPv6Carrier(t *testing.T) {
 	}
 }
 
-// ⑨ 用例文件收官自查：17 例（11 正 + 6 负）；非负例顶层键 ⊆ 白名单；
+// ⑨ 用例文件收官自查：18 例（11 正 + 7 负）；非负例顶层键 ⊆ 白名单；
 // 非负例链形 = [ip,tcp,mms]；presence 负例在案。
 func TestMMSChain_CaseFileAudit(t *testing.T) {
 	raw, err := os.ReadFile("../../../test/protocol_pcap/cases/mms.json")
@@ -216,8 +216,8 @@ func TestMMSChain_CaseFileAudit(t *testing.T) {
 	if err := json.Unmarshal(raw, &cases); err != nil {
 		t.Fatalf("parse cases: %v", err)
 	}
-	if len(cases) != 17 {
-		t.Fatalf("want 17 cases (11 pos + 6 neg), got %d", len(cases))
+	if len(cases) != 18 {
+		t.Fatalf("want 18 cases (11 pos + 7 neg), got %d", len(cases))
 	}
 	allowed := map[string]bool{"layers": true, "flow_control": true, "output": true}
 	presence := false
@@ -261,8 +261,8 @@ func TestMMSChain_CaseFileAudit(t *testing.T) {
 			presence = true
 		}
 	}
-	if nNeg != 6 {
-		t.Fatalf("want 6 negatives, got %d", nNeg)
+	if nNeg != 7 {
+		t.Fatalf("want 7 negatives, got %d", nNeg)
 	}
 	if !presence {
 		t.Fatal("want 1 presence negative (layers + top-level mms), found none")

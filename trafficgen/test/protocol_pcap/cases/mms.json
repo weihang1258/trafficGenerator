@@ -1221,5 +1221,59 @@
         }
       ]
     }
+  },
+  {
+    "id": "mms_neg_multisession_override",
+    "proto": "mms",
+    "summary": "契约 §2.2: multiSession 子会话只覆盖 objects，写 enableWrite 等键读都不读（死配置）→ validator 判死",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {
+            "objects": [
+              {
+                "domain": "IED1",
+                "name": "GGIO1.SPCSO1.stVal",
+                "datatype": "boolean"
+              }
+            ],
+            "enableRead": true,
+            "multiSession": [
+              {
+                "enableWrite": true,
+                "objects": [
+                  {
+                    "domain": "IED2",
+                    "name": "MMXU1.TotW.mag.f",
+                    "datatype": "integer",
+                    "value": 5
+                  }
+                ]
+              }
+            ],
+            "sequence": {
+              "steps": [
+                "read"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "multiSession[0].enableWrite is not supported"
+    }
   }
 ]
