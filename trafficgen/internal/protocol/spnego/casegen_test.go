@@ -370,8 +370,9 @@ func TestSPNEGOCasegenOnce(t *testing.T) {
 		// #13 多流多会话（flows=2 × 动态 src_port = 两条独立 TCP stream；
 		// 每流承载 s1(krb+mskrb→accept_completed) 与 s2(NTLM→reject 异常
 		// 终止) 两会话；候选列表/选定机制/状态/四元组按流按会话隔离）。
-		// 交织维度 ≥3：多会话 × 多事务（每流 2 次协商）× 多流（2 四元组）
-		// × 异常分支（s2 reject）。
+		// 交织维度三类：多会话（每流 s1/s2 两次协商，候选列表/选定机制/状态
+		// 各自独立）× 多流（flows=2，45061/45062 四元组隔离）× 异常分支
+		// （s2 neg_result=2 reject 终止，与 s1 accept 并存）。
 		{
 			id: "spnego_multi_session_stream", summary: "多流多会话隔离：flows=2 两条独立 TCP stream（45061/45062→445，四元组隔离）+ 每流 s1(Kerberos+msKrb5→accept_completed)/s2(NTLM→reject 异常终止) 会话；候选列表/选定机制/状态不串用",
 			spec: map[string]interface{}{
