@@ -2,6 +2,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10140,6 +10141,22 @@ type ENIPConfig struct {
 	SerialNumber     uint32        `json:"serial_number,omitempty"`
 	DeviceStatus     uint16        `json:"device_status,omitempty"`
 	DeviceState      uint8         `json:"device_state,omitempty"`
+}
+
+// UnmarshalJSON strict-decodes the enip layer config（未知键拒绝；
+// sstp/kerberos/ntlm 同款——层 config 一级 DisallowUnknownFields；
+// commands[]/cpf_items[]/sub_requests[] 为值切片，命令内未知键在
+// config 层即拒；D-ENIP-1 G-ENIP-3）。
+func (c *ENIPConfig) UnmarshalJSON(b []byte) error {
+	type alias ENIPConfig
+	var a alias
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&a); err != nil {
+		return err
+	}
+	*c = ENIPConfig(a)
+	return nil
 }
 
 // ENIPCommand represents a single ENIP message command configuration.

@@ -191,12 +191,25 @@ func buildDefaultRegistry() {
 		DependsOn: []string{"udp"},
 	})
 	// ---- P4a：enip（tcp 终结层，首个 tcp 载体协议。ENIP 命令即数据段
-	// （无握手/终止），TCP 语义（握手/seq-ack/挥手）交给 tcp 层生成器；
-	// 配置（commands/io_data/session_count...）繁多不落层 config（layers
-	// 数组条目零负载），经 flat 键 spec.ENIP 携带、FlowMeta 直传生成器。
-	// UDP I/O 帧不支持（chain 无 UDP 混合流，生成器显式拒绝 IOData）。
+	// （无握手/终止），TCP 语义（握手/seq-ack/挥手）交给 tcp 层生成器。
+	// D-ENIP-1（G-ENIP-3）：业务键住 enip 层 config（六键，与
+	// parseENIPConfig/parseENIPCommands/parseENIPIOData 消费键同名）；顶层
+	// `enip` 子映射由 CheckProtoFlat presence 判死，层链是唯一配置真相。
+	// 命令内键名以 parseENIPCommands 消费的蛇形键为准（generateFromLayer
+	// 复用同一解析器，零语义分叉）。端口契约 tcp.dst_port=44818（缺省补齐，
+	// modbus :135-136 同款）。UDP I/O 帧与多单元展开不支持（生成器显式拒绝，
+	// 不静默缩水）。
 	r.Register(LayerSchema{Name: "enip", Category: CategoryTerminal,
-		DependsOn: []string{"tcp"},
+		DependsOn:     []string{"tcp"},
+		FieldContract: map[string]string{"tcp.dst_port": "44818"},
+		Fields: map[string]FieldSchema{
+			"transport":     {Type: "string"}, // "tcp"/"udp"（udp 由生成器拒绝：链单载体）
+			"scenario":      {Type: "string"}, // full/discovery_only/io_only/forward_open_only/custom
+			"commands":      {Type: "list"},   // ENIPCommand 数组（parseENIPCommands 消费键）
+			"io_data":       {Type: "object"}, // ENIPIOData（链上由生成器拒绝——UDP I/O 面）
+			"session_count": {Type: "int"},    // >1 由生成器拒绝（多单元展开 = G-ENIP-1）
+			"flow_count":    {Type: "int"},    // 同上
+		},
 	})
 	// ---- P4a：a2a（tcp 终结层。HTTP/JSON-RPC over TCP——命令即数据段，
 	// TCP 语义（握手/seq-ack/挥手/MSS 分段）交给 tcp 层生成器；配置
