@@ -23,7 +23,7 @@ RTMFP 是面向实时音视频和数据流的 UDP 应用协议。它提供 endpo
 
 不覆盖：真实 RTMFP 加密线格式（HMAC-SHA256 握手 / AES-128 会话密钥——引擎为明文 fixture 面，`grep -rni "aes|encrypt|crypto"` 于 `internal/protocol/rtmfp/` 零命中，诚实声明 opaque）、TCP/QUIC/WebRTC、Adobe Cirrus/Stratus 服务发现实现、真实 NAT（网络地址转换）行为、编解码器、播放器时钟和 CDN（内容分发网络）。NAT traversal（NAT 穿越）只定义显式 endpoint/cookie 事件，不伪造公网映射结果。
 
-**已注册/已落码现状（P1 实测，行号真实）**：`rtmfp` 终结层已注册（`registry.go:385`，`CategoryTerminal + DependsOn ["udp"]`，注释 `registry.go:380-384`；**无 FieldContract、无 TransportOn、层字段表为空**——生成表 `layers.generated.json` 124 层内 `rtmfp` 条目为 `{"category":"terminal","depends_on":["udp"],"fields":{}}`，业务键走 `RTMFPConfig` flat 键经 FlowMeta 直传）；白名单已登记（`protocols.go:47` + `protocols_test.go:32`）；配置结构 `RTMFPConfig/RTMFPSession/RTMFPEvent/RTMFPFragment/RTMFPFault`（`types.go:241-283`，`FlowSpec.RTMFP` `types.go:1705`）；wire 编码 `internal/protocol/rtmfp/builder.go`（201 行：常量 `:11-30`、`buildHeader` `:89-103` 16 字节头、12 个 kind builder）；validator/generator `internal/protocol/rtmfp/planner.go`（312 行：`Generate :20-123`、`validateRTMFPConfig :134-278`、`validateWireFault :281-305` 8 值、注册 `:307-312`）；单元测试 22 个（`rtmfp_test.go` 397 行）；策略子配置解析 `strategy_convert.go:566-568`；端口默认 1935 实际由 `chain_planner.go:975-977` 供给（`validateBaseDstPortHandled` 含 rtmfp `:642`、允许 0 上包 `:811`）；Meta 直传 `chain_planner_translate.go:158` + `generator.go:388`；提交 c12fe77。v1.0.0 所述"层尚未注册/全部占位"已过期，以本段为准（见 §16.2 旧文逐条核对）。
+**已注册/已落码现状（P1 实测，行号真实）**：`rtmfp` 终结层已注册（`registry.go:385`，`CategoryTerminal + DependsOn ["udp"]`，注释 `registry.go:380-384`（P1 写作时）；**P4 已补 `TransportOn ["udp"]` + Fields 6 键（P6 行 `registry.go:482` 起；生成表同步）**，业务键走层 config 经 translate 严格解码）；白名单已登记（`protocols.go:47` + `protocols_test.go:32`）；配置结构 `RTMFPConfig/RTMFPSession/RTMFPEvent/RTMFPFragment/RTMFPFault`（`types.go:241-283`，`FlowSpec.RTMFP` `types.go:1705`）；wire 编码 `internal/protocol/rtmfp/builder.go`（201 行：常量 `:11-30`、`buildHeader` `:89-103` 16 字节头、12 个 kind builder）；validator/generator `internal/protocol/rtmfp/planner.go`（312 行：`Generate :20-123`、`validateRTMFPConfig :134-278`、`validateWireFault :281-305` 8 值、注册 `:307-312`）；单元测试 22 个（`rtmfp_test.go` 397 行）；策略子配置解析 `strategy_convert.go:566-568`；端口默认 1935 实际由 `chain_planner.go:975-977` 供给（`validateBaseDstPortHandled` 含 rtmfp `:642`、允许 0 上包 `:811`）；Meta 直传 `chain_planner_translate.go:158` + `generator.go:388`；提交 c12fe77。v1.0.0 所述"层尚未注册/全部占位"已过期，以本段为准（见 §16.2 旧文逐条核对）。
 
 **层链翻译缺口（P1 实测，P4 必补）**：`translateTerminalConfig`（`chain_planner_translate.go:684`）的 switch **无 `case "rtmfp"`**——层链路径下 `layers[i].rtmfp` 子映射不会被解码到 `spec.RTMFP`；层链形纯 `layers` 配置会走到生成器 `req.Meta.RTMFP == nil` 报错（`planner.go:25-27`），即**纯 layers 形今天跑不通，需先补代码**（CORE_MEMORY 1.9 目标形状标注）。存量 24 例依赖顶层 `rtmfp` 子映射经 `strategy_convert.go:566-568`（flat 路径）填充 `spec.RTMFP` 才能出包。P4 差量见 §13。
 
@@ -235,7 +235,7 @@ kind 覆盖注记：12 个 kind 中 11 个有用例；**`error` kind 无例** �
 ## 11. P1 规范矩阵（CORE_MEMORY §4 八项：规范要求→业务场景→代码现状→缺口）
 
 > 深度口径（§4.19–4.22）：矩阵三张子表——①事件×会话状态矩阵（§11.2）②数据形态变体表（§11.3）③商业行为→用例映射表（§12.2）。条目三选一：已实现 / 明确不支持 / 不适用 + 对应用例号；无遗漏留白。
-> **UDP 载体铁律（逐矩阵行重申）**：rtmfp rides UDP（registry `DependsOn ["udp"]`，`registry.go:386`；无 TransportOn/OptionalOn——单载体，无 0c355be complete.go:418 OptionalOn 底座豁免面）——TCP 载体判死（`carrier` 锚词，链中夹 tcp 层即错，bacnet 同构）。
+> **UDP 载体铁律（逐矩阵行重申）**：rtmfp rides UDP（registry `DependsOn ["udp"]` + `TransportOn ["udp"]`（P6 行 `:482` 起；P1 写作时 `:386` 且无 TransportOn/OptionalOn——单载体，无 0c355be complete.go:418 OptionalOn 底座豁免面）——TCP 载体判死（`carrier` 锚词，链中夹 tcp 层即错，bacnet 同构）。
 
 ### 11.1 八项规范矩阵
 
@@ -311,7 +311,7 @@ kind 覆盖注记：12 个 kind 中 11 个有用例；**`error` kind 无例** �
 | §2 策略/任务 | 策略=单 RTMFP 会话模板（自带 `flow_control` flows/bps/time）；任务=多策略合跑+总量封顶；框架语义未动 | 本契约 §11.1 + §13 |
 | §3 五件套 | 见 §12.3 强制展开：会话表/事务序列/关联关系/插入位置/时间线；**UDP 无 TCP 握手诚实写"建连面为应用层会话"**（hello/cookie/session_confirm 语义握手，非 SYN 三次握手），不虚构建连包数 | 本契约 §12.3 + 用例 #1/#10 |
 | §4 查规范 | Adobe RTMFP spec + RFC 7016 informational（文档名级引用，精确章节待 G-RTMFP-1）+ tshark 无 dissector 实测（0 字段）+ 已落码 builder wire 真相 + §11 矩阵 8 行+三子表 + 三路对照（§11.4） | 本契约 §11 |
-| §5 依赖与错误 | `DependsOn ["udp"]`（registry.go:386；单载体，无 TransportOn/OptionalOn）；wire_fault 8 值 + 自然守卫（§8 锚词表逐字，行号实测）；失败返回 task error（零假成功） | 本契约 §2/§8 + §13 错误分支 |
+| §5 依赖与错误 | `DependsOn ["udp"]` + `TransportOn ["udp"]`（P6 行 `registry.go:482`；P1 写作时 386 且无 TransportOn/OptionalOn）；wire_fault 8 值 + 自然守卫（§8 锚词表逐字，行号实测）；失败返回 task error（零假成功） | 本契约 §2/§8 + §13 错误分支 |
 | §6 性能 | 单事件流式渲染无全量聚合；pcap/NIC 双路验收；吞吐/并发/内存目标待 P4 基准后定（§6.5 诚实待确认，不写承诺数字）；六类场景清单见 §13 | §13 性能设计与验收 |
 | §7 三份文档 | 48-rtmfp-{design,testcase}.md v2.0.0（行为面权威）+ D-RTMFP-1（本契约 §13 草稿，门1 获批=定稿）+ T-RTMFP（testcase §10 草稿）+ generated schema（rtmfp 已在 124 层内，P4 只跑 `TestLayersGeneratedMatchesRegistry` 验证无过期） | 修订记录 |
 | §8 设计先行 | 本条目 P1–P3 先于 P4 层链整形开工；门1 获批=D-RTMFP-1 定稿=开工门 | 提交序 |
@@ -319,7 +319,7 @@ kind 覆盖注记：12 个 kind 中 11 个有用例；**`error` kind 无例** �
 | §10 评审闭环 | 每阶段对抗自重审（结论见 p123 报告）+ 收官隔离复审 + 修轮；红先绿后 | /tmp/pipe/74-rtmfp/p123-report.md |
 | §11 白话 | 每阶段白话一句先行 | 汇报 |
 | §12 动态清单 | 见 §12.12 强制展开：四元组=ip/udp 层（五策略全支持）；业务字段逐个列开/不开+理由；序号算法位置=layer_dyn.go:770 + worker.go:307-308（实测行号） | 本契约 §12.12 |
-| §13 schema 派生 | registry rtmfp 行（`DependsOn ["udp"]` + **空 Fields**——业务键走 FlowMeta 直传；端口 1935 单通道默认 `chain_planner.go:975-977`，strategy_convert `:570` 死注释不生效）→ schemagen 重跑验证；struct 标签字面量锁 | §13 接线件 |
+| §13 schema 派生 | registry rtmfp 行（P6 行 `:482`：`DependsOn ["udp"]` + `TransportOn ["udp"]` + Fields 6 键；P1 写作时空 Fields、业务键走 FlowMeta 直传；端口 1935 缺省 `chain_planner.go:1039-1042`（P6 行；P1 写作时 975-977），strategy_convert `:570` 死注释不生效）→ schemagen 重跑验证；struct 标签字面量锁 | §13 接线件 |
 | §14 真实流程 | suite 经 MCP 建任务→引擎生成→UDP 字段 + frames hex 双通道（无 `rtmfp.*` 字段面——tshark 3.6.14 实测 0）；先跑后钉；pcap 落 `/tmp/mcp-pcaps/rtmfp/` | 用例 §1/§10 |
 
 ### 12.1 §1 强制展开：旧键去向 + 完整 spec_json 样例
@@ -475,7 +475,7 @@ reliable+ack 样例（#3 目标形状；fragment/ack ranges 同构）：
 | internal/core/types.go（已落码） | `RTMFPConfig`（`:241-248` 6 键）+ `RTMFPSession`（`:251-255` 3 键）+ `RTMFPEvent`（`:258-270` 10 键）+ `RTMFPFragment`（`:273-278` 4 键）+ `RTMFPFault`（`:281-284` 3 键）+ `FlowSpec.RTMFP`（`:1705`） |
 | internal/protocol/rtmfp/rtmfp_test.go（已落码，397 行） | 单元测试 22 个（P4 复用，不改口径） |
 | internal/protocol/rtmfp/casegen_test.go（P4 NEW） | 一次性生成器：24 例（15 正+9 负）+ 4 链级红例契约计数逐例 add()，落 test/protocol_pcap/cases/rtmfp.json（层链整形后形状） |
-| 接线件（已落码，P4 只验证） | registry `registry.go:385-387`（`DependsOn ["udp"]` 单载体，无 FieldContract）；`protocols.go:47` 白名单 + `protocols_test.go:32` 同步；`strategy_convert.go:566-568` 子配置解析（`:570-571` 死注释）；`chain_planner.go:642`（validateBaseDstPortHandled）/`:811`（允许 0 上包）/`:975-977`（端口默认 1935）；`chain_planner_translate.go:158` + `generator.go:388` Meta 直传；schemagen 重跑验证无过期 |
+| 接线件（已落码，P4 只验证） | registry P6 行 `:482`（`DependsOn ["udp"]` + `TransportOn ["udp"]` + 6 键；P1 写作时 `:385-387` 单载体无 FieldContract）；`protocols.go:47` 白名单 + `protocols_test.go:32` 同步；`strategy_convert.go:566-568` 子配置解析（`:570-571` 死注释）；`chain_planner.go:642`（validateBaseDstPortHandled）/`:811`（允许 0 上包）/`:975-977`（端口默认 1935）；`chain_planner_translate.go:158` + `generator.go:388` Meta 直传；schemagen 重跑验证无过期 |
 | P4 新增翻译分支 | chain_planner_translate.go 补 `case "rtmfp"`（层 config JSON 往返解 `spec.RTMFP`，socks5 分支 `:2534-2557` 同构）——**不补则纯 layers 形跑不通**（§1/G-RTMFP-3） |
 | P4 新增守卫 | validate_layers 预检：presence（层链+顶层空子映射并存拒）/白名单外游离键拒/链夹 tcp 拒/缺 udp 拒（单载体，无 OptionalOn 面——0c355be complete.go:418 豁免与本协议无涉） |
 | tools/coverage_gate.py | check_rtmfp（准入接线/关键件/守卫/用例面四段，P4 登记——当前 grep 计 0，出口 2 视红） |
@@ -532,3 +532,10 @@ reliable+ack 样例（#3 目标形状；fragment/ack ranges 同构）：
 ### 16.2 与旧文档逐条核对结论（10.2）
 
 v1.0.0 §1–§10 逐条：§1 范围（保留+扩；"未注册"段按实测改写+层链翻译缺口声明）、§2 载体表（保留；端口默认通道实测化+死注释注记）、§3 typedef（保留键面，改实测 Go struct + kind 清单勘误）、§4 布局（保留概念，改实测 16B 自建头+诚实声明）、§5 状态机（保留，补校验锚点列）、§6 可靠性/分片/多流（保留）、§7 边界（保留+#14 勘误）、§8 错误表（保留，锚词实测化）、§9 ID 表（24 ID 逐条保留+实测包数列+勘误注记）、§10 修订记录（追加 v2.0.0）。无旧条目被静默删除。
+
+## P6 附录（2026-09-28，P6 关单主线程）
+
+- P6 判词：**通过**（无 P0/P1；M 级残留 3 项）。suite 29/29（16正+13负）、coverage 76/76、门2 静态四项绿（M-2 新二进制复绿）。
+- M-1 本轮勘误（上 5 处：registry TransportOn/Fields、端口缺省行号）：实现侧 P4 已补，文档侧本轮回填。
+- M-3 open 维持：suite 缺 mixed-family 负例（family 守卫仅链级单测覆盖），后续轮次补 `[ip(src v4/dst v6),udp,rtmfp]` 负例（锚词 `family`）。
+- 248 表：`docs/protocol-designs/248/74-rtmfp-248-table.md`。
