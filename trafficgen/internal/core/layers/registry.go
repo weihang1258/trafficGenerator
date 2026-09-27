@@ -1203,9 +1203,31 @@ func buildDefaultRegistry() {
 	// ---- B3：cflow（udp 终结层。RFC 3954 NetFlow v9 与 RFC 7011 IPFIX——
 	// Export Packet/Message 含 header、Template/Data/Options Set、IPv4/IPv6
 	// flow record 与 enterprise IE，wire 字节由 build* 纯函数产出），UDP
-	// 语义（数据报/checksum）交给 udp 层生成器；配置经 spec.CFlow flat 键
-	// 携带、FlowMeta 直传生成器；目的端口默认 2055（v9）/4739（IPFIX）。
-	r.Register(LayerSchema{Name: "cflow", Category: CategoryTerminal, DependsOn: []string{"udp"}})
+	// 语义（数据报/checksum）交给 udp 层生成器；配置住 cflow 层 15 键
+	// （D-CFLOW-1 P4：层条目经 JSON 往返严格解码为 core.CFlowConfig，
+	// 未知键在翻译期拒；嵌套 templates/records/exporters/sessions/options/
+	// sets/wire_fault 为结构化对象/数组，无 strategy 键不走动态门）；
+	// 目的端口默认 2055（v9）/4739（IPFIX）。
+	r.Register(LayerSchema{Name: "cflow", Category: CategoryTerminal,
+		DependsOn:   []string{"udp"},
+		TransportOn: []string{"udp"}, // cflow 仅 UDP 载体（RFC 3954/7011 数据报）——transport-dup 检查据此报 carrier 锚词（bacnet/dtls 先例，G-CFLOW-4）
+		Fields: map[string]FieldSchema{
+			"profile":               {Type: "string"},
+			"version":               {Type: "uint16"},
+			"source_id":             {Type: "uint32"},
+			"sequence":              {Type: "uint32"},
+			"sys_uptime":            {Type: "uint32"},
+			"observation_domain_id": {Type: "uint32"},
+			"export_time":           {Type: "uint32"},
+			"unix_secs":             {Type: "uint32"},
+			"templates":             {Type: "list"},
+			"records":               {Type: "list"},
+			"sets":                  {Type: "list"},
+			"options":               {Type: "object"},
+			"exporters":             {Type: "list"},
+			"sessions":              {Type: "list"},
+			"wire_fault":            {Type: "object"},
+		}})
 	// ---- P4a：fins（UDP/TCP 终结层，FINS 命令帧由协议生成器构造）。
 	// D-FINS-1：层 config 收 FINSConfig 同名 16 用户键，一律不设 Default
 	// （mcp 决策 F 谱系：缺省单一真相在代码——GCT=2/ICF 0x81·0xC1/SID 递增/

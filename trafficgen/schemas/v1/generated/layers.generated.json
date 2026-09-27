@@ -186,7 +186,56 @@
       "depends_on": [
         "udp"
       ],
-      "fields": {}
+      "transport_on": [
+        "udp"
+      ],
+      "fields": {
+        "export_time": {
+          "type": "uint32"
+        },
+        "exporters": {
+          "type": "list"
+        },
+        "observation_domain_id": {
+          "type": "uint32"
+        },
+        "options": {
+          "type": "object"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "records": {
+          "type": "list"
+        },
+        "sequence": {
+          "type": "uint32"
+        },
+        "sessions": {
+          "type": "list"
+        },
+        "sets": {
+          "type": "list"
+        },
+        "source_id": {
+          "type": "uint32"
+        },
+        "sys_uptime": {
+          "type": "uint32"
+        },
+        "templates": {
+          "type": "list"
+        },
+        "unix_secs": {
+          "type": "uint32"
+        },
+        "version": {
+          "type": "uint16"
+        },
+        "wire_fault": {
+          "type": "object"
+        }
+      }
     },
     "coap": {
       "category": "terminal",

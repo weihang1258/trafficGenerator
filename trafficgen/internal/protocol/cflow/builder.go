@@ -416,10 +416,10 @@ func buildV9OptionsSet(opts *core.CFlowOptions) []byte {
 	}
 	var fields []optField
 	if opts.ActiveTimeout > 0 {
-		fields = append(fields, optField{161, opts.ActiveTimeout})
+		fields = append(fields, optField{36, opts.ActiveTimeout}) // FLOW_ACTIVE_TIMEOUT
 	}
 	if opts.InactiveTimeout > 0 {
-		fields = append(fields, optField{162, opts.InactiveTimeout})
+		fields = append(fields, optField{37, opts.InactiveTimeout}) // FLOW_INACTIVE_TIMEOUT
 	}
 	if opts.SamplingInterval > 0 {
 		fields = append(fields, optField{34, opts.SamplingInterval})
@@ -647,9 +647,9 @@ func buildIPFIXOptionsData(templates []core.CFlowTemplate, opts *core.CFlowOptio
 		switch f.ElementID {
 		case 34: // samplingInterval
 			val = uint64(opts.SamplingInterval)
-		case 161: // activeTimeout (not standard IPFIX, but used in v9)
+		case 36: // FLOW_ACTIVE_TIMEOUT (IPFIX IE 36)
 			val = uint64(opts.ActiveTimeout)
-		case 162: // inactiveTimeout
+		case 37: // FLOW_INACTIVE_TIMEOUT (IPFIX IE 37)
 			val = uint64(opts.InactiveTimeout)
 		}
 		b := make([]byte, f.Length)

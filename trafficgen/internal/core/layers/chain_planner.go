@@ -317,7 +317,11 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 	// D-DAMENG-1（neg_port 实证）：dameng 同列——层内 tcp.dst_port=5237 不
 	// 先回填则 spec.DstPort 停在 validateSpecBase 的缺省 5236，dameng
 	// Validate 的端口域检查被旁路（负例假通过）。
-	if p.name == "enip" || p.name == "dameng" {
+	// D-CFLOW-1 同款（cflow 双 profile 端口域）：udp 层 dst_port 是链形状
+	// 端口真相，缺省 2055 恒落 spec——不回填则 IPFIX 例（层写 4739）被
+	// validator 判 "ipfix profile requires udp port 4739, got 2055" 全红，
+	// 且 neg_udp_port（v9 层写 4739）反向漏放。
+	if p.name == "enip" || p.name == "dameng" || p.name == "cflow" {
 		for _, l := range chain {
 			if l.Name != "tcp" && l.Name != "udp" {
 				continue
@@ -329,6 +333,30 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 					}
 				}
 			}
+		}
+	}
+	// D-CFLOW-1 profile 感知端口缺省（设计 §1 不变式 1/§2 表：v9→2055、
+	// IPFIX→4739）：validateSpecBase 的 case "cflow" 只给 2055（profile 住
+	// cflow 层，base 期 spec.CFlow 尚 nil），IPFIX 链缺省 udp.dst_port 时
+	// 会拿到 2055 被 validator 拒。层内 profile 显式写 ipfix 且 udp 层未
+	// 显式写端口 → 覆盖为 4739（显式层值仍优先，上一块已回填）。
+	if p.name == "cflow" {
+		udpExplicit := false
+		profile := ""
+		for _, l := range chain {
+			switch l.Name {
+			case "udp":
+				if v, ok := l.Config["dst_port"]; ok && v != nil {
+					udpExplicit = true
+				}
+			case "cflow":
+				if v, ok := l.Config["profile"].(string); ok {
+					profile = v
+				}
+			}
+		}
+		if !udpExplicit && profile == "ipfix_rfc7011" {
+			spec.DstPort = 4739
 		}
 	}
 	if v := protocolValidator(p.name); v != nil {
