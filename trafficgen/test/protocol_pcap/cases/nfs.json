@@ -10725,5 +10725,165 @@
    "expect_error": true,
    "error_contains": "NFSv4 requires TCP"
   }
+ },
+ {
+  "id": "nfs_neg_presence_top_level_nfs",
+  "proto": "nfs",
+  "summary": " presence 判死：层链 + 顶层空 nfs 子映射并存（M5 清单①；非残留）",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "nfs": {}
+    }
+   ],
+   "nfs": {}
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "no longer accepts a top-level nfs sub-config"
+  }
+ },
+ {
+  "id": "nfs_neg_flat_count",
+  "proto": "nfs",
+  "summary": " 白名单外游离键判死②-a：顶层 count（1.11–1.13；flow_control 家族外数量键）",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "nfs": {
+      "version": 3,
+      "ops": [
+       {
+        "procedure": 0
+       }
+      ]
+     }
+    }
+   ],
+   "count": 1
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "no longer accepts flat config field count"
+  }
+ },
+ {
+  "id": "nfs_neg_stray_src_mac",
+  "proto": "nfs",
+  "summary": " 白名单外游离键判死②-b：顶层 src_mac（MAC 真相住 eth 层；checkLayerFlatConflict）",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "nfs": {
+      "version": 3,
+      "ops": [
+       {
+        "procedure": 0
+       }
+      ]
+     }
+    }
+   ],
+   "src_mac": "aa:bb:cc:dd:ee:01"
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "src_mac"
+  }
+ },
+ {
+  "id": "nfs_neg_stray_ttl",
+  "proto": "nfs",
+  "summary": " 白名单外游离键判死②-c：顶层 ttl 越界 300（TTL 真相住 ip 层；schema shape 门先于层链）",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "nfs": {
+      "version": 3,
+      "ops": [
+       {
+        "procedure": 0
+       }
+      ]
+     }
+    }
+   ],
+   "ttl": 300
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "maximum"
+  }
+ },
+ {
+  "id": "nfs_neg_unknown_layer_field",
+  "proto": "nfs",
+  "summary": " 未知层字段判死：nfs 层 bogus 键（ValidateLayers 未知字段门）",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "nfs": {
+      "version": 3,
+      "bogus_field": 1,
+      "ops": [
+       {
+        "procedure": 0
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "layers: layer"
+  }
+ },
+ {
+  "id": "nfs_neg_static_copy_multiflow",
+  "proto": "nfs",
+  "summary": " 多流静态复制判死：flows=2 + 静态四元组（逃生口=层内动态对象；checkLayerChainStaticCopy）",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {
+      "src_port": 40000
+     }
+    },
+    {
+     "nfs": {
+      "version": 3,
+      "ops": [
+       {
+        "procedure": 0
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "static copy"
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  }
  }
 ]
