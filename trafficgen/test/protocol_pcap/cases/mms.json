@@ -1275,5 +1275,53 @@
       "expect_error": true,
       "error_contains": "multiSession[0].enableWrite is not supported"
     }
+  },
+  {
+    "id": "mms_neg_object_members",
+    "proto": "mms",
+    "summary": "§2.3 死配置: objects[].members 无编码路径读取（builder 零命中）→ validator 判死",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.88",
+            "dst": "198.51.100.88"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {
+            "objects": [
+              {
+                "domain": "IED1",
+                "name": "GGIO1.SPCSO1.stVal",
+                "datatype": "boolean",
+                "members": [
+                  {
+                    "name": "a",
+                    "datatype": "boolean",
+                    "value": true
+                  }
+                ]
+              }
+            ],
+            "enableRead": true,
+            "sequence": {
+              "steps": [
+                "read"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "members is not supported"
+    }
   }
 ]

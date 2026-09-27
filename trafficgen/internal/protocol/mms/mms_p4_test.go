@@ -158,3 +158,40 @@ func TestValidateCoversMultiSessionSubConfigs(t *testing.T) {
 		t.Fatalf("err = %v, want multiSession[1] named (index must be the real one)", err)
 	}
 }
+
+// §2.3 同类死配置（本批自查新增）：MMSObjectConfig.Members 全仓库零消费
+// （builder/layer_gen/planner 三文件 grep 零命中）——契约 §2.2 把 members
+// 列进对象形状，但没有任何编码路径读它，配上不生效即死配置。members 唯一
+// 有意义的类型（structure）已在 G-MMS-3 拒收，故 members 恒 inert → 判死
+// 并指路（要发多值请用多个 objects 条目）。
+func TestValidateRejectsObjectMembers(t *testing.T) {
+	p := Planner{}
+	err := p.Validate(core.FlowSpec{MMS: &core.MMSConfig{
+		EnableRead: true,
+		Objects: []core.MMSObjectConfig{{
+			Domain: "IED1", Name: "x", Datatype: "boolean",
+			Members: []core.MMSMember{{Name: "a", Datatype: "boolean", Value: true}},
+		}},
+	}})
+	if err == nil {
+		t.Fatal("object members is never read by the builder — want rejection")
+	}
+	if !strings.Contains(err.Error(), "members") {
+		t.Fatalf("err = %v, want anchor \"members\"", err)
+	}
+	// 子会话 objects 同门（multiSession 第二入口）。
+	err = p.Validate(core.FlowSpec{MMS: &core.MMSConfig{
+		EnableRead:   true,
+		MultiSession: []core.MMSConfig{{Objects: []core.MMSObjectConfig{{Domain: "IED2", Name: "y", Members: []core.MMSMember{{Name: "a"}}}}}},
+	}})
+	if err == nil || !strings.Contains(err.Error(), "members") {
+		t.Fatalf("multiSession members err = %v, want rejection", err)
+	}
+	// 无 members 的对象继续放行。
+	if err := p.Validate(core.FlowSpec{MMS: &core.MMSConfig{
+		EnableRead: true,
+		Objects:    []core.MMSObjectConfig{{Domain: "IED1", Name: "x", Datatype: "boolean", Value: true}},
+	}}); err != nil {
+		t.Fatalf("plain object must stay accepted: %v", err)
+	}
+}

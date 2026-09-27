@@ -37,6 +37,12 @@ func (Planner) Validate(spec core.FlowSpec) error {
 		if !validType(o.Datatype) {
 			return fmt.Errorf("mms: datatype %q invalid", o.Datatype)
 		}
+		if len(o.Members) > 0 {
+			// §2.3 同类死配置：members 无任何编码路径读取（builder 零命中），
+			// 且其唯一有意义的载体类型 structure 已在 G-MMS-3 拒收——配上
+			// 不生效，判死并指路。
+			return fmt.Errorf("mms: object %q members is not supported (the builder never reads it; emit one object per value instead)", o.Name)
+		}
 	}
 	if s := spec.MMS.Sequence; s != nil {
 		// 契约 §4.2 行「sequence 负值」的锚词保留（负值仍是独立的拒绝面）。
@@ -80,6 +86,9 @@ func (Planner) Validate(spec core.FlowSpec) error {
 			}
 			if !validType(o.Datatype) {
 				return fmt.Errorf("mms: %s datatype %q invalid", where, o.Datatype)
+			}
+			if len(o.Members) > 0 {
+				return fmt.Errorf("mms: %s object %q members is not supported (the builder never reads it; emit one object per value instead)", where, o.Name)
 			}
 		}
 		for _, k := range deadMultiSessionKeys(sub) {
