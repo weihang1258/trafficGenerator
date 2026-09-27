@@ -2664,6 +2664,390 @@ v2.0.0：15 个完整 HexDump 场景（S1-S15），每个场景含：
 - v2.0.0：220 条（T-001 ~ T-220）
 - v2.0.1：229 条（新增 T-120a/T-120b/T-120c/T-133a~T-133d/T-200a~T-200e，共 9 条），并修正 T-004/T-011/T-042/T-044/T-045/T-062/T-064/T-096/T-098/T-112/T-136/T-137/T-150/T-176/T-177 共 15 条断言
 
+### 11.3 v2.1.0（2026-09-26，P-PIPE 文档轨 P1–P3 产物）
+
+**修订性质**：按 `/tmp/pipe/plan-concurrent-pipeline.md` v2 §2 文档轨契约补足 P1–P3。**不改既有 §1–§11 的技术结论**（v2.0.1 审计修复全部保留），只新增：§12 P1 八项规范矩阵 + 三子表、§13 三路对照与候选方案对比、§14 门1 §1–§14 十四行对照表（含 §1/§3/§12 强制展开、目标形状 spec_json 样例、presence 负例形状、去扁平改写清单）、§15 D-ENIP-1 P2 代码设计草稿、§16 P3 测试对接清单（含存量 135 例审计去向分类与 9.52 对账）、§17 缺口立项清单。
+
+**代码现状基线（本版实读，行号为 `feat/unified-layerchain-architecture` 分支 HEAD）**：`enip` 层已注册（registry.go:193-200）、链级生成器已落地（internal/protocol/enip/layer_gen.go:48-166，P4a）、legacy planner 保留（enip.go）；用例 `cases/enip.json` 135 例（91 正 + 44 负），其中 69 例已是层链形但顶层扁平键/协议子映射并存，66 例仍为旧扁平形。**本版不宣称 suite 全绿**（去扁平改写与缺口立项见 §14.13/§17，属 P5 动作）。
+
+### 11.4 v2.1.1（2026-09-27，P4–P6 交付回写）
+
+**修订性质**：P4（接线 + 门2 静态）与 P5（去扁平改写）落地后回写交付状态，并执行 CORE_MEMORY §15.8「门1 十四行表回填实际证据号」。**不改 §1–§11 的既有技术结论**（v2.0.0/v2.0.1/v2.1.0 各轮审计修复全部保留）。
+
+- **P4 接线（`0c5c9e7` + `adfeb76`，集成 `0628424`）**：registry enip 行补六键 `Fields` + `FieldContract{"tcp.dst_port":"44818"}`（registry.go:229-240）；层翻译 `case "enip"`（chain_planner_translate.go:2366，JSON 往返 + `DisallowUnknownFields` 落 `spec.ENIP`）；顶层 `enip` 子映射 presence 判死（strategy_convert.go:8668 区段）；`io_data`/`transport:"udp"`/多单元三支**同步面预检**（validate_layers.go:550-587 预检（块止于 587），与生成器 layer_gen.go:56-71 双路闭合）；链层 `tcp.dst_port` 回填进 `spec.DstPort` 使端口域校验实红（chain_planner.go:310-323，`enip_t115_dstport_502` 实证）；`schemagen` 重跑（generated json enip 行六键）；`coverage_gate.py` 增 `check_enip`；离线链套件 `chainSuiteProtos` 纳 enip。
+- **P5 改写（`adfeb76`）**：135 例 → 136 例（81 正 + 55 负）。A 69 去扁平、B 12 转单单元等价、C 10 现状钉 + G-ENIP-2 注记、D 44 转层链形负例；净增 `enip_neg_presence`。改写按 14.6/14.20 先跑后钉重建 frames/包号（B 类包号 = legacy +3，握手 3 包）。
+- **P6 修轮（本分支）**：新增复合用例 `enip_t180_multiflow_txn_error_branch`（**多流 framework `flows=2` × 会话内多事务 × 异常分支**三面同例，落 T-179/T-180/T-217 语义；137 = 82 正 + 55 负）；5 例重锚用例 notes 与实钉锚对齐（t117/t118 为 0 包锚 + G-ENIP-8 披露；t108/t109/t110 为 `io_data` 同步预检锚 + G-ENIP-2 披露）；新登记 **G-ENIP-8**（§17）。
+- **验证实测（P6）**：lane6 MCP suite **137/137**（`RESULT: 137 pass, 0 fail, 0 error (of 137)`）；离线 `TestLayerChainSuite`（CHAIN_PROTO=enip）**137/137**；`coverage_gate.py enip` 绿；`pipe_gate.sh enip` 门2 静态四项绿。
+- **证据号回填**：§14 门1 十四行表逐条实读回填（含原号括注）；§12 章首增「行号口径」说明（符号名稳定锚优先）。
+
+---
+
+## 12. P1 规范矩阵（CORE_MEMORY §4 八项：规范要求→业务场景→代码现状→缺口）
+
+> **深度口径**（§4.19–4.22）：矩阵三张子表——①命令×响应码矩阵（§12.2）②数据形态变体表（§12.3）③商业行为→用例映射表（§13.2）。条目三选一：已实现 / 明确不支持 / 不适用 + 对应用例号；无遗漏留白。
+> **数字口径**：本版所有行号为写作时实读（分支 `feat/unified-layerchain-architecture` HEAD）。`cases/enip.json` 计 135 例（91 正 + 44 负，脚本实测）。tshark 字段计数口径 `tshark -G fields | awk -F'\t' '$3 ~ /^enip\./'`（**必须带 `-F'\t'`**：不加时 awk 按空白切列，$3 落在 Blurb 文本上，会把 99 字段低估成 34——OCSP #46 已立此口径）= **99 字段**（本机 TShark 3.6.14）；同口径 `^cip\.` = **669 字段**。两个数字均为本版实测。用例内引用计数（如「26 处引用」）为 `spec_json` 命令数组脚本实测。
+
+> **行号口径（v2.1.1 P6 回填说明）**：§12–§17 正文的行号为 P1–P3 写作时实读快照。P4–P6 交付后部分符号已位移（实测对照：registry.go enip 行 193-200 → **229-240**；chain_planner_translate.go `case "enip"` 72-74 → **2366**；strategy_convert.go `parseENIPCommands` 7793-7852 → **7907-7963**、`parseENIPIOData` 7866 → **7980**、`parseENIPConfig` 7887 → **8001**、`getENIPSessionHandleStrategy` 7856 → **7970**、`CheckProtoFlat` 8273 → **8404**；worker.go FlowIndex 316 → **321**；cmd/server/main.go `NewChainPlanner("enip")` 618 → **626**；types.go 10125/10144/10224 → **10131/10214/10300**）。**门1 十四行表（§14）证据号已按交付树逐条回填**（CORE_MEMORY §15.8）；其余章节按**符号名**（函数/常量/键名）定位，不逐条回填行号——符号名是稳定锚，行号随并行车道合并漂移（layer_dyn.go 的 `:17-71`/`:18`/`:19`/`:726`/`:770-780` 与 enip.go 的 `:211`/`:235`/`:590`/`:627`/`:805`/`:879`/`:1236`、complete.go 的 `:293`/`:332`/`:398-441`/`:456-475`、semantic.go 的 `:142`/`:179-184`/`:198`、tuple_generator.go 的 `:290`/`:300` 经 P6 复核**未漂移**，原号有效）。
+
+### 12.1 八项规范矩阵
+
+| # | 规范要求（§4.1–4.8 对应） | 业务场景 | 代码现状 | 缺口 |
+|---|---|---|---|---|
+| 1 | **连接模型**（§4.1）：TCP 44818 长连接承载显式消息；RegisterSession 建立会话；CIP 连接由 Forward_Open/Forward_Close 管理；Class 0/1 隐式 I/O 走 UDP 数据报；client（Originator）主动建连（契约 §1.1/§1.2/§4） | 设备发现→注册→显式消息→I/O 周期交换→注销；SCADA/HMI 轮询、I/O 扫描 | **部分已实现**：`enip` 已注册为 TCP 终结层（registry.go:193-200，`CategoryTerminal` + `DependsOn ["tcp"]`，零 `Fields`、无 `TransportOn`/`OptionalOn`；**P4 已落六键 Fields → 现 registry.go:229-240**，见 §11.4/§14 回填）；链级生成器单流命令序列（layer_gen.go:48-166）；**多单元展开与 UDP I/O 面在链上显式拒绝**（layer_gen.go:56-71）；legacy planner 两侧均支持（多单元 enip.go:588-590、UDP I/O 帧 enip.go:824-853、transport=udp enip.go:627） | ①多会话/多流在单链不可达 → **G-ENIP-1**；②UDP I/O 面（含 `transport:"udp"`）→ **G-ENIP-2**；③业务配置仍住顶层 `enip` 子映射（strategy_convert.go:1282-1284）→ **G-ENIP-3** |
+| 2 | **命令/消息表**（§4.2）：ENIP 命令 10 条（契约 §2.2：0x0000/0004/0063/0064/0065/0066/006F/0070/0072/0073）+ CPF TypeID 9 值（§2.4.1：0x0000/000C/00A1/00B1/00B2/0100/8000/8001/8002）+ CIP 服务码 36 条（§2.5.1–3 = 23+7+6）；每条请求-响应形态与必选/可选字段见 §3.5–§3.11 | 现网行为：Logix 广播发现（见 §13.2 映射表）、RegisterSession 建会话、显式消息读写、Class1 I/O、PLC-5 PCCC、Logix 标签读写、MSP 批量刷新 | **部分已实现**：builder.go 编码原语齐（BuildENIPHeader:64、BuildCPFItem:85、BuildCIPRequest:115 收任意 service、BuildForwardOpenBody:125、BuildForwardCloseBody:186、BuildMultipleServicePacket:208）；用例侧 ENIP 命令码出现：0x0000×10 / 0x0004×4 / 0x0063×3 / 0x0064×2 / 0x0065×26 / 0x0066×5 / 0x006F×99 / 0x0070×14（`spec_json` 命令数组实测）；CIP 服务码被引用的 12 条：0x01/03/04/05/06/07/0A/0E/10/4E/54/5B；0x0072/0x0073 无用例（模拟扩展，见 §13.1 取舍） | CIP 服务码余 24 条（含 PCCC 0x4B、Logix 0x4C/0x4D/0x52/0x55）零断言 → A′ 补例（§16.3）；命令×响应逐格见 §12.2 |
+| 3 | **状态机**（§4.3）：会话状态机 Unregistered→Registered→(Expired)（契约 §4.1）+ CIP 连接状态机 NonExistent→Established→Active→Closing（§4.2），含各状态允许动作 | 会话中途失效（InvalidSessionHandle）、连接重开、Forward_Close 三元组定位、超时释放 | **部分已实现**：会话句柄回写已建模（layer_gen.go:131-135 与 enip.go:730-736 逐字对齐）；**CIP 连接对象状态未建模**——生成器按配置命令序列直发，Forward_Close 靠配置三元组回显（§3.7），无连接表与状态迁移 | 连接一致性（Forward_Close 路径须与 Forward_Open 一致，V-114，负例 `enip_t120a_forwardclose_path_mismatch`）→ 链级校验迁入见 §15；连接超时（RPI×4×2^M，§9.3）无时钟语义 → B′「明确不解决」 |
+| 4 | **字段表**（§4.4）：ENIP 头 6 字段 LE（§2.1）+ Forward_Open 请求 15 字段/35B 固定（§3.5）+ 2B 连接参数位布局 7 项（§3.5.1，bit 0-8/9/10-11/12/13-14/15 六段）+ 4B 位布局 7 项（§3.5.2）+ Forward_Open 成功响应 9 字段（§3.6 表 9 数据行）+ Forward_Close 请求 7 字段/响应 5 字段（§3.7/§3.8）+ EPATH 段类型 7 值（§2.7.1）+ 段子类型 14 行（§2.7.2） | 跨厂商互操作；大 RPI/大数据量走 LargeForwardOpen；路径 8/16/32-bit 编码选择；Identity 对象属性读取 | **已实现**：EncodeCIPPath:11 / EncodePaddedCIPPath:51 / BuildForwardOpenBody:125 / BuildLargeForwardOpenBody:156 / BuildForwardCloseBody:186（ForwardClose 按 Wireshark 3.6.14 dissector 固定偏移校准，builder.go:187-191 记 Reserved 字节教训） | 逐字段变体覆盖见 §12.3；32-bit EPATH 段（T-133a~d）仅编码面 |
+| 5 | **错误处理表**（§4.5）：ENIP Status 7 值（§2.3）+ CIP 通用状态 14 值（§2.3.1）+ Connection Manager 扩展状态 19 值（§2.3.2）+ 各分支动作（§9.1 6 行 / §9.2 11 行，实测数据行） | 服务端拒识、路径错、连接冲突/不存在、RPI 不可接受、会话失效 | **部分已实现**：44 条负例覆盖配置非法面（锚词 42 种不同值逐例，见 §16.2）；错误响应用例生成侧构造 `payload` 数组直填（`enip_error_response_status`，断言 `enip.status` + CIP 错 bytes）；0x8000/0x8001 构造有例（T-144/T-145/T-146）；未知 TypeID 负例（`enip_t116` 0x9999） | CM 扩展状态码逐值无单独用例（`spec_json` 面 `additional_status` 键**零出现**，命令键普查实测）→ A′ 补例；服务端主动错误语境无外部对端 → A′（生成侧可构造，改断言面即可） |
+| 6 | **超时与活性**（§4.6）：会话无活动超时（实现相关，§4.1/R18 已澄清 OpENer 无固定常量）、连接无活动超时 `RPI×4×2^M`（§9.3）、NOP 心跳且**不产生响应**（§2.2/R16） | 长连接保活、设备掉线检测、超时重连、退避重试 | **部分已实现**：NOP 命令可发（`enip_nop_heartbeat`）；TimeoutTicks / ConnectionTimeoutMultiplier 为配置面（范围校验 §8.2 V-116） | 超时/重传的**时间轴行为**无引擎面（生成器无时钟、无重传语义）→ B′；保活属 §3.15 第三项（`enip_nop_heartbeat`） |
+| 7 | **NAT/代理/被动模式**（§4.7）：Sockaddr Info Item O→T/T→O（0x8000/0x8001，**可选**、16B、SinFamily/SinPort/SinAddr/SinZero，§2.4.1 R22 + §2.4.2 R9 字节序标注）；UDP I/O 目标地址通告；端口 44818 固定 | 跨网段/防火墙后 I/O、NAT 端口映射、多网卡 PLC、Proxy 转发 | **部分已实现**：`cpf_items` 直填构造面已通（T-144 `ItemCount=4` 双 Sockaddr 构造、T-145 端口边界、T-146 地址边界，均为**正例**）；`Length≠16` 负例有例（T-119）；引擎无 NAT/代理中间盒模拟面 | NAT/代理中间盒 → B′ 立项（无面） |
+| 8 | **版本/方言差异**（§4.8）：ProtocolVersion=1 固定（§3.2/R17）、LargeForwardOpen 0x5B 4B 参数（§3.5.2）、Logix 方言（0x4C/0x4D/0x55；0x52 同码按设备语境，§2.5.3/R19）、PCCC 0x4B 推导（§4.3/R27 用 Connected/Unconnected 选择逻辑）、ListIdentity ProtocolVersion=1（§3.11/R38） | Logix 5000 标签读写、老 SLC/PLC-5 PCCC 通道、版本不匹配拒绝 | **部分已实现**：LargeForwardOpen 已实现（builder.go:156 + 用例 `enip_large_forward_open`）；ProtocolVersion≠1 拒绝有负例（T-083/T-120b）；0x52 同码在 `cip_service` 面已可填（`parseENIPCommands` strategy_convert.go:7793-7852 收任意 service），但**无方言用例** | Logix/PCCC 方言面零断言 → A′ 补例（§16.3）；0x52 同码需在用例注记目标设备模型（OpENer=Unconnected_Send） |
+
+### 12.2 子表①：命令×响应码矩阵（逐格已覆/缺失）
+
+行 = ENIP 命令（契约 §2.2 十条），列 = 响应面三类。「已覆」= 有用例断言该命令与响应面（命令码出现次数见 §12.1 行 2）；「不适用」= 该命令无此响应面。
+
+| 命令 \ 响应面 | 成功响应（Status=0） | ENIP Status 错误（§2.3） | CIP 层错误（§2.3.1/§2.3.2） |
+|---|---|---|---|
+| 0x0000 NOP | 已覆 `enip_nop_heartbeat`（§2.2/R16：OpENer 直接 break，不产响应——此处「成功」指请求包可发） | 不适用（不产生响应） | 不适用（无 CIP 载荷） |
+| 0x0004 ListServices | 已覆（命令码 4 处引用） | 缺口 A′（未构造 Status≠0 形） | 不适用（无 CIP 层） |
+| 0x0063 ListIdentity | 已覆 `enip_listidentity_session_lifecycle` / `enip_listidentity_response` | 缺口 A′（同族：服务端拒绝发现） | 不适用 |
+| 0x0064 ListInterfaces | 已覆（命令码 2 处引用 + `enip_t102_listinterfaces_cpf`） | 缺口 A′ | 不适用 |
+| 0x0065 RegisterSession | 已覆（命令码 26 处引用；`enip_registersession_session_state`） | 缺口 A′（0x0069 UnsupportedProtocol 的服务端响应面；请求侧已有 T-083/T-120b 负例） | 不适用 |
+| 0x0066 UnRegisterSession | 已覆（命令码 5 处引用；`enip_t174_unregister_session_matched`） | 不适用（无响应包） | 不适用 |
+| 0x006F SendRRData | 已覆（命令码 99 处引用；CIP 各服务面） | 缺口 A′（服务端返回 0x0064 InvalidSessionHandle 的响应形未构造） | 部分覆：`enip_error_response_status`（CIP 错 bytes 直填 payload，断言 `enip.status`=0x00000000 + 错 bytes frames）；`enip_t120a_forwardclose_path_mismatch`（路径不一致判死，锚词 `Forward_Close connection path`）；**CM 扩展状态逐值无例**（`additional_status` 键在 135 例 `spec_json` 中**零出现**，命令键普查实测）→ A′ 补例 |
+| 0x0070 SendUnitData | 已覆（命令码 14 处引用；UDP I/O 面，链上 G-ENIP-2） | 缺口 A′ | 缺口 A′（I/O 面错误） |
+| 0x0072 IndicateStatus | 不适用（trafficgen 模拟扩展、无规范 payload，§2.2/R33/R37） | 不适用 | 不适用 |
+| 0x0073 Cancel | 不适用（同上） | 不适用 | 不适用 |
+
+注：0x0072/0x0073 在 OpENer 中不实现（收到回 0x0001），本契约不作线上断言（§2.2 已声明）；列「不适用」非「缺口」。
+
+### 12.3 子表②：数据形态变体表（协议相关全部形态逐项）
+
+| 变体维度 | 形态 | 对应用例 | 备注 |
+|---|---|---|---|
+| 地址族 × 载体 | IPv4/TCP（现状 135 例全为 IPv4，`10.0.0.1`→`20.0.0.1`，src_port 单值 12345）；IPv6/TCP **零例** | IPv4 面：全域；IPv6 面：**缺口 A′**（可构建性**待确认**，见备注） | §9.24 地址族对称：一族已覆另一族须逐格补齐，缺一格即缺口。**备注（实读）**：仓库层名表中**无 `ipv6` 层**（registry.go 注册名 124 项无 ipv6；v6 语义由 `ip` 层字面量承担）；已收官 kerberos/bacnet/megaco/hl7 的用例文件同为 0 例 v6（同口径实测），即本缺口在已收官协议中亦未闭合——IPv6 面按跨协议统一口径处理，**A′ 判定以 P5 首次实跑 `ip` 层 v6 字面量链为准**（不预判可达性） |
+| 字节序 | 全 LE（头/CPF/CIP）；Sockaddr SinPort/SinAddr 标注可配置（§2.4.2/R9） | 全域 frames hex 断言（86 例带 frames） | 大端面 B′（现网 OpENer 为 LE，无第二形态证据） |
+| 命令形态 | 请求/响应成对、单向（NOP/UnRegisterSession）、server→client 主动（IndicateStatus，不适用） | `enip_nop_heartbeat` / `enip_t174_unregister_session_matched` / `enip_listidentity_session_lifecycle` | 命令预算见 §12.2 |
+| CPF ItemCount | 2（Null+Unconnected / ConnAddr+ConnData）、4（+Sockaddr O→T/T→O，T-144 有例）、0（ListInterfaces 响应）、1（ListServices/ListIdentity 响应） | 2/4 有例（T-144 断言 `enip.cpf.itemcount=4` + frames）；**0/1 的 `itemcount` 字段断言未单独落地**（T-157/T-158 断言的是 ListIdentity 的 SendRRData 封装 ItemCount=2，非 List* 响应本身的 0/1 形） | §2.4.1 / §3.3。另：T-143（ItemCount=1 用户项）实际被接受、断言 totals 3——planner 行为与契约 §8.2 V-105（≥2）**表面不一致**，P5 对账时二选一（改实现或改契约，T-143 summary 已诚实声明 impl allows） |
+| CPF TypeID | 0x0000/0x000C/0x00A1/0x00B1/0x00B2/0x0100/0x8000/0x8001/0x8002（9 值） | 用例内出现：0x0000×8 / 0x00A1×13 / 0x00B1×13 / 0x00B2×1 / 0x8000×4 / 0x8001×1；**0x000C/0x0100/0x8002 零出现**（`enip_listidentity_response` 用 `payload` 数组直填，未走 `cpf_items`+`type_id` 键）；未知值负例 `enip_t116`（0x9999） | 0x000C/0x0100 的 `type_id` 键面 → A′ 补例 |
+| CIP 服务码 | 36 值（§2.5.1–3 = 23+7+6） | 被引用的 12 条（§12.1 行 2）；余 24 值缺口 A′（含 PCCC/Logix 方言） | 逐值枚举（§9.47） |
+| EPATH 段 | Class/Instance/Attribute 的 8/16-bit + Connection Point 8/16-bit（T-133c/d 有例） | 有例（`enip_epath_16bit_*` 家族、T-133a~d）；32-bit 仅编码面 | §2.7.2 |
+| 连接参数位布局 | Forward_Open 2B（bit 0-8 Size/9 FV/10-11 Prio/12 Rsv/13-14 Type/15 Owner）；LargeForwardOpen 4B（bit 0-15 Size/25 FV/26-27/29-30/31） | 有例（`enip_forward_open_request`、`enip_large_forward_open`）；Reserved bit 置位负例有例（T-098 家族 `enip_t098`） | §3.5.1/§3.5.2（Wireshark dissect_net_param16/32） |
+| SequenceCounter | I/O 帧内 2B 序列、步长、回绕（T-074 有例 `enip_seq_wraparound_3_frames`） | 有例但**全在 `io_data` 面**（`enip_t073_seq_10_frames` / T-129 无单独 id 并入 io 面 / T-130 同 / `enip_t167_multiflow_seq_from_1`）→ 链上被拒（G-ENIP-2） | §9.4；链上不可达，属 B′ 迁移面。注：T-141/T-142 summary 声明「2026-08 去 seq 前缀」——ConnectedDataItem 已不编码 SequenceCounter，与契约 §3.3「I/O payload 含 2B SequenceCounter」**字面不一致**，P5 对账（056edb0 意图登记） |
+| SessionHandle | 0（未注册）/分配值 0x12345678（42 处出现）/0xFFFFFFFF（`enip_t124_sessionhandle_max`）/inc·rand 动态形（`enip_t090`/`t091` 为策略拒绝负例） | 有例 | §2.1 / V-107 |
+| SenderContext | 回显（`enip_t070_sendercontext_echo`，frames 钉 8B）/全 FF（`enip_t127_sendercontext_max`）/全局 inc（`enip_t176_senderctx_global_inc`）/每单元独立（`enip_t177_senderctx_per_unit`）；全 0 形（T-126）**未落地** | 部分覆；后两例在多单元面（链上待改写） | 序号算法见 §14.12；命令键 `sender_context` 仅 3 处出现 |
+| ENIP Length | 0（NOP 最小包，`enip_t121_nop_length0` **已落地**：断言 `enip.command=0x0000` + `enip.length=0`）/4（RegisterSession）/65515 边界（T-122 **未落地**）/65516 超限负例（T-123 **未落地**） | 部分覆 | §2.1 / §9.5 |
+| Forward_Open 家族 | Forward_Open / LargeForwardOpen / 成功响应（`enip_forward_open_response_full`，Reply 0xD4 + frames）/ 错误响应（`enip_error_response_status` bytes 面）/ 路径一致性 | 部分覆；**路径不一致负例 `enip_t120a_forwardclose_path_mismatch` 已有**（锚词 `Forward_Close connection path`） | §3.5–§3.7 / V-114 |
+| Multiple_Service_Packet | 2 子请求（`enip_multiple_service_packet`：offsets 6,14 + Length=44）/ 空子请求负例（`enip_t106`）/ 上限 64（`enip_t107`） | 有例 | §3.9 |
+| ListIdentity 响应 | 45B 全量（含 VendorID/ProductName/Revision/State，`enip_listidentity_response` payload 直填 + `enip.length=68`）；ProductName 空（T-157）/255B（T-158）有例；**256B（T-159）未落地** | 部分覆 | §3.11 / §2.9 |
+| ICMP/超时类 | —— | 不适用 | ENIP 无 ICMP 层语义 |
+
+---
+
+## 13. 三路对照与候选方案对比（CORE_MEMORY §4.12–4.18）
+
+### 13.1 三路对照
+
+**① 规范原文（定「必须是什么」）**：ODVA《The CIP Networks Library》Volume 1（Common Industrial Protocol：服务码表、EPATH 段编码、通用状态码、Connection Manager 语义）与 Volume 2（EtherNet/IP Adaptation of CIP：ENIP 封装头、CPF、端口 44818、Command 表）——本契约 §2–§4 的每一个取值、偏移与位布局即该两卷经 Wireshark dissector 校核后的落地（§2.5.1/§2.7.2/§3.5.1 等处的「修正说明」逐条标注审计号 R1–R43）。
+
+**② 现网行为（定「真跑成什么样」）**：Rockwell Automation（罗克韦尔）PLC 与通信栈的实际走法——
+- 设备发现：Logix 控制器用套接字向 Identity Object 发**广播**报文识别网上所有 EtherNet/IP 设备（出处：Rockwell 技术支持文档 471230 *Identify EtherNet/IP Devices Using Logix Sockets*，2020-03）——对应 ListIdentity（0x0063）UDP 广播形。
+- 显式消息与套接字服务：Logix 5000 通过 MSG 指令/套接字接口访问非 EtherNet/IP 设备（出处：Rockwell 出版物 **ENET-AT002E-EN-P**《EtherNet/IP Socket Interface Application Technique》2023-01；同族 **ENET-UM006**《EtherNet/IP Network Devices User Manual》）——对应 SendRRData（0x006F）+ CIP 服务调用形。
+- I/O 连接：Class 1 周期 I/O 由 Forward_Open 建立、按 RPI 周期收发（出处：ENET-UM006 族文档；**具体章节号待 G-ENIP-5 核对**）。
+- **待确认**（§5.5）：具体字段值（VendorID=0x0001、ProductName 如设备 EDS 形态）与 Forward_Open 参数（RPI/连接尺寸/连接类型位）需**抓现网包或读 EDS 文件**核对 → 立项 **G-ENIP-5**（确认方式：抓 RSLinx/Studio 5000 浏览设备的包，或读 EDS）。
+
+**③ 开源实现思路（定「别人验证过的走法」）**：
+- **OpENer**（ODVA 参考从站实现）：`encap.c`（ListServices/ListIdentity/SendRRData/SendUnitData 装配，含 R16 NOP 不响应、R17 RegisterSession 响应不回显）、`cipconnectionmanager.c`（Forward_Open/Close 响应装配与三元组定位，R2/R4/R25/R26）、`cipconnectionobject.c`（请求体字段顺序，R3）、`cpf.c`（Interface Handle + Timeout 前缀，R1）——本契约 §3.3/§3.6/§3.8 的字段顺序即取自该实现；**只借鉴行为与装配语义，不搬码**（§4.14）。
+- **libplctag**（AB/Logix 客户端库）：`src/libplctag/protocols/ab/defs.h` 的 `AB_EIP_CMD_*` 码（0x4C Read Tag / 0x4D Write Tag / 0x52 Unconnected_Send 与 Read Tag Fragmented 同码 / 0x55 List Tags），对应 §2.5.3 与 R19。
+- **Wireshark `packet-enip.c` / `packet-cip.c`**：本机实测 TShark 3.6.14 下 `enip.*` **99 字段**（口径：`tshark -G fields | awk -F'\t' '$3 ~ /^enip\./'`，TShark 3.6.14；不带 `-F'\t'` 会低估成 34）——生成包的可解析性是本协议断言通道的基础（§16.5）。
+
+**三路结论一致处**：LE 字节序；24B 封装头；显式消息走 SendRRData + CPF（Null Address + Unconnected Data）；I/O 走 Connected Address + Connected Data；Forward_Open/Close 用 ConnSerial+VendorID+SerialNum 三元组定位；RegisterSession payload 为 4B 无 CPF。
+**不一致处与取舍**（§4.15 以规范为底线、以现网行为为准绳）：
+1. List* 响应是否带 6B 前缀：规范与 OpENer 一致 = **不带**；tshark 对两种形都宽容。取舍：按 OpENer 装配（§3.3/R1），T-157/T-158 断言 `enip.cpf.itemcount` 支持此形（ListIdentity 的 SendRRData 封装面）。
+2. I/O 载体：规范允许 TCP Class 3（§1.1/D-MED-5），现网 I/O 绝大多数走 UDP。取舍：链上只做 **TCP 载体**（UDP 面 G-ENIP-2 立项迁入），legacy 单测保留 UDP 面证据。
+3. IndicateStatus/Cancel：规范定义了命令但未定义 payload，OpENer 不实现。取舍：契约声明为 trafficgen 模拟扩展、不作现状断言（§2.2）。
+
+### 13.2 子表③：商业行为→用例映射表（§4.16）
+
+| 商业行为（产品 + 版本 + 出处） | 用例编号 | 无映射项 + 确认方式 |
+|---|---|---|
+| Logix 控制器广播发现设备（Rockwell 文档 471230；ListIdentity 广播形） | `enip_listidentity_session_lifecycle`、`enip_listidentity_response` | EDS 字段值形态 → G-ENIP-5（抓包/读 EDS） |
+| Logix 显式消息读标签（libplctag `AB_EIP_CMD_CIP_READ`=0x4C；同库 0x4C vs 0x52 语境讨论） | **缺口 → A′ 补例**（§16.3） | 真实标签路径/符号段编码 → G-ENIP-5 |
+| Logix 未连接发送 0x52（libplctag `AB_EIP_CMD_UNCONNECTED_SEND`；OpENer 同码解 Unconnected_Send，§2.5.3/R19） | **缺口 → A′ 补例** | 同码歧义 → 用例注记目标设备模型（G-ENIP-6） |
+| 老 SLC/PLC-5 的 PCCC 通道（0x4B Execute PCCC，§2.5.3） | **缺口 → A′ 补例** | PCCC 内层 DV/EXEC 载荷格式 → G-ENIP-5（另一份规范域） |
+| Class 1 周期 I/O（Forward_Open + RPI 周期收发，ENET-UM006） | `enip_io_connection_udp_full_chain`（UDP I/O 面；链上被拒） | 链上不可达 → G-ENIP-2 迁入计划 |
+| HMI/上位机批量刷新（多会话并发读写，现网常见轮询形态） | `enip_t161_sessioncount2_senderctx` 等多单元面（链上被拒） | 链上一链一流 → G-ENIP-1 迁入计划 |
+| RSLinx/Studio 5000 浏览（ListIdentity → CIP Identity 属性读取） | `enip_sendrrdata_get_attribute_single`、`enip_get_attributes_all` | 浏览器的多服务批量形（MSP）已有 `enip_multiple_service_packet` |
+
+### 13.3 候选方案对比（§4.17）
+
+| 方案 | 走法（含借鉴来源） | 优 | 劣 | 性能/复杂度/兼容性 | 结论 |
+|---|---|---|---|---|---|
+| A 声明式命令序列 + 结构化 CPF/CIP builder（**现状 P4a**，与 dns/kerberos/edp 族同构） | 配置声明 `commands[]`（命令码 + CIP 服务 + 路径 + 参数），builder 逐字段结构化编码；`from_response` 跨命令引用；字节级可复刻 OpENer 装配 | 与已收官族同构（接线/builder/casegen 范式可复用）；字段可逐项断言；不透明面留 `payload` 逃生口（ListIdentity 响应等整段直填） | 连接/对象状态不建模（Fail 分支靠配置显式表达）；多单元需另立展开层 | O(n) 流式渲染、零全量聚合；纯函数 builder（无锁无状态）；兼容 OpENer/Wireshark 双校核 | **采用** |
+| B 全 CIP 对象模型引擎（对象表 + 连接表 + 属性字典驱动，仿 OpENer 从站） | 实现设备侧对象字典与连接状态机，按对象属性推导响应 | 通用性强，可模拟设备侧全语义（含服务端主动错误） | 远超流量生成范围；需为每类对象建表；连接状态机带锁与生命周期，性能与复杂度双高 | 复杂度高；内存随对象/连接数增长 | 不选（设备侧模拟另案，不在本契约） |
+| C 整包 hex 回放（frames 直填） | 用例里直接写完整帧 hex | 最简单、最快落地 | 字段不可结构化断言、动态面全失（§12 全部落空）、改一个字段即重做 | 动态零分 | 仅作特殊形/负例逃生口（现状 86 例带 frames 作**辅助**断言，非主通道） |
+
+---
+
+## 14. 门1 §1–§14 十四行对照表（CORE_MEMORY §15.1–15.3）
+
+> **证据号回填（v2.1.1，CORE_MEMORY §15.8）**：本表证据列已按 **P4–P6 交付树**（merge `0628424` + P6 修轮分支）逐条实读回填；与 P1–P3 原号不一致处在括注中保留原号，便于回溯（漂移根因＝P4 接线与并行车道合并，非结论变化）。
+
+| § | 本协议怎么满足 | 证据（P6 回填） |
+|---|---|---|
+| §1 层链唯一真相 | 见 §14.1 强制展开：旧键 `src_ip/dst_ip/src_port/dst_port` 迁入 `ip`/`tcp` 层；顶层 `enip` 子映射迁入 `layers[]` 的 `{"enip": {...}}` 条目（**G-ENIP-3 已落地**：registry 六键 + 层翻译 + presence 判死）；顶层 `tcp` 子映射（`initial_seq`）迁 `tcp` 层同名键；数量走 `flow_control`；目标形状样例见 §14.1；改写清单见 §14.13。**P5 交付实测**：135 例改写全纯 `layers` 形（0 例顶层旧键残留）+ `enip_neg_presence`（presence 判死负例，顶层 `enip` 子映射为执法对象）；P6 新增复合用例 1 例 = 交付 **137** 例 | 本契约 §14.1/§14.13 + `cases/enip.json` 实测（137 例）+ `coverage_gate.py` `check_enip`「正例顶层键=0；group_id 框架键例外」（coverage_gate.py:1954-1956 区段）+ `enip_chain_test.go` 顶层白名单链例 |
+| §2 策略/任务 | 策略 = 单 ENIP 流量模板（自带 `flow_control` flows/bps/time）；任务 = 多策略合跑 + 总量封顶；框架语义未动。**P5 后实测**：122 例缺省单流 + 14 例显式 `strategy_fc flows=1`；P6 复合用例 1 例显式 `flows=2`（框架复制两条独立 TCP 流） | CORE_MEMORY §2（框架面）+ `cases/enip.json` 用例普查（P6 实测） |
+| §3 五件套 | 见 §14.3 强制展开：会话表 / 事务序列（同一 TCP 会话内多轮命令）/ 关联关系（`from_response` 3 处引用）/ 插入位置（终结层事件）/ 时间线（流内严格顺序）；单载体**不豁免**多事务（§3.15 三项逐项见 §16.1） | 本契约 §14.3 + `enip_listidentity_session_lifecycle`（多轮）、`enip_t180_multiflow_txn_error_branch`（P6：多流×多事务×异常分支）、`enip_multiple_service_packet`（单 SendRRData 多子请求）、`enip_nop_heartbeat`（保活） |
+| §4 查规范 | ODVA CIP Vol.1/Vol.2 + Rockwell 出版物（ENET-AT002E-EN-P / ENET-UM006 / 文档 471230）+ OpENer/libplctag + Wireshark（`enip.*` 99 字段实测，口径见 §12 头注）；P1 矩阵 8 行 + 三子表 | 本契约 §12/§13 |
+| §5 依赖与错误 | `DependsOn ["tcp"]`（**registry.go:229-240**，原记 193-200；零 `TransportOn`/`OptionalOn`）；链 `[ip,tcp,enip]` 可达（complete.go:398-441 终结层计数）；`[ip,udp,enip]` → 载体判定拒（complete.go:456-475 `tcpOnly`）；失败返回 task error（零假成功，`Planner.Validate` enip.go:211 + `validateFromResponseConfig` enip.go:879）；**P4 增补同步面预检** validate_layers.go:550-587（`io_data`/`transport:"udp"`/多单元三支，锚词与生成器 layer_gen.go:56-71 逐字一致，双路闭合） | registry.go:229-240 / complete.go:332（`validateChain`）/398-441/456-475 / enip.go:211/:879 / validate_layers.go:550-587（均 P6 实读） |
+| §6 性能 | 见 §15「性能设计与验收」（§6.1–6.8 要素齐；吞吐等数字待 P5 基准后定，不写承诺） | 本契约 §15 |
+| §7 三份文档 | `12-enip-design.md` v2.1.0（本文，P4–P6 回写见 §11.4）= 设计草稿；D-ENIP-1（§15 草稿，门1 获批即定稿）；T-ENIP = §7 的 T-001~T-220 家族（232 ID）为用例编号权威，本文 §16 为 P3 对接与对账；generated schema P4 已重跑 | 修订记录（§11.3/§11.4）+ §15/§16 |
+| §8 设计先行 | 本条目 P1–P3 先于 P5 去扁平改写与任何生成器改动；门1 获批 = D-ENIP-1 定稿 = 开工门 | 提交序（P1–P3 文档 → P4 接线 `0c5c9e7` → P5 改写 `adfeb76` → 集成 `0628424` → P6 修轮） |
+| §9 测试三源 | 三源 = ODVA 规范条款（§2–§4 表逐行）+ D-ENIP-1 + tshark `enip.*`（99 字段实测）+ 现网 Rockwell 出版物行为；9.52 对账两行 + 清单出处见 §16.4 | 本契约 §16.4 + `12-enip-testcase.md` v1.0.1 §6.3 |
+| §10 评审闭环 | 每阶段对抗自重审（结论见 `/tmp/pipe/56-enip/p123-report.md`）+ 收官隔离复审 + 修轮；红先绿后 | 报告文件（p123/p4/p6-review） |
+| §11 白话 | 每阶段白话一句先行（汇报） | 汇报 |
+| §12 动态清单 | 见 §14.12 强制展开：四元组住 `ip`/`tcp` 层（五策略全开，layer_dyn.go:17-71 allowlist、:18 `ip`/`:19` tcp`）；业务字段**不在** allowlist → G-ENIP-4；序号算法行号实读（tuple_generator.go:290/300、`resolveLayerTuple` layer_dyn.go:770-780、调用 worker.go:321（P1 原记 316，P6 实测 321）、SenderContext layer_gen.go:145/169 + enip.go:805/1085-1097） | 本契约 §14.12（行号 P6 回填） |
+| §13 schema 派生 | registry enip 行六键（**registry.go:229-240**，原记 193-200）与 `parseENIPCommands`（strategy_convert.go:7907-7963）/`parseENIPIOData`（:7980）/`parseENIPConfig`（:8001）消费键对齐；**schemagen 已重跑**（P4）：`schemas/v1/generated/layers.generated.json` enip 行六键与 registry 逐键一致；struct 标签字面量锁 | registry.go:229-240 + generated json 实读 + `TestLayersGeneratedMatchesRegistry` |
+| §14 真实流程 | suite 经 MCP 建任务 → 引擎生成 → tshark `enip.*`（99 字段）+ frames hex 双通道；先跑后钉（14.6/14.20）；pcap 落盘逐例可复查（14.16） | §16.5 + P5/P6 lane6 suite（137/137）+ 离线链套件 137/137 |
+
+### 14.1 §1 强制展开：旧键逐个去向 + 目标形状 spec_json 样例
+
+旧键清单（`src_ip/dst_ip/src_port/dst_port/count` + 本协议顶层子映射 `enip` / `tcp`）——**现状实测**：135 例中 135 例带顶层四元组、135 例带顶层 `enip` 子映射、18 例带顶层 `tcp` 子映射（`initial_seq`，其中链形 2 例 + 旧扁平 16 例）。
+
+| 旧键 | 去向 | 现状（实测） |
+|---|---|---|
+| `src_ip` | → `layers[i].ip.src` | 135/135 例残留（`10.0.0.1` 单值） |
+| `dst_ip` | → `layers[i].ip.dst` | 135/135 例残留（`20.0.0.1` 单值） |
+| `src_port` | → `layers[i].tcp.src_port` | 135/135 例残留（12345 单值） |
+| `dst_port` | → `layers[i].tcp.dst_port` | 135/135 例残留（44818；`502` 为 V-115 负例 `enip_t115`） |
+| `count`（若有） | → 删除，走 `flow_control.flows` | 0 例（本文件未用；数量靠 `enip.session_count`/`flow_count`，见下） |
+| `enip.session_count` | → 删除（§1.3 数量只走 `flow_control`；多流语义另立项 G-ENIP-1；拒绝锚 `session_count -1 out of range` / `flow_count 101 out of range` 迁层重锚） | 8 例引用（含负例 `enip_v005_session_count_negative`；命令键普查实测 `session_count` 8 处） |
+| `enip.flow_count` | → 同上 | 10 例引用（含负例 `enip_v006_flow_count_negative`） |
+| `enip.scenario` | → `layers[i].enip.scenario`（层内键） | 1 例引用 |
+| `enip.commands` / `enip.io_data` / `enip.transport` | → `layers[i].enip.{commands,io_data,transport}` 层内键（**须先补 enip 层 Fields，G-ENIP-3**；命令内键名以 `parseENIPCommands` 消费的 **37 个蛇形键**为准（脚本实测去重列表：additional_status / attribute_id / cip_service / class_id / command / conn_serial_number / connection_path / connection_path_size / connection_timeout_multiplier / cpf_items / direction / from_response_field / general_status / instance_id / interface_handle / length / o2t_connection_id / o2t_connection_parameters / o2t_rpi / option_flag / options / originator_serial_number / originator_vendor_id / payload / priority_time_tick / protocol_version / sender_context / session_handle / source_command_index / status / sub_requests / t2o_connection_id / t2o_connection_parameters / t2o_rpi / timeout / timeout_ticks / transport_class_trigger；strategy_convert.go:7793-7852，另 `session_handle` 的 strategy 子键由 `getENIPSessionHandleStrategy`:7856 读）） | 135 / 13 / 135 例引用 |
+| 顶层 `tcp` 子映射（`initial_seq`） | → `layers[i].tcp.initial_seq`（tcp 层已有该字段，18 例迁入） | 18 例（链形 2 + 旧扁平 16） |
+
+**目标形状 spec_json 样例**（顶层键仅 `layers` + `flow_control`；ENIP 业务键住 enip 层；命令内键名取自 `parseENIPCommands` 实际消费键）：
+
+```json
+{
+  "layers": [
+    {"ip": {"src": "192.0.2.56", "dst": "198.51.100.56"}},
+    {"tcp": {"src_port": 42156, "dst_port": 44818}},
+    {"enip": {"transport": "tcp", "scenario": "custom", "commands": [
+      {"command": 101, "cip_service": 84, "class_id": 6, "instance_id": 1,
+       "priority_time_tick": 10, "timeout_ticks": 5,
+       "conn_serial_number": 1, "originator_vendor_id": 1,
+       "originator_serial_number": 1, "connection_timeout_multiplier": 7,
+       "o2t_rpi": 100000, "o2t_connection_parameters": 512,
+       "t2o_rpi": 100000, "t2o_connection_parameters": 512,
+       "transport_class_trigger": 128,
+       "connection_path": [32, 4, 36, 1, 44, 2, 44, 3], "connection_path_size": 4},
+      {"command": 111, "cip_service": 14, "class_id": 1, "instance_id": 1, "attribute_id": 1}
+    ]}}
+  ],
+  "flow_control": {"flows": 1}
+}
+```
+
+字段说明：`command` 为 ENIP 命令码十进制——样例第 1 条 `101`=0x65 RegisterSession（故不带 `cip_service`），第 2 条 `111`=0x6F SendRRData；第 2 条 `cip_service:84`=0x54 Forward_Open、`14`=0x0E Get_Attribute_Single；`connection_path` 为 `20 04 24 01 2C 02 2C 03`（Class 0x04 + Instance 0x01 + O→T/T→O Connection Point）的十进制数组形（`getByteSlice` 消费形，strategy_convert.go:7793-7852 同口径）。**注**：样例为**目标形状示意**（0x65 与 0x6F 两条命令同列仅为展示两类命令的键面），非可直接跑的最小可用配置。
+
+> **跑不通声明**（§1.9）：上例的 enip 层业务键（`commands`/`transport`/`scenario`）**今天跑不通**——enip registry 行零 `Fields`，`layers: layer "enip": unknown field "commands"`（complete.go:279-293 实测路径）。G-ENIP-3 落地前，等价可跑形仍是顶层 `enip` 子映射（本契约 §5 配置面）+ `layers` 只有 `[{tcp},{enip}]` 空负载的混合形。**本契约不允许把混合形当作目标形状**，只作为 G-ENIP-3 迁入期的过渡证据。
+
+> **落地状态（v2.1.1 P6 回写）**：G-ENIP-3 已落地（P4 `0c5c9e7`）——上例的 enip 层业务键现**可跑通**（六键注册于 registry.go:229-240，层翻译 chain_planner_translate.go:2366 落 `spec.ENIP`）；混合形（层链 + 顶层 `enip` 子映射并存）**已判死**：`enip_neg_presence` 负例锚 `no longer accepts a top-level enip`，现文件 137 例全纯 `layers` 形。上例仍为**目标形状示意**（0x65 与 0x6F 两条命令同列仅为展示两类命令的键面），非最小可跑配置。
+
+### 14.3 §3 强制展开：五件套（会话表 / 事务序列 / 关联关系 / 插入位置 / 时间线）
+
+会话表：
+
+| 会话 | 承载 | 四元组 | 生命周期 |
+|---|---|---|---|
+| s1 ENIP 会话 | TCP（44818） | `ip.src/dst` + `tcp.src_port→44818` | TCP 握手 → ListIdentity/ListServices（可选）→ RegisterSession → 显式消息若干 → UnRegisterSession → 挥手 |
+| s1.a CIP 连接（会话内子状态） | 同一条 TCP 连接 | 同 s1 | Forward_Open → I/O 交换（链上暂不可达，G-ENIP-2）→ Forward_Close |
+
+事务序列（同一 TCP 会话内的多轮操作，单事务四件事 §3.4–3.7）：
+
+| 事务 | 前置条件 | 触发动作 | 成功分支 | 失败分支 |
+|---|---|---|---|---|
+| t1 发现 | TCP 已建连 | ListIdentity（0x0063）/ListServices（0x0004）/ListInterfaces（0x0064） | 记录设备身份 → 进入 t2 | ENIP Status≠0 → 终止发现（配置错误） |
+| t2 注册 | t1 完成（或直接） | RegisterSession（0x0065，payload=ProtocolVersion+OptionFlag） | 响应 SessionHandle 回写为后续命令默认（layer_gen.go:131-135） | Status=0x0069/0x0003 → 终止 |
+| t3 显式消息 | s1 已注册 | SendRRData（0x006F）：Get/Set 属性、Get_Attribute_List、MSP、Forward_Open/Close | CIP General Status=0 → 继续；`from_response` 提取 o2t/t2o/conn_serial 供后续命令 | CIP Status≠0（§2.3.1/§2.3.2）→ 按码分支（重试/跳过/中断会话） |
+| t4 I/O 交换 | t3 Forward_Open 成功 | SendUnitData（0x0070）+ SequenceCounter 递增 | 每帧 +1、回绕（`enip_seq_wraparound_3_frames` 落地；T-074/T-128 两个 T 号**未单列**） | **链上不可达**（G-ENIP-2）；UDP 面留 legacy 证据 |
+| t5 注销 | t3/t4 结束 | UnRegisterSession（0x0066，`enip_t174_unregister_session_matched`） | 无响应，会话结束 → 挥手 | TCP 异常断开 = 隐式注销（G-ENIP-7） |
+
+关联关系（§3.8–3.10）：本协议「一条控制连接关联一条或多条 I/O 数据流」的关联字段 = `from_response`（`source_command_index` + `from_response_field`，命令键普查 3 处引用）+ 命令内逐单元派生（`+u`/`+2u`，enip.go:680-698）。四字段提取位置实测表见 §5.6.1：`session_handle`（ENIP 头 offset 4）/ `o2t_connection_id`（CIP body offset 0）/ `t2o_connection_id`（offset 4）/ `connection_serial_number`（offset 8）；提取前置 = 源响应 General Status=0（V-405/R35）。被关联流（I/O）在链上无独立副流 → G-ENIP-1/2 迁入计划（与 CWMP `driven_by` 范本的差异点诚实声明）。
+
+插入位置：**终结层**——enip 生成器产「方向 + 完整报文字节」的消息事件（layer_gen.go:151-159，`SrcPort/DstPort: 0`，端口由 tcp 层按方向交换），TCP 语义（握手/seq-ack/挥手/端口交换）全部交给 tcp 层生成器（generator.go:802-810 注释所指同款分工）；enip 层不产独立 TCP 流。
+
+时间线：流内**严格顺序**（命令 i+1 恒在命令 i 之后，单事件流；`senderCtxCounter++` layer_gen.go:163 / legacy enip.go:805 逐命令推进）；多单元（多会话/多流）在 legacy 面是 `for s×f` 串行展开（enip.go:588-593，单元序号 `u := s*flowCount + f` :590），链上一次一个 flow → 会话间并发交错留 G-ENIP-1。
+
+### 14.12 §12 强制展开：动态字段清单 + 序号算法
+
+| 字段 | 住处 | 开策略（现状实测） | 理由 / 序号算法 |
+|---|---|---|---|
+| `src`（src_ip） | `ip` 层 | fixed/inc/rand/list/pattern **全开**（layer_dyn.go:18 `"ip": {"src": true, ...}`） | §12.2 四元组必备；多流并发锚点。算法：`resolveLayerTuple`（layer_dyn.go:770-780）按流序号解析，`ResolveIPValue`（tuple_generator.go:290）/ `ResolvePortValue`（:300）；调用点 worker.go:321（P1 原记 316；逐流，先保底后动态） |
+| `dst`（dst_ip） | `ip` 层 | 全开（同上） | 多目标设备场景（现网多 PLC 轮询） |
+| `ttl` | `ip` 层 | 全开（layer_dyn.go:18 `"ttl": true`，`genSmallInt` layer_dyn.go:726） | 逐流 TTL 池 |
+| `src_port` | `tcp` 层 | 全开 + 未写动态时**保底递增** `12345+i` | §2.8；保底算法 worker.go:307-309（`flowCount > 1 && !spec.HasExplicitSrcPort` → `DefaultSrcPort + i`，`DefaultSrcPort=12345` @ strategy_convert.go:49）；层动态在保底**之后**解析并覆盖（worker.go:311-316 注释明示次序） |
+| `dst_port` | `tcp` 层 | 全开（现网 fixture 固定 44818） | tshark 自动解码约束；动态端口例需顶层 `decode_as` 另议 |
+| `enip.commands[].command` | `enip` 层 | **不开**（不在 allowlist，layer_dyn.go:17-71 无 enip 项；对象值 → `checkLayerDynObjects`（validate_layers.go:335）allowlist 门拒 → `does not support dynamic`） | 命令序列是结构选择器（同 sip `dialog`/megaco `sessions` 判例），逐流变破坏会话语义 → G-ENIP-4 立项评估 |
+| `enip.session_handle` / `conn_serial_number` / `o2t_connection_id` 等连接身份 | `enip` 层 | **不开**（同上门） | legacy 面为 **`+u` 单元偏移**派生（enip.go:680-698：SessionHandle/ConnSerialNum `+u`、O2T/T2O `+2u`、down 响应 payload 同步平移 `deriveForwardOpenResponsePayload` enip.go:997-1012），非 §12 五策略；多单元展开链上被拒（G-ENIP-1） |
+| `enip.sender_context` | `enip` 层 | **不开**（allowlist 无 enip；命令键 `sender_context` 仅 3 处出现） | 现状算法**实读**：生成器内 flow 级计数器 `senderCtxCounter`，每命令 `+1`（layer_gen.go:139 传入、:163 `senderCtxCounter++`）；legacy 同款（enip.go:805）；取值优先级 fixed/`SenderContextPtr`/默认计数三级（enip.go:1082-1097）；全局 inc 跨单元（enip.go:583-604） |
+| `enip.io_data.sequence_counter` | `enip` 层 | **不开** | 现状算法实读：`buildIODataFrames`（enip.go:1236）逐帧写序号；链上 IOData 被拒（layer_gen.go:56-58）。注：T-141/T-142 summary 声明「2026-08 去 seq 前缀」——当前 ConnectedDataItem 已不编码 SequenceCounter，与契约 §3.3「2B SequenceCounter」字面不一致，P5 对账 |
+| `flow_control.flows` | 顶层 | 数量面（不属 §12 动态值；`strategy_fc` 现状为 `null`×118 / `{"type":"flows","value":1}`×17） | §1.3；多 flow 时 `src_port` 保底 + 层动态生效 |
+
+**序号算法代码位置（实读，非「待 P4 定」）**：四元组五策略解析 = `resolveLayerTuple`（layer_dyn.go:770-780）→ `ResolveIPValue`（tuple_generator.go:290）/ `ResolvePortValue`（:300，含 inc 的 `start+(index*step)%count` 回绕与 rand 的 `Seed+index` 可复现，layer_dyn.go:740-764 同款算法面）；调用点 = `worker.go:321`（P1 原记 316；`spec.FlowIndex = i` 前）。ENIP 业务字段的序号算法 = `layer_gen.go:163`（SenderContext 计数）与 `enip.go:1236+`（I/O 序号）；二者均**不在层动态面**（G-ENIP-4）。
+
+### 14-P2 presence 负例形状（链级红例必含①）
+
+- **层链 + 顶层协议子映射并存 = 判死负例**（presence 形状，非残留）：`{"layers":[{"ip":{}},{"tcp":{}},{"enip":{}}], "enip": {}}`（顶层空 `enip:{}` 与层链并存）必须被 planner/validator 拒，`error_contains` 含 `presence` 或顶层键锚词。**现状缺口**：`CheckProtoFlat`（strategy_convert.go:8273-8285）只拦顶层四元组五键，`enip` 子映射**无 presence 判死分支**（enip 未进各协议 presence 判死名单）；且 pipe_gate 门2-1 顶层子映射检查（pipe_gate.sh）对 enip 现状只报**黄**（须在 D-条目登记过渡计划，否则红）→ 本条随 G-ENIP-3 一同落地（顶层 `enip` 键在迁入完成后改为判死）。
+- **白名单外游离键判死**（1.11–1.13）：顶层 `src_mac`/`dst_mac`/`ttl` 与 `layers` 并存 → `checkLayerFlatConflict`（schema/semantic.go:179-184，六键 `src_ip/dst_ip/src_port/dst_port/src_mac/dst_mac`）与 pipe_gate 门2-1 均判红（`ttl` 另在门2-1 顶层旧键表内）；链级红例必含此形。
+- 收官自查行：**非负例顶层键 = 0**（P5 改写后逐例核）。
+- 负例 `expect` 键集合严格 `{expect_error, error_contains}`（另有 `notes` 说明键为 runner 注释键，非断言键），锚词逐例（§16.2 表）。
+
+### 14.13 去扁平改写清单（P5 动作；本文只列清单，不改用例文件）
+
+| 类 | 例数 | 现状（实测） | 改写动作 |
+|---|---|---|---|
+| A 层链形正例（顶层并存） | 69（正例全数） | `layers=[{tcp:{}},{enip:{}}]` 空负载且顶层并存 `src_ip/dst_ip/src_port/dst_port` + 顶层 `enip` 子映射（其中 2 例另带顶层 `tcp.initial_seq`） | 删顶层四元组（值迁 `ip`/`tcp` 层；`ip` 层若只配 v4 字面量见 §12.3 IPv6 备注）；顶层 `enip` 业务键迁 `layers[i].enip`（**依赖 G-ENIP-3**，字段=parseENIPCommands/parseENIPIOData 消费键）；顶层 `tcp.initial_seq` 迁 `tcp` 层同名键 |
+| B 旧扁平正例（多单元 TCP 面，**无 `io_data`**） | 12 | 实测 12 例（`spec_json.enip` 含 `session_count`/`flow_count`>1 且 `io_data` 为空）：`enip_t161_sessioncount2_senderctx`、`enip_t162_sessioncount8_handles`、`enip_t164_flowcount2_forwardopen`、`enip_t165_flowcount8_connids`、`enip_t169_multisession_tcp_tuples`、`enip_t172_fromresponse_session_isolated`、`enip_t173_fromresponse_flow_isolated`、`enip_t174_unregister_session_matched`、`enip_t175_forward_close_serial_matched`、`enip_t176_senderctx_global_inc`、`enip_t177_senderctx_per_unit`、`enip_t179_multiflow_order` | 单单元等价例（A′，改写为 `flow_control.flows=1` 单流形；`+u`/`+2u` 派生在 u=0 时恒等，字节可与 legacy 对齐）；多单元语义面迁 G-ENIP-1 |
+| C 旧扁平正例（UDP I/O 面，含 `io_data`） | 10 | 实测 10 例（`spec_json.enip.io_data` 非空）：`enip_io_connection_udp_full_chain`（transport=tcp + io_data）、`enip_seq_wraparound_3_frames`、`enip_t129_seq_start_7fff`、`enip_t130_seq_step2`、`enip_t141_io_framesize0`、`enip_t142_io_framesize_max`、`enip_t073_seq_10_frames`、`enip_t166_2session2flow_io`（2×2 + io_data）、`enip_t167_multiflow_seq_from_1`（flow_count=2）、`enip_t170_multiflow_udp_shared_tuple`（transport=udp + flow_count=2） | **不删用例**：P5 以现状钉（§9.36 B/C 缺口钉现状，生成器 layer_gen.go:56-64 显式拒绝）+ G-ENIP-2 注记；UDP 面落地后重校准 |
+| D 旧扁平负例 | 44（全数） | `layers=[]`，配置非法（42 种锚词逐例，见 §16.2） | 改写为层链形负例（锚词保留；`enip_v005`/`v006` 两例随 `session_count`/`flow_count` 迁层重锚） |
+| E IPv6 面 | 0 | 135 例全 IPv4 | 按 §9.24 补 IPv6 对应用例 → A′（§16.3） |
+
+> 注：四类**互斥且穷尽**——135 = A 69（层链形正例）+ B 12 + C 10（旧扁平正例 22 = B12 + C10）+ D 44（旧扁平负例）。分类口径：正例按 `spec_json.io_data` 是否非空二分（B=无 io_data 的多单元 TCP 面 12 例；C=含 io_data 的 UDP I/O 面 10 例），负例全归 D。改写时以实际 `spec_json` 为准。
+
+> **改写落地（v2.1.1 P6 回写）**：四类已由 P5（`adfeb76`）执行完毕——A 69 全数去扁平（顶层四元组/子映射清零）、B 12 转单单元等价例（notes 逐例披露 G-ENIP-1，包号 = legacy +3）、C 10 以现状钉（`error_contains: io_data`，notes 钉 G-ENIP-2）、D 44 转层链形负例（`enip_v005`/`v006` 随字段迁层重锚为 `session_count -1 out of range` / `multi-unit expansion`；`t104/t105` 重锚为严格解码文案；`t117/t118` 重锚为 0 包锚 + G-ENIP-8）。净增 `enip_neg_presence`（P4 presence 判死）+ `enip_t180_multiflow_txn_error_branch`（P6 复合用例）= **137 例**。
+
+---
+
+## 15. D-ENIP-1 P2 代码设计草稿（CORE_MEMORY §8 八要素；门1 获批 = 定稿）
+
+> 体裁：文件清单 / 接口签名 / 数据结构 / 主流程 / 错误分支 / 性能边界 / 冲突点 / 回滚方式。**接线行号均为实读**（分支 HEAD）。
+
+**8.1 改哪几个文件（新建 0 + 接线 7 + 共享面 2）**：
+
+| 文件 | 职责 | 现状 |
+|---|---|---|
+| internal/core/layers/registry.go（enip 行，:193-200） | 补齐 `Fields`：`transport`(string)/`scenario`(string)/`commands`(list)/`io_data`(list\|map)/`session_count`(int)/`flow_count`(int) 六键（与 parseENIPConfig:7887 / parseENIPCommands:7793-7852 / parseENIPIOData:7866 消费键对齐）；保持 `DependsOn ["tcp"]`；端口契约 `FieldContract {"tcp.dst_port":"44818"}`（缺省补齐，dns :135-136 同款） | **零 Fields**（今日 `layers[i].enip.*` 报 unknown field，complete.go:279-293） |
+| internal/protocol/enip/layer_gen.go（:48-166） | 配置来源由 `req.Meta.ENIP`（:52-55）改为「层 config 优先、`Meta.ENIP` 兼容」：层 config 解析成 `core.ENIPConfig` 后与 legacy 同路；`genBody` 保持纯函数 | 只读 `req.Meta.ENIP` |
+| internal/core/strategy_convert.go（:1282-1284 + :7887） | `case "enip"` 解析保留（过渡期双真相；迁入完成后顶层 `enip` 改 presence 判死，§14-P2）；新增层 config → `ENIPConfig` 的解析入口（复用 `parseENIPCommands` :7793 / `parseENIPCPFItems` :7769 / `parseENIPSubRequests` :7743 / `parseENIPIOData` :7866 / `getENIPSessionHandleStrategy` :7856） | 仅顶层 `enip` 子映射 |
+| internal/core/layers/chain_planner_translate.go（:72-74） | 层 config 存在时不再以 `spec.ENIP` 覆盖（`ENIP: spec.ENIP` 改条件注入） | 恒注入 |
+| internal/core/layers/generator.go（:215/308-310） | `FlowMeta.ENIP *core.ENIPConfig` 复用（层翻译产物落此）；主线程独占改动面（plan §0 车道禁令：框架文件由主线程改） | 已有字段 |
+| internal/core/layers/complete.go（enip 通道） | `ValidateLayerConfig`（:279-293）的 unknown-field 路径天然生效；可选 enip 专属校验（transport∈{tcp}、commands 非空） | 无 enip 专属块 |
+| internal/core/layers/validate_layers.go | enip 专属预检（可选）：`io_data`/`session_count>1`/`flow_count>1`/`transport:"udp"` 在链上判死（锚词与生成器 layer_gen.go:56-71 一致，双路闭合 C 类口径） | 无 enip 块 |
+| internal/core/schema/semantic.go（:126-131/:179-184） | 顶层 `enip` 子映射 presence 判死（随 G-ENIP-3，§14-P2）；顶层四元组判死已有（CheckProtoFlat + `checkLayerFlatConflict` 六键） | 未列 enip |
+| trafficgen/tools/coverage_gate.py | `check_enip` 块（准入接线/关键件/守卫/用例面四段） | **无 enip 块**（M1 认领项，车道 B 在分支内编写） |
+| cases/enip.json + layer_gen_test.go | 回归 + 去扁平改写（§14.13 / §16） | 现状 135 例两形并存 |
+
+**8.2 接口签名**（示意，落码钉死）：`ParseENIPLayerConfig(cfg map[string]interface{}) (*core.ENIPConfig, error)`；`ValidateENIPLayer(spec *core.FlowSpec) error`（复用 `Planner.Validate` enip.go:211）；生成器内 `generateFromLayer(cfg *core.ENIPConfig) error`（复用现有循环 layer_gen.go:94-164）。
+**8.3 数据结构**：沿用 `core.ENIPConfig` / `ENIPCommand` / `CPFItem` / `ENIPIOData`（types.go:10125/10144/10224），不新增类型；层 config 只做「map → 同结构」的一次性解析（命令内蛇形键清单见 §14.1（以 `parseENIPCommands`:7793-7852 消费键为准））。
+**8.4 主流程**：schema 校验（层 config 字段范围 V9，validate_layers.go:616-660 注释面）→ `ValidateLayers` 完成链（validate_layers.go:632 入口、V9 循环 :687-701）→ `ChainPlanner` 翻译（层 config → `ENIPConfig`，chain_planner_translate.go:2366 改条件注入（P1 原记 72-74）→ worker 逐流 `resolveLayerTuple`（worker.go:321，四元组动态，P1 原记 316）→ enip 生成器逐命令产消息事件（layer_gen.go:94-164，`emitMsg` :171-178 取消逃生）→ tcp 层生成器补握手/seq-ack/挥手（`RegisterPlanner(layers.NewChainPlanner("enip"))` main.go:626 已注册（P1 原记 618），引擎侧入口现成）→ writer/pcap。
+**8.5 错误分支**：①层 config 未知键/类型错 → `layers: layer "enip": unknown field "…"`（complete.go:293）；②`io_data`/`transport:"udp"`/`session_count>1`/`flow_count>1` → 生成器显式报错（layer_gen.go:56-71，**不得静默单遍产 1 单元**——包数缩水即假通过）；③`from_response` 非法引用 → `validateFromResponseConfig`（enip.go:879-917，V-403/404/405）；④顶层旧键/协议子映射并存 → presence/白名单判死（§14-P2；CheckProtoFlat strategy_convert.go:8404（P1 原记 8273）+ checkLayerFlatConflict semantic.go:179）。全部传播为 task error（零假成功）。
+**8.6 性能边界（§6.1–6.8 对应）**：O(n) 流式——逐命令构建 `[]byte` 即 `EmitMsg`（layer_gen.go:160-164），无全量聚合、无按包增长结构；单命令内存 = 报文长度（≤ 65515 ENIP Length 上限，§9.5）+ 常量开销；共享状态仅 `responseTable`（按命令数 O(n)，仅 down/response 命令入表 layer_gen.go:142-144）与 `sessionHandle`/`senderCtxCounter` 标量；无锁、无 sleep（事件驱动，速率由 tcp 层/任务桶管）；worker 并行度 = 任务分片（`shard`，worker.go:319-330 hashKey/gID 同流同 shard 保 FIFO）。**诚实声明**：包/秒、并发流数、内存上界数字待 P5 基准后定（§6.5 不写承诺数字）。六类场景（基线/目标规模/压力上限/长运行时/并发交错/背压）P5 跑测覆盖。
+**8.7 与现有逻辑的冲突点**：①enip 层从「零 Fields」变为带 Fields——存量 `layers=[{tcp},{enip}]` 空 config 用例（69 例）不受影响（缺省=不写，V9 只校验显式键 validate_layers.go:616-660），但**顶层 `enip` 与层内 `enip` 并存**必须判死（否则双真相，§14-P2）；②`ENIP: spec.ENIP` 注入改条件化（chain_planner_translate.go:74）——无层 config 时行为逐字节不变（legacy 等价性，回归以 69 例空 config 链形为基线）；③生产 `Meta.ENIP` 的路径（`mapToFlowSpec` + worker/engine 直调）仍需可用（`layer_gen_test.go` 依赖）；④registry.go / strategy_convert.go / chain_planner_translate.go / generator.go 为跨协议共享文件——按 plan §3 属预期合并冲突点（FlowSpec/translate/validate_layers switch case），车道 B 只改 enip 本地块，合并序=完成序，非机械冲突走自查+评审闭环；⑤`schemagen` 重跑改 `layers.generated.json`（enip 字段表新增，层数不变）；⑥**v6 字面量**：仓库无 `ipv6` 层（registry 层名表 124 项无 ipv6），v6 走 `ip` 层字面量（地址族校验见 chain_planner.go:262 注释面）——本条目不引入新层。
+**8.8 回滚方式**：全量 revert 新建/改动文件（git revert 提交序）；registry 行回退为「零 Fields + 顶层 `enip` 子映射」旧形即恢复今日可跑态；schemagen 生成文件随提交对齐回退；无数据迁移面（用例文件独立回退）。
+
+---
+
+## 16. P3 测试对接清单（T-ENIP 草稿输入；正文 P5 落 testcase 文件）
+
+### 16.1 §3.15 三项（同连接多轮操作 / 非正常结束 / 长保活）
+
+| 项 | 现状 | 判定 |
+|---|---|---|
+| ① 同连接/同流内多轮操作 | 已覆：`enip_listidentity_session_lifecycle`（发现→注册→注销多轮）+ `enip_registersession_session_state`（响应回写）+ `enip_multiple_service_packet`（单个 SendRRData 承载 2 子请求） | 有例 ✅ |
+| ② 非正常结束 | 部分覆：错误响应 bytes 面（`enip_error_response_status`，General Status 0x0E 直填）；连接三元组面（`enip_forward_close_triad`）；路径错判死（`enip_t120a_forwardclose_path_mismatch`）；**中断续作（FIN/RST 中途断开、Forward_Open 后未 Close 即断开、会话失效后重连）无例** | 半程 → 立项 **G-ENIP-7**（A′ 可构造部分 + 迁入计划） |
+| ③ 长保活 | 已覆：`enip_nop_heartbeat`（NOP 保活；OpENer 不响应面与 §2.2 一致） | 有例 ✅ |
+
+### 16.2 存量用例审计去向分类（§9.14：合入 / 已有等价覆盖 / 作废并注明原因）
+
+**总量实测**：135 例 = 91 正 + 44 负。44 负的 `error_contains` 全字符串 42 种不同值（**注**：负例契约（14.11）要求短锚词，现状有长句值如 `SendRRData requires at least 2 CPF items, a cip_service, or a payload`——P5 改写时按 14.11 收敛为短锚词并入断言）（`SendRRData requires at least 2 CPF items…` 与 `session_handle strategy must be fixed…` 各出现 2 次，其余 40 种各 1 次）。**设计 §7 所列 T-ID 共 232 个，用例 id 内命中的 110 个全 ⊂ 其中（无自造 T-ID，脚本实测）**；110 个按段实测分布：正向 15 / 负向 42 / 边界 34 / 多会话·多流 15 / 集成 1（T-199）/ 修订追加 3（T-217/218/219）。另 25 例为非 T 命名（`enip_nop_heartbeat` 等，summary 引用 S/T 场景号）；这 25 例的 summary 共引用 **22 个 T 号**，全部 ⊂ 上表 122 个「未落地 T-ID」集合（脚本实测 `refs ⊆ missing`），即它们为该 22 个 T 号提供了**部分语义覆盖**（单条用例对应多个 T 点，如 `enip_listidentity_session_lifecycle` 覆盖 S3/S4/S12）——P5 建 testcase 时须逐号对账，不得直接以 25 例顶 22 号。
+
+| 去向 | 例数 | 明细 |
+|---|---|---|
+| 合入（保留语义，改形状） | 69 | 层链形正例（类 A）：删顶层四元组 + 顶层 `enip`/`tcp` 子映射，命令数组原样迁 `layers[i].enip`（依赖 G-ENIP-3） |
+| 语义保留但须重构（单单元等价例） | 12 | 旧扁平正例多单元 TCP 面（类 B）：改写为 `flows=1` 单流等价例；`+u`/`+2u` 派生在 u=0 时恒等，字节可与 legacy 对齐 |
+| 作废重做（链上不可达，面迁 G-ENIP-2；**不删用例**，P5 以现状钉 + 注记，§9.36） | 10 | 旧扁平正例 UDP I/O 面（类 C）：`enip_io_connection_udp_full_chain`、`enip_seq_wraparound_3_frames`、`enip_t073_seq_10_frames`、`enip_t129_seq_start_7fff`、`enip_t130_seq_step2`、`enip_t141_io_framesize0`、`enip_t142_io_framesize_max`、`enip_t166_2session2flow_io`、`enip_t167_multiflow_seq_from_1`、`enip_t170_multiflow_udp_shared_tuple` |
+| 负例改写（锚词保留） | 44 | 类 D：全部改层链形负例；`enip_v005`/`enip_v006` 两例随字段迁层重锚 |
+
+**设计 §7 所列但用例文件未落地的 T-ID：122 个**（232 − 110，按段实测）：正向 **65**（80-15）/ 负向 **1**（43-42，仅 T-120c）/ 边界 **10**（44-34，含 T-122/T-123/T-126/T-128/159 等）/ 多会话·多流 **5**（20-15，T-163/T-168/T-171/T-178/T-180）/ 集成 **24**（25-1，T-181~T-198 的 tshark 面 + T-200/T-200a~e 互操作）/ 修订追加 **17**（20-3）。→ 全部进 §16.3 补齐清单（**不是作废**）。
+
+### 16.3 A′ / B′ 两分类（§9.52 固定动作）
+
+**A′（现有引擎可构建 → 补例）**：
+
+| 面 | 要点 | 落点 |
+|---|---|---|
+| IPv6 对称面 | `ip` 层 v6 字面量 + 同构链（§9.24） | 补 1–2 例 |
+| CIP 服务码余 24 值 | 0x02/08/09/0D/11/15/16/17/18/19/1A/1B/1C/1D/4B/4C/4D/52/55/56/57/5A（`BuildCIPRequest` 通用面已支持 builder.go:115） | 逐值≥1 例（§9.47 全表扫） |
+| CM 扩展状态逐值 | 0x0100 起 20 值（`spec_json` 面 `additional_status` 零出现 → 全部缺） | 逐值≥1 例（`commands[].additional_status` + 响应侧 bytes 面） |
+| Sockaddr Info | 0x8000/0x8001 的 `type_id` 键面（现有 T-144/145/146 走直填，`type_id` 出现 0x8000×4/0x8001×1；0x8002 零出现） | 0x8002 + 响应面补例 |
+| CPF ItemCount 0/1 形 | ListInterfaces/ListServices/ListIdentity 响应的 `itemcount` 字段断言（现有 T-157/T-158 断言的是 SendRRData 封装面） | 补例（T-004/T-011 家族） |
+| 未落地 T-ID 122 个 | 按段补齐（正向 65 / 负向 1 / 边界 10 / 多流 5 / 集成 24 / 修订 17） | P5 casegen |
+| 非正常结束 | FIN/RST 中途断开、未 Close 即断、失效后重连 | 补例（G-ENIP-7） |
+
+**B′（引擎结构缺口 → D-ENIP-1「明确不解决 + 迁入计划」）**：
+
+| 缺口 | 结构原因 | 迁入计划 |
+|---|---|---|
+| 多会话/多流（G-ENIP-1） | 链一次一 flow；生成器拒绝 `session_count/flow_count>1`（layer_gen.go:68-71） | 多策略多任务并发 + 层动态端口池；`+u` 单元偏移语义评估后保留或退役 |
+| UDP I/O 面（G-ENIP-2） | 链单载体 tcp，无 UDP 混合流（layer_gen.go:56-64） | 评估「多载体链」或「I/O 走独立 UDP 策略」；落地前 legacy 单测保证据 |
+| 业务键未住层（G-ENIP-3） | registry 零 Fields（registry.go:198-200） | 本条目 8.1 已列，P4 落地；落地同时开 presence 判死 |
+| 业务字段动态（G-ENIP-4） | enip 不在 `layerDynAllowlist`（layer_dyn.go:17-71）；`isDynObject`（chain_planner_chain.go:283）门拒 | 逐字段评估；落地前按 §9.36 现状钉 |
+| 超时/重传时间轴 | 生成器无时钟语义（`emitMsg` 仅 ctx 取消逃生 :171-178） | 明确不解决（属设备侧行为）；以配置字段 + 错误响应用例表达 |
+| NAT/代理中间盒 | 引擎无中间盒模拟 | 明确不解决；Sockaddr 面 A′ 覆盖 |
+| 大端 Sockaddr | OpENer 面 LE（§2.4.2/R9） | 明确不解决（无第二形态证据） |
+
+### 16.4 9.52 对账两行 + 清单出处声明 + 3.14 豁免边界审计
+
+**行 1（规范逻辑点总数 vs 用例覆盖数）**——口径：设计 §2/§3/§4/§6/§8/§9 表格数据行（脚本实测，表头与 `---` 分隔行已剔除；**不含** §5 配置 struct、§7 用例表本身、§10 映射表、§11 修订记录）：
+- **规范逻辑点总数 = 317**（§2 数据类型与编码 163 + §3 消息结构 52 + §4 状态机 14 + §6 场景 S1–S15 15 + §8 Validate 规则 55 + §9 错误处理 18；口径 = 各节表格数据行（已剔除表头与 `---` 分隔行），脚本实测）。
+- **用例覆盖数 = 135**（正 91 + 负 44；改写去向四类互斥穷尽：合入 69 / 重构 12 / 作废重做 10 / 负例改写 44，见 §16.2）。
+- **覆盖缺口**：§7 已列未落地的 **122 个 T-ID** + §16.3 A′ 面 → P5 补齐后重跑全量并复核本两行。
+
+**行 2（清单出处声明）**：本清单**不是**从现有用例或引擎能力反推（§9.48 禁止项），而是从 **ODVA 规范原文面**（CIP Networks Library Vol.1/Vol.2，落点＝本契约 §2–§4 的取值/字段/状态/错误表）+ **官方文档面**（Rockwell ENET-AT002E-EN-P / ENET-UM006 / 文档 471230）+ **实现面**（OpENer / libplctag，§13.1③）+ **解析器实测**（tshark 3.6.14 `enip.*` 99 字段）反推；逐条可与 §12 三子表、§13.2 映射表对应。反查绿只证明「清单内的点有例」，本节两行才是清单完整性的证据（§9.52）。
+
+**3.14 豁免边界审计**：本协议**不豁免** `sessions[]`（同连接多轮操作有例，多会话并发面 G-ENIP-1 立项）；多流并发（`enip_t166` 等 legacy 面，链上 G-ENIP-1）与单包多载荷（`enip_multiple_service_packet` 2 子请求 MSP 面）**各有例**——无豁免逃逸。
+
+**三源回指行**：每条用例的 `summary`/断言面必须能回指 ①规范行（本契约 §2–§4 或 §7 的 T-ID）②D-ENIP-1 条目（§15）③现网行为（§13.2 映射表行）——缺一即返工（§9.2–9.5）。
+
+### 16.5 断言通道与执行口径
+
+- **tshark 字段通道**：`enip.*`（99 字段实测：`enip.command`/`enip.length`/`enip.session`/`enip.status`/`enip.options`/`enip.context`/`enip.timeout`/`enip.cpf.itemcount`/`enip.cpf.typeid`/`enip.cpf.cai.connid`/`enip.cpf.sai.connid`/`enip.cpf.sai.seq`/`enip.cpf.length`/`enip.cpf.data`/`enip.srrd.iface`/`enip.sud.iface`/`enip.lir.{revision,status,state,vendor,devtype,prodcode,serial,name,namelen}`/`enip.sinfamily`/`enip.sinport`/`enip.sinaddr` 等——以 `tshark -G fields` 输出为准，不自创字段名）+ 载体 `ip.proto`/`tcp.dstport`/`tcp.srcport`/`udp.srcport`（用例内 11 个断言字段普查：`enip.command`52/`enip.length`35/`enip.session`24/`tcp.srcport`23/`ip.proto`12/`udp.srcport`12/`enip.status`4/`enip.cpf.itemcount`4/`tcp.seq_raw`2/`tcp.ack`2/`tcp.dstport`1）；CIP 内层走 frames hex（86 例带 frames）。
+- **动态面断言**：`presence` / `nonzero` / `distinct` / `same_as_packet`（§9.35/§12.15 五类分列；`session_handle` inc/rand 形现为拒绝负例 T-090/091，按 §9.36 现状钉）。
+- **先跑后钉**：改写或新增用例后经真实流程（MCP 建任务→引擎生成→tshark 校对，§14.7–14.9）跑一遍取实际 pcap 再钉期望值（14.6/14.20）；pcap 落 `/tmp/mcp-pcaps/enip/`（14.16）。
+- **负例口径**：`expect` 仅 `{expect_error, error_contains}`（+ `notes` 注释键）；锚词逐例见 §16.2（44 负 / 42 种锚词）。
+
+### 16.6 P5–P6 交付回写（v2.1.1）
+
+| 项 | P3 基线 | P6 交付实测 |
+|---|---|---|
+| 用例总数 | 135（91 正 + 44 负） | **137（82 正 + 55 负）**：P5 改写 135 → 136（+`enip_neg_presence`），P6 复合用例 +1 |
+| 顶层旧键残留 | 135/135 例全带（红） | **0 例**（负例顶层 `enip` 子映射为判死对象 1 例，非残留） |
+| T 号命中（按用例 id） | 110 / 232（缺 122） | **111 / 232（缺 121）**——P6 复合用例 `enip_t180_multiflow_txn_error_branch` 落 **T-180**（每流独立挥手，4 FIN 包断言）；另其同例承载 T-179（多流并发时序不交叉）与 T-217（Status 0x0064 字节面）语义。其余 121 号仍按 A′/B′ 承接（§16.3） |
+| 多流正例 | 0（多流面全在 legacy 多单元，链上不可达） | **1**（framework `flows=2` 复制流，四元组独立 + 逐流 FIN）；多会话/多流**链上层内展开**（`session_count/flow_count>1`）仍拒（G-ENIP-1） |
+| 复合大场景（§9.50 ≥3 类交织） | 无（最复杂例仅 1 类交织） | **1**：`enip_t180_multiflow_txn_error_branch` = 多流 + 多事务 + 异常分支 |
+| 负例锚词 | 44 例 / 42 种 | 55 例；5 例按现状重锚（t104/t105 严格解码、t108/t109/t110 `io_data`、t117/t118 0 包锚）并在 notes 披露根因 |
+| suite | 不宣称绿 | lane6 MCP **137/137** + 离线链套件 **137/137**（P6 双通道实测） |
+
+---
+
+## 17. 缺口立项清单（有缺口写「缺口立项」，不许空着）
+
+| 立项号 | 缺口 | 确认方式（文档 / 抓包 / 问人 三选一） | 去向 |
+|---|---|---|---|
+| G-ENIP-1 | 多会话/多流：`session_count×flow_count` 单元展开在链上不可达（生成器显式拒绝 layer_gen.go:68-71；`u := s*flowCount + f` enip.go:590 仅 legacy 面）；12 例多单元用例失落地 | 查规范（CIP Vol.1 Connection Manager 多连接语义）+ 抓设备多连接包 | B′ → D-ENIP-1「明确不解决 + 迁入计划」（§16.3） |
+| G-ENIP-2 | UDP I/O 面：`io_data`/`transport:"udp"` 被拒（layer_gen.go:56-64；`if transport == "udp"` enip.go:627 仅 legacy 面）；9 例 I/O 用例（含 SequenceCounter 全家族 + T-141/T-142 去 seq 前缀对账项）失落地 | 查规范（Vol.2 Class 0/1 隐式 I/O）+ 抓 PLC I/O 周期包 | B′ → D-ENIP-1 迁入计划；落地前 legacy 单测保证据 |
+| G-ENIP-3 | 业务键未住层：registry 零 Fields（registry.go:193-200）→ `layers[i].enip.*` 报 unknown field（complete.go:293）；顶层 `enip` 子映射 135/135 例并存；pipe_gate 门2-1 对 enip 现状只报黄 | 代码实读 | **必做**（§15 8.1）；落地同时开 presence 判死（§14-P2） |
+| G-ENIP-4 | 业务字段动态：enip 不在 `layerDynAllowlist`（layer_dyn.go:17-71）；§12.14 要求逐协议列动态清单与序号算法（本契约 §14.12 已列） | 代码实读 + §12 评估 | D-ENIP-1 条目（逐字段开/不开理由；落地前按 §9.36 现状钉） |
+| G-ENIP-5 | 现网字段值核对：ListIdentity 响应字段（VendorID/ProductName/Revision 等）与 Forward_Open 参数（RPI/连接尺寸/连接类型位）的 Rockwell 实测形态（fixture 值如 0x0001/0x0B 仅为示例，T-009 已注） | 抓包（RSLinx/Studio 5000 浏览设备）或读设备 EDS 文件 | P5 前置确认项（不挡开工）；确认后回填 §13.2 映射表 |
+| G-ENIP-6 | Logix/PCCC 方言面（0x4C/0x4D/0x52/0x55/0x4B）零断言；0x52 同码需按目标设备模型注记（OpENer=Unconnected_Send，§2.5.3/R19） | 查 libplctag defs.h + OpENer 同码语义；抓 Logix 标签读写包 | A′ 补例（§16.3）+ 用例注记设备模型 |
+| G-ENIP-7 | 非正常结束面：TCP 中途断开（FIN/RST）、Forward_Open 后未 Close 即断、会话中途失效后的重连 | 查规范 §4.1/§4.2 状态迁移 + 实证（抓断开形） | A′ 半程（§16.1②）+ 迁入计划 |
+| G-ENIP-8 | `validateFromResponseConfig`（enip.go:879）只在 **drive 期** 跑（layer_gen.go:84），错误被 Plan goroutine 吞成空流 → 链级负例只能以 worker 通用锚 `planner produced 0 packet configs`（worker.go:421）钉现状（`enip_t117_source_cmd_index_99`/`enip_t118_unknown_fromresp_field`）。锚诚实（校验失效即产包成功、用例变红，不假绿）但**鉴别力弱**（通用锚无法区分成因） | 代码实读（P6 修轮实证：临时探针确认 plan ok / 0 packets） | 推进项（不挡关单）：把该校验并入 `Planner.Validate` 同步面，使 T-117/T-118 以原锚词拒绝；落地后重校准两条用例锚词。**本轮已修 notes 披露**（不得以通用锚冒充专属锚） |
+
+**缺口数：8**（G-ENIP-3 为必做合规项，**P4 已落地可核销**；G-ENIP-1/2/4 为 B′ 结构立项，其中 G-ENIP-1 的 **framework 多流面已由 P6 复合用例部分承接**；G-ENIP-5 为确认项；G-ENIP-6/7 为 A′ 补例面；G-ENIP-8 为同步面推进项）。
+
 ---
 
 **文档结束**
