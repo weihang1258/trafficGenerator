@@ -1973,6 +1973,155 @@ def check_enip(cases):
     return rows
 
 
+def check_cflow(cases):
+    """D-CFLOW-1 P4 反查表（27 例 = 15 正 + 7 契约负 + 5 链级红例）。
+    RFC 3954 NetFlow v9 / RFC 7011 IPFIX 双 profile。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线（cflow 早已准入；P4 收敛顶层 cflow 交 CheckProtoFlat 判死）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 cflow", '"cflow": true' in pg, "在列"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case cflow（层条目→spec.CFlow 严格解码）",
+                 'case "cflow":' in tr and "cflow layer config decode" in tr, "在案"))
+    rows.append(("FlowMeta.CFlow 直传（Meta 字面量检查点）",
+                 re.search(r"CFlow:\s+spec\.CFlow\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.CFlow 字段", re.search(r"CFlow\s+\*core\.CFlowConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.CFlow 字段", re.search(r"CFlow\s+\*CFlowConfig", ty) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "cflow"')
+    reg_block = rg[i_reg:rg.index('Name: "fins"', i_reg)]
+    rows.append(("registry cflow 行（DependsOn udp + TransportOn udp + 15 键 Fields）",
+                 'DependsOn:   []string{"udp"}' in reg_block
+                 and 'TransportOn: []string{"udp"}' in reg_block
+                 and '"profile"' in reg_block and '"observation_domain_id"' in reg_block
+                 and '"templates"' in reg_block and '"records"' in reg_block
+                 and '"exporters"' in reg_block and '"sessions"' in reg_block
+                 and '"wire_fault"' in reg_block, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(cflow)",
+                 "internal/protocol/cflow" in mn and 'NewChainPlanner("cflow")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("strategy_convert case cflow 收敛（端口缺省 2055，不读顶层 cflow）",
+                 'case "cflow":' in sc and "setDefaultDstPort(&spec, cfg, 2055)" in sc
+                 and 'parseSubconfigJSON[*CFlowConfig](&spec, sub, "cflow"' not in sc, "在案"))
+    rows.append(("CheckProtoFlat presence 判死顶层 cflow",
+                 "no longer accepts a top-level cflow sub-config" in sc, "在案"))
+    rows.append(("mapToFlowSpec 顶层 cflow → ValidationErrors（在库旧策略执法）",
+                 'if protocol == "cflow" {' in sc, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    i_vl = vl.index('if protocol == "cflow" {')
+    vl_block = vl[i_vl:vl.index('if protocol == "enip" {', i_vl)]
+    rows.append(("G-CFLOW-4 own-protocol 载体预检（缺 udp / 混族；tcp 走 TransportOn 通用块）",
+                 "missing udp carrier — cflow requires an [ip,udp,cflow] chain" in vl_block
+                 and "mixed address family in ip layer" in vl_block, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain_planner cflow 层值回填先于 validator（双 profile 端口域）",
+                 'p.name == "enip" || p.name == "cflow"' in cp, "在案"))
+    rows.append(("chain_planner cflow 目的端口缺省 2055（base）+ profile 感知覆盖 4739",
+                 'case "cflow":' in cp and "spec.DstPort = 2055" in cp
+                 and 'profile == "ipfix_rfc7011"' in cp and "spec.DstPort = 4739" in cp, "在案"))
+    cm = (tg / "internal" / "core" / "layers" / "complete.go").read_text()
+    rows.append(("TransportOn=udp 驱动 transport-dup 载体锚词（bacnet/dtls 先例）",
+                 "tcp carrier is not supported — %s rides udp only (carrier)" in cm, "在案"))
+
+    # 2. 行为面（builder/planner 关键件 + G-CFLOW-5 IE 修正）。
+    bl = (tg / "internal" / "protocol" / "cflow" / "builder.go").read_text()
+    for prim, name in [
+        ("func buildV9Header", "v9 20B header"),
+        ("func buildIPFIXHeader", "IPFIX 16B header"),
+        ("func buildV9TemplateSet", "v9 Template FlowSet (ID=0)"),
+        ("func buildV9DataFlowSet", "v9 Data FlowSet"),
+        ("func buildV9OptionsSet", "v9 Options Template FlowSet (ID=1)"),
+        ("func buildIPFIXTemplateSet", "IPFIX Template Set (ID=2)"),
+        ("func buildIPFIXOptionsTemplateSet", "IPFIX Options Template Set (ID=3)"),
+        ("func buildIPFIXDataSet", "IPFIX Data Set"),
+        ("func buildIPFIXOptionsData", "IPFIX Options Data Set"),
+        ("func BuildExportPacket", "profile 分派 + wire_fault"),
+        ("func ValidateConfig", "配置校验（七类拒绝）"),
+    ]:
+        rows.append((f"原语：{name}", prim in bl, "在案"))
+    rows.append(("G-CFLOW-5：v9 timeout IE 用 36/37（FLOW_ACTIVE/INACTIVE_TIMEOUT，非 161/162 时长 IE）",
+                 "optField{36, opts.ActiveTimeout}" in bl and "optField{37, opts.InactiveTimeout}" in bl, "在案"))
+    rows.append(("G-CFLOW-5：IPFIX options data IE 36/37 取值",
+                 "case 36: // FLOW_ACTIVE_TIMEOUT" in bl and "case 37: // FLOW_INACTIVE_TIMEOUT" in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "cflow" / "planner.go").read_text()
+    for prim, name in [
+        ("func (Planner) Validate", "端口域 + ValidateConfig"),
+        ("netflow_v9 profile requires udp port 2055", "v9 端口守卫锚"),
+        ("ipfix profile requires udp port 4739", "IPFIX 端口守卫锚"),
+        ("func (g *Generator) Generate", "终结层事件流"),
+        ("RegisterLayerGenerator", "init 注册生成器"),
+        ("RegisterLayerValidator", "init 注册校验器"),
+    ]:
+        rows.append((f"关键件：{name}", prim in pl, "在案"))
+
+    # 3. 用例面（27 例 = 15 正 + 12 负；proto=cflow；顶层仅 layers）。
+    pos = [c for c in cases if "packet_count" in (c.get("expect") or {})]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("27 例对账（15 正+12 负）", len(pos) == 15 and len(neg) == 12 and len(cases) == 27,
+                 f"{len(pos)}+{len(neg)}={len(cases)}"))
+    bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "cflow"]
+    rows.append(("proto 全=cflow（单准入名）", not bad_proto, bad_proto or "全 cflow"))
+    red_ids = {"cflow_neg_presence_top_level_cflow", "cflow_neg_flat_count"}
+    leaked = sorted({k for c in cases if c.get("id") not in red_ids
+                     for k in (c.get("spec_json", {}) or {}) if k != "layers"})
+    rows.append(("顶层残留为零（仅 layers；红例执法键豁免）", not leaked, leaked or "零残留"))
+    for kw, name in [
+        ("cflow_v9_template_data_ipv4", "v9 template+data IPv4 基线"),
+        ("cflow_v9_ipv6_record", "v9 IPv6 record"),
+        ("cflow_v9_multi_exporter", "v9 双 source_id"),
+        ("cflow_v9_multi_session", "v9 双 UDP session"),
+        ("cflow_ipfix_template_data_ipv4", "IPFIX template+data IPv4"),
+        ("cflow_ipfix_enterprise_ie", "IPFIX enterprise IE/PEN"),
+        ("cflow_ipfix_variable_length_ie", "IPFIX variable-length IE"),
+        ("cflow_ipfix_timeout_options_template", "IPFIX Options Template"),
+        ("cflow_boundary_lengths", "长度/无应用 checksum 边界"),
+        ("cflow_neg_presence_top_level_cflow", "presence 红例（M5①）"),
+        ("cflow_neg_carrier_tcp", "G-CFLOW-4 载体红例①（tcp 载体）"),
+        ("cflow_neg_carrier_no_udp", "G-CFLOW-4 载体红例②（缺 udp）"),
+        ("cflow_neg_flat_count", "游离键红例（顶层 count）"),
+        ("cflow_neg_unknown_layer_field", "未知层字段红例"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+    # G-CFLOW-5 断言强度：timeout/sampling 字段必须有值断言（非仅 fixture 有值）。
+    g5_v9 = next((c for c in cases if c.get("id") == "cflow_v9_timeout_sampling"), None)
+    v9_fields = {f.get("field"): f.get("value") for f in ((g5_v9 or {}).get("expect") or {}).get("fields", [])}
+    rows.append(("G-CFLOW-5：v9 timeout/sampling 三字段有值断言（60/15/1000）",
+                 v9_fields.get("cflow.flow_active_timeout") == "60"
+                 and v9_fields.get("cflow.flow_inactive_timeout") == "15"
+                 and v9_fields.get("cflow.sampling_interval") == "1000", "在案"))
+    g5_ix = next((c for c in cases if c.get("id") == "cflow_ipfix_timeout_options_template"), None)
+    ix_fields = {f.get("field"): f.get("value") for f in ((g5_ix or {}).get("expect") or {}).get("fields", [])}
+    rows.append(("G-CFLOW-5：IPFIX options timeout 两字段有值断言（60/15）",
+                 ix_fields.get("cflow.flow_active_timeout") == "60"
+                 and ix_fields.get("cflow.flow_inactive_timeout") == "15", "在案"))
+    # 正例形状：每例非空 fields + frames；负例 expect 键集严格。
+    bad_shape = [c.get("id") for c in pos
+                 if not ((c.get("expect") or {}).get("fields") and (c.get("expect") or {}).get("frames"))]
+    rows.append(("正例均带非空 fields + frames", not bad_shape, bad_shape or "全部在案"))
+    bad_keys = [c.get("id") for c in neg
+                if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}", not bad_keys, bad_keys or "全部合规"))
+    pkt_counts = [c["expect"]["packet_count"] for c in pos]
+    rows.append(("正例 packet_count 序列 = [1,1,1,1,1,2,2,1,1,1,1,1,1,2,1]",
+                 pkt_counts == [1, 1, 1, 1, 1, 2, 2, 1, 1, 1, 1, 1, 1, 2, 1], str(pkt_counts)))
+
+    # 4. 锚词面（12 负例：7 契约 + 1 presence + 2 载体 + 2 游离/未知键）。
+    anchors = {"version", "template", "length", "field", "address", "udp", "checksum",
+               "no longer accepts a top-level cflow sub-config",
+               "no longer accepts flat config field count",
+               "carrier", "layers: layer"}
+    got = {(c.get("expect") or {}).get("error_contains") for c in neg}
+    missing = sorted(a for a in anchors if not any(a in (g or "") for g in got))
+    rows.append((f"负例锚词覆盖 {len(anchors)} 族", not missing, missing or sorted(got)))
+    return rows
+
+
 def check_sstp(cases):
     """D-SSTP-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -5919,7 +6068,7 @@ def check_spnego(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "cflow": check_cflow}
 
 
 def main(argv):

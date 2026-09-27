@@ -1,1544 +1,1998 @@
 [
-  {
-    "id": "cflow_v9_template_data_ipv4",
-    "proto": "cflow",
-    "summary": "NetFlow v9 template and IPv4 data record",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.10",
+ {
+  "id": "cflow_v9_template_data_ipv4",
+  "proto": "cflow",
+  "summary": "NetFlow v9 template and IPv4 data record",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.10",
+      "dst": "198.51.100.10"
+     }
+    },
+    {
+     "udp": {
       "src_port": 40000,
-      "dst_port": 2055,
-      "cflow": {
-        "profile": "netflow_v9_rfc3954",
-        "source_id": 7,
-        "sequence": 100,
-        "templates": [
-          {
-            "template_id": 256,
-            "fields": [
-              {
-                "element_id": 8,
-                "length": 4
-              },
-              {
-                "element_id": 12,
-                "length": 4
-              }
-            ]
-          }
-        ],
-        "records": [
-          {
-            "template_id": 256,
-            "record": {
-              "srcaddr": "10.43.1.1",
-              "dstaddr": "10.43.1.2"
-            }
-          }
+      "dst_port": 2055
+     }
+    },
+    {
+     "cflow": {
+      "profile": "netflow_v9_rfc3954",
+      "source_id": 7,
+      "sequence": 100,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         },
+         {
+          "element_id": 12,
+          "length": 4
+         }
         ]
-      }
-    },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "udp.dstport",
-          "value": "2055"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.version",
-          "value": "9"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.count",
-          "value": "2"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.flowset_id",
-          "value": "0,256"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.template_id",
-          "value": "256"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.srcaddr",
-          "value": "10.43.1.1"
-        }
+       }
       ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 42,
-          "hex": "00 09 00 02"
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "srcaddr": "10.43.1.1",
+         "dstaddr": "10.43.1.2"
         }
+       }
       ]
+     }
     }
+   ]
   },
-  {
-    "id": "cflow_v9_ipv6_record",
-    "proto": "cflow",
-    "summary": "NetFlow v9 IPv6 address record",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "2001:db8:43::10",
-      "dst_ip": "2001:db8:43::20",
-      "src_port": 40001,
-      "dst_port": 2055,
-      "cflow": {
-        "profile": "netflow_v9_rfc3954",
-        "source_id": 8,
-        "templates": [
-          {
-            "template_id": 257,
-            "fields": [
-              {
-                "element_id": 27,
-                "length": 16
-              },
-              {
-                "element_id": 28,
-                "length": 16
-              }
-            ]
-          }
-        ],
-        "records": [
-          {
-            "template_id": 257,
-            "record": {
-              "srcaddrv6": "2001:db8:43::1",
-              "dstaddrv6": "2001:db8:43::2"
-            }
-          }
-        ]
-      }
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "2055"
     },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "cflow.version",
-          "value": "9"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.srcaddrv6",
-          "value": "2001:db8:43::1"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.dstaddrv6",
-          "value": "2001:db8:43::2"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.template_field_length",
-          "value": "16,16"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 62,
-          "hex": "00 09 00 02"
-        }
-      ]
-    }
-  },
-  {
-    "id": "cflow_v9_header_sequence_source",
-    "proto": "cflow",
-    "summary": "NetFlow v9 header sequence and source identity",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.11",
-      "dst_ip": "198.51.100.11",
-      "src_port": 40002,
-      "dst_port": 2055,
-      "cflow": {
-        "profile": "netflow_v9_rfc3954",
-        "source_id": 168496141,
-        "sequence": 16909060,
-        "sys_uptime": 600,
-        "templates": [
-          {
-            "template_id": 256,
-            "fields": [
-              {
-                "element_id": 8,
-                "length": 4
-              },
-              {
-                "element_id": 12,
-                "length": 4
-              }
-            ]
-          }
-        ],
-        "records": [
-          {
-            "template_id": 256,
-            "record": {
-              "srcaddr": "10.43.1.1",
-              "dstaddr": "10.43.1.2"
-            }
-          }
-        ]
-      }
+    {
+     "packet": 1,
+     "field": "cflow.version",
+     "value": "9"
     },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "cflow.version",
-          "value": "9"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.sequence",
-          "value": "16909060"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.source_id",
-          "value": "168496141"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.sysuptime",
-          "nonzero": true
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 42,
-          "hex": "00 09 00 02"
-        }
-      ]
-    }
-  },
-  {
-    "id": "cflow_v9_timeout_sampling",
-    "proto": "cflow",
-    "summary": "NetFlow v9 timeout and sampling metadata",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.12",
-      "dst_ip": "198.51.100.12",
-      "src_port": 40003,
-      "dst_port": 2055,
-      "cflow": {
-        "profile": "netflow_v9_rfc3954",
-        "source_id": 9,
-        "templates": [
-          {
-            "template_id": 258,
-            "fields": [
-              {
-                "element_id": 22,
-                "length": 4
-              },
-              {
-                "element_id": 21,
-                "length": 4
-              }
-            ]
-          }
-        ],
-        "records": [
-          {
-            "template_id": 258,
-            "record": {
-              "timestart": 100,
-              "timeend": 200
-            }
-          }
-        ],
-        "options": {
-          "active_timeout": 60,
-          "inactive_timeout": 15,
-          "sampling_interval": 1000
-        }
-      }
+    {
+     "packet": 1,
+     "field": "cflow.count",
+     "value": "2"
     },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "cflow.version",
-          "value": "9"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.timestart",
-          "nonzero": true
-        },
-        {
-          "packet": 1,
-          "field": "cflow.timeend",
-          "nonzero": true
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 42,
-          "hex": "00 09 00 04"
-        }
-      ]
-    }
-  },
-  {
-    "id": "cflow_v9_multi_record",
-    "proto": "cflow",
-    "summary": "NetFlow v9 two data records and count",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.13",
-      "dst_ip": "198.51.100.13",
-      "src_port": 40004,
-      "dst_port": 2055,
-      "cflow": {
-        "profile": "netflow_v9_rfc3954",
-        "source_id": 10,
-        "templates": [
-          {
-            "template_id": 256,
-            "fields": [
-              {
-                "element_id": 8,
-                "length": 4
-              },
-              {
-                "element_id": 12,
-                "length": 4
-              }
-            ]
-          }
-        ],
-        "records": [
-          {
-            "template_id": 256,
-            "record": {
-              "srcaddr": "10.43.5.1",
-              "dstaddr": "10.43.5.2",
-              "packets": 10
-            }
-          },
-          {
-            "template_id": 256,
-            "record": {
-              "srcaddr": "10.43.5.3",
-              "dstaddr": "10.43.5.4",
-              "packets": 20
-            }
-          }
-        ]
-      }
+    {
+     "packet": 1,
+     "field": "cflow.flowset_id",
+     "value": "0,256"
     },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "cflow.version",
-          "value": "9"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.count",
-          "value": "3"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.srcaddr",
-          "nonzero": true
-        },
-        {
-          "packet": 1,
-          "field": "cflow.flowset_length",
-          "nonzero": true
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 42,
-          "hex": "00 09 00 03"
-        }
-      ]
-    }
-  },
-  {
-    "id": "cflow_v9_multi_exporter",
-    "proto": "cflow",
-    "summary": "NetFlow v9 exporters remain distinct",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.14",
-      "dst_ip": "198.51.100.14",
-      "src_port": 40005,
-      "dst_port": 2055,
-      "cflow": {
-        "profile": "netflow_v9_rfc3954",
-        "source_id": 101,
-        "templates": [
-          {
-            "template_id": 256,
-            "fields": [
-              {
-                "element_id": 8,
-                "length": 4
-              },
-              {
-                "element_id": 12,
-                "length": 4
-              }
-            ]
-          }
-        ],
-        "records": [
-          {
-            "template_id": 256,
-            "record": {
-              "srcaddr": "10.43.1.1",
-              "dstaddr": "10.43.1.2"
-            }
-          }
-        ],
-        "exporters": [
-          {
-            "source_id": 202,
-            "templates": [
-              {
-                "template_id": 256,
-                "fields": [
-                  {
-                    "element_id": 8,
-                    "length": 4
-                  },
-                  {
-                    "element_id": 12,
-                    "length": 4
-                  }
-                ]
-              }
-            ],
-            "records": [
-              {
-                "template_id": 256,
-                "record": {
-                  "srcaddr": "10.43.1.1",
-                  "dstaddr": "10.43.1.2"
-                }
-              }
-            ]
-          }
-        ]
-      }
+    {
+     "packet": 1,
+     "field": "cflow.template_id",
+     "value": "256"
     },
-    "expect": {
-      "packet_count": 2,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "cflow.version",
-          "value": "9"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.source_id",
-          "distinct_values": [
-            "101",
-            "202"
-          ]
-        },
-        {
-          "packet": 1,
-          "field": "cflow.template_id",
-          "value": "256"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 42,
-          "hex": "00 09 00 02"
-        }
-      ]
+    {
+     "packet": 1,
+     "field": "cflow.srcaddr",
+     "value": "10.43.1.1"
     }
-  },
-  {
-    "id": "cflow_v9_multi_session",
-    "proto": "cflow",
-    "summary": "NetFlow v9 session template isolation",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.15",
-      "dst_ip": "198.51.100.15",
-      "src_port": 41001,
-      "dst_port": 2055,
-      "cflow": {
-        "profile": "netflow_v9_rfc3954",
-        "source_id": 7,
-        "templates": [
-          {
-            "template_id": 256,
-            "fields": [
-              {
-                "element_id": 8,
-                "length": 4
-              },
-              {
-                "element_id": 12,
-                "length": 4
-              }
-            ]
-          }
-        ],
-        "records": [
-          {
-            "template_id": 256,
-            "record": {
-              "srcaddr": "10.43.1.1",
-              "dstaddr": "10.43.1.2"
-            }
-          }
-        ],
-        "sessions": [
-          {
-            "src_port": 41002,
-            "source_id": 7,
-            "templates": [
-              {
-                "template_id": 256,
-                "fields": [
-                  {
-                    "element_id": 8,
-                    "length": 4
-                  },
-                  {
-                    "element_id": 12,
-                    "length": 4
-                  }
-                ]
-              }
-            ],
-            "records": [
-              {
-                "template_id": 256,
-                "record": {
-                  "srcaddr": "10.43.1.1",
-                  "dstaddr": "10.43.1.2"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 2,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "udp.srcport",
-          "distinct_values": [
-            "41001",
-            "41002"
-          ]
-        },
-        {
-          "packet": 1,
-          "field": "cflow.version",
-          "value": "9"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.template_id",
-          "value": "256"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 42,
-          "hex": "00 09 00 02"
-        }
-      ]
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "00 09 00 02"
     }
-  },
-  {
-    "id": "cflow_ipfix_template_data_ipv4",
-    "proto": "cflow",
-    "summary": "IPFIX template and IPv4 data record",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.20",
-      "dst_ip": "198.51.100.20",
-      "src_port": 42000,
-      "dst_port": 4739,
-      "cflow": {
-        "profile": "ipfix_rfc7011",
-        "observation_domain_id": 43,
-        "sequence": 1,
-        "templates": [
-          {
-            "template_id": 256,
-            "fields": [
-              {
-                "element_id": 8,
-                "length": 4
-              },
-              {
-                "element_id": 12,
-                "length": 4
-              }
-            ]
-          }
-        ],
-        "records": [
-          {
-            "template_id": 256,
-            "record": {
-              "sourceIPv4Address": "10.43.8.1",
-              "destinationIPv4Address": "10.43.8.2"
-            }
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "udp.dstport",
-          "value": "4739"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.version",
-          "value": "10"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.len",
-          "value": "44"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.flowset_id",
-          "value": "2,256"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.template_id",
-          "value": "256"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.srcaddr",
-          "value": "10.43.8.1"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 42,
-          "hex": "00 0a 00 2c"
-        }
-      ]
-    }
-  },
-  {
-    "id": "cflow_ipfix_ipv6_record",
-    "proto": "cflow",
-    "summary": "IPFIX IPv6 address record",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "2001:db8:44::10",
-      "dst_ip": "2001:db8:44::20",
-      "src_port": 42001,
-      "dst_port": 4739,
-      "cflow": {
-        "profile": "ipfix_rfc7011",
-        "observation_domain_id": 44,
-        "templates": [
-          {
-            "template_id": 257,
-            "fields": [
-              {
-                "element_id": 27,
-                "length": 16
-              },
-              {
-                "element_id": 28,
-                "length": 16
-              }
-            ]
-          }
-        ],
-        "records": [
-          {
-            "template_id": 257,
-            "record": {
-              "srcaddrv6": "2001:db8:44::1",
-              "dstaddrv6": "2001:db8:44::2"
-            }
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "cflow.version",
-          "value": "10"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.od_id",
-          "value": "44"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.srcaddrv6",
-          "value": "2001:db8:44::1"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.dstaddrv6",
-          "value": "2001:db8:44::2"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.template_field_length",
-          "value": "16,16"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 62,
-          "hex": "00 0a"
-        }
-      ]
-    }
-  },
-  {
-    "id": "cflow_ipfix_enterprise_ie",
-    "proto": "cflow",
-    "summary": "IPFIX enterprise IE with PEN",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.21",
-      "dst_ip": "198.51.100.21",
-      "src_port": 42002,
-      "dst_port": 4739,
-      "cflow": {
-        "profile": "ipfix_rfc7011",
-        "observation_domain_id": 45,
-        "templates": [
-          {
-            "template_id": 258,
-            "fields": [
-              {
-                "element_id": 8,
-                "length": 4
-              },
-              {
-                "element_id": 32769,
-                "length": 4,
-                "pen": 424242
-              }
-            ]
-          }
-        ],
-        "records": [
-          {
-            "template_id": 258,
-            "record": {
-              "srcaddr": "10.43.9.1",
-              "enterprise_private_entry": "01020304"
-            }
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "cflow.version",
-          "value": "10"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.template_ipfix_pen_provided",
-          "value": "0,1"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.template_ipfix_field_type_enterprise",
-          "nonzero": true
-        },
-        {
-          "packet": 1,
-          "field": "cflow.template_ipfix_field_pen",
-          "value": "424242"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.enterprise_private_entry",
-          "nonzero": true
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 42,
-          "hex": "00 0a"
-        }
-      ]
-    }
-  },
-  {
-    "id": "cflow_ipfix_variable_length_ie",
-    "proto": "cflow",
-    "summary": "IPFIX variable-length enterprise IE boundary",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.22",
-      "dst_ip": "198.51.100.22",
-      "src_port": 42003,
-      "dst_port": 4739,
-      "cflow": {
-        "profile": "ipfix_rfc7011",
-        "observation_domain_id": 46,
-        "templates": [
-          {
-            "template_id": 259,
-            "fields": [
-              {
-                "element_id": 32770,
-                "length": 65535,
-                "pen": 424242
-              }
-            ]
-          }
-        ],
-        "records": [
-          {
-            "template_id": 259,
-            "record": {
-              "enterprise_private_entry": "short-value",
-              "enterprise_private_entry_2": "short-value"
-            }
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "cflow.version",
-          "value": "10"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.template_field_length",
-          "value": "65535"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.template_ipfix_field_pen",
-          "value": "424242"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 42,
-          "hex": "00 0a"
-        },
-        {
-          "packet": 1,
-          "offset": 62,
-          "hex": "01 03 00 01 80 02 ff ff 00 06 79 32"
-        },
-        {
-          "packet": 1,
-          "offset": 78,
-          "hex": "0b 73 68 6f 72 74 2d 76 61 6c 75 65"
-        }
-      ]
-    }
-  },
-  {
-    "id": "cflow_ipfix_observation_domain_sequence",
-    "proto": "cflow",
-    "summary": "IPFIX observation domain and sequence",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.23",
-      "dst_ip": "198.51.100.23",
-      "src_port": 42004,
-      "dst_port": 4739,
-      "cflow": {
-        "profile": "ipfix_rfc7011",
-        "observation_domain_id": 287454020,
-        "sequence": 16909060,
-        "templates": [
-          {
-            "template_id": 256,
-            "fields": [
-              {
-                "element_id": 8,
-                "length": 4
-              },
-              {
-                "element_id": 12,
-                "length": 4
-              }
-            ]
-          }
-        ],
-        "records": [
-          {
-            "template_id": 256,
-            "record": {
-              "sourceIPv4Address": "10.43.8.1",
-              "destinationIPv4Address": "10.43.8.2"
-            }
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "cflow.version",
-          "value": "10"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.sequence",
-          "value": "16909060"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.od_id",
-          "value": "287454020"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.template_id",
-          "value": "256"
-        },
-        {
-          "packet": 1,
-          "field": "udp.dstport",
-          "value": "4739"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 42,
-          "hex": "00 0a"
-        }
-      ]
-    }
-  },
-  {
-    "id": "cflow_ipfix_timeout_options_template",
-    "proto": "cflow",
-    "summary": "IPFIX Options Template with timeout fields",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.24",
-      "dst_ip": "198.51.100.24",
-      "src_port": 42005,
-      "dst_port": 4739,
-      "cflow": {
-        "profile": "ipfix_rfc7011",
-        "observation_domain_id": 47,
-        "templates": [
-          {
-            "kind": "options",
-            "template_id": 260,
-            "scope_fields": [
-              {
-                "element_id": 138,
-                "length": 8
-              }
-            ],
-            "option_fields": [
-              {
-                "element_id": 34,
-                "length": 2
-              }
-            ]
-          }
-        ],
-        "records": [],
-        "options": {
-          "active_timeout": 60,
-          "inactive_timeout": 15
-        }
-      }
-    },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "cflow.version",
-          "value": "10"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.template_ipfix_scope_field_count",
-          "value": "1"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.template_ipfix_total_field_count",
-          "value": "2"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 42,
-          "hex": "00 0a"
-        }
-      ]
-    }
-  },
-  {
-    "id": "cflow_ipfix_multi_exporter",
-    "proto": "cflow",
-    "summary": "IPFIX exporters remain distinct by observation domain",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.25",
-      "dst_ip": "198.51.100.25",
-      "src_port": 42006,
-      "dst_port": 4739,
-      "cflow": {
-        "profile": "ipfix_rfc7011",
-        "observation_domain_id": 501,
-        "templates": [
-          {
-            "template_id": 256,
-            "fields": [
-              {
-                "element_id": 8,
-                "length": 4
-              },
-              {
-                "element_id": 12,
-                "length": 4
-              }
-            ]
-          }
-        ],
-        "records": [
-          {
-            "template_id": 256,
-            "record": {
-              "sourceIPv4Address": "10.43.8.1",
-              "destinationIPv4Address": "10.43.8.2"
-            }
-          }
-        ],
-        "exporters": [
-          {
-            "observation_domain_id": 502,
-            "templates": [
-              {
-                "template_id": 256,
-                "fields": [
-                  {
-                    "element_id": 8,
-                    "length": 4
-                  },
-                  {
-                    "element_id": 12,
-                    "length": 4
-                  }
-                ]
-              }
-            ],
-            "records": [
-              {
-                "template_id": 256,
-                "record": {
-                  "sourceIPv4Address": "10.43.8.1",
-                  "destinationIPv4Address": "10.43.8.2"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 2,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "cflow.version",
-          "value": "10"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.od_id",
-          "distinct_values": [
-            "501",
-            "502"
-          ]
-        },
-        {
-          "packet": 1,
-          "field": "udp.dstport",
-          "value": "4739"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 42,
-          "hex": "00 0a"
-        }
-      ]
-    }
-  },
-  {
-    "id": "cflow_boundary_lengths",
-    "proto": "cflow",
-    "summary": "Minimal legal export length and UDP-only checksum boundary",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.26",
-      "dst_ip": "198.51.100.26",
-      "src_port": 42007,
-      "dst_port": 2055,
-      "cflow": {
-        "profile": "netflow_v9_rfc3954",
-        "source_id": 11,
-        "templates": [
-          {
-            "template_id": 256,
-            "fields": [
-              {
-                "element_id": 8,
-                "length": 4
-              }
-            ]
-          }
-        ],
-        "records": [
-          {
-            "template_id": 256,
-            "record": {
-              "srcaddr": "10.43.15.1"
-            }
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "cflow.version",
-          "value": "9"
-        },
-        {
-          "packet": 1,
-          "field": "cflow.flowset_length",
-          "nonzero": true
-        },
-        {
-          "packet": 1,
-          "field": "udp.dstport",
-          "value": "2055"
-        },
-        {
-          "packet": 1,
-          "field": "udp.checksum",
-          "nonzero": true
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 42,
-          "hex": "00 09 00 02"
-        }
-      ]
-    }
-  },
-  {
-    "id": "cflow_neg_version",
-    "proto": "cflow",
-    "summary": "profile version mismatch",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.30",
-      "dst_ip": "198.51.100.30",
-      "src_port": 43000,
-      "dst_port": 2055,
-      "cflow": {
-        "profile": "netflow_v9_rfc3954",
-        "version": 10,
-        "templates": [],
-        "records": []
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "version"
-    }
-  },
-  {
-    "id": "cflow_neg_template",
-    "proto": "cflow",
-    "summary": "data set without template",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.31",
-      "dst_ip": "198.51.100.31",
-      "src_port": 43001,
-      "dst_port": 4739,
-      "cflow": {
-        "profile": "ipfix_rfc7011",
-        "observation_domain_id": 60,
-        "sets": [
-          {
-            "id": 256,
-            "records": [
-              {
-                "srcaddr": "10.0.0.1"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "template"
-    }
-  },
-  {
-    "id": "cflow_neg_length",
-    "proto": "cflow",
-    "summary": "declared message or set length outside body",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.32",
-      "dst_ip": "198.51.100.32",
-      "src_port": 43002,
-      "dst_port": 4739,
-      "cflow": {
-        "profile": "ipfix_rfc7011",
-        "observation_domain_id": 61,
-        "wire_fault": {
-          "kind": "length",
-          "value": 3
-        }
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "length"
-    }
-  },
-  {
-    "id": "cflow_neg_field_count",
-    "proto": "cflow",
-    "summary": "template field count differs from descriptors",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.33",
-      "dst_ip": "198.51.100.33",
-      "src_port": 43003,
-      "dst_port": 2055,
-      "cflow": {
-        "profile": "netflow_v9_rfc3954",
-        "source_id": 12,
-        "wire_fault": {
-          "kind": "field_count",
-          "declared": 3,
-          "fields": 2
-        }
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "field"
-    }
-  },
-  {
-    "id": "cflow_neg_address_family",
-    "proto": "cflow",
-    "summary": "IPv4 template filled by IPv6 record",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.34",
-      "dst_ip": "198.51.100.34",
-      "src_port": 43004,
-      "dst_port": 4739,
-      "cflow": {
-        "profile": "ipfix_rfc7011",
-        "observation_domain_id": 62,
-        "templates": [
-          {
-            "template_id": 256,
-            "fields": [
-              {
-                "element_id": 8,
-                "length": 4
-              }
-            ]
-          }
-        ],
-        "records": [
-          {
-            "template_id": 256,
-            "record": {
-              "srcaddrv6": "2001:db8::1"
-            }
-          }
-        ]
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "address"
-    }
-  },
-  {
-    "id": "cflow_neg_udp_port",
-    "proto": "cflow",
-    "summary": "profile uses wrong UDP port",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.35",
-      "dst_ip": "198.51.100.35",
-      "src_port": 43005,
-      "dst_port": 4739,
-      "cflow": {
-        "profile": "netflow_v9_rfc3954",
-        "source_id": 13,
-        "templates": [],
-        "records": []
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "udp"
-    }
-  },
-  {
-    "id": "cflow_neg_checksum",
-    "proto": "cflow",
-    "summary": "request nonexistent cflow application checksum",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "cflow": {}
-        }
-      ],
-      "src_ip": "192.0.2.36",
-      "dst_ip": "198.51.100.36",
-      "src_port": 43006,
-      "dst_port": 4739,
-      "cflow": {
-        "profile": "ipfix_rfc7011",
-        "observation_domain_id": 63,
-        "wire_fault": {
-          "kind": "checksum"
-        }
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "checksum"
-    }
+   ]
   }
+ },
+ {
+  "id": "cflow_v9_ipv6_record",
+  "proto": "cflow",
+  "summary": "NetFlow v9 IPv6 address record",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "2001:db8:43::10",
+      "dst": "2001:db8:43::20"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 40001,
+      "dst_port": 2055
+     }
+    },
+    {
+     "cflow": {
+      "profile": "netflow_v9_rfc3954",
+      "source_id": 8,
+      "templates": [
+       {
+        "template_id": 257,
+        "fields": [
+         {
+          "element_id": 27,
+          "length": 16
+         },
+         {
+          "element_id": 28,
+          "length": 16
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 257,
+        "record": {
+         "srcaddrv6": "2001:db8:43::1",
+         "dstaddrv6": "2001:db8:43::2"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "cflow.version",
+     "value": "9"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.srcaddrv6",
+     "value": "2001:db8:43::1"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.dstaddrv6",
+     "value": "2001:db8:43::2"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.template_field_length",
+     "value": "16,16"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 62,
+     "hex": "00 09 00 02"
+    }
+   ]
+  }
+ },
+ {
+  "id": "cflow_v9_header_sequence_source",
+  "proto": "cflow",
+  "summary": "NetFlow v9 header sequence and source identity",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.11",
+      "dst": "198.51.100.11"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 40002,
+      "dst_port": 2055
+     }
+    },
+    {
+     "cflow": {
+      "profile": "netflow_v9_rfc3954",
+      "source_id": 168496141,
+      "sequence": 16909060,
+      "sys_uptime": 600,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         },
+         {
+          "element_id": 12,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "srcaddr": "10.43.1.1",
+         "dstaddr": "10.43.1.2"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "cflow.version",
+     "value": "9"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.sequence",
+     "value": "16909060"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.source_id",
+     "value": "168496141"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.sysuptime",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "00 09 00 02"
+    }
+   ]
+  }
+ },
+ {
+  "id": "cflow_v9_timeout_sampling",
+  "proto": "cflow",
+  "summary": "NetFlow v9 timeout and sampling metadata",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.12",
+      "dst": "198.51.100.12"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 40003,
+      "dst_port": 2055
+     }
+    },
+    {
+     "cflow": {
+      "profile": "netflow_v9_rfc3954",
+      "source_id": 9,
+      "templates": [
+       {
+        "template_id": 258,
+        "fields": [
+         {
+          "element_id": 22,
+          "length": 4
+         },
+         {
+          "element_id": 21,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 258,
+        "record": {
+         "timestart": 100,
+         "timeend": 200
+        }
+       }
+      ],
+      "options": {
+       "active_timeout": 60,
+       "inactive_timeout": 15,
+       "sampling_interval": 1000
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "cflow.version",
+     "value": "9"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.timestart",
+     "nonzero": true
+    },
+    {
+     "packet": 1,
+     "field": "cflow.timeend",
+     "nonzero": true
+    },
+    {
+     "packet": 1,
+     "field": "cflow.flow_active_timeout",
+     "value": "60"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.flow_inactive_timeout",
+     "value": "15"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.sampling_interval",
+     "value": "1000"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "00 09 00 04"
+    }
+   ]
+  }
+ },
+ {
+  "id": "cflow_v9_multi_record",
+  "proto": "cflow",
+  "summary": "NetFlow v9 two data records and count",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.13",
+      "dst": "198.51.100.13"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 40004,
+      "dst_port": 2055
+     }
+    },
+    {
+     "cflow": {
+      "profile": "netflow_v9_rfc3954",
+      "source_id": 10,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         },
+         {
+          "element_id": 12,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "srcaddr": "10.43.5.1",
+         "dstaddr": "10.43.5.2",
+         "packets": 10
+        }
+       },
+       {
+        "template_id": 256,
+        "record": {
+         "srcaddr": "10.43.5.3",
+         "dstaddr": "10.43.5.4",
+         "packets": 20
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "cflow.version",
+     "value": "9"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.count",
+     "value": "3"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.srcaddr",
+     "nonzero": true
+    },
+    {
+     "packet": 1,
+     "field": "cflow.flowset_length",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "00 09 00 03"
+    }
+   ]
+  }
+ },
+ {
+  "id": "cflow_v9_multi_exporter",
+  "proto": "cflow",
+  "summary": "NetFlow v9 exporters remain distinct",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.14",
+      "dst": "198.51.100.14"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 40005,
+      "dst_port": 2055
+     }
+    },
+    {
+     "cflow": {
+      "profile": "netflow_v9_rfc3954",
+      "source_id": 101,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         },
+         {
+          "element_id": 12,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "srcaddr": "10.43.1.1",
+         "dstaddr": "10.43.1.2"
+        }
+       }
+      ],
+      "exporters": [
+       {
+        "source_id": 202,
+        "templates": [
+         {
+          "template_id": 256,
+          "fields": [
+           {
+            "element_id": 8,
+            "length": 4
+           },
+           {
+            "element_id": 12,
+            "length": 4
+           }
+          ]
+         }
+        ],
+        "records": [
+         {
+          "template_id": 256,
+          "record": {
+           "srcaddr": "10.43.1.1",
+           "dstaddr": "10.43.1.2"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "cflow.version",
+     "value": "9"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.source_id",
+     "distinct_values": [
+      "101",
+      "202"
+     ]
+    },
+    {
+     "packet": 1,
+     "field": "cflow.template_id",
+     "value": "256"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "00 09 00 02"
+    }
+   ]
+  }
+ },
+ {
+  "id": "cflow_v9_multi_session",
+  "proto": "cflow",
+  "summary": "NetFlow v9 session template isolation",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.15",
+      "dst": "198.51.100.15"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 41001,
+      "dst_port": 2055
+     }
+    },
+    {
+     "cflow": {
+      "profile": "netflow_v9_rfc3954",
+      "source_id": 7,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         },
+         {
+          "element_id": 12,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "srcaddr": "10.43.1.1",
+         "dstaddr": "10.43.1.2"
+        }
+       }
+      ],
+      "sessions": [
+       {
+        "src_port": 41002,
+        "source_id": 7,
+        "templates": [
+         {
+          "template_id": 256,
+          "fields": [
+           {
+            "element_id": 8,
+            "length": 4
+           },
+           {
+            "element_id": 12,
+            "length": 4
+           }
+          ]
+         }
+        ],
+        "records": [
+         {
+          "template_id": 256,
+          "record": {
+           "srcaddr": "10.43.1.1",
+           "dstaddr": "10.43.1.2"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "udp.srcport",
+     "distinct_values": [
+      "41001",
+      "41002"
+     ]
+    },
+    {
+     "packet": 1,
+     "field": "cflow.version",
+     "value": "9"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.template_id",
+     "value": "256"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "00 09 00 02"
+    }
+   ]
+  }
+ },
+ {
+  "id": "cflow_ipfix_template_data_ipv4",
+  "proto": "cflow",
+  "summary": "IPFIX template and IPv4 data record",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.20",
+      "dst": "198.51.100.20"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 42000,
+      "dst_port": 4739
+     }
+    },
+    {
+     "cflow": {
+      "profile": "ipfix_rfc7011",
+      "observation_domain_id": 43,
+      "sequence": 1,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         },
+         {
+          "element_id": 12,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "sourceIPv4Address": "10.43.8.1",
+         "destinationIPv4Address": "10.43.8.2"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "4739"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.version",
+     "value": "10"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.len",
+     "value": "44"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.flowset_id",
+     "value": "2,256"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.template_id",
+     "value": "256"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.srcaddr",
+     "value": "10.43.8.1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "00 0a 00 2c"
+    }
+   ]
+  }
+ },
+ {
+  "id": "cflow_ipfix_ipv6_record",
+  "proto": "cflow",
+  "summary": "IPFIX IPv6 address record",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "2001:db8:44::10",
+      "dst": "2001:db8:44::20"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 42001,
+      "dst_port": 4739
+     }
+    },
+    {
+     "cflow": {
+      "profile": "ipfix_rfc7011",
+      "observation_domain_id": 44,
+      "templates": [
+       {
+        "template_id": 257,
+        "fields": [
+         {
+          "element_id": 27,
+          "length": 16
+         },
+         {
+          "element_id": 28,
+          "length": 16
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 257,
+        "record": {
+         "srcaddrv6": "2001:db8:44::1",
+         "dstaddrv6": "2001:db8:44::2"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "cflow.version",
+     "value": "10"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.od_id",
+     "value": "44"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.srcaddrv6",
+     "value": "2001:db8:44::1"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.dstaddrv6",
+     "value": "2001:db8:44::2"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.template_field_length",
+     "value": "16,16"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 62,
+     "hex": "00 0a"
+    }
+   ]
+  }
+ },
+ {
+  "id": "cflow_ipfix_enterprise_ie",
+  "proto": "cflow",
+  "summary": "IPFIX enterprise IE with PEN",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.21",
+      "dst": "198.51.100.21"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 42002,
+      "dst_port": 4739
+     }
+    },
+    {
+     "cflow": {
+      "profile": "ipfix_rfc7011",
+      "observation_domain_id": 45,
+      "templates": [
+       {
+        "template_id": 258,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         },
+         {
+          "element_id": 32769,
+          "length": 4,
+          "pen": 424242
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 258,
+        "record": {
+         "srcaddr": "10.43.9.1",
+         "enterprise_private_entry": "01020304"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "cflow.version",
+     "value": "10"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.template_ipfix_pen_provided",
+     "value": "0,1"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.template_ipfix_field_type_enterprise",
+     "nonzero": true
+    },
+    {
+     "packet": 1,
+     "field": "cflow.template_ipfix_field_pen",
+     "value": "424242"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.enterprise_private_entry",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "00 0a"
+    }
+   ]
+  }
+ },
+ {
+  "id": "cflow_ipfix_variable_length_ie",
+  "proto": "cflow",
+  "summary": "IPFIX variable-length enterprise IE boundary",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.22",
+      "dst": "198.51.100.22"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 42003,
+      "dst_port": 4739
+     }
+    },
+    {
+     "cflow": {
+      "profile": "ipfix_rfc7011",
+      "observation_domain_id": 46,
+      "templates": [
+       {
+        "template_id": 259,
+        "fields": [
+         {
+          "element_id": 32770,
+          "length": 65535,
+          "pen": 424242
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 259,
+        "record": {
+         "enterprise_private_entry": "short-value",
+         "enterprise_private_entry_2": "short-value"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "cflow.version",
+     "value": "10"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.template_field_length",
+     "value": "65535"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.template_ipfix_field_pen",
+     "value": "424242"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "00 0a"
+    },
+    {
+     "packet": 1,
+     "offset": 62,
+     "hex": "01 03 00 01 80 02 ff ff 00 06 79 32"
+    },
+    {
+     "packet": 1,
+     "offset": 78,
+     "hex": "0b 73 68 6f 72 74 2d 76 61 6c 75 65"
+    }
+   ]
+  }
+ },
+ {
+  "id": "cflow_ipfix_observation_domain_sequence",
+  "proto": "cflow",
+  "summary": "IPFIX observation domain and sequence",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.23",
+      "dst": "198.51.100.23"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 42004,
+      "dst_port": 4739
+     }
+    },
+    {
+     "cflow": {
+      "profile": "ipfix_rfc7011",
+      "observation_domain_id": 287454020,
+      "sequence": 16909060,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         },
+         {
+          "element_id": 12,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "sourceIPv4Address": "10.43.8.1",
+         "destinationIPv4Address": "10.43.8.2"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "cflow.version",
+     "value": "10"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.sequence",
+     "value": "16909060"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.od_id",
+     "value": "287454020"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.template_id",
+     "value": "256"
+    },
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "4739"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "00 0a"
+    }
+   ]
+  }
+ },
+ {
+  "id": "cflow_ipfix_timeout_options_template",
+  "proto": "cflow",
+  "summary": "IPFIX Options Template with timeout fields",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.24",
+      "dst": "198.51.100.24"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 42005,
+      "dst_port": 4739
+     }
+    },
+    {
+     "cflow": {
+      "profile": "ipfix_rfc7011",
+      "observation_domain_id": 47,
+      "templates": [
+       {
+        "kind": "options",
+        "template_id": 260,
+        "scope_fields": [
+         {
+          "element_id": 138,
+          "length": 8
+         }
+        ],
+        "option_fields": [
+         {
+          "element_id": 36,
+          "length": 2
+         },
+         {
+          "element_id": 37,
+          "length": 2
+         }
+        ]
+       }
+      ],
+      "records": [],
+      "options": {
+       "active_timeout": 60,
+       "inactive_timeout": 15
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "cflow.version",
+     "value": "10"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.template_ipfix_scope_field_count",
+     "value": "1"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.flow_active_timeout",
+     "value": "60"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.flow_inactive_timeout",
+     "value": "15"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "00 0a"
+    }
+   ]
+  }
+ },
+ {
+  "id": "cflow_ipfix_multi_exporter",
+  "proto": "cflow",
+  "summary": "IPFIX exporters remain distinct by observation domain",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.25",
+      "dst": "198.51.100.25"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 42006,
+      "dst_port": 4739
+     }
+    },
+    {
+     "cflow": {
+      "profile": "ipfix_rfc7011",
+      "observation_domain_id": 501,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         },
+         {
+          "element_id": 12,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "sourceIPv4Address": "10.43.8.1",
+         "destinationIPv4Address": "10.43.8.2"
+        }
+       }
+      ],
+      "exporters": [
+       {
+        "observation_domain_id": 502,
+        "templates": [
+         {
+          "template_id": 256,
+          "fields": [
+           {
+            "element_id": 8,
+            "length": 4
+           },
+           {
+            "element_id": 12,
+            "length": 4
+           }
+          ]
+         }
+        ],
+        "records": [
+         {
+          "template_id": 256,
+          "record": {
+           "sourceIPv4Address": "10.43.8.1",
+           "destinationIPv4Address": "10.43.8.2"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "cflow.version",
+     "value": "10"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.od_id",
+     "distinct_values": [
+      "501",
+      "502"
+     ]
+    },
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "4739"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "00 0a"
+    }
+   ]
+  }
+ },
+ {
+  "id": "cflow_boundary_lengths",
+  "proto": "cflow",
+  "summary": "Minimal legal export length and UDP-only checksum boundary",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.26",
+      "dst": "198.51.100.26"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 42007,
+      "dst_port": 2055
+     }
+    },
+    {
+     "cflow": {
+      "profile": "netflow_v9_rfc3954",
+      "source_id": 11,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "srcaddr": "10.43.15.1"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "cflow.version",
+     "value": "9"
+    },
+    {
+     "packet": 1,
+     "field": "cflow.flowset_length",
+     "nonzero": true
+    },
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "2055"
+    },
+    {
+     "packet": 1,
+     "field": "udp.checksum",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "00 09 00 02"
+    }
+   ]
+  }
+ },
+ {
+  "id": "cflow_neg_version",
+  "proto": "cflow",
+  "summary": "profile version mismatch",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.30",
+      "dst": "198.51.100.30"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 43000,
+      "dst_port": 2055
+     }
+    },
+    {
+     "cflow": {
+      "profile": "netflow_v9_rfc3954",
+      "version": 10,
+      "source_id": 7,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "srcaddr": "10.43.1.1"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "version"
+  }
+ },
+ {
+  "id": "cflow_neg_template",
+  "proto": "cflow",
+  "summary": "data set without template",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.31",
+      "dst": "198.51.100.31"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 43001,
+      "dst_port": 4739
+     }
+    },
+    {
+     "cflow": {
+      "profile": "ipfix_rfc7011",
+      "observation_domain_id": 60,
+      "templates": [],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "sourceIPv4Address": "10.0.0.1"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "template"
+  }
+ },
+ {
+  "id": "cflow_neg_length",
+  "proto": "cflow",
+  "summary": "declared message or set length outside body",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.32",
+      "dst": "198.51.100.32"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 43002,
+      "dst_port": 4739
+     }
+    },
+    {
+     "cflow": {
+      "profile": "ipfix_rfc7011",
+      "observation_domain_id": 61,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "sourceIPv4Address": "10.0.0.1"
+        }
+       }
+      ],
+      "wire_fault": {
+       "kind": "length",
+       "value": 3
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "length"
+  }
+ },
+ {
+  "id": "cflow_neg_field_count",
+  "proto": "cflow",
+  "summary": "template field count differs from descriptors",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.33",
+      "dst": "198.51.100.33"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 43003,
+      "dst_port": 2055
+     }
+    },
+    {
+     "cflow": {
+      "profile": "netflow_v9_rfc3954",
+      "source_id": 12,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         },
+         {
+          "element_id": 12,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "srcaddr": "10.43.1.1",
+         "dstaddr": "10.43.1.2"
+        }
+       }
+      ],
+      "wire_fault": {
+       "kind": "field_count",
+       "declared": 3,
+       "fields": 2
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "field"
+  }
+ },
+ {
+  "id": "cflow_neg_address_family",
+  "proto": "cflow",
+  "summary": "IPv4 template filled by IPv6 record",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.34",
+      "dst": "198.51.100.34"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 43004,
+      "dst_port": 4739
+     }
+    },
+    {
+     "cflow": {
+      "profile": "ipfix_rfc7011",
+      "observation_domain_id": 62,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "srcaddrv6": "2001:db8::1"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "address"
+  }
+ },
+ {
+  "id": "cflow_neg_udp_port",
+  "proto": "cflow",
+  "summary": "profile uses wrong UDP port",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.35",
+      "dst": "198.51.100.35"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 43005,
+      "dst_port": 4739
+     }
+    },
+    {
+     "cflow": {
+      "profile": "netflow_v9_rfc3954",
+      "source_id": 13,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "srcaddr": "10.43.1.1"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "udp"
+  }
+ },
+ {
+  "id": "cflow_neg_checksum",
+  "proto": "cflow",
+  "summary": "request nonexistent cflow application checksum",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "192.0.2.36",
+      "dst": "198.51.100.36"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 43006,
+      "dst_port": 4739
+     }
+    },
+    {
+     "cflow": {
+      "profile": "ipfix_rfc7011",
+      "observation_domain_id": 63,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "sourceIPv4Address": "10.0.0.1"
+        }
+       }
+      ],
+      "wire_fault": {
+       "kind": "checksum"
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "checksum"
+  }
+ },
+ {
+  "id": "cflow_neg_presence_top_level_cflow",
+  "proto": "cflow",
+  "summary": "D-CFLOW-1 presence: layers + top-level cflow {} coexist = reject",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 40000,
+      "dst_port": 2055
+     }
+    },
+    {
+     "cflow": {
+      "profile": "netflow_v9_rfc3954",
+      "source_id": 7,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "srcaddr": "10.43.1.1"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "cflow": {}
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "no longer accepts a top-level cflow sub-config"
+  }
+ },
+ {
+  "id": "cflow_neg_carrier_tcp",
+  "proto": "cflow",
+  "summary": "D-CFLOW-1 G-CFLOW-4: [ip,tcp,cflow] tcp carrier rejected (own-protocol carrier block)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 40000,
+      "dst_port": 2055
+     }
+    },
+    {
+     "cflow": {
+      "profile": "netflow_v9_rfc3954",
+      "source_id": 7,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "srcaddr": "10.43.1.1"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "carrier"
+  }
+ },
+ {
+  "id": "cflow_neg_carrier_no_udp",
+  "proto": "cflow",
+  "summary": "D-CFLOW-1 G-CFLOW-4: [ip,cflow] missing udp carrier rejected (own-protocol carrier block)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "cflow": {
+      "profile": "netflow_v9_rfc3954",
+      "source_id": 7,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "srcaddr": "10.43.1.1"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "carrier"
+  }
+ },
+ {
+  "id": "cflow_neg_flat_count",
+  "proto": "cflow",
+  "summary": "top-level count rejected (1.11-1.13 whitelist; flow_control family owns quantity)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 40000,
+      "dst_port": 2055
+     }
+    },
+    {
+     "cflow": {
+      "profile": "netflow_v9_rfc3954",
+      "source_id": 7,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "srcaddr": "10.43.1.1"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "count": 1
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "no longer accepts flat config field count"
+  }
+ },
+ {
+  "id": "cflow_neg_unknown_layer_field",
+  "proto": "cflow",
+  "summary": "unknown cflow layer field rejected (ValidateLayers unknown-field gate)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 40000,
+      "dst_port": 2055
+     }
+    },
+    {
+     "cflow": {
+      "profile": "netflow_v9_rfc3954",
+      "bogus_field": 1,
+      "templates": [
+       {
+        "template_id": 256,
+        "fields": [
+         {
+          "element_id": 8,
+          "length": 4
+         }
+        ]
+       }
+      ],
+      "records": [
+       {
+        "template_id": 256,
+        "record": {
+         "srcaddr": "10.43.1.1"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "layers: layer"
+  }
+ }
 ]
