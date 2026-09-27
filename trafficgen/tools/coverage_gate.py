@@ -1953,11 +1953,11 @@ def check_doip(cases):
     bad_top = [c.get("id") for c in pos
                if set((c.get("spec_json") or {}).keys()) - {"layers", "flow_control", "output", "output_config", "group_id"}]
     rows.append(("非负例顶层键=0（白名单制）", not bad_top, bad_top or "全部合规"))
-    rows.append(("IPv6 例在案（ip 层 v6 字面量）",
-                 any(":" in str((l.get("ip") or {}).get("src", ""))
-                     for _, l in [(x, {}) for x in []] ) or
-                 any(":" in json.dumps((c.get("spec_json") or {}).get("layers") or []) for c in cases
-                     if c.get("id") in ("doip_ipv6_activation", "doip_ipv6_alive")), "在案"))
+    v6ids = [c.get("id") for c in cases
+             if c.get("id") in ("doip_ipv6_activation", "doip_ipv6_alive")
+             and ":" in json.dumps((c.get("spec_json") or {}).get("layers") or [])]
+    rows.append(("IPv6 例在案（ip 层 v6 字面量，地址族由字面量判）",
+                 len(v6ids) == 2, ",".join(v6ids) or "无"))
 
     # 3. 层键覆盖（契约 §15.3 十键在册者逐键有用例）。
     for k in ["protocol_version", "logical_address", "tester_address", "activation",

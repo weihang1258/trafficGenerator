@@ -273,3 +273,59 @@ func TestDoIPChain_CaseFileAudit(t *testing.T) {
 		}
 	}
 }
+
+// ⑧端口契约：tcp 层不写 dst_port 时缺省补齐 13400（FieldContract 驱动，
+// enip :44818 同款）；层内显式写则尊重用户值。
+func TestDoIPChain_DefaultDstPort(t *testing.T) {
+	pkts := doipPlan(t, doipChain(doipBaseIP(), doipBaseTCP(), doipBaseActivation()))
+	if len(pkts) == 0 {
+		t.Fatal("no packets")
+	}
+	for _, p := range pkts {
+		if p.Direction == "up" && p.L4.DstPort != 13400 {
+			t.Fatalf("up packet DstPort = %d, want FieldContract default 13400", p.L4.DstPort)
+		}
+	}
+	// 显式端口优先。
+	explicit := doipChain(doipBaseIP(),
+		map[string]interface{}{"src_port": 12345, "dst_port": 13401},
+		doipBaseActivation())
+	pkts2 := doipPlan(t, explicit)
+	for _, p := range pkts2 {
+		if p.Direction == "up" && p.L4.DstPort != 13401 {
+			t.Fatalf("explicit dst_port: up packet DstPort = %d, want 13401", p.L4.DstPort)
+		}
+	}
+}
+
+// ⑨V1 最小兼容子集：PV=0x01 时 0x0005/0x0006 无 OEM，长度 7/9。
+func TestDoIPChain_V1Minimal(t *testing.T) {
+	cfg := map[string]interface{}{
+		"tester_address":   0x0E80,
+		"logical_address":  0x0001,
+		"protocol_version": 0x01,
+		"activation":       map[string]interface{}{"response_code": 16},
+	}
+	pkts := doipPlan(t, doipChain(doipBaseIP(), doipBaseTCP(), cfg))
+	var saw05, saw06 bool
+	for _, p := range pkts {
+		if len(p.Payload) < 8 || p.Payload[0] != 0x01 || p.Payload[1] != 0xFE {
+			continue
+		}
+		switch {
+		case p.Payload[2] == 0x00 && p.Payload[3] == 0x05:
+			saw05 = true
+			if p.Payload[7] != 7 {
+				t.Fatalf("V1 0x0005 PayloadLength = %d, want 7", p.Payload[7])
+			}
+		case p.Payload[2] == 0x00 && p.Payload[3] == 0x06:
+			saw06 = true
+			if p.Payload[7] != 9 {
+				t.Fatalf("V1 0x0006 PayloadLength = %d, want 9", p.Payload[7])
+			}
+		}
+	}
+	if !saw05 || !saw06 {
+		t.Fatalf("V1 chain missing 0x0005/0x0006 (saw05=%v saw06=%v)", saw05, saw06)
+	}
+}
