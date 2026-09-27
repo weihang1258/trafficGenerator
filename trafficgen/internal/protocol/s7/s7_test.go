@@ -87,6 +87,12 @@ func TestPlannerRejectsTightenedDomains(t *testing.T) {
 			}
 		})
 	}
+	// size=0 是"未设置"（写请求数据区尺寸由 value 长度决定；读请求该域由
+	// 调用方配置，缺省路径 planner 注入 4）——必须放行（探针：12 包会话）。
+	if err := (Planner{}).Validate(core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345, DstPort: 102,
+		S7: &S7Config{Commands: []S7Command{{Kind: "read", Items: []S7Item{{Area: 0x84, DBNumber: 1, Length: 1}}}}}}); err != nil {
+		t.Fatalf("transport_size unset (0) rejected: %v", err)
+	}
 	// 边界合法值必须放行（16 会话 / size 0x09 / 空 kind 缺省 read）。
 	ok := &S7Config{Sessions: 16, Commands: []S7Command{
 		{Kind: "", Items: []S7Item{{Area: 0x84, TransportSize: 0x09, Length: 1}}},
