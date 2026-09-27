@@ -2760,12 +2760,14 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		}
 		spec.Payload = rawT
 	case "drda":
-		// D-DRDA-1：层 config 经 JSON 往返解码为 core.DRDAConfig（严格
-		// 解码：DRDAConfig 无 UnmarshalJSON 未知键容忍，层 config 未知键
-		// 在 config 层即拒——complete.go V9 白名单同口径，此处只做搬运；
+		// D-DRDA-1：层 config 经 JSON 往返解码为 core.DRDAConfig（未知键
+		// 在更早的 BuildLayersPlanner/ValidateLayers V9 白名单已拒——实测
+		// `layer "drda": unknown field %q`；本处只做搬运，不重复把关。
 		// security_token JSON 数字数组→[]byte、sql/dss_segments/sessions
-		// 嵌套由 encoding/json 承接，无 srv6 式 []byte 陷阱）。空层 config
-		// 也翻译出非 nil（P0b-2 默认流：空配置默认化并产默认流）。
+		// 嵌套由 encoding/json 承接，无 srv6 式 []byte 陷阱）。schema 默认
+		// 全为零值，不会压住 planner/layer_gen 的缺省化（correlator 0→1、
+		// rdb_name ""→SAMPLE、association ""→全序列）。空层 config 也翻译
+		// 出非 nil（P0b-2 默认流：空配置默认化并产默认流）。
 		// 层优先：spec.DRDA 已存在（引擎直调路径）则不覆盖（goose/dns
 		// 同款）；扁平入口已由 CheckProtoFlat 判死顶层 drda 子映射（存量行
 		// 经 strategy_convert 兼容块记 ValidationErrors）。
