@@ -1904,7 +1904,7 @@ def check_enip(cases):
     rows.append(("链上不可达三支预检（io_data/udp/多单元）",
                  "io_data (UDP I/O frames) is not supported" in vl_block
                  and "transport \\\"udp\\\" is not supported" in vl_block.replace('\\\\', '\\')
-                 or "multi-unit expansion" in vl_block, "在案"))
+                 and "multi-unit expansion" in vl_block, "在案"))
     mn = (tg / "cmd" / "server" / "main.go").read_text()
     rows.append(("main.go 空白导入 + ChainPlanner(enip)",
                  "internal/protocol/enip" in mn and 'NewChainPlanner("enip")' in mn, "在案"))
@@ -1950,7 +1950,7 @@ def check_enip(cases):
     ]:
         rows.append((f"关键件：{name}", prim in en, "在案"))
 
-    # 3. 用例面（136 例：81 正 + 55 负）。
+    # 3. 用例面（137 例：82 正 + 55 负）。
     ids = {c.get("id", "") for c in cases}
     for cid in [
         "enip_nop_heartbeat", "enip_listidentity_session_lifecycle",
@@ -1958,16 +1958,17 @@ def check_enip(cases):
         "enip_forward_open_request", "enip_forward_close_triad",
         "enip_multiple_service_packet", "enip_large_forward_open",
         "enip_t161_sessioncount2_senderctx", "enip_t179_multiflow_order",
+        "enip_t180_multiflow_txn_error_branch",
         "enip_neg_presence",
         "enip_t081_unknown_command", "enip_t090_sessionhandle_strategy_inc",
         "enip_t115_dstport_502", "enip_v005_session_count_negative",
     ]:
         rows.append((f"用例在案：{cid}", cid in ids, "在案"))
     n_neg = sum(1 for c in cases if (c.get("expect") or {}).get("expect_error"))
-    rows.append(("用例总数 136（81 正+55 负，含 1 presence）", len(cases) == 136 and n_neg == 55,
+    rows.append(("用例总数 137（82 正+55 负，含 1 presence）", len(cases) == 137 and n_neg == 55,
                  f"{len(cases)} 例 / 负 {n_neg}"))
-    rows.append(("正例顶层键=0（链形穷尽）",
-                 all(set((c.get("spec_json") or {}).keys()) <= {"layers", "flow_control", "output", "output_config"}
+    rows.append(("正例顶层键=0（链形穷尽；group_id 框架键例外）",
+                 all(set((c.get("spec_json") or {}).keys()) <= {"layers", "flow_control", "output", "output_config", "group_id"}
                      for c in cases if not (c.get("expect") or {}).get("expect_error")), "穷尽"))
     return rows
 

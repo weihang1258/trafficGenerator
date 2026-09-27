@@ -3288,7 +3288,8 @@
    "expect_error": true,
    "error_contains": "io_data",
    "notes": [
-    "Validate negative: task must end in error containing 'frame_size exceeds 65465'"
+    "锚=现状：同步预检先拒（validate_layers.go:550-587，锚词 io_data；与生成器 layer_gen.go:56-71 双路闭合）",
+    "本用例配置的越界项是 io_data.frame_size=65466 > 65465；IOData 专属校验分支（'frame_size exceeds 65465'）链上不可达，随 G-ENIP-2（UDP I/O 面）落地后重校准"
    ]
   }
  },
@@ -3350,7 +3351,8 @@
    "expect_error": true,
    "error_contains": "io_data",
    "notes": [
-    "Validate negative: task must end in error containing 'enip: io frame_count must be > 0'"
+    "锚=现状：同步预检先拒（锚词 io_data，validate_layers.go:550-587）",
+    "本用例配置的非法项是 io_data.frame_count=0；专属分支（'enip: io frame_count must be > 0'）链上不可达，随 G-ENIP-2 落地后重校准"
    ]
   }
  },
@@ -3411,7 +3413,8 @@
    "expect_error": true,
    "error_contains": "io_data",
    "notes": [
-    "Validate negative: task must end in error containing 'enip: io o2t_connection_id is required for I/O data frames'"
+    "锚=现状：同步预检先拒（锚词 io_data，validate_layers.go:550-587）",
+    "本用例配置的缺项是 io_data.o2t_connection_id 未给且无 from_response；专属分支（'enip: io o2t_connection_id is required for I/O data frames'）链上不可达，随 G-ENIP-2 落地后重校准"
    ]
   }
  },
@@ -3689,7 +3692,9 @@
    "expect_error": true,
    "error_contains": "planner produced 0 packet configs",
    "notes": [
-    "Validate negative: task must end in error containing 'source_command_index 99 out of range (0-1)'"
+    "锚=现状：worker 通用 0 包锚 'planner produced 0 packet configs'——根因 validateFromResponseConfig 只在 drive 期跑（layer_gen.go:84），错误被 Plan goroutine 吞成空流（G-ENIP-8）",
+    "本用例的配置错误是 source_command_index=99 越界（值域 0-1）；该校验并入 Planner.Validate 同步面后按专属锚 'source_command_index 99 out of range (0-1)' 重校准",
+    "锚诚实性：校验若失效则任务产包成功、本用例变红（不假绿）；弱点是通用锚无法区分成因（G-ENIP-8 已登记）"
    ]
   }
  },
@@ -3739,7 +3744,9 @@
    "expect_error": true,
    "error_contains": "planner produced 0 packet configs",
    "notes": [
-    "Validate negative: task must end in error containing 'unknown from_response field \"bogus\"'"
+    "锚=现状：worker 通用 0 包锚 'planner produced 0 packet configs'——根因同上（validateFromResponseConfig 只在 drive 期跑，G-ENIP-8）",
+    "本用例的配置错误是 from_response_field=\"bogus\" 未知字段；并入同步面后按专属锚 'unknown from_response field \"bogus\"' 重校准",
+    "锚诚实性：校验若失效则任务产包成功、本用例变红（不假绿）"
    ]
   }
  },
@@ -7668,7 +7675,7 @@
  {
   "id": "enip_t199_scenario_full",
   "proto": "enip",
-  "summary": "T-199: scenario=full: ListIdentity+RegisterSession+SendRRData chain",
+  "summary": "T-199: 完整会话 3 命令链 (ListIdentity 0x0063 + RegisterSession 0x0065 + SendRRData 0x006F, packet_count=10)；注：摘要旧措辞 scenario=full 不实——层 config 无 scenario 键（registry scenario 预设键在用例面零正例，A′ 登记）",
   "spec_json": {
    "layers": [
     {
@@ -9860,6 +9867,219 @@
   "expect": {
    "expect_error": true,
    "error_contains": "no longer accepts a top-level enip"
+  }
+ },
+ {
+  "id": "enip_t180_multiflow_txn_error_branch",
+  "proto": "enip",
+  "summary": "T-180/T-179/T-217: 2 并发流(framework flows=2 + 动态 tcp.src_port) x 单流 3 命令事务序列(0x0065 注册 -> 0x006F SendRRData 请求 -> 0x006F down 错误响应 ENIP Status=0x0064 InvalidSessionHandle) -- 多流/多会话内多事务/异常分支三面同例",
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": {
+       "strategy": "inc",
+       "range": [
+        12345,
+        12346
+       ],
+       "step": 1
+      },
+      "dst_port": 44818
+     }
+    },
+    {
+     "enip": {
+      "transport": "tcp",
+      "commands": [
+       {
+        "command": 101,
+        "protocol_version": 1,
+        "session_handle": 305419896
+       },
+       {
+        "command": 111,
+        "cip_service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "command": 111,
+        "direction": "down",
+        "status": 100,
+        "cip_service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       }
+      ]
+     }
+    }
+   ],
+   "group_id": {
+    "strategy": "fixed",
+    "value": "enip-mf-err"
+   }
+  },
+  "expect": {
+   "packet_count": 20,
+   "has_handshake": true,
+   "terminates": true,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x0065"
+    },
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "4"
+    },
+    {
+     "packet": 4,
+     "field": "enip.session",
+     "value": "0x12345678"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 5,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 5,
+     "field": "enip.length",
+     "value": "24"
+    },
+    {
+     "packet": 6,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 6,
+     "field": "enip.status",
+     "value": "0x00000064"
+    },
+    {
+     "packet": 6,
+     "field": "tcp.srcport",
+     "value": "44818"
+    },
+    {
+     "packet": 11,
+     "field": "tcp.srcport",
+     "value": "12346"
+    },
+    {
+     "packet": 14,
+     "field": "enip.command",
+     "value": "0x0065"
+    },
+    {
+     "packet": 14,
+     "field": "enip.session",
+     "value": "0x12345678"
+    },
+    {
+     "packet": 16,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 16,
+     "field": "enip.status",
+     "value": "0x00000064"
+    },
+    {
+     "field": "tcp.srcport",
+     "distinct_values": [
+      "12345",
+      "12346"
+     ],
+     "distinct_exclude": [
+      "44818"
+     ]
+    },
+    {
+     "field": "tcp.dstport",
+     "distinct_values": [
+      "44818"
+     ],
+     "distinct_exclude": [
+      "12345",
+      "12346"
+     ]
+    },
+    {
+     "packet": 7,
+     "field": "tcp.flags",
+     "value": "0x0001"
+    },
+    {
+     "packet": 9,
+     "field": "tcp.flags",
+     "value": "0x0001"
+    },
+    {
+     "packet": 17,
+     "field": "tcp.flags",
+     "value": "0x0001"
+    },
+    {
+     "packet": 19,
+     "field": "tcp.flags",
+     "value": "0x0001"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "65 00 04 00 78 56 34 12 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "6f 00 18 00 78 56 34 12 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 b2 00 08 00 0e 03 20 01 24 01 30 01"
+    },
+    {
+     "packet": 6,
+     "offset": 62,
+     "hex": "64 00 00 00"
+    },
+    {
+     "packet": 16,
+     "offset": 62,
+     "hex": "64 00 00 00"
+    }
+   ],
+   "notes": [
+    "三面同例（9.49/9.50 复合大场景）：多流（strategy flows=2 -> 两条独立 TCP 会话，src_port 12345/12346，四元组不冲突） + 会话内多事务（同一流 3 命令有序序列，命令 i+1 恒在命令 i 后） + 异常分支（第 3 命令为 down 方向 ENIP Status=0x0064 InvalidSessionHandle 错误响应）",
+    "多流面=framework flows 复制（G-ENIP-1 只关层内 session_count/flow_count>1 展开，framework 复制流不受限）；tcp.src_port 写动态对象 inc[12345,12346] 是 12.9/9.39 静态复制门的逃生口（静态标量四元组 + flows>1 会被 checkLayerChainStaticCopy 判死）",
+    "group_id 固定(\"enip-mf-err\") -> 两条流同 shard 串行发射，包位确定：流 0 = 包 1-10，流 1 = 包 11-20；同结构逐包对齐（包 N+10 = 包 N）。注：pipe_gate 门2-1 通用子映射黄线把 group_id 列为\"顶层子映射+group_id\"——它是框架键（任务层同 shard 调度语义，非协议业务键），h323/smb 等在审语料已有同形；协议面红线是 _pres_key=enip（本例无顶层 enip 键，绿）",
+    "T-180 每流独立挥手：包 7/17（客户端侧 FIN）与包 9/19（服务端侧 FIN），两流各自 4 包挥手，terminates=true + packet_count=20 双证",
+    "会话内状态回写实证：包 4 注册用显式 SessionHandle 0x12345678 回写，包 5/6/14/15/16 均带 0x12345678（多事务共享会话状态）",
+    "异常分支字节面：包 6/16 = 0x006F down 响应，ENIP 头 status 字段 offset 62 = 64 00 00 00（T-217 InvalidSession 字节形），down 方向由 tcp.srcport=44818 佐证",
+    "先跑后钉：期望值全部取自本用例落盘 pcap 实测（tshark 3.6.14 逐包解码），非 legacy 包号推算"
+   ]
   }
  }
 ]
