@@ -1092,6 +1092,14 @@ func buildDefaultRegistry() {
 			"capabilities": {Type: "list", Default: []interface{}{}},
 			"update":       {Type: "list", Default: []interface{}{}},
 			"notification": {Type: "list", Default: []interface{}{}},
+			// D-BGP-1 G-BGP-5：事件面进层（postgresql 同款——V9 只验顶层键
+			// 存在，嵌套值语义归 translate JSON 往返 + validator）。Default
+			// 保持 nil（NOT []interface{}{}）：completedConfig 对 nil Default
+			// 不落键，"events 缺键"（→ BGPConfig.Events nil → 默认 6 事件流，
+			// layer_gen.go:52-57）与"显式 events: []"（→ 空切片 → connect-only）
+			// 才可区分（postgresql wire_fault 同款理由）。
+			"events":   {Type: "list"},
+			"sessions": {Type: "list"},
 		}})
 	// ---- B3：ldp（双载体终结层。RFC 5036——UDP/646 discovery Hello 与
 	// TCP/646 session（Initialization/KeepAlive/Address/Label*/Notification）

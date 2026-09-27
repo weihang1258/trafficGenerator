@@ -94,7 +94,9 @@ PYEOF
     # 红线切自键（nfs 先例；presence 负例豁免，其余顶层 smb 共存即红）。
     # D-ENIP-1：enip 配置迁层（顶层 enip 交 CheckProtoFlat 判死），presence
     # 红线切自键（megaco 先例；presence 负例豁免，其余顶层 enip 共存即红）。
-    dns|mqtt|smtp|pop3|imap|mcp|srv6|fins|goose|sv|icmpv6|h323|mpls|ngap|telnet|sip|radius|pppoe|ldap|rtmp|rtsp|pptp|vnc|xmpp|sctp|jt808|jt809|jtt905|arp|icmp|megaco|hl7|mmse|nfs|tftp|smb|enip)
+    # D-BGP-1 G-BGP-6：bgp 配置迁层（顶层 bgp 交 CheckProtoFlat 判死），
+    # presence 红线切自键（enip 先例；presence 负例豁免，其余顶层 bgp 共存即红）。
+    dns|mqtt|smtp|pop3|imap|mcp|srv6|fins|goose|sv|icmpv6|h323|mpls|ngap|telnet|sip|radius|pppoe|ldap|rtmp|rtsp|pptp|vnc|xmpp|sctp|jt808|jt809|jtt905|arp|icmp|megaco|hl7|mmse|nfs|tftp|smb|enip|bgp)
       _pres_key="$PROTO"
       ;;
   esac

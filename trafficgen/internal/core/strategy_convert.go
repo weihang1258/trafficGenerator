@@ -469,6 +469,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-BGP-1 G-BGP-6：bgp 在库旧策略顶层 bgp → ValidationErrors（amqp
+	// 同款；空 map 也死——契约 §12-P2 判死形状「层链+顶层空子映射并存」wired
+	// 面）。时序：G-BGP-5 翻译先落码，cases 改写后此门才有执法对象。
+	if protocol == "bgp" {
+		if v, ok := cfg["bgp"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 
 	// D-FTP-3 §5: 扁平四键收动态对象（引擎直调路径，REST 形状层已先 400）→
 	// spec.ValidationErrors 拒绝并指路层字段，worker 预检终态 error，绝不
@@ -1453,6 +1461,10 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["bgp"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*BGPConfig](&spec, sub, "bgp", &spec.BGP)
 		}
+		// D-BGP-1：BGP 默认端口 179（RFC 4271 §4.1/§8；FieldContract
+		// 同值——mapToFlowSpec 仍保留 flat 兼容默认，链路径由契约块补齐）。
+		// 仅当用户未指定 dst_port 时覆盖（amqp 5672 同款）。
+		setDefaultDstPort(&spec, cfg, 179)
 	case "coap":
 		if sub, ok := cfg["coap"].(map[string]interface{}); ok {
 			if raw, err := json.Marshal(sub); err == nil {
@@ -8494,6 +8506,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "edp" {
 		if v, ok := cfg["edp"]; ok && v != nil {
 			return "protocol edp no longer accepts a top-level edp sub-config (move it into the edp layer of an [ip,tcp,edp] layers chain; OneNET EDP framing lives in the edp layer)"
+		}
+	}
+	// D-BGP-1 G-BGP-6：bgp 顶层 bgp 子映射 presence 判死（amqp 先例；空
+	// map 也死——事件面迁 bgp 层 13 键，层链是唯一真相）。层链形状不触发。
+	if protocol == "bgp" {
+		if v, ok := cfg["bgp"]; ok && v != nil {
+			return "protocol bgp no longer accepts a top-level bgp sub-config (move it into the bgp layer of an [ip,tcp,bgp] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-XMR-1：xmrmining 顶层 xmrmining 子映射 presence 判死（edp 先例；空

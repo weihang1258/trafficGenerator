@@ -74,6 +74,10 @@ func ValidateConfig(c *BGPConfig) error {
 	if v.ASN > 65535 {
 		return fmt.Errorf("bgp: my_as %d exceeds two-octet range", v.ASN)
 	}
+	// G-BGP-7：顶层 hold_time 同款（RFC 4271 §4.2：0 或 >= 3）。
+	if v.HoldTime != 0 && v.HoldTime < 3 {
+		return fmt.Errorf("bgp: hold_time %d invalid; RFC 4271 §4.2 allows 0 (disabled) or >= 3 seconds", v.HoldTime)
+	}
 	if ip := net.ParseIP(v.Identifier); ip == nil || ip.To4() == nil || ip.Equal(net.IPv4zero) {
 		return fmt.Errorf("bgp: identifier %q must be a non-zero IPv4 address", v.Identifier)
 	}
@@ -119,6 +123,11 @@ func validateEventConfig(ev *core.BGPEvent) error {
 			if ip := net.ParseIP(ev.Identifier); ip == nil || ip.To4() == nil || ip.Equal(net.IPv4zero) {
 				return fmt.Errorf("bgp: identifier %q must be a non-zero IPv4 address", ev.Identifier)
 			}
+		}
+		// G-BGP-7：RFC 4271 §4.2 规定 Hold Time 只能是 0 或不小于 3 秒
+		// （1–2 秒是"立即过期"的无意义值）。0 = 不启用保持计时器，放行。
+		if ev.HoldTime != 0 && ev.HoldTime < 3 {
+			return fmt.Errorf("bgp: hold_time %d invalid; RFC 4271 §4.2 allows 0 (disabled) or >= 3 seconds", ev.HoldTime)
 		}
 	case "update":
 		if err := validateUpdateEvent(ev); err != nil {
@@ -202,6 +211,31 @@ func validateUpdateEvent(ev *core.BGPEvent) error {
 				return fmt.Errorf("bgp: community %q invalid", c)
 			}
 		}
+	}
+	// §3.4/§7 #13：编码后总长超 4096 在**校验面**即拒。BuildUpdate 的权威
+	// 检查只在生成期触发，而链路径生成期错误被 drive 吞成 "planner produced
+	// 0 packet configs"（testcase #35 实测），锚词到不了 4096——校验面必须
+	// 独立给出同一锚词（前缀合法性与属性编码已在上方判定，这里只量长度）。
+	withdrawnLen := 0
+	for _, p := range ev.WithdrawnPrefixes {
+		_, addr := encodePrefix(p)
+		withdrawnLen += 1 + len(addr)
+	}
+	nlriLen := 0
+	for _, p := range ev.NLRI {
+		_, addr := encodePrefix(p)
+		nlriLen += 1 + len(addr)
+	}
+	attrsLen := 0
+	if ev.Attributes != nil {
+		attrs, err := encodeAttributes(ev.Attributes)
+		if err != nil {
+			return err
+		}
+		attrsLen = len(attrs)
+	}
+	if total := bgpHeaderLen + 4 + withdrawnLen + attrsLen + nlriLen; total > bgpMaxLen {
+		return fmt.Errorf("bgp: message length %d exceeds 4096", total)
 	}
 	return nil
 }

@@ -134,6 +134,9 @@
           "type": "list",
           "default": []
         },
+        "events": {
+          "type": "list"
+        },
         "hold_time": {
           "type": "uint16",
           "default": 0,
@@ -155,6 +158,9 @@
         "notification": {
           "type": "list",
           "default": []
+        },
+        "sessions": {
+          "type": "list"
         },
         "transport": {
           "type": "string",
