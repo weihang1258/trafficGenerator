@@ -2759,6 +2759,18 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.Payload = rawT
+	case "gbt32960":
+		// D-GBT32960 P4：层 config 经 core.ParseGBT32960ConfigFromMap 复用
+		// 扁平解析单一真相（jt808/tftp 同款；vin_pad_byte/
+		// is_trans_battery_data 指针三态与 reports/reissue_reports/
+		// status_change_trace 嵌套数组由同一 parse 承接，两路无双实现）。
+		// 层优先：spec.GBT32960 已存在（flat 直调路径）则不覆盖。空层
+		// config 也翻译出非 nil（validator 首命中 V4 "VIN is required when
+		// Role=vehicle"，不静默缺省流）。端口=validateSpecBase DstPort
+		// switch 10020 缺省，无端口回填分支（gbt32960 层无端口字段）。
+		if spec.GBT32960 == nil {
+			spec.GBT32960 = core.ParseGBT32960ConfigFromMap(completedConfig(s, term.Config))
+		}
 	}
 }
 

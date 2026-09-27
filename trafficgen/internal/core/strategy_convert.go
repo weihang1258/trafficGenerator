@@ -425,6 +425,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-GBT32960 P4：gbt32960 在库旧策略顶层 gbt32960 →
+	// ValidationErrors（tftp 同款；空 map 也死——P4a 顶层子映射 presence
+	// 判死，层链形状不触发）。
+	if protocol == "gbt32960" {
+		if v, ok := cfg["gbt32960"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-NFS-1：nfs 在库旧策略顶层 nfs → ValidationErrors（mmse 同款；
 	// 在库 0 行纯防御——新协议去扁平后顶层 nfs 即判死）。
 	if protocol == "nfs" {
@@ -1357,11 +1365,16 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.SRv6 = parseSRv6Config(sub)
 		}
 	case "gbt32960":
+		// D-GBT32960 P4：存量兼容路径（在库旧策略仍带顶层 gbt32960 →
+		// 上方 `if protocol == "gbt32960"` 块已记 ValidationErrors，
+		// 此处只填 GBT32960 供 planner/生成器消费；tds 同款分工）。
+		// 层链形状（纯 layers）下顶层 gbt32960 已由 CheckProtoFlat 判死，
+		// 不可达。目的端口默认 10020 已收敛至 ChainPlanner.ValidateSpec
+		// （chain_planner.go validateSpecBase 的 DstPort switch，
+		// dns 同款——mapToFlowSpec 不再重复设默认）。
 		if sub, ok := cfg["gbt32960"].(map[string]interface{}); ok {
-			spec.GBT32960 = parseGBT32960Config(sub)
+			spec.GBT32960 = ParseGBT32960ConfigFromMap(sub)
 		}
-		// GBT32960 defaults to port 10020 (GB/T 32960.3-2016 platform
-		// listener). Only override when the user did not specify a dst_port.
 	case "tftp":
 		if sub, ok := cfg["tftp"].(map[string]interface{}); ok {
 			spec.TFTP = parseTFTPConfig(sub)
@@ -7351,11 +7364,13 @@ func parseTFTPConfig(m map[string]interface{}) *TFTPConfig {
 	return cfg
 }
 
-// parseGBT32960Config converts the JSON-decoded "gbt32960" map into a
-// GBT32960Config. Nested structs (AlarmData, RemoteControl,
-// PlatformLogin, Reports, ReissueReports, StatusChangeTrace) are
-// parsed via JSON marshal/unmarshal round-trip for safety.
-func parseGBT32960Config(m map[string]interface{}) *GBT32960Config {
+// ParseGBT32960ConfigFromMap converts the JSON-decoded "gbt32960" map
+// into a GBT32960Config (D-GBT32960 P4: exported single truth shared by
+// flat mapToFlowSpec and layers.translateTerminalConfig, jt808 同款).
+// Nested structs (AlarmData, RemoteControl, PlatformLogin, Reports,
+// ReissueReports, StatusChangeTrace) are parsed via JSON
+// marshal/unmarshal round-trip for safety.
+func ParseGBT32960ConfigFromMap(m map[string]interface{}) *GBT32960Config {
 	if m == nil {
 		return nil
 	}
@@ -8552,6 +8567,14 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "tftp" {
 		if v, ok := cfg["tftp"]; ok && v != nil {
 			return "protocol tftp no longer accepts a top-level tftp sub-config (move it into the tftp layer of an [ip,udp,tftp] layers chain; the layer chain is the only config truth)"
+		}
+	}
+	// D-GBT32960 P4：gbt32960 顶层 gbt32960 子映射 presence 判死（tftp
+	// 先例；空 map 也死——P4a 后层链是唯一配置真相，层 config 经
+	// translateTerminalConfig 翻译进 spec.GBT32960）。层链形状不触发。
+	if protocol == "gbt32960" {
+		if v, ok := cfg["gbt32960"]; ok && v != nil {
+			return "protocol gbt32960 no longer accepts a top-level gbt32960 sub-config (move it into the gbt32960 layer of an [ip,tcp,gbt32960] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-IMAP-1：imap 顶层 imap 子映射 presence 判死（pop3 先例；空 map 也

@@ -773,7 +773,95 @@
       "depends_on": [
         "tcp"
       ],
-      "fields": {}
+      "transport_on": [
+        "tcp"
+      ],
+      "fields": {
+        "alarm_data": {
+          "type": "object"
+        },
+        "bcc_error_index": {
+          "type": "int"
+        },
+        "connect_id": {
+          "type": "string"
+        },
+        "custom_fields": {
+          "type": "string"
+        },
+        "encrypt_rule": {
+          "type": "string"
+        },
+        "heartbeat_count": {
+          "type": "int"
+        },
+        "inject_bcc_error": {
+          "type": "bool"
+        },
+        "is_trans_battery_data": {
+          "type": "bool"
+        },
+        "login_serial_number": {
+          "type": "int"
+        },
+        "login_time": {
+          "type": "string"
+        },
+        "logout_serial_number": {
+          "type": "int"
+        },
+        "logout_time": {
+          "type": "string"
+        },
+        "platform_domain": {
+          "type": "string"
+        },
+        "platform_id": {
+          "type": "string"
+        },
+        "platform_login": {
+          "type": "object"
+        },
+        "rechargeable_subsys_code_length": {
+          "type": "int"
+        },
+        "rechargeable_subsys_codes": {
+          "type": "list"
+        },
+        "rechargeable_subsys_count": {
+          "type": "int"
+        },
+        "reissue_reports": {
+          "type": "list"
+        },
+        "remote_control": {
+          "type": "object"
+        },
+        "reports": {
+          "type": "list"
+        },
+        "response_flags": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "set_platform_domain": {
+          "type": "string"
+        },
+        "sim": {
+          "type": "string"
+        },
+        "status_change_trace": {
+          "type": "list"
+        },
+        "vin": {
+          "type": "string"
+        },
+        "vin_pad_byte": {
+          "type": "uint8"
+        }
+      }
     },
     "geneve": {
       "category": "terminal",
