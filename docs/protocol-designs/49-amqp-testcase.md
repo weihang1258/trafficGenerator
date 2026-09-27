@@ -193,7 +193,7 @@ AMQP 0-9-1 wire-level specification（frame/class/状态机/编码）→ **D-AMQ
 | 9.49 | 多连接/多事务/多流各一例 + 真实编排 | 多连接 #12（双 TCP 连接声明 + 双 protocol header 帧钉；同流直发形状 → G-AMQP-2 立项）；多事务 #8（consume→deliver→HEADER→BODY→ack 五轮）+ #10（tx 三轮六方法逐帧）；多 channel #11（channel 1/2 各自 open/open-ok + 各自 publish + heartbeat 交织） |
 | 9.50 | 复合大场景 ≥3 类交织 | **#8 = 三类交织且断言撑住**：①多事务（5 轮编排逐帧）②内容序列（method→HEADER→BODY 三帧同 channel）③交付关联（consumer_tag=ctag1 跨 consume/deliver、delivery_tag=1 跨 deliver/ack） |
 | 9.51 | 组合矩阵满格 | design §12.2 事件×状态 28 格逐格有结论（严格四桶互斥：已覆 7 + 缺口通道 10 + 不适用 10 + A′ 1） |
-| 9.52 | 审计声明出处 + 对账两行 | design §12.1/§12.2/§12.3 清单由 AMQP 0-9-1 规范反推（出处声明见 §9.3）；对账 50 = 覆盖 30 + 不适用 8 + A′/B′/立项 12 |
+| 9.52 | 审计声明出处 + 对账两行 | design §12.1/§12.2/§12.3 清单由 AMQP 0-9-1 规范反推（出处声明见 §9.3）；对账 50 = 覆盖 29 + 不适用 10 + A′/B′/立项 11 |
 | 9.53 | 门3 抽最复杂用例当场点数 | #8 `amqp_basic_consume_deliver_ack`：22 包；断言点 **28**（27 fields + 1 frame）；交织维度 **3 类**（上表 9.50 三项），全部经落盘 pcap tshark 逐帧实证（先跑后钉） |
 
 - **9.53 点数口径**：断言点 = fields + frames；维度以"线上实测存在且用例断言钉住"才计（sstp/ntlm P6 同口径）。P6 打回根因 = 正例断言面被 P4 改写缩减（#8 只剩 1 维实钉），修轮回补后三钉齐。
