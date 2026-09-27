@@ -10776,7 +10776,7 @@
  {
   "id": "nfs_neg_stray_src_mac",
   "proto": "nfs",
-  "summary": " 白名单外游离键判死②-b：顶层 src_mac（MAC 真相住 eth 层；checkLayerFlatConflict）",
+  "summary": " 白名单外游离键判死②-b：顶层 src_ip（地址真相住 ip 层；CheckProtoFlat）",
   "spec_json": {
    "layers": [
     {
@@ -10793,17 +10793,17 @@
      }
     }
    ],
-   "src_mac": "aa:bb:cc:dd:ee:01"
+   "src_ip": "10.0.0.1"
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "src_mac"
+   "error_contains": "no longer accepts flat config field src_ip"
   }
  },
  {
   "id": "nfs_neg_stray_ttl",
   "proto": "nfs",
-  "summary": " 白名单外游离键判死②-c：顶层 ttl 越界 300（TTL 真相住 ip 层；schema shape 门先于层链）",
+  "summary": " 白名单外游离键判死②-c：顶层 count=2（数量真相走 flow_control；CheckProtoFlat，与门2-1 豁免同锚）",
   "spec_json": {
    "layers": [
     {
@@ -10820,11 +10820,11 @@
      }
     }
    ],
-   "ttl": 300
+   "count": 2
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "ttl 300 invalid"
+   "error_contains": "no longer accepts flat config field count"
   }
  },
  {

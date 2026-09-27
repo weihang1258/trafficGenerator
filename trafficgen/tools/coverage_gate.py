@@ -1534,10 +1534,10 @@ def check_nfs(cases):
                "NFSv4 requires TCP", "UDP RPC message exceeds 65507", "MOUNT v3 procedure out of range",
                "attrmask contains NFSv4.1+ attributes", "layers: layer",
                "no longer accepts a top-level nfs sub-config", "no longer accepts flat config field count",
-               "src_mac", "ttl 300 invalid", "static copy"}
+               "src_ip", "static copy"}
     got = {(c.get("expect") or {}).get("error_contains") for c in neg}
     missing = sorted(a for a in anchors if not any(a in (g or "") for g in got))
-    rows.append(("负例锚词覆盖十二族", not missing, missing or sorted(got)))
+    rows.append(("负例锚词覆盖十三族", not missing, missing or sorted(got)))
     return rows
 
 
