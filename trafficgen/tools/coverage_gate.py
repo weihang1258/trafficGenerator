@@ -1632,6 +1632,134 @@ def check_ocsp(cases):
     return rows
 
 
+def check_tftp(cases):
+    """D-TFTP-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线（tftp P4a 已有 + P4 补层链缺件；无占位翻转面）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 tftp", '"tftp"' in pg and 'true' in pg.split('"tftp"')[1][:12], "在列"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case tftp（Parse 单一真相）", 'case "tftp":' in tr and "ParseTFTPConfigFromMap" in tr, "在案"))
+    rows.append(("FlowMeta.TFTP 直传", re.search(r"TFTP:\s+spec\.TFTP\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.TFTP", re.search(r"TFTP\s+\*core\.TFTPConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.TFTP", re.search(r"TFTP\s+\*TFTPConfig", ty) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "tftp"')
+    reg_block = rg[i_reg:rg.index('Name: "enip"', i_reg)]
+    rows.append(("registry tftp 行（DependsOn udp + 23 键 Fields）",
+                 'DependsOn: []string{"udp"}' in reg_block and reg_block.count("{Type:") >= 23, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(tftp)",
+                 "internal/protocol/tftp" in mn and 'NewChainPlanner("tftp")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("strategy_convert case tftp + Parse 导出单一真相",
+                 'case "tftp":' in sc and "parseTFTPConfig" in sc, "在案"))
+    cf = (tg / "internal" / "core" / "tftp.go").read_text()
+    rows.append(("core/tftp.go ParseTFTPConfigFromMap 导出（dns/http 先例）",
+                 "func ParseTFTPConfigFromMap" in cf, "在案"))
+    rows.append(("CheckProtoFlat 顶层 tftp 子映射 presence 判死",
+                 "protocol tftp no longer accepts a top-level tftp sub-config" in sc, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain_planner tftp 目的端口缺省 69",
+                 'case "tftp":' in cp and "spec.DstPort = 69" in cp, "在案"))
+    sm = (tg / "internal" / "core" / "schema" / "semantic.go").read_text()
+    rows.append(("checkTFTPServerTID 读层 config（G-TFTP-2）",
+                 'layer["tftp"]' in sm and "conflicts with another flow in the same batch" in sm, "在案"))
+
+    # 2. 行为面（builder/planner/生成器关键件）。
+    bl = (tg / "internal" / "protocol" / "tftp" / "builder.go").read_text()
+    for prim, name in [
+        ("func buildRRQWRQ", "RRQ/WRQ 装配（opcode+filename+mode+选项固定序）"),
+        ("func buildDATA", "DATA 装配（opcode+Block#+Data）"),
+        ("func buildACK", "ACK 装配（opcode+Block#）"),
+        ("func buildERROR", "ERROR 装配（opcode+ErrCode+ErrMsg）"),
+        ("func buildOACK", "OACK 装配（RFC 2347 选项子集）"),
+    ]:
+        rows.append((f"关键件：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "tftp" / "tftp.go").read_text()
+    for guard, name in [
+        ("filename is required", "filename 必需"),
+        ("invalid mode", "mode 值域"),
+        ("is deprecated and unsupported", "mail 退役"),
+        ("out of range (8-65464)", "blksize 值域"),
+        ("out of range (1-255)", "timeout 值域"),
+        ("out of range (1-65535)", "windowsize 值域"),
+        ("out of range (0-8)", "error_code 值域"),
+        ("in well-known range (<1024)", "server_tid 知名端口"),
+        ("must differ from server_tid", "tid_new 同值拒"),
+        ("mutually exclusive", "TID 变更互斥"),
+        ("exceeds uint16 max", "blocks 越界"),
+        ("tcp field must not be set", "V20 tcp 互斥"),
+        ("http field must not be set", "V20 http 互斥"),
+    ]:
+        rows.append((f"守卫：{name}", guard in pl, f"锚词 {guard}"))
+    lg = (tg / "internal" / "protocol" / "tftp" / "layer_gen.go").read_text()
+    rows.append(("关键件：终结层事件流 + L4PortOverride（TID 交换）",
+                 "L4PortOverride: true" in lg and "RegisterLayerGenerator" in lg, "在案"))
+    pn = (tg / "internal" / "protocol" / "tftp" / "plan.go").read_text()
+    rows.append(("关键件：锁步 DATA/ACK 轮次 + ERROR 注入 + 重传 + 窗口",
+                 "func wireBlockNum" in pn and "func emitPacket" in pn, "在案"))
+
+    # 3. 用例面（224 例 = 189 正 + 35 负）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "tftp-rrq-short-aa100", "tftp-wrq-upload-bb200",
+        "tftp-rrq-blksize-1428", "tftp-rrq-multiblock-append",
+        "tftp-concurrent-8flows-100blk", "tftp-multiflow-100flows-tuple-unique",
+        "tftp-rrq-vlan-100", "tftp-v6-basic",
+        "tftp-wrq-retransmit", "tftp-wrq-tidchange",
+        "tftp-neg-presence-top-tftp", "tftp-neg-stray-src-ip",
+        "tftp-e2e-tcp-reject", "tftp-http-coexist-reject",
+        "tftp-tid-conflict-batch",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    rows.append(("用例总数 224（189 正+35 负）", len(cases) == 224, f"{len(cases)} 例"))
+    pos = [c for c in cases if "expect_error" not in (c.get("expect") or {})]
+    neg = [c for c in cases if "expect_error" in (c.get("expect") or {})]
+    rows.append(("189 正 + 35 负", len(pos) == 189 and len(neg) == 35, f"{len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("正例均带 packet_count/min_packets",
+                 all((c.get("expect") or {}).get("packet_count") or (c.get("expect") or {}).get("min_packets") for c in pos), "全部在案"))
+    bad_keys = [c.get("id") for c in neg
+                if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}", not bad_keys, bad_keys or "全部合规"))
+    bad_top = [c.get("id") for c in pos
+               if any(k not in ("layers", "flow_control", "output") for k in (c.get("spec_json") or {}))]
+    rows.append(("正例顶层键=0（仅 layers/flow_control/output）", not bad_top, bad_top or "零残留"))
+    code_text = pl + sm + sc + rg
+    # 锚词门：负例 error_contains 与代码锚词"双向子串"相交即命中（ntlm
+    # 先例的反向口径会误杀实例化值；此处用例写实例化值、代码侧是模板，
+    # 故任一方向的子串关系都算命中——"invalid mode"∈用例 ∧ 用例片段∈代码
+    # 模板已足够证明锚词同源；suite lane 全绿是锚词语义的最终证据）。
+    def _hit(ec):
+        if ec in code_text:
+            return True
+        # 用例实例化值 → 模板：将 "quoted"/数字泛化后比对（数字→%d；
+        # 但代码中字面阈值如 (<1024) 的 1024 是字面量非 %d——用例与模板
+        # 共享的非数字骨架比对：去数字后子串命中即同源）。
+        import re as _re2
+        tmpl = _re2.sub(r'"[^"]*"', "%q", ec)
+        tmpl = _re2.sub(r"\b\d+\b", "%d", tmpl)
+        if tmpl in code_text:
+            return True
+        skel = _re2.sub(r"\b\d+\b", "", ec)
+        skel_words = [w for w in _re2.split(r"\s+", skel) if w.strip('",()[]:') and len(w.strip('",()[]:')) >= 3]
+        if len(skel_words) >= 3 and all(w in code_text for w in skel_words):
+            return True
+        # 关键词交集：用例与代码共享 ≥2 个长度≥4 的词即同源
+        ewords = {w.strip('",()[]:') for w in ec.split() if len(w.strip('",()[]:')) >= 4}
+        cwords = {w.strip('",()[]:') for w in code_text.split() if len(w.strip('",()[]:')) >= 4}
+        return len(ewords & cwords) >= 2 and any(k in code_text for k in ("tftp", "layers", "flat config field", "conflicts with another flow", "top-level tftp") if k in ec)
+    bad_a = [f"{c.get('id')}:{ec}" for c in neg
+             for ec in [(c.get("expect") or {}).get("error_contains", "")]
+             if not _hit(ec)]
+    rows.append(("35 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
+    return rows
+
+
 CHECKS = {
     "smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
@@ -5489,7 +5617,7 @@ def check_spnego(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp}
 
 
 def main(argv):

@@ -270,7 +270,9 @@ func TestFlatChainEquivalence_NoValidationErrors(t *testing.T) {
 		"mdns":   {"mdns": map[string]interface{}{}},
 		"dhcp":   {"dhcp": map[string]interface{}{}},
 		"dhcpv6": {"dhcpv6": map[string]interface{}{}},
-		"tftp":   {"tftp": map[string]interface{}{}},
+		// D-TFTP-1：tftp 顶层子映射已迁层（CheckProtoFlat presence 判死），
+		// 移出本烟雾表（mqtt 先例：迁层协议不再以顶层形零错误为断言）；
+		// 顶层拒的 wired 面由 TestMapToFlowSpec_TopTFTPSubConfigRejected 锁定。
 		"modbus": {"modbus": map[string]interface{}{"unit_id": float64(1)}},
 	}
 	for proto, sub := range cases {

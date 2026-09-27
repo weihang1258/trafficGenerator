@@ -3830,7 +3830,110 @@
       "depends_on": [
         "udp"
       ],
-      "fields": {}
+      "fields": {
+        "auto_append_final_block": {
+          "type": "bool"
+        },
+        "blksize": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65464
+        },
+        "blocks_count": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "client_tsize": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "data_payload_pattern": {
+          "type": "string",
+          "default": ""
+        },
+        "error_after_block": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "error_code": {
+          "type": "uint8",
+          "default": 0,
+          "max": 255
+        },
+        "error_msg": {
+          "type": "string",
+          "default": ""
+        },
+        "error_side": {
+          "type": "string",
+          "default": ""
+        },
+        "filename": {
+          "type": "string",
+          "default": ""
+        },
+        "final_block_zero": {
+          "type": "bool",
+          "default": false
+        },
+        "include_oack": {
+          "type": "bool",
+          "default": false
+        },
+        "mode": {
+          "type": "string",
+          "default": ""
+        },
+        "retransmit_blocks": {
+          "type": "list",
+          "default": []
+        },
+        "server_tid": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "server_tid_change": {
+          "type": "bool",
+          "default": false
+        },
+        "server_tid_change_at_block": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "server_tid_new": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "server_tsize": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "timeout": {
+          "type": "uint8",
+          "default": 0,
+          "max": 255
+        },
+        "transfer_mode": {
+          "type": "string",
+          "default": ""
+        },
+        "windowsize": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "wrap_block_number": {
+          "type": "bool",
+          "default": false
+        }
+      }
     },
     "thrift": {
       "category": "terminal",
