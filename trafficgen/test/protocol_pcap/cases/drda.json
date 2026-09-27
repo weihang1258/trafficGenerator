@@ -6,21 +6,26 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "drda": {}
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "drda": {
+            "association": "excsat",
+            "correlator_start": 1,
+            "ccsid": 1208
+          }
         }
       ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 446,
-      "count": 1,
-      "drda": {
-        "association": "excsat",
-        "correlator_start": 1,
-        "ccsid": 1208
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -101,28 +106,33 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "drda": {}
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "drda": {
+            "association": "security",
+            "correlator_start": 1,
+            "ccsid": 1208,
+            "security_user": "TESTUSR",
+            "security_token": [
+              1,
+              2,
+              3,
+              4
+            ]
+          }
         }
       ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 446,
-      "count": 1,
-      "drda": {
-        "association": "security",
-        "correlator_start": 1,
-        "ccsid": 1208,
-        "security_user": "TESTUSR",
-        "security_token": [
-          1,
-          2,
-          3,
-          4
-        ]
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -203,29 +213,34 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "drda": {}
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "drda": {
+            "association": "database",
+            "correlator_start": 1,
+            "ccsid": 1208,
+            "security_user": "TESTUSR",
+            "security_token": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "rdb_name": "SAMPLE"
+          }
         }
       ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 446,
-      "count": 1,
-      "drda": {
-        "association": "database",
-        "correlator_start": 1,
-        "ccsid": 1208,
-        "security_user": "TESTUSR",
-        "security_token": [
-          1,
-          2,
-          3,
-          4
-        ],
-        "rdb_name": "SAMPLE"
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -286,33 +301,38 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "drda": {}
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "drda": {
+            "association": "sql",
+            "correlator_start": 1,
+            "ccsid": 1208,
+            "rdb_name": "SAMPLE",
+            "sql": {
+              "data": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "code": 0,
+              "state": "00000",
+              "diagnostic": ""
+            }
+          }
         }
       ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 446,
-      "count": 1,
-      "drda": {
-        "association": "sql",
-        "correlator_start": 1,
-        "ccsid": 1208,
-        "rdb_name": "SAMPLE",
-        "sql": {
-          "data": [
-            1,
-            2,
-            3,
-            4
-          ],
-          "code": 0,
-          "state": "00000",
-          "diagnostic": ""
-        }
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -336,7 +356,7 @@
         {
           "packet": 13,
           "field": "drda.ddm.rqscrr",
-          "same_as_packet": 13
+          "same_as_packet": 12
         },
         {
           "packet": 13,
@@ -368,33 +388,38 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "drda": {}
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "drda": {
+            "association": "sql",
+            "correlator_start": 1,
+            "ccsid": 1208,
+            "rdb_name": "SAMPLE",
+            "sql": {
+              "data": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "code": -204,
+              "state": "42704",
+              "diagnostic": "missing object"
+            }
+          }
         }
       ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 446,
-      "count": 1,
-      "drda": {
-        "association": "sql",
-        "correlator_start": 1,
-        "ccsid": 1208,
-        "rdb_name": "SAMPLE",
-        "sql": {
-          "data": [
-            1,
-            2,
-            3,
-            4
-          ],
-          "code": -204,
-          "state": "42704",
-          "diagnostic": "missing object"
-        }
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -418,7 +443,7 @@
         {
           "packet": 13,
           "field": "drda.ddm.rqscrr",
-          "same_as_packet": 13
+          "same_as_packet": 12
         },
         {
           "packet": 13,
@@ -450,31 +475,36 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "drda": {}
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "drda": {
+            "association": "excsat",
+            "ccsid": 1208,
+            "correlator_start": 1,
+            "dss_length": 10,
+            "dss_segments": [
+              {
+                "format": 1,
+                "correlator": 1,
+                "length": 10,
+                "length2": 4,
+                "code_point": 4161
+              }
+            ]
+          }
         }
       ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 446,
-      "count": 1,
-      "drda": {
-        "association": "excsat",
-        "ccsid": 1208,
-        "correlator_start": 1,
-        "dss_length": 10,
-        "dss_segments": [
-          {
-            "format": 1,
-            "correlator": 1,
-            "length": 10,
-            "length2": 4,
-            "code_point": 4161
-          }
-        ]
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -530,21 +560,26 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
         },
         {
-          "drda": {}
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "drda": {
+            "association": "excsat",
+            "correlator_start": 1,
+            "ccsid": 1208
+          }
         }
       ],
-      "src_ip": "2001:db8::1",
-      "dst_ip": "2001:db8::2",
-      "src_port": 12345,
-      "dst_port": 446,
-      "count": 1,
-      "drda": {
-        "association": "excsat",
-        "correlator_start": 1,
-        "ccsid": 1208
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -605,32 +640,37 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "drda": {}
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "drda": {
+            "association": "excsat",
+            "ccsid": 1208,
+            "sessions": [
+              {
+                "id": "s1",
+                "src_port": 12345,
+                "correlator_start": 1
+              },
+              {
+                "id": "s2",
+                "src_port": 12346,
+                "correlator_start": 1
+              }
+            ]
+          }
         }
       ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 446,
-      "count": 1,
-      "drda": {
-        "association": "excsat",
-        "ccsid": 1208,
-        "sessions": [
-          {
-            "id": "s1",
-            "src_port": 12345,
-            "correlator_start": 1
-          },
-          {
-            "id": "s2",
-            "src_port": 12346,
-            "correlator_start": 1
-          }
-        ]
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -681,30 +721,32 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "drda": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 446,
-      "count": 1,
-      "drda": {
-        "association": "excsat",
-        "dss_length": 11,
-        "dss_segments": [
-          {
-            "format": 1,
-            "correlator": 1,
-            "length": 10,
-            "length2": 4,
-            "code_point": 4161
+          "tcp": {
+            "src_port": 12345
           }
-        ]
-      }
+        },
+        {
+          "drda": {
+            "association": "excsat",
+            "dss_length": 11,
+            "dss_segments": [
+              {
+                "format": 1,
+                "correlator": 1,
+                "length": 10,
+                "length2": 4,
+                "code_point": 4161
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -718,24 +760,142 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "drda": {}
+          "udp": {
+            "src_port": 12345,
+            "dst_port": 446
+          }
+        },
+        {
+          "drda": {
+            "association": "excsat"
+          }
         }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 446,
-      "count": 1,
-      "drda": {
-        "association": "excsat"
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "tcp"
+    }
+  },
+  {
+    "id": "drda_chained_format",
+    "proto": "drda",
+    "summary": "T-DRDA-011/A'：chained 首 DDM format=0x41（drda.ddm.fmt.bit1）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "drda": {
+            "dss_length": 10,
+            "dss_segments": [
+              {
+                "format": 65,
+                "correlator": 1,
+                "length": 10,
+                "length2": 4,
+                "code_point": 4161
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "446"
+        },
+        {
+          "packet": 4,
+          "field": "drda.ddm.format",
+          "value": "0x41"
+        },
+        {
+          "packet": 4,
+          "field": "drda.ddm.codepoint",
+          "value": "0x1041"
+        },
+        {
+          "packet": 4,
+          "field": "drda.ddm.rqscrr",
+          "value": "1"
+        },
+        {
+          "packet": 4,
+          "field": "drda.ddm.fmt.bit1",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "00 0a d0 41 00 01 00 04 10 41"
+        }
+      ],
+      "notes": [
+        "chained 首 DDM format=0x41；请求 format=0x41，响应 format=0x01。"
+      ]
+    }
+  },
+  {
+    "id": "drda_neg_presence_top_level_drda",
+    "proto": "drda",
+    "summary": "presence 红线：层链 + 顶层空 drda 子映射并存即判死",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "drda": {
+            "association": "excsat"
+          }
+        }
+      ],
+      "drda": {},
+      "flow_control": {
+        "flows": 1
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "top-level drda sub-config"
     }
   }
 ]

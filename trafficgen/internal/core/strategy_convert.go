@@ -440,6 +440,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-DRDA-1：drda 在库旧策略顶层 drda → ValidationErrors（nfs 同款；
+	// 空 map 也死——顶层 drda 子映射 presence 判死，层链形状不触发）。
+	if protocol == "drda" {
+		if v, ok := cfg["drda"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-HL7-1：hl7 在库旧策略顶层 hl7 → ValidationErrors（megaco 同款；
 	// 在库 0 行纯防御）。
 	if protocol == "hl7" {
@@ -1512,9 +1519,10 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			parseSubconfigJSON[*PCEPConfig](&spec, sub, "pcep", &spec.PCEP)
 		}
 	case "drda":
-		if sub, ok := cfg["drda"].(map[string]interface{}); ok {
-			parseSubconfigJSON[*DRDAConfig](&spec, sub, "drda", &spec.DRDA)
-		}
+		// D-DRDA-1：配置住 drda 层（顶层 drda 子映射由 CheckProtoFlat 判
+		// 死，在库旧策略另记 ValidationErrors）；此处仅守 out-of-band 配置
+		// （引擎直调路径），nfs 同款——层链形状下顶层 drda 不可达。
+		setDefaultDstPort(&spec, cfg, 446)
 	case "thrift":
 		if sub, ok := cfg["thrift"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*ThriftConfig](&spec, sub, "thrift", &spec.Thrift)
@@ -8536,6 +8544,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "nfs" {
 		if v, ok := cfg["nfs"]; ok && v != nil {
 			return "protocol nfs no longer accepts a top-level nfs sub-config (move it into the nfs layer of an [ip,tcp,nfs] layers chain)"
+		}
+	}
+	// D-DRDA-1：drda 顶层 drda 子映射 presence 判死（nfs 先例；空 map 也
+	// 死——配置住 drda 层十三键，层链是唯一真相）。层链形状不触发。
+	if protocol == "drda" {
+		if v, ok := cfg["drda"]; ok && v != nil {
+			return "protocol drda no longer accepts a top-level drda sub-config (move it into the drda layer of an [ip,tcp,drda] layers chain)"
 		}
 	}
 	// D-SSTP-1：sstp 顶层 sstp 子映射 presence 判死（kerberos 之后的 sstp

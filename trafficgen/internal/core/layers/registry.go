@@ -653,6 +653,7 @@ func buildDefaultRegistry() {
 		FieldContract: map[string]string{"tcp.dst_port": "446"},
 		Fields: map[string]FieldSchema{
 			"transport":        {Type: "string", Default: ""},
+			"association":      {Type: "string", Default: ""},
 			"session_start":    {Type: "int", Default: 0, Min: 0, Max: 0},
 			"ccsid":            {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 			"correlator_start": {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
@@ -662,6 +663,8 @@ func buildDefaultRegistry() {
 			"rdb_name":         {Type: "string", Default: ""},
 			"sql":              {Type: "object"},
 			"dss_segments":     {Type: "list", Default: []interface{}{}},
+			"dss_length":       {Type: "int", Default: 0},
+			"sessions":         {Type: "list", Default: []interface{}{}},
 		}})
 	r.Register(LayerSchema{Name: "thrift", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "9090"},
