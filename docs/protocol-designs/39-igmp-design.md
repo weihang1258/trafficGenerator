@@ -330,10 +330,10 @@ IGMP 只定义 IPv4 Protocol 2。IPv6 使用 ICMPv6（协议号 58）及 MLD（M
 | `src_ip` | → `layers[0].ip.src`（fixture `192.0.2.10` 起各例保留） |
 | `dst_ip` | → `layers[0].ip.dst`（单报文 21 例保留〔14 正 + 7 负〕：`224.0.0.1`/组地址/`224.0.0.2`/`224.0.0.22` 四档）；3 事件例与 `neg_ipv6` 本来就无此键——目的由各事件经 `dstFor` 仲裁，**保持缺席，不补静态值**（§9.39 多流×静态标量互斥：静态 dst 会与事件仲裁打架） |
 | `ttl` | → `layers[0].ip.ttl`（正例 `1`；`neg_ttl_not_one` 的 `64` 作为故障值随层迁移，仍走拒绝通道） |
-| `count`（25/25 全有） | → 删除，走 `flow_control.flows`（单包例 `flows=1`；#13/#14/#15 按事件数 `flows=3/3/4`，与 packet_count 对齐） |
+| `count`（25/25 全有） | → 删除（P6 M1 注记：P4 实测多包例包数由层内 `events[]` 事件数定（#13/#14/#15 为 3/3/4），用例不落 `flow_control` 键；偏离已登记 `casegen_test.go:23-30` 文件头，设计正文此处加注） |
 | 顶层 `igmp` 子映射 | → `layers[1]` 中 `{"igmp": {...}}` 条目（业务键全量迁入，零残留；`wire_fault`/`checksum_mode`/`address_family`/`source_count` 随同迁入，拒绝语义不变） |
 | 顶层 `events`（3 例） | → `layers[1].igmp.events`（层内化；`strategy_convert.go:697-715` 的顶层兼容分支 P4 后仅作过渡保留，不写新例） |
-| 缺失 `flow_control` | → 逐例补（25/25 缺失；值=packet_count） |
+| 缺失 `flow_control` | → P4 未补键（P6 M1：25 例均无该键但 suite 默认流数全绿，行为侧关闭；设计正文加注，见上） |
 | 游离 `ipv6:true`（`neg_ipv6`） | → 删除该键；`igmp.address_family=ipv6` 保留为拒绝触发器（IPv6 无可住层，按 1.12 拒绝通道表达，不补 `ip` 层 v6 值） |
 | 游离 `ip_protocol:17`（`neg_protocol_not_two`） | → 删除该键；`igmp.wire_fault={kind:protocol,value:17}` 保留为拒绝触发器（协议号由 `FieldContract`/`transportProtocol` 供给，不由顶层游离键表达） |
 
