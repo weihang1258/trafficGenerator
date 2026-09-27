@@ -1318,3 +1318,49 @@ func TestPlannerEmptyEventsProducesConnectFlow(t *testing.T) {
 		t.Fatalf("packets=%d want 7 (connect-only)", count)
 	}
 }
+
+// W1/G-CQL-2: v4 writes the QUERY/EXECUTE flags as one byte, so a value above
+// 0xFF cannot be represented — it must be rejected, never silently truncated
+// (design §2 query_flags row: 未登记高位拒绝).
+func TestValidateCQLV4QueryFlagsOverflow(t *testing.T) {
+	err := (Planner{}).Validate(core.FlowSpec{
+		CQL: &core.CQLConfig{
+			WireProfile: "cql_v4",
+			Events: []core.CQLEvent{
+				{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "3.0.0"}},
+				{Kind: "ready", Direction: "s2c"},
+				{Kind: "query", Direction: "c2s", Query: "SELECT 1", Consistency: 1, QueryFlags: 0x100},
+			},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "flags") {
+		t.Fatalf("err=%v want v4 query_flags overflow rejection", err)
+	}
+	// 0xFF is the largest representable v4 value and stays legal.
+	ok := (Planner{}).Validate(core.FlowSpec{
+		CQL: &core.CQLConfig{
+			WireProfile: "cql_v4",
+			Events: []core.CQLEvent{
+				{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "3.0.0"}},
+				{Kind: "ready", Direction: "s2c"},
+				{Kind: "query", Direction: "c2s", Query: "SELECT 1", Consistency: 1, QueryFlags: 0xFF},
+			},
+		},
+	})
+	if ok != nil {
+		t.Fatalf("0xFF should be legal on v4, got %v", ok)
+	}
+	// v5 keeps the full [int] range.
+	v5ok := (Planner{}).Validate(core.FlowSpec{
+		CQL: &core.CQLConfig{
+			WireProfile: "cql_v5",
+			Events: []core.CQLEvent{
+				{Kind: "startup", Direction: "c2s", Options: map[string]interface{}{"CQL_VERSION": "5.0.0"}},
+				{Kind: "ready", Direction: "s2c"},
+			},
+		},
+	})
+	if v5ok != nil {
+		t.Fatalf("v5 handshake-only should stay valid, got %v", v5ok)
+	}
+}

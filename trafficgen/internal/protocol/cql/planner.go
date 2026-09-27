@@ -144,6 +144,11 @@ func validateEvents(profile string, events []core.CQLEvent) error {
 			if !ready {
 				return fmt.Errorf("cql: event %d: state: %s before startup/ready", i, ev.Kind)
 			}
+			// W1/G-CQL-2：v4 的 QUERY/EXECUTE flags 只有 1 字节宽，超出即
+			// 拒绝——静默截断会把 0x100 写成 0x00（未登记高位拒绝，§2）。
+			if profile != "cql_v5" && ev.QueryFlags > 0xFF {
+				return fmt.Errorf("cql: event %d: flags: query_flags %#x does not fit the v4 [byte] width (max 0xff)", i, ev.QueryFlags)
+			}
 		}
 	}
 	return nil

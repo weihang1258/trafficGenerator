@@ -1869,7 +1869,7 @@ def check_nfs(cases):
 
 
 def check_cql(cases):
-    """D-CQL-1 P4 反查表（21 例 = 11 正 + 10 负；CQL/Cassandra native v4/v5）。
+    """D-CQL-1 P4 反查表（30 例 = 15 正 + 15 负；CQL/Cassandra native v4/v5）。
     返回 [(检查名, 通过?, 证据)]。"""
     rows = []
     tg = Path(__file__).resolve().parent.parent
@@ -1913,6 +1913,7 @@ def check_cql(cases):
         ("CQL_VERSION option", "G-CQL-6：STARTUP CQL_VERSION 强制"),
         ("beta flag 0x10 is v5-only", "G-CQL-6：beta 逐 profile 位校验"),
         ("warning flag 0x08 is response-only", "G-CQL-6：warning s2c-only"),
+        ("does not fit the v4 [byte] width", "W1：v4 query_flags 宽度溢出拒（不静默截断）"),
         ("without a preceding AUTHENTICATE", "G-CQL-6：认证次序门"),
     ]:
         rows.append((f"关键件：{name}", prim in pl, "在案"))
@@ -1920,12 +1921,13 @@ def check_cql(cases):
     # 3. 用例面（11 正 + 10 负）。
     pos = [c for c in cases if "packet_count" in (c.get("expect") or {})]
     neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
-    rows.append(("22 例对账（11 正+11 负）", len(pos) == 11 and len(neg) == 11 and len(cases) == 22,
+    rows.append(("30 例对账（15 正+15 负）", len(pos) == 15 and len(neg) == 15 and len(cases) == 30,
                  f"{len(pos)}+{len(neg)}={len(cases)}"))
     bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "cql"]
     rows.append(("proto 全=cql", not bad_proto, bad_proto or "全 cql"))
-    rows.append(("正例包数 [9,9,10,12,9,8,11,11,18,8,7]",
-                 sorted(c["expect"]["packet_count"] for c in pos) == sorted([9, 9, 10, 12, 9, 8, 11, 11, 18, 8, 7]),
+    want_counts = sorted([9, 9, 10, 12, 11, 8, 11, 11, 18, 8, 7, 13, 11, 11, 14])
+    rows.append(("正例包数 15 例逐值对账",
+                 sorted(c["expect"]["packet_count"] for c in pos) == want_counts,
                  sorted(c["expect"]["packet_count"] for c in pos)))
     red_ids = {"cql_neg_presence_top_level_cql", "cql_neg_stray_src_ip", "cql_neg_stray_count"}
     leaked = sorted({k for c in cases if c.get("id") not in red_ids
@@ -1937,6 +1939,14 @@ def check_cql(cases):
         ("cql_neg_stray_count", "游离键红例 count"),
         ("cql_neg_udp", "udp 载体负例"),
         ("cql_neg_missing_tcp", "缺 tcp 载体负例"),
+        ("cql_stream_correlation", "A' stream 非零关联（乱序响应回填）"),
+        ("cql_consistency_quorum", "A' consistency 非 ONE 值"),
+        ("cql_flags_tracing_s2c_warning", "A' frame flags 位（tracing/warning）"),
+        ("cql_multi_round_query", "A' 同连接多轮 QUERY"),
+        ("cql_neg_startup_missing_cql_version", "G-CQL-6 CQL_VERSION 负例"),
+        ("cql_neg_auth_order", "G-CQL-6 认证次序负例"),
+        ("cql_neg_v5_post_handshake_envelope", "W2 envelope 负例"),
+        ("cql_neg_beta_flag_v4", "G-CQL-6 beta 位负例"),
         ("cql_neg_unknown_layer_field", "层内未知键负例"),
         ("cql_v5_tracing", "v5 握手前 unframed 面（B2 过渡档）"),
         ("cql_multi_session", "多会话双源端口"),
@@ -1961,13 +1971,19 @@ def check_cql(cases):
                  v5_events and all(k in ("options", "supported", "startup", "ready",
                                          "authenticate", "auth_response", "auth_success") for k in v5_events),
                  v5_events or "无用例"))
+    # A' 断言通道：cql.* 字段断言从 0 → 非零（G-CQL-7 §9.6 十字段面）。
+    cql_fields = sorted({f.get("field") for c in pos for f in (c.get("expect") or {}).get("fields", [])
+                         if str(f.get("field", "")).startswith("cql.")})
+    rows.append((f"cql.* 字段断言面（{len(cql_fields)} 字段）",
+                 {"cql.stream", "cql.opcode", "cql.consistency", "cql.flags"} <= set(cql_fields),
+                 cql_fields or "零断言"))
     # result_kind 死字段清零（G-CQL-4）。
     rows.append(("result_kind 键清零（G-CQL-4）", "result_kind" not in json.dumps(cases), "零残留"))
 
     # 4. 锚词面。
     anchors = {"no longer accepts a top-level cql sub-config", "no longer accepts flat config field",
                "unknown field", "version", "opcode", "length",
-               "state", "limit", "tcp"}
+               "state", "limit", "tcp", "CQL_VERSION", "envelope", "beta"}
     got = {(c.get("expect") or {}).get("error_contains") for c in neg}
     missing = sorted(a for a in anchors if not any(a in (g or "") for g in got))
     rows.append((f"负例锚词覆盖 {len(anchors)} 族", not missing, missing or sorted(got)))

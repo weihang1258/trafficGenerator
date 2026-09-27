@@ -329,7 +329,7 @@
  {
   "id": "cql_prepare_execute",
   "proto": "cql",
-  "summary": "S5: PREPARE and EXECUTE request framing",
+  "summary": "S5: PREPARE/EXECUTE requests after STARTUP/READY",
   "spec_json": {
    "layers": [
     {
@@ -349,6 +349,17 @@
       "wire_profile": "cql_v4",
       "events": [
        {
+        "kind": "startup",
+        "direction": "c2s",
+        "options": {
+         "CQL_VERSION": "3.0.0"
+        }
+       },
+       {
+        "kind": "ready",
+        "direction": "s2c"
+       },
+       {
         "kind": "prepare",
         "direction": "c2s",
         "query": "SELECT v FROM ks.t WHERE k = ?"
@@ -366,43 +377,48 @@
    ]
   },
   "expect": {
-   "packet_count": 9,
+   "packet_count": 11,
    "has_handshake": true,
    "terminates": true,
    "has_payload": true,
    "directional": true,
    "fields": [
     {
-     "packet": 4,
+     "packet": 6,
      "field": "tcp.dstport",
      "value": "9042"
     },
     {
-     "packet": 5,
+     "packet": 6,
+     "field": "tcp.len",
+     "value": "43"
+    },
+    {
+     "packet": 7,
      "field": "tcp.dstport",
      "value": "9042"
     },
     {
-     "packet": 5,
+     "packet": 7,
      "field": "tcp.len",
      "value": "19"
     }
    ],
    "frames": [
     {
-     "packet": 4,
+     "packet": 6,
      "offset": 54,
      "hex": "04 00 00 00 09 00 00 00 22 00 00 00 1e 53 45 4c 45 43 54 20 76 20 46 52 4f 4d 20 6b 73 2e 74 20 57 48 45 52 45 20 6b 20 3d 20 3f"
     },
     {
-     "packet": 5,
+     "packet": 7,
      "offset": 54,
      "hex": "04 00 00 00 0a 00 00 00 0a 00 05 70 69 64 2d 31 00 01 00"
     }
    ]
   },
   "notes": [
-   "PREPARED result metadata and bound-value encoding are profile-dependent and are not fabricated here; this case locks request frames."
+   "G-CQL-6 状态门：PREPARE/EXECUTE 需 STARTUP→READY 之后（design §9.2 缺失格）；故本例补 startup/ready 前置，包数 9→11（testcase §3.5 原形在门落码后非法）。"
   ]
  },
  {
@@ -1216,6 +1232,573 @@
   "expect": {
    "expect_error": true,
    "error_contains": "tcp"
+  }
+ },
+ {
+  "id": "cql_stream_correlation",
+  "proto": "cql",
+  "summary": "A' (G-CQL-7): non-zero stream correlation — two requests (stream 1/2), responses returned out of order (stream 2 first), each response stream matches its request",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [
+       {
+        "kind": "startup",
+        "direction": "c2s",
+        "options": {
+         "CQL_VERSION": "3.0.0"
+        }
+       },
+       {
+        "kind": "ready",
+        "direction": "s2c"
+       },
+       {
+        "kind": "query",
+        "direction": "c2s",
+        "stream": 1,
+        "query": "SELECT 1",
+        "consistency": 1,
+        "query_flags": 0
+       },
+       {
+        "kind": "query",
+        "direction": "c2s",
+        "stream": 2,
+        "query": "SELECT 2",
+        "consistency": 1,
+        "query_flags": 0
+       },
+       {
+        "kind": "result",
+        "direction": "s2c",
+        "stream": 2
+       },
+       {
+        "kind": "result",
+        "direction": "s2c",
+        "stream": 1
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 13,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 6,
+     "field": "cql.stream",
+     "value": "1"
+    },
+    {
+     "packet": 7,
+     "field": "cql.stream",
+     "value": "2"
+    },
+    {
+     "packet": 8,
+     "field": "cql.stream",
+     "value": "2"
+    },
+    {
+     "packet": 9,
+     "field": "cql.stream",
+     "value": "1"
+    },
+    {
+     "packet": 6,
+     "field": "cql.opcode",
+     "value": "7"
+    },
+    {
+     "packet": 9,
+     "field": "cql.opcode",
+     "value": "8"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "04 00 00 01 07 00 00 00 0f 00 00 00 08 53 45 4c 45 43 54 20 31 00 01 00"
+    },
+    {
+     "packet": 7,
+     "offset": 54,
+     "hex": "04 00 00 02 07 00 00 00 0f 00 00 00 08 53 45 4c 45 43 54 20 32 00 01 00"
+    },
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "84 00 00 02 08 00 00 00 04 00 00 00 01"
+    },
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "84 00 00 01 08 00 00 00 04 00 00 00 01"
+    }
+   ]
+  },
+  "notes": [
+   "stream 是本协议的关联关系承载字段（design §11.2）：请求 stream X 的响应 stream 必为 X（v4 §2.3）；乱序响应由事件序声明表达。",
+   "断言 stream 值经 tshark cql.stream（FT_INT16，signed）解出。"
+  ]
+ },
+ {
+  "id": "cql_consistency_quorum",
+  "proto": "cql",
+  "summary": "A' (G-CQL-7): consistency field — LOCAL_QUORUM (0x0006) encoded as a big-endian short",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [
+       {
+        "kind": "startup",
+        "direction": "c2s",
+        "options": {
+         "CQL_VERSION": "3.0.0"
+        }
+       },
+       {
+        "kind": "ready",
+        "direction": "s2c"
+       },
+       {
+        "kind": "query",
+        "direction": "c2s",
+        "query": "SELECT 1",
+        "consistency": 6,
+        "query_flags": 0
+       },
+       {
+        "kind": "result",
+        "direction": "s2c"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 11,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 6,
+     "field": "cql.consistency",
+     "value": "0x0006"
+    },
+    {
+     "packet": 6,
+     "field": "tcp.len",
+     "value": "24"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "04 00 00 00 07 00 00 00 0f 00 00 00 08 53 45 4c 45 43 54 20 31 00 06 00"
+    }
+   ]
+  },
+  "notes": [
+   "consistency 是协议 short（v4 §3）；LOCAL_QUORUM=0x0006（v4 §3 枚举表）。仅钉字节面，不宣称数据库执行语义。"
+  ]
+ },
+ {
+  "id": "cql_flags_tracing_s2c_warning",
+  "proto": "cql",
+  "summary": "A' (G-CQL-7/G-CQL-6): frame flags — tracing 0x02 on a c2s request, warning 0x08 on an s2c response",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [
+       {
+        "kind": "startup",
+        "direction": "c2s",
+        "options": {
+         "CQL_VERSION": "3.0.0"
+        }
+       },
+       {
+        "kind": "ready",
+        "direction": "s2c"
+       },
+       {
+        "kind": "query",
+        "direction": "c2s",
+        "flags": 2,
+        "query": "SELECT 1",
+        "consistency": 1,
+        "query_flags": 0
+       },
+       {
+        "kind": "result",
+        "direction": "s2c",
+        "flags": 8
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 11,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 6,
+     "field": "cql.flags",
+     "value": "0x02"
+    },
+    {
+     "packet": 7,
+     "field": "cql.flags",
+     "value": "0x08"
+    },
+    {
+     "packet": 7,
+     "field": "cql.opcode",
+     "value": "8"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "04 02 00 00 07 00 00 00 0f 00 00 00 08 53 45 4c 45 43 54 20 31 00 01 00"
+    },
+    {
+     "packet": 7,
+     "offset": 54,
+     "hex": "84 08 00 00 08 00 00 00 04 00 00 00 01"
+    }
+   ]
+  },
+  "notes": [
+   "tracing 0x02 请求位（v4 §2.2）；warning 0x08 是响应位（G-CQL-6 位校验：c2s 发 warning 拒）。"
+  ]
+ },
+ {
+  "id": "cql_multi_round_query",
+  "proto": "cql",
+  "summary": "A' (G-CQL-7/§3.15①): multi-round QUERY on one connection — two SELECT→RESULT rounds then READY",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [
+       {
+        "kind": "startup",
+        "direction": "c2s",
+        "options": {
+         "CQL_VERSION": "3.0.0"
+        }
+       },
+       {
+        "kind": "ready",
+        "direction": "s2c"
+       },
+       {
+        "kind": "query",
+        "direction": "c2s",
+        "query": "SELECT 1",
+        "consistency": 1,
+        "query_flags": 0
+       },
+       {
+        "kind": "result",
+        "direction": "s2c"
+       },
+       {
+        "kind": "query",
+        "direction": "c2s",
+        "query": "SELECT 2",
+        "consistency": 1,
+        "query_flags": 0
+       },
+       {
+        "kind": "result",
+        "direction": "s2c"
+       },
+       {
+        "kind": "ready",
+        "direction": "s2c"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 14,
+   "has_handshake": true,
+   "terminates": true,
+   "has_payload": true,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 6,
+     "field": "cql.opcode",
+     "value": "7"
+    },
+    {
+     "packet": 7,
+     "field": "cql.opcode",
+     "value": "8"
+    },
+    {
+     "packet": 8,
+     "field": "cql.opcode",
+     "value": "7"
+    },
+    {
+     "packet": 9,
+     "field": "cql.opcode",
+     "value": "8"
+    },
+    {
+     "packet": 8,
+     "field": "tcp.len",
+     "value": "24"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "04 00 00 00 07 00 00 00 0f 00 00 00 08 53 45 4c 45 43 54 20 32 00 01 00"
+    }
+   ]
+  },
+  "notes": [
+   "同连接多轮操作（§3.15 行1 部分覆的补强）：两轮 QUERY/RESULT 交替，轮间无重连。"
+  ]
+ },
+ {
+  "id": "cql_neg_startup_missing_cql_version",
+  "proto": "cql",
+  "summary": "G-CQL-6: STARTUP without the mandatory CQL_VERSION option is rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [
+       {
+        "kind": "startup",
+        "direction": "c2s"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "CQL_VERSION"
+  }
+ },
+ {
+  "id": "cql_neg_auth_order",
+  "proto": "cql",
+  "summary": "G-CQL-6: AUTH_RESPONSE without a preceding AUTHENTICATE is rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4_auth",
+      "events": [
+       {
+        "kind": "auth_response",
+        "direction": "c2s"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "state"
+  }
+ },
+ {
+  "id": "cql_neg_v5_post_handshake_envelope",
+  "proto": "cql",
+  "summary": "W2/G-CQL-3 (B2 transition): a v5 post-handshake message is rejected (needs the envelope)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v5",
+      "events": [
+       {
+        "kind": "startup",
+        "direction": "c2s",
+        "options": {
+         "CQL_VERSION": "5.0.0"
+        }
+       },
+       {
+        "kind": "ready",
+        "direction": "s2c"
+       },
+       {
+        "kind": "query",
+        "direction": "c2s",
+        "query": "SELECT 1",
+        "consistency": 1
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "envelope"
+  }
+ },
+ {
+  "id": "cql_neg_beta_flag_v4",
+  "proto": "cql",
+  "summary": "G-CQL-6: the v5-only beta flag 0x10 on a v4 profile is rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 9042
+     }
+    },
+    {
+     "cql": {
+      "wire_profile": "cql_v4",
+      "events": [
+       {
+        "kind": "options",
+        "direction": "c2s",
+        "flags": 16
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "beta"
   }
  }
 ]

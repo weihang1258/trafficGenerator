@@ -128,7 +128,7 @@ func TestCQLChain_CarrierRejected(t *testing.T) {
 	}
 }
 
-// ④用例文件收官自查：22 例（11 正 + 11 负）；非负例顶层键 ⊆ 白名单；
+// ④用例文件收官自查：30 例（15 正 + 15 负）；非负例顶层键 ⊆ 白名单；
 // presence/游离键负例在案。
 func TestCQLChain_CaseFileAudit(t *testing.T) {
 	raw, err := os.ReadFile("../../../test/protocol_pcap/cases/cql.json")
@@ -139,8 +139,8 @@ func TestCQLChain_CaseFileAudit(t *testing.T) {
 	if err := json.Unmarshal(raw, &cases); err != nil {
 		t.Fatalf("parse cases: %v", err)
 	}
-	if len(cases) != 22 {
-		t.Fatalf("want 22 cases (11 pos + 11 neg), got %d", len(cases))
+	if len(cases) != 30 {
+		t.Fatalf("want 30 cases (15 pos + 15 neg), got %d", len(cases))
 	}
 	allowed := map[string]bool{"layers": true, "flow_control": true, "output": true}
 	presence := false
@@ -168,6 +168,33 @@ func TestCQLChain_CaseFileAudit(t *testing.T) {
 	}
 	if !presence {
 		t.Fatal("want 1 presence negative (layers + top-level cql), found none")
+	}
+}
+
+// ⑤FieldContract 缺省：层内不写 dst_port 时由契约补 9042（用户显式优先）。
+func TestCQLChain_FieldContractPortDefault(t *testing.T) {
+	lj := json.RawMessage(`[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"tcp":{"src_port":12345}},{"cql":{"wire_profile":"cql_v4","events":[{"kind":"options","direction":"c2s"}]}}]`)
+	p, err := layers.BuildLayersPlanner("cql", lj)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345}
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	n, up := 0, 0
+	for pk := range ch {
+		if pk.Direction == "up" && pk.L4.DstPort == 9042 {
+			up++
+		}
+		n++
+	}
+	if n != 8 {
+		t.Fatalf("packets = %d, want 8 (handshake 3 + 1 event + teardown 4)", n)
+	}
+	if up == 0 {
+		t.Fatal("no up packet with DstPort=9042 (FieldContract default must apply)")
 	}
 }
 
