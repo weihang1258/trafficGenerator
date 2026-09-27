@@ -6,7 +6,7 @@
 > 配套文件：`docs/protocol-designs/81-dameng-testcase.md`、`trafficgen/test/protocol_pcap/cases/dameng.json`（现存 14 例）
 > 旧基线：`docs/protocol-designs/33-dameng-design.md` + `33-dameng-testcase.md`（v1.0.0，2026-08-20）——逐节比对见 §12 门1 表 §10 行与本契约 §15
 > **层链唯一真相**：本契约全文示例只有纯 `layers` 形——地址只住 `ip` 层（`src`/`dst`）、端口只住 `tcp` 层（`src_port`/`dst_port`）、数量只走 `flow_control`；顶层只允许 `layers`/`flow_control` 家族/`output`（CORE_MEMORY §1.11–1.13）。任何顶层 `src_ip`/`dst_ip`/`src_port`/`dst_port`/`count`/`dameng` 子映射都判违规。
-> **注册现状**：`dameng` 层**已注册**（`layers/registry.go:642-643`，`CategoryTerminal` + `DependsOn ["tcp"]` + `FieldContract {"tcp.dst_port":"5236"}`），且 `allowedProtocols["dameng"]=true`（`core/protocols.go:23`）、`NewChainPlanner("dameng")` 已在 `cmd/server/main.go:515` 注册、空白导入在 `main.go:72`。本文**不宣称本次跑过 suite、不启动服务器**；所有"已落码/未落码"结论均标实测出处。
+> **注册现状**：`dameng` 层**已注册**（`layers/registry.go:702-707`（P6 实测；P1 写作时 642-643，`CategoryTerminal` + `DependsOn ["tcp"]` + `TransportOn ["tcp"]` + `FieldContract {"tcp.dst_port":"5236"}`），且 `allowedProtocols["dameng"]=true`（`core/protocols.go:23`）、`NewChainPlanner("dameng")` 已在 `cmd/server/main.go:516` 注册（P1 写作时 515）、空白导入在 `main.go:72`。本文**不宣称本次跑过 suite、不启动服务器**；所有"已落码/未落码"结论均标实测出处。
 > **与 kingbase #35 的关系**：dameng 是**独立终结层 / 独立协议**，不是任何层的 dialect 变体。判定依据见 §10.6（裁定 DM-A，与 PG-A 五条实测同构、结论相反）。
 
 ---
@@ -38,7 +38,7 @@
 
 ### 2.1 层链
 
-唯一合法链形：**`[ip, tcp, dameng]`**（IPv6 地址族同住 `ip` 层，不新增层）。`dameng` 是**终结层**（`CategoryTerminal`，`DependsOn ["tcp"]`），无 `TransportOn`、无 `OptionalOn`——registry 实测见 `registry.go:642-643`。
+唯一合法链形：**`[ip, tcp, dameng]`**（IPv6 地址族同住 `ip` 层，不新增层）。`dameng` 是**终结层**（`CategoryTerminal`，`DependsOn ["tcp"]` + `TransportOn ["tcp"]`，P6 行 `registry.go:702-707`；P1 写作时 642-643 且未登记 TransportOn）——registry 实测见 P6 行。
 
 ```json
 {
@@ -66,7 +66,7 @@
 
 `DamengConfig` 是 Go struct（`core/types.go:1282-1291`）：`WireProfile` / `Events` / `Sessions` / `PayloadSize` / `WireFault`；`DamengEvent`（`:1266-1275`）：`Kind`/`Direction`/`Profile`/`Username`/`Result`/`SQL`；`DamengSession`（`:1276-1280`）：`SrcPort`/`Events`。
 
-**关键现状（P4 必办，G-DM-2）**：registry 中 dameng 层 `Fields` 为**空 map**（`registry.go:642-643` 无 `Fields` 字段）——按 V9 白名单（`complete.go:293` `unknown field`），层内任何键都会被拒；且 `translateTerminalConfig` **无 `dameng` 分支**（`chain_planner_translate.go` 的 case 表 `:760-2591` 实测无 dameng）。即：**链路径的层 config 今日不可能生效**，事件只能走顶层 `dameng` 子映射（`strategy_convert.go:1437-1439`）经 flat 翻译进 `spec.Dameng`。P4 动作 = registry 补 `Fields` 五键 + translate 补 JSON 往返分支（postgresql `:2006-2032` 同款）+ 存量 14 例改写纯层链形。三者同批，否则出现"层里配了事件但生成器收不到"的静默空流。
+**关键现状（P4 已办，G-DM-2 closed）**：P1 时 registry 中 dameng 层 `Fields` 为**空 map**（P1 行 `registry.go:642-643` 无 `Fields` 字段）；P4 已补五键（P6 行 `:702-707`）——按 V9 白名单（`complete.go:293` `unknown field`），层内任何键都会被拒；且 `translateTerminalConfig` **无 `dameng` 分支**（`chain_planner_translate.go` 的 case 表 `:760-2591` 实测无 dameng）。即：**链路径的层 config 今日不可能生效**，事件只能走顶层 `dameng` 子映射（`strategy_convert.go:1437-1439`）经 flat 翻译进 `spec.Dameng`。P4 动作 = registry 补 `Fields` 五键 + translate 补 JSON 往返分支（postgresql `:2006-2032` 同款）+ 存量 14 例改写纯层链形。三者同批，否则出现"层里配了事件但生成器收不到"的静默空流。
 
 ### 2.3 事件形状与「死字段」清单（P4 必办，实测）
 
@@ -220,7 +220,7 @@ Init ──connect──▶ Connected ──auth_request/auth_response──▶ 
 
 ## 9. 用例集合摘要（ID 权威在 testcase §2）
 
-**合计 32 个语义 ID = 13 正 + 19 负**（其中存量 14 例为改写，18 例为新增或 A′ 待落）。分布：
+**P6 实测 34 例 = 13 正 + 21 负**（存量 14 例改写 + 20 新例；P1 写作时 32 ID = 13 正 + 19 负，新增 2 负例 = G-DM-5 方向守卫 + G-DM-6 presence 门，接管后落码使"今日不可建"过时，P6 以实测为准）。分布：
 
 - 正例 13：连接/认证/SQL 基线 8（存量改写）/ `close` 正常结束 1 / 认证错误分支 1 / 多流动态 1 / MSS 分段 1 / NIC 双路 1（A′）。
 - 负例 19：存量 6（改写）+ kind 面 1 + SQL 空值 1 + 状态机 5 + 事件/会话互斥 2 + `wire_fault` 非法形 2 + `payload_size` 1 + 层内未知字段 1（P4 V9）。
@@ -316,7 +316,7 @@ Dameng **没有**控制流派生数据流的形态：认证与 SQL 复用**同�
 
 **判定依据（逐条实测，不问偏好——依赖链判定：标准→设计→代码→测试）**：
 
-1. **注册面**：`dameng` 在 registry 唯一注册（`registry.go:642`）；`allowedProtocols["dameng"]=true`（`protocols.go:23`）；且**不在** `negativeOnly` 名单（`protocols_test.go:94-108` 点名 kingbase 必须 stay rejected，dameng 在受准名单 `:20`）。与 kingbase"registry 零命中 + negativeOnly"**镜像相反**。
+1. **注册面**：`dameng` 在 registry 唯一注册（P6 行 `registry.go:702`；P1 写作时 642）；`allowedProtocols["dameng"]=true`（`protocols.go:23`）；且**不在** `negativeOnly` 名单（`protocols_test.go:94-108` 点名 kingbase 必须 stay rejected，dameng 在受准名单 `:20`）。与 kingbase"registry 零命中 + negativeOnly"**镜像相反**。
 2. **用例面**：`cases/dameng.json` 14 例 `proto` **全部 = `dameng`**（实测逐例）；跑法 = `CASE_PROTO=dameng`。与 kingbase"15 例全 `proto=postgresql`，`CASE_PROTO=kingbase` 装载 0 例"**镜像相反**。
 3. **端口面**：dameng 端口由**自有** `FieldContract {"tcp.dst_port":"5236"}`（`registry.go:643`）声明，不是改父层契约值的常量覆盖（kingbase 式 `dialectFieldContract`）。
 4. **代码面**：`internal/protocol/dameng` **包存在**（planner/builder/layer_gen 三文件 + 40 单测）；`types.go` 有 `DamengConfig/DamengEvent/DamengSession`（`:1266-1291`）+ `FlowSpec.Dameng`（`:1700`）；`generator.go:369` 有 `FlowMeta.Dameng`；`main.go:72` 空白导入 + `:515` 注册 ChainPlanner。与 kingbase"包不存在、零残留"**镜像相反**。
@@ -336,7 +336,7 @@ Dameng **没有**控制流派生数据流的形态：认证与 SQL 复用**同�
 
 | 文件 | 动作 | 职责 |
 |---|---|---|
-| `internal/core/layers/registry.go:642-643` | **扩展** | dameng 层补 `Fields` 五键（`wire_profile`/`events`/`sessions`/`payload_size`/`wire_fault`，postgresql `:644-660` 同款）；`FieldContract` 保持 5236 |
+| `internal/core/layers/registry.go`（P6 行 `:702-707`；P1 写作时 642-643） | **已扩展（G-DM-2 closed）** | dameng 层已补 `Fields` 五键（`wire_profile`/`events`/`sessions`/`payload_size`/`wire_fault`，postgresql `:644-660` 同款）；`FieldContract` 保持 5236 |
 | `internal/core/layers/chain_planner_translate.go` | **扩展** | 补 `case "dameng"`（postgresql `:2006-2032` JSON 往返同款，含 dialect/wire_profile 缺省兜底的 dameng 版）；**flat 优先**语义同款（`spec.Dameng != nil` 时层 config 忽略，防双头） |
 | `internal/protocol/dameng/planner.go` | **扩展** | ①方向一致守卫（G-DM-5）；②P0b 默认化保留 |
 | `internal/protocol/dameng/builder.go` | **不变**（占位字节已定） | `username` 删或接线二选一（G-DM-3，同批改存量 9 例 10 处） |
@@ -389,7 +389,7 @@ strategy config(layers)
 
 ### 11.8 回滚方式（§8.8）
 
-按提交序 `git revert`：registry/translate/validator 扩展类提交可逐提交回退；**存量 14 例改写提交是唯一的"数据面"提交**——回退它必须与字段删除提交**同批回退**（否则 `DisallowUnknownFields` 与用例配置失配）。registry/schemagen 生成文件随提交对齐（dameng 已在生成表，`layers.generated.json:354`，字段补齐后重跑 `schemagen`，`TestLayersGeneratedMatchesRegistry` 会红）。
+按提交序 `git revert`：registry/translate/validator 扩展类提交可逐提交回退；**存量 14 例改写提交是唯一的"数据面"提交**——回退它必须与字段删除提交**同批回退**（否则 `DisallowUnknownFields` 与用例配置失配）。registry/schemagen 生成文件随提交对齐（dameng 在生成表 P6 行 `:379`（P1 写作时 354），字段已补齐 + schemagen 已重跑 127 层）。
 
 ---
 
@@ -403,15 +403,15 @@ strategy config(layers)
 | §2 策略/任务 | 策略 = 单 dameng 流量模板，自带 `flow_control`（flows/bps/time）；任务 = 多策略合跑 + 总量封顶；框架语义未动（dameng 不在 worker/task 特判名单） | `internal/core/worker.go:307-308`；本契约 §2.1 |
 | §3 五件套 | 见 §12.3 强制展开：会话表 / 事务序列 / 关联关系（无派生流的诚实边界）/ 插入位置 / 时间线；**有长连接载体（单 TCP 承载全部事件），不豁免** | 本契约 §12.3 + §10.4；用例 `dameng_multi_session` |
 | §4 查规范 | 公开资料（DM8 默认端口 5236 + SYSDBA，多源一致）+ 旧基线语义契约 + 本仓库实测面；tshark **零 Dameng dissector**（实测）；P1 矩阵 8 行 + 三子表（§10.1–§10.3）+ 候选方案对比（§10.5） | 本契约 §3/§10 |
-| §5 依赖与错误 | 依赖 = `DependsOn ["tcp"]` 单值（`registry.go:642`），无 `TransportOn`/`OptionalOn`/`InnerRequired`；端口契约 `FieldContract{"tcp.dst_port":"5236"}`（`:643`）；`wire_fault` 2 有效 kind + 3 类非法形（`builder.go:42-58`）；失败全部传 task error（零假成功） | 本契约 §5/§7 + §11.5 |
+| §5 依赖与错误 | 依赖 = `DependsOn ["tcp"]` 单值（P6 行 `registry.go:702`；P1 写作时 642）+ `TransportOn ["tcp"]`（P6 行 `:707`）；端口契约 `FieldContract{"tcp.dst_port":"5236"}`（`:643`）；`wire_fault` 2 有效 kind + 3 类非法形（`builder.go:42-58`）；失败全部传 task error（零假成功） | 本契约 §5/§7 + §11.5 |
 | §6 性能 | 见本契约 §6「性能设计与验收」（6.1–6.8 要素）：逐事件流式、单 flow O(1) 内存、无锁无共享、零可变状态；pcap/NIC 双路验收（NIC = `enp135s0f0np0`）；吞吐数字标「待 P4 基准」（§6.5 不写承诺） | 本契约 §6 |
 | §7 三份文档 | `81-dameng-design.md` v1.0.0 + `81-dameng-testcase.md` v1.0.0（per-protocol 草稿层，§7.4；append 进 CODE_DESIGN.md/TEST_CASES.md 的条目为唯一权威文本）+ D-DAMENG-1（本契约 §11，门1 获批 = 定稿）+ T-DAMENG（testcase §2）+ generated schema（dameng 已在层数内，P4 改 `Fields` 后重跑） | 修订记录 |
 | §8 设计先行 | 本条目 P1–P3 先于 P4 实现；门1 获批 = D-DAMENG-1 定稿 = 开工门（§8.9） | 提交序 |
-| §9 测试三源 | 三源 = 公开资料条款（§3/§10 逐表列出处）+ D-DAMENG-1（§11）+ 已确认现网行为（**未到抓包级 → G-DM-4**，不冒充第三源）；32 ID（13 正 + 19 负）逐项回指；存量 14 例审计去向 §8 + testcase §8 | `81-dameng-testcase.md` §2/§5/§6/§8 |
+| §9 测试三源 | 三源 = 公开资料条款（§3/§10 逐表列出处）+ D-DAMENG-1（§11）+ 已确认现网行为（**未到抓包级 → G-DM-4**，不冒充第三源）；P6 实测 34 例（13 正 + 21 负；P1 写作时 32 ID）逐项回指；存量 14 例审计去向 §8 + testcase §8 | `81-dameng-testcase.md` §2/§5/§6/§8 |
 | §10 评审闭环 | 每阶段对抗自重审（结论见 `/tmp/pipe/81-dameng/p123-report.md` §3）+ 收官隔离复审 + 修轮；红先绿后 | 报告 §3 |
 | §11 白话 | 汇报首句先行白话结论 | 报告 §0 |
 | §12 动态清单 | 见 §12.12 强制展开：四元组 = `ip`/`tcp` 层（五策略全支持，allowlist `layer_dyn.go:17-21`；`dameng` **不在** allowlist → 业务字段对象必拒）；业务字段逐个列开/不开 + 理由；序号算法实读行号（`layer_dyn.go:78/369/770`；`tuple_generator.go:26/290/300`；`worker.go:307-308`） | 本契约 §12.12 |
-| §13 schema 派生 | `dameng` 已在 `registry.go:642-643` 注册（生成表 `layers.generated.json:354` 已含，**不新增层**）；`allowedProtocols["dameng"]=true`（`protocols.go:23`）；`main.go:515` 已注册 ChainPlanner；**P4 改 registry `Fields` 后必须重跑 schemagen**（§13.18/13.19）；struct 标签字面量锁定（§13.13） | 本契约 §11.1 |
+| §13 schema 派生 | `dameng` 已在 registry 注册（P6 行 `:702-707`，五键；生成表 `:379`；P1 写作时 `:642-643`/`:354`，**不新增层**）；`allowedProtocols["dameng"]=true`（`protocols.go:23`）；`main.go:516` 已注册 ChainPlanner（P1 写作时 515）；**P4 改 registry `Fields` 后必须重跑 schemagen**（§13.18/13.19）；struct 标签字面量锁定（§13.13） | 本契约 §11.1 |
 | §14 真实流程 | suite 经 MCP 建策略建任务 → 引擎真实生成 → tshark `tcp.*`/`ip.*` + 包数公式双通道 → 先跑后钉（§9.31/§14.20）；pcap 落 `/tmp/mcp-pcaps/dameng/` | testcase §7 |
 
 ### 12.1 §1 强制展开：旧键去向 + 完整 spec_json 样例
@@ -522,7 +522,7 @@ strategy config(layers)
 | 立项号 | 缺口 | 确认方式（三选一：查文档 / 抓包 / 问人） | 去向 |
 |---|---|---|---|
 | **G-DM-1** | 私有 wire 无版本化 fixture：应用消息头、长度字段、认证摘要、SQL 编码、响应状态全部未定稿；占位字节不得冒充实现 | **抓包**：DM8 明确版本 + 官方驱动，tcpdump 抓 5236 标应用消息边界；或官方字节文档章节 | **B′**→D-DAMENG-1「明确不解决 + 迁入计划」；正例只断言传输层 |
-| **G-DM-2** | 链路径层 config 不生效：registry `Fields` 空 + 无 translate 分支（§2.2 实测） | 读 `registry.go:642-643` + `chain_planner_translate.go` case 表 + V9（`complete.go:293`） | **A′**（P4 第 1 步：补 Fields + translate + 存量改写同批） |
+| **G-DM-2** | 链路径层 config 不生效：registry `Fields` 空 + 无 translate 分支（§2.2 实测） | P1 行 `registry.go:642-643` + case 表 | **closed**（P4 已补 Fields 五键 + translate `case "dameng"` JSON 往返 + 存量改写同批；P6 34/34） |
 | **G-DM-3** | 事件内死字段 `username`（9 例 10 处存量携带，零读取） | 读 `builder.go`/`planner.go`（`Username` 零命中）+ 存量机读 | **P4 必办**（§11.3 时序约束：删或接线 + 存量改写同批） |
 | **G-DM-4** | 现网行为未到抓包级：DM8 真实建连序与认证序列只有公开资料描述，无本机抓包证据 | **抓包**：本机回环起 DM8（或容器）+ 官方驱动连接，tcpdump 抓 5236 | P4 前置确认项，不挡开工；确认前相关条目按 §5.5 标"待确认" |
 | **G-DM-5** | 方向一致守卫缺失：显式 direction 与 kind 自然方向不一致不拦 | 读 `planner.go:249-253`（`eventUp` 显式优先无校验） | **A′**（P4 补守卫 + 负例 `neg_direction_mismatch`；本契约不建该负例——建了会真绿=假通过） |
@@ -534,4 +534,5 @@ strategy config(layers)
 
 ## 15. 修订记录
 
+- v1.0.1（2026-09-28，P6 M2 回填 + 主线程接管注记）：M2 行号回填（registry 642-643→702-707、generated 354→379、main 515→516，锚词逐字在）；G-DM-2 标 closed（P4 已补 Fields 五键 + translate 分支 + 存量改写，P6 34/34）；32 ID→34 例口径差注记（新增 G-DM-5/G-DM-6 负例，P6 以实测为准）；M1 注释漂移随 chain_planner 注释收敛关闭。
 - v1.0.0（2026-09-26）：P1–P3 文档轨产物（车道 A）。建立 P1 八项规范矩阵（§10.1）+ 三子表（§10.2 事件×状态矩阵 4×5=20 格 / §10.3 数据形态变体 18 行 / §10.5 商业行为映射）+ 三路对照与候选方案对比（§10.5）+ 裁定 DM-A 独立层（§10.6，五条实测）；门1 §1–§14 十四行表（§12，§1/§3/§12 强制展开）；D-DAMENG-1 代码设计（§11，八要素）；性能设计与验收（§6）；缺口 8 项（§14）。**未修改任何 `.go`、未跑 suite、未启动服务器、未写共享文档/账本**。旧基线（33-design/testcase v1.0.0）对照结论：wire 诚实口径（不固定私有字节/包数公式 `N+7`/6 负例锚词）**全部延续**；形状面（14 例旧扁平→31 例纯层链）与死字段披露（`username`）为新增；无删除旧条目。
