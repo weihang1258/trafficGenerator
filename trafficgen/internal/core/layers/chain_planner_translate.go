@@ -703,7 +703,27 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		return
 	}
 	if term.Name == "bgp" && spec.BGP == nil {
-		spec.BGP = &core.BGPConfig{}
+		// D-BGP-1 G-BGP-5：层 config 严格往返解码进 spec.BGP（postgresql
+		// :2009 同款——completedConfig + DisallowUnknownFields）。层优先：
+		// spec.BGP 已存在（flat 顶层 bgp/引擎直调）则不覆盖；空层 {} 翻译
+		// 出非 nil 空配置 → P0b-2 默认流（缺省 events nil，显式 [] 走
+		// connect-only，layer_gen.go:52-57）。
+		cfgBGP := completedConfig(s, term.Config)
+		rawBGP, err := json.Marshal(cfgBGP)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("bgp layer config encode: %v", err))
+		} else {
+			var bcfg core.BGPConfig
+			decBGP := json.NewDecoder(bytes.NewReader(rawBGP))
+			decBGP.DisallowUnknownFields()
+			if err := decBGP.Decode(&bcfg); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors,
+					fmt.Sprintf("bgp layer config decode: %v", err))
+			} else {
+				spec.BGP = &bcfg
+			}
+		}
 	}
 	if term.Name == "pcep" && spec.PCEP == nil {
 		spec.PCEP = &core.PCEPConfig{}
