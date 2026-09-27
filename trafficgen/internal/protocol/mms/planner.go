@@ -39,8 +39,20 @@ func (Planner) Validate(spec core.FlowSpec) error {
 		}
 	}
 	if s := spec.MMS.Sequence; s != nil {
+		// 契约 §4.2 行「sequence 负值」的锚词保留（负值仍是独立的拒绝面）。
 		if s.Loop < 0 || s.StepGap < 0 || s.InjectOn < 0 {
 			return fmt.Errorf("mms: sequence values cannot be negative")
+		}
+		// G-MMS-2（契约 §2.3）：loop/stepGap/injectOn 在 layer_gen 零消费——
+		// 正值配上不生效即死配置，拒收（接线方案会改线上帧序，无契约要求）。
+		if s.Loop != 0 {
+			return fmt.Errorf("mms: sequence.loop is not supported (the field has no effect; remove it)")
+		}
+		if s.StepGap != 0 {
+			return fmt.Errorf("mms: sequence.stepGap is not supported (the field has no effect; remove it)")
+		}
+		if s.InjectOn != 0 {
+			return fmt.Errorf("mms: sequence.injectOn is not supported (the field has no effect; drive reports with steps=[\"report\"] + enableInformationReport)")
 		}
 		for _, step := range s.Steps {
 			if !validStep(step) {
@@ -53,9 +65,16 @@ func (Planner) Validate(spec core.FlowSpec) error {
 	}
 	return nil
 }
+
+// validType gates the datatypes the builder encodes for real. float /
+// binaryTime / structure fell through dataValue's default branch and emitted
+// ber(0x80, nil) — bytes that contradict the declared type (G-MMS-3), so the
+// validator rejects them rather than letting a mis-encoded value reach the
+// wire. "" stays accepted (unchanged): its wire semantics are undetermined in
+// the contract, and this batch only closes the mis-encoding face.
 func validType(s string) bool {
 	switch s {
-	case "", "boolean", "integer", "unsigned", "octetString", "float", "visibleString", "binaryTime", "utcTime", "structure":
+	case "", "boolean", "integer", "unsigned", "octetString", "visibleString", "utcTime":
 		return true
 	}
 	return false
