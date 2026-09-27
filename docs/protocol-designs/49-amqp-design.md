@@ -18,7 +18,7 @@
 | `amqp091_minimal` | AMQP 0-9-1 core | protocol header、start/tune/open、channel open/close、connection close | RabbitMQ 私有 extension method、AMQP 1.0、STOMP |
 | `amqp091_tls_boundary` | TLS 外层边界 | 仅未来 TLS/TCP 载体定义 | 未解密时不声称看见 AMQP method/header/body |
 
-**已注册/已落码现状（P1 实测，行号真实）**：`amqp` 终结层已注册（`registry.go:486`，`CategoryTerminal + DependsOn ["tcp"]`，`FieldContract {"tcp.dst_port": "5672"}`，注释 `registry.go:478-485`；层字段表 6 键 `profile/frame_max/channel_max/heartbeat/connections/wire_fault`）；白名单已登记（`protocols.go:22`）；配置结构 `AMQPConfig/AMQPConnection/AMQPEvent`（`types.go:286-330`）；wire 编码 `internal/protocol/amqp/builder.go`（762 行：protocol header/frame 组装、shortstr/longstr/table 编码、method 参数顺序表、properties、body 分段）；validator/generator `internal/protocol/amqp/planner.go`（462 行：`validateAMQPConfig :145`、`validateWireFault :432` 9 种 fault、生成器 `:20`）；策略子配置解析 `strategy_convert.go:636-638`；Meta 直传 `chain_planner_translate.go:157` + `generator.go:389`；TCP MSS 共用校验 `validate.go:101`；单元测试 29 个（`amqp_test.go` 678 行；**P6 后 30 个 / 774 行**——新增 `TestValidateChannelAndStateGuards` 覆盖 m1 点名的 7 条守卫分支）；生成表含 `amqp`（`layers.generated.json`，`depends_on ["tcp"]`，fields 6 键）；提交 `f59509c`。v1.0.0 所述"层尚未注册/仅占位"已过期，以本段为准（见 §17.2 旧文逐条核对）。
+**已注册/已落码现状（P1 实测，行号真实）**：`amqp` 终结层已注册（`registry.go:486`，`CategoryTerminal + DependsOn ["tcp"]`，`FieldContract {"tcp.dst_port": "5672"}`，注释 `registry.go:478-485`；层字段表 6 键 `profile/frame_max/channel_max/heartbeat/connections/wire_fault`）；白名单已登记（`protocols.go:22`）；配置结构 `AMQPConfig/AMQPConnection/AMQPEvent`（`types.go:286-330`）；wire 编码 `internal/protocol/amqp/builder.go`（762 行：protocol header/frame 组装、shortstr/longstr/table 编码、method 参数顺序表、properties、body 分段）；validator/generator `internal/protocol/amqp/planner.go`（462 行：`validateAMQPConfig :145`、`validateWireFault :432` 9 种 fault、生成器 `:20`）；策略子配置解析 `strategy_convert.go:636-638`；Meta 直传 `chain_planner_translate.go:157` + `generator.go:389`；TCP MSS 共用校验 `validate.go:101`；单元测试 29 个（`amqp_test.go` 678 行；**P6 后 30 个 / 801 行**——新增 `TestValidateChannelAndStateGuards` 覆盖 m1 点名的 7 条守卫分支 + 未开 channel 业务族 5 条，共 12 子例）；生成表含 `amqp`（`layers.generated.json`，`depends_on ["tcp"]`，fields 6 键）；提交 `f59509c`。v1.0.0 所述"层尚未注册/仅占位"已过期，以本段为准（见 §17.2 旧文逐条核对）。
 
 `cases/amqp.json` 现有 20 例（14 正/6 负）**全部已有 `layers`**（`[{"tcp":{}},{"amqp":{}}]` 空条目，20/20），但仍为旧扁平形（顶层 `src_ip/dst_ip/src_port/dst_port` + 顶层 `amqp` 子映射，无 `ip` 层、无 `flow_control`）——P4 按 §13.1 去向表改写。D-AMQP-1 未定稿——P4 落码前以门1 获批版为准，不宣称当前 suite 可运行。**【P4/P5/P6 已执行】**：上述改写已完成——现存 **24 例**（20 语义 ID + 4 链级红例），全部纯 `layers` 形（非负例顶层键=0）；lane8 suite 24/24 全绿、coverage 反查 68/68 绿。
 
@@ -241,7 +241,7 @@ Validate 必须覆盖 profile、TCP carrier/port、protocol header、frame type/
 
 ## 11. 修订记录
 
-- v2.1.0（2026-09-27）：P4–P6 交付与 P6 修轮回写。**P6 修轮**：§4.1 表 basic.cancel 21→30、basic.deliver 30→60（勘误第二轮，对 `builder.go:57/:59`）并按 method 数值重排 basic 段；§12.2 R3c2 引用回正（`#18` 实命 `:306`，channel 0 保留位 `:293` 由单测覆盖，不再高估 #18 覆盖面）；§13.12 序号算法落点回填（层链动态解析框架面 `layer_dyn.go` `resolveLayerTuple :770`，业务字段全关、无专属序号算法）；§16 G-AMQP-3 并入 m3 枚举缺口（`basic.get-ok` 60/71、`basic.cancel` 60/30、`basic.cancel-ok` 60/31 无例且未登记）；§10 ID 表 ipv6 行号 8→13、删除与实测矛盾的 `amqp_neg_unregistered` 占位句；行号漂移重钉（registry.go 486/478-485/488、strategy_convert.go 636-638、planner channel 锚 293/306）。P4–P5 交付（层链接线 + 24 例改写 + check_amqp 登记）见车道报告 p4-report.md。
+- v2.1.0（2026-09-27）：P4–P6 交付与 P6 修轮回写。**P6 修轮**：§4.1 表 basic.cancel 21→30、basic.deliver 30→60（勘误第二轮，对 `builder.go:57/:59`）并按 method 数值重排 basic 段；§12.2 R3c2 引用回正（`#18` 实命 `:306`，channel 0 保留位 `:293` 与未开 channel 业务族由单测覆盖，不再高估 #18 覆盖面）；§13.12 序号算法落点回填（层链动态解析框架面 `layer_dyn.go` `resolveLayerTuple :770`，业务字段全关、无专属序号算法）；§16 G-AMQP-3 并入 m3 枚举缺口（`basic.get-ok` 60/71、`basic.cancel` 60/30、`basic.cancel-ok` 60/31 无例且未登记）；§10 ID 表 ipv6 行号 8→13、删除与实测矛盾的 `amqp_neg_unregistered` 占位句；行号漂移重钉（registry.go 486/478-485/488、strategy_convert.go 636-638、planner channel 锚 293/306）。P4–P5 交付（层链接线 + 24 例改写 + check_amqp 登记）见车道报告 p4-report.md。
 - v2.0.0（2026-09-26）：P1–P3 完整产物。新增 §12 P1 八项规范矩阵 + 三子表（事件×连接/channel 状态矩阵、数据形态变体表、P1 三路对照 §12.4、候选方案对比 §12.5）；§13 门1 §1–§14 十四行表（§1/§3/§12 强制展开 + 目标形状 spec_json 样例 + presence 负例形状）；§14 D-AMQP-1 P2 代码设计草稿；§15 P3 对接清单；§16 缺口立项（G-AMQP-1/2/3/4）；§17 自重审与核对结论。§1 重写为已注册边界（注册行号 registry.go:486 实测）；§4.1 勘误 basic.publish/ack/get 系列 method ID（60/80/40/50→40/80/70/71/72）；§10 增补 confirm/tx 行与实测注记。
 - v1.0.0（2026-08-20）：建立 AMQP 0-9-1 over TCP 设计契约，覆盖 protocol header、method/header/body/heartbeat frame、握手和 channel 状态、exchange/queue/basic、IPv4/IPv6、多连接、多 channel、MSS/长度边界和 20 个正负语义 ID；当前仅提交设计与用例契约，不修改 Go 实现。
 
@@ -271,7 +271,7 @@ Validate 必须覆盖 profile、TCP carrier/port、protocol header、frame type/
 |---|---|---|---|---|
 | protocol_header | 已覆 #1/#13 | 不适用（首事件无前置） | 缺口→负例 #15（非 c2s 拒，`planner.go:227`） | 不适用 |
 | connection 握手方法（start..open-ok） | 已覆 #2/#3 | 缺口→负例 #17（open before tune-ok，`planner.go:272`） | 缺口→负例 #17（start 非 s2c 拒 `:240`；同 wire_fault `handshake_state` 通道） | 缺口→#17 通道（close 后 method 拒，`planner.go:201-211`） |
-| channel.open/close（业务 channel） | 已覆 #3/#11（多 channel 隔离） | 缺口→负例 #18（unopened channel 业务拒 `:306`/`:326`）+ 单测覆盖（channel 0 保留位 `:293`、open before open-ok `:290`、open-ok without open `:298`——`amqp_test.go` `TestValidateChannelAndStateGuards`） | 不适用（channel 方法方向无颠倒变体） | 已覆 #17 通道 |
+| channel.open/close（业务 channel） | 已覆 #3/#11（多 channel 隔离） | 缺口→负例 #18（basic.publish on unopened channel `:306`）+ 单测覆盖整族（channel 0 保留位 `:293`、open before open-ok `:290`、open-ok without open `:298`、未开 channel 业务族 `:326/:332/:336/:342/:350`——`amqp_test.go` `TestValidateChannelAndStateGuards` 12 子例） | 不适用（channel 方法方向无颠倒变体） | 已覆 #17 通道 |
 | content 序列（publish/deliver→header→body） | 已覆 #6/#7/#8（BodySize/分段/delivery 关联） | 缺口→负例 #19（body mismatch `planner.go:425`）+ #18 通道（unopened channel publish） | 缺口→负例 #19 通道（channel 错配 `:377/:403`） | 缺口→#17 通道 |
 | heartbeat | 已覆 #4/#11/#14（type 8/channel 0/size 0） | 缺口→负例 #17 通道（before open 拒 `planner.go:411`） | 不适用（heartbeat 无方向颠倒判） | 不适用 |
 | confirm/tx 方法 | **A′ T-21**（tx 已覆 #10；confirm 85 无例） | 不适用（confirm/tx 依赖 open channel，共享 #18 通道） | 不适用 | 不适用 |
@@ -330,7 +330,7 @@ Validate 必须覆盖 profile、TCP carrier/port、protocol header、frame type/
 | §9 测试三源 | 三源=AMQP 0-9-1 规范条款（编号级，精确章节待 G-AMQP-1）+ D-AMQP-1 + tshark `amqp.*` 493 字段已实证 + builder wire 真相 + 现网 RabbitMQ 形态（未确认级→G-AMQP-1）；20 ID 正负对账 | T-AMQP（testcase §9） |
 | §10 评审闭环 | 每阶段对抗自重审（结论见 p123 报告）+ 收官隔离复审 + 修轮；红先绿后 | /tmp/pipe/70-amqp/p123-report.md |
 | §11 白话 | 每阶段白话一句先行 | 汇报 |
-| §12 动态清单 | 见 §13.12 强制展开：四元组=ip/tcp 层（五策略全支持）；业务字段逐个列开/不开+理由；序号算法位置诚实"待 P4 定"（不编行号，§5.7） | 本契约 §13.12 |
+| §12 动态清单 | 见 §13.12 强制展开：四元组=ip/tcp 层（五策略全支持）；业务字段逐个列开/不开+理由；序号算法位置已回填（层链动态解析框架面 `layer_dyn.go` `resolveLayerTuple :770`；amqp 业务字段全关，无专属算法——§5.7） | 本契约 §13.12 |
 | §13 schema 派生 | registry amqp 行（`DependsOn ["tcp"]` + 6 键 Fields；端口缺省 5672 双通道：strategy_convert `:636-638` 用户未写时覆盖 + FieldContract 通用块 `chain_planner.go:596-604`——fixture 显式写 5672 时均不生效）→ schemagen 重跑验证；struct 标签字面量锁 | §14 接线件 |
 | §14 真实流程 | suite 经 MCP 建任务→引擎生成→tshark `amqp.*` 字段 + frames hex 双通道；先跑后钉；pcap 落 `/tmp/mcp-pcaps/amqp/` | 用例 §1/§6 |
 
@@ -480,7 +480,7 @@ basic.publish content 序列样例（publish→HEADER→BODY，BodySize 自动�
 | internal/protocol/amqp/builder.go（已落码，762 行） | wire 纯函数：常量（`:11-27` frame type/end/headerLen、`:31-37` class、`:39-67` method）/`buildProtocolHeader`（`:75`）/`buildMethodFrame`（`:80`）/`buildHeaderFrame`（`:92`）/`buildBodyFrame`（`:110`）/`buildHeartbeatFrame`（`:116`）/`buildFrame`（`:122`）/`encodeShortstr`（`:134-141`）/`encodeLongstr`（`:145`）/`encodeFieldTable`（`:159`）/`encodeMethodArguments`（`:229`，序表 `methodArgOrder :525`）/`encodeProperties`（`:637`）/`resolveBody`（`:703`）/`splitBody`（`:725-749`） |
 | internal/protocol/amqp/planner.go（已落码，462 行） | `AMQPGenerator.Generate`（`:20-134`：全连接扫 `:37`、body 分段 `:88-106`、channel 状态跟踪 `:116-126`）/`validateAMQPConfig`（`:145-429`：wire_fault `:151-153`、profile `:155-157`、connections 必填 `:159-161`、frame_max≥8 `:171-173`、**仅 Connections[0]** `:174`、状态机 `:196-417`）/`validateWireFault`（`:432-455` 9 值）/注册（`:457-462`） |
 | internal/core/types.go（已落码） | `AMQPConfig`（`:286-297` 6 键）+ `AMQPConnection`（`:299-308` 5 键）+ `AMQPEvent`（`:310-330` 11 键）+ `FlowSpec.AMQP`（`:1706`） |
-| internal/protocol/amqp/amqp_test.go（已落码；P6 后 774 行） | 单元测试 30 个（P4 复用 + P6 补 7 条守卫分支测试，不改实现口径） |
+| internal/protocol/amqp/amqp_test.go（已落码；P6 后 801 行） | 单元测试 30 个（P4 复用 + P6 补守卫分支测试 12 子例，不改实现口径） |
 | internal/protocol/amqp/casegen_test.go（P4 NEW） | 一次性生成器：20 例（14 正+6 负）+ 4 链级红例契约计数逐例 add()，落 test/protocol_pcap/cases/amqp.json（层链整形后形状） |
 | 接线件（已落码，P4 只验证） | registry `registry.go:486-497`（`DependsOn ["tcp"]` + FieldContract 5672 + Fields 6 键）；`chain_planner.go:596-604` FieldContract 端口通用块；`strategy_convert.go:636-638` 子配置解析；`chain_planner_translate.go:157` + `generator.go:389` Meta 直传；`validate.go:101` TCP MSS 共用校验；`protocols.go:22` 白名单 + `protocols_test.go:20` 同步；schemagen 重跑验证无过期 |
 | P4 新增守卫 | validate_layers 预检：presence（层链+顶层空子映射并存拒）/白名单外游离键拒/链夹 udp 拒/缺 tcp 拒（单载体，无 OptionalOn 面——TLS 面 → G-AMQP-1 另议，不在本轮守卫） |

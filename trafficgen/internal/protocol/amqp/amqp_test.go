@@ -524,6 +524,33 @@ func TestValidateChannelAndStateGuards(t *testing.T) {
 			events: withHeader(append(aGuardHandshake(), core.AMQPEvent{Kind: "bogus", Direction: "c2s"})...),
 			anchor: "unknown kind",
 		},
+		// 未开 channel 业务方法族（planner.go:326/:332/:336/:342/:350）——
+		// 与 :306（#18 已覆 publish）同一守卫形状，逐方法各一测。
+		{
+			name:   "basic.consume on unopened channel",
+			events: withHeader(append(aGuardHandshake(), aGuardMethod("c2s", 4, 60, 20))...),
+			anchor: "basic.consume on unopened channel 4",
+		},
+		{
+			name:   "basic.get on unopened channel",
+			events: withHeader(append(aGuardHandshake(), aGuardMethod("c2s", 4, 60, 70))...),
+			anchor: "basic.get on unopened channel 4",
+		},
+		{
+			name:   "exchange.declare on unopened channel",
+			events: withHeader(append(aGuardHandshake(), aGuardMethod("c2s", 4, 40, 10))...),
+			anchor: "exchange.declare on unopened channel 4",
+		},
+		{
+			name:   "queue.declare on unopened channel",
+			events: withHeader(append(aGuardHandshake(), aGuardMethod("c2s", 4, 50, 10))...),
+			anchor: "queue.declare on unopened channel 4",
+		},
+		{
+			name:   "confirm.select on unopened channel",
+			events: withHeader(append(aGuardHandshake(), aGuardMethod("c2s", 4, 85, 10))...),
+			anchor: "confirm.select on unopened channel 4",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
