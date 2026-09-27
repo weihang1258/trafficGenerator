@@ -7,6 +7,7 @@
 > Config 结构体位置（计划）：`trafficgen/internal/core/types.go` 中的 `GBT32960Config`。
 > 文档版本：v1.1.3（2026-08-03 三轮审计返工后；历史版本见附录 D）。
 > 测试用例数：126 条（T-GBT-001~108，含 17 个子用例 a/b/c/d；v1.1.3 新增 T-GBT-048a 与 T-GBT-096a）。
+> P6 M1 注记（2026-09-28，P6 关单主线程）：头注"126 条"已 stale——P6 实测 suite 116 例（70 正 + 46 负）；v1.2.0 design 正文在库内/工作树/backup 三处均不存在（P6 已核），v1.2.0/testcase 入库版本待另轮裁定，本轮不虚构 v2 内容（M1 open 维持）。
 >
 > 术语约定：本文档中所有英文标识符（field name、const name、JSON key）首次出现时在其后用括号标注中文解释，例如 `VIN`（车辆识别码，Vehicle Identification Number）。后续出现不再重复标注。
 
