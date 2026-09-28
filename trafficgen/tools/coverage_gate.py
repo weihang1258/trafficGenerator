@@ -6375,6 +6375,141 @@ def check_xmrmining(cases):
     return rows
 
 
+def check_stratum(cases):
+    """D-STRATUM-1 P4 反查表（40 例 = 29 正 + 11 负，G-ST-1..7 落码面）。
+    返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线（G-ST-1：层 config 翻译路径）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 stratum", '"stratum": true' in pg, "在列"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case stratum（严格解码——G-ST-1 首要）",
+                 'case "stratum":' in tr and "stratum layer config decode" in tr
+                 and "DisallowUnknownFields" in tr, "在案"))
+    rows.append(("FlowMeta.Stratum 直传（Meta 字面量检查点）",
+                 re.search(r"Stratum:\s+spec\.Stratum\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.Stratum 字段", re.search(r"Stratum\s+\*core\.StratumConfig", gen) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "stratum"')
+    reg_block = rg[i_reg:rg.index('Name: "ethmining"', i_reg)]
+    rows.append(("registry stratum 行（DependsOn tcp + FieldContract 3333 + 五键 Fields）",
+                 'DependsOn:     []string{"tcp"}' in reg_block
+                 and '"tcp.dst_port": "3333"' in reg_block
+                 and '"sessions"' in reg_block and '"wire_fault"' in reg_block
+                 and '"concurrent"' in reg_block and '"extensions"' in reg_block
+                 and '"profile"' in reg_block, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(stratum)",
+                 "internal/protocol/stratum" in mn and 'NewChainPlanner("stratum")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("strategy_convert case stratum 收敛（不读顶层 stratum）",
+                 'case "stratum":' in sc
+                 and 'parseSubconfigJSON[*StratumConfig](&spec, sub, "stratum"' not in sc, "在案"))
+    rows.append(("CheckProtoFlat presence 判死顶层 stratum（G-ST-4）",
+                 "no longer accepts a top-level stratum sub-config" in sc, "在案"))
+    rows.append(("mapToFlowSpec 顶层 stratum → ValidationErrors（在库旧策略执法）",
+                 'if protocol == "stratum" {' in sc, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    i_vl = vl.index('if protocol == "stratum" {')
+    vl_block = vl[i_vl:vl.index('if protocol == "amqp" {', i_vl)]
+    rows.append(("G-ST-6 链级载体/地址族自然守卫（缺 tcp / 夹 udp / 混合族）",
+                 "missing tcp carrier — stratum requires an [ip,tcp,stratum] chain" in vl_block
+                 and "udp carrier is not supported" in vl_block
+                 and "mixed address family in ip layer" in vl_block, "在案"))
+    st = (tg / "internal" / "core" / "stratum.go").read_text()
+    rows.append(("G-ST-2 事件键接线（version_rolling_mask/min_bit_count/configure extensions）",
+                 "version_rolling_mask" in st and "min_bit_count" in st
+                 and "Extensions []string" in st, "在案"))
+    rows.append(("G-ST-2 termination 死键退役（struct 无此键——终止行为住 tcp 层 rst）",
+                 'json:"termination' not in st, "已退役"))
+    lg = (tg / "internal" / "protocol" / "stratum" / "layer_gen.go").read_text()
+    rows.append(("G-ST-2 configure 分支消费新键（缺省保持 FixtureCfgParams）",
+                 "ev.VersionRollingMask" in lg and "ev.MinBitCount" in lg
+                 and "FixtureCfgParams" in lg, "在案"))
+    ct = (tg / "internal" / "core" / "layers" / "stratum_chain_test.go").read_text()
+    rows.append(("链级红例在案（翻译/presence+游离/载体/严格解码/事件键/端口域）",
+                 "TestStratumChain_TranslateReachesSpec" in ct
+                 and "TestStratumChain_PresenceAndStrayTopLevelKeys" in ct
+                 and "TestStratumChain_CarrierShapes" in ct
+                 and "TestStratumChain_StrictDecode" in ct
+                 and "TestStratumChain_ConfigureEventKeys" in ct
+                 and "TestStratumChain_PortDomain" in ct, "在案"))
+    vt = (tg / "tools" / "pipe_gate.sh").read_text()
+    rows.append(("pipe_gate presence 红线登记 stratum", "|stratum|" in vt or "|stratum)" in vt, "在案"))
+
+    # 2. 用例面（40 例 = 29 正 + 11 负；proto=stratum；非负例顶层键=0）。
+    pos = [c for c in cases if "packet_count" in (c.get("expect") or {})]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("40 例对账（29 正+11 负）", len(pos) == 29 and len(neg) == 11 and len(cases) == 40,
+                 f"{len(pos)}+{len(neg)}={len(cases)}"))
+    bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "stratum"]
+    rows.append(("proto 全=stratum（单准入名）", not bad_proto, bad_proto or "全 stratum"))
+    rows.append(("G-ST-1 收官自查：非负例顶层键 = {layers, flow_control}",
+                 all(set((c.get("spec_json") or {}).keys()) <= {"layers", "flow_control"}
+                     for c in pos), "穷尽"))
+    rows.append(("负例顶层键 = {layers}（expect 键集严格）",
+                 all(set((c.get("spec_json") or {}).keys()) == {"layers"} for c in neg)
+                 and all(set((c.get("expect") or {}).keys()) == {"expect_error", "error_contains"}
+                         for c in neg), "穷尽"))
+    for kw, name in [
+        ("stratum_subscribe_ipv4", "① subscribe 基线"),
+        ("stratum_authorize", "② 授权"),
+        ("stratum_authorize_reject", "③ 授权拒绝（error[24]）"),
+        ("stratum_notify_job", "④ notify 九元素"),
+        ("stratum_set_extranonce", "⑤ 轮换（2 元素）"),
+        ("stratum_submit_accept", "⑥ 提交接受"),
+        ("stratum_submit_reject", "⑦ 提交拒绝（error[21]，会话继续）"),
+        ("stratum_client_get_version", "⑧ 反向请求 + 自动应答"),
+        ("stratum_configure_version_rolling", "⑨ BIP310 configure"),
+        ("stratum_submit_version_bits", "⑩ version_bits 第 6 参"),
+        ("stratum_notify_empty_merkle", "⑪ 空 merkle"),
+        ("stratum_extranonce2_size8", "⑫ en2 size=8"),
+        ("stratum_line_packing", "⑬ 多行粘连单段"),
+        ("stratum_mss_large_coinb1", "⑭ 大 coinb1 跨 MSS"),
+        ("stratum_ipv6", "⑮ IPv6"),
+        ("stratum_multi_session", "⑯ 多会话展开"),
+        ("stratum_concurrent_sessions", "⑰ 并发交错"),
+        ("stratum_rst_pool_kick", "⑱ RST 短路"),
+        ("stratum_reconnect_resubscribe", "⑲ 重连重订阅"),
+        ("stratum_port_nondefault", "⑳ 非默认端口 4444"),
+        ("stratum_neg_carrier", "负例 carrier（G-ST-6 链面自然守卫）"),
+        ("stratum_neg_address_family", "负例 address_family"),
+        ("stratum_neg_error_propagation", "负例 propagation"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 3. 锚词面（11 负例 error_contains 与设计 §7 表主锚词一致）。
+    anchors = {"json", "framing", "unknown", "params", "hex", "state", "id",
+               "job", "carrier", "ip", "propagat"}
+    got = {(c.get("expect") or {}).get("error_contains") for c in neg}
+    missing = sorted(a for a in anchors if not any(a in (g or "") for g in got))
+    rows.append((f"负例锚词覆盖 {len(anchors)} 族（设计 §7 主锚词）", not missing,
+                 missing or sorted(got)))
+    # G-ST-2：wire_fault 注入负例 = 10（载体例改走链面自然守卫，不再注入）。
+    wf_in_cfg = [c.get("id") for c in neg
+                 if any((l.get("stratum") or {}).get("wire_fault")
+                        for l in (c.get("spec_json", {}).get("layers") or [])
+                        if isinstance(l, dict))]
+    rows.append(("wire_fault 注入负例 =10（carrier 例改链面守卫）",
+                 len(wf_in_cfg) == 10, f"{len(wf_in_cfg)} 例注入"))
+    # G-ST-2：stratum 级 termination 死键已清零（tcp 层 rst 承载终止）。
+    term = [c.get("id") for c in cases
+            if any("termination" in (l.get("stratum") or {})
+                   for l in (c.get("spec_json", {}).get("layers") or [])
+                   if isinstance(l, dict))]
+    rows.append(("G-ST-2 stratum 级 termination 零残留", not term, term or "零残留"))
+    # 正例载体形状：每例链含 ip/tcp/stratum 三层。
+    bad_chain = [c.get("id") for c in pos
+                 if {n for l in (c.get("spec_json", {}).get("layers") or []) if isinstance(l, dict)
+                     for n in l} != {"ip", "tcp", "stratum"}]
+    rows.append(("正例链形恒 = [ip,tcp,stratum]", not bad_chain, bad_chain or "全部三层"))
+    return rows
+
+
 
 def check_dtls(cases):
     """D-DTLS-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
@@ -7411,7 +7546,7 @@ def check_rtmfp(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "stratum": check_stratum}
 
 
 def main(argv):
