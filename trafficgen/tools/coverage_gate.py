@@ -1660,10 +1660,20 @@ def check_ospf(cases):
     rows.append(("translate 层优先守卫（spec.OSPF != nil 不覆盖）",
                  "if spec.OSPF == nil {" in tr_block, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
-    rows.append(("CheckProtoFlat 顶层 ospf 子映射 presence 判死",
-                 "protocol ospf no longer accepts a top-level ospf sub-config" in sc, "在案"))
-    rows.append(("mapToFlowSpec 顶层 ospf → ValidationErrors（在库旧策略执法）",
-                 sc.count('if protocol == "ospf" {') >= 2, "在案"))
+    # M-2（gen-review）：原判据为宽泛子串（presence 行查整文件任意位置的文案；
+    # mapToFlowSpec 行查与 presence 分支共用的 `if protocol == "ospf" {`）。
+    # 同 coap C1 / tns M1 / stratum M1 同型缺陷——门断言「文本出现过」而非
+    # 「行为成立」。改为断言各块**特有体**。
+    _presence_ospf = ('if protocol == "ospf" {\n'
+                      '\t\tif v, ok := cfg["ospf"]; ok && v != nil {\n'
+                      '\t\t\treturn "protocol ospf no longer accepts a top-level ospf sub-config')
+    _mapfs_ospf = ('if protocol == "ospf" {\n'
+                   '\t\tif v, ok := cfg["ospf"]; ok && v != nil {\n'
+                   '\t\t\tspec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))')
+    rows.append(("CheckProtoFlat 顶层 ospf 子映射 presence 判死（判据=块体非裸文案）",
+                 _presence_ospf in sc, "在案"))
+    rows.append(("mapToFlowSpec 顶层 ospf → ValidationErrors（在库旧策略执法，判据=块体非裸子串）",
+                 _mapfs_ospf in sc, "在案"))
     vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
     i_vl = vl.index('if protocol == "ospf" {')
     vl_block = vl[i_vl:vl.index("effective, err := ValidateLayers", i_vl)]
