@@ -2051,30 +2051,42 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.PostgreSQL != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略
 		}
-		// 层 config（dialect/wire_profile/events/sessions/wire_fault）经 JSON
-		// 往返解码为 core.PostgreSQLConfig：json tag 覆盖全部字段（含
-		// events[].authtype *int32），比逐字段 map 取值更忠实。
+		// D-POSTGRESQL-1 P4：层 config（dialect/wire_profile/events/sessions/
+		// wire_fault）经 JSON 往返解码为 core.PostgreSQLConfig。json tag 覆盖
+		// 全部字段（含 events[].authtype *int32、cols/row_values/oids 等新
+		// 事件面），比逐字段 map 取值更忠实，新字段无需在此逐项搬运。
+		//
+		// 解码错误不再静默回退到最小默认配置（旧实现会在解码失败时塞一个
+		// 空 PG 配置，把坏配置变成"能建但发空流"）——改为记 ValidationErrors
+		// 让任务在链边界被拒（零假成功，CORE_MEMORY §14.11）。
+		//
+		// 事件内未知键（含已删死字段 profile/result）本层不判死：层字段白名单
+		// 是 ValidateLayers V9（层顶 5 键，见 #59 负例），而 events[] 是 list 型
+		// 无界字段，其元素键不受 registry 约束（设计 §2.2）。kingbase.json 的
+		// 存量 14 例仍携带这两个死字段，本协议主形用例（64 ID）已全部不写；
+		// 残留容忍登记为有界缺口（见 coverage_gate check_postgresql 注记）。
 		cfg := completedConfig(s, term.Config)
 		raw, err := json.Marshal(cfg)
 		if err != nil {
-			return // 理论不可达（config 已是 JSON 可编码 map）
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("postgresql layer config encode: %v", err))
+			return
 		}
 		var pg core.PostgreSQLConfig
-		if err := json.Unmarshal(raw, &pg); err == nil {
-			// 默认值兜底：schema 默认已由 completedConfig 填充，这里再显式
-			// 断言 dialect/wire_profile 非空（transcribe 防御）。
-			if pg.Dialect == "" {
-				pg.Dialect = "postgresql"
-			}
-			if pg.WireProfile == "" {
-				pg.WireProfile = "postgresql_v3"
-			}
-			spec.PostgreSQL = &pg
-		} else {
-			// config 含非 JSON 可编码值（极端）→ 用一个最小默认，让后续
-			// validator 报错而不是静默空流。
-			spec.PostgreSQL = &core.PostgreSQLConfig{Dialect: "postgresql", WireProfile: "postgresql_v3"}
+		if err := json.Unmarshal(raw, &pg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("postgresql layer config decode: %v", err))
+			return
 		}
+		// 默认值兜底：schema 默认已由 completedConfig 填充，这里再显式
+		// 断言 dialect/wire_profile 非空（transcribe 防御）。
+		if pg.Dialect == "" {
+			pg.Dialect = "postgresql"
+		}
+		if pg.WireProfile == "" {
+			pg.WireProfile = "postgresql_v3"
+		}
+		spec.PostgreSQL = &pg
 	case "megaco":
 		if spec.Megaco != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略

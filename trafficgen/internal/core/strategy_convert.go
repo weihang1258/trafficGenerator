@@ -534,6 +534,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-POSTGRESQL-1（G-PG-6 关闭）：postgresql 在库旧策略顶层 postgresql
+	// → ValidationErrors（dameng 同款；空 map 也死——判死形状「层链+顶层
+	// 空子映射并存」wired 面。层链形状不触发）。
+	if protocol == "postgresql" {
+		if v, ok := cfg["postgresql"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-DAMENG-1（§10.6 残留洞升 G-DM-6 后 P4 落码）：dameng 在库旧策略
 	// 顶层 dameng → ValidationErrors（enip 同款；空 map 也死——判死形状
 	// 「层链+顶层空子映射并存」。层链形状不触发：cells 有 layers 且无
@@ -4748,9 +4756,13 @@ func parsePostgreSQLConfig(m map[string]interface{}) *PostgreSQLConfig {
 }
 
 // parsePostgreSQLEvents converts the JSON-decoded "events" value (an array of
-// {kind, direction, profile, authtype, name, value, pid, secret, sql, tag, ...}
-// objects) into a []PostgreSQLEvent for the shared postgresql layer's
+// event objects) into a []PostgreSQLEvent for the shared postgresql layer's
 // event-driven generator. Returns nil for absent/non-array input.
+//
+// D-POSTGRESQL-1 P4: the decode is a JSON round-trip rather than a per-key map
+// walk, so every new event field (cols/row_values/oids/statement/portal/...)
+// rides along automatically and cannot silently drift from the struct tags
+// (the chain path's translateTerminalConfig uses the same technique).
 func parsePostgreSQLEvents(v interface{}) []PostgreSQLEvent {
 	arr, ok := v.([]interface{})
 	if !ok || len(arr) == 0 {
@@ -4762,23 +4774,13 @@ func parsePostgreSQLEvents(v interface{}) []PostgreSQLEvent {
 		if !ok {
 			continue
 		}
-		ev := PostgreSQLEvent{
-			Kind:      getString(m, "kind"),
-			Direction: getString(m, "direction"),
-			Profile:   getString(m, "profile"),
-			User:      getString(m, "user"),
-			Database:  getString(m, "database"),
-			Result:    getString(m, "result"),
-			SQL:       getString(m, "sql"),
-			Tag:       getString(m, "tag"),
-			Name:      getString(m, "name"),
-			Value:     getString(m, "value"),
-			PID:       int32(getInt(m, "pid")),
-			Secret:    int32(getInt(m, "secret")),
+		raw, err := json.Marshal(m)
+		if err != nil {
+			continue
 		}
-		if _, ok := m["authtype"]; ok {
-			at := int32(getInt(m, "authtype"))
-			ev.Authtype = &at
+		var ev PostgreSQLEvent
+		if err := json.Unmarshal(raw, &ev); err != nil {
+			continue
 		}
 		out = append(out, ev)
 	}
@@ -8693,6 +8695,15 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "drda" {
 		if v, ok := cfg["drda"]; ok && v != nil {
 			return "protocol drda no longer accepts a top-level drda sub-config (move it into the drda layer of an [ip,tcp,drda] layers chain)"
+		}
+	}
+	// D-POSTGRESQL-1（G-PG-6 关闭）：postgresql 顶层 postgresql 子映射
+	// presence 判死（drda 先例；空 map 也死——配置住 postgresql 层五键，
+	// 层链是唯一真相）。层链形状不触发。kingbase 无自键：其协议身份已退役
+	// （唯一形态 = postgresql 层 dialect:"kingbase"）。
+	if protocol == "postgresql" {
+		if v, ok := cfg["postgresql"]; ok && v != nil {
+			return "protocol postgresql no longer accepts a top-level postgresql sub-config (move it into the postgresql layer of an [ip,tcp,postgresql] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-SSTP-1：sstp 顶层 sstp 子映射 presence 判死（kerberos 之后的 sstp
