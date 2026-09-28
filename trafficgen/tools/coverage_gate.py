@@ -5722,8 +5722,9 @@ def check_icmp(cases):
 
 
 def check_hds(cases):
-    """D-HDS-1（G-HDS-1）P4 反查表（21 例 = 13 改写正 + 4 自然守卫负 +
-    4 链级红例；[ip,tcp,http,hds] body 变换器族）。返回 [(检查名, 通过?, 证据)]。"""
+    """D-HDS-1（G-HDS-1）P4 反查表（25 例 = 15 正（13 改写 + 生成式 bootstrap
+    + 非默认端口）+ 6 自然守卫负（含 sessions 空 / Base64 非法）+ 4 链级红例；
+    [ip,tcp,http,hds] body 变换器族）。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
     tg = Path(__file__).resolve().parent.parent
     lays = []
@@ -5815,15 +5816,16 @@ def check_hds(cases):
         "hds_manifest_bootstrap_fragment", "hds_keepalive_fragments",
         "hds_multi_session", "hds_ipv6", "hds_mss_reassembly",
         "hds_live_update", "hds_vod_end", "hds_boundary_box",
+        "hds_bootstrap_generated", "hds_non_default_port",
         "hds_neg_manifest", "hds_neg_bootstrap", "hds_neg_fragment",
-        "hds_neg_session_state",
+        "hds_neg_session_state", "hds_neg_sessions_empty", "hds_neg_bootstrap_base64",
         "hds_neg_presence_top_level_hds", "hds_neg_stray_src_mac",
         "hds_neg_flat_count", "hds_neg_carrier_no_http",
     ]:
         rows.append((f"用例在案：{cid}", cid in ids, "在案"))
     pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
     neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
-    rows.append(("用例总数 21（13 正+8 负）", len(cases) == 21 and len(pos) == 13 and len(neg) == 8,
+    rows.append(("用例总数 25（15 正+10 负）", len(cases) == 25 and len(pos) == 15 and len(neg) == 10,
                  f"{len(cases)} 例 / {len(pos)} 正 / {len(neg)} 负"))
     rows.append(("非负例顶层键=0（仅 layers/flow_control 家族）",
                  all(set((c.get("spec_json") or {}).keys()) <= {"layers", "flow_control", "strategy_fc", "output", "output_config", "group_id"}
@@ -5834,12 +5836,49 @@ def check_hds(cases):
     rows.append(("正例链形=[ip,tcp,http,hds]",
                  all([list(l.keys()) for l in (c.get("spec_json") or {}).get("layers", [])] == [["ip"], ["tcp"], ["http"], ["hds"]]
                      for c in pos), "穷尽"))
+    gen_case = next((c for c in cases if c.get("id") == "hds_bootstrap_generated"), None)
+    gen_mf = None
+    if gen_case:
+        for l in (gen_case.get("spec_json") or {}).get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("hds"), dict):
+                gen_mf = l["hds"].get("manifest")
+                break
+    rows.append(("生成式 bootstrap 触发源（manifest 无 bootstrap_infos → buildBootstrapBox 路径）",
+                 isinstance(gen_mf, dict) and not gen_mf.get("bootstrap_infos")
+                 and bool(gen_mf.get("media")), "在位" if gen_mf else "触发源缺失"))
+    port_case = next((c for c in cases if c.get("id") == "hds_non_default_port"), None)
+    port_val = None
+    if port_case:
+        for l in (port_case.get("spec_json") or {}).get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("tcp"), dict):
+                port_val = l["tcp"].get("dst_port")
+                break
+    rows.append(("非默认端口触发源（tcp.dst_port=8080 显式覆盖 FieldContract 80）",
+                 port_val == 8080, f"dst_port={port_val}"))
     for k in ["profile", "keep_alive", "manifest", "sessions"]:
         hit = next((cid for cid, m in lays if k in m), None)
         rows.append((f"层键覆盖：{k}", hit is not None, hit or "无用例"))
     rows.append(("manifest 嵌套覆盖（media/bootstrap_infos 非空）",
                  any(isinstance(m.get("manifest"), dict) and m["manifest"].get("media")
                      and m["manifest"].get("bootstrap_infos") for _, m in lays), "在案"))
+    ct_hits = [c.get("id") for c in cases
+               for f in ((c.get("expect") or {}).get("fields") or [])
+               if f.get("field") == "http.content_type"]
+    rows.append(("三 Content-Type 面覆盖（octet-stream/f4m+xml）",
+                 "hds_bootstrap_generated" in ct_hits and "hds_non_default_port" in ct_hits
+                 and any((f.get("value") == "video/f4f")
+                         for c in cases for f in ((c.get("expect") or {}).get("fields") or [])
+                         if f.get("field") == "http.content_type"),
+                 f"命中 {sorted(set(ct_hits))}"))
+    # sessions 空 / Base64 非法：锚词系代码文案（planner.go 守卫行已专查），
+    # 用例侧对 expect.error_contains 直读断言（kingbase _err_anchor 同款）。
+    for cid, want, name in [
+        ("hds_neg_sessions_empty", "sessions", "sessions 空负例（error_contains=sessions）"),
+        ("hds_neg_bootstrap_base64", "bootstrap base64 decode", "Base64 非法负例（error_contains 逐字）"),
+    ]:
+        c = next((x for x in cases if x.get("id") == cid), None)
+        got = (c.get("expect", {}) or {}).get("error_contains") if c else None
+        rows.append((name, got == want, got or "无用例"))
     for needle, name in [
         ("no longer accepts a top-level hds sub-config", "presence 判死锚（逐字）"),
         ("no longer accepts flat config field count", "游离 count 锚（逐字）"),

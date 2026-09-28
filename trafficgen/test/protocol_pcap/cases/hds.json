@@ -2,7 +2,7 @@
   {
     "id": "hds_manifest_ipv4",
     "proto": "hds",
-    "summary": "HDS F4M manifest over IPv4 HTTP（D-HDS-1 迁层：业务住 layers[].hds）",
+    "summary": "HDS F4M manifest over IPv4 HTTP（D-HDS-1 迁层：业务住 layers[].hds） | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -90,7 +90,7 @@
   {
     "id": "hds_bootstrap_abst",
     "proto": "hds",
-    "summary": "HDS bootstrap abst box via base64",
+    "summary": "HDS bootstrap abst box via base64 | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -178,7 +178,7 @@
   {
     "id": "hds_asrt_segment_runs",
     "proto": "hds",
-    "summary": "HDS asrt segment run table",
+    "summary": "HDS asrt segment run table | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -268,7 +268,7 @@
   {
     "id": "hds_afrt_fragment_runs",
     "proto": "hds",
-    "summary": "HDS afrt fragment run table",
+    "summary": "HDS afrt fragment run table | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -358,7 +358,7 @@
   {
     "id": "hds_fragment_f4f",
     "proto": "hds",
-    "summary": "HDS F4F fragment box",
+    "summary": "HDS F4F fragment box | 离线 Plan 实钉（2026-09-28）：包 5 = 200 video/f4f（mdat 盒）；套件跑法待 P5 suite 复核（frames 补钉）",
     "spec_json": {
       "layers": [
         {
@@ -439,6 +439,11 @@
           "packet": 5,
           "field": "http.response.code",
           "value": "200"
+        },
+        {
+          "packet": 5,
+          "field": "http.content_type",
+          "value": "video/f4f"
         }
       ]
     }
@@ -446,7 +451,7 @@
   {
     "id": "hds_manifest_bootstrap_fragment",
     "proto": "hds",
-    "summary": "HDS full state machine: manifest → bootstrap → fragment",
+    "summary": "HDS full state machine: manifest → bootstrap → fragment | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -547,7 +552,7 @@
   {
     "id": "hds_keepalive_fragments",
     "proto": "hds",
-    "summary": "HDS keep-alive multi-fragment",
+    "summary": "HDS keep-alive multi-fragment | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -651,7 +656,7 @@
   {
     "id": "hds_multi_session",
     "proto": "hds",
-    "summary": "HDS two isolated sessions",
+    "summary": "HDS two isolated sessions | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -748,7 +753,7 @@
   {
     "id": "hds_ipv6",
     "proto": "hds",
-    "summary": "HDS manifest over IPv6 HTTP",
+    "summary": "HDS manifest over IPv6 HTTP | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -831,7 +836,7 @@
   {
     "id": "hds_mss_reassembly",
     "proto": "hds",
-    "summary": "HDS with MSS segmentation",
+    "summary": "HDS with MSS segmentation | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -915,7 +920,7 @@
   {
     "id": "hds_live_update",
     "proto": "hds",
-    "summary": "HDS live bootstrap update",
+    "summary": "HDS live bootstrap update | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -1012,7 +1017,7 @@
   {
     "id": "hds_vod_end",
     "proto": "hds",
-    "summary": "HDS VOD end of stream",
+    "summary": "HDS VOD end of stream | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -1095,7 +1100,7 @@
   {
     "id": "hds_boundary_box",
     "proto": "hds",
-    "summary": "HDS boundary box sizes",
+    "summary": "HDS boundary box sizes | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -1171,6 +1176,190 @@
           "packet": 5,
           "field": "http.response.code",
           "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hds_bootstrap_generated",
+    "proto": "hds",
+    "summary": "HDS generated bootstrap box (no inline base64 → abst/asrt/afrt build path) | 离线 Plan 实钉（2026-09-28）：包 4 = GET /live/channel.bootstrap，包 5 = 200 application/octet-stream + abst 盒头 0000006f 61627374（111B payload，Content-Length 111）；套件跑法待 P5 suite 复核（帧级 frames 补钉）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.47",
+            "dst": "198.51.100.47"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 41021,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
+                {
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    }
+                  ]
+                }
+              ]
+            },
+            "sessions": [
+              {
+                "kind": "bootstrap",
+                "uri": "/live/channel.bootstrap"
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/channel.bootstrap"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        },
+        {
+          "packet": 5,
+          "field": "http.content_type",
+          "value": "application/octet-stream"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hds_non_default_port",
+    "proto": "hds",
+    "summary": "HDS manifest over explicit non-default port 8080 (FieldContract override) | 离线 Plan 实钉（2026-09-28）：tcp.dst_port=8080 生效、包 4 = GET /live/channel.f4m，包 5 = 200 application/f4m+xml；套件跑法待 P5 suite 复核",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.47",
+            "dst": "198.51.100.47"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 41022,
+            "dst_port": 8080
+          }
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
+                {
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
+                {
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
+                }
+              ]
+            },
+            "sessions": [
+              {
+                "kind": "manifest",
+                "uri": "/live/channel.f4m"
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/channel.f4m"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "8080"
+        },
+        {
+          "packet": 5,
+          "field": "http.content_type",
+          "value": "application/f4m+xml"
         }
       ]
     }
@@ -1264,6 +1453,139 @@
     "expect": {
       "expect_error": true,
       "error_contains": "bootstrap"
+    }
+  },
+  {
+    "id": "hds_neg_sessions_empty",
+    "proto": "hds",
+    "summary": "HDS negative: empty sessions list（设计 §10.2 P4 必含：sessions 空 pcap 例）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.47",
+            "dst": "198.51.100.47"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 41023,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
+                {
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
+                {
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
+                }
+              ]
+            },
+            "sessions": []
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "sessions"
+    }
+  },
+  {
+    "id": "hds_neg_bootstrap_base64",
+    "proto": "hds",
+    "summary": "HDS negative: invalid base64 bootstrap（设计 §4/§10.2 P4 必含：buildSessionBody 解码前 validateManifest 拦截）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.47",
+            "dst": "198.51.100.47"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 41024,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
+                {
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
+                {
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "!!!not-base64!!!"
+                }
+              ]
+            },
+            "sessions": [
+              {
+                "kind": "manifest",
+                "uri": "/live/bad.f4m"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "bootstrap base64 decode"
     }
   },
   {
