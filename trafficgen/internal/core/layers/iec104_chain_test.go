@@ -226,22 +226,50 @@ func TestIEC104Chain_PresenceAndStrayTopLevelKeys(t *testing.T) {
 
 // ④a 端口契约（设计 §1 不变式 1）：层内显式 tcp.dst_port 非 2404 即拒
 // （planner 端口域；0=未写走 FieldContract 2404 缺省）。
+//
+// gen-review M-1（本测试曾**假绿**，已修）：旧版用 `DstPort: 0` 构造 spec 并先调
+// ValidateSpec 再调 Plan——`spec.DstPort == 0` 使 validateSpecBase 落到通用载体
+// 端口块，那里**无条件**把层内 5000 回填进 spec，随后 validator 拒之，测试
+// 恰好拿到它想要的错误文本。而生产 worker 只调 Plan 一次，那一刻 spec.DstPort
+// 是 MapToFlowSpec 给的 2404 → 守卫放行 → 静默发出整条 dst_port=5000 的流。
+// 独立复现（摘掉 chain_planner.go 前置回填块的 `|| p.name == "iec104"`）：旧测试
+// 仍全绿，而引擎侧生成 10 个 dstport=5000 的包并报成功。
+// 修法：spec 走生产口径 MapToFlowSpec，且只调 Plan 一次（与 worker 同序）。
+func iec104ProdPlan(t *testing.T, arr []interface{}) ([]core.PacketConfig, error) {
+	t.Helper()
+	p, err := layers.BuildLayersPlanner("iec104", iec104JSON(t, arr))
+	if err != nil {
+		return nil, err
+	}
+	spec := core.MapToFlowSpec(map[string]interface{}{"layers": arr}, "iec104")
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		return nil, err
+	}
+	var pkts []core.PacketConfig
+	for c := range ch {
+		pkts = append(pkts, c)
+	}
+	return pkts, nil
+}
+
 func TestIEC104Chain_PortContractRejected(t *testing.T) {
 	arr := []interface{}{
 		map[string]interface{}{"ip": map[string]interface{}{"src": iCli, "dst": iSrv}},
 		map[string]interface{}{"tcp": map[string]interface{}{"src_port": iSport, "dst_port": 5000}},
 		map[string]interface{}{"iec104": map[string]interface{}{"common_address": 1, "events": []interface{}{}}},
 	}
-	_, err := iec104Plan(t, arr)
+	pkts, err := iec104ProdPlan(t, arr)
 	if err == nil {
-		t.Fatal("Plan(tcp.dst_port=5000) = nil, want port contract rejection")
+		t.Fatalf("production path: Plan(tcp.dst_port=5000) produced %d packets with no error, "+
+			"want port contract rejection", len(pkts))
 	}
 	if !strings.Contains(err.Error(), "dst_port must be 2404") {
 		t.Fatalf("Plan err = %q, want anchor \"dst_port must be 2404\"", err.Error())
 	}
 	// 显式 2404 必须放行（契约端口本身）。
 	arr[1] = map[string]interface{}{"tcp": map[string]interface{}{"src_port": iSport, "dst_port": 2404}}
-	pkts, err := iec104Plan(t, arr)
+	pkts, err = iec104ProdPlan(t, arr)
 	if err != nil {
 		t.Fatalf("Plan(tcp.dst_port=2404) err: %v", err)
 	}
@@ -409,7 +437,7 @@ func TestIEC104Chain_NegativeAnchors(t *testing.T) {
 	}
 }
 
-// ⑧ 用例文件收官自查（M5 清单④）：20 例（12 正 + 8 负）；非负例顶层键 ⊆
+// ⑧ 用例文件收官自查（M5 清单④）：21 例（12 正 + 9 负）；非负例顶层键 ⊆
 // 白名单（layers/flow_control）；presence 判死形状在案。
 func TestIEC104Chain_CaseFileAudit(t *testing.T) {
 	raw, err := os.ReadFile("../../../test/protocol_pcap/cases/iec104.json")

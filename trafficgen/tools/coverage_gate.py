@@ -7447,11 +7447,21 @@ def check_iec104(cases):
     rows.append(("main.go 空白导入 + ChainPlanner(iec104)",
                  "internal/protocol/iec104" in mn and 'NewChainPlanner("iec104")' in mn, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
-    rows.append(("G-IEC104-9② CheckProtoFlat 顶层 iec104 子映射 presence 判死",
-                 "protocol iec104 no longer accepts a top-level iec104 sub-config" in sc, "在案"))
-    rows.append(("strategy_convert 在库旧策略 compat（ValidationErrors）",
-                 'if protocol == "iec104"' in sc
-                 and "CheckProtoFlat(protocol, cfg)" in sc, "在案"))
+    # M（gen-review）：原判据是全文子串——presence 行只查文案在整文件任意位置；
+    # compat 行查 `if protocol == "iec104"` + `CheckProtoFlat(protocol, cfg)` 两个
+    # 各自全文件可见的子串（后者被 100+ 协议共用）→ 两行都恒真。改为断言各块
+    # **特有体**（presence 块体 = return "<文案>"；compat 块体 = ValidationErrors
+    # append 三行）。
+    _presence_ie = ('if protocol == "iec104" {\n'
+                    '\t\tif v, ok := cfg["iec104"]; ok && v != nil {\n'
+                    '\t\t\treturn "protocol iec104 no longer accepts a top-level iec104 sub-config')
+    _compat_ie = ('if protocol == "iec104" {\n'
+                  '\t\tif v, ok := cfg["iec104"]; ok && v != nil {\n'
+                  '\t\t\tspec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))')
+    rows.append(("G-IEC104-9② CheckProtoFlat 顶层 iec104 子映射 presence 判死（判据=块体非裸文案）",
+                 _presence_ie in sc, "在案"))
+    rows.append(("strategy_convert 在库旧策略 compat（ValidationErrors，判据=块体非裸子串）",
+                 _compat_ie in sc, "在案"))
     gendump = json.loads((tg / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
     entry = gendump["layers"].get("iec104", {})
     rows.append(("generated schema iec104 条目（depends_on tcp + contract 2404 + 17 键，与 registry 同代）",
