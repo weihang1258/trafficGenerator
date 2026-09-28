@@ -11,7 +11,7 @@
 
 用例从设计 §3–§9 逐项派生，共 **16 个唯一语义 ID：12 正 + 4 负**。派生规则：设计 §3 每个头字段/子结构条款、§5 每个事务/自动派生行为、§7 每行错误处理在本文有对应断言；断言不得超出设计声明范围。**一个用例只验证一个协议行为**。
 
-**形状基线（2026-09-28 机读实测）**：16/16 例顶层键 = `{expect,id,notes,proto,spec_json,summary}`；`spec_json` 顶层键 = `{layers,src_ip,dst_ip,src_port,dst_port,someip}` ×16（**过渡态违规形**：四元组与顶层 `someip` 子映射同 `layers` 并存；无 `count`、无 `strategy_fc`/`flow_control`）；层形 `[udp,someip]` ×15 + `[tcp,someip]` ×1（`someip_tcp_swap`）；层内 `someip` 恒 `{}` 空壳（registry Fields 空，既不校验也不消费，G-SOMEIP-1）；12 正例 `expect` 含 `packet_count`（`someip_tcp_swap` 例外，用 `has_handshake`+`min_packets`）；4 负例 `expect` 键集合 = `{expect_error,error_contains,notes}`（含 `notes`，非严格两键，G-SOMEIP-7）。
+**形状基线（2026-09-28 机读实测）**：case 级键 = `{expect,id,proto,spec_json,summary}` ×16 + **`decode_as` ×12**（12 正例有、4 负例无；`decode_as` 内容为 `udp.port==30490,someip`，因 tshark 默认按 DNS 解析 30490——探针实证必须显式 `-d` 才挂 someip dissector）；**case 级 `notes` = 0/16**（`notes` 住 `expect` 内，16/16 有）。与范本 92-moxa（case 级 `notes` 23/23、`decode_as` 0）形状不同。`spec_json` 顶层键 = `{layers,src_ip,dst_ip,src_port,dst_port,someip}` ×16（**过渡态违规形**：四元组与顶层 `someip` 子映射同 `layers` 并存；无 `count`、无 `strategy_fc`/`flow_control`）；层形 `[udp,someip]` ×15 + `[tcp,someip]` ×1（`someip_tcp_swap`）；层内 `someip` 恒 `{}` 空壳（registry Fields 空，既不校验也不消费，G-SOMEIP-1）；12 正例 `expect` 含 `packet_count`（`someip_tcp_swap` 例外，用 `has_handshake`+`min_packets`）；4 负例 `expect` 键集合 = `{expect_error,error_contains,notes}`（含 `notes`，非严格两键，G-SOMEIP-7）。
 
 **输出契约（pcap/NIC 双输出）**：两路径共用同一 cases JSON 与断言集（`someip.*`/`someipsd.*`/`someip.tp.*` 字段 + offset 42/54 frames）；NIC 经 tcpdump 捕获（`nic_capture` 用例级开关）；不设仅单路径可用的断言。
 
@@ -53,6 +53,7 @@ T-编号对照：T-SOMEIP-REQ-01/02 ≡ #1/#2；T-SOMEIP-SESS-01 ≡ #3；T-SOME
 `service_id=4660`、`method_id=1`、`client_id=1`、`message_type="request"`、`auto_response=true`、`payload=[222,173,190,239]`。
 
 - 包1：`someip.messageid=0x12340001`、`someip.length=12`、`someip.sessionid=0x0001`、`someip.messagetype=0x00`、`someip.returncode=0x00`、`udp.dstport=30490`。
+- **缺省化**（`layer_gen.go:40-57`）：`client_id`/`protocol_version`/`interface_version`/`session_start`/`session_inc` 为 0 时各缺省为 1；`auto_response` 缺省 true。本用例显式写 `protocol_version:1, interface_version:1`，其余例不写走缺省。
 - 包2：`someip.messagetype=0x80`、`someip.returncode=0x00`、`someip.sessionid` **same_as_packet 1**、`someip.messageid` **same_as_packet 1**、`udp.srcport=30490`。
 - frames（offset 42）：包1 `12 34 00 01 00 00 00 0c 00 01 00 01 01 01 00 00 de ad be ef`；包2 同首 12B + `80 00` + 同 payload。
 
@@ -84,7 +85,8 @@ T-编号对照：T-SOMEIP-REQ-01/02 ≡ #1/#2；T-SOMEIP-SESS-01 ≡ #3；T-SOME
 
 - 包1（FindService）：`someip.methodid=0x8100`、`someip.serviceid=0xffff`、`someip.messagetype=0x02`、`someipsd.entry.type=0x00`、`someipsd.entry.serviceid=0x1234`、`someipsd.entry.instanceid=0x0001`、`someipsd.entry.ttl=16777215`（十进制）、`someipsd.entry.minorver=0`。
 - 包2（OfferService）：`someip.serviceid=0xffff`、`someipsd.entry.type=0x01`、`someipsd.entry.majorver=1`、`someipsd.entry.ttl=3`、`someipsd.entry.minorver=0`、**`someipsd.option.type=4`**（十进制；配置逻辑枚举 1 → wire 0x04，设计 §3.4.2）、`someipsd.option.ipv4address=20.0.0.200`、`someipsd.option.port=30490`。
-- **Option wire 字节**（`builder.go:273-276`）：`Length(2B 大端)=00 09` + `Type=04` + `Reserved=00` + `addr=14 00 00 c8` + `Reserved=00` + `proto=11`(UDP) + `port=77 1a`，共 12B。旧稿 28-testcase §4.6 的 FrameAssert（Type 在首字节、type=01）**过时**，本版以代码实测为准（G-SOMEIP-1 迁移时按实际 pcap 重钉 hex）。
+- **Option wire 字节**（`builder.go:273-276`，代码实测）：`Length(2B 大端)=00 09` + `Type=04` + `Reserved=00` + `addr=14 00 00 c8` + `Reserved=00` + `proto=11`(UDP) + `port=77 1a`，共 12B。**28-testcase §4.6 的 FrameAssert（Type 在首字节、type=01）过时**——本版按代码重写，G-SOMEIP-1 迁移时按实际 pcap 再钉一次 hex。
+- **SD 报文完整布局**（含 4B Options Length，`builder.go:194-199`）：`16B SOME/IP 头 + 8B SD 头 + N×16B Entry + 4B Options Length + Options`（设计 §3.4.1）。
 
 ### 3.7 `someip_sd_subscribe`（2）
 
@@ -104,6 +106,8 @@ T-编号对照：T-SOMEIP-REQ-01/02 ≡ #1/#2；T-SOMEIP-SESS-01 ≡ #3；T-SOME
 ### 3.9 `someip_tp_segments`（2）
 
 `payload` = **2560** 显式字节（0..255 循环，`len(payload)==2560` 机读可核）、`tp={enabled:true, segment_size:1408, payload_length:2560}`。
+
+> **`tp.payload_length` 是死配置**（G-SOMEIP-9）：`grep -rc PayloadLength` 在 planner/builder/layer_gen = **0/0/0**，代码只用 `len(cfg.Payload)` + `SegmentSize`；故 `reassembled.length=2560` 来自 **payload 数组长度**，不是 `payload_length` 声明值。
 
 - 包1（首段）：`someip.messagetype=0x20`、`someip.messagetype.tp=1`、`someip.tp.offset=0`、`someip.tp.flags.more_segments=1`。
 - 包2（末段）：`someip.tp.offset=1408`、`someip.tp.flags.more_segments=0`、`someip.tp.reassembled.length=2560`。
@@ -148,7 +152,24 @@ T-编号对照：T-SOMEIP-REQ-01/02 ≡ #1/#2；T-SOMEIP-SESS-01 ≡ #3；T-SOME
 
 **expect 键形状注**：存量 4 负例 `expect` = `{expect_error, error_contains, notes}`（含 `notes`）。设计 §7 口径与 92-moxa 范式的严格两键不同——P4 收窄时删 `notes`（G-SOMEIP-7）。
 
-**未入用例的拒绝分支（A′ 立项，不得冒充已覆盖）**：V4 `protocol_version must be 1, got %d`（`planner.go:45`）；V5b `tp segment_size %d too small`（`planner.go:53`）；事件级 `events[%d] invalid message_type %v`（`planner.go:66`）；SD Option 非法地址（`builder.go:267/:282`）；`unsupported sd option type %d`（`builder.go:294`）。
+**planner 拒绝分支全表（10 条，`planner.go:16-77` 实测；入例 4 + A′ 立项 6）**：
+
+| 代码行 | 锚词 | 入例 |
+|---|---|---|
+| `:26` | `someip: service_id must be nonzero` | ✅ `someip_neg_service_id` |
+| `:35` | `someip: invalid session_id` | ✅ `someip_neg_session` |
+| `:40` | `someip: invalid message_type %v` | ✅ `someip_neg_type` |
+| `:45` | `someip: protocol_version must be 1, got %d` | A′ |
+| `:50` | `someip: tp segment_size must be > 0` | ✅ `someip_neg_tp` |
+| `:53` | `someip: tp segment_size %d too small`（`< 8`） | A′ |
+| `:59` | `someip: invalid sd.type %q (want find\|offer\|subscribe\|subscribe_ack)` | A′ |
+| `:66` | `someip: events[%d] invalid message_type %v` | A′ |
+| `:71` | `someip: invalid source IP` | A′ |
+| `:74` | `someip: invalid destination IP` | A′ |
+
+builder 层另有 3 条（`invalid IPv4 option address` `:267` / `invalid IPv6 option address` `:282` / `unsupported sd option type %d` `:294`），同属 A′ 立项（G-SOMEIP-11）。
+
+**SD 入口配置写法**：`sd.type` 合法值 4 个——`find`/`offer`/`subscribe`/`subscribe_ack`（`sdTypeFromString`，`builder.go:113-123`）。**`subscribe_ack` 可独立配置**（不必依赖 subscribe 自动派生）；存量 `someip_sd_subscribe` 走 subscribe+自动 Ack 路径，独立 `subscribe_ack` 配置今日无例 → A′（G-SOMEIP-10）。
 
 ## 5. 覆盖与对账
 
@@ -162,7 +183,7 @@ AUTOSAR SOME/IP PRS（16B 头字段域 / Message Type / Return Code / SD entry-o
 
 - **清单出处声明**：本清单来源 = **AUTOSAR PRS 公开语义 + 旧基线契约 + 仓库落码反推 + tshark 3.6.14 字段实测**，**非纯规范反推**（未逐条核对 PRS 条款号 → G-SOMEIP-8）。
 - **对账两行**：**要求逻辑点总数 = 70**（八项 8 行 + 矩阵 30 格 + 变体 22 行 + 商业映射 10 行）；**用例覆盖数 = 40**（八项 3 + 矩阵已覆 10 + 变体已覆 19 + 商业已覆 8）；**不适用 = 18**（八项 2 + 矩阵 16）；**开放立项 = 12**（八项 3 + 矩阵 4 + 变体 3 + 商业 2）。40 + 18 + 12 = 70。✓
-  **粒度声明**：行/格粒度每点 1 计；G-SOMEIP-1…G-SOMEIP-8 不折进 70。**反查全绿 ≠ 覆盖全**（§9.52 原文）。逐表重数见设计 §10.1（八项）/§10.2（30 格）/§10.3（22 行）/§10.4（10 行）。
+  **粒度声明**：行/格粒度每点 1 计；G-SOMEIP-1…G-SOMEIP-11 不折进 70。**反查全绿 ≠ 覆盖全**（§9.52 原文）。逐表重数见设计 §10.1（八项）/§10.2（30 格）/§10.3（22 行）/§10.4（10 行）。
 - **门3 抽查候选**：最复杂用例 = **#8 `someip_multi_method_event`**（5 包：两方法往返 + 事件，MethodID 0x0001/0x0002/0x8001 × Type 0x00/0x80/0x02 × 方向 up/down × SessionID 分配，交织维度 = 方法(3)×类型(3)×方向(2)）；**建议门3 抽 #8 + #9**（`someip_tp_segments` 补分段/重组面）。
 
 ### 5.3 T-编号与旧 id 对照（设计 §9 全表摘要）
@@ -252,4 +273,5 @@ AUTOSAR SOME/IP PRS（16B 头字段域 / Message Type / Return Code / SD entry-o
 
 ## 9. 修订记录
 
+- v1.0.1（2026-09-28，隔离审查 B-1/B-2/B-3 + D 类修轮）：**B-1** §3.6 的 SD Entry 偏移表按代码/探针重写（ServiceID@4-5、InstanceID@6-7、Major@8、TTL@9-11、Minor@12-15；Index1@1/Index2@2 为独立字节，NumOpts 合并于 `entry[3]`）——旧稿偏移整体错位 1 字节；补 SD 报文完整布局（含 4B Options Length）。**B-2** §3.9 TP 头由 8B 改 **4B**（低 28bit=offset 16 对齐、bit0=more），并声明**后续段重复完整 16B 头**（`planner.go:247`）——旧稿头长与后续段结构全错。**B-3** §4 补 planner 拒绝分支**全表 10 条**（入例 4 + A′ 立项 6，原写"7 种"漏 3 条：`sd.type`/`src IP`/`dst IP`），补 `subscribe_ack` 独立配置写法。**D 类**：§1 形状基线补 `decode_as` 12/16 与 `notes` 位置；§3.1 补缺省化；§3.9 标注 `tp.payload_length` 死配置（G-SOMEIP-9）。每条附复算命令与原始输出。自审见审计日志 §E。
 - v1.0.0（2026-09-28）：P-PIPE #100 文档轨 P1–P3。**承 28-someip-testcase 审计通过的 16 ID / 锚词 / fixture 思路**；形状基线机读实测（§1）；P3 固定动作（§6）；执行建议（§7）；存量审计（§8，16/16 改写）；冲突处按 JSON/代码事实改正（TP 2560/1408/2560、Option type=4 与 wire 布局、`ipv6.nxt=17`、V5 锚词）。自审见审计日志 §E。

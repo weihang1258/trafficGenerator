@@ -3,14 +3,14 @@
 > 版本：v1.0.0（P-PIPE 文档轨 P1–P3）
 > 日期：2026-09-28
 > 车道：文档轨（#100 someip 续号）
-> 旧基线：`docs/protocol-designs/28-someip-design.md` v1.1.0 + `28-someip-testcase.md` v1.1.0（16 例 = 12 正 + 4 负；本 #100 为 P-PIPE 续号重做，**承 28-someip-design 审计通过的线格式与场景结论**，不搬旧稿的过时状态声明与错误数字，见 §0）
+> 旧基线：`docs/protocol-designs/28-someip-design.md` v1.1.0 + `28-someip-testcase.md` v1.1.0（16 例 = 12 正 + 4 负；本 #100 为 P-PIPE 续号重做，**承 28 稿的场景划分与用例 ID 集合**；线格式以代码 + tshark 探针为唯一权威，28 稿线格式表经审计确认有 7 处错误并已逐条改正，见 §0 第 6–13 行）
 > 存量用例：`trafficgen/test/protocol_pcap/cases/someip.json`（16/16 ID 与旧稿一致，顺序一致，已机读实测；顶层旧键残留待 P4 迁移，G-SOMEIP-1）
 > 规范基线：① AUTOSAR SOME/IP 协议规范（PRS SOME/IP Protocol Specification：16B 消息头字段域、Message Type/Return Code 编码、SD entry/option 结构、TP 分段，下称 **spec**）；② 本机 tshark 3.6.14 `someip.*`/`someipsd.*`/`someip.tp.*` 字段表实测（字段名与进制显示的唯一权威）；③ 本仓库落码（`internal/protocol/someip/` planner/builder/生成器 + 接线，§11）；④ 旧基线设计文档（内部契约，非外部规范）
 > 白话一句：**车里的"服务电话系统"——一条消息 16 字节头（谁打给谁、哪个方法、第几通电话），头后面跟业务数据；还有两个附件：SD 是"黄页"（服务在哪儿），TP 是"把超长内容切段寄"。**
 
 ## 0. 28→100 沿革与旧稿校正声明（门1 必答：基线继承关系）
 
-本 #100 与旧稿 `28-someip-*` 是**同一协议的续号契约**，不是新协议。旧稿保留在磁盘只读参考。审计逐条给出校正结论（区分"承旧稿"与"旧稿过时"）：
+本 #100 与旧稿 `28-someip-*` 是**同一协议的续号契约**，不是新协议。旧稿保留在磁盘只读参考。审计逐条给出校正结论（区分"承旧稿"与"旧稿过时"），共 **13 项**：
 
 | # | 旧稿说法（28-*） | HEAD 实测（2026-09-28） | 校正结论 |
 |---|---|---|---|
@@ -25,8 +25,12 @@
 | 9 | testcase §4.10：IPv6 用例断言 "`ip.proto=17`" | JSON 实测断言 `ipv6.nxt=17` | 表述与断言名不符，本版 §6 S9 改正 |
 | 10 | §9.1 V5 锚词 "`someip: tp segment N out of range`" | 代码 `planner.go:50/:53`：`tp segment_size must be > 0` / `tp segment_size %d too small` | **旧稿锚词臆造**；本版 §7 按代码逐字 |
 | 11 | testcase §5 负例 `error_contains` 用 `service_id must be nonzero` 等 | 代码 `planner.go:26/:35/:40/:45` 逐字一致（前缀 `someip: `） | 承旧稿，锚词命中；但**存量 JSON 未写全前缀**（见 §7 注） |
+| 12 | 28 稿 §2.5 Entry 偏移表（100 稿 §3.4.1 照抄）：`Index1/NumOpts1@1`、`Index2/NumOpts2@2`、ServiceID@3-4、InstanceID@5-6、Major@7、TTL@8-10、Minor@11-14 | 代码 `builder.go:213-220`：`entry[0]=type`、`entry[4:6]=serviceID`、`entry[6:8]=instanceID`、`entry[8]=major`、`entry[9:12]=ttl`、`entry[12:16]=minor`；`setOpts`（`builder.go:251`）只写 `entry[3]` 高 4bit | **旧稿偏移整体错位 1 字节**（Index1/Index2 实为独立字节 @1/@2，NumOpts 合并于 @3）；本版 §3.4.1 按代码重写（探针实证见 §3.4.1 注） |
+| 13 | 28 稿 §2.6 TP 表（100 稿 §3.5 照抄）：8B TP 头（Offered Length 4B + Segment ID 1B + more 1B + 保留 2B）；**后续段不重复消息头** | 代码 `buildTPHeader`（`builder.go:310-317`）返回 **4B**：低 28bit = offset（`&0xfffffff0` 16 对齐）、bit0 = more；`planner.go:247` 后续段**每段调用 `buildHeader` 重复完整 16B 头** | **旧稿头长与后续段结构全错**；本版 §3.5 按代码重写（tshark 对比探针见 §3.5 注） |
 
 **依赖链判定纪律**：以上均为可判题（旧文→代码→用例三级对照），直接判定，不问偏好。不可判的（AUTOSAR 规范原文条款号）标"待确认"并写清确认方式（G-SOMEIP-8）。
+
+> **第 12/13 行属"旧稿继承错误"而非"新错"**：本版 §3.4.1/§3.5 初稿照抄了 28 稿表，经隔离审查 B-1/B-2 打回后按代码 + tshark 探针重写（§3.4.1/§3.5 各附复算命令与原始输出）。教训：**字段/偏移表必须实调 tshark 探针产出，禁由旧稿搬运**。
 
 ## 1. 范围、profile 与实现状态边界
 
@@ -79,7 +83,7 @@
 }
 ```
 
-## 3. 线格式编码（承 28 稿审计通过部分；冲突处按代码/JSON 钉）
+## 3. 线格式编码（**以代码 + tshark 探针为唯一权威**；28 稿线格式表已逐条复核改正，见 §0）
 
 ### 3.1 消息头 16 字节（大端）
 
@@ -129,7 +133,7 @@
 
 SD 报文本身是一条 Message ID = `Service ID(0xFFFF) + Method ID(0x8100)`、Message Type = NOTIFICATION(0x02)、Return Code = E_OK(0x00) 的 SOME/IP 消息。
 
-#### 3.4.1 SD 头（8 字节）与 Entry（16 字节/条）
+#### 3.4.1 SD 头（8 字节）+ Entry（16 字节/条）+ Options Length（4 字节）
 
 | SD 头偏移 | 长度 | 字段 |
 |---|---|---|
@@ -137,17 +141,37 @@ SD 报文本身是一条 Message ID = `Service ID(0xFFFF) + Method ID(0x8100)`�
 | 1-3 | 3 | Reserved |
 | 4-7 | 4 | Length of Entries Array |
 
-| Entry 偏移 | 长度 | 字段 |
-|---|---|---|
-| 0 | 1 | Type（0x00 Find / 0x01 Offer / 0x06 Subscribe / 0x07 SubscribeAck） |
-| 1 | 1 | Index1(高 4bit) + NumOpts1(低 4bit) |
-| 2 | 1 | Index2(高 4bit) + NumOpts2(低 4bit) |
-| 3-4 | 2 | Service ID（大端） |
-| 5-6 | 2 | Instance ID（大端） |
-| 7 | 1 | Major Version |
-| 8-10 | 3 | TTL（24bit 大端） |
-| 11-14 | 4 | Minor Version（32bit 大端） |
-| 15 | 1 | Reserved / Subscription 变体用 Eventgroup 低位 |
+**Options Length（4 字节，大端）**：紧跟在 Entry 数组之后、Option 数组之前（`builder.go:194-199`，`PutUint32(optLenField, len(optBytes))`）。**无 Option 时也必须写这 4 字节 0**——tshark 缺此字段会把 Option 头 4 字节误读为长度并报 truncated/malformed（代码注释原文："missing before this fix"）。故 SD 报文总布局 = `16B SOME/IP 头 + 8B SD 头 + N×16B Entry + 4B Options Length + Options`。
+
+| Entry 偏移 | 长度 | 字段 | 代码写入点 |
+|---|---|---|---|
+| 0 | 1 | Type（0x00 Find / 0x01 Offer / 0x06 Subscribe / 0x07 SubscribeAck） | `entry[0]`（`builder.go:214`） |
+| 1 | 1 | **Index 1**（独立字节；tshark `someipsd.entry.index1`） | 代码不写（恒 0） |
+| 2 | 1 | **Index 2**（独立字节；tshark `someipsd.entry.index2`） | 代码不写（恒 0） |
+| 3 | 1 | **Num of Opts 1（高 4bit）+ Num of Opts 2（低 4bit）** | `setOpts`（`builder.go:246`，写入 `:251`）：`entry[3] = (numOpts&0x0F)<<4` |
+| 4-5 | 2 | Service ID（大端） | `PutUint16(entry[4:6])`（`:216`） |
+| 6-7 | 2 | Instance ID（大端） | `PutUint16(entry[6:8])`（`:217`） |
+| 8 | 1 | Major Version | `entry[8]`（`:218`） |
+| 9-11 | 3 | TTL（24bit 大端） | `putU24(entry[9:12])`（`:219`） |
+| 12-15 | 4 | Minor Version（32bit 大端） | `PutUint32(entry[12:16])`（`:220`） |
+
+**Entry 偏移实证（2026-09-28 自建探针，命令与原始输出）**：构造 Entry 使三个索引字节取不同值（`[1]=0x0A`、`[2]=0x0B`、`[3]=0x21`），喂 tshark：
+
+```
+$ tshark -r entry_probe.pcap -d udp.port==30490,someip -T fields \
+    -e someipsd.entry.numopt1 -e someipsd.entry.numopt2 \
+    -e someipsd.entry.serviceid -e someipsd.entry.instanceid \
+    -e someipsd.entry.majorver -e someipsd.entry.ttl
+0x02    0x01    0x1234  0x0001  1   3
+```
+
+即 `numopt1` = `[3]` 高 4bit（`0x21>>4` = 2）、`numopt2` = `[3]` 低 4bit（`0x21&0x0F` = 1）；`[1]`/`[2]` **不参与 numopt**（改 `[1]=0xF0,[2]=0xF0,[3]=0x00` → `numopt1=0x00 numopt2=0x00` 实测），它们是 tshark 的 `index1`/`index2` 字段。ServiceID 在 **4-5**（`0x1234`）、InstanceID 在 **6-7**、Major 在 **8**、TTL 在 **9-11**。
+
+> **与 28 稿对照**：28-design §3.4.1 把 Entry 内偏移整体前移 1 字节（ServiceID@3-4、InstanceID@5-6、Major@7、TTL@8-10、Minor@11-14），且把 Index1/NumOpts1 与 Index2/NumOpts2 写成两个合并字段。实测 28 稿布局喂 tshark 得 `serviceid=0x3400 instanceid=0x0101 ttl=768`（全错）——**旧稿错、本版按代码重写**（§0 第 12 行）。
+>
+> **Index1/Index2 代码不实现**：`buildServiceEntry`/`buildEventgroupEntry` 均不写 `entry[1]`/`entry[2]`（恒 0）。§12.3 的"报文内引用"表述已相应修正——本实现**不做** entry→option 的 index 引用，仅写 NumOpts 计数。
+
+**Eventgroup Entry（Type 0x06/0x07）变体**（`builder.go:229-241`）：前 12 字节同 Service Entry 布局（Type/Index1/Index2/NumOpts/ServiceID/InstanceID/Major/TTL），**12-15 字节改为** `entry[12]=reserved`、`entry[13]=init_event(bit7) | counter(低 4bit)`、`entry[14:16]=eventgroupID`（大端）。tshark 读 `someipsd.entry.counter`（`[13]` 低 4bit）与 `someipsd.entry.eventgroupid`（`[14:16]`）。**实证**：`someip_sd_subscribe` 断言 `eventgroupid=0x0001` 与 `counter=0x00` 经探针复现成立（28 稿 §2.5 Sub 变体行的"偏移 15 为 Eventgroup ID"亦错，实为 14-15）。
 
 Entry 四条类型全部覆盖：0x00/0x01（`someip_sd_find_offer`）、0x06/0x07（`someip_sd_subscribe`）。
 
@@ -165,18 +189,39 @@ Entry 四条类型全部覆盖：0x00/0x01（`someip_sd_find_offer`）、0x06/0x
 
 **Option wire 布局（代码实测，非旧稿 hexdump）**：`Length(2B 大端) + Type(1B) + Reserved(1B) + 数据`。IPv4 数据段 = `addr(4B) + Reserved(1B) + proto(1B) + port(2B)`（`builder.go:273-276`）；IPv6 数据段 = `addr(16B) + Reserved(1B) + proto(1B) + port(2B)`（`builder.go:287-290`）。Length 字段值 9/21 = 数据段字节数（不含 Type/Length 自身；tshark 读 `real_length = ntohs(length)+3`）。
 
-### 3.5 SOME/IP-TP 分段（承 28 稿，数字按 JSON 钉）
+### 3.5 SOME/IP-TP 分段（承 28 稿的场景，线格式按代码/tshark 重写）
 
-首段 = 16B 消息头（Message Type 取 TP 变体）+ 8B TP 头 + 第一段载荷；后续段只有 8B TP 头 + 段载荷（不重复消息头）。
+**每一段都是完整 SOME/IP 消息**（16B 消息头 + 4B TP 头 + 本段载荷），TP 头在消息头之后。首段 offset=0，后续段 offset = 已发数据字节累计。
 
-| TP 头偏移 | 长度 | 字段 |
-|---|---|---|
-| 0-3 | 4 | Offered Length（32bit 大端） |
-| 4 | 1 | Segment ID（从 0 递增） |
-| 5 | 1 | more_segments（低 1 位；tshark `someip.tp.flags.more_segments`） |
-| 6-7 | 2 | 保留 |
+**TP 头（4 字节，`buildTPHeader`，`builder.go:310-317`）**：
 
-**实测口径（`someip_tp_segments`，JSON 为执行事实源）**：payload = **2560** 显式字节（0..255 循环，`len(payload)==2560` 机读可核）、`segment_size=1408`（16 对齐）、`tp.payload_length=2560`；两段 = 1408 + 1152；首段 `someip.tp.offset=0`、`more_segments=1`、`messagetype=0x20`、`messagetype.tp=1`；末段 `someip.tp.offset=1408`、`more_segments=0`；重组断言 `someip.tp.reassembled.length=2560`。TCP 载体天然不分段（S10），MessageType 不取 TP 变体。
+| 位域 | 内容 |
+|---|---|
+| 低 28bit（`v & 0xfffffff0`） | **offset**：本段在重组消息中的字节偏移，**16 对齐**（非 16 对齐值被 tshark 静默掩码截断） |
+| bit0（`v \|= 0x01`） | **more_segments**（tshark `someip.tp.flags.more_segments`） |
+
+> **与 28 稿对照（§0 第 13 行）**：28-design §2.6/§3.5 写"8B TP 头（Offered Length 32bit + Segment ID 8bit + more 低 1 位 + 保留）"且"后续段不重复消息头"——**两处均与代码相反**。代码 TP 头恒 4B，且 `planner.go:247` 对**每一段**调用 `buildHeader(...)` 产出完整 16B 头（后续段不是裸 TP 头）。
+
+**TP 头实证（2026-09-28 自建两种布局对比，命令与原始输出）**：
+
+```
+代码布局（4B TP 头 + 每段 16B 头），同载荷 2560B / segment_size 1408：
+$ tshark -r tp_code.pcap -d udp.port==30490,someip -T fields \
+    -e someip.messagetype -e someip.tp.offset -e someip.tp.flags.more_segments \
+    -e someip.tp.reassembled.length
+0x20    0       1
+0x20    1408    0       2560
+
+文档 §3.5 旧布局（8B TP 头 + 后续段无消息头）：
+0x20    2576    0                 ← OfferedLength 被读成 offset
+0x86                              ← 后续段乱码（无消息头）
+```
+
+代码布局与 `cases/someip.json` 的 `someip_tp_segments` 断言**逐项一致**；旧布局喂 tshark 无法重组（无 `reassembled.length`）。
+
+**实测口径（`someip_tp_segments`，JSON 为执行事实源）**：payload = **2560** 显式字节（0..255 循环，`len(payload)==2560` 机读可核）、`segment_size=1408`（16 对齐）、`tp.payload_length=2560`（**声明值，代码不消费**——见 G-SOMEIP-9）；两段 = 1408 + 1152；首段 `someip.tp.offset=0`、`more_segments=1`、`messagetype=0x20`、`messagetype.tp=1`；末段 `someip.tp.offset=1408`、`more_segments=0`；重组断言 `someip.tp.reassembled.length=2560`（**在末段**收敛，探针实测末段才有值）。TCP 载体天然不分段（S10），MessageType 不取 TP 变体。
+
+**触发条件**（`planner.go:221`）：仅当 `tp.enabled=true` **且** `len(payload) > tp.segment_size` 才分段；否则整条单包发出（`segment_size=1408` 恰好等于载荷长时不分段）。
 
 ## 4. 业务场景分析（现网典型场景与五层覆盖）
 
@@ -216,7 +261,7 @@ someip 层无自有连接状态（承 28 稿 §4）：UDP 无连接，TCP 握手
 ## 6. 性能设计与验收（CORE_MEMORY §6.1–6.8）
 
 - **目标与边界**：单流最大 5 包（S7 多方法多事件）；最大单包载荷 2560B 跨 2 段（S8）；SD 最大 2 包（S5 含 Option）；多流按 `flows` 复制四元组。吞吐数字待 P4 基准，**本版不写承诺**（§6.5）。
-- **依据**：消息序列流式展开（planner 逐条 emit，无全量收集）；每消息内存 = 消息头 16B + 载荷长 + TP 头 8B（O(载荷)）；无跨流共享状态；无锁（常量枚举只读）。
+- **依据**：消息序列流式展开（planner 逐条 emit，无全量收集）；每段内存 = 消息头 16B + TP 头 4B + 段载荷（O(段长)）；无跨流共享状态；无锁（常量枚举只读）。
 - **验收两路**：pcap（`/tmp/mcp-pcaps/someip/`）与 NIC（`enp135s0f0np0`，`nic_capture` 开关）共用同一断言集；断言实际 `someip.*`/`someipsd.*` 字段值与 frames hex，不只断言"任务没报错"。
 - **六类场景落点**：基线（S1，2 包）/ 目标规模（S7，5 包多方法多事件）/ 压力上限（S8，2560B 跨段）/ 长时间运行（S2 多会话序列）/ 并发交错（多流顺序展开承载语义，并发路径为例外不启用）/ 背压（TP 分段 + `packet_count` 精确计数守卫段数漂移）。
 
@@ -231,7 +276,24 @@ someip 层无自有连接状态（承 28 稿 §4）：UDP 无连接，TCP 握手
 | N-3 | `someip_neg_type` | `message_type=5`（非枚举） | `someip: invalid message_type 5` | `message_type` | `planner.go:40` |
 | N-4 | `someip_neg_tp` | `tp.segment_size=0` | `someip: tp segment_size must be > 0` | `tp` | `planner.go:50` |
 
-**未入用例的校验分支（A′ 立项，不得冒充已覆盖）**：V4 `protocol_version must be 1, got %d`（`planner.go:45`）；V5b `tp segment_size %d too small`（`planner.go:53`）；事件级 `events[%d] invalid message_type %v`（`planner.go:66`）；SD Option 非法地址 `invalid IPv4/IPv6 option address`（`builder.go:267/:282`）；`unsupported sd option type %d`（`builder.go:294`）。
+**未入用例的校验分支（A′ 立项，不得冒充已覆盖）**——planner 实测共 **10 个 `return fmt.Errorf`**（`planner.go:16-77` 全量枚举，§10.1 #5 计数同源）：
+
+| 代码行 | 锚词 | 入例情况 |
+|---|---|---|
+| `:26` | `someip: service_id must be nonzero` | 入例 N-1 |
+| `:35` | `someip: invalid session_id` | 入例 N-2 |
+| `:40` | `someip: invalid message_type %v` | 入例 N-3 |
+| `:45` | `someip: protocol_version must be 1, got %d` | **A′ 立项** |
+| `:50` | `someip: tp segment_size must be > 0` | 入例 N-4 |
+| `:53` | `someip: tp segment_size %d too small`（`< 8`） | **A′ 立项** |
+| `:59` | `someip: invalid sd.type %q (want find\|offer\|subscribe\|subscribe_ack)` | **A′ 立项**（SD 唯一入口校验） |
+| `:66` | `someip: events[%d] invalid message_type %v` | **A′ 立项** |
+| `:71` | `someip: invalid source IP` | **A′ 立项** |
+| `:74` | `someip: invalid destination IP` | **A′ 立项** |
+
+入例 4 + 立项 6 = **10**。✓（builder 层另有 3 条：`invalid IPv4 option address` `:267`、`invalid IPv6 option address` `:282`、`unsupported sd option type %d` `:294`——同属 A′ 立项。）
+
+**SD 入口校验与配置写法**：`sd.type` 是 SD 用例的唯一入口校验，合法值 4 个——`find`(0x00)/`offer`(0x01)/`subscribe`(0x06)/`subscribe_ack`(0x07)（`sdTypeFromString`，`builder.go:113-123`）。**`subscribe_ack` 可直接配置为独立一条 Ack 报文**（不必依赖 Subscribe 自动派生）；存量 `someip_sd_subscribe` 走的是 `type="subscribe"` + 自动补 Ack 的路径，**独立 `subscribe_ack` 配置今日无例 → A′ 立项**（G-SOMEIP-10）。
 
 > **锚词前缀注**：代码文案带 `someip: ` 前缀，`error_contains` 是**子串**判定（命中即通过）。存量 4 例用的是短子串（`session_id`/`message_type`/`tp`），N-1 用较长子串——两者都能命中代码文案。P4 迁移时按本表"JSON `error_contains`"列保持现值（收窄到全文亦可，但须先跑后钉确认命中）。
 
@@ -242,6 +304,7 @@ someip 层无自有连接状态（承 28 稿 §4）：UDP 无连接，TCP 握手
 ## 8. 边界
 
 - **载荷长**：空载荷 Length=8（覆）；2560B 跨 2 段（覆）；`segment_size` 精确边界（=16 的倍数）今日无例 → A′（G-SOMEIP-5）。
+- **`segment_size` 校验面**：代码只拒 `<=0`（`planner.go:50`）与 `<8`（`:53`），**不强制 16 对齐**；tshark 用 `&0xfffffff0` 掩码读 offset，**非 16 对齐的 segment_size 会被静默截断**（offset 值偏小、重组错位）→ 今日无例 → A′（G-SOMEIP-5）。
 - **方向**：`direction` 缺省 = up；`down` 用于显式下发（S4/S7 事件）。纯 down 单条今日无独立例 → A′。
 - **会话**：`session_start`/`session_inc` 递增覆（S2）；`session_inc=0` 拒绝覆（N-2）；`session_start=0` 分支今日无例 → A′。
 - **地址族**：v4/v6 独立用例；异族混写今日无例 → A′。
@@ -282,8 +345,8 @@ someip 层无自有连接状态（承 28 稿 §4）：UDP 无连接，TCP 握手
 | 1 | 连接模型 | UDP 无连接（事件/SD）；TCP 可靠（大调用） | 场景①–⑧ | `TransportOn ["udp","tcp"]`（`registry.go:763`）；`DependsOn ["udp"]` | 无 |
 | 2 | 命令/消息表 | Message Type 10 值 + Return Code 值域 | §3.2/§3.3 表 | builder 全枚举常量（`builder.go:10-30`） | 4 个 TP 变体 + 9 个错误码立项（G-SOMEIP-5/6） |
 | 3 | 状态机 | 无连接态（UDP）；ESTABLISHED（TCP）；auto_response 反应性 | S1/S4/S10 | `planner.go` 逐条 emit + auto_response 分支 | 无 |
-| 4 | 字段表 | 16B 头 10 字段 + SD/TP 子结构（§3） | 数据场景层 | `types.go:759-775` + `1349-1383` | 无（动态见 G-SOMEIP-3） |
-| 5 | 错误处理 | 4 类负例（§7 表）+ 6 个未覆分支 | 负例 N-1…N-4 | planner 7 个拒绝分支 | 6 分支立项（§7 注） |
+| 4 | 字段表 | 16B 头 10 字段 + SD 头/Entry/Options Length + TP 4B 头（§3） | 数据场景层 | `types.go:759-775` + `1349-1383`；SD Entry 偏移按 §3.4.1 代码重写 | `tp.payload_length` 死配置 → G-SOMEIP-9（动态见 G-SOMEIP-3） |
+| 5 | 错误处理 | 4 类负例（§7 表）+ 6 个未覆分支 | 负例 N-1…N-4 | planner **10 个**拒绝分支（`planner.go:16-77`） | 6 分支立项（§7 表） |
 | 6 | 超时与活性 | SOME/IP 无保活/重试语义（应用层职责）；SD TTL 是宣告期非计时 | — | 协议层无 | **显式不适用**（§4 声明） |
 | 7 | NAT/代理/被动 | 无被动模式概念；SD 有 unicast/multicast 标志 | — | `sd` 子配置无 flags 键（28 稿 §5.3 列出但未落码） | flags 键未落码 → A′（G-SOMEIP-7） |
 | 8 | 版本/方言 | Protocol Version 固定 1；Interface Version 可配；IPv6 扩展已覆 | 正例 12 | `protocol_version` V4 校验（`planner.go:45`） | Interface Version 语义无例（显式不适用） |
@@ -374,7 +437,7 @@ someip 层无自有连接状态（承 28 稿 §4）：UDP 无连接，TCP 握手
 | 文件 | 职责 | 行数 |
 |---|---|---:|
 | `trafficgen/internal/core/types.go`（§759-775 + §1349-1383） | `SOMEIPConfig` + `SOMEIPSDConfig`/`SOMEIPOption`/`SOMEIPTPConfig`/`SOMEIPEvent` + `FlowSpec.SOMEIP` 槽位 | —（共享文件） |
-| `trafficgen/internal/protocol/someip/planner.go` | `Planner.Validate`（7 种拒绝）+ `Plan`（逐条 emit + auto_response 补包） | 344 |
+| `trafficgen/internal/protocol/someip/planner.go` | `Planner.Validate`（**10 种**拒绝，§7 表）+ `Plan`（逐条 emit + auto_response 补包 + TP 分段） | 344 |
 | `trafficgen/internal/protocol/someip/builder.go` | 16B 头 + SD Entry/Option + TP 头逐字节拼接（大端）；逻辑枚举→wire 换算 | 317 |
 | `trafficgen/internal/protocol/someip/layer_gen.go` | 终结层生成器（`RegisterLayerGenerator("someip")` + validator 注册，`init()`） | 295 |
 | `trafficgen/internal/protocol/someip/someip_test.go` | 单测（头字段 / Length 口径 / SD entry+option 布局 / TP 分段） | 553 |
@@ -397,7 +460,7 @@ someip 层无自有连接状态（承 28 稿 §4）：UDP 无连接，TCP 握手
 
 ### 11.5 错误分支
 
-7 种 validator 拒绝（§7 表 + §7 注 6 分支）；全部传 task error（零假成功——N 系列守卫）。SD Option 非法地址与未支持类型在 builder 层拒绝（`builder.go:266/:282/:292`）。
+10 种 validator 拒绝（§7 表全量枚举：入例 4 + 立项 6）；全部传 task error（零假成功——N 系列守卫）。builder 层另有 3 条拒绝（`invalid IPv4/IPv6 option address` `:267/:282`、`unsupported sd option type` `:294`）。
 
 ### 11.6 性能边界
 
@@ -422,7 +485,7 @@ someip 层无自有连接状态（承 28 稿 §4）：UDP 无连接，TCP 握手
 | §2 策略/任务 | 策略 = 单 someip 流量模板，自带 `flow_control`；任务 = 多策略合跑 + 总量封顶；框架语义未动 | 设计 §2 样例 |
 | §3 五件套 | 见 §12.3 强制展开：会话表/事务序列/关联（无派生流诚实声明）/插入位置（终结层）/时间线。UDP 无长连接，TCP 载体有握手 | §12.3 + §5 |
 | §4 查规范 | AUTOSAR PRS + 旧基线 + tshark 3.6.14 字段实测 + 落码反推；八项矩阵 + 子表①②③ | §10 |
-| §5 依赖与错误 | `DependsOn ["udp"]` + `TransportOn ["udp","tcp"]`（`registry.go:763`）；7 种拒绝分支；失败传 task error | §5/§7/§11.5 |
+| §5 依赖与错误 | `DependsOn ["udp"]` + `TransportOn ["udp","tcp"]`（`registry.go:763`）；**10 种**拒绝分支（§7 表）；失败传 task error | §5/§7/§11.5 |
 | §6 性能 | 见 §6（6.1–6.8 要素齐；吞吐数字标待 P4 基准，不写承诺） | §6 |
 | §7 三份文档 | `100-someip-{design,testcase}.md` v1.0.0（草稿层）+ D-SOMEIP-1（§11，门1 获批 = 定稿）+ T-SOMEIP（testcase §2，16 ID）+ 旧稿 28-* 为历史层 | 修订记录 |
 | §8 设计先行 | P1–P3 先于 P4 缺口收敛；门1 获批 = D-SOMEIP-1 定稿 = 开工门 | 提交序 |
@@ -467,7 +530,7 @@ someip 层无自有连接状态（承 28 稿 §4）：UDP 无连接，TCP 握手
 
 **事务序列**：`t1` 方法调用（REQUEST → auto_response RESPONSE）/ `t2` 无返回调用（REQUEST_NO_RETURN，单事务）/ `t3` 事件（NOTIFICATION，单向）/ `t4` 错误返回（REQUEST → ERROR）/ `t5` SD 发现（FindService → OfferService）/ `t6` SD 订阅（SubscribeEventgroup → Ack）/ `t7` TP 分段（首段 + 续段，同一消息）。每事务四件事（前置/触发/成功/失败）：前置 = 载体就绪（UDP 无状态 / TCP ESTABLISHED）；触发 = 配置一条消息或 `events[]` 元素；成功 = 下一事务（或会话结束）；失败 = 校验期拒绝（§7）或运行期任务失败。
 
-**关联关系**：**无派生流**（诚实声明）——SOME/IP 无"控制连接派生数据连接"结构；SD 与业务消息各自独立、无 `driven_by`。SD 内部的 entry↔option 引用（Index1/Index2/NumOpts1/NumOpts2）是**报文内**引用，非流关联。
+**关联关系**：**无派生流**（诚实声明）——SOME/IP 无"控制连接派生数据连接"结构；SD 与业务消息各自独立、无 `driven_by`。**本实现不做 entry→option 的 index 引用**：`entry[1]`(Index1)/`entry[2]`(Index2) 代码恒 0，仅 `entry[3]` 高 4bit 写 NumOpts 计数（`setOpts`，`builder.go:251`）；Option 按配置顺序紧跟在 4B Options Length 之后。故 entry↔option 是**位置相邻**关系而非报文内索引引用。
 
 **插入位置**：终结层（`[ip,udp,someip]` / `[ip,tcp,someip]`，无中间层）。
 
@@ -497,7 +560,11 @@ someip 层无自有连接状态（承 28 稿 §4）：UDP 无连接，TCP 握手
 | G-SOMEIP-6 | Return Code 0x02-0x0A（9 值）与 0x20-0xFF 无例 | A′ 按分支代表例补（§9.21） |
 | G-SOMEIP-7 | 负例 expect 含 `notes` 键（非严格两键）；SD Flags 三标志键（reboot/unicast/exp_init_events）28 稿列出但未落码；StopOffer/StopSubscribe 无例 | P4 收窄 expect 键；flags 键补代码或删声明；停止类 A′ 补例 |
 | G-SOMEIP-8 | AUTOSAR PRS 规范条款号未逐条核对（本版以 tshark 字段实测 + 代码为权威）；"已确认现网行为"档未达抓包级 | 待确认：查 AUTOSAR PRS 对应章节，或抓现网 ECU 包（三选一已写清）；确认前不写死条款号 |
+| G-SOMEIP-9 | `tp.payload_length` 是**死配置**（`grep -rc PayloadLength` 在 planner/builder/layer_gen = 0/0/0；代码只用 `len(cfg.Payload)` + `SegmentSize`） | P4 裁定：补消费或删键；**断言 `reassembled.length=2560` 实际来自 `len(payload)`，非该字段**（§3.5 已注明） |
+| G-SOMEIP-10 | `sd.type="subscribe_ack"` 独立配置无例（`sdTypeFromString` 支持，存量只走 subscribe 自动派生） | A′ 补例（独立 Ack 报文） |
+| G-SOMEIP-11 | 6 条未入例的 planner 拒绝分支（`protocol_version`/`segment_size<8`/`sd.type`/`events[i].message_type`/`src IP`/`dst IP`，§7 表）+ builder 3 条 | A′ 逐分支补负例（§9.47 错误码全表枚举） |
 
 ## 15. 修订记录
 
+- v1.0.1（2026-09-28，隔离审查 B-1/B-2/B-3 + D 类修轮）：**B-1** §3.4.1 SD Entry 偏移表按代码/探针重写（ServiceID@4-5、InstanceID@6-7、Major@8、TTL@9-11、Minor@12-15；`entry[1]`/`entry[2]` 是 tshark `index1`/`index2` 独立字节，NumOpts 合并于 `entry[3]` 高/低 4bit）——初稿照抄 28 稿、偏移整体错位 1 字节（§0 第 12 行登记）；补 4B Options Length 字段与 Eventgroup 变体布局（counter@[13] 低 4bit、eventgroupID@[14:16]）；§12.3 关联表述改为"位置相邻、不做 index 引用"。**B-2** §3.5 TP 头由 8B 改 **4B**（低 28bit=offset 16 对齐、bit0=more），并声明**后续段重复完整 16B 头**（`planner.go:247`）——初稿照抄 28 稿、头长与后续段结构全错（§0 第 13 行登记）；§6 性能节 TP 头同步改 4B。**B-3** §7 补 planner 拒绝分支**全表 10 条**（入例 4 + A′ 立项 6，原写"7 种"漏 3 条：`sd.type`/`src IP`/`dst IP`）；§10.1 #5、§11.1、§11.5、§12 计数同步 10；补 `subscribe_ack` 独立配置写法。**D 类**：§10.1 #4 补 `tp.payload_length` 死配置缺口；§8 补"引擎不强制 16 对齐"事实；新增 G-SOMEIP-9/10/11。**每条附复算命令与原始输出**（§3.4.1/§3.5 探针段）。自审见审计日志 §E。
 - v1.0.0（2026-09-28）：P-PIPE #100 文档轨 P1–P3。28→100 沿革与 11 项校正（§0）；存量 16 例机读审计（顶层残留形状、expect 形状、ID 顺序一致）；§12.1/12.3/12.12 强制展开 + 12-P2；D-SOMEIP-1 as-built 定稿（§11）；缺口 G-SOMEIP-1…G-SOMEIP-8；**承 28-someip-design 审计通过的线格式与场景结论**，冲突处按代码/JSON 事实改正（TP 2560/1408、Option wire 0x04、S5 hexdump、V5 锚词、ipv6.nxt）。自审见审计日志 §E。
