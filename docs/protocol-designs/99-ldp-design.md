@@ -24,7 +24,7 @@
 
 **产物过期登记（重要）**：`trafficgen/docs/protocol-pcap-test/ldp.md` 写 "Cases: 25 — pass 25, fail 0, error 0"，但该文件末次提交 `91f2487`（2026-08-30），**早于**判死提交 `0417be5`（2026-09-13）两周；`cases/ldp.json` 末改 `ed62038`（2026-08-30）同日；`docs/protocol-pcap-test/ldp/` 目录**不存在**（`ls` 实测 `No such file or directory`，0 个 pcap 文件，表内 14 个 `[pcap](ldp/*.pcap)` 链接全为死链）。**该结果文档是过期产物，25/25 pass 不代表今日可跑**——读者不得据此判断套件可用。
 
-**ldp 特例（与 pcep 的关键差异，须一并登记）**：pcep 存量 24 例今日 create 400 全红但**离线 suite 已接入**（`chainSuiteProtos` 含 pcep），去五键即可复跑；**ldp 两处皆红**——① 今日经 MCP 建策略**24/25 例 400**（`CheckProtoFlat` 五键循环 `strategy_convert.go:8632` 命中顶层四元组；唯一例外 `ldp_neg_carrier` 不带五键，create 通过但任务期 `ldp: unknown carrier "raw"` 失败，锚词 `carrier` 命中），② ldp **从未接入离线 suite**——`chainSuiteProtos`（`layer_chain_suite_test.go:70-78`）与空白导入块（`:43-63`，含块注释 `:43` 与右括号 `:63`；导入行 `:44-62`）均无 ldp，实跑 `CHAIN_PROTO=ldp go test -run TestLayerChainSuite ./test/protocol_pcap/` → **FAIL，25/25 全红**（14 正例 + 11 负例），错因 `layers: generator not implemented for layer "ldp"`。故这份「25/25 pass」**不代表今日可跑**，且**连"去五键即可用"的 pcep 式低成本解封路径也不存在**——须先补 G-LDP-1（registry `Fields` + translate 解码分支）并接入离线 suite。
+**ldp 未接入离线 suite（本登记的另一事实面）**：ldp **从未接入**离线执行器——`chainSuiteProtos`（`layer_chain_suite_test.go:70-78`）与空白导入块（`:43-63`，含块注释 `:43` 与右括号 `:63`；导入行 `:44-62`）均无 ldp（`grep -c '"ldp"'` = 0），故该 25/25 无法经离线路径复验：实跑 `CHAIN_PROTO=ldp go test -run TestLayerChainSuite ./test/protocol_pcap/` → **FAIL，25/25 全红**（14 正例 + 11 负例），错因 `layers: generator not implemented for layer "ldp"`。**注**：此非 ldp 独有（pcep 同样未接入，实跑 `CHAIN_PROTO=pcep` → 24/24 全红），属本批车道共性的"离线执行器覆盖面"问题，不影响本文登记结论。**另注**：去五键后 ldp **确可创建并出包**（实测 S1 去五键 → task `completed`，9 包 = 声明的 `packet_count`），但顶层 `ldp` 子映射仍在 = **判死形**，故不构成合规解封，本文不据此改判"今日可跑"。
 
 **依赖链判定纪律**：以上均为可判题（旧文→代码→用例三级对照），直接判定，不问偏好。
 
@@ -521,5 +521,5 @@ keepalive before init                   -> ldp: event 0: keepalive before initia
 
 ## 16. 修订记录
 
-- v1.0.1（2026-09-28）：补**结果文档过期登记**（G-LDP-8）——`docs/protocol-pcap-test/ldp.md` 的 "25/25 pass" 为过期产物（末次提交 `91f2487` 2026-08-30 < 判死提交 `0417be5` 2026-09-13；pcap 目录不存在；今日 MCP 建策略 24/25 例 400、离线 suite 未接入实跑 25/25 全红），登记于 §0 + §15，不得作为"套件可跑"依据；含 ldp 与 pcep 的特例差异（ldp 无"去五键即可用"路径）。仅文档，不动 JSON/代码。
+- v1.0.1（2026-09-28）：补**结果文档过期登记**（G-LDP-8）——`docs/protocol-pcap-test/ldp.md` 的 "25/25 pass" 为过期产物（末次提交 `91f2487` 2026-08-30 < 判死提交 `0417be5` 2026-09-13；pcap 目录不存在；今日 MCP 建策略 24/25 例 400、离线 suite 未接入实跑 25/25 全红），登记于 §0 + §15，不得作为"套件可跑"依据。v1.0.1 修轮：纠正初稿中"ldp 无去五键即可用路径"的错误论断（实测去五键 → task `completed`，9 包 = 声明 `packet_count`；且 pcep 同样未接入离线 suite，非 ldp 独有）。仅文档，不动 JSON/代码。
 - v1.0.0（2026-09-28）：P-PIPE #99 文档轨 P1–P3。续号：41→99 沿革与 7 项过期校正（§0）；存量 25 例机读审计（顶层残留形状、expect 形状、ID 顺序一致、包数公式符合度）；§13.1/13.3/13.12 强制展开 + 13-P2；D-LDP-1 as-built 定稿（§12）；缺口 G-LDP-1…G-LDP-7。P1–P3 合并自审 3 轮（首轮抓出标注/去向/顺序 3 处，次轮抓出适配声明/性能双路 2 处，第三轮抓出计数/行号/形状基线/对账算术 6 处，末轮全量重核干净；结论见 `/tmp/pipe/doc-lanes/ldp.md` §3）。
