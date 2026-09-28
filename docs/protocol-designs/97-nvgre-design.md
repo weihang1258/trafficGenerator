@@ -517,8 +517,10 @@ RESULT: 0 pass, 6 fail, 14 error (of 20)
 | G-NVGRE-6 | 外层 IPv6 + 内层 `vlan_ipv6` 组合、VLAN 边界（VID 4095/PCP 7/VID=0）、payload 上界拒绝无例 | A′ 补例（validator 分支已落码） |
 | G-NVGRE-7 | 旧稿 §9 #12"IP 分片/重组"未实现（生成器发完整单帧） | **明确不解决** + 迁入计划：分片面按长度上界拒绝表达（§8）；若实现则补驱动/用例 |
 | G-NVGRE-8 | 出厂/现网 VSID-FlowID 分配实践无抓包实证（③ 源未达验证级） | 待确认：抓现网 NVGRE 包或查 Hyper-V NVGRE 文档；确认前不写死进实现 |
+| G-NVGRE-9 | `trafficgen/docs/protocol-pcap-test/nvgre.md`（**tracked 结果产物**，`git ls-files` 可证）写 `Cases: 20 — pass 20, fail 0, error 0`，但末次提交 `c0bf5ec`（2026-08-31）早于判死提交 `0417be5`（2026-09-13）**13 天**；`cases/nvgre.json` 末改同日（`c0bf5ec`）；`docs/protocol-pcap-test/nvgre/` **0 个 pcap**（目录根本不存在，非"空目录"）；今日实跑 **0/20**（`RESULT: 0 pass, 6 fail, 14 error`）——**过期产物，且方向完全相反**（声称 20/20 pass，今日 0/20），不得作为"套件可跑"依据 | **代码阶段**（P5 重跑套件后重生成该产物）；本版**不删不改**（tracked 产物，删除属 P5 动作，此处仅登记事实） |
 
 ## 15. 修订记录
 
 - v1.0.0（2026-09-28）：P-PIPE #97 文档轨 P1–P3。RESUME 续写：55→97 沿革与 8 项过期校正（§0，含层链形状 `[ip,gre,nvgre]`→`[ip,nvgre]` 与 typedef 作废两项硬校正）；存量 20 例机读审计（顶层残留 56 处，非负例口径、无 `layers` 键、expect 形状、ID 顺序一致）；§12.1/12.3/12.12 强制展开 + 12-P2；D-NVGRE-1 as-built 定稿（§11）；缺口 G-NVGRE-1…G-NVGRE-8。P1 自审 2 轮 / P2 自审 2 轮 / P3 自审 2 轮，末轮干净（结论见 `/tmp/pipe/doc-lanes/nvgre.md` §2）。
 - v1.0.1（2026-09-28，隔离审查修轮）：审查报告 `/tmp/pipe/doc-reviews/nvgre.md`（有条件通过，2×P0 + 2×P1 + 5×P2）。修：**P0-1** 改口「假绿风险已排除」为「负例锚词全部失守」（实跑 `RESULT: 0 pass, 6 fail, 14 error`，拒因 `CheckProtoFlat`）；**P0-2**「扁平过渡态」→「存量今日全量失效（0 pass）」，补「不改也全红」第二条理由；**P1-①** vxlan/geneve 形状标签改「layers + 顶层残留并存形」（`layers` 20/20）vs nvgre「纯扁平形」（0/20）；**P1-②** 27B（原 28B）、1×11（原 1×12）；**P2-1** `complete.go` 引用补 `:293` 返回行；**P2-2** 扁平链来源改 `ChainPlanner.completedChainUncached`/`completeSynthesized`（非 `BuildLayersPlanner`）；**P2-3** 接线 7 件（原 6）；**P2-4** down 地址交换改指 `chain_planner.go:1546-1547`；**P2-5** `notes` 住 `expect` 内。自审 1 轮，末轮干净。
+- v1.0.2（2026-09-28，小补登记）：新增缺口 **G-NVGRE-9**（§14）——`docs/protocol-pcap-test/nvgre.md` 的「20/20 pass」是**过期产物且方向相反**（末次提交 `c0bf5ec` 2026-08-31，早于判死提交 `0417be5` 2026-09-13；`docs/protocol-pcap-test/nvgre/` 0 个 pcap；今日实跑 `RESULT: 0 pass, 6 fail, 14 error (of 20)`），**归属代码阶段**（P5 重跑后重生成）。**不改任何 tracked 产物**（`trafficgen/docs/protocol-pcap-test/` 下零改动）。自审 1 轮，末轮干净。
