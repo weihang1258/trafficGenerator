@@ -76,25 +76,47 @@ UDP discovery 目标形状（`[ip,udp,ldp]`）：
 }
 ```
 
-| 配置键 | 约束 | 语义 |
+**配置键表（as-built 逆向定稿；键数口径 = 脚本复算，禁手算）**
+
+承载分两层：`LDPConfig` **14 键**（`types.go:544-559`，`json` tag 实测）+ `LDPEvent` **13 键**（`types.go:585-599`）；另有 `LDPSession` 4 键、`LDPAdjacency` 8 键（嵌套结构，见 §12.3）。
+
+| 配置键 | 承载 | 落码状态 | 约束 | 语义 |
+|---|---|---|---|---|
+| `transport` | config | 已落码 | `udp`/`tcp` | 载体选择（与 `carrier` 并存，后者为事件模型） |
+| `wire_profile` | config | 已落码 | 正例固定 `ldp_rfc5036_ipv4_basic` | IPv4 LDP RFC 5036 基础线格式；未知/IPv6 profile 拒绝 |
+| `carrier` | config | 已落码 | `udp_discovery`/`tcp_session`/`dual_adjacency` | 载体和 packet 计数模型 |
+| `events` | config | 已落码 | 数组，顺序显式 | 事件序列（kind 见下） |
+| `sessions` | config | 已落码 | 独立会话数组 | 多 session/parallel neighbors 按 TCP 四元组隔离 |
+| `adjacencies` | config | 已落码 | 独立邻接数组 | dual_adjacency 混合载体三元素（basic/targeted/session） |
+| `lsr_id` | config | 已落码 | IPv4 地址 | LDP Identifier 的 LSR ID |
+| `label_space` | config | 已落码 | 0–65535 | LDP Identifier 的 Label Space ID |
+| `hold_time` | config | 已落码 | 0–65535 秒 | Hello Common Parameters 的 Hold Time |
+| `targeted` | config | 已落码 | 布尔 | Hello targeted bit |
+| `keepalive_time` | config | 已落码 | 1–65535 秒 | Common Session Parameters 的 KeepAlive Time |
+| `label_control` | config | **字段在、无消费** | `independent`/`ordered` | `types.go:556` 有字段，但 `grep -rn LabelControl internal/protocol/ldp/` **零命中**——**不校验、不影响行为**；§12.2 称"影响事件/状态约束"为**未落码声明** |
+| `label_advertisement` | config | 已落码 | `downstream_unsolicited`/`downstream_on_demand` | 下游标签分发纪律（DU/DoD）；非法值拒（`builder.go:486`） |
+| `fault_kind` | config | 已落码 | 6 种合法值 | `pdu_length`/`message_length`/`tlv_length`/`label_bounds`/`unknown_message`/`checksum`；未知值拒（`builder.go:326`） |
+| `kind` | event | 已落码 | 9 种合法值 | `hello`/`initialization`/`keepalive`/`address`/`label_mapping`/`label_request`/`label_withdraw`/`label_release`/`notification`；未知值拒（`builder.go:503` `unknown kind`） |
+| `direction` | event | 已落码 | `c2s`/`s2c` | 应用事件方向；UDP Hello 也必须明确 |
+| `message_id` | event | 已落码 | uint32 | Message ID |
+| `lsr_id` / `receiver_lsr_id` | event | 已落码 | IPv4 地址 | 本端/对端 LSR ID（Initialization） |
+| `hold_time` / `keepalive_time` | event | 已落码 | 见上 | 事件级覆盖 config 级 |
+| `targeted` | event | 已落码 | 布尔 | 事件级 Hello 标记 |
+| `fec` | event | 已落码 | 字符串 CIDR | IPv4 Prefix FEC；`/len > 32` 由 `resolveFEC` 拒（`builder.go:309`） |
+| `prefix_length` | event | **字段在、无范围校验** | uint8 | `types.go` 有字段，但**无 0–32 校验**；越界靠 `fec` 字符串后缀路径拒绝 |
+| `label` | event | 已落码 | 0–1048575 | Generic Label；>20-bit 拒（`builder.go:520`） |
+| `addresses` | event | 已落码 | IPv4 地址数组 | Address List TLV 载荷 |
+| `status_code` | event | 已落码 | uint32 | Notification Status Data |
+
+**规范要求面 ≠ as-built 面（三键未落码，显式标注）**：
+
+| 键 | 状态 | 说明 |
 |---|---|---|
-| `wire_profile` | 正例固定 `ldp_rfc5036_ipv4_basic` | IPv4 LDP RFC 5036 基础线格式；未知/IPv6 profile 拒绝 |
-| `carrier` | `udp_discovery`、`tcp_session` 或显式 aggregate schema 使用的 `dual_adjacency` | 载体和 packet（数据包）计数模型 |
-| `events` | 数组，事件顺序显式 | `hello`、`initialization`、`keepalive`、`address`、`label_mapping`、`label_request`、`label_withdraw`、`label_release`、`notification` |
-| `direction` | `c2s` 或 `s2c` | 应用事件方向；UDP Hello 也必须明确方向 |
-| `lsr_id` | IPv4 地址 | LDP Identifier 的 LSR ID（标签交换路由器标识） |
-| `label_space` | 0–65535 | LDP Identifier 的 Label Space ID（标签空间标识） |
-| `version` | RFC 5036 profile 为 1 | PDU common header version |
-| `hold_time` | 0–65535 秒；0 表示 RFC 默认值 | Hello Common Parameters 的 Hold Time |
-| `targeted` | 布尔 | Hello targeted bit；不得同时误称 basic discovery |
-| `hello_requested` | 布尔 | Hello Requested bit |
-| `keepalive_time` | 1–65535 秒 | Initialization Common Session Parameters 的 KeepAlive Time |
-| `label_control` | `independent` 或 `ordered` | 标签控制模式；只影响事件/状态约束，不虚构实现自动响应 |
-| `label_advertisement` | `downstream_unsolicited` 或 `downstream_on_demand` | 下游标签分发纪律（DU/DoD） |
-| `fec` | `ipv4_prefix` 或 `ipv4_host` + CIDR | 仅 IPv4 Prefix FEC，prefix length 0–32 |
-| `label` | 0–1048575 | Generic Label TLV；超出范围拒绝 |
-| `sessions` | 独立会话数组 | 多 session/parallel neighbors（并行邻居）按 TCP 四元组隔离 |
-| `fault_kind` | 仅负例 | `pdu_length`、`message_length`、`tlv_length`、`label_bounds`、`unknown_message`、`checksum`；不生成合法报文 |
+| `version` | **未落码（目标形状）** | `LDPConfig`/`LDPEvent` 均无此字段；版本为 builder 内部常量 `ldpVersion = 1`（`builder.go:15`）。RFC 5036 基础 profile 恒 1，故无配置面需求 |
+| `hello_requested` | **未落码（目标形状）** | 全仓 `grep -rn hello_requested\|HelloRequested internal/` = **0 命中**；RFC 5036 §3.5.2 Hello 有 R bit，代码未实现 |
+| `label_control` | **未落码（见上表）** | 字段在但零消费 |
+
+**静默丢弃风险（实测）**：`version`/`hello_requested` 经 `MapToFlowSpec` 传入时**不报错**——`parseSubconfigJSON` 用裸 `json.Unmarshal`（无 `DisallowUnknownFields`，`strategy_convert_helpers.go:21-30`），未知键被静默丢弃（`validationErrors=[]`）。同机制导致 N7 事件内嵌套 `fault_kind`/`value` 键被丢弃（§6 N7 注）。
 
 Initialization 的 Common Session Parameters TLV 必须携带协议版本、KeepAlive Time、标签分发纪律、Loop Detection（环路检测）位、Path Vector Limit（路径向量上限）、Max PDU Length、Receiver LSR Identifier 和 Receiver Label Space Identifier。无配置的 capability（能力）不自动添加。
 
@@ -171,7 +193,7 @@ Notification（可选）或 TCP FIN
 - UDP Hello 和 TCP session 是两种不同载体；不能用 UDP packet 代替 TCP 握手，也不能把 TCP PDU 当 discovery。
 - 一条 TCP session 按四元组和 LDP Identifier 隔离；两个 parallel neighbors 可以共享目的端口 646，但源临时端口或 LSR ID 必须不同。
 - `targeted=true` 只改变 Hello 的目标/标记语义；它不自动建立第二条 TCP session。
-- Initialization 两方向完成后才允许 KeepAlive、Address 和标签消息；Notification 可作为最后事件。
+- Initialization 两方向完成后才允许 KeepAlive、Address 和标签消息；Notification 可作为最后事件。**as-built 偏差**：该状态约束**仅 KeepAlive 已落码**（`builder.go:530`）；Address/标签消息的 init 前置守卫**未实现**（实跑 `ValidateConfig` 对 address/label_* before init 返回 `<nil>`）——本条为**目标形状**（G-LDP-7），实现与用例按 §11.2 T3 列登记。
 - Label Mapping/Request/Withdraw/Release 的 FEC 必须在 IPv4 profile 内，/0–/32 边界合法；IPv6 前缀不是 IPv4 FEC 的替代写法。
 - 所有 PDU/message/TLV length 按编码后实际长度回填；声明长度与边界不一致必须拒绝。
 - 各事件方向必须在同一 session 的 transport 上编码；不要把一个方向的 LSR ID 或 label space 泄漏到另一 session。
@@ -196,13 +218,13 @@ IPv4 TCP application payload offset（载荷偏移）在无额外 option 时为 
 
 | # | 输入故障 | 必须拒绝 | 稳定关键词 | 代码出处 |
 |---|---|---|---|---|
-| N1 | `ldp` 终结层缺 TCP/UDP 或 carrier 不匹配 | LDP 只允许本版明确载体 | `carrier` | `builder.go:456` `unknown carrier %q` |
+| N1 | `ldp` 终结层缺 TCP/UDP 或 carrier 不匹配 | LDP 只允许本版明确载体 | `carrier` | `builder.go:458` `unknown carrier %q` |
 | N2 | UDP 非 646 或 TCP 非 646 | 端口不满足 RFC 5036 | `port` | `planner.go:29` `udp_discovery source port must be 646` |
 | N3 | 未定义 IPv6 transport/profile | 不能混用 IPv4 FEC/profile | `profile` | `planner.go:37/39` |
 | N4 | PDU Length 与实际 PDU 不一致/超出 | PDU 边界非法 | `pdu` | `builder.go:325` `fault injection "pdu_length"` |
 | N5 | Message Length 与消息 body 不一致 | message 边界非法 | `message` | 同上 `"message_length"` |
 | N6 | TLV Length 与 Value 不一致 | TLV 边界非法 | `tlv` | 同上 `"tlv_length"` |
-| N7 | unknown Message Type（未知消息类型） | 不能伪造基础 profile 语义 | `unknown` | 同上 `"unknown_message"` |
+| N7 | unknown Message Type（未知消息类型） | 不能伪造基础 profile 语义 | `unknown` | **实测走两条独立路径**：① config 级 `fault_kind="unknown_message"` → `builder.go:326` `fault injection "unknown_message"`；② **存量用例实际走事件 kind 路径**——`events[2] = {kind:"wire_fault"}`（`wire_fault` **不在 9 项合法 kind 内**）→ `builder.go:503` `event 2: unknown kind "wire_fault"`。事件内嵌套的 `fault_kind`/`value` 键**被静默丢弃**（`LDPEvent` 无此 json 键 + 裸 `json.Unmarshal`，见 §2 末）；N8/N9 同理（`label_bounds`/`prefix_bounds` 亦靠事件级非法 kind 触发） |
 | N8 | Generic Label 高位非零或 >1048575 | 20-bit label 越界 | `label` | 同上 `"label_bounds"` + `builder.go:520` `label exceeds 20-bit bound` |
 | N9 | FEC prefix length <0 或 >32 | IPv4 Prefix FEC 越界 | `prefix` | `builder.go:309` `FEC prefix length %d out of range (max 32)` |
 | N10 | Initialization 前发送 KeepAlive/Address/label | 会话状态错误 | `state` | `builder.go:530` `keepalive before initialization (invalid session state)` |
@@ -252,7 +274,7 @@ IPv4 TCP application payload offset（载荷偏移）在无额外 option 时为 
 | `ESTABLISHED`（握手后） | Initialization 事件 → 0x0200 PDU；KeepAlive → 0x0201；Address → 0x0300；label 四消息 → 0x04xx；Notification → 0x0001 | S1–S8, S11, S12 |
 | 终止（FIN 四包） | 事件流关闭 → tcp 层挥手 | 全 TCP 正例 |
 
-**状态约束（as-built `builder.go:530`）**：Initialization 之前出现 KeepAlive → 拒绝 `keepalive before initialization (invalid session state)`（N10）。
+**状态约束（as-built `builder.go:530`）**：Initialization 之前出现 **KeepAlive** → 拒绝 `keepalive before initialization (invalid session state)`（N10）。**仅此一条已落码**；Address/标签消息的 init 前置守卫未实现（G-LDP-7，§4/§11.2 T3 列）。
 
 **自动派生规则**：① TCP 握手/FIN 由 tcp 层自动补（事件模式无独立 ACK）；② 空 `events` 且 carrier 为空 → validator 拒 `at least one event required`（**无空配置默认流**，与 moxa 的单块 "hello" 默认不同）；③ 无配置的 capability 不自动添加（§2 末）。
 
@@ -274,27 +296,39 @@ IPv4 TCP application payload offset（载荷偏移）在无额外 option 时为 
 | 1 | 连接模型 | UDP/646 发现 + TCP/646 会话双载体；主站主动建连（RFC 5036 §2.5/§2.7） | 场景①–⑨ | `DependsOn ["udp"]` + `TransportOn ["udp","tcp"]`（`registry.go:1383`）；`isCarrierMixedChain` 混合分支 | 无 |
 | 2 | 命令/消息表 | 9 种消息类型（§3 表，`builder.go:27-34` 常量实测） | 场景③–⑨ | `parseLDPEvents` 9 分支（`builder.go:361-414`） | 无 |
 | 3 | 状态机 | 握手—初始化—保活—业务—释放（§4/§9） | S1–S8, S11 | tcp 层拥有状态；ldp 层守 `keepalive before initialization`（`builder.go:530`） | 无 |
-| 4 | 字段表 | 消息 9 kind + 16 配置键（§2 表；`types.go:544-590`） | 数据场景层 | builder 直传 + 长度/方向/label/FEC 校验 | 层内化未做（G-LDP-1） |
+| 4 | 字段表 | 消息 9 kind + config 14 键 + event 13 键（§2 表；`types.go:544-559`/`:585-599`） | 数据场景层 | builder 直传 + 长度/方向/label/FEC 校验 | 层内化未做（G-LDP-1）；`version`/`hello_requested`/`label_control` 三键未落码 |
 | 5 | 错误处理 | 11 类负例（§6 表） | 负例 N1–N11 | planner/validator 11 种拒绝分支（§6 代码出处列） | 无（锚词已钉死 11/11） |
-| 6 | 超时与活性 | Hello Hold Time（RFC 5036 §3.5.3）+ KeepAlive Time（§3.5.3）；生成器不模拟超时重传 | S1（KeepAlive Time=30）/ S9（Hold Time=15） | 字段可配（`hold_time`/`keepalive_time`）；无定时器 | **显式不适用**定时器（声明式回放无运行时超时），无缺口 |
+| 6 | 超时与活性 | Hello Hold Time（RFC 5036 §3.5.2）+ KeepAlive Time（§3.5.4）；生成器不模拟超时重传 | S1（KeepAlive Time=30）/ S9（Hold Time=15） | 字段可配（`hold_time`/`keepalive_time`）；无定时器 | **显式不适用**定时器（声明式回放无运行时超时），无缺口 |
 | 7 | NAT/代理/被动 | 无被动模式概念（LDP 双向对等，双方均可发起 Hello） | S10（双向 Hello） | 无 NAT 特殊处理 | **显式不适用**被动模式；NAT 穿透为框架面 |
 | 8 | 版本/方言 | 唯一 profile `ldp_rfc5036_ipv4_basic`；IPv6 明确不解决（N3） | 正例 14 | `planner.go:36-39` IPv6 拒绝分支 | IPv6 profile 待独立规范 |
 
 ### 11.2 子表①：消息类型×传输终态矩阵（逐格已覆/立项/不适用；**适配声明**：LDP 无"响应码"概念——通知类消息（Notification）以 Status TLV 承载状态码，故以「消息类型 × 传输终态」为等价口径，对照 moxa §10.2 适配先例）
 
-| 消息类型 | T1 正常 FIN 终态 | T2 配置拒绝 | T3 载体/状态拒绝 |
+| 消息类型 | T1 正常 FIN 终态 | T2 配置拒绝 | T3 状态拒绝（init 前置守卫） |
 |---|---|---|---|
-| Hello 0x0100 | 已覆（S9/S10） | 已覆（N2 端口/N7 unknown 代表例） | 已覆（N1 carrier） |
-| Initialization 0x0200 | 已覆（S1/S13/S14） | 已覆（N4/N5/N6 长度代表例） | 已覆（N3 profile） |
-| KeepAlive 0x0201 | 已覆（S2） | 已覆（同上代表例） | **已覆（N10 state）** |
-| Address 0x0300 | 已覆（S3） | 已覆（同上代表例） | 已覆（N10 state，Address 同属初始化后事件） |
-| Label Mapping 0x0400 | 已覆（S4/S8/S12） | 已覆（N8 label/N9 prefix） | 已覆（N10 state） |
-| Label Request 0x0401 | 已覆（S5/S12） | 已覆（N9 prefix） | 已覆（N10 state） |
-| Label Withdraw 0x0402 | 已覆（S6） | 已覆（同上代表例） | 已覆（N10 state） |
-| Label Release 0x0403 | 已覆（S7） | 已覆（同上代表例） | 已覆（N10 state） |
-| Notification 0x0001 | 已覆（S11） | 已覆（N7 unknown 代表例） | 已覆（N11 checksum） |
+| Hello 0x0100 | 已覆（S9/S10） | 已覆（N2 端口/N7 unknown 代表例） | 不适用（UDP 发现无 TCP 状态机；`builder.go` 无 Hello 状态守卫） |
+| Initialization 0x0200 | 已覆（S1/S13/S14） | 已覆（N4/N5/N6 长度代表例） | 不适用（init 本身即状态起点，无前置守卫需求） |
+| KeepAlive 0x0201 | 已覆（S2） | 已覆（同上代表例） | **已覆（N10 state）**——唯一有 init 守卫者（`builder.go:530`） |
+| Address 0x0300 | 已覆（S3） | 已覆（同上代表例） | **A′ 立项**（实测 `ValidateConfig` 对 address-before-init 返回 `<nil>`：**无守卫**；§6 补行） |
+| Label Mapping 0x0400 | 已覆（S4/S8/S12） | 已覆（N8 label/N9 prefix） | **A′ 立项**（同上，带 FEC 后仍 `<nil>`） |
+| Label Request 0x0401 | 已覆（S5/S12） | 已覆（N9 prefix） | **A′ 立项**（同上） |
+| Label Withdraw 0x0402 | 已覆（S6） | 已覆（同上代表例） | **A′ 立项**（同上） |
+| Label Release 0x0403 | 已覆（S7） | 已覆（同上代表例） | **A′ 立项**（同上） |
+| Notification 0x0001 | 已覆（S11） | 已覆（N7 unknown 代表例） | 不适用（RFC 5036 §3.5.1 Notification 可在任意状态发出，**无 init 前置**） |
 
-**逐格重数**：9 行 × 3 列 = 27 格——已覆 27 / A′ 立项 0 / 不适用 0，零空格。
+**逐格重数**：9 行 × 3 列 = 27 格——已覆 **22** / A′ 立项 **5** / 不适用 **0**，零空格。
+
+**T3 列判定依据（实跑 `ValidateConfig`，脚本输出）**：
+```
+address before init (with FEC)          -> <nil>      ← 无守卫
+label_mapping before init (with FEC)    -> <nil>      ← 无守卫
+label_request before init (with FEC)    -> <nil>      ← 无守卫
+label_withdraw before init (with FEC)   -> <nil>      ← 无守卫
+label_release before init (with FEC)    -> <nil>      ← 无守卫
+notification before init (with FEC)     -> <nil>      ← 无守卫（RFC 语义上亦无需）
+keepalive before init                   -> ldp: event 0: keepalive before initialization (invalid session state)
+```
+`builder.go` 内 `seenInit` **仅守卫 `keepalive`**（`:529`）；全包 `grep -rn 'invalid session state'` 只有 `:530` 一处。故 **T3 列只有 KeepAlive 格已覆**，其余 5 格为 A′ 立项（CORE_MEMORY §9.36：不许冒充已覆盖）。同时 **§4 的设计声明**"Initialization 两方向完成后才允许 KeepAlive、Address 和标签消息"**与实现不符**——Address/标签消息的 init 前置守卫**未落码**，该声明属**目标形状**（G-LDP-7）。
 
 ### 11.3 子表②：数据形态变体表（协议相关全部形态逐项）
 
@@ -333,11 +367,11 @@ IPv4 TCP application payload offset（载荷偏移）在无额外 option 时为 
 | 4 | 标签分发 DU（§2.6 downstream unsolicited） | S4/S5/S6/S7/S8 | 已覆 |
 | 5 | 标签分发 DoD（§2.6 downstream on demand） | S12 | 已覆 |
 | 6 | 有序控制（§2.6 ordered control） | S12 | 已覆 |
-| 7 | 会话拆除（§3.5.7 Notification/Shutdown） | S11 | 已覆 |
+| 7 | 会话拆除（§3.5.1 Notification；Unilateral Shutdown 状态码见 §3.5.1.2.4） | S11 | 已覆 |
 | 8 | 多邻居并行部署 | S13 | 已覆 |
 | 9 | TCP MD5/AO 认证（RFC 5925） | — | **明确不解决**（v1 范围外，§1 显式边界） |
 | 10 | GTSM TTL 安全（RFC 5082） | — | **明确不解决**（部署策略，非线格式） |
-| 11 | VPN/VC FEC、流量工程扩展（RFC 4447/§3.4.3） | — | **明确不解决**（v1 范围外） |
+| 11 | VPN/VC FEC、流量工程扩展（RFC 4447 §5.2/§5.3 PW FEC 元素） | — | **明确不解决**（v1 范围外） |
 
 8 覆 + 3 不适用 = 11。✓无映射无确认即缺口——本表零缺口。
 
@@ -443,13 +477,14 @@ IPv4 TCP application payload offset（载荷偏移）在无额外 option 时为 
 | `count` | **0** | 走 `flow_control`（本套件无多流例） |
 | 顶层 `ldp` 子映射 | **25** | 待代码阶段收敛 → **迁 `layers[i].ldp`**（须先补 registry `Fields` + translate 解码分支，G-LDP-1） |
 
-**结论**：本协议**不是符合态**，是有实质迁移工作量的违规过渡形。§1 门的动作 = ①补 registry `Fields`（wire_profile/carrier/events/sessions/adjacencies/lsr_id/label_space/hold_time/targeted/keepalive_time/label_control/label_advertisement/fault_kind）；②加 translate 严格解码分支（层内 ldp→`spec.LDP`，bgp/pim/moxa 范式）；③`MapToFlowSpec` 顶层收敛；④25 例整体改写；⑤新增 6 A′ 例全部纯 layers 形；⑥收官自查行「非负例顶层键 = 0」由 **70 → 0**。
+**结论**：本协议**不是符合态**，是有实质迁移工作量的违规过渡形。§1 门的动作 = ①补 registry `Fields`（config 14 键：transport/wire_profile/carrier/events/sessions/adjacencies/lsr_id/label_space/hold_time/targeted/keepalive_time/label_control/label_advertisement/fault_kind）；②加 translate 严格解码分支（层内 ldp→`spec.LDP`，bgp/pim/moxa 范式）；③`MapToFlowSpec` 顶层收敛；④25 例整体改写；⑤新增 A′ 例 11 条（子表② 变体 5 + 子表① T3 5 + 多事务 1）全部纯 layers 形；⑥收官自查行「非负例顶层键 = 0」由 **70 → 0**。
 
 目标形状样例见 §2（顶层仅 `layers`+`flow_control`）。
 
 ### 13-P2 判死负例形状（链级红例必含清单①③④）
 
-- ① presence 形状 `{"layers":[…],"ldp":{}}` 今日**不会被拒**（`CheckProtoFlat` 无 ldp 分支，`grep -c` = 0 实测）→ **P4 不建该负例**（建了会真绿 = 假通过）→ 缺口 G-LDP-2 登记。② 白名单外游离键判死（`unknown field`）P4 建一条（A′）。③ 11 负例每条带锚词（已齐，§6）。④ 收官自查「非负例顶层键 = 0」（P4 迁移后执行）。
+- ① presence 形状 `{"layers":[…],"ldp":{}}` 今日**不会被拒**（`CheckProtoFlat` 无 ldp 分支，`grep -c` = 0 实测；实调 `CheckProtoFlat("ldp",{layers,ldp:{}})` 返回 `""`）→ **不建该负例**（建了会真绿 = 假通过）→ 缺口 G-LDP-2 登记。② 白名单外游离键判死由**框架级 unknown-key 白名单通用门**承担（**禁加单协议黑名单分支**，§1.13 + kingbase 裁定）——该通用门落码后建一条 A′。③ 11 负例每条带锚词（已齐，§6）。④ 收官自查「非负例顶层键 = 0」（代码阶段收敛后执行）。
+- **离线 suite 接入状态（复跑实测）**：ldp **未接入** `layer_chain_suite_test.go`（`chainSuiteProtos` 与空白导入均无 ldp）；直接跑 `CHAIN_PROTO=ldp go test -run TestLayerChainSuite ./test/protocol_pcap/` → **FAIL 25/25**，错因 `generator not implemented for layer "ldp"`。副本补接入后 → **25/25 PASS（36.8s）**。故本套件「接入后可绿」，非「今日能绿」；接入属代码阶段。
 
 ### 13.3 §3 强制展开：五件套
 
@@ -459,13 +494,13 @@ IPv4 TCP application payload offset（载荷偏移）在无额外 option 时为 
 
 四元组 `ip.src/dst`、`tcp.src_port/dst_port`、`udp.src_port/dst_port` 五策略全开（allowlist `internal/core/layer_dyn.go:18-21` 实测四行：`ip`/`tcp`/`udp`/`eth`；保底 `12345+i`（常量 `strategy_convert.go:49`，注入点 `worker.go:308`）；dst 动态与 646 缺省和平共处——显式/动态值非零即不触发补齐）。
 
-**业务字段 12 项全关**（allowlist 无 `ldp` 行，`grep -c "ldp" layer_dyn.go` = 0 实测；对象即拒）：`wire_profile`（profile 选择器）/ `carrier`（载体选择器）/ `events[]`（会话剧本）/ `sessions[]`（会话结构）/ `adjacencies[]`（邻接结构）/ `lsr_id`·`label_space`（LDP Identifier）/ `hold_time`·`keepalive_time`（定时参数）/ `targeted`（Hello 标记）/ `label_control`·`label_advertisement`（分发纪律）/ `fault_kind`（注入键）——逐流变体需求列 A′ 候选（testcase §6.2；今日按 §9.36 口径不冒充覆盖）。
+**业务字段 13 项全关**（allowlist 无 `ldp` 行，`grep -c "ldp" layer_dyn.go` = 0 实测；对象即拒）：`wire_profile`（profile 选择器）/ `carrier`（载体选择器）/ `events[]`（会话剧本）/ `sessions[]`（会话结构）/ `adjacencies[]`（邻接结构）/ `lsr_id`·`label_space`（LDP Identifier）/ `hold_time`·`keepalive_time`（定时参数）/ `targeted`（Hello 标记）/ `label_control`·`label_advertisement`（分发纪律）/ `fault_kind`（注入键）——逐流变体需求列 A′ 候选（testcase §6.2；今日按 §9.36 口径不冒充覆盖）。
 
 序号算法实读：`parseLayerDyn`（`layer_dyn.go:78`）/ `TupleGenerator.Next`（`tuple_generator.go`）/ 保底自增（`strategy_convert.go:49` 常量 + `worker.go:308` 注入）/ allowlist 白名单（`layer_dyn.go:18-21`）——**`ldp` 无块**（grep 实测零命中），即层内任何对象值 → `does not support dynamic`。
 
 ## 14. P3 对接清单（T-LDP 草稿输入；正文落 testcase 文件）
 
-25 ID（14 正 + 11 负）+ packet_count/锚词 + fixture 常量 + 双通道断言基线 + 存量审计（testcase §2–§5/§8 全量）。A′ 候选 5 例：`ldp_default_srcport`（变体 7）/ `ldp_default_port`（变体 8）/ `ldp_fec_prefix0`（变体 11）/ `ldp_label_min`（变体 15）/ `ldp_label_max`（变体 16）。
+25 ID（14 正 + 11 负）+ packet_count/锚词 + fixture 常量 + 双通道断言基线 + 存量审计（testcase §2–§5/§8 全量）。A′ 候选 **11 例**（三组口径，勿混）：**① 子表② 变体 5**：`ldp_default_srcport`（变体 7）/ `ldp_default_port`（变体 8）/ `ldp_fec_prefix0`（变体 11）/ `ldp_label_min`（变体 15）/ `ldp_label_max`（变体 16）；**② 子表① T3 列 5**（init 前置守卫未落码，G-LDP-7）：`ldp_neg_address_before_init` / `ldp_neg_mapping_before_init` / `ldp_neg_request_before_init` / `ldp_neg_withdraw_before_init` / `ldp_neg_release_before_init`；**③ §3.15① 多事务 1**：`ldp_multi_txn_roundtrip`。
 
 ## 15. 缺口立项清单（有缺口写「缺口立项」，不许空着）
 
@@ -477,6 +512,7 @@ IPv4 TCP application payload offset（载荷偏移）在无额外 option 时为 
 | G-LDP-4 | 业务字段动态全关（allowlist 无 `ldp` 行） | A′ 候选，不冒充已覆盖（§9.36 口径） |
 | G-LDP-5 | 41-ldp 两份文档引用不存在的 `docs/protocol-designs/audit/41-ldp-adversarial-audit.md` | 99 版不再引用；41 版留只读历史 |
 | G-LDP-6 | IPv6 transport/profile 未定义（N3 只做拒绝面） | 取得独立规范与 fixture 后另建 profile，不修改本套件契约 |
+| G-LDP-7 | **init 前置守卫只落码 KeepAlive**（`builder.go:529`）；Address/标签消息的 init 前置未实现，§4 声明属目标形状 | 代码阶段补 `seenInit` 守卫 + 5 条 T3 负例（§14 A′ ② 组）；守卫落码前 §4 声明不得作为 as-built 行为引用 |
 
 ## 16. 修订记录
 

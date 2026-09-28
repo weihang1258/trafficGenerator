@@ -11,7 +11,7 @@
 
 用例从设计 §3–§9 逐项派生，共 **25 个唯一语义 ID：14 正 + 11 负**（继承旧稿计数，负例 N1–N11）。派生规则：设计 §3 每个消息/TLV 条款、§4/§9 每个状态与邻接行为、§6 每行错误处理在本文有对应断言；断言不得超出设计声明范围。**一个用例只验证一个协议行为**。
 
-**形状基线（2026-09-28 机读实测）**：25/25 例顶层键 = `{expect,id,proto,spec_json,summary}`（无 `strategy_fc`/`notes` 顶层键；`notes` 仅在 S14 的 `expect` 内，值为「首帧为 UDP 发现 Hello（混合载体），TCP 握手由 negotiated/terminates 断言」）；`spec_json` 顶层键 = `{layers,src_ip,dst_ip,src_port,dst_port,ldp}` ×24 + `{layers,ldp}` ×1（N1 `ldp_neg_carrier` 无四元组）；层形 `[tcp,ldp]` ×18、`[udp,ldp]` ×5、`[ip,ldp]` ×1（S14）、`[eth,ldp]` ×1（N1）；14 正例 `expect` 均含 `packet_count`；11 负例 `expect` 键集合严格为 `{expect_error,error_contains}`（干净）。
+**形状基线（2026-09-28 机读实测）**：25/25 例顶层键 = `{expect,id,proto,spec_json,summary}`（无 `strategy_fc`/`notes` 顶层键；`notes` 仅在 S14 的 `expect` 内，值为「首帧为 UDP 发现 Hello（混合载体），TCP 握手由 negotiated/terminates 断言」——**该 notes 文本有误**：S14 `expect` 键 = `{directional,fields,frames,has_handshake,has_payload,notes,packet_count,terminates}`，**无 `negotiated`**（全套件 25 例零出现），且 `has_handshake=false`（混合载体首帧为 UDP Hello）。正确表述：握手态由 `has_handshake`/`terminates`/`directional` 与 fields/frames 断言，非 `negotiated`；notes 属 cases JSON 内容，**本车道不改 JSON**，登记为代码阶段随改写例一并订正）；`spec_json` 顶层键 = `{layers,src_ip,dst_ip,src_port,dst_port,ldp}` ×24 + `{layers,ldp}` ×1（N1 `ldp_neg_carrier` 无四元组）；层形 `[tcp,ldp]` ×18、`[udp,ldp]` ×5、`[ip,ldp]` ×1（S14）、`[eth,ldp]` ×1（N1）；14 正例 `expect` 均含 `packet_count`；11 负例 `expect` 键集合严格为 `{expect_error,error_contains}`（干净）。
 
 **输出契约（pcap/NIC 双输出）**：两路径共用同一 cases JSON 与断言集（`ldp.*` 字段 + `tcp.srcport/dstport` + `udp.srcport/dstport` + offset 42/54 frames）；NIC 经 tcpdump 捕获（`nic_capture` 用例级开关）；不设仅单路径可用的断言。
 
@@ -47,7 +47,7 @@
 | 18 | `ldp_neg_pdu_length` | 负 N4 | §6 N4：PDU length 注入 | — |
 | 19 | `ldp_neg_message_length` | 负 N5 | §6 N5：Message length 注入 | — |
 | 20 | `ldp_neg_tlv_length` | 负 N6 | §6 N6：TLV length 注入 | — |
-| 21 | `ldp_neg_unknown_message` | 负 N7 | §6 N7：unknown message 注入 | — |
+| 21 | `ldp_neg_unknown_message` | 负 N7 | §6 N7：unknown message（事件 kind `wire_fault` 非法 kind 路径） | — |
 | 22 | `ldp_neg_label_bounds` | 负 N8 | §6 N8：label >20-bit | — |
 | 23 | `ldp_neg_prefix_bounds` | 负 N9 | §6 N9：IPv4 prefix length >32 | — |
 | 24 | `ldp_neg_state` | 负 N10 | §6 N10：Initialization 前 KeepAlive | — |
@@ -129,10 +129,10 @@ Initialization 双向后由 s2c 发 Notification（0x0001），Status TLV type=0
 | `ldp_neg_pdu_length` | `fault_kind="pdu_length"` | `pdu` | `builder.go:325` |
 | `ldp_neg_message_length` | `fault_kind="message_length"` | `message` | `builder.go:325` |
 | `ldp_neg_tlv_length` | `fault_kind="tlv_length"` | `tlv` | `builder.go:325` |
-| `ldp_neg_unknown_message` | `fault_kind="unknown_message"` | `unknown` | `builder.go:325` |
+| `ldp_neg_unknown_message` | **事件 kind `wire_fault`**（非法 kind，非 config 级 `fault_kind`；实测 `events[2]={kind:"wire_fault"}`，嵌套 `fault_kind`/`value` 被静默丢弃） | `unknown` | `builder.go:503` `event 2: unknown kind "wire_fault"` |
 | `ldp_neg_label_bounds` | `fault_kind="label_bounds"`（或 label 0x100000） | `label` | `builder.go:325` + `:520` |
 | `ldp_neg_prefix_bounds` | IPv4 FEC `/33` | `prefix` | `builder.go:309` |
-| `ldp_neg_state` | 无 Initialization 先发 KeepAlive | `state` | `builder.go:530` |
+| `ldp_neg_state` | 无 Initialization 先发 KeepAlive | `state` | `builder.go:530`（**唯一有 init 守卫的 kind**；Address/标签消息无守卫，G-LDP-7） |
 | `ldp_neg_checksum` | `fault_kind="checksum"` | `checksum` | `builder.go:325` |
 
 **负例原子性**：每例单一故障注入；单次执行不得混注。故障注入字段是测试契约，不是 RFC 5036 合法配置；失败不得产生可被误认为成功的 PCAP。
@@ -146,7 +146,7 @@ RFC 5036（LDP Specification 全文 + §3.4/§3.5 FEC 语义）+ D-LDP-1（设�
 ### 5.2 对账两行 + 清单出处声明
 
 - **清单出处声明**：本清单来源 = **RFC 5036 原文反推**（§3.1–3.7 逐节、§4 状态、§6 错误）+ D-LDP-1 as-built 落码 + tshark `ldp.*` 262 字段实测，**非从现有用例反推**。
-- **对账两行**：**要求逻辑点总数 = 89**（八项 8 行 + 子表① 27 格 + 子表② 18 行 + 子表③ 11 行 + 用例形状 25 点〔25 ID 逐点〕）；**用例覆盖数 = 80**（八项 8 + 子表① 27 + 子表② 12 + 子表③ 8 + 形状 25）；**不适用 = 4**（子表② 1〔IPv6 正向形态〕+ 子表③ 3〔TCP MD5/AO、GTSM、VPN/VC FEC〕）；**开放 5 格**（子表② A′ 立项）= 立项覆盖（§9.36 口径，不冒充今日可跑）。80 + 4 + 5 = 89 ✓
+- **对账两行**：**要求逻辑点总数 = 89**（八项 8 行 + 子表① 27 格 + 子表② 18 行 + 子表③ 11 行 + 用例形状 25 点〔25 ID 逐点〕）；**用例覆盖数 = 75**（八项 8 + 子表① 已覆 22 + 子表② 12 + 子表③ 8 + 形状 25）；**不适用 = 4**（子表② 1〔IPv6 正向形态〕+ 子表③ 3〔TCP MD5/AO、GTSM、VPN/VC FEC〕）；**开放 10 格**（子表② 变体 A′ 5 + 子表① T3 列 A′ 5）= 立项覆盖（§9.36 口径，不冒充今日可跑）。75 + 4 + 10 = 89 ✓
   **粒度声明**：行/格粒度每点 1 计；G-LDP-1…G-LDP-6 不折进 89。**反查全绿 ≠ 覆盖全**（§9.52 原文）。
 - **门3 抽查候选**：最复杂用例 = **#14 `ldp_dual_adjacency`**（3 adjacency 混合载体：basic UDP + targeted UDP + TCP session，12 包跨两种传输层）；交织维度 = 邻接(3)×载体(2)×方向(2)×终态(有 FIN/无 FIN)。若按 9.49/9.50 下限偏弱在"并发交错"面，**建议门3 抽 #14 + #13**（`ldp_tcp_multi_session` 补多会话独立状态面）。
 
@@ -160,7 +160,7 @@ RFC 5036（LDP Specification 全文 + §3.4/§3.5 FEC 语义）+ D-LDP-1（设�
 
 | # | 三项 | 本协议对照 | 用例/立项 |
 |---|---|---|---|
-| ① | 同连接/同流内的多轮操作 | 单 TCP session 多事件序列（#6 Withdraw：Initialization→Mapping→Withdraw；#12：Request→Mapping） | 已覆 #6/#12；A′ 补例 **`ldp_multi_txn_roundtrip`**（连续 Mapping→Request→Withdraw→Release 四轮） |
+| ① | 同连接/同流内的多轮操作 | 单 TCP session 多事件序列（#6 Withdraw：Initialization→Mapping→Withdraw；#12：Request→Mapping） | 已覆 #6/#12；A′ 补例 **`ldp_multi_txn_roundtrip`**（连续 Mapping→Request→Withdraw→Release 四轮；计 1 例） |
 | ② | 非正常结束 | 正常 FIN 全 TCP 正例；应用层正常终止报文 = **Notification/Shutdown**（#11）；异常注入 = 11 条负例 | 已覆 #11 + N1–N11 |
 | ③ | 长保活 | 协议层 **有** KeepAlive 消息（0x0201）——#2 双向 KeepAlive 正例；长会话 = 同连接多事件 + 多 session 展开 | 已覆 #2/#13 |
 
@@ -195,13 +195,13 @@ RFC 5036（LDP Specification 全文 + §3.4/§3.5 FEC 语义）+ D-LDP-1（设�
 |---:|---|---|
 | 1 | 白名单收 ldp | `protocols.go` 含 `"ldp": true` |
 | 2 | registry ldp 行 | `DependsOn: []string{"udp"}` + `TransportOn: []string{"udp", "tcp"}` |
-| 3 | registry ldp Fields 补全（G-LDP-1 落码后） | `fields` 键数 = 13（wire_profile/carrier/events/sessions/adjacencies/lsr_id/label_space/hold_time/targeted/keepalive_time/label_control/label_advertisement/fault_kind） |
+| 3 | registry ldp Fields 补全（G-LDP-1 落码后） | `fields` 键数 = **14**（`LDPConfig` 全键：transport/wire_profile/carrier/events/sessions/adjacencies/lsr_id/label_space/hold_time/targeted/keepalive_time/label_control/label_advertisement/fault_kind；脚本复算 `types.go:544-559`） |
 | 4 | translate ldp 严格解码分支（G-LDP-1 落码后） | `chain_planner_translate.go` 含 `case "ldp":` 且含 `"ldp layer config decode"` |
 | 5 | FlowMeta.LDP 直传 | `chain_planner_translate.go` 含 `LDP:   spec.LDP` |
 | 6 | FlowMeta.LDP 字段 | `generator.go` 含 `LDP        *core.LDPConfig` |
 | 7 | FlowSpec.LDP 字段 | `types.go` 含 `LDP       *LDPConfig` |
 | 8 | main.go 空导入 + ChainPlanner | `internal/protocol/ldp` 在 `main.go` 且 `NewChainPlanner("ldp")` 在册 |
-| 9 | CheckProtoFlat 顶层 ldp presence 判死（G-LDP-2 落码后） | `strategy_convert.go` 含 `protocol ldp no longer accepts a top-level ldp sub-config` |
+| 9 | 顶层游离键判死（**框架级通用门**，非单协议分支） | 框架级 unknown-key 白名单落码后，顶层游离键由**通用门**判死；**禁止**加 `protocol ldp no longer accepts a top-level ldp sub-config` 这类单协议黑名单分支（CORE_MEMORY §1.13 + kingbase 裁定，G-LDP-2）。今日该项**不适用**（通用门未落码） |
 | 10 | 目的端口缺省 646 | `chain_planner.go` 含 `case "ldp":` 与 `spec.DstPort = 646` |
 | 11 | 混合载体分支 | `chain_planner_util.go` 含 `isCarrierMixedChain` 且 `chain_planner.go` 含 `isCarrierMixedChain(p.name, chain) && spec.LDP != nil` |
 | 12 | generated schema ldp 条目同代 | `layers.generated.json` 的 `ldp.depends_on == ["udp"]` 且 `transport_on == ["udp","tcp"]` |
@@ -224,9 +224,11 @@ RFC 5036（LDP Specification 全文 + §3.4/§3.5 FEC 语义）+ D-LDP-1（设�
 ### 8.2 现状矛盾点（P4 前诚实登记）
 
 1. **存量跑的是过渡态混合形，不是纯层链**：`spec_json` 的 `layers=[{tcp:{}},{ldp:{}}]` 只是**空壳**（`ldp` 层 config 恒 `{}`，既不校验也不消费——`chain_planner_translate.go:756` 只建空 `LDPConfig`），真实配置住顶层 `ldp` 子映射 + 顶层四元组。旧 id 的 packet_count 断言**今日有效**，但顶层键断言今日是**违规形**。
-2. **为什么今日能绿**：离线 suite（`layer_chain_suite_test.go:225-231`）剥离 `layers` 后把顶层扁平键**直传** `core.MapToFlowSpec`，**不经** `CheckProtoFlat`。**MCP 真实路径会 400**（`schema/semantic.go:130`）——存量 25 例**不是合法 MCP 任务 spec**（违反 §14.1/§14.2）。
-3. **顶层 ldp presence 不判死**：`CheckProtoFlat` 无 ldp 分支（`grep -c` = 0）→ 今日建 presence 负例会**真绿 = 假通过**，故不建（G-LDP-2）。
-4. **存量未覆盖精确边界**：FEC /0、label 0 / 1048575、缺省 `src_port`/`dst_port`、同 session 四轮操作**今日零用例**（A′ 补 6 条）。
+2. **「今日能绿」不成立——须先接入离线 suite（复跑实测）**：ldp **未接入** `layer_chain_suite_test.go`——`chainSuiteProtos`（`:70-78`）不含 `ldp`、空白导入块（`:44-62`）不含 `internal/protocol/ldp`（`git log -p -S 'protocol/ldp"'` 零命中）。实跑 `CHAIN_PROTO=ldp go test -run TestLayerChainSuite ./test/protocol_pcap/` → **FAIL，25/25 全红**，错因 `layers: generator not implemented for layer "ldp"`（ldp 生成器未链接，与 `CheckProtoFlat` 无关）。在**副本**补 ldp 空导入 + `chainSuiteProtos["ldp"]=true` 后重跑 → **25/25 PASS（36.8s）**，此时才复现下述机制。故正确表述为「**接入离线 suite 后**可绿」；接入属代码阶段改动，不在文档阶段做。
+   机制本身（接入后）：离线 suite（`:225-231`）剥离 `layers` 后把顶层扁平键**直传** `core.MapToFlowSpec`，**不经** `CheckProtoFlat`。
+3. **MCP 真实路径会 400（实测）**：`schema/semantic.go:130` 对全部协议调 `CheckProtoFlat`；实调 `CheckProtoFlat("ldp", {layers, src_ip:"192.0.2.1"})` → `"protocol ldp no longer accepts flat config field src_ip (…)"`。故存量 25 例**不是合法 MCP 任务 spec**（违反 §14.1/§14.2）。
+4. **顶层 ldp presence 不判死**：`CheckProtoFlat` 无 ldp 分支（`grep -c` = 0）→ 今日建 presence 负例会**真绿 = 假通过**，故不建（G-LDP-2）。实调 `CheckProtoFlat("ldp", {layers, ldp:{}})` → `""`（空，不判死）。
+5. **存量未覆盖精确边界**：FEC /0、label 0 / 1048575、缺省 `src_port`/`dst_port`、同 session 四轮操作**今日零用例**；另有 §11.2 T3 列 5 格（Address/标签消息 init 前置守卫未落码）。**A′ 候选合计 11 例**：子表② 变体 5 + 子表① T3 5 + §3.15① 多事务 1。
 
 ### 8.3 逐条去向表（25 行）
 
@@ -262,7 +264,7 @@ RFC 5036（LDP Specification 全文 + §3.4/§3.5 FEC 语义）+ D-LDP-1（设�
 
 ## 9. 实现后执行建议
 
-1. **代码阶段顺序**：G-LDP-1（registry Fields + translate 严格解码分支 + MapToFlowSpec 顶层收敛 + schemagen 重跑）→ 存量 25 例改写（删顶层旧键）→ 先跑后钉 25 例 → 补 A′ 6 条 + `ldp_multi_txn_roundtrip` → 全量复跑。
+1. **代码阶段顺序**：G-LDP-1（registry Fields + translate 严格解码分支 + MapToFlowSpec 顶层收敛 + schemagen 重跑）→ 存量 25 例改写（删顶层旧键）→ 先跑后钉 25 例 → 补 A′ 11 条（子表② 变体 5 + 子表① T3 5 + `ldp_multi_txn_roundtrip`）→ 全量复跑。
 2. **实测顺序**：先 S1/S2（TCP 基线与 KeepAlive 11 包），再 S9/S10（UDP offset 42），再 S4/S5/S8（FEC /24 与 /32），再 S6/S7（Withdraw/Release 区分），再 S11/S12，最后 S13（多 session 聚合）、S14（混合载体）。
 3. 二进制与 HEAD 同代确认（门2③：`find trafficgen -name '*.go' -newer <server-binary>` 无输出）；门2② 全量（`CASE_PROTO=ldp` 全量不是增量）；门2④ 反查绿后进 P6。
 4. 混合载体例（S14）走 `isCarrierMixedChain` 自产完整包分支，实现期须确认 UDP Hello 与 TCP 会话的包序与 packet_count 12 一致。
@@ -270,4 +272,4 @@ RFC 5036（LDP Specification 全文 + §3.4/§3.5 FEC 语义）+ D-LDP-1（设�
 
 ## 10. 修订记录
 
-- v1.0.0（2026-09-28）：P-PIPE #99 文档轨 P1–P3。旧稿 41-* 25 ID / packet_count / 锚词 / fixture 全量继承（思路参考不搬码）；新增形状基线机读实测（§1）、tshark 262 字段基线（§1，与 moxa 零字段情形相反）、P3 固定动作（§6）、覆盖反查门建议行（§7）、执行建议（§9）、存量审计（§8，25/25 改写）；补 6 条 A′ 候选。P1–P3 合并自审 3 轮，末轮全量重核干净（结论见 `/tmp/pipe/doc-lanes/ldp.md` §3）。
+- v1.0.0（2026-09-28）：P-PIPE #99 文档轨 P1–P3。旧稿 41-* 25 ID / packet_count / 锚词 / fixture 全量继承（思路参考不搬码）；新增形状基线机读实测（§1）、tshark 262 字段基线（§1，与 moxa 零字段情形相反）、P3 固定动作（§6）、覆盖反查门建议行（§7）、执行建议（§9）、存量审计（§8，25/25 改写）；补 A′ 候选（子表② 5 + 子表① T3 5 + 多事务 1 = 11 例）。P1–P3 合并自审 3 轮，末轮全量重核干净（结论见 `/tmp/pipe/doc-lanes/ldp.md` §3）。
