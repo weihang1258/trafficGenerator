@@ -6426,9 +6426,17 @@ def check_stratum(cases):
     rows.append(("G-ST-2 termination 死键退役（struct 无此键——终止行为住 tcp 层 rst）",
                  'json:"termination' not in st, "已退役"))
     lg = (tg / "internal" / "protocol" / "stratum" / "layer_gen.go").read_text()
-    rows.append(("G-ST-2 configure 分支消费新键（缺省保持 FixtureCfgParams）",
-                 "ev.VersionRollingMask" in lg and "ev.MinBitCount" in lg
-                 and "FixtureCfgParams" in lg, "在案"))
+    # M1（gen-review）：原判据只查 `ev.VersionRollingMask` / `ev.MinBitCount` /
+    # `FixtureCfgParams` 三个**出现即真**的子串——把整个消费块写成
+    # `if false { _ = ev.Extensions }`（键读得到、值不消费）门仍 46/46 绿，
+    # 属同义反复。改为断言**真正决定字节的三处**：①extensions 被 marshal 进
+    # 线上参数；②version-rolling 参数按事件值构造（含缺省回填分支）；
+    # ③exts/params 两个 json.RawMessage 都传进了 BuildConfigureReq。
+    rows.append(("G-ST-2 configure 分支真消费新键（extensions marshal + mask 构造 + 双参入线）",
+                 "json.Marshal(ev.Extensions)" in lg
+                 and "version-rolling.mask" in lg and "FixtureMinerMask" in lg
+                 and "FixtureMinBitCnt" in lg
+                 and "BuildConfigureReq(ev.ID, exts, params)" in lg, "在案"))
     ct = (tg / "internal" / "core" / "layers" / "stratum_chain_test.go").read_text()
     rows.append(("链级红例在案（翻译/presence+游离/载体/严格解码/事件键/端口域）",
                  "TestStratumChain_TranslateReachesSpec" in ct
