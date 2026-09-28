@@ -1,10 +1,10 @@
 # #95 dnp3（IEEE 1815-2012 DNP3 主站/外设）设计契约
 
-> 版本：v1.0.0（P-PIPE 文档轨 P1–P3）
+> 版本：v1.0.1（P-PIPE 文档轨 P1–P3；补登记 G-DNP3-14 结果文档过期）
 > 日期：2026-09-28
 > 车道：A 文档轨（Lane A，#95 dnp3）
 > 旧基线：`docs/protocol-designs/11-dnp3-design.md` v1.1.4（2026-08-04，70 例语义来源；本 #95 为 P-PIPE 重做，思路继承、不搬码——旧稿"实现状态：未实现"已过时，见 §0）
-> 存量用例：`trafficgen/test/protocol_pcap/cases/dnp3.json`（**70 例，本版保持原样未改**；改写留待代码阶段，理由见 §0.1 与 testcase §8）
+> 存量用例：`trafficgen/test/protocol_pcap/cases/dnp3.json`（**70 例，本版保持原样未改**；改写留待代码阶段，理由见 §0.1 与 testcase §8）；结果文档 `trafficgen/docs/protocol-pcap-test/dnp3.md` 为**过期产物**——其 "70 — pass 70" 声明今日不成立，详见 §0.1
 > 规范基线：① IEEE 1815-2012（DNP3 官方标准，下称 **spec**）；② 旧基线设计文档（内部契约，非外部规范）；③ 本仓库落码（planner/builder/parser/scenario/生成器/接线，§11.1）；④ 本机 tshark 实测（tshark 3.6.14 有 `dnp3.*` dissector 共 166 字段；存量断言实际走 `tcp.*` + frames 通道，`dnp3.*` 为 A′ 可选增强）；⑤ 公开资料 + 假设（逐处标注，未达验证级 → G-DNP3-4）
 > 白话一句：**DNP3 是电网/水厂那类"主站挨个问、外设老实答"的问答协议；一问一答都是带 CRC 的小帧，引擎里它是一层终结层——只管把问答帧按剧本排好，握手分段挥手全交给 TCP 层。**
 
@@ -48,6 +48,8 @@
 **故本版交付 = 设计 + 测试用例文档 + 缺口登记表**，`cases/dnp3.json` **保持原样**（70 例）。这与 rip/ldp/a2a/nvgre/pcep/someip 同批空壳协议一致；已补 Fields 的 moxa/iec104/tns/mongodb/stratum/coap 走正常改写路径。
 
 **存量残留实测（机读，2026-09-28）**：**非负例口径 = 163 处**（主口径；`src_ip` 50 / `dst_ip` 50 / 顶层 `dnp3` 子映射 50 / `src_port` 13）——即 50 个非负例中**每个**都带 `src_ip`+`dst_ip`+`dnp3`，其中 13 例另带 `src_port`。**全例口径 = 223 处**（含 20 个负例的 60 处：`src_ip` 20 / `dst_ip` 20 / `dnp3` 20）。41 例带空壳 `layers`，29 例无 `layers`。
+
+**产物过期登记（重要，G-DNP3-14）**：`trafficgen/docs/protocol-pcap-test/dnp3.md` 写 "Cases: 70 — pass 70, fail 0, error 0"，但该文件末次提交 `e7e7d1c`（**2026-08-27**），**早于**判死提交 `0417be5`（2026-09-13）**17 天**；`docs/protocol-pcap-test/dnp3/` 目录**根本不存在（0 个 pcap）**；本车道今日实测 **70 rejected / 0 accepted**（§0.1 判据 B 同法复现）。**该结果文档是过期产物，70/70 pass 不代表今日可跑**——读者不得据此判断套件可用。**dnp3 尤其须强调**：其存量 70 例**两条路径今日均不可执行**（层空壳 + 扁平已判死），故这份 "70/70 pass" 不仅是过期，其**今日可跑性为零**。
 
 **依赖链判定纪律**：以上均为可判题（旧文→代码→用例三级对照），直接判定，不问偏好。不可判的（现网 DNP3 设备默认口/变体方言）标"待确认"并写清确认方式（G-DNP3-4）。
 
@@ -538,7 +540,9 @@ dnp3 层无自有状态（`layer_gen.go:43-67` 纯函数驱动）：握手/seq-a
 | **G-DNP3-11** | 存量 9 例（1 UDP + 8 multi_outstation）**两条路径今日均不可执行**——层链生成器显式拒绝（`layer_gen.go:52`/`:55`），扁平入口已被 `CheckProtoFlat` 判死（§0.1 判据 B）。**注意**：其"层链必红"不再需要论证——它们今日**根本跑不到生成器**（建策略即 400） | `layer_gen.go:52`/`:55`；`semantic.go:130`；存量 T27/T31/T56/T60/T84/T32/T33/T81/T85 机读 | 代码阶段：随 G-DNP3-1 层链内化后按新能力重判（转负例或定形） |
 | **G-DNP3-12** | 设计侧锚点缺口：50 个非负例中仅 12 例在 design 文档有落点，38 例只住 testcase §2——"每正例可回指设计"不成立 | 机读：50 非负例 ID 在 `95-dnp3-design.md` 出现 12 个 | 代码阶段随层链内化补设计侧锚点（§8.4 行 12 今日 ✗ 38/50） |
 | **G-DNP3-13** | IIN 14 位中 `iin_device_restart` **零用例**（其余 13 位有例或入 T53 全位组合） | 机读：14 位 shorthand 中 13 位在用例出现，`iin_device_restart` 零 | A′ 补例 `dnp3_iin_device_restart`（或并入 T53 全位组合并计）；今日如实标零覆盖 |
+| **G-DNP3-14** | **结果文档过期**：`trafficgen/docs/protocol-pcap-test/dnp3.md` 写 "70 — pass 70"，但末次提交 `e7e7d1c`（**2026-08-27**）早于判死提交 `0417be5`（2026-09-13）**17 天**；`docs/protocol-pcap-test/dnp3/` 目录**不存在（0 个 pcap）**。**dnp3 特殊性**：存量 70 例今日**两条路径均不可执行**（层空壳 §0.1 判据 A + 扁平已判死 §0.1 判据 B，本车道实测 **70 rejected / 0 accepted**），故该 "70/70 pass" 不仅是过期产物，其**今日可跑性为零** | `git log -1 --format='%h %ad' --date=short -- trafficgen/docs/protocol-pcap-test/dnp3.md` → `e7e7d1c 2026-08-27`；`git log -1 --format='%ad' --date=short 0417be5` → `2026-09-13`；`find trafficgen/docs/protocol-pcap-test/dnp3 -name '*.pcap' \| wc -l` → `0`（目录本身不存在）；探针 `schema.ValidateStrategy("synth","dnp3",spec,nil)` 遍历 70 例 → `TOTAL=70 rejected=70 accepted=0` | **代码阶段（P5 重跑套件后）重生成**该产物；在此之前读者不得据此判断套件可跑（§0.1 产物过期登记；口径与 pcep 车道 G-PCEP-11 一致） |
 
 ## 15. 修订记录
 
+- v1.0.1（2026-09-28）：补登记 **G-DNP3-14 结果文档过期**（`docs/protocol-pcap-test/dnp3.md` 的 "70/70 pass" 末次提交 `e7e7d1c` 2026-08-27 早于判死提交 `0417be5` 2026-09-13 共 17 天；`docs/protocol-pcap-test/dnp3/` 0 个 pcap；今日实测 70 rejected / 0 accepted → **今日可跑性为零**）；§0.1 增"产物过期登记"段、头注与 §14 缺口表同步。仅改文档，不动 JSON/代码。
 - v1.0.0（2026-09-28）：P-PIPE #95 文档轨 P1–P3。11→95 沿革与 8 项过期校正（§0）；**§0.1 层空壳判据 + 本版不改 cases JSON 的理由**（2026-09-28 主线程裁定）；存量 70 例机读审计（顶层残留 163 处〔非负例口径〕/ 223 处〔全例〕）；§12.1/12.3/12.12 强制展开 + 12-P2（**只登记、不改 JSON**）；D-DNP3-1 as-built 定稿（§11）；缺口 G-DNP3-1…G-DNP3-13（每条三要素：现象/证据/归属阶段）。自审 5 轮，末轮干净（结论见 /tmp/pipe/doc-lanes/dnp3.md）。
