@@ -702,6 +702,31 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 	if !ok {
 		return
 	}
+	if term.Name == "ethmining" && spec.ETHMining == nil {
+		// D-ETHMINING-1 P4（G-EM-4 前半）：层 config 严格往返解码进
+		// spec.ETHMining（bgp :705 同款——completedConfig + JSON 往返 +
+		// DisallowUnknownFields）。层优先：spec.ETHMining 已存在（引擎直调
+		// 路径）则不覆盖。空层 {} 翻译出非 nil 空配置（sessions nil）→
+		// 生成器 P0b 缺省基线会话（layer_gen.go:48-54）。解码失败一律计
+		// ValidationErrors 走任务错误——置空配置会被 validator 直通成默认流
+		// 假成功（edp/xmrmining 同款纪律）。
+		cfgEM := completedConfig(s, term.Config)
+		rawEM, err := json.Marshal(cfgEM)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("ethmining layer config encode: %v", err))
+		} else {
+			var ecfg core.ETHMiningConfig
+			decEM := json.NewDecoder(bytes.NewReader(rawEM))
+			decEM.DisallowUnknownFields()
+			if err := decEM.Decode(&ecfg); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors,
+					fmt.Sprintf("ethmining layer config decode: %v", err))
+			} else {
+				spec.ETHMining = &ecfg
+			}
+		}
+	}
 	if term.Name == "bgp" && spec.BGP == nil {
 		// D-BGP-1 G-BGP-5：层 config 严格往返解码进 spec.BGP（postgresql
 		// :2009 同款——completedConfig + DisallowUnknownFields）。层优先：

@@ -658,13 +658,25 @@ func buildDefaultRegistry() {
 		}})
 	// ethmining（以太坊挖矿 stratum 协议，EthereumStratum/1.0.0）：终结层
 	// 事件为行式 JSON（LF 边界、紧凑形态），[tcp→ethmining] 直连（ip 层由依
-	// 赖补全自动插入）。协议配置经 spec.ETHMining（顶层 "ethmining" 子映射）
-	// 注入，层 config 恒空；4444 端口经 FieldContract 供通用应用补齐（非默认
-	// 端口 3353 由用户显式覆盖，正例 22）。无 ethmining dissector，断言全
-	// 走 tcp.payload/frames（设计 §2 实测基线）。
+	// 赖补全自动插入）。配置住 ethmining 层四键（D-ETHMINING-1 P4：events
+	// 面进层，顶层 "ethmining" 子映射由 CheckProtoFlat 判死）；4444 端口经
+	// FieldContract 供通用应用补齐（非默认端口 3353 由用户显式覆盖，正例
+	// 22）。无 ethmining dissector，断言全走 tcp.payload/frames（设计 §2
+	// 实测基线）。
+	//
+	// sessions/wire_fault 缺省 nil（非 []interface{}{}）：completedConfig 对
+	// nil Default 不落键，"缺键"（→ ETHMiningConfig.Sessions nil → 生成器
+	// P0b 缺省基线会话）与"显式 sessions: []"（→ 空切片 → 生成器同走缺省）
+	// 二态语义由层生成器自身判定（bgp :1225 同款理由）。
 	r.Register(LayerSchema{Name: "ethmining", Category: CategoryTerminal,
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "4444"},
+		Fields: map[string]FieldSchema{
+			"profile":    {Type: "string", Default: ""}, // ethmining_stratum_v1（缺省）/ethmining_ipv6_v1/ethmining_hex_prefix_v1（信息性）
+			"hex_prefix": {Type: "string", Default: ""}, // ""（spec 缺省无前缀）/ "0x"（方言变体；其余值 validator 拒）
+			"sessions":   {Type: "list"},
+			"wire_fault": {Type: "string", Default: ""}, // 10 值枚举（设计 §7 表）；""=无故障
+		},
 	})
 	// nmea（海用电子设备数据交换标准，NMEA 0183 v4.10 sentence 明文协议）：
 	// 终结层事件为完整句子字节（$ 地址 + 逗号字段 + *XX XOR + CRLF），

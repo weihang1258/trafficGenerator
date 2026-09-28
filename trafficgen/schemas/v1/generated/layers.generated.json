@@ -793,7 +793,23 @@
       "field_contract": {
         "tcp.dst_port": "4444"
       },
-      "fields": {}
+      "fields": {
+        "hex_prefix": {
+          "type": "string",
+          "default": ""
+        },
+        "profile": {
+          "type": "string",
+          "default": ""
+        },
+        "sessions": {
+          "type": "list"
+        },
+        "wire_fault": {
+          "type": "string",
+          "default": ""
+        }
+      }
     },
     "fins": {
       "category": "terminal",

@@ -566,6 +566,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-ETHMINING-1 P4：ethmining 在库旧策略顶层 ethmining → ValidationErrors
+	// （dameng 同款；空 map 也死——判死形状「层链+顶层空子映射并存」。层链
+	// 形状不触发：cfg 有 layers 且无顶层 ethmining 键时 CheckProtoFlat 空）。
+	if protocol == "ethmining" {
+		if v, ok := cfg["ethmining"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-IGMP-1（§14-P2）：igmp 在库旧策略顶层 igmp → ValidationErrors
 	// （tftp/sstp 同款；空 map 也死——判死形状「层链+顶层空子映射并存」
 	// wired 面，25 例存量正是此形）。
@@ -823,11 +831,12 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// stratum 不可达。stratum 依赖 tcp 层，目的端口 3333 由 FieldContract
 		// （tcp.dst_port）补齐，不在此默认化。
 	case "ethmining":
-		if sub, ok := cfg["ethmining"].(map[string]interface{}); ok {
-			parseSubconfigJSON[*ETHMiningConfig](&spec, sub, "ethmining", &spec.ETHMining)
-		}
-		// ethmining 依赖 tcp 层，目的端口 4444 由 FieldContract（tcp.dst_port）
-		// 补齐，非默认端口（3353 等）由用户显式覆盖。
+		// D-ETHMINING-1 P4：配置住 ethmining 层（顶层 ethmining 子映射由
+		// CheckProtoFlat 判死）；此处仅守 out-of-band 配置（引擎直调路径），
+		// nfs/drda 同款——层链形状下顶层 ethmining 不可达。目的端口默认
+		// 4444（以太坊矿池 stratum 接入端口；bgp 179 同款 flat 兼容面默认，
+		// 链路径缺省 tcp.dst_port 时由本值注入，否则通用默认 80 会漏上线）。
+		setDefaultDstPort(&spec, cfg, 4444)
 	case "nmea":
 		if sub, ok := cfg["nmea"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*NMEAConfig](&spec, sub, "nmea", &spec.NMEA)
@@ -8731,6 +8740,16 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "xmrmining" {
 		if v, ok := cfg["xmrmining"]; ok && v != nil {
 			return "protocol xmrmining no longer accepts a top-level xmrmining sub-config (move it into the xmrmining layer of an [ip,tcp,xmrmining] layers chain; Monero stratum framing lives in the xmrmining layer)"
+		}
+	}
+	// D-ETHMINING-1 P4（G-EM-4 前半）：ethmining 顶层 ethmining 子映射
+	// presence 判死（xmrmining 先例；空 map 也死——事件面迁 ethmining 层四键
+	// profile/hex_prefix/sessions/wire_fault，层链是唯一配置真相）。层链形状
+	// 不触发。注意与 stratum 无关：stratum 的 presence 缺口（G-ST-4）保持
+	// open，不在本分支内（同族不混淆）。
+	if protocol == "ethmining" {
+		if v, ok := cfg["ethmining"]; ok && v != nil {
+			return "protocol ethmining no longer accepts a top-level ethmining sub-config (move it into the ethmining layer of an [ip,tcp,ethmining] layers chain; EthereumStratum framing lives in the ethmining layer)"
 		}
 	}
 	// D-SMB-1：smb 顶层 smb 子映射 presence 判死（bacnet 先例；空 map 也

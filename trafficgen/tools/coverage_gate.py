@@ -8579,9 +8579,202 @@ def check_coap(cases):
     return rows
 
 
+def check_ethmining(cases):
+    """D-ETHMINING-1 P4/P5 反查表（37 例 = 22 正 + 15 负）。返回 [(检查名, 通过?, 证据)]。
+
+    断言通道诚实声明：tshark 3.6.14 无 ethash stratum dissector（ethmining.*/
+    stratum.* 0 字段实测，设计 §2），正例断言只有 TCP 载体字段 + tcp.payload
+    行 hex + frames 三通道——本表按此口径反查，不查不存在的字段面。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线（P4 落码面）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 ethmining", '"ethmining": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 ethmining（已准入）", '"ethmining"' not in pt[i_neg:i_neg + 900], "已摘除"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "ethmining"')
+    reg_block = rg[i_reg:rg.index('Name: "nmea"', i_reg)]
+    rows.append(("registry ethmining 行（DependsOn tcp + FieldContract 4444）",
+                 'DependsOn:     []string{"tcp"}' in reg_block
+                 and '"tcp.dst_port": "4444"' in reg_block, "在案"))
+    for k in ["profile", "hex_prefix", "sessions", "wire_fault"]:
+        if f'"{k}"' not in reg_block:
+            rows.append((f"registry Fields 含 {k}", False, "缺键"))
+            break
+    else:
+        rows.append(("registry Fields 四键齐（层业务键 V9 放行）", True, "4/4"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate 层翻译（严格往返解码 DisallowUnknownFields）",
+                 'term.Name == "ethmining"' in tr and "ethmining layer config decode" in tr
+                 and "DisallowUnknownFields" in tr, "在案"))
+    rows.append(("FlowMeta.ETHMining 直传", re.search(r"ETHMining:\s+spec\.ETHMining\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.ETHMining 字段", re.search(r"ETHMining\s+\*core\.ETHMiningConfig", gen) is not None, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat 顶层 ethmining 子映射 presence 判死",
+                 "protocol ethmining no longer accepts a top-level ethmining sub-config" in sc, "在案"))
+    rows.append(("mapToFlowSpec 顶层 ethmining → ValidationErrors（在库旧策略执法）",
+                 'if protocol == "ethmining" {' in sc, "在案"))
+    rows.append(("mapToFlowSpec 目的端口缺省 4444（bgp 范式；通用默认 80 不得漏上线）",
+                 re.search(r'case "ethmining":', sc) is not None
+                 and "setDefaultDstPort(&spec, cfg, 4444)" in sc, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    i_vl = vl.index('if protocol == "ethmining" {')
+    vl_block = vl[i_vl:vl.index('if protocol == "edp" {', i_vl)]
+    rows.append(("链预检两支：udp carrier / 缺 tcp carrier（混族走通用 same-version 门）",
+                 "udp carrier is not supported" in vl_block
+                 and "missing tcp carrier" in vl_block, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(ethmining)",
+                 "internal/protocol/ethmining" in mn and 'NewChainPlanner("ethmining")' in mn, "在案"))
+    gendump = json.loads((tg / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
+    gf = ((gendump.get("layers") or {}).get("ethmining") or {}).get("fields") or {}
+    rows.append(("生成表 ethmining 层与 registry 对齐（四键）",
+                 set(gf) == {"profile", "hex_prefix", "sessions", "wire_fault"}, f"{len(gf)} 键"))
+
+    # 2. 行为面（builder/planner 关键件；线面已落码，P4 只接线不改码）。
+    bl = (tg / "internal" / "protocol" / "ethmining" / "builder.go").read_text()
+    for prim, name in [
+        ("func BuildSubscribeReq", "subscribe 请求（2 元素 params）"),
+        ("func BuildSubscribeResp", "订阅响应（extranonce ≤3B）"),
+        ("func BuildExtranonceSubscribeReq", "ext 请求（0 元素 params）"),
+        ("func BuildAuthorizeReq", "authorize 请求"),
+        ("func BuildErrorResp", "错误三元组响应（result:false + [code,msg,null]）"),
+        ("func BuildSetDifficulty", "set_difficulty（十进制定点）"),
+        ("func BuildNotify", "notify 四元素（job/seed/header/clean）"),
+        ("func BuildSetExtranonce", "set_extranonce 1 元素（ethash 方言）"),
+        ("func BuildSubmitReq", "submit 3 元素"),
+        ("func ln", "单 LF 组帧（CR 不属本协议）"),
+    ]:
+        rows.append((f"builder：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "ethmining" / "planner.go").read_text()
+    for guard, name in [
+        ("first application message must be subscribe", "首条必须 subscribe（状态机）"),
+        ("submit before authorize", "未授权先 submit 拒"),
+        ("event after close", "关闭后续排拒"),
+        ("not from this session's notify", "job 关联（submit job_id ∈ 本会话）"),
+        ("does not match the authorized user", "用户名与授权一致"),
+        ("2-element form is the bitcoin stratum dialect", "set_extranonce 2 元素方言拒（与 stratum 双向互斥）"),
+        ("hex_prefix must be empty or", "hex_prefix 值域（\"\"|\"0x\"）"),
+        ("exceeds 3-byte max", "extranonce ≤3B 上界"),
+        ("to complement", "minernonce 互补恒 8B"),
+    ]:
+        rows.append((f"守卫：{name}", guard in pl, f"锚词 {guard}"))
+    rows.append(("wire_fault 10 值枚举（设计 §7 表逐 kind 锚词）",
+                 all(f'case "{k}":' in pl for k in
+                     ["json", "framing", "method", "params", "hex", "state",
+                      "id", "job", "carrier", "propagation"]), "10/10"))
+    rows.append(("缺省基线会话（空层 {} → subscribe 单事件，P0b）",
+                 "sessions = []core.ETHMiningSession{{" in (tg / "internal" / "protocol" / "ethmining" / "layer_gen.go").read_text(), "在案"))
+    blk = (tg / "internal" / "core" / "layers" / "ethmining_chain_test.go").read_text()
+    for tc, name in [
+        ("TestEthminingChain_LayerToSpecPlan", "链级①层条目→spec 翻译出包（行字节钉）"),
+        ("TestEthminingChain_PresenceAndStrayTopLevelKeys", "链级②presence/游离键判死"),
+        ("TestEthminingChain_CarrierRejected", "链级③载体拒三形状"),
+        ("TestEthminingChain_WireFaultInjection", "链级④wire_fault 层内注入生效"),
+        ("TestEthminingChain_CaseFileAudit", "链级⑤用例文件收官自查"),
+    ]:
+        rows.append((f"链级红测：{name}", tc in blk, "在案"))
+
+    # 3. 用例面（37 例 = 22 正 + 15 负；proto=ethmining；非负例顶层仅 layers）。
+    pos = [c for c in cases if "packet_count" in (c.get("expect") or {})]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("37 例对账（22 正+15 负）", len(pos) == 22 and len(neg) == 15 and len(cases) == 37,
+                 f"{len(pos)}+{len(neg)}={len(cases)}"))
+    bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "ethmining"]
+    rows.append(("proto 全=ethmining（单准入名；与 stratum 不混淆）", not bad_proto, bad_proto or "全 ethmining"))
+    leaked = sorted({k for c in cases for k in (c.get("spec_json", {}) or {})
+                     if k not in ("layers", "flow_control", "output")
+                     and not (c.get("expect") or {}).get("expect_error")})
+    rows.append(("非负例顶层残留为零（仅 layers/flow_control/output，G-EM-4 收官自查）",
+                 not leaked, leaked or "零残留"))
+    for cid in ["ethmining_subscribe_ipv4", "ethmining_extranonce_subscribe",
+                "ethmining_authorize", "ethmining_authorize_reject",
+                "ethmining_notify_job", "ethmining_notify_clean_jobs",
+                "ethmining_set_difficulty", "ethmining_set_difficulty_default",
+                "ethmining_set_difficulty_update", "ethmining_set_extranonce",
+                "ethmining_submit_accept", "ethmining_submit_reject",
+                "ethmining_id_correlation", "ethmining_extranonce_max3",
+                "ethmining_hex_prefix", "ethmining_long_username",
+                "ethmining_line_packing", "ethmining_mss_large_jobid",
+                "ethmining_ipv6", "ethmining_multi_session",
+                "ethmining_mining_lifecycle", "ethmining_custom_port",
+                "ethmining_neg_json", "ethmining_neg_framing", "ethmining_neg_method",
+                "ethmining_neg_params", "ethmining_neg_hex", "ethmining_neg_state",
+                "ethmining_neg_id_correlation", "ethmining_neg_job_correlation",
+                "ethmining_neg_carrier", "ethmining_neg_error_propagation",
+                "ethmining_neg_presence", "ethmining_neg_stray_src_ip",
+                "ethmining_neg_carrier_udp", "ethmining_neg_carrier_missing_tcp",
+                "ethmining_neg_carrier_mixed_family"]:
+        rows.append((f"用例在案：{cid}", any(c.get("id") == cid for c in cases), "在案"))
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}",
+                 all(set((c.get("expect") or {}).keys()) == {"expect_error", "error_contains"} for c in neg),
+                 "全部合规"))
+    # C2（gen-review）：testcase §4 行 16/18 明文要求正例断言走
+    # 「tcp.payload 全行 hex + tcp.len + offset 54/74 frames」三通道。
+    # 原产物 22 正例只有 packet_count（零字段/零帧断言），§4 承诺大于产物。
+    rows.append(("正例均带 packet_count",
+                 all((c.get("expect") or {}).get("packet_count") for c in pos), "全部在案"))
+    no_assert = [c.get("id") for c in pos
+                 if not ((c.get("expect") or {}).get("fields") or (c.get("expect") or {}).get("frames"))]
+    rows.append(("C2 正例均带值断言（tcp.payload/tcp.len 字段或 frames hex）",
+                 not no_assert, no_assert or "全部在案"))
+    bad_hex = []
+    for c in pos:
+        for fr in ((c.get("expect") or {}).get("frames") or []):
+            off = fr.get("offset")
+            if off not in (54, 74):
+                bad_hex.append(f"{c.get('id')}:offset={off}")
+            # 行首恒 7b 只对**行首段**成立；跨 MSS 分段例（mss_large_jobid）
+            # 的续段从行中间切，本就不以 7b 开头——testcase §4 行 69 ③ 要求
+            # 的正是「首段前缀 + 末段后缀」而非每段行首。
+            if c.get("id") == "ethmining_mss_large_jobid":
+                continue
+            if not str(fr.get("hex", "")).startswith(("7b", "7B")):
+                bad_hex.append(f"{c.get('id')}:行首非 7b")
+    rows.append(("C2 frames 行首 7b + offset ∈ {54,74}（testcase §4 行 18；跨段例按首段口径）",
+                 not bad_hex, bad_hex[:5] or "全部合规"))
+    # 断言通道诚实性：任何用例都不得写 ethmining.*/stratum.* 字段（无 dissector）。
+    bad_f = [c.get("id") for c in cases
+             for f in ((c.get("expect") or {}).get("fields") or [])
+             if str((f or {}).get("field", "")).startswith(("ethmining.", "stratum."))]
+    rows.append(("无 ethmining.*/stratum.* 字段断言（tshark 0 字段实测）", not bad_f, bad_f or "零命中"))
+    # 锚词门：负例 error_contains 与代码锚词双向子串命中（rtmfp 先例口径）。
+    code_text = pl + sc + vl + bl + tr
+    def _hit(ec):
+        if ec in code_text:
+            return True
+        import re as _re2
+        skel = _re2.sub(r"\b\d+\b", "", ec)
+        words = [w for w in _re2.split(r"\s+", skel) if len(w.strip('",()[]:')) >= 3]
+        return len(words) >= 3 and all(w in code_text for w in words)
+    bad_a = [f"{c.get('id')}:{ec}" for c in neg
+             for ec in [(c.get("expect") or {}).get("error_contains", "")]
+             if not _hit(ec)]
+    rows.append(("15 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
+    # C2 后此门反转：帧/字段断言已由**引擎实测**（链上 Plan + tshark 口径）落盘，
+    # 不再是「沿设计值标 pending」。断言值即实测值，pending-suite 标记应清零
+    # （suite 只复核端到端一致，不再是"值待定"的借口）。
+    stale_pending = [c.get("id") for c in pos
+                     if (c.get("expect") or {}).get("fields")
+                     and any("pending-suite" in n for n in ((c.get("expect") or {}).get("notes") or []))]
+    rows.append(("C2 已实测断言的正例不再标 pending-suite", not stale_pending,
+                 stale_pending or "全部在案"))
+    # M5 链级红例在案（presence / 游离 / 载体真链形）。
+    have = {c.get("id") for c in cases}
+    rows.append(("M5 链级红例在案（presence+游离+载体三形状）",
+                 {"ethmining_neg_presence", "ethmining_neg_stray_src_ip",
+                  "ethmining_neg_carrier_udp", "ethmining_neg_carrier_missing_tcp",
+                  "ethmining_neg_carrier_mixed_family"} <= have, "5/5"))
+    return rows
+
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "hds": check_hds, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "isis": check_isis, "coap": check_coap, "stratum": check_stratum, "pim": check_pim, "ospf": check_ospf}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "hds": check_hds, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "isis": check_isis, "coap": check_coap, "stratum": check_stratum, "pim": check_pim, "ospf": check_ospf, "ethmining": check_ethmining}
 
 
 def main(argv):
