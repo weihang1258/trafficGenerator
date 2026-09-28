@@ -1,10 +1,10 @@
 # #94 modbus（Modbus TCP 工业控制协议）设计契约
 
-> 版本：v1.0.0（P-PIPE 文档轨 P1–P3）
+> 版本：v1.0.1（P-PIPE 文档轨 P1–P3 + 结果文档过期登记）
 > 日期：2026-09-28
 > 车道：文档车道（modbus，#94）
 > 旧基线：`docs/protocol-designs/13-modbus-design.md` v2.0.4（205 例 T-001~T-205；协议语义权威，**配置形状已过时**——扁平时代写法，§0 逐条校正）
-> 存量用例：`trafficgen/test/protocol_pcap/cases/modbus.json`（213 例；**当前全部不可执行**，§0 表 #5 机读+实测双证）
+> 存量用例：`trafficgen/test/protocol_pcap/cases/modbus.json`（213 例；**当前全部不可执行**，§0 表 #5 机读+实测双证）；结果文档 `docs/protocol-pcap-test/modbus.md` 为**过期产物**——详见 §0 产物过期登记与 §14 G-MODBUS-14
 > 规范基线：① **Modbus.org MB-ASYM-TCP**（MODBUS Application Protocol Specification V1.1b3，下称 **spec**）；② 历史参考 MODICON **PI-MBUS-300 Rev. J**（Modbus Protocol Reference Guide，串行链路帧格式）；③ 本仓库落码（`internal/protocol/modbus/` 七文件 + 接线，§11.1）；④ 本机 **tshark 3.6.14** 实测（`modbus.*`/`mbtcp.*` 字段通道，§2）；⑤ 旧基线设计文档（内部契约，非外部规范）。
 > 白话一句：**Modbus 就是"一问一答"——主站发一条请求帧，从站回一条响应帧，帧头 7 字节自己带长度，所以 TCP 只管把字节按顺序送到；引擎里它是一层薄皮，握手分段挥手全交给 TCP 层。**
 
@@ -24,6 +24,8 @@
 | 8 | 旧稿未提 `CheckProtoFlat` | `strategy_convert.go:8625` `CheckProtoFlat` **无 modbus 分支**（`grep -c 'protocol == "modbus"'` = **0** 实测） | 顶层 `modbus` 子映射 presence **今日不判死**（G-MODBUS-3，moxa G-MOXA-2 同形） |
 
 **依赖链判定纪律**：以上均为可判题（旧文→代码→用例三级对照），直接判定，不问偏好。不可判的（Modbus Security over TLS 802 是否入范围）标"明确不解决"并写清理由（§8）。
+
+**产物过期登记（重要）**：`trafficgen/docs/protocol-pcap-test/modbus.md` 写 "Cases: 213 — pass 213, fail 0, error 0"，但该文件末次提交 `e7e7d1c`（**2026-08-27**），**早于**判死提交 `0417be5`（2026-09-13，扁平判死泛化全协议 `CheckProtoFlat`）**17 天**；`cases/modbus.json` 末改 `243ddd8`（2026-08-14）；`trafficgen/docs/protocol-pcap-test/modbus/` 目录 **不存在**（0 个 pcap 文件）。**该结果文档是过期产物，213/213 pass 不代表今日可跑**——读者不得据此判断套件可用（今日 213 例经 live MCP 逐条探针**全部被拒**，见 §0.1）。缺口编号 **G-MODBUS-14**（§14）。
 
 ### 0.1 存量用例可执行性实测（2026-09-28，live MCP）
 
@@ -546,7 +548,7 @@ modbus 层**无自有状态**（旧稿 §4.1 继承）：握手/seq-ack/挥手/�
 | §4 查规范 | spec MB-ASYM-TCP V1.1b3 + PI-MBUS-300 Rev. J + tshark 实测 + 落码反推；八项矩阵 + 子表①②③ | §10 |
 | §5 依赖与错误 | `DependsOn ["tcp"]` 单值（`registry.go:382`）；20 类拒绝分支；失败传 task error | §5/§7/§11.5 |
 | §6 性能 | 见 §6（6.1–6.8 要素齐；吞吐数字标待基准，不写承诺） | §6 |
-| §7 三份文档 | `94-modbus-{design,testcase}.md` v1.0.0（草稿层）+ D-MODBUS-1（§11，门1 获批 = 定稿）+ T-MODBUS（testcase §2）+ 旧稿 13-* 为历史层 | 修订记录 |
+| §7 三份文档 | `94-modbus-{design,testcase}.md` v1.0.1（草稿层）+ D-MODBUS-1（§11，门1 获批 = 定稿）+ T-MODBUS（testcase §2）+ 旧稿 13-* 为历史层 | 修订记录 |
 | §8 设计先行 | P1–P3 先于 G-MODBUS-1/2 补齐；门1 获批 = D-MODBUS-1 定稿 = 开工门 | 提交序 |
 | §9 测试三源 | 三源 = spec（§10）+ D-MODBUS-1（§11）+ tshark 通道实测（`modbus.*`/`mbtcp.*`）；213 ID 逐项回指；存量缺口登记 testcase §8（本车道不改 JSON） | `94-modbus-testcase.md` §2/§5/§8 |
 | §10 评审闭环 | 每阶段对抗自重审（结论见 `/tmp/pipe/doc-lanes/modbus.md`）+ 收官隔离复审；红先绿后 | 车道日志 |
@@ -623,7 +625,9 @@ modbus 层**无自有状态**（旧稿 §4.1 继承）：握手/seq-ack/挥手/�
 | **G-MODBUS-11** | `modbus-dstport-default-502` **名实不符**：名为"缺省"但显式写了 `dst_port:502`（机读实测），未验 FieldContract 补齐——**存量、非本次引入** | A′ 补 `modbus_default_port_502`（**删键**不断言值）；存量例改名或改载荷 |
 | **G-MODBUS-12** | `validate-mastercount-0` 与 `validate-mastercount-1001` **载荷重复**（均 `master_count:1001`），且两例注记均写"=0 rejected"与载荷不符——**存量、非本次引入** | 改写时：一例保留为 `>max` 负例、另一例改载荷为 `0`（并修注记），或删除并注记原因；`flowcount-0` 同款（载荷 101、注记写 0） |
 | **G-MODBUS-13** | `layer_gen_test.go:272` 注释称"legacy modbus.go 是 3 包挥手"**与代码不符**——实读 `modbus.go:575-593` 为 **4 包**（同文件 `:398` 自述"TCP 四次挥手"）——**存量、非本次引入** | 代码车道改注释（本车道禁改代码）；**不影响包数断言**（存量 213 例已按 4 包校准，9 = 3+2+4） |
+| **G-MODBUS-14** | **结果文档过期**：`trafficgen/docs/protocol-pcap-test/modbus.md` 写 "Cases: 213 — pass 213, fail 0, error 0"，末次提交 `e7e7d1c`（**2026-08-27**）**早于判死提交 `0417be5`（2026-09-13）17 天**；`cases/modbus.json` 末改 `243ddd8`（2026-08-14）；`docs/protocol-pcap-test/modbus/` 目录**不存在**（**0 个 pcap**）。该 213/213 pass **是过期产物**——今日 213 例经 live MCP 逐条探针**全部被拒**（§0.1），不得作为"套件可跑"依据 | **代码阶段（P5 重跑套件后重生成该产物）**；在此之前读者不得据此判断套件可跑（§0 产物过期登记） |
 
 ## 15. 修订记录
 
+- v1.0.1（2026-09-28）：补登记**结果文档过期**（G-MODBUS-14，车道间一致性缺口，照 pcep G-PCEP-11 先例）：§0 新增产物过期登记段、§14 缺口表新增 G-MODBUS-14 行。**只改两份文档，不动代码/JSON。**
 - v1.0.0（2026-09-28）：P-PIPE #94 文档轨 P1–P3。13→94 沿革与 8 项过期校正（§0）；**存量 213 例可执行性 MCP 实测（§0.1）——三种形状全被拒，根因 G-MODBUS-1/2**；§12.1/12.3/12.12 强制展开 + 12-P2；D-MODBUS-1 as-built 定稿（§11）；缺口 G-MODBUS-1…G-MODBUS-13（含 G-MODBUS-11/12/13 三项存量问题登记）。**显式结论**：213 例当前无可执行断言属文档阶段预期状态（§0.1）。主线程裁定 2026-09-28：走 (b)，本车道不改 `cases/modbus.json`。自审轮次见 `/tmp/pipe/doc-lanes/modbus.md`。

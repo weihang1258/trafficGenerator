@@ -1,10 +1,10 @@
 # #94 modbus（Modbus TCP 工业控制协议）测试用例契约
 
-> 版本：v1.0.0（P-PIPE 文档轨 P1–P3）
+> 版本：v1.0.1（P-PIPE 文档轨 P1–P3 + 结果文档过期登记）
 > 日期：2026-09-28
-> 配套设计：`docs/protocol-designs/94-modbus-design.md` v1.0.0（D-MODBUS-1）
+> 配套设计：`docs/protocol-designs/94-modbus-design.md` v1.0.1（D-MODBUS-1）
 > 旧基线：`docs/protocol-designs/13-modbus-design.md` v2.0.4 §7（T-001~T-205；思路继承不搬码）
-> 机器契约：`trafficgen/test/protocol_pcap/cases/modbus.json`（213 例；**当前全部不可执行**——三种形状全被拒，设计 §0.1 实测；改写待 G-MODBUS-1/2）
+> 机器契约：`trafficgen/test/protocol_pcap/cases/modbus.json`（213 例；**当前全部不可执行**——三种形状全被拒，设计 §0.1 实测；改写待 G-MODBUS-1/2）；结果文档 `docs/protocol-pcap-test/modbus.md` 为**过期产物**——详见 §1 与 §8.2 #8
 > 白话一句：**二百多条检查——大部分看"发出去的字节对不对"（功能码、地址、数量、掩码、异常码），一小部分看"胡来的配置能不能被拦下"；每条只查一件事。**
 
 ## 1. 测试原则和形状基线
@@ -27,6 +27,8 @@
 | 负例 | 62；expect 键集：`{ec,ee,notes}`×33 / `{ec,ee}`×13 / `{expect_error}`×8 / 含成功断言×5 / `{ee,notes}`×3。**缺 `error_contains` 者 11 例**（8 例仅 `{expect_error}` + 3 例 `{expect_error,notes}`）；**混入成功断言者 5 例** |
 
 **执行可行性（MCP 实测，设计 §0.1）**：三种形状**全部被拒**——纯扁平 → `no longer accepts flat config field src_ip`；空壳 layers + 顶层扁平键 → 同上 + `config mixes layers with flat four-tuple field src_ip`；严格层链 → `layers: layer "modbus": unknown field "transactions"`。**本文件全部断言在 G-MODBUS-1/2 闭合前无法执行**（不冒充已覆盖，CORE_MEMORY §1.9 / B6 §1 JSON ID 纪律）。
+
+**结果文档过期（G-MODBUS-14，**重要**）**：`trafficgen/docs/protocol-pcap-test/modbus.md` 写 "Cases: 213 — pass 213, fail 0, error 0"，但该文件末次提交 `e7e7d1c`（**2026-08-27**），**早于**判死提交 `0417be5`（2026-09-13，扁平判死泛化全协议 `CheckProtoFlat`）**17 天**；`cases/modbus.json` 末改 `243ddd8`（2026-08-14）；`trafficgen/docs/protocol-pcap-test/modbus/` 目录 **0 个 pcap**。**该 213/213 pass 是过期产物**——今日 213 例经 live MCP 逐条探针**全部被拒**（本节执行可行性段），**不得作为"套件可跑"依据**。归属：**代码阶段**（P5 重跑套件后重生成该产物）。登记见设计 §0 产物过期登记 + §14 G-MODBUS-14。
 
 **输出契约（pcap/NIC 双输出）**：两路径共用同一 cases JSON 与断言集（`tcp.dstport/srcport`、`tcp.flags`、`modbus.*`/`mbtcp.*`、offset 54/74 frames）；NIC 经 tcpdump 捕获（`nic_capture` 用例级开关）；不设仅单路径可用的断言。
 
@@ -218,6 +220,7 @@ Modbus.org **MB-ASYM-TCP V1.1b3**（MBAP 帧 + 19 FC + 10 异常码 + 广播语�
 2. **实测顺序**：先单事务基线（帧 hex 与 9 包），再异常/广播/豁免，再 3 事务 TID 序列，再边界（qty=125/1968、TID 回绕），最后 IPv6（offset 74）。
 3. 二进制与 HEAD 同代确认（门2③：`find trafficgen -name '*.go' -newer <server-binary>` 无输出）；门2② 全量（`CASE_PROTO=modbus` 全量不是增量）；门2④ 反查绿后进 P6。
 4. 任何"tshark 字段不存在"的断言须先 `tshark -G fields | grep modbus` 实证（FC 0x08 子功能 0x0015 先例：**值表缺条目 ≠ 字段不可观察**——`modbus.diagnostic_code` 字段在册且输出 21，只是 `-G values` 无 21 标签；**不得据此删字段断言**）。
+5. **P5 重跑套件后重生成结果文档**（G-MODBUS-14）：`trafficgen/docs/protocol-pcap-test/modbus.md` 的 "213 — pass 213" 停在 `e7e7d1c`（2026-08-27），早于判死提交 `0417be5`；P5 全量绿后按实测重写该产物（含 pcap 落盘），不得沿用旧表。
 
 ## 8. 存量用例缺口登记表（213 例现状 + 待代码阶段改写）
 
@@ -240,6 +243,7 @@ Modbus.org **MB-ASYM-TCP V1.1b3**（MBAP 帧 + 19 FC + 10 异常码 + 广播语�
 | 5 | **负例不纯净** | 11 例缺 `error_contains`（8 例仅 `{expect_error}` + 3 例带 notes）+ 5 例混入 `has_handshake`/`terminates`/`directional` | G-MODBUS-6；锚词按 §4 表补 |
 | 6 | **"缺省端口"例名实不符** | `modbus-dstport-default-502` 显式写了 `dst_port:502`（机读），非真缺省验证 | A′ 补 `modbus_default_port_502`（删键） |
 | 7 | **presence 负例不可建** | `{"layers":[…],"modbus":{}}` 实测 `completed/100%`（未拒） | G-MODBUS-3：待 `CheckProtoFlat` 补 modbus 分支（**禁单协议黑名单**，走框架级白名单）后方可建立；**今日建 = 真绿假通过** |
+| 8 | **结果文档过期（G-MODBUS-14）** | `trafficgen/docs/protocol-pcap-test/modbus.md` 写 "213 — pass 213"，末次提交 `e7e7d1c`（**2026-08-27**）早于判死提交 `0417be5`（**2026-09-13**）**17 天**；`docs/protocol-pcap-test/modbus/` **0 个 pcap**（目录不存在）。该 213/213 pass **是过期产物，不代表今日可跑** | **代码阶段**（P5 重跑套件后**重生成**该产物）；读者在此之前不得据此判断套件可跑 |
 
 ### 8.3 逐条去向表（213 例按域汇总；逐 ID 明细见 JSON 顺序）
 
@@ -275,4 +279,5 @@ Modbus.org **MB-ASYM-TCP V1.1b3**（MBAP 帧 + 19 FC + 10 异常码 + 广播语�
 
 ## 9. 修订记录
 
+- v1.0.1（2026-09-28）：补登记**结果文档过期**（G-MODBUS-14，车道间一致性缺口，照 pcep G-PCEP-11 先例）：§1 新增过期声明段、§7 新增第 5 条 P5 重生成动作、§8.2 缺口表新增第 8 行（**8 项**阻断缺口）。**只改本文 + 设计 §0/§14，不动代码/JSON。**
 - v1.0.0（2026-09-28）：P-PIPE #94 文档轨 P1–P3。旧稿 13-* 的 213 ID / T 编号 / 锚词 / fixture 全量继承（思路参考不搬码）；新增形状基线机读实测（§1）、**可执行性 MCP 实测（§1，三形状全拒）**、P3 固定动作（§6）、执行建议（§7）、存量缺口登记表（§8：7 项阻断缺口 + 213 例逐域去向，**本车道不改 JSON**）；主线程裁定 2026-09-28 走 (b)。自审轮次见 `/tmp/pipe/doc-lanes/modbus.md`。
