@@ -1207,11 +1207,13 @@ type SwarmEndpoint struct {
 }
 
 // TNSEvent is one TNS protocol event (CONNECT/ACCEPT/REFUSE/REDIRECT/DATA).
+// D-TNS-1 G-TNS-4：payload_profile 死字段已删——全仓库零读取（body 由 type
+// 决定，profile 名不上 wire），层链严格解码（DisallowUnknownFields）对残留
+// payload_profile 键判死，不再"配上不生效"。
 type TNSEvent struct {
-	Type           interface{} `json:"type,omitempty"` // string or int for negative tests
-	Direction      string      `json:"direction,omitempty"`
-	PayloadProfile string      `json:"payload_profile,omitempty"`
-	DataFlags      uint16      `json:"data_flags,omitempty"`
+	Type      interface{} `json:"type,omitempty"` // string or int for negative tests
+	Direction string      `json:"direction,omitempty"`
+	DataFlags uint16      `json:"data_flags,omitempty"`
 }
 
 // TNSSession is a single TNS session with its own source port and events.
@@ -1221,11 +1223,12 @@ type TNSSession struct {
 }
 
 // TNSConfig configures a TNS (Oracle Net, TCP 1521) session.
+// D-TNS-1：reconnect 死字段已删——全仓库零读取（v1 REDIRECT 不自动重连，
+// G-TNS-11），残留 reconnect 键走层链严格解码判死。
 type TNSConfig struct {
 	Events       []TNSEvent      `json:"events,omitempty"`
 	Sessions     []TNSSession    `json:"sessions,omitempty"`
 	ChecksumMode string          `json:"checksum_mode,omitempty"`
-	Reconnect    bool            `json:"reconnect,omitempty"`
 	WireFault    json.RawMessage `json:"wire_fault,omitempty"`
 }
 

@@ -4326,7 +4326,21 @@
       "field_contract": {
         "tcp.dst_port": "1521"
       },
-      "fields": {}
+      "fields": {
+        "checksum_mode": {
+          "type": "string",
+          "default": ""
+        },
+        "events": {
+          "type": "list"
+        },
+        "sessions": {
+          "type": "list"
+        },
+        "wire_fault": {
+          "type": "object"
+        }
+      }
     },
     "udp": {
       "category": "transport",
