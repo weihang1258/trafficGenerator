@@ -117,7 +117,9 @@ PYEOF
     # 红线切自键（enip 先例；presence 负例豁免，其余顶层 drda 共存即红）。
     # D-MMS-2（G-MMS-1）：mms 配置迁层（顶层 mms 交 CheckProtoFlat 判死），
     # presence 红线切自键（enip 先例；presence 负例豁免，其余顶层 mms 共存即红）。
-    dns|mqtt|smtp|pop3|imap|mcp|srv6|fins|goose|sv|icmpv6|h323|mpls|ngap|telnet|sip|radius|pppoe|ldap|rtmp|rtsp|pptp|vnc|xmpp|sctp|jt808|jt809|jtt905|arp|icmp|megaco|hl7|mmse|nfs|tftp|smb|enip|bgp|s7|cql|doip|dameng|gbt32960|cflow|igmp|rtmfp|drda|mms)
+    # D-TNS-1（G-TNS-5）：tns 配置迁层（顶层 tns 交 CheckProtoFlat 判死），
+    # presence 红线切自键（mms 先例；presence 负例豁免，其余顶层 tns 共存即红）。
+    dns|mqtt|smtp|pop3|imap|mcp|srv6|fins|goose|sv|icmpv6|h323|mpls|ngap|telnet|sip|radius|pppoe|ldap|rtmp|rtsp|pptp|vnc|xmpp|sctp|jt808|jt809|jtt905|arp|icmp|megaco|hl7|mmse|nfs|tftp|smb|enip|bgp|s7|cql|doip|dameng|gbt32960|cflow|igmp|rtmfp|drda|mms|tns)
       _pres_key="$PROTO"
       ;;
   esac

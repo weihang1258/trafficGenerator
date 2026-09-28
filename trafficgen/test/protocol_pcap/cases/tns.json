@@ -1,939 +1,1194 @@
 [
- {
-  "id": "tns_connect_accept",
-  "proto": "tns",
-  "summary": "S1/T-TNS-S1: CONNECT→ACCEPT→TTC data; TCP 1521",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
+  {
+    "id": "tns_connect_accept",
+    "proto": "tns",
+    "summary": "S1/T-TNS-S1: CONNECT→ACCEPT→TTC data; TCP 1521 (层链形 D-TNS-1)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              },
+              {
+                "type": "ACCEPT",
+                "direction": "s2c"
+              },
+              {
+                "type": "DATA",
+                "direction": "c2s",
+                "data_flags": 0
+              },
+              {
+                "type": "DATA",
+                "direction": "s2c",
+                "data_flags": 0
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
     },
-    {
-     "tns": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 1521,
-   "tns": {
-    "events": [
-     {
-      "type": "CONNECT",
-      "direction": "c2s",
-      "payload_profile": "connect_basic"
-     },
-     {
-      "type": "ACCEPT",
-      "direction": "s2c",
-      "payload_profile": "accept_basic"
-     },
-     {
-      "type": "DATA",
-      "direction": "c2s",
-      "payload_profile": "ttc_connect",
-      "data_flags": 0
-     },
-     {
-      "type": "DATA",
-      "direction": "s2c",
-      "payload_profile": "ttc_accept",
-      "data_flags": 0
-     }
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tns.type",
+          "value": "1"
+        },
+        {
+          "packet": 5,
+          "field": "tns.type",
+          "value": "2"
+        },
+        {
+          "packet": 6,
+          "field": "tns.type",
+          "value": "6"
+        },
+        {
+          "packet": 7,
+          "field": "tns.type",
+          "value": "6"
+        },
+        {
+          "packet": 4,
+          "field": "tns.length",
+          "nonzero": true
+        },
+        {
+          "packet": 5,
+          "field": "tns.reserved_byte",
+          "value": "00"
+        },
+        {
+          "packet": 6,
+          "field": "tns.data_flag",
+          "value": "0x0000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 58,
+          "hex": "01"
+        },
+        {
+          "packet": 5,
+          "offset": 58,
+          "hex": "02"
+        },
+        {
+          "packet": 6,
+          "offset": 58,
+          "hex": "06"
+        },
+        {
+          "packet": 6,
+          "offset": 62,
+          "hex": "00 00"
+        },
+        {
+          "packet": 7,
+          "offset": 59,
+          "hex": "00"
+        }
+      ],
+      "notes": []
+    },
+    "notes": [
+      "pending-suite：层链形状迁移后断言值沿迁移前 flat 路基线（P4 未跑 suite）；packet_count/字段/帧待 suite 复核钉死。"
     ]
-   }
   },
-  "expect": {
-   "packet_count": 11,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tns.type",
-     "value": "1"
+  {
+    "id": "tns_refuse",
+    "proto": "tns",
+    "summary": "S2/T-TNS-S2: CONNECT→REFUSE; no DATA (层链形 D-TNS-1)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              },
+              {
+                "type": "REFUSE",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
     },
-    {
-     "packet": 5,
-     "field": "tns.type",
-     "value": "2"
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tns.type",
+          "value": "1"
+        },
+        {
+          "packet": 5,
+          "field": "tns.type",
+          "value": "4"
+        },
+        {
+          "packet": 5,
+          "field": "tns.length",
+          "nonzero": true
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 58,
+          "hex": "04"
+        }
+      ],
+      "notes": []
     },
-    {
-     "packet": 6,
-     "field": "tns.type",
-     "value": "6"
-    },
-    {
-     "packet": 7,
-     "field": "tns.type",
-     "value": "6"
-    },
-    {
-     "packet": 4,
-     "field": "tns.length",
-     "nonzero": true
-    },
-    {
-     "packet": 5,
-     "field": "tns.reserved_byte",
-     "value": "00"
-    },
-    {
-     "packet": 6,
-     "field": "tns.data_flag",
-     "value": "0x0000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 58,
-     "hex": "01"
-    },
-    {
-     "packet": 5,
-     "offset": 58,
-     "hex": "02"
-    },
-    {
-     "packet": 6,
-     "offset": 58,
-     "hex": "06"
-    },
-    {
-     "packet": 6,
-     "offset": 62,
-     "hex": "00 00"
-    },
-    {
-     "packet": 7,
-     "offset": 59,
-     "hex": "00"
-    }
-   ],
-   "notes": []
-  },
-  "notes": []
- },
- {
-  "id": "tns_refuse",
-  "proto": "tns",
-  "summary": "S2/T-TNS-S2: CONNECT→REFUSE; no DATA",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "tns": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 1521,
-   "tns": {
-    "events": [
-     {
-      "type": "CONNECT",
-      "direction": "c2s",
-      "payload_profile": "connect_basic"
-     },
-     {
-      "type": "REFUSE",
-      "direction": "s2c",
-      "payload_profile": "refuse_basic"
-     }
+    "notes": [
+      "pending-suite：层链形状迁移后断言值沿迁移前 flat 路基线（P4 未跑 suite）；packet_count/字段/帧待 suite 复核钉死。"
     ]
-   }
   },
-  "expect": {
-   "packet_count": 9,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tns.type",
-     "value": "1"
+  {
+    "id": "tns_redirect",
+    "proto": "tns",
+    "summary": "S3/T-TNS-S3: CONNECT→REDIRECT; no reconnect (层链形 D-TNS-1)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              },
+              {
+                "type": "REDIRECT",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
     },
-    {
-     "packet": 5,
-     "field": "tns.type",
-     "value": "4"
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tns.type",
+          "value": "1"
+        },
+        {
+          "packet": 5,
+          "field": "tns.type",
+          "value": "5"
+        },
+        {
+          "packet": 5,
+          "field": "tns.length",
+          "nonzero": true
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 58,
+          "hex": "05"
+        }
+      ],
+      "notes": []
     },
-    {
-     "packet": 5,
-     "field": "tns.length",
-     "nonzero": true
-    }
-   ],
-   "frames": [
-    {
-     "packet": 5,
-     "offset": 58,
-     "hex": "04"
-    }
-   ],
-   "notes": []
-  },
-  "notes": []
- },
- {
-  "id": "tns_redirect",
-  "proto": "tns",
-  "summary": "S3/T-TNS-S3: CONNECT→REDIRECT; no reconnect",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "tns": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 1521,
-   "tns": {
-    "events": [
-     {
-      "type": "CONNECT",
-      "direction": "c2s",
-      "payload_profile": "connect_basic"
-     },
-     {
-      "type": "REDIRECT",
-      "direction": "s2c",
-      "payload_profile": "redirect_basic"
-     }
+    "notes": [
+      "pending-suite：层链形状迁移后断言值沿迁移前 flat 路基线（P4 未跑 suite）；packet_count/字段/帧待 suite 复核钉死。"
     ]
-   }
   },
-  "expect": {
-   "packet_count": 9,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tns.type",
-     "value": "1"
+  {
+    "id": "tns_ttc_sqlnet_session",
+    "proto": "tns",
+    "summary": "S4/T-TNS-S4: TTC and SQL*Net data sequence, flags zero (层链形 D-TNS-1)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              },
+              {
+                "type": "ACCEPT",
+                "direction": "s2c"
+              },
+              {
+                "type": "DATA",
+                "direction": "c2s",
+                "data_flags": 0
+              },
+              {
+                "type": "DATA",
+                "direction": "s2c",
+                "data_flags": 0
+              },
+              {
+                "type": "DATA",
+                "direction": "c2s",
+                "data_flags": 0
+              },
+              {
+                "type": "DATA",
+                "direction": "s2c",
+                "data_flags": 0
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
     },
-    {
-     "packet": 5,
-     "field": "tns.type",
-     "value": "5"
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "tns.type",
+          "value": "6"
+        },
+        {
+          "packet": 7,
+          "field": "tns.type",
+          "value": "6"
+        },
+        {
+          "packet": 8,
+          "field": "tns.type",
+          "value": "6"
+        },
+        {
+          "packet": 9,
+          "field": "tns.type",
+          "value": "6"
+        },
+        {
+          "packet": 6,
+          "field": "tns.data_flag",
+          "value": "0x0000"
+        },
+        {
+          "packet": 9,
+          "field": "tns.packet_checksum",
+          "value": "0x0000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 58,
+          "hex": "06"
+        },
+        {
+          "packet": 8,
+          "offset": 62,
+          "hex": "00 00"
+        },
+        {
+          "packet": 9,
+          "offset": 60,
+          "hex": "00 00"
+        }
+      ],
+      "notes": []
     },
-    {
-     "packet": 5,
-     "field": "tns.length",
-     "nonzero": true
-    }
-   ],
-   "frames": [
-    {
-     "packet": 5,
-     "offset": 58,
-     "hex": "05"
-    }
-   ],
-   "notes": []
-  },
-  "notes": []
- },
- {
-  "id": "tns_ttc_sqlnet_session",
-  "proto": "tns",
-  "summary": "S4/T-TNS-S4: TTC and SQL*Net profile sequence, flags zero",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "tns": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 1521,
-   "tns": {
-    "events": [
-     {
-      "type": "CONNECT",
-      "direction": "c2s",
-      "payload_profile": "connect_basic"
-     },
-     {
-      "type": "ACCEPT",
-      "direction": "s2c",
-      "payload_profile": "accept_basic"
-     },
-     {
-      "type": "DATA",
-      "direction": "c2s",
-      "payload_profile": "ttc_connect",
-      "data_flags": 0
-     },
-     {
-      "type": "DATA",
-      "direction": "s2c",
-      "payload_profile": "ttc_accept",
-      "data_flags": 0
-     },
-     {
-      "type": "DATA",
-      "direction": "c2s",
-      "payload_profile": "sqlnet_request",
-      "data_flags": 0
-     },
-     {
-      "type": "DATA",
-      "direction": "s2c",
-      "payload_profile": "sqlnet_response",
-      "data_flags": 0
-     }
+    "notes": [
+      "pending-suite：层链形状迁移后断言值沿迁移前 flat 路基线（P4 未跑 suite）；packet_count/字段/帧待 suite 复核钉死。",
+      "S4 现状钉：TTC/SQL*Net 字节今日恒 0（G-TNS-12），只证明头字节与事件调度。"
     ]
-   }
   },
-  "expect": {
-   "packet_count": 13,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 6,
-     "field": "tns.type",
-     "value": "6"
+  {
+    "id": "tns_ipv6_connect",
+    "proto": "tns",
+    "summary": "S5/T-TNS-S5: IPv6 CONNECT→ACCEPT (层链形 D-TNS-1)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              },
+              {
+                "type": "ACCEPT",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
     },
-    {
-     "packet": 7,
-     "field": "tns.type",
-     "value": "6"
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "ipv6.version",
+          "value": "6"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "1521"
+        },
+        {
+          "packet": 4,
+          "field": "tns.type",
+          "value": "1"
+        },
+        {
+          "packet": 5,
+          "field": "tns.type",
+          "value": "2"
+        },
+        {
+          "packet": 4,
+          "field": "tns.packet_checksum",
+          "value": "0x0000"
+        },
+        {
+          "packet": 5,
+          "field": "tns.header_checksum",
+          "value": "0x0000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 78,
+          "hex": "01"
+        },
+        {
+          "packet": 5,
+          "offset": 78,
+          "hex": "02"
+        }
+      ],
+      "notes": []
     },
-    {
-     "packet": 8,
-     "field": "tns.type",
-     "value": "6"
-    },
-    {
-     "packet": 9,
-     "field": "tns.type",
-     "value": "6"
-    },
-    {
-     "packet": 6,
-     "field": "tns.data_flag",
-     "value": "0x0000"
-    },
-    {
-     "packet": 9,
-     "field": "tns.packet_checksum",
-     "value": "0x0000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 8,
-     "offset": 58,
-     "hex": "06"
-    },
-    {
-     "packet": 8,
-     "offset": 62,
-     "hex": "00 00"
-    },
-    {
-     "packet": 9,
-     "offset": 60,
-     "hex": "00 00"
-    }
-   ],
-   "notes": []
-  },
-  "notes": []
- },
- {
-  "id": "tns_ipv6_connect",
-  "proto": "tns",
-  "summary": "S5/T-TNS-S5: IPv6 CONNECT→ACCEPT",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "tns": {}
-    }
-   ],
-   "src_ip": "2001:db8::1",
-   "dst_ip": "2001:db8::2",
-   "src_port": 12345,
-   "dst_port": 1521,
-   "tns": {
-    "events": [
-     {
-      "type": "CONNECT",
-      "direction": "c2s",
-      "payload_profile": "connect_basic"
-     },
-     {
-      "type": "ACCEPT",
-      "direction": "s2c",
-      "payload_profile": "accept_basic"
-     }
+    "notes": [
+      "pending-suite：层链形状迁移后断言值沿迁移前 flat 路基线（P4 未跑 suite）；packet_count/字段/帧待 suite 复核钉死。"
     ]
-   }
   },
-  "expect": {
-   "packet_count": 9,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "ipv6.version",
-     "value": "6"
+  {
+    "id": "tns_multi_session",
+    "proto": "tns",
+    "summary": "S6/T-TNS-S6: two independent CONNECT→ACCEPT sessions (层链形 D-TNS-1)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "tns": {
+            "sessions": [
+              {
+                "src_port": 41234,
+                "events": [
+                  {
+                    "type": "CONNECT",
+                    "direction": "c2s"
+                  },
+                  {
+                    "type": "ACCEPT",
+                    "direction": "s2c"
+                  }
+                ]
+              },
+              {
+                "src_port": 41235,
+                "events": [
+                  {
+                    "type": "CONNECT",
+                    "direction": "c2s"
+                  },
+                  {
+                    "type": "ACCEPT",
+                    "direction": "s2c"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
     },
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "1521"
-    },
-    {
-     "packet": 4,
-     "field": "tns.type",
-     "value": "1"
-    },
-    {
-     "packet": 5,
-     "field": "tns.type",
-     "value": "2"
-    },
-    {
-     "packet": 4,
-     "field": "tns.packet_checksum",
-     "value": "0x0000"
-    },
-    {
-     "packet": 5,
-     "field": "tns.header_checksum",
-     "value": "0x0000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 78,
-     "hex": "01"
-    },
-    {
-     "packet": 5,
-     "offset": 78,
-     "hex": "02"
-    }
-   ],
-   "notes": []
-  },
-  "notes": []
- },
- {
-  "id": "tns_multi_session",
-  "proto": "tns",
-  "summary": "S6/T-TNS-S6: two independent CONNECT→ACCEPT sessions",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "tns": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "dst_port": 1521,
-   "tns": {
-    "sessions": [
-     {
-      "src_port": 12345,
-      "events": [
-       {
-        "type": "CONNECT",
-        "direction": "c2s",
-        "payload_profile": "connect_basic"
-       },
-       {
-        "type": "ACCEPT",
-        "direction": "s2c",
-        "payload_profile": "accept_basic"
-       }
+    "expect": {
+      "packet_count": 18,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 0,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "41234",
+            "41235"
+          ],
+          "distinct_exclude": [
+            "1521"
+          ]
+        },
+        {
+          "packet": 0,
+          "field": "tcp.dstport",
+          "distinct_values": [
+            "1521"
+          ],
+          "distinct_exclude": [
+            "41234",
+            "41235"
+          ]
+        },
+        {
+          "packet": 0,
+          "field": "tns.type",
+          "distinct_values": [
+            "1",
+            "2"
+          ]
+        }
+      ],
+      "notes": [
+        "S6: flow ordering is scheduler-dependent; distinct_values aggregate over both streams."
       ]
-     },
-     {
-      "src_port": 12346,
-      "events": [
-       {
-        "type": "CONNECT",
-        "direction": "c2s",
-        "payload_profile": "connect_basic"
-       },
-       {
-        "type": "ACCEPT",
-        "direction": "s2c",
-        "payload_profile": "accept_basic"
-       }
+    },
+    "notes": [
+      "pending-suite：层链形状迁移后断言值沿迁移前 flat 路基线（P4 未跑 suite）；packet_count/字段/帧待 suite 复核钉死。",
+      "会话端口换 41234/41235（设计 §8.3，避 9.37 派生编号撞车）；两条会话各自的握手/挥手独立（tcp 层按事件 SrcPort 挥旧握新）。"
+    ]
+  },
+  {
+    "id": "tns_header_fields",
+    "proto": "tns",
+    "summary": "S7/T-TNS-S7: complete public header fields and DATA flags (层链形 D-TNS-1)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              },
+              {
+                "type": "ACCEPT",
+                "direction": "s2c"
+              },
+              {
+                "type": "DATA",
+                "direction": "c2s",
+                "data_flags": 0
+              },
+              {
+                "type": "DATA",
+                "direction": "s2c",
+                "data_flags": 0
+              }
+            ],
+            "checksum_mode": "disabled"
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tns.length",
+          "nonzero": true
+        },
+        {
+          "packet": 4,
+          "field": "tns.packet_checksum",
+          "value": "0x0000"
+        },
+        {
+          "packet": 4,
+          "field": "tns.type",
+          "value": "1"
+        },
+        {
+          "packet": 4,
+          "field": "tns.reserved_byte",
+          "value": "00"
+        },
+        {
+          "packet": 4,
+          "field": "tns.header_checksum",
+          "value": "0x0000"
+        },
+        {
+          "packet": 5,
+          "field": "tns.length",
+          "nonzero": true
+        },
+        {
+          "packet": 5,
+          "field": "tns.packet_checksum",
+          "value": "0x0000"
+        },
+        {
+          "packet": 5,
+          "field": "tns.type",
+          "value": "2"
+        },
+        {
+          "packet": 5,
+          "field": "tns.reserved_byte",
+          "value": "00"
+        },
+        {
+          "packet": 5,
+          "field": "tns.header_checksum",
+          "value": "0x0000"
+        },
+        {
+          "packet": 6,
+          "field": "tns.length",
+          "nonzero": true
+        },
+        {
+          "packet": 6,
+          "field": "tns.packet_checksum",
+          "value": "0x0000"
+        },
+        {
+          "packet": 6,
+          "field": "tns.type",
+          "value": "6"
+        },
+        {
+          "packet": 6,
+          "field": "tns.reserved_byte",
+          "value": "00"
+        },
+        {
+          "packet": 6,
+          "field": "tns.header_checksum",
+          "value": "0x0000"
+        },
+        {
+          "packet": 7,
+          "field": "tns.length",
+          "nonzero": true
+        },
+        {
+          "packet": 7,
+          "field": "tns.packet_checksum",
+          "value": "0x0000"
+        },
+        {
+          "packet": 7,
+          "field": "tns.type",
+          "value": "6"
+        },
+        {
+          "packet": 7,
+          "field": "tns.reserved_byte",
+          "value": "00"
+        },
+        {
+          "packet": 7,
+          "field": "tns.header_checksum",
+          "value": "0x0000"
+        },
+        {
+          "packet": 6,
+          "field": "tns.data_flag",
+          "value": "0x0000"
+        },
+        {
+          "packet": 7,
+          "field": "tns.data_flag",
+          "value": "0x0000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 56,
+          "hex": "00 00"
+        },
+        {
+          "packet": 4,
+          "offset": 58,
+          "hex": "01"
+        },
+        {
+          "packet": 4,
+          "offset": 59,
+          "hex": "00"
+        },
+        {
+          "packet": 4,
+          "offset": 60,
+          "hex": "00 00"
+        },
+        {
+          "packet": 6,
+          "offset": 62,
+          "hex": "00 00"
+        }
+      ],
+      "notes": []
+    },
+    "notes": [
+      "pending-suite：层链形状迁移后断言值沿迁移前 flat 路基线（P4 未跑 suite）；packet_count/字段/帧待 suite 复核钉死。"
+    ]
+  },
+  {
+    "id": "tns_session_null_default",
+    "proto": "tns",
+    "summary": "S11/T-TNS-S11: 空层配置默认化产一条 DATA（P0b-2，设计 §4.3 派生表）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {}
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tns.type",
+          "value": "6"
+        },
+        {
+          "packet": 4,
+          "field": "tns.length",
+          "value": "10"
+        },
+        {
+          "packet": 4,
+          "field": "tns.data_flag",
+          "value": "0x0000"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "1521"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 58,
+          "hex": "06"
+        },
+        {
+          "packet": 4,
+          "offset": 62,
+          "hex": "00 00"
+        }
+      ],
+      "notes": []
+    },
+    "notes": [
+      "pending-suite：包数与字节面经链级红例（tns_chain_test.go TestTNSChain_EmptyLayerDefaultFlow，引擎侧 8 包 + DATA length=10 实测）钉死；tshark 字段/帧待 suite 复核。",
+      "空层 {} 走 P0b-2 缺省化（设计 §4.3：spec.TNS nil → 一条 DATA 事件）；显式 events: [] 是零事件配置，走 validator 判死——两条语义靠 nil/非 nil 区分。"
+    ]
+  },
+  {
+    "id": "tns_neg_udp",
+    "proto": "tns",
+    "summary": "N1: UDP carrier rejected (carrier)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 12345,
+            "dst_port": 1521
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
       ]
-     }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "tcp"
+    },
+    "notes": [
+      "pending-suite：判死锚词与形状经链级红例在案（tns_chain_test.go）；suite 待跑确认。",
+      "N1 锚词落 complete.go 通用 carrier 门文案（含 \"tcp\" 子串；设计 G-TNS-15 实跑确认项，链级已实测命中）。"
     ]
-   }
   },
-  "expect": {
-   "packet_count": 18,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 0,
-     "field": "tcp.srcport",
-     "distinct_values": [
-      "12345",
-      "12346"
-     ],
-     "distinct_exclude": [
-      "1521"
-     ]
+  {
+    "id": "tns_neg_packet_type",
+    "proto": "tns",
+    "summary": "N2: unknown packet type rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": 127,
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ]
     },
-    {
-     "packet": 0,
-     "field": "tcp.dstport",
-     "distinct_values": [
-      "1521"
-     ],
-     "distinct_exclude": [
-      "12345",
-      "12346"
-     ]
+    "expect": {
+      "expect_error": true,
+      "error_contains": "type"
     },
-    {
-     "packet": 0,
-     "field": "tns.type",
-     "distinct_values": [
-      "1",
-      "2"
-     ]
-    }
-   ],
-   "notes": [
-    "S6: flow ordering is scheduler-dependent; distinct_values aggregate over both streams."
-   ]
-  },
-  "notes": [
-   "S6: flow ordering is scheduler-dependent; distinct_values aggregate over both streams."
-  ]
- },
- {
-  "id": "tns_header_fields",
-  "proto": "tns",
-  "summary": "S7/T-TNS-S7: complete public header fields and DATA flags",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "tns": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 1521,
-   "tns": {
-    "events": [
-     {
-      "type": "CONNECT",
-      "direction": "c2s",
-      "payload_profile": "connect_basic"
-     },
-     {
-      "type": "ACCEPT",
-      "direction": "s2c",
-      "payload_profile": "accept_basic"
-     },
-     {
-      "type": "DATA",
-      "direction": "c2s",
-      "payload_profile": "ttc_connect",
-      "data_flags": 0
-     },
-     {
-      "type": "DATA",
-      "direction": "s2c",
-      "payload_profile": "ttc_accept",
-      "data_flags": 0
-     }
-    ],
-    "checksum_mode": "disabled"
-   }
-  },
-  "expect": {
-   "packet_count": 11,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tns.length",
-     "nonzero": true
-    },
-    {
-     "packet": 4,
-     "field": "tns.packet_checksum",
-     "value": "0x0000"
-    },
-    {
-     "packet": 4,
-     "field": "tns.type",
-     "value": "1"
-    },
-    {
-     "packet": 4,
-     "field": "tns.reserved_byte",
-     "value": "00"
-    },
-    {
-     "packet": 4,
-     "field": "tns.header_checksum",
-     "value": "0x0000"
-    },
-    {
-     "packet": 5,
-     "field": "tns.length",
-     "nonzero": true
-    },
-    {
-     "packet": 5,
-     "field": "tns.packet_checksum",
-     "value": "0x0000"
-    },
-    {
-     "packet": 5,
-     "field": "tns.type",
-     "value": "2"
-    },
-    {
-     "packet": 5,
-     "field": "tns.reserved_byte",
-     "value": "00"
-    },
-    {
-     "packet": 5,
-     "field": "tns.header_checksum",
-     "value": "0x0000"
-    },
-    {
-     "packet": 6,
-     "field": "tns.length",
-     "nonzero": true
-    },
-    {
-     "packet": 6,
-     "field": "tns.packet_checksum",
-     "value": "0x0000"
-    },
-    {
-     "packet": 6,
-     "field": "tns.type",
-     "value": "6"
-    },
-    {
-     "packet": 6,
-     "field": "tns.reserved_byte",
-     "value": "00"
-    },
-    {
-     "packet": 6,
-     "field": "tns.header_checksum",
-     "value": "0x0000"
-    },
-    {
-     "packet": 7,
-     "field": "tns.length",
-     "nonzero": true
-    },
-    {
-     "packet": 7,
-     "field": "tns.packet_checksum",
-     "value": "0x0000"
-    },
-    {
-     "packet": 7,
-     "field": "tns.type",
-     "value": "6"
-    },
-    {
-     "packet": 7,
-     "field": "tns.reserved_byte",
-     "value": "00"
-    },
-    {
-     "packet": 7,
-     "field": "tns.header_checksum",
-     "value": "0x0000"
-    },
-    {
-     "packet": 6,
-     "field": "tns.data_flag",
-     "value": "0x0000"
-    },
-    {
-     "packet": 7,
-     "field": "tns.data_flag",
-     "value": "0x0000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 56,
-     "hex": "00 00"
-    },
-    {
-     "packet": 4,
-     "offset": 58,
-     "hex": "01"
-    },
-    {
-     "packet": 4,
-     "offset": 59,
-     "hex": "00"
-    },
-    {
-     "packet": 4,
-     "offset": 60,
-     "hex": "00 00"
-    },
-    {
-     "packet": 6,
-     "offset": 62,
-     "hex": "00 00"
-    }
-   ],
-   "notes": []
-  },
-  "notes": []
- },
- {
-  "id": "tns_neg_udp",
-  "proto": "tns",
-  "summary": "N1: UDP carrier rejected",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
-    },
-    {
-     "tns": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "dst_port": 1521,
-   "tns": {
-    "events": [
-     {
-      "type": "CONNECT",
-      "direction": "c2s",
-      "payload_profile": "connect_basic"
-     },
-     {
-      "type": "ACCEPT",
-      "direction": "s2c",
-      "payload_profile": "accept_basic"
-     }
+    "notes": [
+      "pending-suite：判死锚词与形状经链级红例在案（tns_chain_test.go）；suite 待跑确认。"
     ]
-   }
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "tcp"
-  },
-  "notes": [
-   "N1: UDP carrier rejected"
-  ]
- },
- {
-  "id": "tns_neg_packet_type",
-  "proto": "tns",
-  "summary": "N2: unknown packet type rejected",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
+  {
+    "id": "tns_neg_length",
+    "proto": "tns",
+    "summary": "N3: packet length below 8 rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              }
+            ],
+            "wire_fault": {
+              "kind": "length",
+              "value": 7
+            }
+          }
+        }
+      ]
     },
-    {
-     "tns": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 1521,
-   "tns": {
-    "events": [
-     {
-      "type": 127,
-      "direction": "c2s",
-      "payload_profile": "connect_basic"
-     }
+    "expect": {
+      "expect_error": true,
+      "error_contains": "length"
+    },
+    "notes": [
+      "pending-suite：判死锚词与形状经链级红例在案（tns_chain_test.go）；suite 待跑确认。"
     ]
-   }
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "type"
-  },
-  "notes": [
-   "N2: unknown packet type rejected"
-  ]
- },
- {
-  "id": "tns_neg_length",
-  "proto": "tns",
-  "summary": "N3: packet length below 8 rejected",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
+  {
+    "id": "tns_neg_checksum",
+    "proto": "tns",
+    "summary": "N4: nonzero checksum conflicts with disabled mode",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              }
+            ],
+            "checksum_mode": "disabled",
+            "wire_fault": {
+              "kind": "packet_checksum",
+              "value": 1
+            }
+          }
+        }
+      ]
     },
-    {
-     "tns": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 1521,
-   "tns": {
-    "events": [
-     {
-      "type": "CONNECT",
-      "direction": "c2s",
-      "payload_profile": "connect_basic"
-     },
-     {
-      "type": "ACCEPT",
-      "direction": "s2c",
-      "payload_profile": "accept_basic"
-     }
-    ],
-    "wire_fault": {
-     "kind": "length",
-     "value": 7
-    }
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "length"
-  },
-  "notes": [
-   "N3: packet length below 8 rejected"
-  ]
- },
- {
-  "id": "tns_neg_checksum",
-  "proto": "tns",
-  "summary": "N4: nonzero checksum conflicts with disabled mode",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
+    "expect": {
+      "expect_error": true,
+      "error_contains": "checksum"
     },
-    {
-     "tns": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 1521,
-   "tns": {
-    "events": [
-     {
-      "type": "CONNECT",
-      "direction": "c2s",
-      "payload_profile": "connect_basic"
-     },
-     {
-      "type": "ACCEPT",
-      "direction": "s2c",
-      "payload_profile": "accept_basic"
-     }
-    ],
-    "checksum_mode": "disabled",
-    "wire_fault": {
-     "kind": "packet_checksum",
-     "value": 1
-    }
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "checksum"
-  },
-  "notes": [
-   "N4: nonzero checksum conflicts with disabled mode"
-  ]
- },
- {
-  "id": "tns_neg_data_flags",
-  "proto": "tns",
-  "summary": "N5: nonzero DATA flags rejected in v1",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "tns": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 1521,
-   "tns": {
-    "events": [
-     {
-      "type": "CONNECT",
-      "direction": "c2s",
-      "payload_profile": "connect_basic"
-     },
-     {
-      "type": "ACCEPT",
-      "direction": "s2c",
-      "payload_profile": "accept_basic"
-     },
-     {
-      "type": "DATA",
-      "direction": "c2s",
-      "payload_profile": "ttc_connect",
-      "data_flags": 1
-     }
+    "notes": [
+      "pending-suite：判死锚词与形状经链级红例在案（tns_chain_test.go）；suite 待跑确认。"
     ]
-   }
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "data_flags"
+  {
+    "id": "tns_neg_data_flags",
+    "proto": "tns",
+    "summary": "N5: nonzero DATA flags rejected in v1",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              },
+              {
+                "type": "ACCEPT",
+                "direction": "s2c"
+              },
+              {
+                "type": "DATA",
+                "direction": "c2s",
+                "data_flags": 1
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "data_flags"
+    },
+    "notes": [
+      "pending-suite：判死锚词与形状经链级红例在案（tns_chain_test.go）；suite 待跑确认。"
+    ]
   },
-  "notes": [
-   "N5: nonzero DATA flags rejected in v1"
-  ]
- }
+  {
+    "id": "tns_neg_state_skip",
+    "proto": "tns",
+    "summary": "N4/A'：状态机跳步（ACCEPT 前 DATA）拒绝（G-TNS-8 守卫）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              },
+              {
+                "type": "DATA",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "state violation"
+    },
+    "notes": [
+      "pending-suite：判死锚词与形状经链级红例在案（tns_chain_test.go）；suite 待跑确认。",
+      "G-TNS-8 守卫：ACCEPT 前 DATA / REFUSE|REDIRECT 后事件均为非法转移（设计 §4.1/§4.2）。"
+    ]
+  },
+  {
+    "id": "tns_neg_bad_direction",
+    "proto": "tns",
+    "summary": "N5/A'：非法 direction 枚举值拒绝（G-TNS-8 白名单）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "sideways"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "direction"
+    },
+    "notes": [
+      "pending-suite：判死锚词与形状经链级红例在案（tns_chain_test.go）；suite 待跑确认。",
+      "G-TNS-8 守卫：direction 枚举白名单 c2s/s2c/up/down——旧实现把非法值静默落 s2c。"
+    ]
+  },
+  {
+    "id": "tns_neg_presence_top_level_tns",
+    "proto": "tns",
+    "summary": "M5①判死：层链 + 顶层空 tns 子映射并存（presence 负例形状）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ],
+      "tns": {}
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "no longer accepts a top-level tns sub-config"
+    },
+    "notes": [
+      "pending-suite：判死锚词与形状经链级红例在案（tns_chain_test.go）；suite 待跑确认。",
+      "presence 判死（G-TNS-5 落地）：CheckProtoFlat tns 分支；空 map 也死（两层路径都拦——REST create 400 与在库旧策略 ValidationErrors）。"
+    ]
+  },
+  {
+    "id": "tns_neg_stray_src_mac",
+    "proto": "tns",
+    "summary": "M5②判死：白名单外游离键（顶层 src_mac）与 layers 并存",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ],
+      "src_mac": "02:00:00:00:00:01"
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "config mixes layers with flat four-tuple field src_mac"
+    },
+    "notes": [
+      "pending-suite：判死锚词与形状经链级红例在案（tns_chain_test.go）；suite 待跑确认。",
+      "MAC 真相住 eth 层（CORE_MEMORY 1.11/1.13），游离键由 schema 语义门 checkLayerFlatConflict 判死（create/update 400）。"
+    ]
+  }
 ]
