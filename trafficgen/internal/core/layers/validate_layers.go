@@ -706,6 +706,33 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 		}
 	}
 
+	if protocol == "pim" {
+		// D-PIM-1 §14-P2 链级红例（igmp 同族先例——DependsOn ip 会自动补
+		// ip 层，裸 pim 链不被补全掩盖；tcp/udp 夹层由 isRawIPChain :40-51
+		// 转 transport 分支出错，不在此重复拦）。pim 是单载体 raw-IP 终结层：
+		// 无 tcp/udp 传输层、无端口语义、Protocol 103 由 FieldContract 固写。
+		//   - 链中夹 tcp/udp → 锚 carrier（[ip,tcp,pim] / [ip,udp,pim]）；
+		//   - 链缺 ip（裸 [pim]）→ 锚 carrier（补全前判，否则被自动补全）。
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			hasIP := false
+			for _, item := range probe {
+				if _, ok := item["ip"]; ok {
+					hasIP = true
+				}
+				if _, ok := item["tcp"]; ok {
+					return nil, fmt.Errorf("pim chain: tcp carrier is not supported — PIM rides raw IP (protocol 103) only, no transport layer (carrier)")
+				}
+				if _, ok := item["udp"]; ok {
+					return nil, fmt.Errorf("pim chain: udp carrier is not supported — PIM rides raw IP (protocol 103) only, no transport layer (carrier)")
+				}
+			}
+			if !hasIP {
+				return nil, fmt.Errorf("pim chain: missing ip carrier — PIM requires an [ip,pim] chain (carrier)")
+			}
+		}
+	}
+
 	if protocol == "doip" {
 		// D-DOIP-1（G-DOIP-2，§15 8.5②/8.7）：链上不可达形在 create 期同步
 		// 判死（生成器 drive 期错误会被 Plan goroutine 吞成空流——hl7

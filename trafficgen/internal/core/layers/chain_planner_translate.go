@@ -734,6 +734,30 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 	if term.Name == "isis" && spec.ISIS == nil {
 		spec.ISIS = &core.ISISConfig{}
 	}
+	if term.Name == "pim" && spec.PIM == nil {
+		// D-PIM-1 G-PIM-1：层 config 严格往返解码进 spec.PIM（bgp :705 同款
+		// ——completedConfig + DisallowUnknownFields）。层优先：spec.PIM 已
+		// 存在（flat 顶层 pim/引擎直调）则不覆盖。空层 {} 翻译出非 nil 零配置
+		// → 生成器无 events 拒 "pim: no events configured"（PIM 无空配置默认
+		// 流，§5.5 Honest 注）。嵌套复合键（lan_prune_delay/groups/inner_ipv4/
+		// rp_sets/register_flags/wire_fault）随 JSON 往返自动解码。
+		cfgPIM := completedConfig(s, term.Config)
+		rawPIM, err := json.Marshal(cfgPIM)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("pim layer config encode: %v", err))
+		} else {
+			var pcfg core.PIMConfig
+			decPIM := json.NewDecoder(bytes.NewReader(rawPIM))
+			decPIM.DisallowUnknownFields()
+			if err := decPIM.Decode(&pcfg); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors,
+					fmt.Sprintf("pim layer config decode: %v", err))
+			} else {
+				spec.PIM = &pcfg
+			}
+		}
+	}
 	if term.Name == "cflow" && spec.CFlow == nil {
 		spec.CFlow = &core.CFlowConfig{}
 	}

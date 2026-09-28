@@ -7258,6 +7258,250 @@ def check_igmp(cases):
     return rows
 
 
+def check_pim(cases):
+    """D-PIM-1 P4 反查表（24 契约例 + 4 链级红例 = 28 例；契约 §1/§2/§3/§7 逐条回查）。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线（P4 落码面）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 pim", '"pim": true' in pg, "在列"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "pim"')
+    reg_block = rg[i_reg:rg.index('Name: "', i_reg + 20)]
+    rows.append(("registry pim 行（DependsOn ip + FieldContract ip.protocol=103）",
+                 'DependsOn: []string{"ip"}' in reg_block
+                 and '"ip.protocol": "103"' in reg_block, "在案"))
+    missing = [k for k in ["profile", "checksum_mode", "events", "wire_fault"]
+               if f'"{k}"' not in reg_block]
+    rows.append(("registry Fields 4 业务键（PIMConfig json 标签，层内键 V9 放行）",
+                 not missing, "4/4" if not missing else f"缺 {missing}"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case pim（严格往返解码 DisallowUnknownFields → spec.PIM）",
+                 'term.Name == "pim" && spec.PIM == nil' in tr
+                 and "pim layer config decode" in tr, "在案"))
+    rows.append(("FlowMeta.PIM 直传（translate 字面量 + raw-IP 分支）",
+                 re.search(r"PIM:\s+spec\.PIM\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.PIM 字段", re.search(r"PIM\s+\*core\.PIMConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.PIM 字段", re.search(r"PIM\s+\*PIMConfig", ty) is not None, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(pim)",
+                 "internal/protocol/pim" in mn and 'NewChainPlanner("pim")' in mn, "在案"))
+    cu = (tg / "internal" / "core" / "layers" / "chain_planner_util.go").read_text()
+    rows.append(("isRawIPChain 认 pim（无传输层族）",
+                 '"pim"' in cu.split("func isRawIPChain")[1][:600], "在案"))
+    rows.append(("transportProtocol 末层/倒二层 → ProtocolPIM（103）",
+                 cu.count('case "pim":') >= 2 and "return core.ProtocolPIM" in cu, "在案"))
+    gendump = json.loads((tg / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
+    entry = gendump["layers"].get("pim", {})
+    rows.append(("generated schema pim 条目（depends_on ip + 4 键，与 registry 同代）",
+                 entry.get("depends_on") == ["ip"] and len(entry.get("fields", {})) == 4, "在案"))
+
+    # 2. 守卫（P4 新增三面：presence / 游离键 / 载体）。
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat 顶层 pim 子映射 presence 判死（空 map 也死）",
+                 "protocol pim no longer accepts a top-level pim sub-config" in sc, "在案"))
+    rows.append(("mapToFlowSpec 顶层 pim → ValidationErrors（在库旧策略执法）",
+                 'if protocol == "pim" {' in sc, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    i_vl = vl.index('if protocol == "pim" {')
+    vl_block = vl[i_vl:vl.index("effective, err := ValidateLayers", i_vl)]
+    rows.append(("载体预检三支：夹 tcp 拒 / 夹 udp 拒 / 缺 ip 拒（锚 carrier）",
+                 "tcp carrier is not supported" in vl_block
+                 and "udp carrier is not supported" in vl_block
+                 and "missing ip carrier" in vl_block, "在案"))
+
+    # 3. 链级红测（pim_chain_test.go ≥3：翻译出包 / presence+游离 / 载体拒）。
+    blk = (tg / "internal" / "core" / "layers" / "pim_chain_test.go").read_text()
+    for tc, name in [
+        ("TestPIMChain_LayerEventsTranslated", "链级①层条目→spec 翻译出包（含 down 换向）"),
+        ("TestPIMChain_LayerProfileRejected", "链级①b 层内非法 profile 判死"),
+        ("TestPIMChain_PresenceRejected", "链级②presence 判死"),
+        ("TestPIMChain_StrayTopLevelKeysRejected", "链级②b 游离键判死（顶层五键 + 层内 unknown field）"),
+        ("TestPIMChain_CarrierRejected", "链级③载体拒（tcp/udp/缺 ip）"),
+        ("TestPIMChain_CaseFileAudit", "链级④用例文件收官自查"),
+    ]:
+        rows.append((f"链级红测：{name}", tc in blk, "在案"))
+
+    # 4. 用例面（28 例 = 17 正 + 7 契约负 + 4 链级红例；契约 §2 索引同序）。
+    exp_ids = ["pim_sm_hello_holdtime", "pim_sm_hello_options",
+               "pim_sm_hello_zero_holdtime", "pim_sm_joinprune_wildcard",
+               "pim_sm_joinprune_source", "pim_sm_joinprune_multi_group",
+               "pim_sm_joinprune_retransmit", "pim_sm_bootstrap_rp_set",
+               "pim_sm_candidate_rp_adv", "pim_sm_register", "pim_sm_register_stop",
+               "pim_sm_assert", "pim_sm_dr_election", "pim_sm_multi_neighbor_state",
+               "pim_sm_checksum_length", "pim_ssm_joinprune_sg", "pim_ssm_multi_group",
+               "pim_neg_ipv6_profile", "pim_neg_checksum", "pim_neg_length",
+               "pim_neg_type", "pim_neg_address_family", "pim_neg_ssm_rp",
+               "pim_neg_df_profile"]
+    got_ids = [c.get("id") for c in cases]
+    rows.append(("24 契约 ID 与 testcase §2 索引同序（前 24 位）",
+                 got_ids[:24] == exp_ids,
+                 "同序" if got_ids[:24] == exp_ids else f"差异: {set(exp_ids) ^ set(got_ids[:24])}"))
+    rows.append(("用例总数 28（24 契约 + 4 链级红例）", len(cases) == 28, f"{len(cases)} 例"))
+    pos = [c for c in cases if "expect_error" not in (c.get("expect") or {})]
+    neg = [c for c in cases if "expect_error" in (c.get("expect") or {})]
+    rows.append(("17 正 + 11 负（7 契约 + 4 链级红例）",
+                 len(pos) == 17 and len(neg) == 11, f"{len(pos)} 正 / {len(neg)} 负"))
+    seq = [(c.get("expect") or {}).get("packet_count") for c in pos]
+    want_seq = [1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 3, 6, 1, 1, 2]
+    rows.append(("packet_count 序列 = testcase §2（总 29）",
+                 seq == want_seq, str(seq)))
+    five = [c.get("id") for c in pos if not (
+        (c.get("expect") or {}).get("packet_count")
+        and (c.get("expect") or {}).get("fields")
+        and (c.get("expect") or {}).get("frames")
+        and (c.get("expect") or {}).get("has_payload") is True
+        and (c.get("expect") or {}).get("directional") in (True, False))]
+    rows.append(("正例五项齐全（packet_count/fields/frames/has_payload/directional）",
+                 not five, five or "17/17"))
+    dir_true = [c.get("id") for c in pos if (c.get("expect") or {}).get("directional") is True]
+    rows.append(("directional=true 仅 #13/#14（多包方向面）",
+                 dir_true == ["pim_sm_dr_election", "pim_sm_multi_neighbor_state"],
+                 str(dir_true)))
+    contract_neg_ids = {"pim_neg_ipv6_profile", "pim_neg_checksum", "pim_neg_length",
+                        "pim_neg_type", "pim_neg_address_family", "pim_neg_ssm_rp",
+                        "pim_neg_df_profile"}
+    # §14.1：负例 expect 键集合严格 = {expect_error, error_contains}，契约负例
+    # 与链级红例同口径（11/11；igmp/bgp 先例）。
+    bad_keys = [c.get("id") for c in neg
+                if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
+    rows.append(("11 负例 expect 键集严格 = {expect_error, error_contains}",
+                 not bad_keys, bad_keys or "11/11 合规"))
+
+    # 5. 字段/帧面（§1/§3 实测口径）。
+    flds = set()
+    for c in pos:
+        for f in (c.get("expect") or {}).get("fields") or []:
+            if isinstance(f, dict) and f.get("field"):
+                flds.add(f["field"])
+    bad_prefix = sorted(f for f in flds if not (f.startswith("pim.") or f.startswith("ip.")))
+    rows.append(("字段全为 pim.*/ip.*（tshark 已注册命名空间）",
+                 not bad_prefix, bad_prefix or f"{len(flds)} 个"))
+    lit = [c.get("id") for c in pos for f in (c.get("expect") or {}).get("fields") or []
+           if f.get("field") == "pim.cksum" and "value" in f]
+    rows.append(("checksum 只以 nonzero 观察（不钉未复算十六进制，§2 铁律）",
+                 not lit, lit or "零字面量"))
+    offs = set()
+    for c in pos:
+        for f in (c.get("expect") or {}).get("frames") or []:
+            if isinstance(f, dict) and f.get("offset") is not None:
+                offs.add(f["offset"])
+    rows.append(("frames offset 单档 34（Ethernet 14 + IPv4 20）",
+                 offs == {34}, str(sorted(offs))))
+    pfx = set()
+    for c in pos:
+        for f in (c.get("expect") or {}).get("frames") or []:
+            if isinstance(f, dict) and f.get("hex"):
+                pfx.add(f["hex"])
+    want_pfx = {"20 00", "21 00", "22 00", "23 00", "24 00", "25 00", "28 00"}
+    rows.append(("frames 前缀 ⊆ 七类 Type 组合字节（§3 Type 表逐值）",
+                 pfx == want_pfx, str(sorted(pfx))))
+    hs = [c.get("id") for c in cases if "has_handshake" in json.dumps(c)]
+    rows.append(("has_handshake 零出现（raw-IP 无连接族诚实口径）", not hs, hs or "0/28"))
+
+    # 6. 负例锚词：case 侧逐字 = 契约 §7 表值，且每个值命中 planner.go 已落码锚词。
+    pl = (tg / "internal" / "protocol" / "pim" / "planner.go").read_text()
+    want_anchor = {
+        "pim_neg_ipv6_profile": "profile",
+        "pim_neg_checksum": "checksum",
+        "pim_neg_length": "length",
+        "pim_neg_type": "type",
+        "pim_neg_address_family": "address",
+        "pim_neg_ssm_rp": "ssm",
+        "pim_neg_df_profile": "df",
+    }
+    bad = [c.get("id") for c in neg
+           if c.get("id") in contract_neg_ids
+           and (c.get("expect") or {}).get("error_contains") != want_anchor.get(c.get("id"))]
+    rows.append(("7 契约负例 error_contains 逐字 = 契约 §7 表值", not bad, bad or "7/7 逐字"))
+    code_anchors = {
+        "profile": "unsupported profile",
+        "checksum": "checksum wire fault rejected",
+        "length": "length wire fault rejected",
+        "type": "type wire fault rejected",
+        "address": "is not an IPv4 address",
+        "ssm": "pim ssm:",
+        "df": "pim df:",
+    }
+    miss = [v for v in want_anchor.values() if code_anchors[v] not in pl]
+    rows.append(("7 锚词均命中 planner.go 已落码文案", not miss, miss or "7/7 命中"))
+    # 链级红例锚词 ∈ 代码锚词集（presence/游离/载体）。锚词是**子串**断言
+    #（case 侧只要求命中片段），文案可能由字符串拼接产生（CheckProtoFlat
+    # 的 flat 键文案是 "protocol "+protocol+" no longer accepts flat config
+    # field "+k）——按 rtmfp/tftp 先例的骨架口径（去数字 + 逐词命中）判，
+    # 不做整句字面量相等。
+    chain_code = sc + vl + blk
+
+    def _hit(anchor):
+        if anchor in chain_code:
+            return True
+        skel = re.sub(r"\b\d+\b", "", anchor)
+        words = [w for w in re.split(r"\s+", skel) if len(w.strip('",()[]:')) >= 3]
+        return len(words) >= 3 and all(w in chain_code for w in words)
+
+    chain_anchors = {
+        "pim_neg_top_pim_presence_reject": "no longer accepts a top-level pim sub-config",
+        "pim_neg_stray_top_src_ip": "no longer accepts flat config field src_ip",
+        "pim_neg_carrier_udp": "carrier",
+        "pim_neg_carrier_missing_ip": "carrier",
+    }
+    bad_c = [cid for cid, a in chain_anchors.items()
+             if not any(c.get("id") == cid and (c.get("expect") or {}).get("error_contains") == a
+                        for c in neg)]
+    rows.append(("4 链级红例 error_contains 逐字 = 判死分支文案", not bad_c, bad_c or "4/4 逐字"))
+    miss_c = [a for a in chain_anchors.values() if not _hit(a)]
+    rows.append(("4 链级锚词均命中代码文案", not miss_c, miss_c or "4/4 命中"))
+    # 载体两例的锚词必须能对上各自真实判死分支（tcp/udp/缺 ip 三分支各有文案）。
+    # 取块按结构边界（下一个 `if protocol ==` 或 ValidateLayers 调用）而非字符数
+    # ——写死长度会在块增长时静默截断成假 MISS。
+    _pim_at = vl.index('if protocol == "pim" {')
+    _tail = vl[_pim_at:]
+    _end = len(_tail)
+    for _stop in ("effective, err := ValidateLayers", "\n\tif protocol == "):
+        _j = _tail.find(_stop, 1)
+        if _j != -1:
+            _end = min(_end, _j)
+    carrier_txt = _tail[:_end]
+    rows.append(("载体三分支文案各自在案（tcp/udp/缺 ip）",
+                 "tcp carrier is not supported" in carrier_txt
+                 and "udp carrier is not supported" in carrier_txt
+                 and "missing ip carrier" in carrier_txt, "3/3"))
+
+    # 7. 顶层残留为零（层链唯一配置真相；presence/游离键负例豁免）。
+    allowed_top = {"layers", "group_id"}
+    leaked = []
+    for c in cases:
+        sj = c.get("spec_json") or {}
+        exp = c.get("expect") or {}
+        if exp.get("expect_error"):
+            continue
+        leaked += [f"{c.get('id')}:{k}" for k in sj if k not in allowed_top]
+    rows.append(("非负例顶层键=0（仅 layers）", not leaked, leaked or "零残留"))
+    presence = [c.get("id") for c in neg
+                if isinstance((c.get("spec_json") or {}).get("pim"), dict)]
+    rows.append(("presence 负例在案（层链+顶层 pim 并存判死形状）",
+                 len(presence) == 1, str(presence)))
+    # 层内业务键齐（契约 §2/§14.1：profile/checksum_mode/events 三键全量迁入
+    # pim 层，零残留）。口径限定在 24 契约例——链级红例只判死形状，其 pim
+    # 条目可以是空 map（presence 例）或仅够触发拒（载体例），不主张业务面。
+    thin = []
+    for c in cases:
+        if c.get("id") not in exp_ids:
+            continue
+        for layer in ((c.get("spec_json") or {}).get("layers") or []):
+            p = (layer or {}).get("pim")
+            if not isinstance(p, dict) or not p:
+                continue
+            if not {"profile", "checksum_mode"} <= set(p) or "events" not in p:
+                thin.append(c.get("id"))
+    rows.append(("24 契约例层内业务键三键齐（profile/checksum_mode/events）",
+                 not thin, thin or "全例齐"))
+    return rows
+
+
 def check_rtmfp(cases):
     """D-RTMFP-1 P4/P5 反查表（16 正 + 13 负 = 29 例）。返回 [(检查名, 通过?, 证据)]。
 
@@ -7411,7 +7655,7 @@ def check_rtmfp(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "pim": check_pim}
 
 
 def main(argv):

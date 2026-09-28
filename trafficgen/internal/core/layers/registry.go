@@ -1133,8 +1133,21 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "ospf", Category: CategoryTerminal, DependsOn: []string{"ip"},
 		FieldContract: map[string]string{"ip.protocol": "89"}, // RFC 2328 OSPF IPPROTO=89
 	})
+	// D-PIM-1 G-PIM-1：pim 层 4 业务键 = core.PIMConfig json 标签（routing.go
+	// :174-179；键名=标签名），无 Default（缺省语义在生成器侧——空层
+	// {} 翻译出零配置，生成器无 events 拒 "pim: no events configured"，
+	// §5.5 Honest 注：pim 无空配置默认流）。wire_fault 为顶层故障注入块
+	// （planner.go:39 拒 checksum/length/type/address 四值）；events 为结构
+	// 数组，元素级校验归 Planner.Validate（§7 锚词表）。此前空字段表使层内
+	// 业务键 V9 判 unknown field（P4 阻塞项）。
 	r.Register(LayerSchema{Name: "pim", Category: CategoryTerminal, DependsOn: []string{"ip"},
 		FieldContract: map[string]string{"ip.protocol": "103"}, // RFC 7761 PIM IPPROTO=103
+		Fields: map[string]FieldSchema{
+			"profile":       {Type: "string"},
+			"checksum_mode": {Type: "string"},
+			"events":        {Type: "list"},
+			"wire_fault":    {Type: "object"},
+		},
 	})
 	r.Register(LayerSchema{Name: "isis", Category: CategoryTerminal, DependsOn: []string{"eth"}})
 	// D-ARP-1：arp 层 5 业务键（L2-only 终结层，[eth,arp] 链，RFC 826）。

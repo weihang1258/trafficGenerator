@@ -1,1860 +1,1970 @@
 [
   {
-    "id": "pim_sm_hello_holdtime",
-    "proto": "pim",
-    "summary": "PIM-SM Hello with explicit Holdtime and interval",
-    "spec_json": {
-      "layers": [
-        {
-          "ip": {}
-        },
-        {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "224.0.0.13",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "hello",
-            "direction": "c2s",
-            "holdtime": 105,
-            "hello_interval": 30,
-            "generation_id": "0x01020304",
-            "dr_priority": 10
-          }
-        ]
-      }
-    },
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "103"
         },
         {
-          "packet": 1,
           "field": "pim.version",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "pim.type",
+          "packet": 1,
           "value": "0"
         },
         {
-          "packet": 1,
           "field": "pim.holdtime",
+          "packet": 1,
           "value": "105"
         },
         {
-          "packet": 1,
           "field": "pim.cksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "20 00",
           "offset": 34,
-          "hex": "20 00"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "pim_sm_hello_options",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "pim_sm_hello_holdtime",
     "proto": "pim",
-    "summary": "PIM-SM Hello options including LAN Prune Delay, DR priority and Generation ID",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "224.0.0.13",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
         },
         {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "224.0.0.13",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "hello",
-            "direction": "c2s",
-            "holdtime": 90,
-            "hello_interval": 30,
-            "lan_prune_delay": {
-              "t_bit": true,
-              "propagation_delay": 100,
-              "override_interval": 500
-            },
-            "dr_priority": 200,
-            "generation_id": "0x11223344"
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
+              {
+                "direction": "c2s",
+                "dr_priority": 10,
+                "generation_id": "0x01020304",
+                "hello_interval": 30,
+                "holdtime": 105,
+                "kind": "hello"
+              }
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "PIM-SM Hello with explicit Holdtime and interval"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "pim.type",
+          "packet": 1,
           "value": "0"
         },
         {
-          "packet": 1,
           "field": "pim.t",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "pim.propagation_delay",
+          "packet": 1,
           "value": "100"
         },
         {
-          "packet": 1,
           "field": "pim.override_interval",
+          "packet": 1,
           "value": "500"
         },
         {
-          "packet": 1,
           "field": "pim.dr_priority",
+          "packet": 1,
           "value": "200"
         },
         {
-          "packet": 1,
           "field": "pim.generation_id",
+          "packet": 1,
           "value": "287454020"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "20 00",
           "offset": 34,
-          "hex": "20 00"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "pim_sm_hello_zero_holdtime",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "pim_sm_hello_options",
     "proto": "pim",
-    "summary": "PIM-SM Hello Holdtime zero immediate-expiry boundary",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "224.0.0.13",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
         },
         {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "224.0.0.13",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "hello",
-            "direction": "s2c",
-            "holdtime": 0,
-            "hello_interval": 30,
-            "generation_id": "0x00000001"
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
+              {
+                "direction": "c2s",
+                "dr_priority": 200,
+                "generation_id": "0x11223344",
+                "hello_interval": 30,
+                "holdtime": 90,
+                "kind": "hello",
+                "lan_prune_delay": {
+                  "override_interval": 500,
+                  "propagation_delay": 100,
+                  "t_bit": true
+                }
+              }
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "PIM-SM Hello options including LAN Prune Delay, DR priority and Generation ID"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "103"
         },
         {
-          "packet": 1,
           "field": "pim.type",
+          "packet": 1,
           "value": "0"
         },
         {
-          "packet": 1,
           "field": "pim.holdtime",
+          "packet": 1,
           "value": "0"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "20 00",
           "offset": 34,
-          "hex": "20 00"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "pim_sm_joinprune_wildcard",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "pim_sm_hello_zero_holdtime",
     "proto": "pim",
-    "summary": "PIM-SM Join/Prune wildcard (*,G)",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "224.0.0.13",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
         },
         {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "192.0.2.254",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "join_prune",
-            "direction": "c2s",
-            "upstream_neighbor": "192.0.2.254",
-            "holdtime": 180,
-            "groups": [
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
               {
-                "group": "239.1.1.1",
-                "joined_sources": [
-                  {
-                    "wildcard": true
-                  }
-                ],
-                "pruned_sources": []
+                "direction": "s2c",
+                "generation_id": "0x00000001",
+                "hello_interval": 30,
+                "holdtime": 0,
+                "kind": "hello"
               }
             ],
-            "state": "upstream_join"
+            "profile": "pim_sm_rfc7761_ipv4"
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "PIM-SM Hello Holdtime zero immediate-expiry boundary"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "pim.type",
+          "packet": 1,
           "value": "3"
         },
         {
-          "packet": 1,
           "field": "pim.upstream_neighbor",
+          "packet": 1,
           "value": "192.0.2.254"
         },
         {
-          "packet": 1,
           "field": "pim.group",
+          "packet": 1,
           "value": "239.1.1.1,239.1.1.1"
         },
         {
-          "packet": 1,
           "field": "pim.numgroups",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "pim.numjoins",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "pim.numprunes",
+          "packet": 1,
           "value": "0"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "23 00",
           "offset": 34,
-          "hex": "23 00"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "pim_sm_joinprune_source",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "pim_sm_joinprune_wildcard",
     "proto": "pim",
-    "summary": "PIM-SM Join/Prune concrete (S,G) join and prune",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "192.0.2.254",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
         },
         {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "192.0.2.254",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "join_prune",
-            "direction": "c2s",
-            "upstream_neighbor": "192.0.2.254",
-            "holdtime": 180,
-            "groups": [
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
               {
-                "group": "232.1.1.1",
-                "joined_sources": [
+                "direction": "c2s",
+                "groups": [
                   {
-                    "source": "198.51.100.10"
+                    "group": "239.1.1.1",
+                    "joined_sources": [
+                      {
+                        "wildcard": true
+                      }
+                    ],
+                    "pruned_sources": []
                   }
                 ],
-                "pruned_sources": [
-                  {
-                    "source": "198.51.100.11"
-                  }
-                ]
+                "holdtime": 180,
+                "kind": "join_prune",
+                "state": "upstream_join",
+                "upstream_neighbor": "192.0.2.254"
               }
             ],
-            "state": "downstream_join"
+            "profile": "pim_sm_rfc7761_ipv4"
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "PIM-SM Join/Prune wildcard (*,G)"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "pim.type",
+          "packet": 1,
           "value": "3"
         },
         {
-          "packet": 1,
           "field": "pim.upstream_neighbor",
+          "packet": 1,
           "value": "192.0.2.254"
         },
         {
-          "packet": 1,
           "field": "pim.group",
+          "packet": 1,
           "value": "232.1.1.1,232.1.1.1"
         },
         {
-          "packet": 1,
           "field": "pim.source",
+          "packet": 1,
           "value": "198.51.100.10,198.51.100.11"
         },
         {
-          "packet": 1,
           "field": "pim.numjoins",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "pim.numprunes",
+          "packet": 1,
           "value": "1"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "23 00",
           "offset": 34,
-          "hex": "23 00"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "pim_sm_joinprune_multi_group",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "pim_sm_joinprune_source",
     "proto": "pim",
-    "summary": "PIM-SM Join/Prune with wildcard and source trees in two groups",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "192.0.2.254",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
         },
         {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "192.0.2.254",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "join_prune",
-            "direction": "c2s",
-            "upstream_neighbor": "192.0.2.254",
-            "holdtime": 180,
-            "groups": [
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
               {
-                "group": "239.1.1.1",
-                "joined_sources": [
+                "direction": "c2s",
+                "groups": [
                   {
-                    "wildcard": true
+                    "group": "232.1.1.1",
+                    "joined_sources": [
+                      {
+                        "source": "198.51.100.10"
+                      }
+                    ],
+                    "pruned_sources": [
+                      {
+                        "source": "198.51.100.11"
+                      }
+                    ]
                   }
                 ],
-                "pruned_sources": []
-              },
-              {
-                "group": "232.1.1.2",
-                "joined_sources": [
-                  {
-                    "source": "198.51.100.12"
-                  }
-                ],
-                "pruned_sources": [
-                  {
-                    "source": "198.51.100.13"
-                  }
-                ]
+                "holdtime": 180,
+                "kind": "join_prune",
+                "state": "downstream_join",
+                "upstream_neighbor": "192.0.2.254"
               }
-            ]
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "PIM-SM Join/Prune concrete (S,G) join and prune"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "pim.type",
+          "packet": 1,
           "value": "3"
         },
         {
-          "packet": 1,
           "field": "pim.numgroups",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "pim.group",
+          "packet": 1,
           "value": "239.1.1.1,239.1.1.1,232.1.1.2,232.1.1.2"
         },
         {
-          "packet": 1,
           "field": "pim.source",
+          "packet": 1,
           "value": "0.0.0.0,198.51.100.12,198.51.100.13"
         },
         {
-          "packet": 1,
           "field": "pim.numjoins",
+          "packet": 1,
           "value": "1,1"
         },
         {
-          "packet": 1,
           "field": "pim.numprunes",
+          "packet": 1,
           "value": "0,1"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "23 00",
           "offset": 34,
-          "hex": "23 00"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "pim_sm_joinprune_retransmit",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "pim_sm_joinprune_multi_group",
     "proto": "pim",
-    "summary": "PIM-SM explicit Join/Prune retransmission",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "192.0.2.254",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
         },
         {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "192.0.2.254",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "join_prune",
-            "direction": "c2s",
-            "upstream_neighbor": "192.0.2.254",
-            "holdtime": 180,
-            "groups": [
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
               {
-                "group": "232.1.1.3",
-                "joined_sources": [
+                "direction": "c2s",
+                "groups": [
                   {
-                    "source": "198.51.100.14"
+                    "group": "239.1.1.1",
+                    "joined_sources": [
+                      {
+                        "wildcard": true
+                      }
+                    ],
+                    "pruned_sources": []
+                  },
+                  {
+                    "group": "232.1.1.2",
+                    "joined_sources": [
+                      {
+                        "source": "198.51.100.12"
+                      }
+                    ],
+                    "pruned_sources": [
+                      {
+                        "source": "198.51.100.13"
+                      }
+                    ]
                   }
                 ],
-                "pruned_sources": []
+                "holdtime": 180,
+                "kind": "join_prune",
+                "upstream_neighbor": "192.0.2.254"
               }
             ],
-            "state": "upstream_join"
-          },
-          {
-            "kind": "join_prune",
-            "direction": "c2s",
-            "upstream_neighbor": "192.0.2.254",
-            "holdtime": 180,
-            "groups": [
-              {
-                "group": "232.1.1.3",
-                "joined_sources": [
-                  {
-                    "source": "198.51.100.14"
-                  }
-                ],
-                "pruned_sources": []
-              }
-            ],
-            "state": "upstream_join",
-            "retransmission": true
+            "profile": "pim_sm_rfc7761_ipv4"
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "PIM-SM Join/Prune with wildcard and source trees in two groups"
+  },
+  {
     "expect": {
-      "packet_count": 2,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "pim.type",
+          "packet": 1,
           "value": "3"
         },
         {
-          "packet": 2,
           "field": "pim.type",
-          "value": "3",
-          "same_as_packet": 1
+          "packet": 2,
+          "same_as_packet": 1,
+          "value": "3"
         },
         {
-          "packet": 2,
           "field": "pim.upstream_neighbor",
+          "packet": 2,
           "value": "192.0.2.254"
         },
         {
-          "packet": 2,
           "field": "pim.group",
+          "packet": 2,
           "value": "232.1.1.3,232.1.1.3"
         },
         {
-          "packet": 2,
           "field": "pim.source",
+          "packet": 2,
           "value": "198.51.100.14"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "23 00",
           "offset": 34,
-          "hex": "23 00"
+          "packet": 1
         },
         {
-          "packet": 2,
+          "hex": "23 00",
           "offset": 34,
-          "hex": "23 00"
+          "packet": 2
         }
-      ]
-    }
-  },
-  {
-    "id": "pim_sm_bootstrap_rp_set",
+      ],
+      "has_payload": true,
+      "packet_count": 2
+    },
+    "id": "pim_sm_joinprune_retransmit",
     "proto": "pim",
-    "summary": "PIM-SM Bootstrap with BSR and RP set priorities",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "192.0.2.254",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
         },
         {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "224.0.0.13",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "bootstrap",
-            "direction": "c2s",
-            "bsr": "192.0.2.10",
-            "bsr_priority": 128,
-            "hash_mask_length": 30,
-            "rp_sets": [
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
               {
-                "group_prefix": "239.0.0.0/8",
-                "rps": [
+                "direction": "c2s",
+                "groups": [
                   {
-                    "rp": "192.0.2.20",
-                    "priority": 10,
-                    "holdtime": 150
-                  },
-                  {
-                    "rp": "192.0.2.21",
-                    "priority": 20,
-                    "holdtime": 150
+                    "group": "232.1.1.3",
+                    "joined_sources": [
+                      {
+                        "source": "198.51.100.14"
+                      }
+                    ],
+                    "pruned_sources": []
                   }
-                ]
+                ],
+                "holdtime": 180,
+                "kind": "join_prune",
+                "state": "upstream_join",
+                "upstream_neighbor": "192.0.2.254"
+              },
+              {
+                "direction": "c2s",
+                "groups": [
+                  {
+                    "group": "232.1.1.3",
+                    "joined_sources": [
+                      {
+                        "source": "198.51.100.14"
+                      }
+                    ],
+                    "pruned_sources": []
+                  }
+                ],
+                "holdtime": 180,
+                "kind": "join_prune",
+                "retransmission": true,
+                "state": "upstream_join",
+                "upstream_neighbor": "192.0.2.254"
               }
-            ]
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "PIM-SM explicit Join/Prune retransmission"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "pim.type",
+          "packet": 1,
           "value": "4"
         },
         {
-          "packet": 1,
           "field": "pim.bsr",
+          "packet": 1,
           "value": "192.0.2.10"
         },
         {
-          "packet": 1,
           "field": "pim.bsr_priority",
+          "packet": 1,
           "value": "128"
         },
         {
-          "packet": 1,
           "field": "pim.hash_mask_len",
+          "packet": 1,
           "value": "30"
         },
         {
-          "packet": 1,
           "field": "pim.group",
+          "packet": 1,
           "value": "239.0.0.0,239.0.0.0"
         },
         {
-          "packet": 1,
           "field": "pim.rp",
+          "packet": 1,
           "value": "192.0.2.20,192.0.2.21"
         },
         {
-          "packet": 1,
           "field": "pim.priority",
+          "packet": 1,
           "value": "10,20"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "24 00",
           "offset": 34,
-          "hex": "24 00"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "pim_sm_candidate_rp_adv",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "pim_sm_bootstrap_rp_set",
     "proto": "pim",
-    "summary": "PIM-SM Candidate-RP Advertisement",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "224.0.0.13",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
         },
         {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "192.0.2.10",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "candidate_rp_adv",
-            "direction": "c2s",
-            "rp": "192.0.2.30",
-            "rp_priority": 64,
-            "holdtime": 150,
-            "group_prefixes": [
-              "239.0.0.0/8",
-              "232.0.0.0/8"
-            ]
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
+              {
+                "bsr": "192.0.2.10",
+                "bsr_priority": 128,
+                "direction": "c2s",
+                "hash_mask_length": 30,
+                "kind": "bootstrap",
+                "rp_sets": [
+                  {
+                    "group_prefix": "239.0.0.0/8",
+                    "rps": [
+                      {
+                        "holdtime": 150,
+                        "priority": 10,
+                        "rp": "192.0.2.20"
+                      },
+                      {
+                        "holdtime": 150,
+                        "priority": 20,
+                        "rp": "192.0.2.21"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "PIM-SM Bootstrap with BSR and RP set priorities"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "pim.type",
+          "packet": 1,
           "value": "8"
         },
         {
-          "packet": 1,
           "field": "pim.rp",
+          "packet": 1,
           "value": "192.0.2.30"
         },
         {
-          "packet": 1,
           "field": "pim.priority",
+          "packet": 1,
           "value": "64"
         },
         {
-          "packet": 1,
           "field": "pim.holdtime",
+          "packet": 1,
           "value": "150"
         },
         {
-          "packet": 1,
           "field": "pim.prefix_count",
+          "packet": 1,
           "value": "2"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "28 00",
           "offset": 34,
-          "hex": "28 00"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "pim_sm_register",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "pim_sm_candidate_rp_adv",
     "proto": "pim",
-    "summary": "PIM-SM Register with explicit inner IPv4 packet profile",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "192.0.2.10",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
         },
         {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "192.0.2.100",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "register",
-            "direction": "c2s",
-            "rp": "192.0.2.100",
-            "register_flags": {
-              "border_bit": false,
-              "null_register": false
-            },
-            "inner_ipv4": {
-              "src": "198.51.100.10",
-              "dst": "239.1.1.1",
-              "payload_hex": "de ad be ef"
-            }
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
+              {
+                "direction": "c2s",
+                "group_prefixes": [
+                  "239.0.0.0/8",
+                  "232.0.0.0/8"
+                ],
+                "holdtime": 150,
+                "kind": "candidate_rp_adv",
+                "rp": "192.0.2.30",
+                "rp_priority": 64
+              }
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "PIM-SM Candidate-RP Advertisement"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "pim.type",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "pim.register_flag.border",
+          "packet": 1,
           "value": "0"
         },
         {
-          "packet": 1,
           "field": "pim.register_flag.null_register",
+          "packet": 1,
           "value": "0"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "21 00",
           "offset": 34,
-          "hex": "21 00"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "pim_sm_register_stop",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "pim_sm_register",
     "proto": "pim",
-    "summary": "PIM-SM Register-Stop with explicit group and source",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "192.0.2.100",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
         },
         {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.100",
-      "dst_ip": "192.0.2.1",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "register_stop",
-            "direction": "s2c",
-            "group": "239.1.1.1",
-            "source": "198.51.100.10"
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
+              {
+                "direction": "c2s",
+                "inner_ipv4": {
+                  "dst": "239.1.1.1",
+                  "payload_hex": "de ad be ef",
+                  "src": "198.51.100.10"
+                },
+                "kind": "register",
+                "register_flags": {
+                  "border_bit": false,
+                  "null_register": false
+                },
+                "rp": "192.0.2.100"
+              }
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "PIM-SM Register with explicit inner IPv4 packet profile"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "pim.type",
+          "packet": 1,
           "value": "2"
         },
         {
-          "packet": 1,
           "field": "pim.group",
+          "packet": 1,
           "value": "239.1.1.1,239.1.1.1"
         },
         {
-          "packet": 1,
           "field": "pim.source",
+          "packet": 1,
           "value": "198.51.100.10"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "22 00",
           "offset": 34,
-          "hex": "22 00"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "pim_sm_assert",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "pim_sm_register_stop",
     "proto": "pim",
-    "summary": "PIM-SM Assert with group/source and metrics",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "192.0.2.1",
+            "src": "192.0.2.100",
+            "ttl": 1
+          }
         },
         {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "224.0.0.13",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "assert",
-            "direction": "s2c",
-            "group": "239.1.1.1",
-            "source": "198.51.100.10",
-            "rpt_bit": true,
-            "metric_preference": 10,
-            "route_metric": 100
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
+              {
+                "direction": "s2c",
+                "group": "239.1.1.1",
+                "kind": "register_stop",
+                "source": "198.51.100.10"
+              }
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "PIM-SM Register-Stop with explicit group and source"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "pim.type",
+          "packet": 1,
           "value": "5"
         },
         {
-          "packet": 1,
           "field": "pim.group",
+          "packet": 1,
           "value": "239.1.1.1,239.1.1.1"
         },
         {
-          "packet": 1,
           "field": "pim.source",
+          "packet": 1,
           "value": "198.51.100.10"
         },
         {
-          "packet": 1,
           "field": "pim.rpt",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 1,
           "field": "pim.metric_pref",
+          "packet": 1,
           "value": "10"
         },
         {
-          "packet": 1,
           "field": "pim.metric",
+          "packet": 1,
           "value": "100"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "25 00",
           "offset": 34,
-          "hex": "25 00"
+          "packet": 1
+        }
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "pim_sm_assert",
+    "proto": "pim",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "224.0.0.13",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
+        },
+        {
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
+              {
+                "direction": "s2c",
+                "group": "239.1.1.1",
+                "kind": "assert",
+                "metric_preference": 10,
+                "route_metric": 100,
+                "rpt_bit": true,
+                "source": "198.51.100.10"
+              }
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
+          }
         }
       ]
-    }
+    },
+    "summary": "PIM-SM Assert with group/source and metrics"
   },
   {
+    "expect": {
+      "directional": true,
+      "fields": [
+        {
+          "field": "pim.type",
+          "packet": 1,
+          "value": "0"
+        },
+        {
+          "field": "pim.dr_priority",
+          "packet": 1,
+          "value": "10"
+        },
+        {
+          "field": "pim.type",
+          "packet": 2,
+          "value": "0"
+        },
+        {
+          "field": "pim.dr_priority",
+          "packet": 2,
+          "value": "20"
+        },
+        {
+          "field": "pim.type",
+          "packet": 3,
+          "value": "0"
+        },
+        {
+          "field": "pim.dr_priority",
+          "packet": 3,
+          "value": "20"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "20 00",
+          "offset": 34,
+          "packet": 1
+        },
+        {
+          "hex": "20 00",
+          "offset": 34,
+          "packet": 2
+        },
+        {
+          "hex": "20 00",
+          "offset": 34,
+          "packet": 3
+        }
+      ],
+      "has_payload": true,
+      "packet_count": 3
+    },
     "id": "pim_sm_dr_election",
     "proto": "pim",
-    "summary": "PIM-SM DR election inputs from three neighbors",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "224.0.0.13",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
         },
         {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "224.0.0.13",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "hello",
-            "direction": "c2s",
-            "neighbor": "192.0.2.10",
-            "holdtime": 105,
-            "dr_priority": 10
-          },
-          {
-            "kind": "hello",
-            "direction": "s2c",
-            "neighbor": "192.0.2.20",
-            "holdtime": 105,
-            "dr_priority": 20
-          },
-          {
-            "kind": "hello",
-            "direction": "c2s",
-            "neighbor": "192.0.2.30",
-            "holdtime": 105,
-            "dr_priority": 20
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
+              {
+                "direction": "c2s",
+                "dr_priority": 10,
+                "holdtime": 105,
+                "kind": "hello",
+                "neighbor": "192.0.2.10"
+              },
+              {
+                "direction": "s2c",
+                "dr_priority": 20,
+                "holdtime": 105,
+                "kind": "hello",
+                "neighbor": "192.0.2.20"
+              },
+              {
+                "direction": "c2s",
+                "dr_priority": 20,
+                "holdtime": 105,
+                "kind": "hello",
+                "neighbor": "192.0.2.30"
+              }
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "PIM-SM DR election inputs from three neighbors"
+  },
+  {
     "expect": {
-      "packet_count": 3,
-      "has_payload": true,
       "directional": true,
       "fields": [
         {
-          "packet": 1,
           "field": "pim.type",
+          "packet": 1,
           "value": "0"
         },
         {
+          "field": "pim.holdtime",
           "packet": 1,
+          "value": "105"
+        },
+        {
           "field": "pim.dr_priority",
+          "packet": 1,
           "value": "10"
         },
         {
-          "packet": 2,
           "field": "pim.type",
+          "packet": 2,
           "value": "0"
         },
         {
+          "field": "pim.holdtime",
           "packet": 2,
+          "value": "105"
+        },
+        {
           "field": "pim.dr_priority",
+          "packet": 2,
           "value": "20"
         },
         {
-          "packet": 3,
           "field": "pim.type",
-          "value": "0"
+          "packet": 3,
+          "value": "3"
         },
         {
+          "field": "pim.upstream_neighbor",
           "packet": 3,
-          "field": "pim.dr_priority",
-          "value": "20"
+          "value": "192.0.2.10"
+        },
+        {
+          "field": "pim.group",
+          "packet": 3,
+          "value": "239.1.1.1,239.1.1.1"
+        },
+        {
+          "field": "pim.numjoins",
+          "packet": 3,
+          "value": "1"
+        },
+        {
+          "field": "pim.type",
+          "packet": 4,
+          "value": "3"
+        },
+        {
+          "field": "pim.upstream_neighbor",
+          "packet": 4,
+          "value": "192.0.2.20"
+        },
+        {
+          "field": "pim.group",
+          "packet": 4,
+          "value": "232.1.1.1,232.1.1.1"
+        },
+        {
+          "field": "pim.source",
+          "packet": 4,
+          "value": "198.51.100.10"
+        },
+        {
+          "field": "pim.numjoins",
+          "packet": 4,
+          "value": "1"
+        },
+        {
+          "field": "pim.type",
+          "packet": 5,
+          "value": "3"
+        },
+        {
+          "field": "pim.upstream_neighbor",
+          "packet": 5,
+          "value": "192.0.2.10"
+        },
+        {
+          "field": "pim.group",
+          "packet": 5,
+          "value": "239.1.1.1,239.1.1.1"
+        },
+        {
+          "field": "pim.numprunes",
+          "packet": 5,
+          "value": "1"
+        },
+        {
+          "field": "pim.type",
+          "packet": 6,
+          "value": "3"
+        },
+        {
+          "field": "pim.upstream_neighbor",
+          "packet": 6,
+          "value": "192.0.2.20"
+        },
+        {
+          "field": "pim.group",
+          "packet": 6,
+          "value": "232.1.1.1,232.1.1.1"
+        },
+        {
+          "field": "pim.source",
+          "packet": 6,
+          "value": "198.51.100.10"
+        },
+        {
+          "field": "pim.numprunes",
+          "packet": 6,
+          "value": "1"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "20 00",
           "offset": 34,
-          "hex": "20 00"
+          "packet": 1
         },
         {
-          "packet": 2,
+          "hex": "20 00",
           "offset": 34,
-          "hex": "20 00"
+          "packet": 2
         },
         {
-          "packet": 3,
+          "hex": "23 00",
           "offset": 34,
-          "hex": "20 00"
+          "packet": 3
+        },
+        {
+          "hex": "23 00",
+          "offset": 34,
+          "packet": 4
+        },
+        {
+          "hex": "23 00",
+          "offset": 34,
+          "packet": 5
+        },
+        {
+          "hex": "23 00",
+          "offset": 34,
+          "packet": 6
         }
-      ]
-    }
-  },
-  {
+      ],
+      "has_payload": true,
+      "packet_count": 6
+    },
     "id": "pim_sm_multi_neighbor_state",
     "proto": "pim",
-    "summary": "PIM-SM independent neighbor and tree state events",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
-        },
-        {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "192.0.2.254",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "hello",
-            "direction": "c2s",
-            "neighbor": "192.0.2.10",
-            "holdtime": 105,
-            "dr_priority": 10
-          },
-          {
-            "kind": "hello",
-            "direction": "s2c",
-            "neighbor": "192.0.2.20",
-            "holdtime": 105,
-            "dr_priority": 20
-          },
-          {
-            "kind": "join_prune",
-            "direction": "c2s",
-            "upstream_neighbor": "192.0.2.10",
-            "groups": [
-              {
-                "group": "239.1.1.1",
-                "joined_sources": [
-                  {
-                    "wildcard": true
-                  }
-                ],
-                "pruned_sources": []
-              }
-            ],
-            "state": "upstream_join",
-            "holdtime": 180
-          },
-          {
-            "kind": "join_prune",
-            "direction": "s2c",
-            "upstream_neighbor": "192.0.2.20",
-            "groups": [
-              {
-                "group": "232.1.1.1",
-                "joined_sources": [
-                  {
-                    "source": "198.51.100.10"
-                  }
-                ],
-                "pruned_sources": []
-              }
-            ],
-            "state": "upstream_join",
-            "holdtime": 180
-          },
-          {
-            "kind": "join_prune",
-            "direction": "c2s",
-            "upstream_neighbor": "192.0.2.10",
-            "groups": [
-              {
-                "group": "239.1.1.1",
-                "joined_sources": [],
-                "pruned_sources": [
-                  {
-                    "wildcard": true
-                  }
-                ]
-              }
-            ],
-            "state": "upstream_prune",
-            "holdtime": 180
-          },
-          {
-            "kind": "join_prune",
-            "direction": "s2c",
-            "upstream_neighbor": "192.0.2.20",
-            "groups": [
-              {
-                "group": "232.1.1.1",
-                "joined_sources": [],
-                "pruned_sources": [
-                  {
-                    "source": "198.51.100.10"
-                  }
-                ]
-              }
-            ],
-            "state": "upstream_prune",
-            "holdtime": 180
+          "ip": {
+            "dst": "192.0.2.254",
+            "src": "192.0.2.1",
+            "ttl": 1
           }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 6,
-      "has_payload": true,
-      "directional": true,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "pim.type",
-          "value": "0"
         },
         {
-          "packet": 1,
-          "field": "pim.holdtime",
-          "value": "105"
-        },
-        {
-          "packet": 1,
-          "field": "pim.dr_priority",
-          "value": "10"
-        },
-        {
-          "packet": 2,
-          "field": "pim.type",
-          "value": "0"
-        },
-        {
-          "packet": 2,
-          "field": "pim.holdtime",
-          "value": "105"
-        },
-        {
-          "packet": 2,
-          "field": "pim.dr_priority",
-          "value": "20"
-        },
-        {
-          "packet": 3,
-          "field": "pim.type",
-          "value": "3"
-        },
-        {
-          "packet": 3,
-          "field": "pim.upstream_neighbor",
-          "value": "192.0.2.10"
-        },
-        {
-          "packet": 3,
-          "field": "pim.group",
-          "value": "239.1.1.1,239.1.1.1"
-        },
-        {
-          "packet": 3,
-          "field": "pim.numjoins",
-          "value": "1"
-        },
-        {
-          "packet": 4,
-          "field": "pim.type",
-          "value": "3"
-        },
-        {
-          "packet": 4,
-          "field": "pim.upstream_neighbor",
-          "value": "192.0.2.20"
-        },
-        {
-          "packet": 4,
-          "field": "pim.group",
-          "value": "232.1.1.1,232.1.1.1"
-        },
-        {
-          "packet": 4,
-          "field": "pim.source",
-          "value": "198.51.100.10"
-        },
-        {
-          "packet": 4,
-          "field": "pim.numjoins",
-          "value": "1"
-        },
-        {
-          "packet": 5,
-          "field": "pim.type",
-          "value": "3"
-        },
-        {
-          "packet": 5,
-          "field": "pim.upstream_neighbor",
-          "value": "192.0.2.10"
-        },
-        {
-          "packet": 5,
-          "field": "pim.group",
-          "value": "239.1.1.1,239.1.1.1"
-        },
-        {
-          "packet": 5,
-          "field": "pim.numprunes",
-          "value": "1"
-        },
-        {
-          "packet": 6,
-          "field": "pim.type",
-          "value": "3"
-        },
-        {
-          "packet": 6,
-          "field": "pim.upstream_neighbor",
-          "value": "192.0.2.20"
-        },
-        {
-          "packet": 6,
-          "field": "pim.group",
-          "value": "232.1.1.1,232.1.1.1"
-        },
-        {
-          "packet": 6,
-          "field": "pim.source",
-          "value": "198.51.100.10"
-        },
-        {
-          "packet": 6,
-          "field": "pim.numprunes",
-          "value": "1"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 34,
-          "hex": "20 00"
-        },
-        {
-          "packet": 2,
-          "offset": 34,
-          "hex": "20 00"
-        },
-        {
-          "packet": 3,
-          "offset": 34,
-          "hex": "23 00"
-        },
-        {
-          "packet": 4,
-          "offset": 34,
-          "hex": "23 00"
-        },
-        {
-          "packet": 5,
-          "offset": 34,
-          "hex": "23 00"
-        },
-        {
-          "packet": 6,
-          "offset": 34,
-          "hex": "23 00"
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
+              {
+                "direction": "c2s",
+                "dr_priority": 10,
+                "holdtime": 105,
+                "kind": "hello",
+                "neighbor": "192.0.2.10"
+              },
+              {
+                "direction": "s2c",
+                "dr_priority": 20,
+                "holdtime": 105,
+                "kind": "hello",
+                "neighbor": "192.0.2.20"
+              },
+              {
+                "direction": "c2s",
+                "groups": [
+                  {
+                    "group": "239.1.1.1",
+                    "joined_sources": [
+                      {
+                        "wildcard": true
+                      }
+                    ],
+                    "pruned_sources": []
+                  }
+                ],
+                "holdtime": 180,
+                "kind": "join_prune",
+                "state": "upstream_join",
+                "upstream_neighbor": "192.0.2.10"
+              },
+              {
+                "direction": "s2c",
+                "groups": [
+                  {
+                    "group": "232.1.1.1",
+                    "joined_sources": [
+                      {
+                        "source": "198.51.100.10"
+                      }
+                    ],
+                    "pruned_sources": []
+                  }
+                ],
+                "holdtime": 180,
+                "kind": "join_prune",
+                "state": "upstream_join",
+                "upstream_neighbor": "192.0.2.20"
+              },
+              {
+                "direction": "c2s",
+                "groups": [
+                  {
+                    "group": "239.1.1.1",
+                    "joined_sources": [],
+                    "pruned_sources": [
+                      {
+                        "wildcard": true
+                      }
+                    ]
+                  }
+                ],
+                "holdtime": 180,
+                "kind": "join_prune",
+                "state": "upstream_prune",
+                "upstream_neighbor": "192.0.2.10"
+              },
+              {
+                "direction": "s2c",
+                "groups": [
+                  {
+                    "group": "232.1.1.1",
+                    "joined_sources": [],
+                    "pruned_sources": [
+                      {
+                        "source": "198.51.100.10"
+                      }
+                    ]
+                  }
+                ],
+                "holdtime": 180,
+                "kind": "join_prune",
+                "state": "upstream_prune",
+                "upstream_neighbor": "192.0.2.20"
+              }
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
+          }
         }
       ]
-    }
+    },
+    "summary": "PIM-SM independent neighbor and tree state events"
   },
   {
-    "id": "pim_sm_checksum_length",
-    "proto": "pim",
-    "summary": "PIM-SM checksum and IPv4 total-length boundary",
-    "spec_json": {
-      "layers": [
-        {
-          "ip": {}
-        },
-        {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "224.0.0.13",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "hello",
-            "direction": "c2s",
-            "holdtime": 105,
-            "hello_interval": 30,
-            "lan_prune_delay": {
-              "t_bit": false,
-              "propagation_delay": 50,
-              "override_interval": 250
-            },
-            "dr_priority": 99,
-            "generation_id": "0xaabbccdd"
-          }
-        ]
-      }
-    },
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "ip.proto",
+          "packet": 1,
           "value": "103"
         },
         {
-          "packet": 1,
           "field": "ip.len",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
-          "packet": 1,
           "field": "pim.cksum",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "20 00",
           "offset": 34,
-          "hex": "20 00"
+          "packet": 1
+        }
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "pim_sm_checksum_length",
+    "proto": "pim",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "224.0.0.13",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
+        },
+        {
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
+              {
+                "direction": "c2s",
+                "dr_priority": 99,
+                "generation_id": "0xaabbccdd",
+                "hello_interval": 30,
+                "holdtime": 105,
+                "kind": "hello",
+                "lan_prune_delay": {
+                  "override_interval": 250,
+                  "propagation_delay": 50,
+                  "t_bit": false
+                }
+              }
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
+          }
         }
       ]
-    }
+    },
+    "summary": "PIM-SM checksum and IPv4 total-length boundary"
   },
   {
+    "expect": {
+      "directional": false,
+      "fields": [
+        {
+          "field": "pim.type",
+          "packet": 1,
+          "value": "3"
+        },
+        {
+          "field": "pim.upstream_neighbor",
+          "packet": 1,
+          "value": "192.0.2.254"
+        },
+        {
+          "field": "pim.group",
+          "packet": 1,
+          "value": "232.1.1.1,232.1.1.1"
+        },
+        {
+          "field": "pim.source",
+          "packet": 1,
+          "value": "198.51.100.10"
+        },
+        {
+          "field": "pim.numjoins",
+          "packet": 1,
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "23 00",
+          "offset": 34,
+          "packet": 1
+        }
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
     "id": "pim_ssm_joinprune_sg",
     "proto": "pim",
-    "summary": "PIM-SSM RFC 4607 concrete (S,G) Join/Prune without RP",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "192.0.2.254",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
         },
         {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "192.0.2.254",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_ssm_rfc4607_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "join_prune",
-            "direction": "c2s",
-            "upstream_neighbor": "192.0.2.254",
-            "holdtime": 180,
-            "groups": [
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
               {
-                "group": "232.1.1.1",
-                "joined_sources": [
+                "direction": "c2s",
+                "groups": [
                   {
-                    "source": "198.51.100.10",
-                    "wildcard": false
+                    "group": "232.1.1.1",
+                    "joined_sources": [
+                      {
+                        "source": "198.51.100.10",
+                        "wildcard": false
+                      }
+                    ],
+                    "pruned_sources": []
                   }
                 ],
-                "pruned_sources": []
+                "holdtime": 180,
+                "kind": "join_prune",
+                "state": "upstream_join",
+                "upstream_neighbor": "192.0.2.254"
               }
             ],
-            "state": "upstream_join"
+            "profile": "pim_ssm_rfc4607_ipv4"
           }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 1,
-      "has_payload": true,
-      "directional": false,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "pim.type",
-          "value": "3"
-        },
-        {
-          "packet": 1,
-          "field": "pim.upstream_neighbor",
-          "value": "192.0.2.254"
-        },
-        {
-          "packet": 1,
-          "field": "pim.group",
-          "value": "232.1.1.1,232.1.1.1"
-        },
-        {
-          "packet": 1,
-          "field": "pim.source",
-          "value": "198.51.100.10"
-        },
-        {
-          "packet": 1,
-          "field": "pim.numjoins",
-          "value": "1"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 34,
-          "hex": "23 00"
         }
       ]
-    }
+    },
+    "summary": "PIM-SSM RFC 4607 concrete (S,G) Join/Prune without RP"
   },
   {
-    "id": "pim_ssm_multi_group",
-    "proto": "pim",
-    "summary": "PIM-SSM independent concrete source trees for multiple groups",
-    "spec_json": {
-      "layers": [
-        {
-          "ip": {}
-        },
-        {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "192.0.2.254",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_ssm_rfc4607_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "join_prune",
-            "direction": "c2s",
-            "upstream_neighbor": "192.0.2.254",
-            "groups": [
-              {
-                "group": "232.1.1.1",
-                "joined_sources": [
-                  {
-                    "source": "198.51.100.10"
-                  }
-                ],
-                "pruned_sources": []
-              }
-            ],
-            "holdtime": 180
-          },
-          {
-            "kind": "join_prune",
-            "direction": "c2s",
-            "upstream_neighbor": "192.0.2.254",
-            "groups": [
-              {
-                "group": "232.1.1.2",
-                "joined_sources": [
-                  {
-                    "source": "198.51.100.11"
-                  }
-                ],
-                "pruned_sources": []
-              }
-            ],
-            "holdtime": 180
-          }
-        ]
-      }
-    },
     "expect": {
-      "packet_count": 2,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "pim.type",
+          "packet": 1,
           "value": "3"
         },
         {
-          "packet": 1,
           "field": "pim.upstream_neighbor",
+          "packet": 1,
           "value": "192.0.2.254"
         },
         {
-          "packet": 1,
           "field": "pim.group",
+          "packet": 1,
           "value": "232.1.1.1,232.1.1.1"
         },
         {
-          "packet": 1,
           "field": "pim.source",
+          "packet": 1,
           "value": "198.51.100.10"
         },
         {
-          "packet": 1,
           "field": "pim.numjoins",
+          "packet": 1,
           "value": "1"
         },
         {
-          "packet": 2,
           "field": "pim.type",
+          "packet": 2,
           "value": "3"
         },
         {
-          "packet": 2,
           "field": "pim.group",
+          "packet": 2,
           "value": "232.1.1.2,232.1.1.2"
         },
         {
-          "packet": 2,
           "field": "pim.source",
+          "packet": 2,
           "value": "198.51.100.11"
         },
         {
-          "packet": 2,
           "field": "pim.numjoins",
+          "packet": 2,
           "value": "1"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "23 00",
           "offset": 34,
-          "hex": "23 00"
+          "packet": 1
         },
         {
-          "packet": 2,
+          "hex": "23 00",
           "offset": 34,
-          "hex": "23 00"
-        }
-      ]
-    }
-  },
-  {
-    "id": "pim_neg_ipv6_profile",
-    "proto": "pim",
-    "summary": "IPv6 PIM is a separate unsupported profile",
-    "spec_json": {
-      "layers": [
-        {
-          "ip": {}
-        },
-        {
-          "pim": {}
+          "packet": 2
         }
       ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "224.0.0.13",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_rfc7761_ipv6_pending",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "hello",
-            "direction": "c2s",
-            "holdtime": 105
-          }
-        ]
-      }
+      "has_payload": true,
+      "packet_count": 2
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "profile"
-    }
-  },
-  {
-    "id": "pim_neg_checksum",
+    "id": "pim_ssm_multi_group",
     "proto": "pim",
-    "summary": "Malformed PIM checksum is rejected",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
-        },
-        {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "224.0.0.13",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "hello",
-            "direction": "c2s",
-            "holdtime": 105,
-            "wire_fault": {
-              "kind": "checksum"
-            }
+          "ip": {
+            "dst": "192.0.2.254",
+            "src": "192.0.2.1",
+            "ttl": 1
           }
-        ]
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "checksum"
-    }
-  },
-  {
-    "id": "pim_neg_length",
-    "proto": "pim",
-    "summary": "Inconsistent IPv4/PIM length is rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "ip": {}
         },
         {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "224.0.0.13",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "hello",
-            "direction": "c2s",
-            "holdtime": 105,
-            "wire_fault": {
-              "kind": "length",
-              "declared_total_length": 1
-            }
-          }
-        ]
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "length"
-    }
-  },
-  {
-    "id": "pim_neg_type",
-    "proto": "pim",
-    "summary": "Unknown or mismatched PIM message type is rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "ip": {}
-        },
-        {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "224.0.0.13",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "hello",
-            "direction": "c2s",
-            "holdtime": 105,
-            "wire_fault": {
-              "kind": "type",
-              "value": 9
-            }
-          }
-        ]
-      }
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "type"
-    }
-  },
-  {
-    "id": "pim_neg_address_family",
-    "proto": "pim",
-    "summary": "IPv4 PIM profile cannot encode IPv6 group/source",
-    "spec_json": {
-      "layers": [
-        {
-          "ip": {}
-        },
-        {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "224.0.0.13",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "join_prune",
-            "direction": "c2s",
-            "upstream_neighbor": "192.0.2.254",
-            "groups": [
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
               {
-                "group": "ff0e::1",
-                "joined_sources": [
+                "direction": "c2s",
+                "groups": [
                   {
-                    "source": "2001:db8::10"
+                    "group": "232.1.1.1",
+                    "joined_sources": [
+                      {
+                        "source": "198.51.100.10"
+                      }
+                    ],
+                    "pruned_sources": []
                   }
                 ],
-                "pruned_sources": []
+                "holdtime": 180,
+                "kind": "join_prune",
+                "upstream_neighbor": "192.0.2.254"
+              },
+              {
+                "direction": "c2s",
+                "groups": [
+                  {
+                    "group": "232.1.1.2",
+                    "joined_sources": [
+                      {
+                        "source": "198.51.100.11"
+                      }
+                    ],
+                    "pruned_sources": []
+                  }
+                ],
+                "holdtime": 180,
+                "kind": "join_prune",
+                "upstream_neighbor": "192.0.2.254"
               }
-            ]
+            ],
+            "profile": "pim_ssm_rfc4607_ipv4"
           }
-        ]
-      }
+        }
+      ]
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "address"
-    }
+    "summary": "PIM-SSM independent concrete source trees for multiple groups"
   },
   {
+    "expect": {
+      "error_contains": "profile",
+      "expect_error": true
+    },
+    "id": "pim_neg_ipv6_profile",
+    "proto": "pim",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "224.0.0.13",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
+        },
+        {
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
+              {
+                "direction": "c2s",
+                "holdtime": 105,
+                "kind": "hello"
+              }
+            ],
+            "profile": "pim_rfc7761_ipv6_pending"
+          }
+        }
+      ]
+    },
+    "summary": "IPv6 PIM is a separate unsupported profile"
+  },
+  {
+    "expect": {
+      "error_contains": "checksum",
+      "expect_error": true
+    },
+    "id": "pim_neg_checksum",
+    "proto": "pim",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "224.0.0.13",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
+        },
+        {
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
+              {
+                "direction": "c2s",
+                "holdtime": 105,
+                "kind": "hello",
+                "wire_fault": {
+                  "kind": "checksum"
+                }
+              }
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
+          }
+        }
+      ]
+    },
+    "summary": "Malformed PIM checksum is rejected"
+  },
+  {
+    "expect": {
+      "error_contains": "length",
+      "expect_error": true
+    },
+    "id": "pim_neg_length",
+    "proto": "pim",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "224.0.0.13",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
+        },
+        {
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
+              {
+                "direction": "c2s",
+                "holdtime": 105,
+                "kind": "hello",
+                "wire_fault": {
+                  "declared_total_length": 1,
+                  "kind": "length"
+                }
+              }
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
+          }
+        }
+      ]
+    },
+    "summary": "Inconsistent IPv4/PIM length is rejected"
+  },
+  {
+    "expect": {
+      "error_contains": "type",
+      "expect_error": true
+    },
+    "id": "pim_neg_type",
+    "proto": "pim",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "224.0.0.13",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
+        },
+        {
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
+              {
+                "direction": "c2s",
+                "holdtime": 105,
+                "kind": "hello",
+                "wire_fault": {
+                  "kind": "type",
+                  "value": 9
+                }
+              }
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
+          }
+        }
+      ]
+    },
+    "summary": "Unknown or mismatched PIM message type is rejected"
+  },
+  {
+    "expect": {
+      "error_contains": "address",
+      "expect_error": true
+    },
+    "id": "pim_neg_address_family",
+    "proto": "pim",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "224.0.0.13",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
+        },
+        {
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
+              {
+                "direction": "c2s",
+                "groups": [
+                  {
+                    "group": "ff0e::1",
+                    "joined_sources": [
+                      {
+                        "source": "2001:db8::10"
+                      }
+                    ],
+                    "pruned_sources": []
+                  }
+                ],
+                "kind": "join_prune",
+                "upstream_neighbor": "192.0.2.254"
+              }
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
+          }
+        }
+      ]
+    },
+    "summary": "IPv4 PIM profile cannot encode IPv6 group/source"
+  },
+  {
+    "expect": {
+      "error_contains": "ssm",
+      "expect_error": true
+    },
     "id": "pim_neg_ssm_rp",
     "proto": "pim",
-    "summary": "SSM cannot carry RP/Register or wildcard state",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "224.0.0.13",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
         },
         {
-          "pim": {}
-        }
-      ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "224.0.0.13",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_ssm_rfc4607_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "register",
-            "direction": "c2s",
-            "rp": "192.0.2.100",
-            "group": "239.1.1.1"
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
+              {
+                "direction": "c2s",
+                "group": "239.1.1.1",
+                "kind": "register",
+                "rp": "192.0.2.100"
+              }
+            ],
+            "profile": "pim_ssm_rfc4607_ipv4"
           }
-        ]
-      }
+        }
+      ]
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "ssm"
-    }
+    "summary": "SSM cannot carry RP/Register or wildcard state"
   },
   {
+    "expect": {
+      "error_contains": "df",
+      "expect_error": true
+    },
     "id": "pim_neg_df_profile",
     "proto": "pim",
-    "summary": "DF Election requires independent Bidirectional PIM profile",
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "dst": "224.0.0.13",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
+        },
+        {
+          "pim": {
+            "checksum_mode": "auto",
+            "events": [
+              {
+                "direction": "c2s",
+                "kind": "df_election",
+                "neighbor": "192.0.2.2"
+              }
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
+          }
+        }
+      ]
+    },
+    "summary": "DF Election requires independent Bidirectional PIM profile"
+  },
+  {
+    "expect": {
+      "error_contains": "no longer accepts a top-level pim sub-config",
+      "expect_error": true
+    },
+    "id": "pim_neg_top_pim_presence_reject",
+    "proto": "pim",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "224.0.0.13",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
         },
         {
           "pim": {}
         }
       ],
-      "src_ip": "192.0.2.1",
-      "dst_ip": "224.0.0.13",
-      "ttl": 1,
-      "pim": {
-        "profile": "pim_sm_rfc7761_ipv4",
-        "checksum_mode": "auto",
-        "events": [
-          {
-            "kind": "df_election",
-            "direction": "c2s",
-            "neighbor": "192.0.2.2"
-          }
-        ]
-      }
+      "pim": {}
     },
+    "summary": "§14-P2 presence 判死形状：层链 + 顶层空 pim 子映射并存（M5 清单①）"
+  },
+  {
     "expect": {
-      "expect_error": true,
-      "error_contains": "df"
-    }
+      "error_contains": "no longer accepts flat config field src_ip",
+      "expect_error": true
+    },
+    "id": "pim_neg_stray_top_src_ip",
+    "proto": "pim",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "224.0.0.13",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
+        },
+        {
+          "pim": {
+            "events": [
+              {
+                "direction": "c2s",
+                "holdtime": 105,
+                "kind": "hello"
+              }
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
+          }
+        }
+      ],
+      "src_ip": "192.0.2.99"
+    },
+    "summary": "§14-P2 白名单外游离顶层键判死：layers + 顶层 src_ip（M5 清单②，1.11–1.13）"
+  },
+  {
+    "expect": {
+      "error_contains": "carrier",
+      "expect_error": true
+    },
+    "id": "pim_neg_carrier_udp",
+    "proto": "pim",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": "224.0.0.13",
+            "src": "192.0.2.1",
+            "ttl": 1
+          }
+        },
+        {
+          "udp": {
+            "dst_port": 103
+          }
+        },
+        {
+          "pim": {}
+        }
+      ]
+    },
+    "summary": "§14-P2 udp 载体判死：PIM 裸 IP（protocol 103）无传输层（M5 清单③）"
+  },
+  {
+    "expect": {
+      "error_contains": "carrier",
+      "expect_error": true
+    },
+    "id": "pim_neg_carrier_missing_ip",
+    "proto": "pim",
+    "spec_json": {
+      "layers": [
+        {
+          "pim": {
+            "events": [
+              {
+                "direction": "c2s",
+                "holdtime": 105,
+                "kind": "hello"
+              }
+            ],
+            "profile": "pim_sm_rfc7761_ipv4"
+          }
+        }
+      ]
+    },
+    "summary": "§14-P2 缺 ip 载体判死：裸 [pim] 链（M5 清单③）"
   }
 ]
