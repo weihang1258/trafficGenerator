@@ -1076,6 +1076,44 @@
     ]
   },
   {
+    "id": "tns_neg_server_type_in_c2s",
+    "proto": "tns",
+    "summary": "P2判死: ACCEPT/REFUSE/REDIRECT 出现在 c2s 方向（设计 §4.2 行 3 状态机缺口收口）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              },
+              {
+                "type": "ACCEPT",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "must not appear in the client->server direction"
+    }
+  },
+  {
     "id": "tns_neg_bad_direction",
     "proto": "tns",
     "summary": "N5/A'：非法 direction 枚举值拒绝（G-TNS-8 白名单）",
@@ -1190,5 +1228,350 @@
       "pending-suite：判死锚词与形状经链级红例在案（tns_chain_test.go）；suite 待跑确认。",
       "MAC 真相住 eth 层（CORE_MEMORY 1.11/1.13），游离键由 schema 语义门 checkLayerFlatConflict 判死（create/update 400）。"
     ]
+  },
+  {
+    "id": "tns_data_flags_zero",
+    "proto": "tns",
+    "summary": "DATA×2 flags=0 + 单 DATA（6 字节帧面）（pending-suite：断言/包数沿 testcase 设计值，suite 实测复钉）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              },
+              {
+                "type": "ACCEPT",
+                "direction": "s2c"
+              },
+              {
+                "type": "DATA",
+                "direction": "c2s",
+                "data_flags": 0
+              },
+              {
+                "type": "DATA",
+                "direction": "s2c",
+                "data_flags": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 10,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tns.type",
+          "value": "1"
+        },
+        {
+          "packet": 5,
+          "field": "tns.type",
+          "value": "2"
+        }
+      ]
+    }
+  },
+  {
+    "id": "tns_nonstd_port",
+    "proto": "tns",
+    "summary": "非标端口 9999（今日放行，钉行为）（pending-suite：断言/包数沿 testcase 设计值，suite 实测复钉）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 9999
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              },
+              {
+                "type": "ACCEPT",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "9999"
+        }
+      ]
+    }
+  },
+  {
+    "id": "tns_body_constants",
+    "proto": "tns",
+    "summary": "CONNECT/ACCEPT/REFUSE/REDIRECT body 逐字节 + length 多值（pending-suite：断言/包数沿 testcase 设计值，suite 实测复钉）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              },
+              {
+                "type": "ACCEPT",
+                "direction": "s2c"
+              },
+              {
+                "type": "DATA",
+                "direction": "c2s",
+                "data_flags": 0
+              },
+              {
+                "type": "DATA",
+                "direction": "s2c",
+                "data_flags": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 10,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tns.length",
+          "nonzero": true
+        },
+        {
+          "packet": 5,
+          "field": "tns.length",
+          "nonzero": true
+        }
+      ]
+    }
+  },
+  {
+    "id": "tns_dyn_srcport",
+    "proto": "tns",
+    "summary": "tcp.src_port inc 动态（flows=2，每流独立）（pending-suite：断言/包数沿 testcase 设计值，suite 实测复钉）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": {
+              "strategy": "inc",
+              "range": [
+                12345,
+                12346
+              ],
+              "step": 1
+            }
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              },
+              {
+                "type": "ACCEPT",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "type": "flows",
+        "value": 2
+      }
+    },
+    "expect": {
+      "min_packets": 18,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "12345",
+            "12346"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "tns_ipv4_baseline",
+    "proto": "tns",
+    "summary": "IPv4 CONNECT→ACCEPT 裸形（与 #6 地址族对称）（pending-suite：断言/包数沿 testcase 设计值，suite 实测复钉）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s"
+              },
+              {
+                "type": "ACCEPT",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "ip.version",
+          "value": "4"
+        }
+      ]
+    }
+  },
+  {
+    "id": "tns_refuse_session",
+    "proto": "tns",
+    "summary": "sessions 内 REFUSE（跨 sessions[1..n] 面，G-TNS-3 实测载体）（pending-suite：断言/包数沿 testcase 设计值，suite 实测复钉）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "tns": {
+            "sessions": [
+              {
+                "events": [
+                  {
+                    "type": "CONNECT",
+                    "direction": "c2s"
+                  },
+                  {
+                    "type": "REFUSE",
+                    "direction": "s2c"
+                  }
+                ],
+                "src_port": 12345
+              },
+              {
+                "events": [
+                  {
+                    "type": "CONNECT",
+                    "direction": "c2s"
+                  },
+                  {
+                    "type": "ACCEPT",
+                    "direction": "s2c"
+                  }
+                ],
+                "src_port": 12346
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 18,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tns.type",
+          "value": "1"
+        }
+      ]
+    }
   }
 ]

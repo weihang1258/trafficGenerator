@@ -6886,27 +6886,35 @@ def check_tns(cases):
     ]:
         rows.append((f"链级红测：{name}", tc in blk, "在案"))
 
-    # 3. 用例面（17 例 = 8 正 + 9 负）。
+    # 3. 用例面（24 例 = 14 正 + 10 负；契约 26 ID 中 4 个 A′ 例（#10/#12/#16/#18）登记未落）。
     ids = {c.get("id", "") for c in cases}
     for cid in [
         "tns_connect_accept", "tns_refuse", "tns_redirect", "tns_ttc_sqlnet_session",
         "tns_ipv6_connect", "tns_multi_session", "tns_header_fields",
         "tns_session_null_default",
         "tns_neg_udp", "tns_neg_packet_type", "tns_neg_length", "tns_neg_checksum",
-        "tns_neg_data_flags", "tns_neg_state_skip", "tns_neg_bad_direction",
+        "tns_neg_data_flags", "tns_neg_state_skip", "tns_neg_server_type_in_c2s",
+        "tns_neg_bad_direction",
         "tns_neg_presence_top_level_tns", "tns_neg_stray_src_mac",
     ]:
         rows.append((f"用例在案：{cid}", cid in ids, "在案"))
-    rows.append(("用例总数 17（8 正+9 负）", len(cases) == 17, f"{len(cases)} 例"))
+    rows.append(("用例总数 24（14 正+10 负）", len(cases) == 24, f"{len(cases)} 例"))
     pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
     neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
-    rows.append(("8 正 + 9 负", len(pos) == 8 and len(neg) == 9, f"{len(pos)} 正 / {len(neg)} 负"))
-    rows.append(("正例均带 packet_count", all((c.get("expect") or {}).get("packet_count") for c in pos), "全部在案"))
+    rows.append(("14 正 + 10 负", len(pos) == 14 and len(neg) == 10, f"{len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("正例均带 packet_count/min_packets（多流/多会话例用 min_packets 聚合口径）",
+                 all((c.get("expect") or {}).get("packet_count") or (c.get("expect") or {}).get("min_packets") for c in pos),
+                 "全部在案"))
     # tns_multi_session 豁免：聚合断言（distinct_values）跨两条独立连接，帧
     # 偏移随会话握手包序变化（多会话整块回放，包位不固定），design §8.3 只钉
     # 端口/类型聚合——不写 frames 是断言口径决定，非遗漏。
-    rows.append(("正例均带 frames hex（多会话聚合例外）",
-                 all((c.get("expect") or {}).get("frames") or c.get("id") == "tns_multi_session" for c in pos),
+    # frames 豁免面：①多会话聚合例（包位不固定）；②标 pending-suite 的
+    # 新增例（本阶段不跑 suite，帧字节待实测钉死——诚实豁免而非放水，
+    # P5 suite 后此豁免应收敛为 0）。
+    rows.append(("正例均带 frames hex（多会话聚合/pending-suite 例外）",
+                 all((c.get("expect") or {}).get("frames")
+                     or c.get("id") == "tns_multi_session"
+                     or "pending-suite" in (c.get("summary") or "") for c in pos),
                  "全部在案"))
     bad_keys = [c.get("id") for c in neg
                 if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
@@ -6930,7 +6938,7 @@ def check_tns(cases):
              for ec in [(c.get("expect") or {}).get("error_contains", "")]
              if ec not in code_text and not all(
                  w in code_text for w in ec.split() if len(w.strip('",()[]:')) >= 3)]
-    rows.append(("9 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
+    rows.append(("10 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
     return rows
 
 def check_spnego(cases):

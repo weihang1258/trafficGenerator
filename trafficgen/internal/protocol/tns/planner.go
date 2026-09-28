@@ -73,6 +73,19 @@ func validateEvents(evs []core.TNSEvent) error {
 			return fmt.Errorf("event %d: data_flags must be 0", i)
 		}
 	}
+	// D-TNS-1 G-TNS-8（设计 §4.2 行 3）：ACCEPT/REFUSE/REDIRECT 是服务端
+	// 专属类型，出现在 c2s（客户端→服务端）方向即判死——旧实现只把
+	// direction 二值化（evUp），不校验类型-方向语义。
+	for i, ev := range evs {
+		t, err := eventType(ev)
+		if err != nil {
+			return fmt.Errorf("event %d: %w", i, err)
+		}
+		if evUp(ev) && (t == TypeAccept || t == TypeRefuse || t == TypeRedirect) {
+			return fmt.Errorf("event %d: state violation: %s must not appear in the client->server direction",
+				i, typeName(t))
+		}
+	}
 	return validateStateMachine(evs)
 }
 

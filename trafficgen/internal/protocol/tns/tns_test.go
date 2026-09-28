@@ -494,7 +494,7 @@ func TestValidateTNSSessionBeyondFirstValidated(t *testing.T) {
 	err := (Planner{}).Validate(core.FlowSpec{
 		TNS: &core.TNSConfig{
 			Sessions: []core.TNSSession{
-				{SrcPort: 12345, Events: []core.TNSEvent{{Type: "CONNECT"}, {Type: "ACCEPT"}}},
+				{SrcPort: 12345, Events: []core.TNSEvent{{Type: "CONNECT", Direction: "c2s"}, {Type: "ACCEPT", Direction: "s2c"}}},
 				{SrcPort: 12346, Events: []core.TNSEvent{{Type: 127}}},
 			},
 		},
@@ -547,8 +547,8 @@ func TestValidateTNSValid(t *testing.T) {
 	err := (Planner{}).Validate(core.FlowSpec{
 		TNS: &core.TNSConfig{
 			Events: []core.TNSEvent{
-				{Type: "CONNECT"},
-				{Type: "ACCEPT"},
+				{Type: "CONNECT", Direction: "c2s"},
+				{Type: "ACCEPT", Direction: "s2c"},
 			},
 		},
 		SrcIP: "10.0.0.1",
@@ -563,8 +563,8 @@ func TestValidateTNSValidSessions(t *testing.T) {
 	err := (Planner{}).Validate(core.FlowSpec{
 		TNS: &core.TNSConfig{
 			Sessions: []core.TNSSession{
-				{SrcPort: 12345, Events: []core.TNSEvent{{Type: "CONNECT"}, {Type: "ACCEPT"}}},
-				{SrcPort: 12346, Events: []core.TNSEvent{{Type: "CONNECT"}, {Type: "ACCEPT"}}},
+				{SrcPort: 12345, Events: []core.TNSEvent{{Type: "CONNECT", Direction: "c2s"}, {Type: "ACCEPT", Direction: "s2c"}}},
+				{SrcPort: 12346, Events: []core.TNSEvent{{Type: "CONNECT", Direction: "c2s"}, {Type: "ACCEPT", Direction: "s2c"}}},
 			},
 		},
 		SrcIP: "10.0.0.1",
@@ -1074,7 +1074,7 @@ func TestPlanNegativeN2(t *testing.T) {
 func TestPlanNegativeN3(t *testing.T) {
 	spec := core.FlowSpec{
 		TNS: &core.TNSConfig{
-			Events:    []core.TNSEvent{{Type: "CONNECT"}, {Type: "ACCEPT"}},
+			Events:    []core.TNSEvent{{Type: "CONNECT", Direction: "c2s"}, {Type: "ACCEPT", Direction: "s2c"}},
 			WireFault: json.RawMessage(`{"kind":"length","value":7}`),
 		},
 	}
@@ -1088,7 +1088,7 @@ func TestPlanNegativeN3(t *testing.T) {
 func TestPlanNegativeN4(t *testing.T) {
 	spec := core.FlowSpec{
 		TNS: &core.TNSConfig{
-			Events:       []core.TNSEvent{{Type: "CONNECT"}, {Type: "ACCEPT"}},
+			Events:       []core.TNSEvent{{Type: "CONNECT", Direction: "c2s"}, {Type: "ACCEPT", Direction: "s2c"}},
 			ChecksumMode: "disabled",
 			WireFault:    json.RawMessage(`{"kind":"packet_checksum","value":1}`),
 		},
@@ -1519,5 +1519,31 @@ func TestPlanS7HeaderFrameOffsets(t *testing.T) {
 	frame = makeFrame(pkts[5].Payload)
 	if frame[62] != 0x00 || frame[63] != 0x00 {
 		t.Fatalf("DATA(c2s) frame[62:64]=%02x%02x want 0000 (data_flags)", frame[62], frame[63])
+	}
+}
+
+// D-TNS-1 G-TNS-8（设计 §4.2 行 3）：ACCEPT/REFUSE/REDIRECT 是服务端专属
+// 类型，出现在 c2s 方向即判死（隔离审查 C1 收口；旧实现只把 direction
+// 二值化，不校验类型-方向语义）。
+func TestValidateTNS_ServerTypesInC2SRejected(t *testing.T) {
+	for _, ty := range []string{"ACCEPT", "REFUSE", "REDIRECT"} {
+		cfg := &core.TNSConfig{Events: []core.TNSEvent{
+			{Type: "CONNECT", Direction: "c2s"},
+			{Type: ty, Direction: "c2s"},
+		}}
+		err := (&Planner{}).Validate(core.FlowSpec{TNS: cfg, DstPort: 1521})
+		if err == nil {
+			t.Fatalf("%s in c2s must be rejected", ty)
+		}
+		if !strings.Contains(err.Error(), "must not appear in the client->server direction") {
+			t.Fatalf("%s: anchor mismatch: %v", ty, err)
+		}
+	}
+	ok := &core.TNSConfig{Events: []core.TNSEvent{
+		{Type: "CONNECT", Direction: "c2s"},
+		{Type: "ACCEPT", Direction: "s2c"},
+	}}
+	if err := (&Planner{}).Validate(core.FlowSpec{TNS: ok, DstPort: 1521}); err != nil {
+		t.Fatalf("valid s2c ACCEPT must pass (no over-rejection), got %v", err)
 	}
 }

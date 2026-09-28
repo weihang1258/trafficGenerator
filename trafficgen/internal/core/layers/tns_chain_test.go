@@ -338,8 +338,8 @@ func TestTNSChain_CaseFileAudit(t *testing.T) {
 	if err := json.Unmarshal(raw, &cases); err != nil {
 		t.Fatalf("parse cases: %v", err)
 	}
-	if len(cases) != 17 {
-		t.Fatalf("want 17 cases (8 pos + 9 neg), got %d", len(cases))
+	if len(cases) != 24 {
+		t.Fatalf("want 24 cases (14 pos + 10 neg), got %d", len(cases))
 	}
 	allowed := map[string]bool{"layers": true, "flow_control": true, "output": true}
 	presence, stray := false, false
@@ -394,8 +394,8 @@ func TestTNSChain_CaseFileAudit(t *testing.T) {
 			}
 		}
 	}
-	if pos != 8 || neg != 9 {
-		t.Fatalf("want 8 pos + 9 neg, got %d pos + %d neg", pos, neg)
+	if pos != 14 || neg != 10 {
+		t.Fatalf("want 14 pos + 10 neg, got %d pos + %d neg", pos, neg)
 	}
 	if !presence {
 		t.Fatal("want presence negative (layers + top-level tns), found none")
