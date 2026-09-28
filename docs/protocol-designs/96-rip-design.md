@@ -1,6 +1,6 @@
 # #96 rip（Routing Information Protocol，RFC 1058/2453/2080/4822）设计契约
 
-> 版本：v1.0.0（文档先行批次一，车道 A）
+> 版本：v1.0.1（文档先行批次一，车道 A；v1.0.1 = 补登记 G-RIP-11 结果产物过期）
 > 日期：2026-09-28
 > 车道：doc-lanes/rip（worktree /tmp/wt3-rip，分支 pipe/rip，基线 cf6e2f0）
 > 旧基线：`docs/protocol-designs/10-rip-design.md` v1.0.0（1340 行，9 章；本 #96 为其 P-PIPE 重做契约——语义继承、扁平形状不继承）
@@ -439,7 +439,7 @@ RIP 层**无自有状态**：RIP 是 UDP 上的无连接协议，无握手/无�
 | §4 查规范 | RFC 1058/2453/2080/4822 + 旧基线 + tshark 26 字段实测 + 落码反推；八项矩阵 + 子表①②③ | §10 |
 | §5 依赖与错误 | `DependsOn ["udp"]`（`registry.go:184`）；19 种拒绝分支；失败传 task error | §5/§7/§11.5 |
 | §6 性能 | 见 §6（6.1–6.8 要素齐；吞吐数字标待 P5 基准，不写承诺） | §6 |
-| §7 三份文档 | `96-rip-{design,testcase}.md` v1.0.0（本批）+ 旧稿 `10-rip-design.md` 为历史层（§7.4）；无 `10-rip-testcase.md`（新建补缺） | 修订记录 |
+| §7 三份文档 | `96-rip-{design,testcase}.md` v1.0.1（本批）+ 旧稿 `10-rip-design.md` 为历史层（§7.4）；无 `10-rip-testcase.md`（新建补缺） | 修订记录 |
 | §8 设计先行 | 本批 = 文档先行；代码阶段动作 = 缺口收敛（G-RIP-1/G-RIP-2） | 提交序 |
 | §9 测试三源 | 三源 = RFC 四篇（§10）+ 本设计（§11）+ tshark 26 字段实测（§3.7，替代"已确认现网行为"档；现网行为为旧基线继承，未达抓包级 → G-RIP-9）；71 ID 逐项回指；存量 71 例审计去向 testcase §8 | `96-rip-testcase.md` §2/§5/§8 |
 | §10 评审闭环 | 本批自审（结论见 /tmp/pipe/doc-lanes/rip.md）+ 批次隔离审查；红先绿后 | lane 报告 |
@@ -520,6 +520,21 @@ presence 形 {layers:[{ip:{...}},{udp:{...}},{rip:{}}], rip:{}}
 
 **离线套件对照实测**（scratch 副本补 rip 空导入 + `CHAIN_PROTO=rip`）：**52/52 全绿，58.5s**——**仅 52 个链形例被执行；19 个扁平例被 `layer_chain_suite_test.go:138` 的 `if _, ok := specMap["layers"]; !ok { continue }` 跳过、从未执行**。原因 = `:230-236` 剥离 `layers` 后把顶层扁平键直传 `core.MapToFlowSpec`，**绕过 `CheckProtoFlat`** → "绿"不证明 MCP 可达（G-RIP-10）。
 
+### 12-P4 结果产物过期与不完整（G-RIP-11）
+
+**现象**：tracked 结果产物 `trafficgen/docs/protocol-pcap-test/rip.md` 写 `Cases: 1 — pass 1, fail 0, error 0`（**只有 1 例**，与存量 71 例不符——本身即不完整产物）；且末次提交早于扁平判死提交 `0417be5`。**该 1/1 pass 是过期且不完整的产物，不得作为"套件可跑"依据。**
+
+**rip 的双重缺口**：① **不完整**——1 例 vs 存量 71 例（其中 52 个链形例今日仅离线可跑、19 个扁平例被 `layer_chain_suite_test.go:138` 跳过、**从未执行**，见 §12-P3）；② **过期**——产物成文于判死提交之前。经 MCP 建策略今日**全部 400**（§12-P3 证据 2），故该产物所声称的 pass 与今日可达性无关。
+
+**复算证据（2026-09-28 实测，原文）**：
+
+```bash
+git log -1 --format='%h %ad %s' --date=short -- trafficgen/docs/protocol-pcap-test/rip.md  # → a674fe9 2026-09-05
+git log -1 --format='%h %ad %s' --date=short 0417be5                                       # → 0417be5 2026-09-13
+ls trafficgen/docs/protocol-pcap-test/rip/ | wc -l                                         # → 0（目录不存在）
+sed -n '3p' trafficgen/docs/protocol-pcap-test/rip.md                                     # → Cases: 1 — pass 1, fail 0, error 0
+```
+
 ### 12.3 §3 强制展开：五件套
 
 会话表：**无会话**（显式不适用——RIP 是 UDP 无连接协议，无连接生命周期；理由写入 §5；豁免依据 §3.14 无长连接协议）。事务序列：`t1` 发 Request（`rip_tpos1_request_full` 前包）/ `t2` 收 Response（同例后包，自动派生）/ `t3` 发 Response（`rip_tpos5_unicast`）/ `t4` 多轮（`rip_tpos7_rounds` rounds=3）/ `t5` 多 router 并列（`rip_tpos16_3_routers`）；每事务四件事见 §5 状态机 + §4 场景表。关联关系：**无派生流**（诚实声明：RIP 无控制/数据分离，多 router 是并列四元组非主从派生，无 `driven_by`；CancelRequest 类关联不适用）。插入位置：udp 终结层（`[ip,udp,rip]`，无中间层）。时间线：报文内严格顺序 / 多 router 顺序展开（跨 router 不假设全局包序，只断言聚合）/ 无交错（UDP 单发无并发路径）。
@@ -552,9 +567,11 @@ presence 形 {layers:[{ip:{...}},{udp:{...}},{rip:{}}], rip:{}}
 | **G-RIP-8** MD5 摘要占位是否需真 HMAC | 现网设备互操作未知 | 未达验证级 | 待确认：抓现网 RIP MD5 报文比对，或查 Cisco/Juniper 手册对应章节（三选一）；确认前不写死进实现 |
 | **G-RIP-9** 现网行为未达本批抓包级 | Cisco/Juniper 默认 30s 周期、水平分割默认开为旧基线继承 | 旧基线 §6 记载；本批未抓包 | 待确认：抓现网 RIP 报文（三选一）；不冒充第三源 |
 | **G-RIP-10** 离线 harness strip-layers | 顶层扁平违规例今日离线仍绿（绕过 CheckProtoFlat） | `test/protocol_pcap/layer_chain_suite_test.go:225-231` 剥离 `layers` 后把顶层扁平键直传 `core.MapToFlowSpec` | 框架级 P6 票（ledger 已登记，跨协议） |
+| **G-RIP-11** 结果产物过期且不完整 | tracked 结果产物 `trafficgen/docs/protocol-pcap-test/rip.md` 写 `Cases: 1 — pass 1, fail 0, error 0`——**只有 1 例**（存量 71 例），本身即不完整；且末次提交早于扁平判死提交 `0417be5`，其 pass 声明今日不成立。**不得作为"套件可跑"依据**。rip 双重缺口：不完整（1 vs 71；19 扁平例另被 `layer_chain_suite_test.go:138` 跳过、从未执行）+ 过期（成文于判死前；今日经 MCP 建策略全部 400，§12-P3 证据 2） | `git log -1 --format='%h %ad' --date=short -- trafficgen/docs/protocol-pcap-test/rip.md` → **a674fe9 2026-09-05**；`git log -1 --format='%h %ad' --date=short 0417be5` → **0417be5 2026-09-13**；`ls trafficgen/docs/protocol-pcap-test/rip/` → 目录不存在（**0 个 pcap**）；`sed -n 3p` 原文见 §12-P4 | **代码阶段**（P5 重跑套件后重生成该产物） |
 
 ## 15. 修订记录
 
+- v1.0.1（2026-09-28）：**补登记 G-RIP-11（结果产物过期且不完整）**——`trafficgen/docs/protocol-pcap-test/rip.md` 的 `1/1 pass` 系过期且不完整产物（末次提交 `a674fe9` 2026-09-05 早于判死提交 `0417be5` 2026-09-13；存量 71 例 vs 产物 1 例；`docs/protocol-pcap-test/rip/` 0 个 pcap），归属代码阶段（P5 重跑套件后重生成）。新增 §12-P4 复算证据节；缺口表 +1 行；口径对齐 pcep 先例 G-PCEP-11。仅文档，未动 JSON/代码。
 - v1.0.0（2026-09-28）：文档先行批次一 #96。旧稿 10-* 语义继承 + 8 项过期校正（§0）；存量 71 例机读审计（顶层残留形状、expect 形状、逐键计数）；§12.1/12.3/12.12 强制展开 + **§12-P3 三条探针证据原文**；代码设计 as-built 定稿（§11）；缺口 G-RIP-1…G-RIP-10（每条含现象/证据行号/归属阶段）；三源 = RFC 四篇 + 落码 + tshark 26 字段实测。
   **主线程裁定（2026-09-28）**：cases/rip.json 不改写——层空壳实证（§12-P3）；缺口编号按主线程口径重排（G-RIP-1 层空壳 / G-RIP-2 translate 缺 case / G-RIP-3 CheckProtoFlat 无分支 / G-RIP-4 顶层旧键 178 处）。
   自审 4 轮，末轮干净（结论见 /tmp/pipe/doc-lanes/rip.md）。
