@@ -558,6 +558,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-OSPF-1（§14-P2）：ospf 在库旧策略顶层 ospf → ValidationErrors
+	// （igmp 同款；空 map 也死——判死形状「层链+顶层空子映射并存」wired 面，
+	// 20 例存量正是此形）。
+	if protocol == "ospf" {
+		if v, ok := cfg["ospf"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 
 	// D-FTP-3 §5: 扁平四键收动态对象（引擎直调路径，REST 形状层已先 400）→
 	// spec.ValidationErrors 拒绝并指路层字段，worker 预检终态 error，绝不
@@ -8868,6 +8876,14 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "igmp" {
 		if v, ok := cfg["igmp"]; ok && v != nil {
 			return "protocol igmp no longer accepts a top-level igmp sub-config (move it into the igmp layer of an [ip,igmp] layers chain; the layer chain is the only config truth)"
+		}
+	}
+	// D-OSPF-1（§14-P2）：ospf 顶层 ospf 子映射 presence 判死（igmp 先例；
+	// 空 map 也死——契约点名形状「层链+顶层空子映射并存=判死负例」）。层链
+	// 形状不触发。
+	if protocol == "ospf" {
+		if v, ok := cfg["ospf"]; ok && v != nil {
+			return "protocol ospf no longer accepts a top-level ospf sub-config (move it into the ospf layer of an [ip,ospf] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-MMS-2（G-MMS-1，§14-P2）：mms 顶层 mms 子映射 presence 判死

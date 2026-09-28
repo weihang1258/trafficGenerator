@@ -2838,7 +2838,85 @@
       "field_contract": {
         "ip.protocol": "89"
       },
-      "fields": {}
+      "fields": {
+        "area_id": {
+          "type": "string"
+        },
+        "auth_type": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "backup_designated_router": {
+          "type": "string"
+        },
+        "checksum_mode": {
+          "type": "string"
+        },
+        "dd_sequence": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "dead_interval": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "designated_router": {
+          "type": "string"
+        },
+        "events": {
+          "type": "list"
+        },
+        "flags": {
+          "type": "object"
+        },
+        "hello_interval": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "interface_mtu": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "lsa_headers": {
+          "type": "list"
+        },
+        "lsas": {
+          "type": "list"
+        },
+        "neighbors": {
+          "type": "list"
+        },
+        "network_mask": {
+          "type": "string"
+        },
+        "options": {
+          "type": "uint8",
+          "max": 255
+        },
+        "packet_type": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "uint8",
+          "max": 255
+        },
+        "profile": {
+          "type": "string"
+        },
+        "requests": {
+          "type": "list"
+        },
+        "router_id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "uint8",
+          "max": 255
+        },
+        "wire_fault": {
+          "type": "object"
+        }
+      }
     },
     "pcep": {
       "category": "terminal",

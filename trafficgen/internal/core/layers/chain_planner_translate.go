@@ -1116,6 +1116,32 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			spec.ICMP = ic
 		}
 		return
+	case "ospf":
+		// D-OSPF-1：ospf 层 config 严格往返解码进 spec.OSPF（bgp :705 范式
+		// ——completedConfig + DisallowUnknownFields；V9 只查层一级字段，
+		// events[]/lsas[]/lsa_headers[] 嵌套未知键由此兜）。层优先：spec.OSPF
+		// 已存在（flat 顶层 ospf / 引擎直调）则不覆盖；空层 {} 翻译出非 nil
+		// 空配置 → 生成器 P0b-2 缺省 hello（layer_gen.go:27，version 2 /
+		// packet_type hello / router_id 1.1.1.1 / area_id 0.0.0.0）。
+		if spec.OSPF == nil {
+			cfgOSPF := completedConfig(s, term.Config)
+			rawOSPF, err := json.Marshal(cfgOSPF)
+			if err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors,
+					fmt.Sprintf("ospf layer config encode: %v", err))
+				return
+			}
+			var ocfg core.OSPFConfig
+			decOSPF := json.NewDecoder(bytes.NewReader(rawOSPF))
+			decOSPF.DisallowUnknownFields()
+			if err := decOSPF.Decode(&ocfg); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors,
+					fmt.Sprintf("ospf layer config decode: %v", err))
+				return
+			}
+			spec.OSPF = &ocfg
+		}
+		return
 	case "igmp":
 		// D-IGMP-1：层 config 经 core.ParseIGMPConfigFromMap 复用扁平解析
 		// 单一真相（json 往返；键名=IGMPConfig json 标签）。解码失败记

@@ -706,6 +706,33 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 		}
 	}
 
+	if protocol == "ospf" {
+		// D-OSPF-1 §14-P2 链级红例（igmp 先例同构——DependsOn ip 会自动补
+		// ip 层，裸 ospf 链不被补全掩盖；tcp/udp 夹层不被通用门拦下时同样
+		// 在此同步拒）。ospf 是单载体 raw-IP 终结层（RFC 2328 OSPFv2，
+		// IP proto 89）：无 tcp/udp 传输层、无端口语义。
+		//   - 链中夹 tcp/udp → 锚 carrier（[ip,tcp,ospf] / [ip,udp,ospf]）；
+		//   - 链缺 ip（裸 [ospf]）→ 锚 carrier（补全前判，否则被自动补全）。
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			hasIP := false
+			for _, item := range probe {
+				if _, ok := item["ip"]; ok {
+					hasIP = true
+				}
+				if _, ok := item["tcp"]; ok {
+					return nil, fmt.Errorf("ospf chain: tcp carrier is not supported — OSPFv2 rides raw IP (protocol 89) only, no transport layer (carrier)")
+				}
+				if _, ok := item["udp"]; ok {
+					return nil, fmt.Errorf("ospf chain: udp carrier is not supported — OSPFv2 rides raw IP (protocol 89) only, no transport layer (carrier)")
+				}
+			}
+			if !hasIP {
+				return nil, fmt.Errorf("ospf chain: missing ip carrier — OSPFv2 requires an [ip,ospf] chain (carrier)")
+			}
+		}
+	}
+
 	if protocol == "doip" {
 		// D-DOIP-1（G-DOIP-2，§15 8.5②/8.7）：链上不可达形在 create 期同步
 		// 判死（生成器 drive 期错误会被 Plan goroutine 吞成空流——hl7
