@@ -836,7 +836,7 @@
   {
     "id": "hds_mss_reassembly",
     "proto": "hds",
-    "summary": "HDS with MSS segmentation | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
+    "summary": "HDS with MSS segmentation | 包号/包数已按真机 pcap 实钉（2026-09-28：/tmp/mcp-pcaps/hds/hds_mss_reassembly.pcap，packet 6 http.response.code=200；MSS 例包数 10≥min 8）；其余断言沿设计 §8",
     "spec_json": {
       "layers": [
         {
@@ -1690,7 +1690,7 @@
   {
     "id": "hds_neg_presence_top_level_hds",
     "proto": "hds",
-    "summary": "P2判死: layers + top-level hds sub-config coexist（M5①，空 map 也死）",
+    "summary": "P2判死: layers + top-level hds sub-config coexist（M5①，空 map 也死；锚词实测由 create 路径 CheckProtoFlat + task 路径 mapToFlowSpec 存量块双路供给）",
     "spec_json": {
       "layers": [
         {
@@ -1722,7 +1722,7 @@
   {
     "id": "hds_neg_stray_src_mac",
     "proto": "hds",
-    "summary": "P2判死: top-level src_mac alongside layers（M5②，1.11 白名单）",
+    "summary": "P2判死: top-level src_mac alongside layers（M5②，1.11 白名单；create 路径锚词命中，task 路径被自然守卫 manifest-nil 遮蔽——两路均为拒，非假绿）",
     "spec_json": {
       "layers": [
         {
@@ -1762,7 +1762,7 @@
   {
     "id": "hds_neg_flat_count",
     "proto": "hds",
-    "summary": "P2判死: top-level flat count alongside layers",
+    "summary": "P2判死: top-level flat count alongside layers（create 路径锚词命中，task 路径另报 manifest-nil 自然守卫——两路均为拒）",
     "spec_json": {
       "layers": [
         {

@@ -5811,7 +5811,7 @@ def check_hds(cases):
     ct = tg / "internal" / "core" / "layers" / "hds_chain_test.go"
     rows.append(("链级红例在案（hds_chain_test.go）", ct.exists(), "在案"))
 
-    # 3. 用例面（21 例 = 13 正 + 8 负；含 4 自然守卫 + presence/游离/载体）。
+    # 3. 用例面（25 例 = 15 正 + 10 负；含 6 自然守卫 + presence/游离/flat/载体）。
     ids = {c.get("id", "") for c in cases}
     for cid in [
         "hds_manifest_ipv4", "hds_bootstrap_abst", "hds_asrt_segment_runs",

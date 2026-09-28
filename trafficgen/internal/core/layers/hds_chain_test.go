@@ -67,6 +67,11 @@ func hdsMigrateSpec() core.FlowSpec {
 	return core.FlowSpec{SrcIP: hdsCli, DstIP: hdsSrv, SrcPort: hdsSP, DstPort: 80}
 }
 
+// 红先绿后证据（审查 M1 补）：本文件 6 例与接线同批提交（1047e00）；
+// 红态复现法——`git stash` 掉 chain_planner_translate.go / strategy_convert.go /
+// registry.go 三处接线改动后 `go test ./internal/core/layers/ -run TestHDSChain`
+// 即 3 红（unknown field "keep_alive" / presence 无拒 / V9 拒），接线回填即全绿
+// （2026-09-28 车道实测）。
 // 红例①【http+hds 叠翻译】：层 config（profile/manifest/sessions）必须上线
 // ——GET 请求行 + F4M body 均须出现（现状：层值被丢弃，Plan 报 sessions）。
 func TestHDSChain_LayerConfigTranslates(t *testing.T) {
