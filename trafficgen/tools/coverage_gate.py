@@ -7544,15 +7544,21 @@ def check_coap(cases):
         if names != ["ip", "udp", "coap"]:
             bad_shape.append(f"{c.get('id')}:{names}")
     rows.append(("正例链形恒 [ip,udp,coap]", not bad_shape, bad_shape or "穷尽"))
-    # 层键覆盖：29 键同名单里的业务面必须有用例（G-COAP-2 死键除外）。
+    # 层键覆盖：29 键同名单里的业务面必须有用例。死键三枚（block1/
+    # error_code/error_payload，G-COAP-2 已登记零消费）显式列出不冒充覆盖。
     for k in ["method", "path", "query", "payload", "content_format", "accept",
-              "confirmable", "token", "message_id", "response_code", "response_payload",
-              "response_content_format", "response_blocks", "block2", "observe",
-              "retransmit", "error_responses", "tokens", "message_ids",
-              "session_src_ips", "session_src_ports", "version", "code", "response",
-              "uri_max_length"]:
+              "confirmable", "token", "token_length", "message_id", "response_code",
+              "response_payload", "response_content_format", "response_blocks",
+              "block2", "observe", "retransmit", "error_responses", "tokens",
+              "message_ids", "session_src_ips", "session_src_ports", "version",
+              "code", "response", "uri_max_length"]:
         hit = next((cid for cid, m in lays if k in m), None)
         rows.append((f"层键覆盖：{k}", hit is not None, hit or "无用例"))
+    # G-COAP-2 死键诚实性：block1/error_code/error_payload 零消费，用例
+    # 不得写它们冒充覆盖（写进层 config 会经严格解码落 spec 但 wire 不产）。
+    dead = [cid for cid, m in lays for k in ("block1", "error_code", "error_payload") if k in m]
+    rows.append(("G-COAP-2 死键无用例冒充（block1/error_code/error_payload）",
+                 not dead, dead or "零命中"))
     # 断言通道：19 去重字段（15 coap.* + 4 载体）全部 ∈ 用例 fields。
     fields = {str((f or {}).get("field", "")) for c in cases
               for f in ((c.get("expect") or {}).get("fields") or [])}
