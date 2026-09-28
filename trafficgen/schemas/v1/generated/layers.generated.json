@@ -3880,7 +3880,28 @@
       "field_contract": {
         "tcp.dst_port": "3333"
       },
-      "fields": {}
+      "fields": {
+        "concurrent": {
+          "type": "bool",
+          "default": false
+        },
+        "extensions": {
+          "type": "list",
+          "default": []
+        },
+        "profile": {
+          "type": "string",
+          "default": ""
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "wire_fault": {
+          "type": "string",
+          "default": ""
+        }
+      }
     },
     "stun": {
       "category": "terminal",

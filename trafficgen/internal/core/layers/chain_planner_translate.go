@@ -2219,6 +2219,34 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.BACNET = &bc
+	case "stratum":
+		if spec.Stratum != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		// D-STRATUM-1 G-ST-1：层 config（profile/concurrent/extensions/
+		// sessions/wire_fault）经 JSON 往返解码为 core.StratumConfig。
+		// 裁定8：未知键严格拒（DisallowUnknownFields——config 一级；session
+		// 与 event 为值切片，未知键在各自嵌套级同样被 Decoder 递归拒绝，
+		// 见 stratum_chain_test.go ⑧ 红例）。解码失败一律计 ValidationErrors
+		// 走任务错误——置空配置会被 validator 直通成默认流假成功（edp/bacnet
+		// 同款）。空层 {} 也翻译出非 nil 空配置 → 生成器缺省基线订阅流
+		// （layer_gen.go:48-54，9 包），与显式 sessions:[] 同语义。
+		cfgST := completedConfig(s, term.Config)
+		rawST, err := json.Marshal(cfgST)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("stratum layer config encode: %v", err))
+			return
+		}
+		var stc core.StratumConfig
+		decST := json.NewDecoder(bytes.NewReader(rawST))
+		decST.DisallowUnknownFields()
+		if err := decST.Decode(&stc); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("stratum layer config decode: %v", err))
+			return
+		}
+		spec.Stratum = &stc
 	case "rtmfp":
 		if spec.RTMFP != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略
