@@ -6,38 +6,43 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 9
+      "packet_count": 9,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -47,42 +52,47 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
-              },
-              {
-                "kind": "extranonce_subscribe",
-                "id": 2
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  },
+                  {
+                    "kind": "extranonce_subscribe",
+                    "id": 2
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 11
+      "packet_count": 11,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -92,45 +102,50 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
-              },
-              {
-                "kind": "authorize",
-                "id": 2,
-                "username": "test",
-                "password": "password",
-                "result": true
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 2,
+                    "username": "test",
+                    "password": "password",
+                    "result": true
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 11
+      "packet_count": 11,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -140,47 +155,52 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
-              },
-              {
-                "kind": "authorize",
-                "id": 2,
-                "username": "test",
-                "password": "password",
-                "result": false,
-                "error_code": 24,
-                "error_msg": "Unauthorized user"
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 2,
+                    "username": "test",
+                    "password": "password",
+                    "result": false,
+                    "error_code": 24,
+                    "error_msg": "Unauthorized user"
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 11
+      "packet_count": 11,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -190,56 +210,61 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
-              },
-              {
-                "kind": "authorize",
-                "id": 2,
-                "username": "test",
-                "password": "password",
-                "result": true
-              },
-              {
-                "kind": "set_difficulty",
-                "difficulty": 0.5
-              },
-              {
-                "kind": "notify",
-                "job_id": "bf0488aa",
-                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
-                "clean_jobs": false
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 2,
+                    "username": "test",
+                    "password": "password",
+                    "result": true
+                  },
+                  {
+                    "kind": "set_difficulty",
+                    "difficulty": 0.5
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "bf0488aa",
+                    "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                    "clean_jobs": false
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 13
+      "packet_count": 13,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -249,56 +274,61 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
-              },
-              {
-                "kind": "authorize",
-                "id": 2,
-                "username": "test",
-                "password": "password",
-                "result": true
-              },
-              {
-                "kind": "set_difficulty",
-                "difficulty": 0.5
-              },
-              {
-                "kind": "notify",
-                "job_id": "bf0488aa",
-                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
-                "clean_jobs": true
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 2,
+                    "username": "test",
+                    "password": "password",
+                    "result": true
+                  },
+                  {
+                    "kind": "set_difficulty",
+                    "difficulty": 0.5
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "bf0488aa",
+                    "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                    "clean_jobs": true
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 13
+      "packet_count": 13,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -308,56 +338,61 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
-              },
-              {
-                "kind": "authorize",
-                "id": 2,
-                "username": "test",
-                "password": "password",
-                "result": true
-              },
-              {
-                "kind": "set_difficulty",
-                "difficulty": 0.5
-              },
-              {
-                "kind": "notify",
-                "job_id": "bf0488aa",
-                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
-                "clean_jobs": false
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 2,
+                    "username": "test",
+                    "password": "password",
+                    "result": true
+                  },
+                  {
+                    "kind": "set_difficulty",
+                    "difficulty": 0.5
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "bf0488aa",
+                    "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                    "clean_jobs": false
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 13
+      "packet_count": 13,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -367,52 +402,57 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
-              },
-              {
-                "kind": "authorize",
-                "id": 2,
-                "username": "test",
-                "password": "password",
-                "result": true
-              },
-              {
-                "kind": "notify",
-                "job_id": "bf0488aa",
-                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
-                "clean_jobs": false
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 2,
+                    "username": "test",
+                    "password": "password",
+                    "result": true
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "bf0488aa",
+                    "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                    "clean_jobs": false
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 12
+      "packet_count": 12,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -422,67 +462,72 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
-              },
-              {
-                "kind": "authorize",
-                "id": 2,
-                "username": "test",
-                "password": "password",
-                "result": true
-              },
-              {
-                "kind": "set_difficulty",
-                "difficulty": 0.5
-              },
-              {
-                "kind": "notify",
-                "job_id": "bf0488aa",
-                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
-                "clean_jobs": false
-              },
-              {
-                "kind": "set_difficulty",
-                "difficulty": 5000012.0
-              },
-              {
-                "kind": "notify",
-                "job_id": "bf0488ab",
-                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "fc12eb20c58158071c956316cdcd12a22dd8bf126ac4aee559f0ffe4df11f279",
-                "clean_jobs": false
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 2,
+                    "username": "test",
+                    "password": "password",
+                    "result": true
+                  },
+                  {
+                    "kind": "set_difficulty",
+                    "difficulty": 0.5
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "bf0488aa",
+                    "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                    "clean_jobs": false
+                  },
+                  {
+                    "kind": "set_difficulty",
+                    "difficulty": 5000012.0
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "bf0488ab",
+                    "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "fc12eb20c58158071c956316cdcd12a22dd8bf126ac4aee559f0ffe4df11f279",
+                    "clean_jobs": false
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 15
+      "packet_count": 15,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -492,72 +537,77 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
-              },
-              {
-                "kind": "extranonce_subscribe",
-                "id": 2
-              },
-              {
-                "kind": "authorize",
-                "id": 3,
-                "username": "test",
-                "password": "password",
-                "result": true
-              },
-              {
-                "kind": "set_difficulty",
-                "difficulty": 0.5
-              },
-              {
-                "kind": "set_extranonce",
-                "new_extranonce": "a2eea0"
-              },
-              {
-                "kind": "notify",
-                "job_id": "bf0488ab",
-                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "fc12eb20c58158071c956316cdcd12a22dd8bf126ac4aee559f0ffe4df11f279",
-                "clean_jobs": false
-              },
-              {
-                "kind": "submit",
-                "id": 4,
-                "username": "test",
-                "job_id": "bf0488ab",
-                "miner_nonce": "cfae7df760",
-                "result": true
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  },
+                  {
+                    "kind": "extranonce_subscribe",
+                    "id": 2
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 3,
+                    "username": "test",
+                    "password": "password",
+                    "result": true
+                  },
+                  {
+                    "kind": "set_difficulty",
+                    "difficulty": 0.5
+                  },
+                  {
+                    "kind": "set_extranonce",
+                    "new_extranonce": "a2eea0"
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "bf0488ab",
+                    "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "fc12eb20c58158071c956316cdcd12a22dd8bf126ac4aee559f0ffe4df11f279",
+                    "clean_jobs": false
+                  },
+                  {
+                    "kind": "submit",
+                    "id": 4,
+                    "username": "test",
+                    "job_id": "bf0488ab",
+                    "miner_nonce": "cfae7df760",
+                    "result": true
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 18
+      "packet_count": 18,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -567,64 +617,69 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
-              },
-              {
-                "kind": "authorize",
-                "id": 2,
-                "username": "test",
-                "password": "password",
-                "result": true
-              },
-              {
-                "kind": "set_difficulty",
-                "difficulty": 0.5
-              },
-              {
-                "kind": "notify",
-                "job_id": "bf0488aa",
-                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
-                "clean_jobs": false
-              },
-              {
-                "kind": "submit",
-                "id": 3,
-                "username": "test",
-                "job_id": "bf0488aa",
-                "miner_nonce": "6a909d9bbc0f",
-                "result": true
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 2,
+                    "username": "test",
+                    "password": "password",
+                    "result": true
+                  },
+                  {
+                    "kind": "set_difficulty",
+                    "difficulty": 0.5
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "bf0488aa",
+                    "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                    "clean_jobs": false
+                  },
+                  {
+                    "kind": "submit",
+                    "id": 3,
+                    "username": "test",
+                    "job_id": "bf0488aa",
+                    "miner_nonce": "6a909d9bbc0f",
+                    "result": true
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 15
+      "packet_count": 15,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -634,66 +689,71 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
-              },
-              {
-                "kind": "authorize",
-                "id": 2,
-                "username": "test",
-                "password": "password",
-                "result": true
-              },
-              {
-                "kind": "set_difficulty",
-                "difficulty": 0.5
-              },
-              {
-                "kind": "notify",
-                "job_id": "bf0488aa",
-                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
-                "clean_jobs": false
-              },
-              {
-                "kind": "submit",
-                "id": 3,
-                "username": "test",
-                "job_id": "bf0488aa",
-                "miner_nonce": "6a909d9bbc0f",
-                "result": false,
-                "error_code": -1,
-                "error_msg": "Job not found"
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 2,
+                    "username": "test",
+                    "password": "password",
+                    "result": true
+                  },
+                  {
+                    "kind": "set_difficulty",
+                    "difficulty": 0.5
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "bf0488aa",
+                    "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                    "clean_jobs": false
+                  },
+                  {
+                    "kind": "submit",
+                    "id": 3,
+                    "username": "test",
+                    "job_id": "bf0488aa",
+                    "miner_nonce": "6a909d9bbc0f",
+                    "result": false,
+                    "error_code": -1,
+                    "error_msg": "Job not found"
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 15
+      "packet_count": 15,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -703,64 +763,69 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 100,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
-              },
-              {
-                "kind": "authorize",
-                "id": 101,
-                "username": "test",
-                "password": "password",
-                "result": true
-              },
-              {
-                "kind": "set_difficulty",
-                "difficulty": 0.5
-              },
-              {
-                "kind": "notify",
-                "job_id": "bf0488aa",
-                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
-                "clean_jobs": false
-              },
-              {
-                "kind": "submit",
-                "id": 102,
-                "username": "test",
-                "job_id": "bf0488aa",
-                "miner_nonce": "6a909d9bbc0f",
-                "result": true
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 100,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 101,
+                    "username": "test",
+                    "password": "password",
+                    "result": true
+                  },
+                  {
+                    "kind": "set_difficulty",
+                    "difficulty": 0.5
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "bf0488aa",
+                    "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                    "clean_jobs": false
+                  },
+                  {
+                    "kind": "submit",
+                    "id": 102,
+                    "username": "test",
+                    "job_id": "bf0488aa",
+                    "miner_nonce": "6a909d9bbc0f",
+                    "result": true
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 15
+      "packet_count": 15,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -770,64 +835,69 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "a2eea0"
-              },
-              {
-                "kind": "authorize",
-                "id": 2,
-                "username": "test",
-                "password": "password",
-                "result": true
-              },
-              {
-                "kind": "set_difficulty",
-                "difficulty": 0.5
-              },
-              {
-                "kind": "notify",
-                "job_id": "bf0488aa",
-                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
-                "clean_jobs": false
-              },
-              {
-                "kind": "submit",
-                "id": 3,
-                "username": "test",
-                "job_id": "bf0488aa",
-                "miner_nonce": "cfae7df760",
-                "result": true
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "a2eea0"
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 2,
+                    "username": "test",
+                    "password": "password",
+                    "result": true
+                  },
+                  {
+                    "kind": "set_difficulty",
+                    "difficulty": 0.5
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "bf0488aa",
+                    "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                    "clean_jobs": false
+                  },
+                  {
+                    "kind": "submit",
+                    "id": 3,
+                    "username": "test",
+                    "job_id": "bf0488aa",
+                    "miner_nonce": "cfae7df760",
+                    "result": true
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 15
+      "packet_count": 15,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -837,65 +907,70 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "hex_prefix": "0x",
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "hex_prefix": "0x",
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "0x080c"
-              },
-              {
-                "kind": "authorize",
-                "id": 2,
-                "username": "test",
-                "password": "password",
-                "result": true
-              },
-              {
-                "kind": "set_difficulty",
-                "difficulty": 0.5
-              },
-              {
-                "kind": "notify",
-                "job_id": "0xbf0488aa",
-                "seed_hash": "0xabad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "0x645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
-                "clean_jobs": false
-              },
-              {
-                "kind": "submit",
-                "id": 3,
-                "username": "test",
-                "job_id": "0xbf0488aa",
-                "miner_nonce": "0x6a909d9bbc0f",
-                "result": true
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "0x080c"
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 2,
+                    "username": "test",
+                    "password": "password",
+                    "result": true
+                  },
+                  {
+                    "kind": "set_difficulty",
+                    "difficulty": 0.5
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "0xbf0488aa",
+                    "seed_hash": "0xabad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "0x645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                    "clean_jobs": false
+                  },
+                  {
+                    "kind": "submit",
+                    "id": 3,
+                    "username": "test",
+                    "job_id": "0xbf0488aa",
+                    "miner_nonce": "0x6a909d9bbc0f",
+                    "result": true
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 15
+      "packet_count": 15,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -905,64 +980,69 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
-              },
-              {
-                "kind": "authorize",
-                "id": 2,
-                "username": "00112233445566778899aabbccddeeff00112233.rig-north-01-cabinet3-slot7",
-                "password": "x",
-                "result": true
-              },
-              {
-                "kind": "set_difficulty",
-                "difficulty": 0.5
-              },
-              {
-                "kind": "notify",
-                "job_id": "bf0488aa",
-                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
-                "clean_jobs": false
-              },
-              {
-                "kind": "submit",
-                "id": 3,
-                "username": "00112233445566778899aabbccddeeff00112233.rig-north-01-cabinet3-slot7",
-                "job_id": "bf0488aa",
-                "miner_nonce": "6a909d9bbc0f",
-                "result": true
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 2,
+                    "username": "00112233445566778899aabbccddeeff00112233.rig-north-01-cabinet3-slot7",
+                    "password": "x",
+                    "result": true
+                  },
+                  {
+                    "kind": "set_difficulty",
+                    "difficulty": 0.5
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "bf0488aa",
+                    "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                    "clean_jobs": false
+                  },
+                  {
+                    "kind": "submit",
+                    "id": 3,
+                    "username": "00112233445566778899aabbccddeeff00112233.rig-north-01-cabinet3-slot7",
+                    "job_id": "bf0488aa",
+                    "miner_nonce": "6a909d9bbc0f",
+                    "result": true
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 15
+      "packet_count": 15,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -972,57 +1052,62 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
-              },
-              {
-                "kind": "authorize",
-                "id": 2,
-                "username": "test",
-                "password": "password",
-                "result": true
-              },
-              {
-                "kind": "set_difficulty",
-                "difficulty": 0.5,
-                "pack_next": true
-              },
-              {
-                "kind": "notify",
-                "job_id": "bf0488aa",
-                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
-                "clean_jobs": false
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 2,
+                    "username": "test",
+                    "password": "password",
+                    "result": true
+                  },
+                  {
+                    "kind": "set_difficulty",
+                    "difficulty": 0.5,
+                    "pack_next": true
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "bf0488aa",
+                    "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                    "clean_jobs": false
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 12
+      "packet_count": 12,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -1032,56 +1117,61 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
-              },
-              {
-                "kind": "authorize",
-                "id": 2,
-                "username": "test",
-                "password": "password",
-                "result": true
-              },
-              {
-                "kind": "set_difficulty",
-                "difficulty": 0.5
-              },
-              {
-                "kind": "notify",
-                "job_id": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
-                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
-                "clean_jobs": false
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 2,
+                    "username": "test",
+                    "password": "password",
+                    "result": true
+                  },
+                  {
+                    "kind": "set_difficulty",
+                    "difficulty": 0.5
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+                    "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                    "clean_jobs": false
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 14
+      "packet_count": 14,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -1091,38 +1181,43 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "2001:db8::73",
+            "dst": "2001:db8::100:73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "2001:db8::73",
-      "dst_ip": "2001:db8::100:73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 9
+      "packet_count": 9,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -1132,103 +1227,108 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 2,
+                    "username": "test",
+                    "password": "password",
+                    "result": true
+                  },
+                  {
+                    "kind": "set_difficulty",
+                    "difficulty": 0.5
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "bf0488aa",
+                    "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                    "clean_jobs": false
+                  },
+                  {
+                    "kind": "submit",
+                    "id": 3,
+                    "username": "test",
+                    "job_id": "bf0488aa",
+                    "miner_nonce": "6a909d9bbc0f",
+                    "result": true
+                  }
+                ],
+                "src_port": 4073
               },
               {
-                "kind": "authorize",
-                "id": 2,
-                "username": "test",
-                "password": "password",
-                "result": true
-              },
-              {
-                "kind": "set_difficulty",
-                "difficulty": 0.5
-              },
-              {
-                "kind": "notify",
-                "job_id": "bf0488aa",
-                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
-                "clean_jobs": false
-              },
-              {
-                "kind": "submit",
-                "id": 3,
-                "username": "test",
-                "job_id": "bf0488aa",
-                "miner_nonce": "6a909d9bbc0f",
-                "result": true
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "1f0a"
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 2,
+                    "username": "test2",
+                    "password": "x",
+                    "result": true
+                  },
+                  {
+                    "kind": "set_difficulty",
+                    "difficulty": 2.0
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "bf0488ab",
+                    "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "fc12eb20c58158071c956316cdcd12a22dd8bf126ac4aee559f0ffe4df11f279",
+                    "clean_jobs": false
+                  },
+                  {
+                    "kind": "submit",
+                    "id": 3,
+                    "username": "test2",
+                    "job_id": "bf0488ab",
+                    "miner_nonce": "6a909d9bbc0f",
+                    "result": true
+                  }
+                ],
+                "src_port": 4074
               }
-            ],
-            "src_port": 4073
-          },
-          {
-            "events": [
-              {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "1f0a"
-              },
-              {
-                "kind": "authorize",
-                "id": 2,
-                "username": "test2",
-                "password": "x",
-                "result": true
-              },
-              {
-                "kind": "set_difficulty",
-                "difficulty": 2.0
-              },
-              {
-                "kind": "notify",
-                "job_id": "bf0488ab",
-                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "fc12eb20c58158071c956316cdcd12a22dd8bf126ac4aee559f0ffe4df11f279",
-                "clean_jobs": false
-              },
-              {
-                "kind": "submit",
-                "id": 3,
-                "username": "test2",
-                "job_id": "bf0488ab",
-                "miner_nonce": "6a909d9bbc0f",
-                "result": true
-              }
-            ],
-            "src_port": 4074
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 30
+      "packet_count": 30,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -1238,79 +1338,84 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
-              },
-              {
-                "kind": "authorize",
-                "id": 2,
-                "username": "test",
-                "password": "password",
-                "result": true
-              },
-              {
-                "kind": "set_difficulty",
-                "difficulty": 0.5
-              },
-              {
-                "kind": "notify",
-                "job_id": "bf0488aa",
-                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
-                "clean_jobs": false
-              },
-              {
-                "kind": "submit",
-                "id": 3,
-                "username": "test",
-                "job_id": "bf0488aa",
-                "miner_nonce": "6a909d9bbc0f",
-                "result": true
-              },
-              {
-                "kind": "notify",
-                "job_id": "bf0488ab",
-                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
-                "header_hash": "fc12eb20c58158071c956316cdcd12a22dd8bf126ac4aee559f0ffe4df11f279",
-                "clean_jobs": false
-              },
-              {
-                "kind": "submit",
-                "id": 4,
-                "username": "test",
-                "job_id": "bf0488ab",
-                "miner_nonce": "68765fccd712",
-                "result": true
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  },
+                  {
+                    "kind": "authorize",
+                    "id": 2,
+                    "username": "test",
+                    "password": "password",
+                    "result": true
+                  },
+                  {
+                    "kind": "set_difficulty",
+                    "difficulty": 0.5
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "bf0488aa",
+                    "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                    "clean_jobs": false
+                  },
+                  {
+                    "kind": "submit",
+                    "id": 3,
+                    "username": "test",
+                    "job_id": "bf0488aa",
+                    "miner_nonce": "6a909d9bbc0f",
+                    "result": true
+                  },
+                  {
+                    "kind": "notify",
+                    "job_id": "bf0488ab",
+                    "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                    "header_hash": "fc12eb20c58158071c956316cdcd12a22dd8bf126ac4aee559f0ffe4df11f279",
+                    "clean_jobs": false
+                  },
+                  {
+                    "kind": "submit",
+                    "id": 4,
+                    "username": "test",
+                    "job_id": "bf0488ab",
+                    "miner_nonce": "68765fccd712",
+                    "result": true
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 18
+      "packet_count": 18,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -1320,38 +1425,43 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 3353
           }
         },
         {
-          "ethmining": {}
-        }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 3353,
-      "ethmining": {
-        "sessions": [
-          {
-            "events": [
+          "ethmining": {
+            "sessions": [
               {
-                "kind": "subscribe",
-                "id": 1,
-                "user_agent": "MinerName/1.0.0",
-                "protocol": "EthereumStratum/1.0.0",
-                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
-                "extranonce": "080c"
+                "events": [
+                  {
+                    "kind": "subscribe",
+                    "id": 1,
+                    "user_agent": "MinerName/1.0.0",
+                    "protocol": "EthereumStratum/1.0.0",
+                    "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                    "extranonce": "080c"
+                  }
+                ],
+                "src_port": 4073
               }
-            ],
-            "src_port": 4073
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
-      "packet_count": 9
+      "packet_count": 9,
+      "notes": [
+        "值沿 D-ETHMINING-1（设计 §3.11 行长公式 + testcase §2 packet_count 表）标 pending-suite：P5 先跑后钉复核包数与 tcp.payload 行 hex（本文件未跑 suite，不冒充实测）。"
+      ]
     }
   },
   {
@@ -1361,22 +1471,24 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
+          "ethmining": {
+            "wire_fault": "json",
+            "sessions": []
+          }
         }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "wire_fault": "json",
-        "sessions": []
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -1390,22 +1502,24 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
+          "ethmining": {
+            "wire_fault": "framing",
+            "sessions": []
+          }
         }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "wire_fault": "framing",
-        "sessions": []
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -1419,22 +1533,24 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
+          "ethmining": {
+            "wire_fault": "method",
+            "sessions": []
+          }
         }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "wire_fault": "method",
-        "sessions": []
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -1448,22 +1564,24 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
+          "ethmining": {
+            "wire_fault": "params",
+            "sessions": []
+          }
         }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "wire_fault": "params",
-        "sessions": []
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -1477,22 +1595,24 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
+          "ethmining": {
+            "wire_fault": "hex",
+            "sessions": []
+          }
         }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "wire_fault": "hex",
-        "sessions": []
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -1506,22 +1626,24 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
+          "ethmining": {
+            "wire_fault": "state",
+            "sessions": []
+          }
         }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "wire_fault": "state",
-        "sessions": []
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -1535,22 +1657,24 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
+          "ethmining": {
+            "wire_fault": "id",
+            "sessions": []
+          }
         }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "wire_fault": "id",
-        "sessions": []
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -1564,22 +1688,24 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
         {
-          "ethmining": {}
+          "ethmining": {
+            "wire_fault": "job",
+            "sessions": []
+          }
         }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "wire_fault": "job",
-        "sessions": []
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -1589,21 +1715,28 @@
   {
     "id": "ethmining_neg_carrier",
     "proto": "ethmining",
-    "summary": "Negative: carrier mismatch (missing tcp / UDP / port mismatch), rejected",
+    "summary": "§7 行 31 载体错（wire_fault 注入通道）：合法 [ip,tcp,ethmining] 链 + carrier 注入",
     "spec_json": {
       "layers": [
         {
-          "ethmining": {}
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 4073,
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {
+            "wire_fault": "carrier",
+            "sessions": []
+          }
         }
-      ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "wire_fault": "carrier",
-        "sessions": []
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -1617,7 +1750,45 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
           "tcp": {
+            "src_port": 4073,
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {
+            "wire_fault": "propagation",
+            "sessions": []
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "propagat"
+    }
+  },
+  {
+    "id": "ethmining_neg_presence",
+    "proto": "ethmining",
+    "summary": "M5① 判死形状（非残留）：层链 + 顶层空 ethmining 子映射并存即拒（CheckProtoFlat presence 分支，空 map 也死）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 4073,
             "dst_port": 4444
           }
         },
@@ -1625,18 +1796,118 @@
           "ethmining": {}
         }
       ],
-      "src_ip": "192.0.2.73",
-      "dst_ip": "198.51.100.73",
-      "src_port": 4073,
-      "dst_port": 4444,
-      "ethmining": {
-        "wire_fault": "propagation",
-        "sessions": []
-      }
+      "ethmining": {}
     },
     "expect": {
       "expect_error": true,
-      "error_contains": "propagat"
+      "error_contains": "no longer accepts a top-level ethmining"
+    }
+  },
+  {
+    "id": "ethmining_neg_stray_src_ip",
+    "proto": "ethmining",
+    "summary": "M5② 白名单外游离顶层键判死：layers + 顶层 src_ip（层链是唯一配置真相）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 4073,
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.99"
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "no longer accepts flat config field src_ip"
+    }
+  },
+  {
+    "id": "ethmining_neg_carrier_udp",
+    "proto": "ethmining",
+    "summary": "M5③ 载体拒绝（真链形）：UDP 载体判拒（tcp-only 族，BuildLayersPlanner 预检）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 4073,
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "carrier"
+    }
+  },
+  {
+    "id": "ethmining_neg_carrier_missing_tcp",
+    "proto": "ethmining",
+    "summary": "M5③ 载体拒绝（真链形）：缺 tcp 载体判拒（DependsOn 补全前拦，锚词 carrier）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "198.51.100.73"
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "carrier"
+    }
+  },
+  {
+    "id": "ethmining_neg_carrier_mixed_family",
+    "proto": "ethmining",
+    "summary": "M5③ 载体拒绝（真链形）：ip 层 src/dst 混合地址族判拒（设计 §7 行 31 候选集；锚词 version 走通用 same-version 门，task-time）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.73",
+            "dst": "2001:db8::73"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 4073,
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "version"
     }
   }
 ]
