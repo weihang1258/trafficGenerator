@@ -5776,8 +5776,11 @@ def check_hds(cases):
                  all(k in gfields for k in ("profile", "keep_alive", "manifest", "sessions", "wire_fault")),
                  "在案"))
     vt = (tg / "tools" / "pipe_gate.sh").read_text()
-    rows.append(("pipe_gate hds 自键 presence 红线登记",
-                 "|hds|" in vt or "|hds)" in vt, "在案"))
+    rows.append(("pipe_gate hds 登记（http-family 臂首匹配覆盖；注释点名 D-HDS-1）",
+                 "http|http_flv|hls|hds|gbt|getwork|doh|onvif)" in vt
+                 and "D-HDS-1（G-HDS-1）" in vt, "在案"))
+    rows.append(("顶层 hds presence 判死（config 面唯一执法，负例锚逐字）",
+                 "no longer accepts a top-level hds sub-config" in sc, "在案"))
 
     # 2. 行为面（生成器/变换器/构建器关键件）。
     rows.append(("终结层事件流（每 session 一 body 事件 EmitMsg）",
