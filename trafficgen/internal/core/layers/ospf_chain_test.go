@@ -51,8 +51,9 @@ func TestOSPFChain_FlatPresenceRejected(t *testing.T) {
 	}
 }
 
-// 红②【D-OSPF-1 §14-P2】：白名单外游离键判死——顶层 src_ip/count 走
-// CheckProtoFlat 文案，src_mac/ttl 走 schema 层链形状门（层链唯一真相）。
+// 红②【D-OSPF-1 §14-P2】：白名单外游离键判死——顶层 src_ip/dst_ip/count
+// 走 CheckProtoFlat 文案（五键家族），src_mac 走 schema 层链形状门
+// （checkLayerFlatConflict，层链唯一真相）。
 func TestOSPFChain_StrayTopLevelKeys(t *testing.T) {
 	arr := []interface{}{
 		map[string]interface{}{"ip": map[string]interface{}{"src": "10.0.0.1", "dst": "224.0.0.5"}},
@@ -63,8 +64,8 @@ func TestOSPFChain_StrayTopLevelKeys(t *testing.T) {
 			t.Fatalf("CheckProtoFlat(ospf, {layers, %s}) = \"\", want flat-field rejection", k)
 		}
 	}
-	// 顶层 ttl（数值）与 layers 并存：CheckProtoFlat 五键不含 ttl（ttl 走
-	// 层/扁平二态，非判死键），此处只锁 MAC 类游离键由 schema 形状门拒。
+	// 顶层 src_mac 与 layers 并存：CheckProtoFlat 五键不含 MAC（MAC 判死住
+	// schema.checkLayerFlatConflict），此处锁 schema 形状门逐字锚。
 	if _, errs := schema.ValidateStrategy("synth", "ospf", map[string]any{
 		"layers": arr, "src_mac": "aa:bb:cc:dd:ee:01",
 	}, nil); len(errs) == 0 {
