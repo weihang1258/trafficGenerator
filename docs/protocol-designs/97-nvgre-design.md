@@ -59,9 +59,9 @@
 
 | 协议 | registry Fields（`registry.go`） | FieldContract | DependsOn | cases 形状（机读） |
 |---|---|---|---|---|
-| vxlan | **`{}` 空** | `{"udp.dst_port":"4789"}` | `["udp"]` | **扁平过渡态**：42 处顶层旧键（**非负例口径**）+ 14 处顶层 `vxlan` 子映射 |
-| geneve | **`{}` 空** | `{"udp.dst_port":"6081"}` | `["udp"]` | **扁平过渡态**：42 处顶层旧键（**非负例口径**）+ 14 处顶层 `geneve` 子映射 |
-| **nvgre** | **`{}` 空** | **无** | **`["ip"]`** | **扁平过渡态**：56 处顶层旧键（**非负例口径**）+ 14 处顶层 `nvgre` 子映射 |
+| vxlan | **`{}` 空** | `{"udp.dst_port":"4789"}` | `["udp"]` | **扁平过渡态**：**70 处顶层旧键**（非负例口径）= 扁平标量 56（`src_ip`/`dst_ip`/`src_port`/`dst_port` 各 14）+ 顶层 `vxlan` 子映射 14 |
+| geneve | **`{}` 空** | `{"udp.dst_port":"6081"}` | `["udp"]` | **扁平过渡态**：**70 处顶层旧键**（非负例口径）= 扁平标量 56（`src_ip`/`dst_ip`/`src_port`/`dst_port` 各 14）+ 顶层 `geneve` 子映射 14 |
+| **nvgre** | **`{}` 空** | **无** | **`["ip"]`** | **扁平过渡态**：**56 处顶层旧键**（非负例口径）= 扁平标量 42（`src_ip`/`dst_ip`/`count` 各 14）+ 顶层 `nvgre` 子映射 14 |
 | icmp（真范本） | `{code,data,identifier,pattern,sequence,type}` | `{"ip.protocol":"1"}` | `["ip"]` | **纯层链**：`[ip,icmp]` ×8，顶层仅 `layers`（1 例 presence 负例除外） |
 | moxa（P4 后范本） | `{sessions,stream}` | 无 | `["tcp"]` | **纯层链**：23 例（含 20 处 A′ 新增） |
 
@@ -459,11 +459,15 @@ nvgre 层**无自有状态**：无连接、无握手、无序号、无挥手；�
 
 | 口径 | 算法 | nvgre | vxlan | geneve |
 |---|---|---:|---:|---:|
-| **非负例口径（采用）** | 14 正例 × 4 键（`src_ip`/`dst_ip`/`count`/<proto>） | **56** | 42 | 42 |
-| 全例口径 | 20 例 × 4 键（含负例） | 80 | 60 | 60 |
+| **非负例口径（采用）** | 14 正例 × 本协议顶层业务键（nvgre 4 键 `src_ip`/`dst_ip`/`count`/`nvgre`；vxlan·geneve 5 键 `src_ip`/`dst_ip`/`src_port`/`dst_port`/<proto>） | **56** | 70 | 70 |
+| 全例口径 | 20 例 × 同上业务键（含负例） | 80 | 100 | 100 |
 | 门脚本口径 | 全例 × 8 键表（`src_ip`/`dst_ip`/`src_port`/`dst_port`/`count`/`src_mac`/`dst_mac`/`ttl`，**不含协议子映射**） | 60 | 80 | 80 |
 
-**本文档一律写 56（非负例口径）**。三种口径**指向同一事实**：20/20 全为扁平过渡态、`layers` 键 0、cases 本版未改、合规化属代码阶段。门脚本口径（60）可复现：`bash trafficgen/tools/pipe_gate.sh nvgre` 逐条列出。
+**键数差异的根因**：nvgre 是 raw-IP 无端口 → 业务键 4 个（`src_ip`/`dst_ip`/`count`/`nvgre`）；vxlan/geneve 是 UDP 载体、端口住顶层 → 业务键 5 个（`src_ip`/`dst_ip`/`src_port`/`dst_port`/`<proto>`，无 `count`）。故非负例口径 nvgre = 14×4 = **56**，vxlan/geneve = 14×5 = **70**。
+
+**本文档一律写 56（非负例口径，仅指 nvgre 自身）**。三种口径**指向同一事实**：20/20 全为扁平过渡态、`layers` 键 0、cases 本版未改、合规化属代码阶段。门脚本口径（nvgre 60）可复现：`bash trafficgen/tools/pipe_gate.sh nvgre` 逐条列出。
+
+**全部数字由脚本生成**（非手算）：`git show cf6e2f0:<proto>.json` → 非负例集合 × 业务键（排除白名单）逐键计数。
 
 目标形状样例见 §2（**今天跑不通**，CORE_MEMORY §1.9 口径）。
 
