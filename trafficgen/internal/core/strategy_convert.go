@@ -215,15 +215,22 @@ func StrategyModelToTask(taskModel *storage.TaskModel, strategy *storage.Strateg
 // ports). This prevents 4-tuple collisions that confuse Wireshark. See
 // worker.go processTask for the increment logic.
 // isL2OnlyProtocol reports whether the protocol is an L2-only terminal layer
-// (goose/sv: DependsOn eth, no ip/tcp/udp 承载层). These ride directly on eth
-// with no L3/L4, so mapToFlowSpec must not fill the default src_ip/dst_ip/
-// src_port/dst_port (10.0.0.1/20.0.0.1/12345/80) — those are fake values on a
-// chain without an IP layer and get rejected by the terminal layer's "L2 only"
-// validator. goose/sv are L2-only by nature; any chain that adds an ip/tcp
+// (goose/sv/arp/isis: DependsOn eth, no ip/tcp/udp 承载层). These ride directly
+// on eth with no L3/L4, so mapToFlowSpec must not fill the default src_ip/
+// dst_ip/src_port/dst_port (10.0.0.1/20.0.0.1/12345/80) — those are fake values
+// on a chain without an IP layer and get rejected by the terminal layer's "L2
+// only" validator. goose/sv are L2-only by nature; any chain that adds an ip/tcp
 // layer is itself invalid and left to the validator to reject.
+//
+// D-ISIS-1：isis 同列（L2-only 族第 5 协议，arp 先例 1f61887）。isis 生成器
+// 不读 spec.SrcIP/DstIP/SrcPort/DstPort（layer_gen.go 只用 req.Meta.SrcMAC 与
+// 协议配置），故假值此前不落线——但 spec 面留着 10.0.0.1/20.0.0.1/12345/80
+// 与 L2-only 声明矛盾（flowID 也据此拼装），且多流时 worker 会按
+// DefaultSrcPort+i 递增假端口。同列后 spec 面诚实（空 IP/0 端口），
+// HasExplicitSrcPort 恒真使 worker 跳过递增。
 func isL2OnlyProtocol(protocol string) bool {
 	switch protocol {
-	case "goose", "sv", "arp":
+	case "goose", "sv", "arp", "isis":
 		return true
 	}
 	return false
@@ -555,6 +562,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	// （amqp 同款；在库 0 行纯防御——新协议无存量迁移面）。
 	if protocol == "mms" {
 		if v, ok := cfg["mms"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
+	// D-ISIS-1（G-ISIS-1）：isis 在库旧策略顶层 isis → ValidationErrors
+	// （igmp 同款；空 map 也死——判死形状「层链+顶层空子映射并存」wired 面，
+	// 25 例存量正是此形）。
+	if protocol == "isis" {
+		if v, ok := cfg["isis"]; ok && v != nil {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
@@ -8889,6 +8904,11 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 		"xmpp": "[ip,xmpp]", "sctp": "[ip,sctp]",
 		"jt808": "[ip,jt808]", "jt809": "[ip,jt809]", "jtt905": "[ip,jtt905]",
 		"arp": "[eth,arp]", "icmp": "[ip,icmp]",
+		// D-ISIS-1（G-ISIS-1）：isis 是 L2-only 终结层（[eth,isis]），顶层
+		// isis 子映射在 mapToFlowSpec 的 flat case 先于 translateTerminalConfig
+		// 填 spec.ISIS——层链形状下顶层子映射会静默赢层配置（隔离复审 F1
+		// 探针同构），必须在此判死（空 map 也死）。层链形状不触发。
+		"isis": "[eth,isis]",
 	}
 	if chainHint, ok := rawWrapChains[protocol]; ok {
 		if v, ok := cfg[protocol]; ok && v != nil {

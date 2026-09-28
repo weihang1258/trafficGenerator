@@ -1734,7 +1734,81 @@
       "depends_on": [
         "eth"
       ],
-      "fields": {}
+      "fields": {
+        "address_profile": {
+          "type": "string"
+        },
+        "area_addresses": {
+          "type": "list"
+        },
+        "checksum": {
+          "type": "int",
+          "max": 65535
+        },
+        "checksum_mode": {
+          "type": "string"
+        },
+        "circuit_type": {
+          "type": "int",
+          "max": 3
+        },
+        "end_lsp_id": {
+          "type": "string"
+        },
+        "events": {
+          "type": "list"
+        },
+        "holding_timer": {
+          "type": "int",
+          "max": 65535
+        },
+        "lan_id": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        },
+        "llc": {
+          "type": "object"
+        },
+        "lsp_id": {
+          "type": "string"
+        },
+        "partition": {
+          "type": "int",
+          "max": 1
+        },
+        "pdu_type": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "int",
+          "max": 255
+        },
+        "remaining_lifetime": {
+          "type": "int",
+          "max": 65535
+        },
+        "sequence": {
+          "type": "int",
+          "max": 4294967295
+        },
+        "start_lsp_id": {
+          "type": "string"
+        },
+        "system_id": {
+          "type": "string"
+        },
+        "tlvs": {
+          "type": "list"
+        },
+        "wire_fault": {
+          "type": "object"
+        },
+        "wire_profile": {
+          "type": "string"
+        }
+      }
     },
     "jt808": {
       "category": "terminal",

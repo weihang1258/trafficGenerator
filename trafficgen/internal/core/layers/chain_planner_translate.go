@@ -2922,6 +2922,37 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.CQL = &ccfg
+	case "isis":
+		// D-ISIS-1：层 config 经 JSON 往返解码为 core.ISISConfig（bgp
+		// :698-724 范式——completedConfig + DisallowUnknownFields 严格解码；
+		// V9 已在更早的 BuildLayersPlanner/ValidateLayers 白名单面拒一次，
+		// 此处是引擎直调路径的背 door）。tlvs/events/llc/wire_fault 嵌套
+		// 由 encoding/json 承接，无 srv6 式 []byte 陷阱。
+		// 层优先（cflow/enip 空壳例外同款）：本函数头部 :734 已把 nil 的
+		// spec.ISIS 填成空壳（非 nil 无信息），故判别式必须看内容——有内容
+		// 的 spec.ISIS = 预 resolve 的 flat/直调值，翻译跳过（flat 权威）；
+		// 空壳继续翻译。空层 config 翻译出空壳（非 nil）→ 生成器缺省化
+		// （level→l1 / pdu_type→lan_hello / wire_profile→iso10589_llc，
+		// layer_gen.go:112-119），缺 system_id 由 planner 锚 "system" 拒。
+		if spec.ISIS != nil && isisConfigHasContent(spec.ISIS) {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		cfgI := completedConfig(s, term.Config)
+		rawI, err := json.Marshal(cfgI)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("isis layer config encode: %v", err))
+			return
+		}
+		var icfg core.ISISConfig
+		decI := json.NewDecoder(bytes.NewReader(rawI))
+		decI.DisallowUnknownFields()
+		if err := decI.Decode(&icfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("isis layer config decode: %v", err))
+			return
+		}
+		spec.ISIS = &icfg
 	case "cflow":
 		// D-CFLOW-1：层条目 layers[].cflow 经 JSON 往返解码为
 		// core.CFlowConfig（enip 严格解码同款——未知键在翻译期拒）。
@@ -3294,6 +3325,21 @@ func translateTLSCert(p *ChainPlanner, spec *core.FlowSpec) {
 			}
 		}
 	}
+}
+
+// isisConfigHasContent reports whether an ISISConfig carries any user value
+// (D-ISIS-1 层优先判别式，cflow/enip 空壳例外同款)。translateTerminalConfig
+// 头部把 nil 的 spec.ISIS 填成空壳（非 nil 无信息），故"已存在即跳过"的
+// 旧判别式在链路径会恒真、层 config 永不生效——必须看内容。空壳 =
+// mapToFlowSpec 的防御性补建产物或 flat 路径未写顶层 isis 子映射时的零值。
+func isisConfigHasContent(c *core.ISISConfig) bool {
+	return c.WireProfile != "" || c.Level != "" || c.PDUType != "" ||
+		c.SystemID != "" || c.HoldingTimer != 0 || c.Priority != 0 ||
+		c.LANID != "" || len(c.TLVs) > 0 || c.LSPID != "" ||
+		c.RemainingLifetime != 0 || c.Sequence != 0 || c.Partition != 0 ||
+		c.CircuitType != 0 || c.ChecksumMode != "" || c.AddressProfile != "" ||
+		len(c.AreaAddresses) > 0 || c.StartLSPID != "" || c.EndLSPID != "" ||
+		len(c.Events) > 0 || c.Checksum != 0 || c.LLC != nil || c.WireFault != nil
 }
 
 // completedConfig overlays the user layer config onto the schema defaults
