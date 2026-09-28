@@ -2,7 +2,7 @@
   {
     "id": "hds_manifest_ipv4",
     "proto": "hds",
-    "summary": "HDS F4M manifest over IPv4 HTTP",
+    "summary": "HDS F4M manifest over IPv4 HTTP（D-HDS-1 迁层：业务住 layers[].hds） | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -21,47 +21,49 @@
           "http": {}
         },
         {
-          "hds": {}
-        }
-      ],
-      "hds": {
-        "profile": "hds_http1",
-        "keep_alive": true,
-        "manifest": {
-          "id": "channel-1",
-          "stream_type": "live",
-          "uri": "/live/channel.f4m",
-          "media": [
-            {
-              "stream_id": "main",
-              "href": "channel",
-              "bitrate": 800,
-              "bootstrap_info_id": "b0",
-              "fragments": [
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
                 {
-                  "segment": 1,
-                  "fragment": 1,
-                  "timestamp": 0,
-                  "duration": 2000,
-                  "body": "AAAA"
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
+                {
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
                 }
               ]
-            }
-          ],
-          "bootstrap_infos": [
-            {
-              "id": "b0",
-              "profile": "named",
-              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
-            }
-          ]
-        },
-        "sessions": [
-          {
-            "kind": "manifest",
-            "uri": "/live/channel.f4m"
+            },
+            "sessions": [
+              {
+                "kind": "manifest",
+                "uri": "/live/channel.f4m"
+              }
+            ]
           }
-        ]
+        }
+      ],
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -88,7 +90,7 @@
   {
     "id": "hds_bootstrap_abst",
     "proto": "hds",
-    "summary": "HDS bootstrap abst box via base64",
+    "summary": "HDS bootstrap abst box via base64 | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -107,47 +109,49 @@
           "http": {}
         },
         {
-          "hds": {}
-        }
-      ],
-      "hds": {
-        "profile": "hds_http1",
-        "keep_alive": true,
-        "manifest": {
-          "id": "channel-1",
-          "stream_type": "live",
-          "uri": "/live/channel.f4m",
-          "media": [
-            {
-              "stream_id": "main",
-              "href": "channel",
-              "bitrate": 800,
-              "bootstrap_info_id": "b0",
-              "fragments": [
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
                 {
-                  "segment": 1,
-                  "fragment": 1,
-                  "timestamp": 0,
-                  "duration": 2000,
-                  "body": "AAAA"
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
+                {
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
                 }
               ]
-            }
-          ],
-          "bootstrap_infos": [
-            {
-              "id": "b0",
-              "profile": "named",
-              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
-            }
-          ]
-        },
-        "sessions": [
-          {
-            "kind": "bootstrap",
-            "uri": "/live/channel.bootstrap"
+            },
+            "sessions": [
+              {
+                "kind": "bootstrap",
+                "uri": "/live/channel.bootstrap"
+              }
+            ]
           }
-        ]
+        }
+      ],
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -174,7 +178,7 @@
   {
     "id": "hds_asrt_segment_runs",
     "proto": "hds",
-    "summary": "HDS asrt segment run table",
+    "summary": "HDS asrt segment run table | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -193,54 +197,56 @@
           "http": {}
         },
         {
-          "hds": {}
-        }
-      ],
-      "hds": {
-        "profile": "hds_http1",
-        "keep_alive": true,
-        "manifest": {
-          "id": "channel-1",
-          "stream_type": "live",
-          "uri": "/live/channel.f4m",
-          "media": [
-            {
-              "stream_id": "main",
-              "href": "channel",
-              "bitrate": 800,
-              "bootstrap_info_id": "b0",
-              "fragments": [
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
                 {
-                  "segment": 1,
-                  "fragment": 1,
-                  "timestamp": 0,
-                  "duration": 2000,
-                  "body": "AAAA"
-                },
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    },
+                    {
+                      "segment": 1,
+                      "fragment": 2,
+                      "timestamp": 2000,
+                      "duration": 2000,
+                      "body": "BBBB"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
                 {
-                  "segment": 1,
-                  "fragment": 2,
-                  "timestamp": 2000,
-                  "duration": 2000,
-                  "body": "BBBB"
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
                 }
               ]
-            }
-          ],
-          "bootstrap_infos": [
-            {
-              "id": "b0",
-              "profile": "named",
-              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
-            }
-          ]
-        },
-        "sessions": [
-          {
-            "kind": "bootstrap",
-            "uri": "/live/channel.bootstrap"
+            },
+            "sessions": [
+              {
+                "kind": "bootstrap",
+                "uri": "/live/channel.bootstrap"
+              }
+            ]
           }
-        ]
+        }
+      ],
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -262,7 +268,7 @@
   {
     "id": "hds_afrt_fragment_runs",
     "proto": "hds",
-    "summary": "HDS afrt fragment run table",
+    "summary": "HDS afrt fragment run table | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -281,54 +287,56 @@
           "http": {}
         },
         {
-          "hds": {}
-        }
-      ],
-      "hds": {
-        "profile": "hds_http1",
-        "keep_alive": true,
-        "manifest": {
-          "id": "channel-1",
-          "stream_type": "live",
-          "uri": "/live/channel.f4m",
-          "media": [
-            {
-              "stream_id": "main",
-              "href": "channel",
-              "bitrate": 800,
-              "bootstrap_info_id": "b0",
-              "fragments": [
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
                 {
-                  "segment": 1,
-                  "fragment": 1,
-                  "timestamp": 0,
-                  "duration": 2000,
-                  "body": "AAAA"
-                },
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    },
+                    {
+                      "segment": 1,
+                      "fragment": 2,
+                      "timestamp": 2000,
+                      "duration": 2000,
+                      "body": "BBBB"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
                 {
-                  "segment": 1,
-                  "fragment": 2,
-                  "timestamp": 2000,
-                  "duration": 2000,
-                  "body": "BBBB"
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
                 }
               ]
-            }
-          ],
-          "bootstrap_infos": [
-            {
-              "id": "b0",
-              "profile": "named",
-              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
-            }
-          ]
-        },
-        "sessions": [
-          {
-            "kind": "bootstrap",
-            "uri": "/live/channel.bootstrap"
+            },
+            "sessions": [
+              {
+                "kind": "bootstrap",
+                "uri": "/live/channel.bootstrap"
+              }
+            ]
           }
-        ]
+        }
+      ],
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -350,7 +358,7 @@
   {
     "id": "hds_fragment_f4f",
     "proto": "hds",
-    "summary": "HDS F4F fragment box",
+    "summary": "HDS F4F fragment box | 离线 Plan 实钉（2026-09-28）：包 5 = 200 video/f4f（mdat 盒）；套件跑法待 P5 suite 复核（frames 补钉）",
     "spec_json": {
       "layers": [
         {
@@ -369,47 +377,49 @@
           "http": {}
         },
         {
-          "hds": {}
-        }
-      ],
-      "hds": {
-        "profile": "hds_http1",
-        "keep_alive": true,
-        "manifest": {
-          "id": "channel-1",
-          "stream_type": "live",
-          "uri": "/live/channel.f4m",
-          "media": [
-            {
-              "stream_id": "main",
-              "href": "channel",
-              "bitrate": 800,
-              "bootstrap_info_id": "b0",
-              "fragments": [
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
                 {
-                  "segment": 1,
-                  "fragment": 1,
-                  "timestamp": 0,
-                  "duration": 2000,
-                  "body": "AAAA"
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
+                {
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
                 }
               ]
-            }
-          ],
-          "bootstrap_infos": [
-            {
-              "id": "b0",
-              "profile": "named",
-              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
-            }
-          ]
-        },
-        "sessions": [
-          {
-            "kind": "fragment",
-            "uri": "/live/channel/Seg1-Frag1"
+            },
+            "sessions": [
+              {
+                "kind": "fragment",
+                "uri": "/live/channel/Seg1-Frag1"
+              }
+            ]
           }
-        ]
+        }
+      ],
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -429,6 +439,11 @@
           "packet": 5,
           "field": "http.response.code",
           "value": "200"
+        },
+        {
+          "packet": 5,
+          "field": "http.content_type",
+          "value": "video/f4f"
         }
       ]
     }
@@ -436,7 +451,7 @@
   {
     "id": "hds_manifest_bootstrap_fragment",
     "proto": "hds",
-    "summary": "HDS full state machine: manifest → bootstrap → fragment",
+    "summary": "HDS full state machine: manifest → bootstrap → fragment | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -455,55 +470,57 @@
           "http": {}
         },
         {
-          "hds": {}
-        }
-      ],
-      "hds": {
-        "profile": "hds_http1",
-        "keep_alive": true,
-        "manifest": {
-          "id": "channel-1",
-          "stream_type": "live",
-          "uri": "/live/channel.f4m",
-          "media": [
-            {
-              "stream_id": "main",
-              "href": "channel",
-              "bitrate": 800,
-              "bootstrap_info_id": "b0",
-              "fragments": [
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
                 {
-                  "segment": 1,
-                  "fragment": 1,
-                  "timestamp": 0,
-                  "duration": 2000,
-                  "body": "AAAA"
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
+                {
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
                 }
               ]
-            }
-          ],
-          "bootstrap_infos": [
-            {
-              "id": "b0",
-              "profile": "named",
-              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
-            }
-          ]
-        },
-        "sessions": [
-          {
-            "kind": "manifest",
-            "uri": "/live/channel.f4m"
-          },
-          {
-            "kind": "bootstrap",
-            "uri": "/live/channel.bootstrap"
-          },
-          {
-            "kind": "fragment",
-            "uri": "/live/channel/Seg1-Frag1"
+            },
+            "sessions": [
+              {
+                "kind": "manifest",
+                "uri": "/live/channel.f4m"
+              },
+              {
+                "kind": "bootstrap",
+                "uri": "/live/channel.bootstrap"
+              },
+              {
+                "kind": "fragment",
+                "uri": "/live/channel/Seg1-Frag1"
+              }
+            ]
           }
-        ]
+        }
+      ],
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -535,7 +552,7 @@
   {
     "id": "hds_keepalive_fragments",
     "proto": "hds",
-    "summary": "HDS keep-alive multi-fragment",
+    "summary": "HDS keep-alive multi-fragment | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -554,58 +571,60 @@
           "http": {}
         },
         {
-          "hds": {}
-        }
-      ],
-      "hds": {
-        "profile": "hds_http1",
-        "keep_alive": true,
-        "manifest": {
-          "id": "channel-1",
-          "stream_type": "live",
-          "uri": "/live/channel.f4m",
-          "media": [
-            {
-              "stream_id": "main",
-              "href": "channel",
-              "bitrate": 800,
-              "bootstrap_info_id": "b0",
-              "fragments": [
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
                 {
-                  "segment": 1,
-                  "fragment": 1,
-                  "timestamp": 0,
-                  "duration": 2000,
-                  "body": "AAAA"
-                },
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    },
+                    {
+                      "segment": 1,
+                      "fragment": 2,
+                      "timestamp": 2000,
+                      "duration": 2000,
+                      "body": "BBBB"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
                 {
-                  "segment": 1,
-                  "fragment": 2,
-                  "timestamp": 2000,
-                  "duration": 2000,
-                  "body": "BBBB"
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
                 }
               ]
-            }
-          ],
-          "bootstrap_infos": [
-            {
-              "id": "b0",
-              "profile": "named",
-              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
-            }
-          ]
-        },
-        "sessions": [
-          {
-            "kind": "fragment",
-            "uri": "/live/channel/Seg1-Frag1"
-          },
-          {
-            "kind": "fragment",
-            "uri": "/live/channel/Seg1-Frag2"
+            },
+            "sessions": [
+              {
+                "kind": "fragment",
+                "uri": "/live/channel/Seg1-Frag1"
+              },
+              {
+                "kind": "fragment",
+                "uri": "/live/channel/Seg1-Frag2"
+              }
+            ]
           }
-        ]
+        }
+      ],
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -637,7 +656,7 @@
   {
     "id": "hds_multi_session",
     "proto": "hds",
-    "summary": "HDS two isolated sessions",
+    "summary": "HDS two isolated sessions | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -656,51 +675,53 @@
           "http": {}
         },
         {
-          "hds": {}
-        }
-      ],
-      "hds": {
-        "profile": "hds_http1",
-        "keep_alive": true,
-        "manifest": {
-          "id": "channel-1",
-          "stream_type": "live",
-          "uri": "/live/channel.f4m",
-          "media": [
-            {
-              "stream_id": "main",
-              "href": "channel",
-              "bitrate": 800,
-              "bootstrap_info_id": "b0",
-              "fragments": [
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
                 {
-                  "segment": 1,
-                  "fragment": 1,
-                  "timestamp": 0,
-                  "duration": 2000,
-                  "body": "AAAA"
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
+                {
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
                 }
               ]
-            }
-          ],
-          "bootstrap_infos": [
-            {
-              "id": "b0",
-              "profile": "named",
-              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
-            }
-          ]
-        },
-        "sessions": [
-          {
-            "kind": "manifest",
-            "uri": "/live/session_a.f4m"
-          },
-          {
-            "kind": "manifest",
-            "uri": "/live/session_b.f4m"
+            },
+            "sessions": [
+              {
+                "kind": "manifest",
+                "uri": "/live/session_a.f4m"
+              },
+              {
+                "kind": "manifest",
+                "uri": "/live/session_b.f4m"
+              }
+            ]
           }
-        ]
+        }
+      ],
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -732,7 +753,7 @@
   {
     "id": "hds_ipv6",
     "proto": "hds",
-    "summary": "HDS manifest over IPv6 HTTP",
+    "summary": "HDS manifest over IPv6 HTTP | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -751,47 +772,49 @@
           "http": {}
         },
         {
-          "hds": {}
-        }
-      ],
-      "hds": {
-        "profile": "hds_http1",
-        "keep_alive": true,
-        "manifest": {
-          "id": "channel-1",
-          "stream_type": "live",
-          "uri": "/live/channel.f4m",
-          "media": [
-            {
-              "stream_id": "main",
-              "href": "channel",
-              "bitrate": 800,
-              "bootstrap_info_id": "b0",
-              "fragments": [
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
                 {
-                  "segment": 1,
-                  "fragment": 1,
-                  "timestamp": 0,
-                  "duration": 2000,
-                  "body": "AAAA"
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
+                {
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
                 }
               ]
-            }
-          ],
-          "bootstrap_infos": [
-            {
-              "id": "b0",
-              "profile": "named",
-              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
-            }
-          ]
-        },
-        "sessions": [
-          {
-            "kind": "manifest",
-            "uri": "/live/channel.f4m"
+            },
+            "sessions": [
+              {
+                "kind": "manifest",
+                "uri": "/live/channel.f4m"
+              }
+            ]
           }
-        ]
+        }
+      ],
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -813,7 +836,7 @@
   {
     "id": "hds_mss_reassembly",
     "proto": "hds",
-    "summary": "HDS with MSS segmentation",
+    "summary": "HDS with MSS segmentation | 包号/包数已按真机 pcap 实钉（2026-09-28：/tmp/mcp-pcaps/hds/hds_mss_reassembly.pcap，packet 6 http.response.code=200；MSS 例包数 10≥min 8）；其余断言沿设计 §8",
     "spec_json": {
       "layers": [
         {
@@ -833,47 +856,49 @@
           "http": {}
         },
         {
-          "hds": {}
-        }
-      ],
-      "hds": {
-        "profile": "hds_http1",
-        "keep_alive": true,
-        "manifest": {
-          "id": "channel-1",
-          "stream_type": "live",
-          "uri": "/live/channel.f4m",
-          "media": [
-            {
-              "stream_id": "main",
-              "href": "channel",
-              "bitrate": 800,
-              "bootstrap_info_id": "b0",
-              "fragments": [
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
                 {
-                  "segment": 1,
-                  "fragment": 1,
-                  "timestamp": 0,
-                  "duration": 2000,
-                  "body": "AAAA"
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
+                {
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
                 }
               ]
-            }
-          ],
-          "bootstrap_infos": [
-            {
-              "id": "b0",
-              "profile": "named",
-              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
-            }
-          ]
-        },
-        "sessions": [
-          {
-            "kind": "manifest",
-            "uri": "/live/channel.f4m"
+            },
+            "sessions": [
+              {
+                "kind": "manifest",
+                "uri": "/live/channel.f4m"
+              }
+            ]
           }
-        ]
+        }
+      ],
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -895,7 +920,7 @@
   {
     "id": "hds_live_update",
     "proto": "hds",
-    "summary": "HDS live bootstrap update",
+    "summary": "HDS live bootstrap update | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -914,51 +939,53 @@
           "http": {}
         },
         {
-          "hds": {}
-        }
-      ],
-      "hds": {
-        "profile": "hds_http1",
-        "keep_alive": true,
-        "manifest": {
-          "id": "channel-1",
-          "stream_type": "live",
-          "uri": "/live/channel.f4m",
-          "media": [
-            {
-              "stream_id": "main",
-              "href": "channel",
-              "bitrate": 800,
-              "bootstrap_info_id": "b0",
-              "fragments": [
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
                 {
-                  "segment": 1,
-                  "fragment": 1,
-                  "timestamp": 0,
-                  "duration": 2000,
-                  "body": "AAAA"
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
+                {
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
                 }
               ]
-            }
-          ],
-          "bootstrap_infos": [
-            {
-              "id": "b0",
-              "profile": "named",
-              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
-            }
-          ]
-        },
-        "sessions": [
-          {
-            "kind": "bootstrap",
-            "uri": "/live/channel.bootstrap"
-          },
-          {
-            "kind": "bootstrap",
-            "uri": "/live/channel.bootstrap"
+            },
+            "sessions": [
+              {
+                "kind": "bootstrap",
+                "uri": "/live/channel.bootstrap"
+              },
+              {
+                "kind": "bootstrap",
+                "uri": "/live/channel.bootstrap"
+              }
+            ]
           }
-        ]
+        }
+      ],
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -990,7 +1017,7 @@
   {
     "id": "hds_vod_end",
     "proto": "hds",
-    "summary": "HDS VOD end of stream",
+    "summary": "HDS VOD end of stream | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -1009,47 +1036,49 @@
           "http": {}
         },
         {
-          "hds": {}
-        }
-      ],
-      "hds": {
-        "profile": "hds_http1",
-        "keep_alive": false,
-        "manifest": {
-          "id": "channel-1",
-          "stream_type": "recorded",
-          "uri": "/live/channel.f4m",
-          "media": [
-            {
-              "stream_id": "main",
-              "href": "channel",
-              "bitrate": 800,
-              "bootstrap_info_id": "b0",
-              "fragments": [
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": false,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "recorded",
+              "uri": "/live/channel.f4m",
+              "media": [
                 {
-                  "segment": 1,
-                  "fragment": 1,
-                  "timestamp": 0,
-                  "duration": 2000,
-                  "body": "AAAA"
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
+                {
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
                 }
               ]
-            }
-          ],
-          "bootstrap_infos": [
-            {
-              "id": "b0",
-              "profile": "named",
-              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
-            }
-          ]
-        },
-        "sessions": [
-          {
-            "kind": "manifest",
-            "uri": "/live/channel.f4m"
+            },
+            "sessions": [
+              {
+                "kind": "manifest",
+                "uri": "/live/channel.f4m"
+              }
+            ]
           }
-        ]
+        }
+      ],
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -1071,7 +1100,7 @@
   {
     "id": "hds_boundary_box",
     "proto": "hds",
-    "summary": "HDS boundary box sizes",
+    "summary": "HDS boundary box sizes | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
     "spec_json": {
       "layers": [
         {
@@ -1090,47 +1119,49 @@
           "http": {}
         },
         {
-          "hds": {}
-        }
-      ],
-      "hds": {
-        "profile": "hds_http1",
-        "keep_alive": true,
-        "manifest": {
-          "id": "channel-1",
-          "stream_type": "live",
-          "uri": "/live/channel.f4m",
-          "media": [
-            {
-              "stream_id": "main",
-              "href": "channel",
-              "bitrate": 800,
-              "bootstrap_info_id": "b0",
-              "fragments": [
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
                 {
-                  "segment": 1,
-                  "fragment": 1,
-                  "timestamp": 0,
-                  "duration": 2000,
-                  "body": "X"
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "X"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
+                {
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
                 }
               ]
-            }
-          ],
-          "bootstrap_infos": [
-            {
-              "id": "b0",
-              "profile": "named",
-              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
-            }
-          ]
-        },
-        "sessions": [
-          {
-            "kind": "fragment",
-            "uri": "/live/channel/Seg1-Frag1"
+            },
+            "sessions": [
+              {
+                "kind": "fragment",
+                "uri": "/live/channel/Seg1-Frag1"
+              }
+            ]
           }
-        ]
+        }
+      ],
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -1145,6 +1176,190 @@
           "packet": 5,
           "field": "http.response.code",
           "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hds_bootstrap_generated",
+    "proto": "hds",
+    "summary": "HDS generated bootstrap box (no inline base64 → abst/asrt/afrt build path) | 离线 Plan 实钉（2026-09-28）：包 4 = GET /live/channel.bootstrap，包 5 = 200 application/octet-stream + abst 盒头 0000006f 61627374（111B payload，Content-Length 111）；套件跑法待 P5 suite 复核（帧级 frames 补钉）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.47",
+            "dst": "198.51.100.47"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 41021,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
+                {
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    }
+                  ]
+                }
+              ]
+            },
+            "sessions": [
+              {
+                "kind": "bootstrap",
+                "uri": "/live/channel.bootstrap"
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/channel.bootstrap"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        },
+        {
+          "packet": 5,
+          "field": "http.content_type",
+          "value": "application/octet-stream"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hds_non_default_port",
+    "proto": "hds",
+    "summary": "HDS manifest over explicit non-default port 8080 (FieldContract override) | 离线 Plan 实钉（2026-09-28）：tcp.dst_port=8080 生效、包 4 = GET /live/channel.f4m，包 5 = 200 application/f4m+xml；套件跑法待 P5 suite 复核",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.47",
+            "dst": "198.51.100.47"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 41022,
+            "dst_port": 8080
+          }
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
+                {
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
+                {
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
+                }
+              ]
+            },
+            "sessions": [
+              {
+                "kind": "manifest",
+                "uri": "/live/channel.f4m"
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/channel.f4m"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "8080"
+        },
+        {
+          "packet": 5,
+          "field": "http.content_type",
+          "value": "application/f4m+xml"
         }
       ]
     }
@@ -1171,24 +1386,23 @@
           "http": {}
         },
         {
-          "hds": {}
-        }
-      ],
-      "hds": {
-        "profile": "hds_http1",
-        "keep_alive": true,
-        "manifest": {
-          "id": "",
-          "stream_type": "",
-          "media": []
-        },
-        "sessions": [
-          {
-            "kind": "manifest",
-            "uri": "/live/bad.f4m"
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "",
+              "stream_type": "",
+              "media": []
+            },
+            "sessions": [
+              {
+                "kind": "manifest",
+                "uri": "/live/bad.f4m"
+              }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -1217,29 +1431,161 @@
           "http": {}
         },
         {
-          "hds": {}
-        }
-      ],
-      "hds": {
-        "profile": "hds_http1",
-        "keep_alive": true,
-        "manifest": {
-          "id": "empty",
-          "stream_type": "live",
-          "uri": "/live/bad.f4m",
-          "media": []
-        },
-        "sessions": [
-          {
-            "kind": "bootstrap",
-            "uri": "/live/bad.bootstrap"
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "empty",
+              "stream_type": "live",
+              "uri": "/live/bad.f4m",
+              "media": []
+            },
+            "sessions": [
+              {
+                "kind": "bootstrap",
+                "uri": "/live/bad.bootstrap"
+              }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "bootstrap"
+    }
+  },
+  {
+    "id": "hds_neg_sessions_empty",
+    "proto": "hds",
+    "summary": "HDS negative: empty sessions list（设计 §10.2 P4 必含：sessions 空 pcap 例）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.47",
+            "dst": "198.51.100.47"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 41023,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
+                {
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
+                {
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
+                }
+              ]
+            },
+            "sessions": []
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "sessions"
+    }
+  },
+  {
+    "id": "hds_neg_bootstrap_base64",
+    "proto": "hds",
+    "summary": "HDS negative: invalid base64 bootstrap（设计 §4/§10.2 P4 必含：buildSessionBody 解码前 validateManifest 拦截）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.47",
+            "dst": "198.51.100.47"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 41024,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": [
+                {
+                  "stream_id": "main",
+                  "href": "channel",
+                  "bitrate": 800,
+                  "bootstrap_info_id": "b0",
+                  "fragments": [
+                    {
+                      "segment": 1,
+                      "fragment": 1,
+                      "timestamp": 0,
+                      "duration": 2000,
+                      "body": "AAAA"
+                    }
+                  ]
+                }
+              ],
+              "bootstrap_infos": [
+                {
+                  "id": "b0",
+                  "profile": "named",
+                  "base64": "!!!not-base64!!!"
+                }
+              ]
+            },
+            "sessions": [
+              {
+                "kind": "manifest",
+                "uri": "/live/bad.f4m"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "bootstrap base64 decode"
     }
   },
   {
@@ -1264,32 +1610,31 @@
           "http": {}
         },
         {
-          "hds": {}
-        }
-      ],
-      "hds": {
-        "profile": "hds_http1",
-        "keep_alive": true,
-        "manifest": {
-          "id": "empty",
-          "stream_type": "live",
-          "uri": "/live/bad.f4m",
-          "media": [
-            {
-              "stream_id": "x",
-              "href": "bad",
-              "bitrate": 100,
-              "bootstrap_info_id": "b0"
-            }
-          ]
-        },
-        "sessions": [
-          {
-            "kind": "fragment",
-            "uri": "/live/bad/Seg1-Frag1"
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "empty",
+              "stream_type": "live",
+              "uri": "/live/bad.f4m",
+              "media": [
+                {
+                  "stream_id": "x",
+                  "href": "bad",
+                  "bitrate": 100,
+                  "bootstrap_info_id": "b0"
+                }
+              ]
+            },
+            "sessions": [
+              {
+                "kind": "fragment",
+                "uri": "/live/bad/Seg1-Frag1"
+              }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -1318,29 +1663,170 @@
           "http": {}
         },
         {
-          "hds": {}
-        }
-      ],
-      "hds": {
-        "profile": "hds_http1",
-        "keep_alive": true,
-        "manifest": {
-          "id": "channel-1",
-          "stream_type": "live",
-          "uri": "/live/channel.f4m",
-          "media": []
-        },
-        "sessions": [
-          {
-            "kind": "unknown",
-            "uri": "/live/bad.f4m"
+          "hds": {
+            "profile": "hds_http1",
+            "keep_alive": true,
+            "manifest": {
+              "id": "channel-1",
+              "stream_type": "live",
+              "uri": "/live/channel.f4m",
+              "media": []
+            },
+            "sessions": [
+              {
+                "kind": "unknown",
+                "uri": "/live/bad.f4m"
+              }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "unknown"
+    }
+  },
+  {
+    "id": "hds_neg_presence_top_level_hds",
+    "proto": "hds",
+    "summary": "P2判死: layers + top-level hds sub-config coexist（M5①，空 map 也死；锚词实测由 create 路径 CheckProtoFlat + task 路径 mapToFlowSpec 存量块双路供给）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.47",
+            "dst": "198.51.100.47"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 41017,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {}
+        }
+      ],
+      "hds": {}
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "no longer accepts a top-level hds sub-config"
+    }
+  },
+  {
+    "id": "hds_neg_stray_src_mac",
+    "proto": "hds",
+    "summary": "P2判死: top-level src_mac alongside layers（M5②，1.11 白名单；create 路径锚词命中，task 路径被自然守卫 manifest-nil 遮蔽——两路均为拒，非假绿）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.47",
+            "dst": "198.51.100.47"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 41018,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {
+            "profile": "hds_http1",
+            "sessions": [
+              {
+                "kind": "manifest",
+                "uri": "/live/channel.f4m"
+              }
+            ]
+          }
+        }
+      ],
+      "src_mac": "02:00:00:00:00:47"
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "src_mac"
+    }
+  },
+  {
+    "id": "hds_neg_flat_count",
+    "proto": "hds",
+    "summary": "P2判死: top-level flat count alongside layers（create 路径锚词命中，task 路径另报 manifest-nil 自然守卫——两路均为拒）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.47",
+            "dst": "198.51.100.47"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 41019,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {
+            "profile": "hds_http1",
+            "sessions": [
+              {
+                "kind": "manifest",
+                "uri": "/live/channel.f4m"
+              }
+            ]
+          }
+        }
+      ],
+      "count": 5
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "no longer accepts flat config field count"
+    }
+  },
+  {
+    "id": "hds_neg_carrier_no_http",
+    "proto": "hds",
+    "summary": "P2判死: [tcp,hds] direct chain (missing http carrier)（M5③）",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "src_port": 41020,
+            "dst_port": 80
+          }
+        },
+        {
+          "hds": {
+            "profile": "hds_http1",
+            "sessions": [
+              {
+                "kind": "manifest",
+                "uri": "/live/channel.f4m"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "requires the http carrier layer"
     }
   }
 ]

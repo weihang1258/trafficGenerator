@@ -593,10 +593,18 @@ func buildDefaultRegistry() {
 		},
 		FieldContract: map[string]string{"tcp.dst_port": "80"},
 	})
+	// D-HDS-1（G-HDS-1）：配置迁 hds 层（顶层 "hds" 子映射 presence 判死，
+	// CheckProtoFlat 同款文案）。业务键=HDSConfig 顶层同名（profile/
+	// keep_alive/manifest/sessions，wire_fault 负例注入口未消费 G-HDS-2）；
+	// V9 只验顶层键存在，嵌套值语义归 translate JSON 往返 + validator
+	// （cwmp 同款）；80 端口经 FieldContract 供通用应用补齐。
 	r.Register(LayerSchema{Name: "hds", Category: CategoryTerminal,
 		DependsOn: []string{"http"},
 		Fields: map[string]FieldSchema{
 			"profile":    {Type: "string", Default: "hds_http1"},
+			"keep_alive": {Type: "bool", Default: false},
+			"manifest":   {Type: "object"},
+			"sessions":   {Type: "list", Default: []interface{}{}},
 			"wire_fault": {Type: "string", Default: ""},
 		},
 		FieldContract: map[string]string{"tcp.dst_port": "80"},

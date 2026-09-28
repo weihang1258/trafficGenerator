@@ -122,6 +122,11 @@ PYEOF
     # D-STRATUM-1（G-ST-4）：stratum 配置迁层（顶层 stratum 交 CheckProtoFlat
     # 判死），presence 红线切自键（mms 先例；presence 负例豁免，其余顶层
     # stratum 共存即红）。
+    # D-HDS-1（G-HDS-1）：hds 配置迁层（顶层 hds 交 CheckProtoFlat 判死）。
+    # 红线键取 http——hds 属 http-family 组（上方 case 首臂，shell case 首匹配
+    # 即定，后臂不可达）；自键 hds presence 由该臂的 http 检查覆盖不到，故
+    # check_hds（coverage_gate）对「顶层 hds 子映射 + layers 并存」负例
+    # hds_neg_presence_top_level_hds 的 expect.error_contains 做逐字直读断言。
     dns|mqtt|smtp|pop3|imap|mcp|srv6|fins|goose|sv|icmpv6|h323|mpls|ngap|telnet|sip|radius|pppoe|ldap|rtmp|rtsp|pptp|vnc|xmpp|sctp|jt808|jt809|jtt905|arp|icmp|megaco|hl7|mmse|nfs|tftp|smb|enip|bgp|s7|cql|doip|dameng|gbt32960|cflow|igmp|rtmfp|drda|mms|isis|coap|stratum)
       _pres_key="$PROTO"
       ;;

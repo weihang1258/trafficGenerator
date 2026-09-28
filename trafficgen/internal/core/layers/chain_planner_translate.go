@@ -767,7 +767,31 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		}
 	}
 	if term.Name == "hds" && spec.HDS == nil {
-		spec.HDS = &core.HDSConfig{}
+		// D-HDS-1（G-HDS-1）：层 config 严格往返解码进 spec.HDS（bgp
+		// G-BGP-5 同款——completedConfig + DisallowUnknownFields）。旧代码
+		// 此处只置零值结构体，层内 profile/manifest/sessions 静默丢弃 →
+		// validator "hds: sessions is required"（迁层后配置唯一真相在层）。
+		// 层优先：spec.HDS 已存在（flat 顶层 hds/引擎直调）则不覆盖；空层
+		// {} 翻译出非 nil 零值 → validator 同步拒（sessions 必写，不豁免）。
+		cfgHDS := completedConfig(s, term.Config)
+		rawHDS, err := json.Marshal(cfgHDS)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("hds layer config encode: %v", err))
+		} else {
+			var hcfg core.HDSConfig
+			decHDS := json.NewDecoder(bytes.NewReader(rawHDS))
+			decHDS.DisallowUnknownFields()
+			if err := decHDS.Decode(&hcfg); err != nil {
+				// 解析失败（如 sessions 非数组 / manifest 类型错）必须报错
+				// 拒任务，绝不静默吞错回退零值（cwmp 同款；错误由
+				// ValidateSpec 的翻译期统一拦截转发，前缀 "hds layer config:"）。
+				spec.ValidationErrors = append(spec.ValidationErrors,
+					fmt.Sprintf("hds layer config decode: %v", err))
+			} else {
+				spec.HDS = &hcfg
+			}
+		}
 	}
 	if term.Name == "hds" && spec.HDS != nil {
 		for i, s := range spec.HDS.Sessions {

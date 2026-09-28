@@ -1207,9 +1207,20 @@
         "tcp.dst_port": "80"
       },
       "fields": {
+        "keep_alive": {
+          "type": "bool",
+          "default": false
+        },
+        "manifest": {
+          "type": "object"
+        },
         "profile": {
           "type": "string",
           "default": "hds_http1"
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
         },
         "wire_fault": {
           "type": "string",

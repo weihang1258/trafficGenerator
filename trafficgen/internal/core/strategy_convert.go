@@ -397,6 +397,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-HDS-1：hds 在库旧策略顶层 hds → ValidationErrors（cwmp 同款；
+	// 17 例顶层 hds 子映射已迁入 layers[].hds，自键 presence 判死）。
+	if protocol == "hds" {
+		if v, ok := cfg["hds"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-MEGACO-1：megaco 在库旧策略顶层 megaco → ValidationErrors（cwmp
 	// 同款；B6 注入形退役——在库实测 0 行无存量迁移面，纯防御）。
 	if protocol == "megaco" {
@@ -768,10 +775,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// hls 依赖 http 层，目的端口 80 默认由 http 层处理，不在此默认化。
 	case "hds":
+		// D-HDS-1（G-HDS-1）：顶层 hds 子映射已判死（CheckProtoFlat），配置
+		// 住 layers[].hds（translateTerminalConfig 严格解码进 spec.HDS）。
+		// 本支仅守 out-of-band 配置（引擎直调/存量行），层链形状下不可达。
+		// hds 依赖 http 层，目的端口 80 默认由 http 层处理，不在此默认化。
 		if sub, ok := cfg["hds"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*HDSConfig](&spec, sub, "hds", &spec.HDS)
 		}
-		// hds 依赖 http 层，目的端口 80 默认由 http 层处理，不在此默认化。
 	case "gbt":
 		if sub, ok := cfg["gbt"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*GBTConfig](&spec, sub, "gbt", &spec.GBT)
@@ -8630,6 +8640,14 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "amqp" {
 		if v, ok := cfg["amqp"]; ok && v != nil {
 			return "protocol amqp no longer accepts a top-level amqp sub-config (move it into the amqp layer of an [ip,tcp,amqp] layers chain; AMQP 0-9-1 config lives in the amqp layer)"
+		}
+	}
+	// D-HDS-1（G-HDS-1）：hds 顶层 hds 子映射 presence 判死（amqp 先例；空
+	// map 也死——B6 注入形退役，业务键 profile/keep_alive/manifest/sessions
+	// 迁 layers[].hds）。层链形状不触发；顶层 http 已由上方 http 族分支判死。
+	if protocol == "hds" {
+		if v, ok := cfg["hds"]; ok && v != nil {
+			return "protocol hds no longer accepts a top-level hds sub-config (move it into the hds layer of an [ip,tcp,http,hds] layers chain)"
 		}
 	}
 	// D-EDP-1：edp 顶层 edp 子映射 presence 判死（mmse 先例；空 map 也
