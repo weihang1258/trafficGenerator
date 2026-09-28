@@ -2872,6 +2872,38 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 				}
 			}
 		}
+	case "tns":
+		// D-TNS-1 G-TNS-1：层 config（events/sessions/checksum_mode/
+		// wire_fault）经 JSON 往返严格解码为 core.TNSConfig（bgp 范式——
+		// completedConfig + DisallowUnknownFields；payload_profile/reconnect
+		// 死字段（G-TNS-4/11）已从 struct 删除，残留键在此判死）。层优先：
+		// spec.TNS 已存在（引擎直调路径）则不覆盖；顶层 tns 子映射已由
+		// CheckProtoFlat 判死。
+		// 空层 {}（无任何业务键）**不翻译**：spec.TNS 保持 nil → 生成器
+		// P0b-2 缺省化产一条 DATA 事件（设计 §4.3 派生表 + testcase §3.11
+		// tns_session_null_default 8 包；bgp 空层=缺省事件流同款用户可见
+		// 行为）。反之显式写 events/sessions 等键即非空配置——零事件走
+		// validator 的 "at least one event" 守卫（§4.2 表体，两条语义靠
+		// nil/非 nil 区分，与 layer_gen.go:26-29 的 cfg==nil 判定一致）。
+		if spec.TNS != nil || len(term.Config) == 0 {
+			return
+		}
+		cfgT := completedConfig(s, term.Config)
+		rawT, err := json.Marshal(cfgT)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("tns layer config encode: %v", err))
+			return
+		}
+		var tcfg core.TNSConfig
+		decT := json.NewDecoder(bytes.NewReader(rawT))
+		decT.DisallowUnknownFields()
+		if err := decT.Decode(&tcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("tns layer config decode: %v", err))
+			return
+		}
+		spec.TNS = &tcfg
 	case "jt808":
 		// D-JT808-1：层 config 经 core.ParseJT808ConfigFromMap 复用扁平
 		// 解析单一真相（procedures 嵌套全 parse 承接；extra/param value

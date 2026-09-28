@@ -7310,6 +7310,184 @@ def check_drda(cases):
         rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
     return rows
 
+def check_tns(cases):
+    """D-TNS-1 P4 反查表（7 改写正 + 2 新负 + 判死/端口/状态机 = 16 例）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("tns"), dict):
+                lays.append((c.get("id", "?"), l["tns"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 准入与接线（G-TNS-1 层链化）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 tns", '"tns": true' in pg, "在列"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case tns（层 config→TNSConfig 严格解码）",
+                 'case "tns":' in tr and "tns layer config decode" in tr
+                 and "decT.DisallowUnknownFields()" in tr, "在案"))
+    rows.append(("FlowMeta.TNS 直传", re.search(r"TNS:\s+spec\.TNS\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.TNS 字段", re.search(r"TNS\s+\*core\.TNSConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    i_ty = ty.index("type TNSEvent struct {")
+    ty_block = ty[i_ty:ty.index("// TNSSession", i_ty)]
+    rows.append(("TNSConfig/TNSEvent 死字段已删（G-TNS-4 payload_profile / G-TNS-11 reconnect）",
+                 "PayloadProfile" not in ty_block
+                 and "Reconnect" not in ty[i_ty:ty.index("// MongoDBMessage", i_ty)], "零残留"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "tns"')
+    reg_block = rg[i_reg:rg.index('Name: "mongodb"', i_reg)]
+    rows.append(("registry tns 行（DependsOn tcp + FieldContract 1521 + 四键）",
+                 'DependsOn: []string{"tcp"}' in reg_block
+                 and '"tcp.dst_port": "1521"' in reg_block
+                 and all(k in reg_block for k in
+                         ['"events"', '"sessions"', '"checksum_mode"', '"wire_fault"'])
+                 and '"reconnect"' not in reg_block, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(tns)",
+                 "internal/protocol/tns" in mn and 'NewChainPlanner("tns")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("strategy_convert case tns 收敛（1521 缺省，不读顶层 tns）",
+                 'case "tns":' in sc and "setDefaultDstPort(&spec, cfg, 1521)" in sc
+                 and "parseSubconfigJSON[*TNSConfig]" not in sc, "在案"))
+    # M1（scoped 复评）：原两行判据是宽泛子串——presence 行只查文案出现
+    # （文案在整文件任何位置即真），mapToFlowSpec 行只查 `if protocol == "tns" {`
+    # （与 presence 分支共用）。实测 4 组变异（停用 CheckProtoFlat 分支留文案 /
+    # 删 mapToFlowSpec 执法块 / 生成表字段改名 / 删条目加诱饵）门仍 69/69 全绿。
+    # 改为断言**各块特有的体**：presence 块体是 `return "<文案>"`，
+    # mapToFlowSpec 块体是 `spec.ValidationErrors = append(...)`。
+    _presence_tns = ('if protocol == "tns" {\n'
+                     '\t\tif v, ok := cfg["tns"]; ok && v != nil {\n'
+                     '\t\t\treturn "protocol tns no longer accepts a top-level tns sub-config')
+    _mapfs_tns = ('if protocol == "tns" {\n'
+                  '\t\tif v, ok := cfg["tns"]; ok && v != nil {\n'
+                  '\t\t\tspec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))')
+    rows.append(("CheckProtoFlat presence 判死顶层 tns（G-TNS-5，判据=块体非裸文案）",
+                 _presence_tns in sc, "在案"))
+    rows.append(("mapToFlowSpec 顶层 tns → ValidationErrors（在库旧策略执法，判据=块体非裸子串）",
+                 _mapfs_tns in sc, "在案"))
+    gendump = json.loads((tg / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
+    entry = gendump["layers"].get("tns", {})
+    rows.append(("generated schema tns 条目（depends_on tcp + 1521 + 四键，与 registry 同代）",
+                 entry.get("depends_on") == ["tcp"]
+                 and (entry.get("field_contract") or {}).get("tcp.dst_port") == "1521"
+                 and len(entry.get("fields", {})) == 4, "在案"))
+
+    # 2. 行为面（builder/planner/生成器关键件）。
+    bl = (tg / "internal" / "protocol" / "tns" / "builder.go").read_text()
+    for prim, name in [
+        ("func buildHeader", "8 字节公共头（length/checksum/type/reserved）"),
+        ("func buildPacket", "事件→报文（DATA 加 2 字节 data_flags）"),
+        ("func buildDataPacket", "DATA 头 + flags + 负载"),
+        ("func eventType", "type 字符串/数值双形白名单"),
+        ("func validNumericType", "数值形仅 5 类型"),
+        ("func checkWireFault", "wire_fault 三 kind + 非法形"),
+        ("0x0136", "connect_common 固定测试值（不断言为 Oracle 版本事实）"),
+    ]:
+        rows.append((f"原语：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "tns" / "planner.go").read_text()
+    for guard, name in [
+        ("at least one event or session required", "空 events+sessions 拒"),
+        ("events and sessions are mutually exclusive", "events/sessions 互斥"),
+        ("unsupported checksum mode", "checksum_mode 白名单"),
+
+        ("first event must be client->server", "首事件方向门"),
+        ("data_flags must be 0", "非零 data_flags 拒"),
+        ("state violation", "G-TNS-8 状态机（跳步/终态）"),
+        ("unknown direction", "G-TNS-8 direction 枚举白名单"),
+        ("session %d: empty events", "会话空事件拒"),
+    ]:
+        rows.append((f"守卫：{name}", guard in pl, f"锚词 {guard}"))
+    rows.append(("守卫：type 白名单（validator 边界，锚词在 eventType）",
+                 "unknown packet type" in bl and "eventType(ev)" in pl, "在案"))
+    rows.append(("G-TNS-3：sessions 全量校验（不再是 Sessions[0] 单校验）",
+                 "validateEvents(s.Events)" in pl and "evs = cfg.Sessions[0].Events" not in pl, "在案"))
+    lg = (tg / "internal" / "protocol" / "tns" / "layer_gen.go").read_text()
+    rows.append(("生成器：逐事件 EmitMsg（Up + Bytes + 会话 SrcPort）+ 注册 generator/validator",
+                 "func (g *TNSGenerator) Generate" in lg
+                 and "RegisterLayerGenerator(\"tns\"" in lg
+                 and "RegisterLayerValidator(\"tns\"" in lg, "在案"))
+    blk = (tg / "internal" / "core" / "layers" / "tns_chain_test.go").read_text()
+    for tc, name in [
+        ("TestTNSChain_LayerToSpecPlan", "链级①层条目→spec 翻译出包（type/length 字节）"),
+        ("TestTNSChain_EmptyLayerDefaultFlow", "链级①b 空层 P0b-2 缺省 DATA 流"),
+        ("TestTNSChain_PresenceAndStrayTopLevelKeys", "链级②presence/游离键判死"),
+        ("TestTNSChain_UDPCarrierRejected", "链级③载体拒（carrier）"),
+        ("TestTNSChain_SessionsBeyondFirstValidated", "链级④sessions[1..n] 全量校验"),
+        ("TestTNSChain_StateMachineAndDirectionAnchors", "链级⑤状态机/direction 锚词"),
+        ("TestTNSChain_UnknownTypeBothForms", "链级⑤b type 字符串/数值双形同锚词"),
+        ("TestTNSChain_DeadFieldsRejected", "链级⑥payload_profile/reconnect 判死"),
+        ("TestTNSChain_CaseFileAudit", "链级⑦用例文件收官自查"),
+    ]:
+        rows.append((f"链级红测：{name}", tc in blk, "在案"))
+
+    # 3. 用例面（24 例 = 14 正 + 10 负；契约 26 ID 中 4 个 A′ 例（#10/#12/#16/#18）登记未落）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "tns_connect_accept", "tns_refuse", "tns_redirect", "tns_ttc_sqlnet_session",
+        "tns_ipv6_connect", "tns_multi_session", "tns_header_fields",
+        "tns_session_null_default",
+        "tns_neg_udp", "tns_neg_packet_type", "tns_neg_length", "tns_neg_checksum",
+        "tns_neg_data_flags", "tns_neg_state_skip", "tns_neg_server_type_in_c2s",
+        "tns_neg_bad_direction",
+        "tns_neg_presence_top_level_tns", "tns_neg_stray_src_mac",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    rows.append(("用例总数 24（14 正+10 负）", len(cases) == 24, f"{len(cases)} 例"))
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("14 正 + 10 负", len(pos) == 14 and len(neg) == 10, f"{len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("正例均带 packet_count/min_packets（多流/多会话例用 min_packets 聚合口径）",
+                 all((c.get("expect") or {}).get("packet_count") or (c.get("expect") or {}).get("min_packets") for c in pos),
+                 "全部在案"))
+    # tns_multi_session 豁免：聚合断言（distinct_values）跨两条独立连接，帧
+    # 偏移随会话握手包序变化（多会话整块回放，包位不固定），design §8.3 只钉
+    # 端口/类型聚合——不写 frames 是断言口径决定，非遗漏。
+    # frames 豁免面：①多会话聚合例（包位不固定）；②标 pending-suite 的
+    # 新增例（本阶段不跑 suite，帧字节待实测钉死——诚实豁免而非放水，
+    # P5 suite 后此豁免应收敛为 0）。
+    # frames 豁免面：①多会话聚合例（包位随会话握手序浮动，断言口径决定不写
+    # frames）；②P4 新增、待 suite 实测钉死帧字节的例。豁免名单由本门**显式
+    # 持有**——曾用 `"pending-suite" in c.summary` 判定，等于让被测产物自己
+    # 写一句话就免检（scoped 复评 m2：豁免面从 1 例扩到 7 例）。P5 跑完 suite
+    # 后此名单应收敛为 0。
+    frames_exempt = {"tns_multi_session", "tns_data_flags_zero", "tns_nonstd_port",
+                     "tns_body_constants", "tns_dyn_srcport", "tns_ipv4_baseline",
+                     "tns_refuse_session"}
+    missing_frames = [c.get("id") for c in pos
+                      if not (c.get("expect") or {}).get("frames") and c.get("id") not in frames_exempt]
+    rows.append(("正例均带 frames hex（豁免面由门显式持有）",
+                 not missing_frames, missing_frames or "全部在案"))
+    bad_keys = [c.get("id") for c in neg
+                if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}", not bad_keys, bad_keys or "全部合规"))
+    bad_anchor = [c.get("id") for c in neg if not (c.get("expect") or {}).get("error_contains")]
+    rows.append(("负例均带错误锚词", not bad_anchor, bad_anchor or "全部在案"))
+    bad_top = [c.get("id") for c in pos
+               if any(k not in ("layers", "flow_control", "output") for k in (c.get("spec_json") or {}))]
+    rows.append(("非负例顶层键=0（仅 layers/flow_control/output）", not bad_top, bad_top or "零残留"))
+    # 层键覆盖 + 死字段零残留。
+    for k in ["events", "sessions", "checksum_mode", "wire_fault"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((f"层键覆盖：{k}", hit is not None, hit or "无用例"))
+    spec_blob = json.dumps([c.get("spec_json") for c in cases], ensure_ascii=False)
+    rows.append(("payload_profile/reconnect 用例配置零残留（死字段删键）",
+                 "payload_profile" not in spec_blob and "reconnect" not in spec_blob, "零命中"))
+    # 锚词门：负例 error_contains 与代码锚词双向子串命中（drda 先例口径）。
+    sem = (tg / "internal" / "core" / "schema" / "semantic.go").read_text()
+    code_text = pl + sc + bl + lg + sem + (tg / "internal" / "core" / "layers" / "complete.go").read_text()
+    bad_a = [f"{c.get('id')}:{ec}" for c in neg
+             for ec in [(c.get("expect") or {}).get("error_contains", "")]
+             if ec not in code_text and not all(
+                 w in code_text for w in ec.split() if len(w.strip('",()[]:')) >= 3)]
+    rows.append(("10 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
+    return rows
+
 def check_spnego(cases):
     """D-SPNEGO-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -8950,7 +9128,7 @@ def check_moxa(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "hds": check_hds, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "isis": check_isis, "coap": check_coap, "stratum": check_stratum, "pim": check_pim, "ospf": check_ospf, "ethmining": check_ethmining, "moxa": check_moxa}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "hds": check_hds, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "isis": check_isis, "coap": check_coap, "stratum": check_stratum, "pim": check_pim, "ospf": check_ospf, "ethmining": check_ethmining, "moxa": check_moxa, "tns": check_tns}
 
 
 def main(argv):

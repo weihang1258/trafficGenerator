@@ -141,7 +141,7 @@ func TestBuildDataPacket(t *testing.T) {
 }
 
 func TestBuildPacketConnect(t *testing.T) {
-	ev := core.TNSEvent{Type: "CONNECT", PayloadProfile: "connect_basic"}
+	ev := core.TNSEvent{Type: "CONNECT"}
 	pkt, err := buildPacket(ev)
 	if err != nil {
 		t.Fatal(err)
@@ -158,14 +158,15 @@ func TestBuildPacketConnect(t *testing.T) {
 	if got := binary.BigEndian.Uint16(pkt[0:2]); got != 106 {
 		t.Fatalf("length=%d want 106", got)
 	}
-	// Body must not echo the ASCII profile name (design §3.1).
-	if bytes.Contains(pkt[8:], []byte("connect_basic")) {
-		t.Fatalf("body must not contain ASCII profile name")
+	// Body must not echo the ASCII event-type name (design §3.1: names never
+	// reach the wire; payload_profile was deleted by D-TNS-1 G-TNS-4).
+	if bytes.Contains(pkt[8:], []byte("connect")) {
+		t.Fatalf("body must not contain the ASCII event-type name")
 	}
 }
 
 func TestBuildPacketAccept(t *testing.T) {
-	ev := core.TNSEvent{Type: "ACCEPT", PayloadProfile: "accept_basic"}
+	ev := core.TNSEvent{Type: "ACCEPT"}
 	pkt, err := buildPacket(ev)
 	if err != nil {
 		t.Fatal(err)
@@ -177,13 +178,13 @@ func TestBuildPacketAccept(t *testing.T) {
 	if pkt[4] != TypeAccept {
 		t.Fatalf("type=%02x want %02x", pkt[4], TypeAccept)
 	}
-	if bytes.Contains(pkt[8:], []byte("accept_basic")) {
-		t.Fatalf("body must not contain ASCII profile name")
+	if bytes.Contains(pkt[8:], []byte("accept")) {
+		t.Fatalf("body must not contain the ASCII event-type name")
 	}
 }
 
 func TestBuildPacketRefuse(t *testing.T) {
-	ev := core.TNSEvent{Type: "REFUSE", PayloadProfile: "refuse_basic"}
+	ev := core.TNSEvent{Type: "REFUSE"}
 	pkt, err := buildPacket(ev)
 	if err != nil {
 		t.Fatal(err)
@@ -195,13 +196,13 @@ func TestBuildPacketRefuse(t *testing.T) {
 	if len(pkt) != 16 {
 		t.Fatalf("len=%d want 16", len(pkt))
 	}
-	if bytes.Contains(pkt[8:], []byte("refuse_basic")) {
-		t.Fatalf("body must not contain ASCII profile name")
+	if bytes.Contains(pkt[8:], []byte("refuse")) {
+		t.Fatalf("body must not contain the ASCII event-type name")
 	}
 }
 
 func TestBuildPacketRedirect(t *testing.T) {
-	ev := core.TNSEvent{Type: "REDIRECT", PayloadProfile: "redirect_basic"}
+	ev := core.TNSEvent{Type: "REDIRECT"}
 	pkt, err := buildPacket(ev)
 	if err != nil {
 		t.Fatal(err)
@@ -213,13 +214,13 @@ func TestBuildPacketRedirect(t *testing.T) {
 	if len(pkt) != 12 {
 		t.Fatalf("len=%d want 12", len(pkt))
 	}
-	if bytes.Contains(pkt[8:], []byte("redirect_basic")) {
-		t.Fatalf("body must not contain ASCII profile name")
+	if bytes.Contains(pkt[8:], []byte("redirect")) {
+		t.Fatalf("body must not contain the ASCII event-type name")
 	}
 }
 
 func TestBuildPacketData(t *testing.T) {
-	ev := core.TNSEvent{Type: "DATA", PayloadProfile: "ttc_connect", DataFlags: 0}
+	ev := core.TNSEvent{Type: "DATA", DataFlags: 0}
 	pkt, err := buildPacket(ev)
 	if err != nil {
 		t.Fatal(err)
@@ -239,16 +240,16 @@ func TestBuildPacketData(t *testing.T) {
 
 func TestBuildPacketDataNonzeroFlags(t *testing.T) {
 	// §2.3: v1 rejects nonzero data_flags
-	ev := core.TNSEvent{Type: "DATA", DataFlags: 1, PayloadProfile: "x"}
+	ev := core.TNSEvent{Type: "DATA", DataFlags: 1}
 	_, err := buildPacket(ev)
 	if err == nil || !strings.Contains(err.Error(), "data_flags must be 0") {
 		t.Fatalf("err=%v want data_flags must be 0", err)
 	}
 }
 
-func TestBuildPacketEmptyProfile(t *testing.T) {
-	// Empty profile still builds a valid connect_common body (not the ASCII "tns").
-	ev := core.TNSEvent{Type: "CONNECT", PayloadProfile: ""}
+func TestBuildPacketDefaultEvent(t *testing.T) {
+	// 缺省事件（无 direction/data_flags）仍构造合法 connect_common body。
+	ev := core.TNSEvent{Type: "CONNECT"}
 	pkt, err := buildPacket(ev)
 	if err != nil {
 		t.Fatal(err)
@@ -257,7 +258,7 @@ func TestBuildPacketEmptyProfile(t *testing.T) {
 		t.Fatalf("len=%d want 106", len(pkt))
 	}
 	if bytes.Contains(pkt[8:], []byte("tns")) {
-		t.Fatalf("body must not contain ASCII profile name")
+		t.Fatalf("body must not contain the ASCII protocol name")
 	}
 }
 
@@ -485,12 +486,69 @@ func TestValidateTNSSessionEmptyEvents(t *testing.T) {
 	}
 }
 
+// TestValidateTNSSessionBeyondFirstValidated (G-TNS-3 失败测试先行)：旧实现
+// 只校验 Sessions[0].Events（设计 §4.4）——坏 type 在 Sessions[1] 逃过
+// validator、生成期才炸（潜在"任务报成功 + 部分包"）。sessions 全量校验后
+// 本测试必须在 validator 边界拒绝。
+func TestValidateTNSSessionBeyondFirstValidated(t *testing.T) {
+	err := (Planner{}).Validate(core.FlowSpec{
+		TNS: &core.TNSConfig{
+			Sessions: []core.TNSSession{
+				{SrcPort: 12345, Events: []core.TNSEvent{{Type: "CONNECT", Direction: "c2s"}, {Type: "ACCEPT", Direction: "s2c"}}},
+				{SrcPort: 12346, Events: []core.TNSEvent{{Type: 127}}},
+			},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "unknown packet type") {
+		t.Fatalf("err=%v want unknown packet type (sessions[1..n] must be validated)", err)
+	}
+}
+
+// TestValidateTNSBadDirectionRejected (G-TNS-8)：非法 direction 枚举值在
+// validator 边界判死（旧实现 evUp 静默落 s2c）。
+func TestValidateTNSBadDirectionRejected(t *testing.T) {
+	err := (Planner{}).Validate(core.FlowSpec{
+		TNS: &core.TNSConfig{
+			Events: []core.TNSEvent{{Type: "CONNECT", Direction: "sideways"}},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "direction") {
+		t.Fatalf("err=%v want direction rejection", err)
+	}
+}
+
+// TestValidateTNSSkipStateRejected (G-TNS-8 状态机)：ACCEPT 前 DATA 判死。
+func TestValidateTNSSkipStateRejected(t *testing.T) {
+	err := (Planner{}).Validate(core.FlowSpec{
+		TNS: &core.TNSConfig{
+			Events: []core.TNSEvent{{Type: "CONNECT", Direction: "c2s"}, {Type: "DATA", Direction: "s2c"}},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "state") {
+		t.Fatalf("err=%v want state violation", err)
+	}
+}
+
+// TestValidateTNSPostTerminalRejected (G-TNS-8 状态机)：REFUSE/REDIRECT 为
+// 终态，其后不得再有任何事件。
+func TestValidateTNSPostTerminalRejected(t *testing.T) {
+	for _, seq := range [][]core.TNSEvent{
+		{{Type: "CONNECT", Direction: "c2s"}, {Type: "REFUSE", Direction: "s2c"}, {Type: "DATA", Direction: "c2s"}},
+		{{Type: "CONNECT", Direction: "c2s"}, {Type: "REDIRECT", Direction: "s2c"}, {Type: "ACCEPT", Direction: "s2c"}},
+	} {
+		err := (Planner{}).Validate(core.FlowSpec{TNS: &core.TNSConfig{Events: seq}})
+		if err == nil || !strings.Contains(err.Error(), "state") {
+			t.Fatalf("err=%v want state violation (terminal REFUSE/REDIRECT)", err)
+		}
+	}
+}
+
 func TestValidateTNSValid(t *testing.T) {
 	err := (Planner{}).Validate(core.FlowSpec{
 		TNS: &core.TNSConfig{
 			Events: []core.TNSEvent{
-				{Type: "CONNECT", PayloadProfile: "connect_basic"},
-				{Type: "ACCEPT", PayloadProfile: "accept_basic"},
+				{Type: "CONNECT", Direction: "c2s"},
+				{Type: "ACCEPT", Direction: "s2c"},
 			},
 		},
 		SrcIP: "10.0.0.1",
@@ -505,8 +563,8 @@ func TestValidateTNSValidSessions(t *testing.T) {
 	err := (Planner{}).Validate(core.FlowSpec{
 		TNS: &core.TNSConfig{
 			Sessions: []core.TNSSession{
-				{SrcPort: 12345, Events: []core.TNSEvent{{Type: "CONNECT"}, {Type: "ACCEPT"}}},
-				{SrcPort: 12346, Events: []core.TNSEvent{{Type: "CONNECT"}, {Type: "ACCEPT"}}},
+				{SrcPort: 12345, Events: []core.TNSEvent{{Type: "CONNECT", Direction: "c2s"}, {Type: "ACCEPT", Direction: "s2c"}}},
+				{SrcPort: 12346, Events: []core.TNSEvent{{Type: "CONNECT", Direction: "c2s"}, {Type: "ACCEPT", Direction: "s2c"}}},
 			},
 		},
 		SrcIP: "10.0.0.1",
@@ -541,10 +599,10 @@ func TestPlanS1ConnectAcceptData(t *testing.T) {
 		Count:   1,
 		TNS: &core.TNSConfig{
 			Events: []core.TNSEvent{
-				{Type: "CONNECT", Direction: "c2s", PayloadProfile: "connect_basic"},
-				{Type: "ACCEPT", Direction: "s2c", PayloadProfile: "accept_basic"},
-				{Type: "DATA", Direction: "c2s", PayloadProfile: "ttc_connect", DataFlags: 0},
-				{Type: "DATA", Direction: "s2c", PayloadProfile: "ttc_accept", DataFlags: 0},
+				{Type: "CONNECT", Direction: "c2s"},
+				{Type: "ACCEPT", Direction: "s2c"},
+				{Type: "DATA", Direction: "c2s", DataFlags: 0},
+				{Type: "DATA", Direction: "s2c", DataFlags: 0},
 			},
 		},
 	}
@@ -648,8 +706,8 @@ func TestPlanS2Refuse(t *testing.T) {
 		Count:   1,
 		TNS: &core.TNSConfig{
 			Events: []core.TNSEvent{
-				{Type: "CONNECT", Direction: "c2s", PayloadProfile: "connect_basic"},
-				{Type: "REFUSE", Direction: "s2c", PayloadProfile: "refuse_basic"},
+				{Type: "CONNECT", Direction: "c2s"},
+				{Type: "REFUSE", Direction: "s2c"},
 			},
 		},
 	}
@@ -690,8 +748,8 @@ func TestPlanS3Redirect(t *testing.T) {
 		Count:   1,
 		TNS: &core.TNSConfig{
 			Events: []core.TNSEvent{
-				{Type: "CONNECT", Direction: "c2s", PayloadProfile: "connect_basic"},
-				{Type: "REDIRECT", Direction: "s2c", PayloadProfile: "redirect_basic"},
+				{Type: "CONNECT", Direction: "c2s"},
+				{Type: "REDIRECT", Direction: "s2c"},
 			},
 		},
 	}
@@ -723,12 +781,12 @@ func TestPlanS4TTCSQLNet(t *testing.T) {
 		Count:   1,
 		TNS: &core.TNSConfig{
 			Events: []core.TNSEvent{
-				{Type: "CONNECT", Direction: "c2s", PayloadProfile: "connect_basic"},
-				{Type: "ACCEPT", Direction: "s2c", PayloadProfile: "accept_basic"},
-				{Type: "DATA", Direction: "c2s", PayloadProfile: "ttc_connect", DataFlags: 0},
-				{Type: "DATA", Direction: "s2c", PayloadProfile: "ttc_accept", DataFlags: 0},
-				{Type: "DATA", Direction: "c2s", PayloadProfile: "sqlnet_request", DataFlags: 0},
-				{Type: "DATA", Direction: "s2c", PayloadProfile: "sqlnet_response", DataFlags: 0},
+				{Type: "CONNECT", Direction: "c2s"},
+				{Type: "ACCEPT", Direction: "s2c"},
+				{Type: "DATA", Direction: "c2s", DataFlags: 0},
+				{Type: "DATA", Direction: "s2c", DataFlags: 0},
+				{Type: "DATA", Direction: "c2s", DataFlags: 0},
+				{Type: "DATA", Direction: "s2c", DataFlags: 0},
 			},
 		},
 	}
@@ -775,8 +833,8 @@ func TestPlanS5IPv6(t *testing.T) {
 		Count:   1,
 		TNS: &core.TNSConfig{
 			Events: []core.TNSEvent{
-				{Type: "CONNECT", Direction: "c2s", PayloadProfile: "connect_basic"},
-				{Type: "ACCEPT", Direction: "s2c", PayloadProfile: "accept_basic"},
+				{Type: "CONNECT", Direction: "c2s"},
+				{Type: "ACCEPT", Direction: "s2c"},
 			},
 		},
 	}
@@ -823,12 +881,12 @@ func TestPlanS6MultiSession(t *testing.T) {
 		TNS: &core.TNSConfig{
 			Sessions: []core.TNSSession{
 				{SrcPort: 12345, Events: []core.TNSEvent{
-					{Type: "CONNECT", Direction: "c2s", PayloadProfile: "connect_basic"},
-					{Type: "ACCEPT", Direction: "s2c", PayloadProfile: "accept_basic"},
+					{Type: "CONNECT", Direction: "c2s"},
+					{Type: "ACCEPT", Direction: "s2c"},
 				}},
 				{SrcPort: 12346, Events: []core.TNSEvent{
-					{Type: "CONNECT", Direction: "c2s", PayloadProfile: "connect_basic"},
-					{Type: "ACCEPT", Direction: "s2c", PayloadProfile: "accept_basic"},
+					{Type: "CONNECT", Direction: "c2s"},
+					{Type: "ACCEPT", Direction: "s2c"},
 				}},
 			},
 		},
@@ -889,10 +947,10 @@ func TestPlanS7HeaderFields(t *testing.T) {
 		Count:   1,
 		TNS: &core.TNSConfig{
 			Events: []core.TNSEvent{
-				{Type: "CONNECT", Direction: "c2s", PayloadProfile: "connect_basic"},
-				{Type: "ACCEPT", Direction: "s2c", PayloadProfile: "accept_basic"},
-				{Type: "DATA", Direction: "c2s", PayloadProfile: "ttc_connect", DataFlags: 0},
-				{Type: "DATA", Direction: "s2c", PayloadProfile: "ttc_accept", DataFlags: 0},
+				{Type: "CONNECT", Direction: "c2s"},
+				{Type: "ACCEPT", Direction: "s2c"},
+				{Type: "DATA", Direction: "c2s", DataFlags: 0},
+				{Type: "DATA", Direction: "s2c", DataFlags: 0},
 			},
 			ChecksumMode: "disabled",
 		},
@@ -948,7 +1006,7 @@ func TestPlanDefaultPort(t *testing.T) {
 		Count: 1,
 		TNS: &core.TNSConfig{
 			Events: []core.TNSEvent{
-				{Type: "CONNECT", Direction: "c2s", PayloadProfile: "connect_basic"},
+				{Type: "CONNECT", Direction: "c2s"},
 			},
 		},
 	}
@@ -1002,7 +1060,7 @@ func TestPlanNegativeN2(t *testing.T) {
 	spec := core.FlowSpec{
 		TNS: &core.TNSConfig{
 			Events: []core.TNSEvent{
-				{Type: 127, Direction: "c2s", PayloadProfile: "connect_basic"},
+				{Type: 127, Direction: "c2s"},
 			},
 		},
 	}
@@ -1016,7 +1074,7 @@ func TestPlanNegativeN2(t *testing.T) {
 func TestPlanNegativeN3(t *testing.T) {
 	spec := core.FlowSpec{
 		TNS: &core.TNSConfig{
-			Events:    []core.TNSEvent{{Type: "CONNECT"}, {Type: "ACCEPT"}},
+			Events:    []core.TNSEvent{{Type: "CONNECT", Direction: "c2s"}, {Type: "ACCEPT", Direction: "s2c"}},
 			WireFault: json.RawMessage(`{"kind":"length","value":7}`),
 		},
 	}
@@ -1030,7 +1088,7 @@ func TestPlanNegativeN3(t *testing.T) {
 func TestPlanNegativeN4(t *testing.T) {
 	spec := core.FlowSpec{
 		TNS: &core.TNSConfig{
-			Events:       []core.TNSEvent{{Type: "CONNECT"}, {Type: "ACCEPT"}},
+			Events:       []core.TNSEvent{{Type: "CONNECT", Direction: "c2s"}, {Type: "ACCEPT", Direction: "s2c"}},
 			ChecksumMode: "disabled",
 			WireFault:    json.RawMessage(`{"kind":"packet_checksum","value":1}`),
 		},
@@ -1048,7 +1106,7 @@ func TestPlanNegativeN5(t *testing.T) {
 			Events: []core.TNSEvent{
 				{Type: "CONNECT"},
 				{Type: "ACCEPT"},
-				{Type: "DATA", DataFlags: 1, PayloadProfile: "ttc_connect"},
+				{Type: "DATA", DataFlags: 1},
 			},
 		},
 	}
@@ -1070,8 +1128,8 @@ func TestTNSGeneratorName(t *testing.T) {
 func TestTNSGeneratorGenerateConnectAccept(t *testing.T) {
 	cfg := &core.TNSConfig{
 		Events: []core.TNSEvent{
-			{Type: "CONNECT", Direction: "c2s", PayloadProfile: "connect_basic"},
-			{Type: "ACCEPT", Direction: "s2c", PayloadProfile: "accept_basic"},
+			{Type: "CONNECT", Direction: "c2s"},
+			{Type: "ACCEPT", Direction: "s2c"},
 		},
 	}
 	var events []layers.MessageEvent
@@ -1111,10 +1169,10 @@ func TestTNSGeneratorGenerateConnectAccept(t *testing.T) {
 func TestTNSGeneratorGenerateTTCDATA(t *testing.T) {
 	cfg := &core.TNSConfig{
 		Events: []core.TNSEvent{
-			{Type: "CONNECT", Direction: "c2s", PayloadProfile: "connect_basic"},
-			{Type: "ACCEPT", Direction: "s2c", PayloadProfile: "accept_basic"},
-			{Type: "DATA", Direction: "c2s", PayloadProfile: "ttc_connect", DataFlags: 0},
-			{Type: "DATA", Direction: "s2c", PayloadProfile: "ttc_accept", DataFlags: 0},
+			{Type: "CONNECT", Direction: "c2s"},
+			{Type: "ACCEPT", Direction: "s2c"},
+			{Type: "DATA", Direction: "c2s", DataFlags: 0},
+			{Type: "DATA", Direction: "s2c", DataFlags: 0},
 		},
 	}
 	var events []layers.MessageEvent
@@ -1304,10 +1362,10 @@ func TestPlanS1WireFormat(t *testing.T) {
 		Count:   1,
 		TNS: &core.TNSConfig{
 			Events: []core.TNSEvent{
-				{Type: "CONNECT", Direction: "c2s", PayloadProfile: "connect_basic"},
-				{Type: "ACCEPT", Direction: "s2c", PayloadProfile: "accept_basic"},
-				{Type: "DATA", Direction: "c2s", PayloadProfile: "ttc_connect", DataFlags: 0},
-				{Type: "DATA", Direction: "s2c", PayloadProfile: "ttc_accept", DataFlags: 0},
+				{Type: "CONNECT", Direction: "c2s"},
+				{Type: "ACCEPT", Direction: "s2c"},
+				{Type: "DATA", Direction: "c2s", DataFlags: 0},
+				{Type: "DATA", Direction: "s2c", DataFlags: 0},
 			},
 		},
 	}
@@ -1374,8 +1432,8 @@ func TestPlanS5IPv6WireFormat(t *testing.T) {
 		Count:   1,
 		TNS: &core.TNSConfig{
 			Events: []core.TNSEvent{
-				{Type: "CONNECT", Direction: "c2s", PayloadProfile: "connect_basic"},
-				{Type: "ACCEPT", Direction: "s2c", PayloadProfile: "accept_basic"},
+				{Type: "CONNECT", Direction: "c2s"},
+				{Type: "ACCEPT", Direction: "s2c"},
 			},
 		},
 	}
@@ -1419,10 +1477,10 @@ func TestPlanS7HeaderFrameOffsets(t *testing.T) {
 		Count:   1,
 		TNS: &core.TNSConfig{
 			Events: []core.TNSEvent{
-				{Type: "CONNECT", Direction: "c2s", PayloadProfile: "connect_basic"},
-				{Type: "ACCEPT", Direction: "s2c", PayloadProfile: "accept_basic"},
-				{Type: "DATA", Direction: "c2s", PayloadProfile: "ttc_connect", DataFlags: 0},
-				{Type: "DATA", Direction: "s2c", PayloadProfile: "ttc_accept", DataFlags: 0},
+				{Type: "CONNECT", Direction: "c2s"},
+				{Type: "ACCEPT", Direction: "s2c"},
+				{Type: "DATA", Direction: "c2s", DataFlags: 0},
+				{Type: "DATA", Direction: "s2c", DataFlags: 0},
 			},
 			ChecksumMode: "disabled",
 		},
@@ -1461,5 +1519,31 @@ func TestPlanS7HeaderFrameOffsets(t *testing.T) {
 	frame = makeFrame(pkts[5].Payload)
 	if frame[62] != 0x00 || frame[63] != 0x00 {
 		t.Fatalf("DATA(c2s) frame[62:64]=%02x%02x want 0000 (data_flags)", frame[62], frame[63])
+	}
+}
+
+// D-TNS-1 G-TNS-8（设计 §4.2 行 3）：ACCEPT/REFUSE/REDIRECT 是服务端专属
+// 类型，出现在 c2s 方向即判死（隔离审查 C1 收口；旧实现只把 direction
+// 二值化，不校验类型-方向语义）。
+func TestValidateTNS_ServerTypesInC2SRejected(t *testing.T) {
+	for _, ty := range []string{"ACCEPT", "REFUSE", "REDIRECT"} {
+		cfg := &core.TNSConfig{Events: []core.TNSEvent{
+			{Type: "CONNECT", Direction: "c2s"},
+			{Type: ty, Direction: "c2s"},
+		}}
+		err := (&Planner{}).Validate(core.FlowSpec{TNS: cfg, DstPort: 1521})
+		if err == nil {
+			t.Fatalf("%s in c2s must be rejected", ty)
+		}
+		if !strings.Contains(err.Error(), "must not appear in the client->server direction") {
+			t.Fatalf("%s: anchor mismatch: %v", ty, err)
+		}
+	}
+	ok := &core.TNSConfig{Events: []core.TNSEvent{
+		{Type: "CONNECT", Direction: "c2s"},
+		{Type: "ACCEPT", Direction: "s2c"},
+	}}
+	if err := (&Planner{}).Validate(core.FlowSpec{TNS: ok, DstPort: 1521}); err != nil {
+		t.Fatalf("valid s2c ACCEPT must pass (no over-rejection), got %v", err)
 	}
 }

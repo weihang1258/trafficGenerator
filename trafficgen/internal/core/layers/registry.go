@@ -784,7 +784,23 @@ func buildDefaultRegistry() {
 			"messages":  {Type: "list", Default: []interface{}{}},
 		}})
 	r.Register(LayerSchema{Name: "tns", Category: CategoryTerminal, DependsOn: []string{"tcp"},
-		FieldContract: map[string]string{"tcp.dst_port": "1521"}})
+		FieldContract: map[string]string{"tcp.dst_port": "1521"},
+		// D-TNS-1 G-TNS-1：tns 层四键（设计 §2.1/§2.2）——events（事件序列）/
+		// sessions（多会话 `{src_port, events[]}`）/ checksum_mode（v1 只认
+		// ""/disabled）/ wire_fault（负例注入口，非线上字段）。events/sessions
+		// 数组缺省 nil（NOT []interface{}{}）：completedConfig 对 nil Default
+		// 不落键，"events 缺键"（→ TNSConfig.Events nil）与"显式 events: []"
+		// （→ 空切片 → validator 报 at least one event）才可区分（bgp :1225
+		// 同款理由）。checksum_mode 缺省 ""（validator 接受 ""/"disabled"）；
+		// wire_fault 缺省 nil（dameng 同款：注入 "" 会被误读为故障）。
+		// reconnect 死字段（G-TNS-11）不注册——层内写它由 V9 unknown field
+		// 判死，顶层旧键由 CheckProtoFlat 判死。
+		Fields: map[string]FieldSchema{
+			"events":        {Type: "list"},
+			"sessions":      {Type: "list"},
+			"checksum_mode": {Type: "string", Default: ""},
+			"wire_fault":    {Type: "object"},
+		}})
 	r.Register(LayerSchema{Name: "mongodb", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "27017"},
 		Fields: map[string]FieldSchema{

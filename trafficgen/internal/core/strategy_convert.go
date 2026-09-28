@@ -547,6 +547,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-TNS-1 G-TNS-5：tns 在库旧策略顶层 tns → ValidationErrors（bgp 同款；
+	// 空 map 也死——判死形状「层链+顶层空子映射并存」，配置迁 layers[i].tns）。
+	// 时序：G-TNS-1 翻译先落码，cases 改写后此门才有执法对象。
+	if protocol == "tns" {
+		if v, ok := cfg["tns"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-S7-85（G-S7-1）：s7 在库旧策略顶层 s7 → ValidationErrors（amqp
 	// 同款；空 map 也死——顶层 s7 子映射 presence 判死，层链形状不触发）。
 	if protocol == "s7" {
@@ -1666,9 +1674,10 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			parseSubconfigJSON[*SOMEIPConfig](&spec, sub, "someip", &spec.SOMEIP)
 		}
 	case "tns":
-		if sub, ok := cfg["tns"].(map[string]interface{}); ok {
-			parseSubconfigJSON[*TNSConfig](&spec, sub, "tns", &spec.TNS)
-		}
+		// D-TNS-1：配置住 tns 层（events/sessions/checksum_mode/wire_fault，
+		// 经 layers 翻译），顶层 tns 子映射由 CheckProtoFlat 判死；此处只守
+		// 目的端口缺省 1521（FieldContract 同值，legacy Plan 口径）。
+		setDefaultDstPort(&spec, cfg, 1521)
 	case "mongodb":
 		if sub, ok := cfg["mongodb"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*MongoDBConfig](&spec, sub, "mongodb", &spec.MongoDB)
@@ -8715,6 +8724,15 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "stratum" {
 		if v, ok := cfg["stratum"]; ok && v != nil {
 			return "protocol stratum no longer accepts a top-level stratum sub-config (move it into the stratum layer of an [ip,tcp,stratum] layers chain; the layer chain is the only config truth)"
+		}
+	}
+	// D-TNS-1（G-TNS-5）：tns 顶层 tns 子映射 presence 判死（bgp 先例；空
+	// map 也死——判死形状「层链+顶层空子映射并存」，业务键 events/sessions/
+	// checksum_mode/wire_fault 迁 layers[i].tns，层链是唯一真相）。层链形状
+	// 不触发。
+	if protocol == "tns" {
+		if v, ok := cfg["tns"]; ok && v != nil {
+			return "protocol tns no longer accepts a top-level tns sub-config (move it into the tns layer of an [ip,tcp,tns] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-CQL-1（G-CQL-1）：cql 顶层 cql 子映射 presence 判死（tds 先例；

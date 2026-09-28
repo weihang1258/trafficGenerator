@@ -35,26 +35,118 @@ func (Planner) Validate(spec core.FlowSpec) error {
 	}
 	evs := cfg.Events
 	if len(cfg.Sessions) > 0 {
-		for _, s := range cfg.Sessions {
+		for i, s := range cfg.Sessions {
 			if len(s.Events) == 0 {
-				return fmt.Errorf("tns: session with empty events")
+				return fmt.Errorf("tns: session %d: empty events", i)
+			}
+			// D-TNS-1 G-TNS-3：sessions[1..n] 全量校验（旧实现只校验
+			// Sessions[0]，坏 type/data_flags 逃到生成期——见设计 §4.4）。
+			if err := validateEvents(s.Events); err != nil {
+				return fmt.Errorf("tns: session %d: %w", i, err)
 			}
 		}
-		evs = cfg.Sessions[0].Events
+		return validateSpecBase(spec)
 	}
+	if err := validateEvents(evs); err != nil {
+		return fmt.Errorf("tns: %w", err)
+	}
+	return validateSpecBase(spec)
+}
+
+// validateEvents 校验一个事件序列：type 白名单 / 首事件 c2s / direction 枚举
+// / data_flags / 状态机（D-TNS-1 G-TNS-8：ACCEPT 前 DATA、REFUSE|REDIRECT
+// 后事件、终态语义）。
+func validateEvents(evs []core.TNSEvent) error {
 	for i, ev := range evs {
 		if _, err := eventType(ev); err != nil {
-			return fmt.Errorf("tns: event %d: %w", i, err)
+			return fmt.Errorf("event %d: %w", i, err)
+		}
+		if !directionKnown(ev.Direction) {
+			return fmt.Errorf("event %d: unknown direction %q (want c2s/s2c/up/down)", i, ev.Direction)
 		}
 	}
 	if len(evs) > 0 && evs[0].Direction != "" && evs[0].Direction != "up" && evs[0].Direction != "c2s" {
-		return fmt.Errorf("tns: first event must be client->server (up)")
+		return fmt.Errorf("first event must be client->server (up)")
 	}
 	for i, ev := range evs {
 		if ev.DataFlags != 0 {
-			return fmt.Errorf("tns: event %d: data_flags must be 0", i)
+			return fmt.Errorf("event %d: data_flags must be 0", i)
 		}
 	}
+	// D-TNS-1 G-TNS-8（设计 §4.2 行 3）：ACCEPT/REFUSE/REDIRECT 是服务端
+	// 专属类型，出现在 c2s（客户端→服务端）方向即判死——旧实现只把
+	// direction 二值化（evUp），不校验类型-方向语义。
+	for i, ev := range evs {
+		t, err := eventType(ev)
+		if err != nil {
+			return fmt.Errorf("event %d: %w", i, err)
+		}
+		if evUp(ev) && (t == TypeAccept || t == TypeRefuse || t == TypeRedirect) {
+			return fmt.Errorf("event %d: state violation: %s must not appear in the client->server direction",
+				i, typeName(t))
+		}
+	}
+	return validateStateMachine(evs)
+}
+
+// validateStateMachine 强制设计 §4.1 的会话状态机：CONNECT 首、ACCEPT 后才
+// 允许 DATA、REFUSE/REDIRECT 为终态（其后不得再有事件）。
+func validateStateMachine(evs []core.TNSEvent) error {
+	established, terminal := false, false
+	for i, ev := range evs {
+		t, err := eventType(ev)
+		if err != nil {
+			return fmt.Errorf("event %d: %w", i, err)
+		}
+		if terminal {
+			return fmt.Errorf("event %d: state violation: %s is terminal (no further events allowed)", i, typeName(t))
+		}
+		switch t {
+		case TypeConnect:
+			if i != 0 {
+				return fmt.Errorf("event %d: state violation: CONNECT must be the first event", i)
+			}
+		case TypeAccept:
+			established = true
+		case TypeData:
+			if !established {
+				return fmt.Errorf("event %d: state violation: DATA before ACCEPT", i)
+			}
+		case TypeRefuse, TypeRedirect:
+			terminal = true
+		}
+	}
+	return nil
+}
+
+func typeName(t byte) string {
+	switch t {
+	case TypeConnect:
+		return "CONNECT"
+	case TypeAccept:
+		return "ACCEPT"
+	case TypeRefuse:
+		return "REFUSE"
+	case TypeRedirect:
+		return "REDIRECT"
+	case TypeData:
+		return "DATA"
+	}
+	return fmt.Sprintf("type %#x", t)
+}
+
+// directionKnown：D-TNS-1 G-TNS-8 方向枚举白名单。旧实现的 evUp 把非法值
+// 静默落 s2c（"bogus" 当服务端事件），本门在 validator 边界判死。
+func directionKnown(dir string) bool {
+	switch dir {
+	case "", "c2s", "s2c", "up", "down":
+		return true
+	}
+	return false
+}
+
+// validateSpecBase：IP 合法性（原 Validate 尾段，sessions/events 两条路径共用）。
+func validateSpecBase(spec core.FlowSpec) error {
 	if spec.SrcIP != "" && net.ParseIP(spec.SrcIP) == nil {
 		return fmt.Errorf("tns: invalid source IP")
 	}
