@@ -4,20 +4,22 @@
 > 日期：2026-09-28
 > 配套设计：`docs/protocol-designs/98-pcep-design.md` v1.0.0（D-PCEP-1）
 > 旧基线：`docs/protocol-designs/42-pcep-testcase.md` v1.0.0（24 例；思路继承不搬码）
-> 机器契约：`trafficgen/test/protocol_pcap/cases/pcep.json`（24/24 ID 与本版 §2 一致、顺序一致，已机读实测；顶层旧键 24/24 残留待 P4 迁移，G-PCEP-1）
+> 机器契约：`trafficgen/test/protocol_pcap/cases/pcep.json`（24/24 ID 与本版 §2 一致、顺序一致，已机读实测；**合规判定 = 非负例顶层键 84 处残留 / 17 例全违规**，须代码阶段收敛，G-PCEP-1）
 > 白话一句：**二十四条检查：十七条看正常对话（建会话、发保活、问路、回路径、报错、多请求、多会话、v6、扩展档案），七条看胡来能不能被拦下；每条只查一件事。**
 
 ## 1. 测试原则和形状基线
 
 用例从设计 §3–§9 逐项派生，共 **24 个唯一语义 ID：17 正 + 7 负**（继承旧稿计数，负例 N-1…N-7）。派生规则：设计 §3 每个线格式条款、§4 每类消息/对象、§5 每个扩展 profile 边界、§7 每行错误处理在本文有对应断言；断言不得超出设计声明范围。**一个用例只验证一个协议行为**。
 
-**形状基线（2026-09-28 机读实测）**：24/24 例顶层键 = `{expect,id,notes,proto,spec_json,summary}`（无 `strategy_fc`）；`spec_json` 顶层键 = `{layers, src_ip, dst_ip, src_port, dst_port, pcep}` ×23 + 同形无 `src_port` ×1（#13 多会话，`src_port` 住 `sessions[]`）；层形 `[tcp,pcep]` ×24，**层内配置恒 `{}`（非空 0/24）**——即层链是空壳，真实配置住顶层 `pcep` 子映射 + 顶层四元组（过渡态违规形，P4 迁移）；17 正例 `expect` 均含 `packet_count`；7 负例 `expect` 键集合严格为 `{expect_error,error_contains}`（干净）。
+**形状基线（2026-09-28 机读实测；合规判据 = 非负例顶层键必须为 0，白名单 = `layers`/`strategy_fc`/`ttl`/`flow_control`/`output`/`output_config`/`group_id`）**：24/24 例顶层键 = `{expect,id,notes,proto,spec_json,summary}`（无 `strategy_fc`）；`spec_json` 顶层键 = `{layers, src_ip, dst_ip, src_port, dst_port, pcep}` ×23 + 同形无 `src_port` ×1（#13 多会话，`src_port` 住 `sessions[]`）。
+
+**合规判定：❌ 无一条合规**——非负例（17 例）顶层越白名单键 = `src_ip`×17 + `dst_ip`×17 + `dst_port`×17 + `src_port`×16 + 顶层 `pcep` 子映射×17 = **84 处残留，17/17 例全违规**（全 24 例同口径 119 处，含 7 负例同样残留）。层形 `[tcp,pcep]` ×24 但**层内配置恒 `{}`（非空 0/24）= 空壳**：`registry.go:1391` 无 `Fields`，`translateTerminalConfig`（`chain_planner_translate.go:695`）**无 `case "pcep"`**（`:753-755` 只赋空 `&core.PCEPConfig{}`），故层内配置今日既进不去也不被解码。**顶层 `pcep` 子映射 + 顶层四元组与 `layers` 并存 = 判死形状**（CORE_MEMORY §1.4/§1.11/§1.13），且这是当前**唯一可用**形状——合规层链形**今日跑不通**，收敛须**代码阶段**先补 registry `Fields` + translate case + `mapToFlowSpec`（G-PCEP-1）；**文档阶段改不动**。17 正例 `expect` 均含 `packet_count`；7 负例 `expect` 键集合严格为 `{expect_error,error_contains}`（干净）。
 
 **输出契约（pcap/NIC 双输出）**：两路径共用同一 cases JSON 与断言集（`tcp.dstport/srcport`、`pcep.*` 字段、offset 54 frames）；NIC 经 tcpdump 捕获（`nic_capture` 用例级开关）；不设仅单路径可用的断言。
 
 **TSHARK 基线**：本机 tshark 3.6.14 实测 `pcep.*` 已注册 **379** 个字段（`tshark -G fields | grep -P '\tpcep\.'`）——本协议**可用 pcep 原生 dissector**（与 moxa 的零 dissector 相反）。存量 JSON 使用的 **39** 个 `pcep.*` 字段（去重）+ `tcp.dstport`/`tcp.srcport` 全部逐项实测已注册（无臆造字段）。**注意口径**：`tcp.dstport`/`tcp.srcport` 属 `tcp.*` 通道，不在 `pcep.*` 前缀内，校验脚本需同时放行两族。
 
-**动态字段禁止硬编码**：生成期值用 `same_as_packet`/`distinct_values`/`nonzero` 断言；本协议存量用例未使用动态面（G-PCEP-3），P4 迁移时按需引入。
+**动态字段禁止硬编码**：生成期值用 `same_as_packet`/`distinct_values`/`nonzero` 断言；本协议存量用例未使用动态面（G-PCEP-3），代码阶段收敛时按需引入。
 
 **包数约定**：单流 = 3（握手）+ N（显式事件数）+ 4（FIN 四包挥手）。数据帧从帧 4 起；实现期以实际输出校准 packet_count，断言以 fields/frames 为准；负例无 packet_count。多会话（`sessions[]`）= 各会话包数之和（#13 = 2×11 = 22）。
 
@@ -200,7 +202,7 @@ RFC 5440/8231/8281（§10）+ D-PCEP-1（设计 §11）+ tshark 通道实测（`
 
 ## 7. 实现后执行建议
 
-1. **P4 顺序**：G-PCEP-1（registry Fields + translate 层内严格解码 + schemagen 重跑）→ 存量 24 例改写（删顶层五键，顶层 `pcep` 子映射迁层内）→ 先跑后钉 24 例 → 补 A′ 例 → 全量复跑。
+1. **代码阶段（P4）顺序**：G-PCEP-1（registry `Fields` + `translateTerminalConfig` case + `mapToFlowSpec` 收敛 + schemagen 重跑）→ 存量 24 例改写（删顶层五键，顶层 `pcep` 子映射迁层内）→ 先跑后钉 24 例 → 补 A′ 例 → 全量复跑。
 2. **实测顺序**：先 #1/#16（Open 长度 12 与 10 包基线），再 #15（委托三 flag，重钉 5/12），再 #13（多会话包号起点），再 #8（IPv6 语义例 offset 仍 54），最后 #4（双 RP 形状的 `requested_id_number` 重复聚合条目）。
 3. 二进制与 HEAD 同代确认（门2③：`find trafficgen -name '*.go' -newer <server-binary>` 无输出）；门2② 全量（`CASE_PROTO=pcep` 全量不是增量）；门2④ 反查绿后进 P6。
 4. 任何 Open 长度/包数断言须先跑后钉（设计 §0 行 5/行 6 已证旧稿常量有误）。
@@ -213,7 +215,7 @@ RFC 5440/8231/8281（§10）+ D-PCEP-1（设计 §11）+ tshark 通道实测（`
 
 ### 8.2 现状矛盾点（P4 前诚实登记）
 
-1. **存量跑的是过渡态混合形，不是纯层链**：`spec_json` 的 `layers=[{tcp:{}},{pcep:{}}]` 只是**空壳**（层内恒 `{}`，既不校验也不消费），真实配置住顶层 `pcep` 子映射 + 顶层四元组。旧 id 的 packet_count 断言**今日有效**，但顶层键断言今日是**违规形**。
+1. **存量跑的是违规过渡形，不是层链形（审计主结论）**：按"非负例顶层键必须为 0"判据，24/24 例**全部违规**——非负例 84 处残留（`src_ip`/`dst_ip`/`dst_port` 各 17、`src_port` 16、顶层 `pcep` 子映射 17），全 24 例 119 处。`layers=[{tcp:{}},{pcep:{}}]` 只是**空壳**（层内恒 `{}`，`translateTerminalConfig` 无 `case "pcep"` → 既不校验也不解码），真实配置住顶层 `pcep` 子映射 + 顶层四元组。旧 id 的 packet_count 断言**今日有效**，但顶层键今日是**判死形状**；合规化须代码阶段先补 registry `Fields` + translate case + `mapToFlowSpec` 收敛（G-PCEP-1），文档阶段改不动。
 2. **#15 包数旧稿偏差**：旧稿 design §8 与 testcase §2 均写 3 events / 10 packets，实测 **5 / 12**（漏计两条 Open）。包数断言以实测为准，P4 不改包数。
 3. **#10 名不副实**：`pcep_rro_ipv4_ipv6` 实测为单 IPv4 profile 例，无 IPv6 半边（G-PCEP-7）。
 4. **#22 名不副实**：`pcep_neg_session_id` 实际注入 `sid:0` 而非 SID 漂移（G-PCEP-9）。
@@ -256,9 +258,9 @@ RFC 5440/8231/8281（§10）+ D-PCEP-1（设计 §11）+ tshark 通道实测（`
 
 | # | 建议断言 | 判定方式（静态机读） | 现状 |
 |---:|---|---|---|
-| G1 | 非负例用例顶层 `spec_json` 键 = 0（五键 + `pcep` 子映射全清） | `spec_json.keys()` ⊆ {layers, flow_control, group_id, output, output_config, strategy_fc} | ❌ 24/24 违规（P4 后应变 ✅） |
-| G2 | 层链含 `pcep` 且 `pcep` 层配置非空 | `layers` 内 `pcep` 值 != `{}` | ❌ 0/24（P4 后应变 ✅） |
-| G3 | `tcp.dst_port` 住 `tcp` 层或显式缺省补齐 | `layers[tcp]` 含 `dst_port` 或全缺（走 4189 缺省） | ❌ 住顶层（P4 后 ✅） |
+| G1 | 非负例用例顶层 `spec_json` 键 = 0（五键 + `pcep` 子映射全清） | `spec_json.keys()` ⊆ 白名单（layers/strategy_fc/ttl/flow_control/output/output_config/group_id） | ❌ **非负例 84 处残留 / 17 例全违规**（代码阶段收敛后应变 ✅） |
+| G2 | 层链含 `pcep` 且 `pcep` 层配置非空 | `layers` 内 `pcep` 值 != `{}` | ❌ 0/24（层内空壳；代码阶段收敛后应变 ✅） |
+| G3 | `tcp.dst_port` 住 `tcp` 层或显式缺省补齐 | `layers[tcp]` 含 `dst_port` 或全缺（走 4189 缺省） | ❌ 住顶层（代码阶段收敛后 ✅） |
 | G4 | 24 个 ID 集合与顺序 = 本契约 §2 表 | 逐 ID 比对 | ✅ |
 | G5 | 17 正例 `packet_count` = `3 + len(events) + 4`（多会话按会话求和） | 机读重算 | ✅ 17/17 |
 | G6 | 7 负例 `expect` 键集合严格 = `{expect_error, error_contains}` | 键集合比对 | ✅ 7/7 |
@@ -271,7 +273,7 @@ RFC 5440/8231/8281（§10）+ D-PCEP-1（设计 §11）+ tshark 通道实测（`
 | G13 | 业务字段动态对象零出现（G-PCEP-3） | `pcep` 层内无 `{"strategy": …}` 形值 | ✅ |
 | G14 | 多会话例 `sessions[].src_port` 非零且互异 | 机读 | ✅（40001/40002） |
 
-**门2 关系**：G1–G3 是门2①（顶层旧键零残留）的协议级细化；G5–G7 是门2②（全量绿 + 负例锚词）的静态前置；G8 是"断言可执行"（§7）的静态前置。**建议 G1/G2/G3 在 P4 迁移前保持红并登记为已知缺口**（勿白名单豁免——CORE_MEMORY §1.12/§1.13）。
+**门2 关系**：G1–G3 是门2①（顶层旧键零残留）的协议级细化；G5–G7 是门2②（全量绿 + 负例锚词）的静态前置；G8 是"断言可执行"（§7）的静态前置。**建议 G1/G2/G3 保持红并登记为已知缺口**（勿白名单豁免——CORE_MEMORY §1.12/§1.13）；转绿条件是代码阶段补齐 registry `Fields` + `translateTerminalConfig` case + `mapToFlowSpec` 收敛。
 
 ## 10. 修订记录
 
