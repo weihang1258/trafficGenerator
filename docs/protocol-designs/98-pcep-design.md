@@ -1,6 +1,6 @@
 # #98 pcep（路径计算元素通信协议，Path Computation Element communication Protocol）设计契约
 
-> 版本：v1.0.0（P-PIPE 文档轨 P1–P3）
+> 版本：v1.0.1（P-PIPE 文档轨 P1–P3 + 隔离审查修轮；修订记录见 §16）
 > 日期：2026-09-28
 > 车道：文档轨（#98 pcep 续号审计）
 > 旧基线：`docs/protocol-designs/42-pcep-design.md` v1.0.0 + `42-pcep-testcase.md` v1.0.0（24 例 = 17 正 + 7 负；本 #98 为按当前层链架构标准的审计续号，思路继承、不搬码——旧稿"层尚未实现/未注册"状态已过时，见 §0）
@@ -224,12 +224,6 @@ ERO/RRO 的 IPv4/IPv6 subobject 必须保留 L（loose，松散）/X/flags/attri
 
 PCNtf 用 Notification object，使用已注册的 `pcep.obj.notification.type` 和 `.value`；通知不是 PCRep 的隐式响应。PCErr 使用 PCEP-ERROR object，`pcep.error.type`/`pcep.error.value` 表示错误码，`pcep.obj.error.type` 是对象类型字段；两者不应混淆。**输入路径（实读，易错点）**：PCNtf/PCErr 的 type/value **必须**经 `objects:[{class:"notification",type,value}]` / `objects:[{class:"error",type,value}]` 提供——这是唯一路径。`parseNotification`/`parseError`（`builder.go:623-655`）从 `objects[]` 里按 class 取出 type/value 供消息级 `BuildPCNtfMsg`/`BuildPCErrMsg` 使用；`parseObjects`（`:576-581`）随后跳过这两类，是因为值已被消息级消费，**不是"写了不生效"**。错误事件仍是一个正常方向的 PCEP message，只有非法配置才要求 task error。
 
-## 5. RFC 8231 stateful 与 RFC 8281 delegation profile
-
-`pcep_rfc8231_stateful` 是显式扩展 profile，基础 Open/Keepalive/PCReq/PCRep/PCErr 仍采用 RFC 5440 common header；LSP object 使用 `pcep.obj.lsp.plsp-id`、`pcep.obj.lsp.flags.*`，SRP object 使用 `pcep.obj.srp.id-number`、`.flags.*`。扩展能力 TLV 的注册字段（`pcep.stateful-pce-capability.*`、`pcep.sync-capability.*`）只有在配置声明 capability 时才出现；`include_db_version=true` 时**同时**发 TLV 16 与 TLV 17（`builder.go:173-180`）。此 profile 不自动维护数据库、同步所有 LSP 或生成 PCUpd/PCInitiate。
-
-`pcep_rfc8281_delegation` 必须声明 stateful capability；delegate/remove/create/administrative/operational flags 只表达显式 LSP/SRP 事件。RFC 8281 不改变 RFC 5440 的 Open/Keepalive 基本格式，也不允许在 base profile 中静默接受 delegate flag——实现对此有专属拒绝分支（`builder.go:757-759`：`lsp`/`srp` 对象在非 stateful profile 下报 `%s object requires stateful profile`）。任何未注册扩展对象仍走负例。
-
 ### 4.4 IPv4/IPv6、multi-request 与 multi-session
 
 IPv4 profile 使用 `pcep.obj.end_point.source_ipv4_address`/`destination_ipv4_address` 及 `pcep.subobj.ipv4.ipv4`；IPv6 profile 使用对应 IPv6 字段和 `pcep.subobj.ipv6.ipv6`。endpoint、ERO、RRO 的地址族必须一致；混用、缺失或将 IPv6 压入 IPv4 object 都是 address-family 错误（`builder.go:779-786` 双向分支）。
@@ -239,6 +233,12 @@ IPv4 profile 使用 `pcep.obj.end_point.source_ipv4_address`/`destination_ipv4_a
 `multi_request` 在同一 TCP session 中按显式事件发送多个 PCReq，再发送 request_id 对应的多个 PCRep；每一请求独立携带 endpoint/metric/ERO，不能复用前一个请求对象。`sessions` 是多个独立 TCP 4189 flows，每个 flow 有自己的 `src_port`、SID、Open 和 teardown；会话之间的 SID/request ID 不得串联（`planner.go:109-126` 多会话展开；`src_port` 缺省由 `builder.go:701` 拒绝）。每个 flow 的 packet count（包数）包括 3-way handshake、显式 application messages 和四包 TCP teardown。
 
 **包数公式（实读 `planner.go:66-83`，单流）**：`packet_count = 3（SYN/SYN-ACK/ACK） + N（显式事件数） + 4（FIN 四包）`。多会话（`sessions[]`）= 各会话包数之和（每会话独立 3+N_i+4）。存量 17 正例机读校验 17/17 符合（含 #13 = 2×11 = 22）。
+
+## 5. RFC 8231 stateful 与 RFC 8281 delegation profile
+
+`pcep_rfc8231_stateful` 是显式扩展 profile，基础 Open/Keepalive/PCReq/PCRep/PCErr 仍采用 RFC 5440 common header；LSP object 使用 `pcep.obj.lsp.plsp-id`、`pcep.obj.lsp.flags.*`，SRP object 使用 `pcep.obj.srp.id-number`、`.flags.*`。扩展能力 TLV 的注册字段（`pcep.stateful-pce-capability.*`、`pcep.sync-capability.*`）只有在配置声明 capability 时才出现；`include_db_version=true` 时**同时**发 TLV 16 与 TLV 17（`builder.go:173-180`）。此 profile 不自动维护数据库、同步所有 LSP 或生成 PCUpd/PCInitiate。
+
+`pcep_rfc8281_delegation` 必须声明 stateful capability；delegate/remove/create/administrative/operational flags 只表达显式 LSP/SRP 事件。RFC 8281 不改变 RFC 5440 的 Open/Keepalive 基本格式，也不允许在 base profile 中静默接受 delegate flag——实现对此有专属拒绝分支（`builder.go:757-759`：`lsp`/`srp` 对象在非 stateful profile 下报 `%s object requires stateful profile`）。任何未注册扩展对象仍走负例。
 
 ## 6. 性能设计与验收（CORE_MEMORY §6.1–6.8）
 
@@ -511,7 +511,7 @@ IPv4 profile 使用 `pcep.obj.end_point.source_ipv4_address`/`destination_ipv4_a
 | §4 查规范 | RFC 5440/8231/8281 + 落码反推 + tshark 379 字段实测；八项矩阵 + 子表①②③ | §10 |
 | §5 依赖与错误 | `DependsOn ["tcp"]` 单值（`registry.go:1391`）；18 个 `return fmt.Errorf`（validator 16 + `CheckFault` 2）；失败传 task error | §5/§7/§11.5 |
 | §6 性能 | 见 §6「性能设计与验收（CORE_MEMORY §6.1–6.8）」：6.2 六项逐项给值或给基准方法、6.3 验收两路（pcap/NIC 共用断言集）、6.4 六类场景落点、6.5 不写承诺项 | §6 |
-| §7 三份文档 | `98-pcep-{design,testcase}.md` v1.0.0（草稿层）+ D-PCEP-1（§11，门1 获批 = 定稿）+ T-PCEP（testcase §2，24 ID）+ 旧稿 42-* 为历史层 | 修订记录 |
+| §7 三份文档 | `98-pcep-{design,testcase}.md` v1.0.1（草稿层）+ D-PCEP-1（§11，门1 获批 = 定稿）+ T-PCEP（testcase §2，24 ID）+ 旧稿 42-* 为历史层 | 修订记录 |
 | §8 设计先行 | P1–P3 先于 P4 缺口收敛；门1 获批 = D-PCEP-1 定稿 = 开工门 | 提交序 |
 | §9 测试三源 | 三源 = RFC 5440/8231/8281（§10）+ D-PCEP-1（§11）+ tshark 通道实测（`pcep.*` 379 字段 + 真实 pcap，替代"已确认现网行为"档，未做现网 PCE 抓包 → G-PCEP-6 待确认，不冒充第三源）；24 ID 逐项回指；存量 24 例审计去向 testcase §8 | `98-pcep-testcase.md` §2/§5/§8 |
 | §10 评审闭环 | 每阶段对抗自重审（结论见自审报告）+ 收官隔离复审；红先绿后 | 自审报告 §2 |
@@ -646,9 +646,9 @@ grep -c 'return fmt.Errorf' internal/protocol/pcep/builder.go                   
 **⑥ 产物过期（G-PCEP-11）**
 
 ```bash
-git log -1 --format='%h %ad %s' --date=short -- trafficgen/docs/protocol-pcap-test/pcep.md  # → e60f8de 2026-08-30
-git log -1 --format='%h %ad %s' --date=short 0417be5                                       # → 2026-09-13
-ls trafficgen/docs/protocol-pcap-test/pcep/ | wc -l                                        # → 0
+git log -1 --format='%h %ad %s' --date=short -- docs/protocol-pcap-test/pcep.md  # → e60f8de 2026-08-30
+git log -1 --format='%h %ad %s' --date=short 0417be5                            # → 2026-09-13
+ls docs/protocol-pcap-test/pcep/ 2>/dev/null | wc -l                             # → 0（目录不存在）
 ```
 
 ## 16. 修订记录
