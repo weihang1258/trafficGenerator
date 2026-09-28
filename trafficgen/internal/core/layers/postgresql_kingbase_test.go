@@ -11,6 +11,7 @@ import (
 
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/core/layers"
+	"github.com/trafficgen/trafficgen/internal/core/schema"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/postgresql" // init 注册 postgresql 层生成器 + 校验器
 )
 
@@ -19,7 +20,13 @@ type caseFile struct {
 	ID       string          `json:"id"`
 	Proto    string          `json:"proto"`
 	SpecJSON json.RawMessage `json:"spec_json"`
-	Expect   struct {
+	// StrategyFC 是策略级流控（flows=N）；create 期形状门（静态复制拒绝面）
+	// 需要它才能复现（MCP 的 stratFC(c.StrategyFC) 同款）。
+	StrategyFC *struct {
+		Type  string  `json:"type"`
+		Value float64 `json:"value"`
+	} `json:"strategy_fc"`
+	Expect struct {
 		PacketCount   int    `json:"packet_count"`
 		HasHandshake  bool   `json:"has_handshake"`
 		Terminates    bool   `json:"terminates"`
@@ -62,7 +69,18 @@ func loadCaseFile(t *testing.T, rel string) []caseFile {
 func driveCase(t *testing.T, c caseFile) (error, int) {
 	t.Helper()
 	pkts, err := driveCasePackets(t, c)
-	return err, len(pkts)
+	if err != nil {
+		return err, 0
+	}
+	// C1 回归：ChainPlanner.Plan 只产**单流**（flows 的复制语义住
+	// worker.go:279，不在 planner）——故端到端包数 = 单流包数 × flows。
+	// 原实现直接返回 len(pkts)，multi_flow_dynamic 的 packet_count=33
+	// 因此恒报 11。
+	flows := 1
+	if c.StrategyFC != nil && c.StrategyFC.Type == "flows" && c.StrategyFC.Value > 0 {
+		flows = int(c.StrategyFC.Value)
+	}
+	return nil, len(pkts) * flows
 }
 
 // driveCasePackets drives the case config and returns the collected packets.
@@ -102,16 +120,24 @@ func TestPostgreSQLCaseConfigs(t *testing.T) {
 			for _, c := range loadCaseFile(t, rel) {
 				c := c
 				t.Run(c.ID, func(t *testing.T) {
-					err, count := driveCase(t, c)
+					// 负例：create 期形状门（ValidateStrategy，与 MCP 建策略同路）
+					// 与 task 期链边界两路任一命中锚词即通过——MCP 的
+					// runOneCasePcap 正是"生成或任务被拒即 pass"，本 helper 对齐
+					// 该口径（否则 create 期判死类负例在此假红）。
 					if c.Expect.ExpectError {
-						if err == nil {
-							t.Fatalf("expected error containing %q, but planner produced no error (count=%d)", c.Expect.ErrorContains, count)
+						msg := createTimeRejection(t, c)
+						if msg == "" {
+							msg = planTimeRejection(t, c)
 						}
-						if c.Expect.ErrorContains != "" && !strings.Contains(err.Error(), c.Expect.ErrorContains) {
-							t.Fatalf("error %q does not contain %q", err.Error(), c.Expect.ErrorContains)
+						if msg == "" {
+							t.Fatalf("expected error containing %q, but neither create nor plan rejected", c.Expect.ErrorContains)
+						}
+						if c.Expect.ErrorContains != "" && !strings.Contains(msg, c.Expect.ErrorContains) {
+							t.Fatalf("error %q does not contain %q", msg, c.Expect.ErrorContains)
 						}
 						return
 					}
+					err, count := driveCase(t, c)
 					if err != nil {
 						t.Fatalf("planner error: %v", err)
 					}
@@ -122,6 +148,44 @@ func TestPostgreSQLCaseConfigs(t *testing.T) {
 			}
 		})
 	}
+}
+
+// createTimeRejection runs the create-time shape gate (schema.ValidateStrategy)
+// and returns the first error message, or "" when the config is accepted.
+func createTimeRejection(t *testing.T, c caseFile) string {
+	t.Helper()
+	var cfg map[string]interface{}
+	if err := json.Unmarshal(c.SpecJSON, &cfg); err != nil {
+		t.Fatalf("parse spec_json: %v", err)
+	}
+	fc := &schema.FlowControl{Type: "flows", Value: 1}
+	if c.StrategyFC != nil {
+		fc.Type = c.StrategyFC.Type
+		fc.Value = c.StrategyFC.Value
+	}
+	proto := c.Proto
+	if proto == "" {
+		proto = "postgresql"
+	}
+	_, errs := schema.ValidateStrategy("synth", proto, cfg, fc)
+	if len(errs) == 0 {
+		return ""
+	}
+	return errs[0].Error()
+}
+
+// planTimeRejection drives the chain planner and returns its error message, or
+// "" when the plan succeeded (a negative case that produced packets is a fail).
+func planTimeRejection(t *testing.T, c caseFile) string {
+	t.Helper()
+	err, count := driveCase(t, c)
+	if err != nil {
+		return err.Error()
+	}
+	if count > 0 {
+		return ""
+	}
+	return ""
 }
 
 // TestPostgresqlLayerSchemaAndFieldContract asserts the postgresql layer is

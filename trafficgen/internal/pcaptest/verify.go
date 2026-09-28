@@ -313,6 +313,23 @@ func checkHasPayload(pcapPath string, c Case) error {
 		}
 		return fmt.Errorf("no swarm payload (tcp.len 0 and udp.length<=8 everywhere)")
 	}
+	// PostgreSQL 报文天然小（AuthOk 全帧 68B、DataRow 74B、ReadyForQuery
+	// 65B），frame.len 恒 < 80，不能用帧长作代理（dameng/cql 同款）。应用
+	// 载荷存在性由 tcp.len 标记：真正携带 PG 报文的帧 tcp.len>0，纯握手/
+	// 挥手帧 tcp.len=0。postgresql 设计（82-postgresql-testcase §1）把
+	// has_payload 语义定为"存在携带应用层报文的帧"。
+	if c.Proto == "postgresql" {
+		vals, err := FieldValues(pcapPath, "tcp.len", c.DecodeAs)
+		if err != nil {
+			return err
+		}
+		for _, v := range vals {
+			if n, e := strconv.Atoi(v); e == nil && n > 0 {
+				return nil
+			}
+		}
+		return fmt.Errorf("no postgresql payload (tcp.len 0 everywhere; only TCP handshake/teardown)")
+	}
 	// 路由协议（igmp/ospf/pim）是 raw-IP 链，报文恒小（IGMP 8B 报文+20B IP
 	// = 28B，frame.len 恒 < 80），不能用帧长作代理。存在性由协议自身的报文
 	// 类型字段标记：非空 = 至少一个协议 PDU（raw-IP 链每个发出的包都是该
@@ -627,6 +644,28 @@ func IsMalformedWhitelisted(caseID string, flags ...string) bool {
 	// lane 内校准必需的最小登记，主线程集成时复核）。
 	case caseID == "spnego_neg_token_init_hints" &&
 		artifactMatchesPrefix("BER Error: OctetString expected"):
+		return true
+	// 9. PostgreSQL dissector 对合法帧的伪影（tshark 3.6.14，字节级已对
+	//    落盘 pcap 验证，D-POSTGRESQL-1 审查 C1）。
+	//
+	//    根因：PostgreSQL 前端消息首字节是**字符**（'p'=0x70 Password/
+	//    SASL/GSS 响应、'Q' 等），packet-pgsql.c 对该类消息按
+	//    **null-terminated 字符串**读，但协议本身规定其体是二进制——
+	//    PostgreSQL 官方协议文档对 GSS/SASL 响应原文注明 "This message is
+	//    a design error ... the response is not a null-terminated string"。
+	//    故合法二进制体必然触发 dissector 越界读 → "Malformed Packet
+	//    (Exception occurred)"。
+	//
+	//    逐例字节核验（pgsql.type/pgsql.length 已正常解出，仅体读取抛异常）：
+	//    · auth_md5_salt  pkt6 = 70 00000027 'md5' + 32B salt  → Length=39
+	//      自洽（4 头 + 3 前缀 + 32 摘要），Type=Password message 正确解出。
+	//    · auth_gss       pkt6 = 70 0000000e 600c060a2b0601050502 → Length=14
+	//      自洽（4 头 + 10B GSSAPI 初始上下文 token 60 0c 06 0a 2b 06 01 05
+	//      05 02 = APPLICATION[0] 内嵌 OID 1.3.6.1.5.5.2），RFC 2743 §3.1。
+	//    · auth_sspi      pkt6 同 auth_gss（SSPI 复用 GSSAPI token 形态）。
+	//    三例的帧长度/头布局/载荷结构均与协议规定一致，判为 dissector 伪影。
+	case strings.HasPrefix(caseID, "postgresql_") &&
+		flagMatchesExact("[Malformed Packet: PGSQL]"):
 		return true
 	}
 	return false

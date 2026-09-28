@@ -1,6 +1,7 @@
 package postgresql
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -13,17 +14,18 @@ import (
 // compatible profile. An unregistered profile is rejected (negative case
 // kingbase_neg_profile expects an error containing "profile").
 var knownWireProfiles = map[string]bool{
-	"postgresql_v3":                         true,
-	"kingbase_es_v8_pg_compatible":          true,
-	"postgresql_v3_compatible_reference":    true,
-	"kingbase_native_pending":               true,
+	"postgresql_v3":                      true,
+	"kingbase_es_v8_pg_compatible":       true,
+	"postgresql_v3_compatible_reference": true,
+	"kingbase_native_pending":            true,
 }
 
-// pgSessionState tracks the wire state machine for one session (design §3.3 /
-// §4 rule 5): a c2s state event (query/password) may only appear after the
-// server signaled ready.
+// pgSessionState tracks the wire state machine for one session (design §4.1):
+// a c2s state event (query/password/extended-query) may only appear after the
+// server signaled ready, and no c2s event may follow a Terminate.
 type pgSessionState struct {
-	ready bool
+	ready  bool
+	closed bool
 }
 
 // validatePostgresqlConfig is the registered protocol validator for the
@@ -133,12 +135,54 @@ func validatePostgreSqlEvent(ev *core.PostgreSQLEvent, st *pgSessionState, idx i
 	if (ev.Kind == "query" || ev.Kind == "simple_query") && strings.TrimSpace(ev.SQL) == "" {
 		return fmt.Errorf("postgresql: event %d: query requires non-empty sql", idx)
 	}
-	// State machine (design §3.3 / §4 rule 5): c2s state events may only
-	// appear after the server signaled ready.
+	if ev.Kind == "ready" {
+		switch ev.Status {
+		case "", "I", "T", "E":
+		default:
+			return fmt.Errorf("postgresql: event %d: invalid ready status %q (want I|T|E)", idx, ev.Status)
+		}
+	}
+	if ev.Kind == "describe" || ev.Kind == "close" {
+		switch ev.Mode {
+		case "", "statement", "portal":
+		default:
+			return fmt.Errorf("postgresql: event %d: invalid %s mode %q (want statement|portal)", idx, ev.Kind, ev.Mode)
+		}
+	}
+	// auth_data/auth_token are hex-encoded opaque bytes (design §3.4/§10).
+	// Reject a malformed value here rather than emitting a literal fallback
+	// payload: the builder cannot report an error from the decode, and a
+	// silently wrong token would look like a valid message on the wire
+	// (CORE_MEMORY §14.11 zero false success).
+	for _, f := range []struct{ name, val string }{
+		{"auth_data", ev.AuthData},
+		{"auth_token", ev.AuthToken},
+	} {
+		if f.val == "" {
+			continue
+		}
+		if _, err := hex.DecodeString(f.val); err != nil {
+			return fmt.Errorf("postgresql: event %d: %s is not valid hex: %v", idx, f.name, err)
+		}
+	}
+	if ev.Kind == "auth_request" && ev.Authtype != nil && *ev.Authtype == 5 {
+		if b, err := hex.DecodeString(ev.AuthData); err == nil && ev.AuthData != "" && len(b) != 4 {
+			return fmt.Errorf("postgresql: event %d: MD5 salt must be exactly 4 bytes (got %d)", idx, len(b))
+		}
+	}
+	// State machine (design §4.1): Terminate is terminal — nothing may follow
+	// on the same connection, in either direction.
+	if st.closed {
+		return fmt.Errorf("postgresql: event %d: %s after terminate (state error)", idx, ev.Kind)
+	}
+	// c2s state events may only appear after the server signaled ready.
 	if ev.Direction == "c2s" && c2sNeedsPgReady(ev.Kind) && !st.ready {
 		return fmt.Errorf("postgresql: event %d: %s before ready (state error)", idx, ev.Kind)
 	}
-	// Advance state: server events that set ready.
+	// Advance state: server events that set ready; Terminate closes.
+	if ev.Kind == "terminate" {
+		st.closed = true
+	}
 	if ev.Direction == "s2c" && s2cMakesPgReady(ev.Kind) {
 		st.ready = true
 	}
@@ -146,9 +190,13 @@ func validatePostgreSqlEvent(ev *core.PostgreSQLEvent, st *pgSessionState, idx i
 }
 
 // c2sNeedsPgReady reports whether a c2s event may only appear after ready.
+// Per design §4.1 this covers the Simple Query and Password messages plus the
+// whole extended-query family (which is also frontend traffic).
 func c2sNeedsPgReady(kind string) bool {
 	switch kind {
-	case "query", "simple_query", "password":
+	case "query", "simple_query", "password", "auth_response",
+		"parse", "bind", "describe", "execute", "sync", "flush", "close",
+		"function_call":
 		return true
 	}
 	return false
@@ -163,12 +211,21 @@ func s2cMakesPgReady(kind string) bool {
 	return false
 }
 
-// validPgKind reports whether the event kind is registered.
+// validPgKind reports whether the event kind is registered. The set covers
+// the full message table of design §3.3 that the generator can build.
 func validPgKind(kind string) bool {
 	switch kind {
-	case "startup", "auth_request", "auth_response", "ready", "query", "simple_query",
-		"parameter_status", "backend_key_data", "row_description", "data_row",
-		"command_complete", "query_error", "password", "terminate":
+	case "startup", "ssl_request", "gssenc_request", "cancel_request",
+		"auth_request", "auth_response", "password",
+		"parameter_status", "backend_key_data", "ready",
+		"query", "simple_query", "row_description", "data_row",
+		"command_complete", "query_error", "notice", "notification",
+		"empty_query", "terminate",
+		"parse", "parse_complete", "bind", "bind_complete",
+		"describe", "execute", "sync", "flush", "close", "close_complete",
+		"no_data", "portal_suspended", "parameter_description",
+		"function_call", "function_call_response",
+		"negotiate_protocol_version":
 		return true
 	}
 	return false

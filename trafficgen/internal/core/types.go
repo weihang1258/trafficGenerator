@@ -6453,18 +6453,24 @@ type OpenVPNInnerIP struct {
 // Operations — see the Operations field docs.
 // PostgreSQLEvent is a single PostgreSQL v3 wire event for the shared
 // postgresql layer's event-driven generator (layer_gen.go). It is the
-// terminal-layer event carring the kind/direction/profile that the generator
-// turns into PG v3 bytes: it carries the auth sub-type (authtype),
-// parameter-status name/value, and backend-key pid/secret so the postgresql
-// layer can emit profile-complete events (D-KINGBASE-1：dialect=kingbase 同层
-// 复用，protocol 身份已退役).
+// terminal-layer event carrying the kind/direction that the generator turns
+// into PG v3 bytes, plus the per-kind payload fields (auth sub-type,
+// parameter-status name/value, backend-key pid/secret, extended-query
+// statement/portal, error fields, ...).
+//
+// The layer is a declarative scripted replay: every message in both
+// directions must be declared explicitly. There is no auto-response (design
+// §4.3). Dead fields `profile`/`result` were removed in D-POSTGRESQL-1 P4
+// (G-PG-5): they were never consumed by any builder, so carrying them is now
+// a silent no-op with no configuration truth behind it. The layer's field
+// whitelist is the V9 registry check (5 layer-top keys); event-inner keys are
+// not registry-constrained, so unknown event keys are tolerated at decode
+// time (kingbase.json's frozen 14 cases still carry the two dead keys).
 type PostgreSQLEvent struct {
 	Kind      string `json:"kind,omitempty"`
 	Direction string `json:"direction,omitempty"`
-	Profile   string `json:"profile,omitempty"`
 	User      string `json:"user,omitempty"`
 	Database  string `json:"database,omitempty"`
-	Result    string `json:"result,omitempty"`
 	SQL       string `json:"sql,omitempty"`
 	Tag       string `json:"tag,omitempty"`
 	// Authtype is the int32 auth sub-type for "auth_request" (0=OK, 3=cleartext,
@@ -6472,13 +6478,83 @@ type PostgreSQLEvent struct {
 	// distinguishable from an absent default (which the generator maps to
 	// cleartext). nil = absent.
 	Authtype *int32 `json:"authtype,omitempty"`
+	// AuthData carries the AuthenticationRequest sub-type payload (design
+	// §3.4) as a hex string, so the opaque bytes survive the JSON round-trip:
+	// 4 salt bytes for code 5 (MD5Password), a GSSAPI/SSPI token for code 8
+	// (GSSContinue), one String per mechanism plus a zero terminator for code
+	// 10 (SASL), and SASL data for codes 11/12. Empty → the generator's
+	// per-sub-type default (salt for 5, SCRAM-SHA-256 for 10, nothing for the
+	// rest). The bytes are never interpreted or validated (design §10 铁律).
+	AuthData string `json:"auth_data,omitempty"`
+	// AuthToken carries the c2s opaque token for "auth_response"/"password"
+	// as a hex string. GSSResponse, SASLInitialResponse and SASLResponse all
+	// ride the 'p' type with a byte token instead of a C-string, so this form
+	// is emitted without the NUL terminator that the cleartext password form
+	// carries. Empty → the legacy cleartext "testpass".
+	AuthToken string `json:"auth_token,omitempty"`
 	// Name/Value carry ParameterStatus name/value; empty → generator uses a
 	// default parameter list (a cycled index).
 	Name  string `json:"name,omitempty"`
 	Value string `json:"value,omitempty"`
 	// PID/Secret carry BackendKeyData; 0 → generator default (12345/67890).
+	// Also carry the CancelRequest target on the "cancel_request" kind.
 	PID    int32 `json:"pid,omitempty"`
 	Secret int32 `json:"secret,omitempty"`
+	// Status is the ReadyForQuery transaction-state byte for the "ready"
+	// kind: "I" (idle, default), "T" (in transaction block), "E" (failed
+	// transaction block).
+	Status string `json:"status,omitempty"`
+	// Cols describes RowDescription columns for the "row_description" kind.
+	// Empty → the generator's single int4 "col1" column (legacy shape).
+	Cols []PGField `json:"cols,omitempty"`
+	// RowValues carries DataRow column values for the "data_row" kind. A nil
+	// element encodes a SQL NULL column (length -1). Empty → the generator's
+	// single int4 column holding 42 (legacy shape).
+	RowValues []*string `json:"row_values,omitempty"`
+	// OIDs carries ParameterDescription type OIDs ("parameter_description")
+	// and Parse parameter type OIDs ("parse").
+	OIDs []int32 `json:"oids,omitempty"`
+	// Statement/Portal carry extended-query object names (parse/bind/
+	// describe/execute/close).
+	Statement string `json:"statement,omitempty"`
+	Portal    string `json:"portal,omitempty"`
+	// Mode selects the Describe/Close target: "statement" (default) or
+	// "portal".
+	Mode string `json:"mode,omitempty"`
+	// MaxRows is the Execute row limit (0 = unlimited).
+	MaxRows int32 `json:"max_rows,omitempty"`
+	// ParamFormats/ResultFormats are Bind format codes (0=text, 1=binary).
+	ParamFormats  []int16 `json:"param_formats,omitempty"`
+	ResultFormats []int16 `json:"result_formats,omitempty"`
+	// ParamValues are Bind parameter values; a nil element is a NULL
+	// parameter (length -1).
+	ParamValues []*string `json:"param_values,omitempty"`
+	// Channel/Payload carry NotificationResponse channel and payload.
+	Channel string `json:"channel,omitempty"`
+	Payload string `json:"payload,omitempty"`
+	// Fields carries NoticeResponse (and ErrorResponse) field sequences.
+	// Empty on "notice" → the generator's default ERROR/42P01/message trio.
+	Fields []PGErrorField `json:"fields,omitempty"`
+	// FunctionOID/Arguments/ArgumentFormats/ResultFormat carry FunctionCall
+	// parameters. FunctionOID 0 → 1244 (nextval), matching the legacy planner.
+	FunctionOID       int32     `json:"function_oid,omitempty"`
+	Arguments         []*string `json:"arguments,omitempty"`
+	ArgumentFormats   []int16   `json:"argument_formats,omitempty"`
+	FunctionResultFmt int16     `json:"function_result_format,omitempty"`
+	// FunctionResult / FunctionResultNull carry FunctionCallResponse. A null
+	// result encodes length -1.
+	FunctionResult     string `json:"function_result,omitempty"`
+	FunctionResultNull bool   `json:"function_result_null,omitempty"`
+	// NewestMinor/UnrecognizedOptions carry NegotiateProtocolVersion fields.
+	NewestMinor         int32    `json:"newest_minor,omitempty"`
+	UnrecognizedOptions []string `json:"unrecognized_options,omitempty"`
+	// ProtocolVersion overrides the StartupMessage protocol version for the
+	// "startup" kind (0x00030000 v3.0 default, 0x00030001 v3.1, 0x00030002
+	// v3.2). The config-level ProtocolVersion is not reachable from a layers
+	// chain (the layer whitelist is 5 keys), so the version face rides the
+	// event that carries the bytes. 0 = v3.0. Note the 3.6.14 dissector reads
+	// 3.1/3.2 as Unknown — assert those via frames hex (design §3.9).
+	ProtocolVersion int32 `json:"protocol_version,omitempty"`
 }
 
 // PostgreSQLSession is a single postgresql-layer session with its own source
@@ -6726,6 +6802,39 @@ type PGOperation struct {
 type PGErrorField struct {
 	Type  byte   `json:"type"`
 	Value string `json:"value"`
+}
+
+// UnmarshalJSON accepts the field code as either a 1-character string (the
+// natural wire spelling, e.g. "S"/"C"/"M" — the form the layer-chain event
+// config uses) or a number (the byte value). The flat parser
+// (parsePGErrorFields) has always tolerated both; the layer-chain path decodes
+// through encoding/json, so the tolerance has to live here to keep the two
+// config shapes in agreement.
+func (f *PGErrorField) UnmarshalJSON(b []byte) error {
+	var raw struct {
+		Type  json.RawMessage `json:"type"`
+		Value string          `json:"value"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	f.Value = raw.Value
+	if len(raw.Type) == 0 {
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(raw.Type, &s); err == nil {
+		if s != "" {
+			f.Type = s[0]
+		}
+		return nil
+	}
+	var n int64
+	if err := json.Unmarshal(raw.Type, &n); err != nil {
+		return fmt.Errorf("postgresql error field type must be a 1-char string or a byte value: %w", err)
+	}
+	f.Type = byte(n)
+	return nil
 }
 
 // PGField is one column descriptor in RowDescription. Each field carries

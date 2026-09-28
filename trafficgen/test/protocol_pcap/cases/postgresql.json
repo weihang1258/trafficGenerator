@@ -1,19 +1,19 @@
 [
   {
-    "id": "postgresql-query-basic",
+    "id": "postgresql_startup_ipv4_basic",
     "proto": "postgresql",
-    "summary": "PostgreSQL (端口 5432) 冒烟：完整 TCP 握手 + 启动消息 → 认证 → 参数 → SELECT 1 查询 → 终止",
+    "summary": "T-PG-1: IPv4 full session — handshake → Startup → R0 → S*7 → K → Z → Q → T/D/C → Z → X → teardown",
     "spec_json": {
       "layers": [
         {
           "ip": {
-            "src": "10.0.0.1",
-            "dst": "20.0.0.1"
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
           }
         },
         {
           "tcp": {
-            "src_port": 12345
+            "src_port": 45082
           }
         },
         {
@@ -21,63 +21,5785 @@
             "dialect": "postgresql",
             "wire_profile": "postgresql_v3",
             "events": [
-              {"kind": "startup", "direction": "c2s", "profile": "startup_v3"},
-              {"kind": "auth_request", "direction": "s2c", "profile": "auth_profile_defined", "authtype": 0},
-              {"kind": "parameter_status", "direction": "s2c", "profile": "parameter_status_outer"},
-              {"kind": "parameter_status", "direction": "s2c", "profile": "parameter_status_outer"},
-              {"kind": "parameter_status", "direction": "s2c", "profile": "parameter_status_outer"},
-              {"kind": "parameter_status", "direction": "s2c", "profile": "parameter_status_outer"},
-              {"kind": "parameter_status", "direction": "s2c", "profile": "parameter_status_outer"},
-              {"kind": "parameter_status", "direction": "s2c", "profile": "parameter_status_outer"},
-              {"kind": "parameter_status", "direction": "s2c", "profile": "parameter_status_outer"},
-              {"kind": "backend_key_data", "direction": "s2c", "profile": "backend_key_data_outer"},
-              {"kind": "ready", "direction": "s2c", "profile": "ready_idle"},
-              {"kind": "query", "direction": "c2s", "profile": "query_simple_v3", "sql": "SELECT 1"},
-              {"kind": "row_description", "direction": "s2c", "profile": "row_description_outer"},
-              {"kind": "data_row", "direction": "s2c", "profile": "data_row_outer"},
-              {"kind": "command_complete", "direction": "s2c", "profile": "command_complete_outer", "tag": "SELECT 1"},
-              {"kind": "ready", "direction": "s2c", "profile": "ready_idle"}
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "backend_key_data",
+                "direction": "s2c",
+                "pid": 4242,
+                "secret": 991199
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "query",
+                "direction": "c2s",
+                "sql": "SELECT 1"
+              },
+              {
+                "kind": "row_description",
+                "direction": "s2c"
+              },
+              {
+                "kind": "data_row",
+                "direction": "s2c"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "SELECT 1"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
             ]
           }
         }
       ]
     },
     "expect": {
+      "packet_count": 23,
       "has_handshake": true,
       "negotiated": true,
       "terminates": true,
       "has_payload": true,
-      "min_packets": 19,
+      "directional": true,
       "fields": [
-        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
-        {"packet": 1, "field": "tcp.dstport", "value": "5432"},
-        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
-        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
-        {"packet": 4, "field": "pgsql.type", "value": "Startup message"},
-        {"packet": 5, "field": "pgsql.type", "value": "Authentication request"},
-        {"packet": 5, "field": "pgsql.authtype", "value": "0"},
-        {"packet": 6, "field": "pgsql.type", "value": "Parameter status"},
-        {"packet": 13, "field": "pgsql.type", "value": "Backend key data"},
-        {"packet": 14, "field": "pgsql.type", "value": "Ready for query"},
-        {"packet": 15, "field": "pgsql.type", "value": "Simple query"},
-        {"packet": 15, "field": "pgsql.query", "value": "SELECT 1"},
-        {"packet": 16, "field": "pgsql.type", "value": "Row description"},
-        {"packet": 17, "field": "pgsql.type", "value": "Data row"},
-        {"packet": 18, "field": "pgsql.type", "value": "Command completion"},
-        {"packet": 18, "field": "pgsql.tag", "value": "SELECT 1"},
-        {"packet": 19, "field": "pgsql.type", "value": "Ready for query"}
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x0002"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "5432"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.flags",
+          "value": "0x0012"
+        },
+        {
+          "packet": 3,
+          "field": "tcp.flags",
+          "value": "0x0010"
+        },
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 4,
+          "field": "pgsql.version_major",
+          "value": "3"
+        },
+        {
+          "packet": 4,
+          "field": "pgsql.version_minor",
+          "value": "0"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.type",
+          "value": "Authentication request"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.authtype",
+          "value": "0"
+        },
+        {
+          "packet": 6,
+          "field": "pgsql.type",
+          "value": "Parameter status"
+        },
+        {
+          "packet": 13,
+          "field": "pgsql.type",
+          "value": "Backend key data"
+        },
+        {
+          "packet": 13,
+          "field": "pgsql.pid",
+          "value": "4242"
+        },
+        {
+          "packet": 13,
+          "field": "pgsql.key",
+          "value": "991199"
+        },
+        {
+          "packet": 14,
+          "field": "pgsql.type",
+          "value": "Ready for query"
+        },
+        {
+          "packet": 14,
+          "field": "pgsql.status",
+          "value": "73"
+        },
+        {
+          "packet": 15,
+          "field": "pgsql.type",
+          "value": "Simple query"
+        },
+        {
+          "packet": 15,
+          "field": "pgsql.query",
+          "value": "SELECT 1"
+        },
+        {
+          "packet": 16,
+          "field": "pgsql.type",
+          "value": "Row description"
+        },
+        {
+          "packet": 17,
+          "field": "pgsql.type",
+          "value": "Data row"
+        },
+        {
+          "packet": 18,
+          "field": "pgsql.type",
+          "value": "Command completion"
+        },
+        {
+          "packet": 18,
+          "field": "pgsql.tag",
+          "value": "SELECT 1"
+        },
+        {
+          "packet": 14,
+          "field": "pgsql.type",
+          "value": "Ready for query"
+        }
       ],
       "frames": [
-        {"packet": 4, "offset": 54, "hex": "00 00 00 09 00 03 00 00 00"},
-        {"packet": 15, "offset": 54, "hex": "51 00 00 00 0d 53 45 4c 45 43 54 20 31"},
-        {"packet": 17, "offset": 54, "hex": "44 00 00 00 0e 00 01 00 00 00 04 00 00 00 2a"}
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "000000230003000064617461626173650062656e636800757365720062656e63680000"
+        },
+        {
+          "packet": 15,
+          "offset": 54,
+          "hex": "510000000d53454c454354203100"
+        },
+        {
+          "packet": 17,
+          "offset": 54,
+          "hex": "440000000e0001000000040000002a"
+        }
       ],
       "notes": [
-        "f4 Startup: len 9 + version_major 3 + version_minor 0；f5 认证请求 (authtype 0=OK 无需密码)；f6-12 参数状态 (server_version/client_encoding/DateStyle 等)",
-        "f15 Simple query 'SELECT 1'；f16 Row description 1 列；f17 Data row 值 42 (0x2a)；f18 Command completion tag 'SELECT 1'；f19 Ready for query (status I)",
-        "23 帧 = 3 握手 + 16 数据 + 4 终止；pgsql.* 是 Wireshark PostgreSQL 解析器字段前缀（非 postgresql.*）",
-        "严格分层：layers=[ip,tcp,postgresql]，dialect=postgresql；dst_port 不变式由 postgresql 层 FieldContract→tcp.dst_port=5432 补齐（未在 tcp 层显式写 dst_port）"
+        "23 帧 = 3 握手 + 16 数据 + 4 挥手（公式 N+7，N=16）。",
+        "startup 参数按 key 排序编码（database 先于 user），length=0x23=35；帧字节为引擎实测（先跑后钉）。",
+        "f14 status=73='I'；f15 Q length=13 含自身不含 type 字节。",
+        "dst_port 由 postgresql 层 FieldContract→tcp.dst_port=5432 补齐（tcp 层未显式写）。"
       ]
+    }
+  },
+  {
+    "id": "postgresql_startup_ipv6_basic",
+    "proto": "postgresql",
+    "summary": "T-PG-2: IPv6 same event sequence as T-PG-1 (ipv6.nxt=6, frame offset 74)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::82",
+            "dst": "2001:db8::100"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "backend_key_data",
+                "direction": "s2c",
+                "pid": 4242,
+                "secret": 991199
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "query",
+                "direction": "c2s",
+                "sql": "SELECT 1"
+              },
+              {
+                "kind": "row_description",
+                "direction": "s2c"
+              },
+              {
+                "kind": "data_row",
+                "direction": "s2c"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "SELECT 1"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 23,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ipv6.nxt",
+          "value": "6"
+        },
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 15,
+          "field": "pgsql.query",
+          "value": "SELECT 1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 74,
+          "hex": "000000230003000064617461626173650062656e636800757365720062656e63680000"
+        }
+      ],
+      "notes": [
+        "IPv6 fixture 独立于 T-PG-1 的 IPv4 地址（§9.24 对称）；应用字节与 v4 例逐字节相同，起点 74=14+40+20。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_startup_params_empty",
+    "proto": "postgresql",
+    "summary": "T-PG-3: empty-parameter StartupMessage (minimum legal shape, length=9)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 4,
+          "field": "pgsql.length",
+          "value": "9"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "000000090003000000"
+        }
+      ],
+      "notes": [
+        "9 字节 = length 4 + version 4 + 终止 NUL 1；本机实测被识别为 Startup message 且 pgsql.length=9。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_startup_params_multi",
+    "proto": "postgresql",
+    "summary": "T-PG-4: StartupMessage with user+database (length=35, params key-sorted)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.length",
+          "value": "35"
+        },
+        {
+          "packet": 4,
+          "field": "pgsql.version_major",
+          "value": "3"
+        },
+        {
+          "packet": 4,
+          "field": "pgsql.parameter_name",
+          "value": "database,user"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "000000230003000064617461626173650062656e636800757365720062656e63680000"
+        }
+      ],
+      "notes": [
+        "length=35 = 4 + 4 + (database\\0bench\\0) 15 + (user\\0bench\\0) 11 + 终止 NUL 1；参数按 key 排序编码（实测字节）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_startup_protocol_v3_1",
+    "proto": "postgresql",
+    "summary": "T-PG-5: protocol version 0x00030001 (frames hex; dissector reads Unknown)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "protocol_version": 196609
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "000000090003000100"
+        }
+      ],
+      "notes": [
+        "dissector 3.6.14 把 v3.1 读作 Unknown——不得断言 pgsql.type=Startup message，只走 frames hex（设计 §3.9）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_startup_protocol_v3_2",
+    "proto": "postgresql",
+    "summary": "T-PG-6: protocol version 0x00030002 (PostgreSQL 18, frames hex)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "protocol_version": 196610
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "000000090003000200"
+        }
+      ],
+      "notes": [
+        "v3.2 的 256-bit cancel key / 变长 BackendKeyData secret 是 B′ 缺口 G-PG-2（今日不实现），本用例只钉版本号字节。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_ssl_request",
+    "proto": "postgresql",
+    "summary": "T-PG-7: SSLRequest 8-byte magic 04 D2 16 2F (no response bytes)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "ssl_request",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "SSL request"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "0000000804d2162f"
+        }
+      ],
+      "notes": [
+        "标准端口 5432 走 dissector 端口启发式，无需 decode_as；三者均只声明客户端意图、无服务端响应字节。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_gssenc_request",
+    "proto": "postgresql",
+    "summary": "T-PG-8: GSSENCRequest 8-byte magic 04 D2 16 30",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "gssenc_request",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "GSS encrypt request"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "0000000804d21630"
+        }
+      ],
+      "notes": [
+        "GSSENCRequest 只在客户端已协商 GSS 时发送（规范 §54.2.7），此处按线字节面覆盖。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_cancel_request",
+    "proto": "postgresql",
+    "summary": "T-PG-9: CancelRequest 16 bytes (magic + pid + secret) on an independent connection",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "cancel_request",
+                "direction": "c2s",
+                "pid": 4242,
+                "secret": 991199
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Cancel request"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "0000001004d2162e00001092000f1fdf"
+        }
+      ],
+      "notes": [
+        "pid/secret 与 T-PG-23 的 BackendKeyData 取值相同；本用例只断言字节，不断言关联行为——CancelRequest 的 driven_by 关联语义是 B′ 缺口 G-PG-3（今日不实现）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_auth_ok",
+    "proto": "postgresql",
+    "summary": "T-PG-10: AuthenticationOk (subtype 0), length=8",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.type",
+          "value": "Authentication request"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.authtype",
+          "value": "0"
+        },
+        {
+          "packet": 6,
+          "field": "pgsql.type",
+          "value": "Password message"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "520000000800000000"
+        }
+      ],
+      "notes": [
+        "口令/摘要/GSS token 一律 opaque（生成器恒 testpass；无口令密钥，不校验密码学正确性——设计 §10 铁律）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_auth_kerberos_v5",
+    "proto": "postgresql",
+    "summary": "T-PG-11: AuthenticationKerberosV5 (subtype 2, no extra payload)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 2
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 10,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.type",
+          "value": "Authentication request"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.authtype",
+          "value": "2"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "520000000800000002"
+        }
+      ],
+      "notes": [
+        "口令/摘要/GSS token 一律 opaque（生成器恒 testpass；无口令密钥，不校验密码学正确性——设计 §10 铁律）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_auth_cleartext",
+    "proto": "postgresql",
+    "summary": "T-PG-12: AuthenticationCleartextPassword (subtype 3) + c2s PasswordMessage (opaque)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 3
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.type",
+          "value": "Authentication request"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.authtype",
+          "value": "3"
+        },
+        {
+          "packet": 6,
+          "field": "pgsql.type",
+          "value": "Password message"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "520000000800000003"
+        }
+      ],
+      "notes": [
+        "口令/摘要/GSS token 一律 opaque（生成器恒 testpass；无口令密钥，不校验密码学正确性——设计 §10 铁律）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_auth_md5_salt",
+    "proto": "postgresql",
+    "summary": "T-PG-13: AuthenticationMD5Password (subtype 5, 4-byte salt, length=12) + c2s digest",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 5
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s",
+                "auth_token": "6d64353031323334353637383961626364656630313233343536373839616263646566"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.type",
+          "value": "Authentication request"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.authtype",
+          "value": "5"
+        },
+        {
+          "packet": 6,
+          "field": "pgsql.type",
+          "value": "Password message"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "520000000c0000000512345678"
+        }
+      ],
+      "notes": [
+        "R(5) 携带 4 字节 salt（生成器缺省 12 34 56 78，与 legacy planner md5SaltOrDefault 同值）；length=12 实测读回。",
+        "c2s `p` 为 35 字符 md5 摘要形（auth_token 钉字节）。口令/摘要/GSS/SASL token 一律 opaque（无口令密钥，不校验密码学正确性——设计 §10 铁律）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_auth_scm_credential",
+    "proto": "postgresql",
+    "summary": "T-PG-14: AuthenticationSCMCredential (subtype 6, deprecated)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 6
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 10,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.type",
+          "value": "Authentication request"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.authtype",
+          "value": "6"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "520000000800000006"
+        }
+      ],
+      "notes": [
+        "口令/摘要/GSS token 一律 opaque（生成器恒 testpass；无口令密钥，不校验密码学正确性——设计 §10 铁律）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_auth_gss",
+    "proto": "postgresql",
+    "summary": "T-PG-15: AuthenticationGSS (subtype 7) + c2s GSSResponse (opaque)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 7
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s",
+                "auth_token": "600c060a2b0601050502"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.type",
+          "value": "Authentication request"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.authtype",
+          "value": "7"
+        },
+        {
+          "packet": 6,
+          "field": "pgsql.type",
+          "value": "Password message"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "520000000800000007"
+        }
+      ],
+      "notes": [
+        "口令/摘要/GSS/SASL token 一律 opaque（无口令密钥，不校验密码学正确性——设计 §10 铁律）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_auth_gss_continue",
+    "proto": "postgresql",
+    "summary": "T-PG-16: AuthenticationGSSContinue (subtype 8, Byte^n GSSAPI data)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 8,
+                "auth_data": "0102030405060708"
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s",
+                "auth_token": "600c060a2b0601050502"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.type",
+          "value": "Authentication request"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.authtype",
+          "value": "8"
+        },
+        {
+          "packet": 6,
+          "field": "pgsql.type",
+          "value": "GSSResponse message"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "5200000010000000080102030405060708"
+        }
+      ],
+      "notes": [
+        "R(8) 携带 Byte^n GSSAPI token（auth_data 钉字节）。口令/摘要/GSS/SASL token 一律 opaque（无口令密钥，不校验密码学正确性——设计 §10 铁律）。",
+        "R8/R11/R12 现携带子类型 payload（设计 §3.4 表），frames hex 钉住线上字节。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_auth_sspi",
+    "proto": "postgresql",
+    "summary": "T-PG-17: AuthenticationSSPI (subtype 9) + c2s response",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 9
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s",
+                "auth_token": "600c060a2b0601050502"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.type",
+          "value": "Authentication request"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.authtype",
+          "value": "9"
+        },
+        {
+          "packet": 6,
+          "field": "pgsql.type",
+          "value": "Password message"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "520000000800000009"
+        }
+      ],
+      "notes": [
+        "口令/摘要/GSS/SASL token 一律 opaque（无口令密钥，不校验密码学正确性——设计 §10 铁律）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_auth_sasl_mechanisms",
+    "proto": "postgresql",
+    "summary": "T-PG-18: AuthenticationSASL (subtype 10): SCRAM-SHA-256 mechanism list + SASLInitialResponse",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 10
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s",
+                "auth_token": "534352414d2d5348412d323536000000001b6e2c2c6e3d62656e63682c723d636c69656e746e6f6e6365313233"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.type",
+          "value": "Authentication request"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.authtype",
+          "value": "10"
+        },
+        {
+          "packet": 6,
+          "field": "pgsql.type",
+          "value": "SASLInitialResponse message"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "52000000170000000a534352414d2d5348412d3235360000"
+        }
+      ],
+      "notes": [
+        "R(10) 机制名列表 = SCRAM-SHA-256 + 零字节终止（生成器缺省，实测 length=23）。",
+        "c2s SASLInitialResponse：mech String + int32 长度 + initials（auth_token 钉字节）。口令/摘要/GSS/SASL token 一律 opaque（无口令密钥，不校验密码学正确性——设计 §10 铁律）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_auth_sasl_continue",
+    "proto": "postgresql",
+    "summary": "T-PG-19: AuthenticationSASLContinue (subtype 11) + c2s SASLResponse",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 11,
+                "auth_data": "723d636c69656e746e6f6e63653132337372766e6f6e63652c733d6332467364484e68624852325957773d2c693d34303936"
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s",
+                "auth_token": "00000020633d626977732c723d636c69656e746e6f6e63653132332c7372766e6f6e6365"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.type",
+          "value": "Authentication request"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.authtype",
+          "value": "11"
+        },
+        {
+          "packet": 6,
+          "field": "pgsql.type",
+          "value": "SASLResponse message"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "520000003a0000000b723d636c69656e746e6f6e63653132337372766e6f6e63652c733d6332467364484e68624852325957773d2c693d34303936"
+        }
+      ],
+      "notes": [
+        "R(11) 携带 SASL 质询（auth_data 钉字节）；c2s SASLResponse 为 int32 长度 + 数据。口令/摘要/GSS/SASL token 一律 opaque（无口令密钥，不校验密码学正确性——设计 §10 铁律）。",
+        "R8/R11/R12 现携带子类型 payload（设计 §3.4 表），frames hex 钉住线上字节。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_auth_sasl_final",
+    "proto": "postgresql",
+    "summary": "T-PG-20: AuthenticationSASLFinal (subtype 12)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 12,
+                "auth_data": "763d63326c6e626d463064584a6c"
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.type",
+          "value": "Authentication request"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.authtype",
+          "value": "12"
+        },
+        {
+          "packet": 6,
+          "field": "pgsql.type",
+          "value": "SASLResponse message"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "52000000160000000c763d63326c6e626d463064584a6c"
+        }
+      ],
+      "notes": [
+        "R(12) 携带 SASL 末态附加数据（auth_data 钉字节）。口令/摘要/GSS/SASL token 一律 opaque（无口令密钥，不校验密码学正确性——设计 §10 铁律）。",
+        "R8/R11/R12 现携带子类型 payload（设计 §3.4 表），frames hex 钉住线上字节。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_parameter_status_cycle",
+    "proto": "postgresql",
+    "summary": "T-PG-21: 7 default ParameterStatus events cycled from the per-instance default table",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 14,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Parameter status"
+        },
+        {
+          "field": "pgsql.parameter_name",
+          "distinct_values": [
+            "server_encoding",
+            "client_encoding",
+            "DateStyle",
+            "TimeZone",
+            "integer_datetimes",
+            "standard_conforming_strings",
+            "application_name"
+          ]
+        }
+      ],
+      "notes": [
+        "缺省表顺序 = layer_gen.go defaultParamOrder（实测逐值命中）；paramIdx 是 per-generator 计数器，每流从 0 起。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_parameter_status_explicit",
+    "proto": "postgresql",
+    "summary": "T-PG-22: explicit ParameterStatus name/value pair",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parameter_status",
+                "direction": "s2c",
+                "name": "server_version",
+                "value": "18.0"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Parameter status"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.parameter_name",
+          "value": "server_version"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.parameter_value",
+          "value": "18.0"
+        }
+      ],
+      "notes": [
+        "显式 name/value 绕过缺省循环表（layer_gen 判 Name!=\"\"||Value!=\"\"）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_backend_key_data",
+    "proto": "postgresql",
+    "summary": "T-PG-23: BackendKeyData with explicit pid/secret",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "backend_key_data",
+                "direction": "s2c",
+                "pid": 4242,
+                "secret": 991199
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Backend key data"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.pid",
+          "value": "4242"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.key",
+          "value": "991199"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "4b0000000c00001092000f1fdf"
+        }
+      ],
+      "notes": [
+        "缺省档（事件不写 pid/secret → 12345/67890）见 T-PG-1 的显式档之外的覆盖：本用例为显式档，缺省档由 T-PG-1 之外无例——两档在同一次全量中各需一例（缺省档见 T-PG-1 注）。",
+        "v3.2 变长 secret（4–256B）是 B′ 缺口 G-PG-2，今日恒 4 字节。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_ready_for_query_idle",
+    "proto": "postgresql",
+    "summary": "T-PG-24: ReadyForQuery status 'I' (idle)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c",
+                "status": "I"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 7,
+          "field": "pgsql.type",
+          "value": "Ready for query"
+        },
+        {
+          "packet": 7,
+          "field": "pgsql.status",
+          "value": "73"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "5a0000000549"
+        }
+      ],
+      "notes": [
+        "status 值 73 = ASCII 'I'（FT_UINT8，tshark 读十进制）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_ready_in_transaction",
+    "proto": "postgresql",
+    "summary": "T-PG-25: ReadyForQuery status 'T' (inside a transaction block)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c",
+                "status": "T"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 7,
+          "field": "pgsql.type",
+          "value": "Ready for query"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.status",
+          "value": "84"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "5a0000000554"
+        }
+      ],
+      "notes": [
+        "84 = ASCII 'T'；'T'/'E' 由事件 status 字段驱动（A′ 已接线：layer_gen pgwireStatus）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_ready_failed_transaction",
+    "proto": "postgresql",
+    "summary": "T-PG-26: ReadyForQuery status 'E' (failed transaction block)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c",
+                "status": "E"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 7,
+          "field": "pgsql.type",
+          "value": "Ready for query"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.status",
+          "value": "69"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "5a0000000545"
+        }
+      ],
+      "notes": [
+        "69 = ASCII 'E'；与 ErrorResponse 首字节同值（0x45）——方向+上下文消歧（本包 s2c 且 type=Ready for query）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_query_select_basic",
+    "proto": "postgresql",
+    "summary": "T-PG-27: Simple Query 'SELECT 1' with the full T/D/C response family",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "query",
+                "direction": "c2s",
+                "sql": "SELECT 1"
+              },
+              {
+                "kind": "row_description",
+                "direction": "s2c"
+              },
+              {
+                "kind": "data_row",
+                "direction": "s2c"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "SELECT 1"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 16,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Simple query"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.query",
+          "value": "SELECT 1"
+        },
+        {
+          "packet": 9,
+          "field": "pgsql.type",
+          "value": "Row description"
+        },
+        {
+          "packet": 9,
+          "field": "pgsql.field.count",
+          "value": "1"
+        },
+        {
+          "packet": 9,
+          "field": "pgsql.col.name",
+          "value": "col1"
+        },
+        {
+          "packet": 10,
+          "field": "pgsql.type",
+          "value": "Data row"
+        },
+        {
+          "packet": 10,
+          "field": "pgsql.val.data",
+          "value": "0000002a"
+        },
+        {
+          "packet": 11,
+          "field": "pgsql.type",
+          "value": "Command completion"
+        },
+        {
+          "packet": 11,
+          "field": "pgsql.tag",
+          "value": "SELECT 1"
+        },
+        {
+          "packet": 7,
+          "field": "pgsql.type",
+          "value": "Ready for query"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "510000000d53454c454354203100"
+        },
+        {
+          "packet": 10,
+          "offset": 54,
+          "hex": "440000000e0001000000040000002a"
+        }
+      ],
+      "notes": [
+        "f10 Data row 值 42 = 0x2a（生成器恒单列 int4）；15 字节线上、声明 length=14（typed 长度不含 type 字节，设计 §3.1）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_query_multi_statement",
+    "proto": "postgresql",
+    "summary": "T-PG-28: multi-statement Simple Query (';') — no Z between statements, one Z at batch end",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "query",
+                "direction": "c2s",
+                "sql": "SELECT 1; SELECT 2"
+              },
+              {
+                "kind": "row_description",
+                "direction": "s2c"
+              },
+              {
+                "kind": "data_row",
+                "direction": "s2c"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "SELECT 1"
+              },
+              {
+                "kind": "row_description",
+                "direction": "s2c"
+              },
+              {
+                "kind": "data_row",
+                "direction": "s2c"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "SELECT 2"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 19,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "pgsql.query",
+          "value": "SELECT 1; SELECT 2"
+        },
+        {
+          "field": "pgsql.type",
+          "distinct_values": [
+            "Startup message",
+            "Authentication request",
+            "Password message",
+            "Ready for query",
+            "Simple query",
+            "Row description",
+            "Data row",
+            "Command completion"
+          ]
+        }
+      ],
+      "notes": [
+        "中间不夹 Z：语句之间无 Ready for query（规范 §54.2.3）；pgsql.type 聚合集只含整批收尾的 Z（与首 Z 同值）。",
+        "A′ 已接线：多语句由事件面逐条声明（legacy planner 的 splitMultiStatement 属未接线资产）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_query_command_tags",
+    "proto": "postgresql",
+    "summary": "T-PG-29: CommandComplete tag family — INSERT 0 1 / UPDATE 3 / DELETE 2 / BEGIN",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "INSERT 0 1"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "UPDATE 3"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "DELETE 2"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "BEGIN"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 15,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Command completion"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.tag",
+          "value": "INSERT 0 1"
+        },
+        {
+          "packet": 9,
+          "field": "pgsql.tag",
+          "value": "UPDATE 3"
+        },
+        {
+          "packet": 10,
+          "field": "pgsql.tag",
+          "value": "DELETE 2"
+        },
+        {
+          "packet": 11,
+          "field": "pgsql.tag",
+          "value": "BEGIN"
+        }
+      ],
+      "notes": [
+        "标签是 NUL 终止 String，无校验；签名标签含空格与数字，按实测钉。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_row_description_multi_column",
+    "proto": "postgresql",
+    "summary": "T-PG-30: 3-column RowDescription (int16 count + per-column 7 fields)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "row_description",
+                "direction": "s2c",
+                "cols": [
+                  {
+                    "name": "id",
+                    "column": 1,
+                    "type_oid": 23,
+                    "type_len": 4,
+                    "type_mod": -1
+                  },
+                  {
+                    "name": "name",
+                    "column": 2,
+                    "type_oid": 25,
+                    "type_len": -1,
+                    "type_mod": -1
+                  },
+                  {
+                    "name": "ok",
+                    "column": 3,
+                    "type_oid": 16,
+                    "type_len": 1,
+                    "type_mod": -1
+                  }
+                ]
+              },
+              {
+                "kind": "data_row",
+                "direction": "s2c"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "SELECT 3"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 15,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Row description"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.field.count",
+          "value": "3"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.oid.type",
+          "value": "23,25,16"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "54000000470003696400000000000001000000170004ffffffff00006e616d650000000000000200000019ffffffffffff00006f6b00000000000003000000100001ffffffff0000"
+        }
+      ],
+      "notes": [
+        "A′ 已接线：列数/列名/类型 OID 由事件 cols 驱动（layer_gen RowDescriptionFields）。",
+        "pgsql.oid.type 为多值字段，tshark -T fields 以逗号连接（实测 23,25,16）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_data_row_null_and_multi",
+    "proto": "postgresql",
+    "summary": "T-PG-31: multi-column DataRow including a NULL column (length -1)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "data_row",
+                "direction": "s2c",
+                "row_values": [
+                  "42",
+                  null,
+                  "true"
+                ]
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "SELECT 1"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 14,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Data row"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.val.length",
+          "value": "2,-1,4"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.val.data",
+          "value": "3432,74727565"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "44000000180003000000023432ffffffff0000000474727565"
+        }
+      ],
+      "notes": [
+        "A′ 已接线：NULL 列编码为长度 -1（layer_gen DataRowColumns / pgwire）；pgsql.val.data 只列非 NULL 列。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_error_response_fields",
+    "proto": "postgresql",
+    "summary": "T-PG-32: ErrorResponse field sequence (severity/code/message) terminated by a single 0x00",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "query",
+                "direction": "c2s",
+                "sql": "SELECT missing_column FROM missing_table"
+              },
+              {
+                "kind": "query_error",
+                "direction": "s2c"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 14,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pgsql.type",
+          "value": "Error"
+        },
+        {
+          "packet": 9,
+          "field": "pgsql.severity",
+          "value": "ERROR"
+        },
+        {
+          "packet": 9,
+          "field": "pgsql.code",
+          "value": "42P01"
+        },
+        {
+          "packet": 9,
+          "field": "pgsql.message",
+          "value": "relation does not exist"
+        },
+        {
+          "packet": 7,
+          "field": "pgsql.type",
+          "value": "Ready for query"
+        },
+        {
+          "packet": 7,
+          "field": "pgsql.status",
+          "value": "73"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 9,
+          "offset": 54,
+          "hex": "450000002c534552524f5200433432503031004d72656c6174696f6e20646f6573206e6f742065786973740000"
+        }
+      ],
+      "notes": [
+        "E 字段序列 = (Byte1 码 + String)* 后跟单字节 0x00 终止（不是空串对）；生成器缺省恒 ERROR/42P01/relation does not exist。",
+        "会话继续：错误后仍发 Z，连接不断（与认证失败即断连区分）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_notice_response",
+    "proto": "postgresql",
+    "summary": "T-PG-33: NoticeResponse ('N') — same field layout as E, does not end the transaction",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "notice",
+                "direction": "s2c"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "SELECT 1"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 14,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Notice"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.severity",
+          "value": "ERROR"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.code",
+          "value": "42P01"
+        }
+      ],
+      "notes": [
+        "A′ 已接线：N 与 E 同结构、不结束事务（规范 §54.8）；缺省字段序列同 ErrorResponse 缺省三字段。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_empty_query_response",
+    "proto": "postgresql",
+    "summary": "T-PG-34: empty Simple Query ('Q' + NUL) answered by EmptyQueryResponse ('I')",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "empty_query",
+                "direction": "c2s"
+              },
+              {
+                "kind": "empty_query",
+                "direction": "s2c"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 14,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Simple query"
+        },
+        {
+          "packet": 9,
+          "field": "pgsql.type",
+          "value": "Empty query"
+        },
+        {
+          "packet": 7,
+          "field": "pgsql.type",
+          "value": "Ready for query"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "510000000500"
+        },
+        {
+          "packet": 9,
+          "offset": 54,
+          "hex": "4900000004"
+        }
+      ],
+      "notes": [
+        "A′ 已接线：empty_query kind 按方向分派——c2s 出 Q+单 NUL（length=5），s2c 出 I（length=4）。",
+        "空 SQL 走专用 kind（'query' 仍拒空 sql，负例 neg_empty_sql 守该门），因此 A′ 无需放开旧守卫。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_extended_parse_bind",
+    "proto": "postgresql",
+    "summary": "T-PG-35: extended query P→1, B→2 (parameter format codes / values)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parse",
+                "direction": "c2s",
+                "statement": "stmt1",
+                "sql": "SELECT $1",
+                "oids": [
+                  23
+                ]
+              },
+              {
+                "kind": "parse_complete",
+                "direction": "s2c"
+              },
+              {
+                "kind": "bind",
+                "direction": "c2s",
+                "portal": "port1",
+                "statement": "stmt1",
+                "param_formats": [
+                  0
+                ],
+                "param_values": [
+                  "42"
+                ],
+                "result_formats": [
+                  0
+                ]
+              },
+              {
+                "kind": "bind_complete",
+                "direction": "s2c"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "SELECT 1"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 17,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Parse"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.statement",
+          "value": "stmt1"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.query",
+          "value": "SELECT $1"
+        },
+        {
+          "packet": 9,
+          "field": "pgsql.type",
+          "value": "Parse completion"
+        },
+        {
+          "packet": 10,
+          "field": "pgsql.type",
+          "value": "Bind"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.statement",
+          "value": "stmt1"
+        },
+        {
+          "packet": 10,
+          "field": "pgsql.portal",
+          "value": "port1"
+        },
+        {
+          "packet": 11,
+          "field": "pgsql.type",
+          "value": "Bind completion"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "500000001a73746d74310053454c45435420243100000100000017"
+        },
+        {
+          "packet": 10,
+          "offset": 54,
+          "hex": "4200000020706f7274310073746d74310000010000000100000002343200010000"
+        }
+      ],
+      "notes": [
+        "A′ 已接线：Parse/Bind 及完成指示 1/2 由事件面驱动（legacy planner 的字节逻辑作迁移素材）。",
+        "NULL 参数（param_values 元素为 null）编码为长度 -1；本用例给 text 值 42。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_extended_describe",
+    "proto": "postgresql",
+    "summary": "T-PG-36: extended Describe — D(S)→t+T, D(P)→n (NoData)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "describe",
+                "direction": "c2s",
+                "mode": "statement",
+                "statement": "stmt1"
+              },
+              {
+                "kind": "parameter_description",
+                "direction": "s2c",
+                "oids": [
+                  23
+                ]
+              },
+              {
+                "kind": "row_description",
+                "direction": "s2c"
+              },
+              {
+                "kind": "describe",
+                "direction": "c2s",
+                "mode": "portal",
+                "portal": "port1"
+              },
+              {
+                "kind": "no_data",
+                "direction": "s2c"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 17,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Describe"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.statement",
+          "value": "stmt1"
+        },
+        {
+          "packet": 9,
+          "field": "pgsql.type",
+          "value": "Parameter description"
+        },
+        {
+          "packet": 10,
+          "field": "pgsql.type",
+          "value": "Row description"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Describe"
+        },
+        {
+          "packet": 11,
+          "field": "pgsql.portal",
+          "value": "port1"
+        },
+        {
+          "packet": 12,
+          "field": "pgsql.type",
+          "value": "No data"
+        }
+      ],
+      "notes": [
+        "A′ 已接线：Describe 的 mode 决定目标（statement→ParameterDescription+RowDescription；portal→NoData）。",
+        "type 字节 D 二义（c2s=Describe / s2c=DataRow），方向消歧。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_extended_execute_sync",
+    "proto": "postgresql",
+    "summary": "T-PG-37: extended Execute(maxRows=1)→D/s and Sync→Z",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "execute",
+                "direction": "c2s",
+                "portal": "port1",
+                "max_rows": 1
+              },
+              {
+                "kind": "data_row",
+                "direction": "s2c"
+              },
+              {
+                "kind": "portal_suspended",
+                "direction": "s2c"
+              },
+              {
+                "kind": "sync",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "SELECT 1"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 18,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Execute"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.portal",
+          "value": "port1"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.returns",
+          "value": "1"
+        },
+        {
+          "packet": 10,
+          "field": "pgsql.type",
+          "value": "Portal suspended"
+        },
+        {
+          "packet": 11,
+          "field": "pgsql.type",
+          "value": "Sync"
+        },
+        {
+          "packet": 7,
+          "field": "pgsql.type",
+          "value": "Ready for query"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "450000000e706f7274310000000001"
+        }
+      ],
+      "notes": [
+        "A′ 已接线：Execute 的 maxRows 经 pgsql.returns 断言（FT_UINT32）；PortalSuspended 表示限行命中。",
+        "type 字节 E 二义（c2s=Execute / s2c=ErrorResponse），方向消歧。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_extended_close_flush",
+    "proto": "postgresql",
+    "summary": "T-PG-38: extended Close→3 and Flush (no response); C byte is Close (c2s) vs Command completion (s2c)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "SELECT 1"
+              },
+              {
+                "kind": "close",
+                "direction": "c2s",
+                "mode": "statement",
+                "statement": "stmt1"
+              },
+              {
+                "kind": "close_complete",
+                "direction": "s2c"
+              },
+              {
+                "kind": "flush",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 16,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Command completion"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.tag",
+          "value": "SELECT 1"
+        },
+        {
+          "packet": 9,
+          "field": "pgsql.type",
+          "value": "Close"
+        },
+        {
+          "packet": 9,
+          "field": "pgsql.statement",
+          "value": "stmt1"
+        },
+        {
+          "packet": 10,
+          "field": "pgsql.type",
+          "value": "Close completion"
+        },
+        {
+          "packet": 11,
+          "field": "pgsql.type",
+          "value": "Flush"
+        }
+      ],
+      "notes": [
+        "A′ 已接线：C 类型字节二义用例——同包序内 s2c 的 C 读作 Command completion、c2s 的 C 读作 Close，方向是唯一消歧维度（设计 §3.3 警告）。",
+        "Flush 无响应（规范 §54.2.3）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_extended_error_skip_to_sync",
+    "proto": "postgresql",
+    "summary": "T-PG-39: extended-query error — server skips to Sync, then E+Z",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "parse",
+                "direction": "c2s",
+                "statement": "stmt1",
+                "sql": "SELECT $1",
+                "oids": [
+                  23
+                ]
+              },
+              {
+                "kind": "query_error",
+                "direction": "s2c",
+                "fields": [
+                  {
+                    "type": "S",
+                    "value": "ERROR"
+                  },
+                  {
+                    "type": "C",
+                    "value": "42P01"
+                  },
+                  {
+                    "type": "M",
+                    "value": "relation does not exist"
+                  }
+                ]
+              },
+              {
+                "kind": "sync",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 15,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Parse"
+        },
+        {
+          "packet": 9,
+          "field": "pgsql.type",
+          "value": "Error"
+        },
+        {
+          "packet": 9,
+          "field": "pgsql.code",
+          "value": "42P01"
+        },
+        {
+          "packet": 10,
+          "field": "pgsql.type",
+          "value": "Sync"
+        },
+        {
+          "packet": 7,
+          "field": "pgsql.type",
+          "value": "Ready for query"
+        }
+      ],
+      "notes": [
+        "A′ 已接线：错误后跳过至 Sync 的全部消息（E 之后直接 Sync/Z，中间无 1/2/T/C）；事件面显式声明该跳过序列（无自动应答）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_notification_response",
+    "proto": "postgresql",
+    "summary": "T-PG-40: NotificationResponse ('A') — pid + channel + payload (LISTEN async push)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "notification",
+                "direction": "s2c",
+                "pid": 4321,
+                "channel": "chan1",
+                "payload": "payload1"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "LISTEN"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 14,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Notification"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.condition",
+          "value": "chan1"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.text",
+          "value": "payload1"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.pid",
+          "value": "4321"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "4100000017000010e16368616e31007061796c6f61643100"
+        }
+      ],
+      "notes": [
+        "A′ 已接线：A 由事件 pid/channel/payload 驱动（tshark 字段名 pgsql.condition=channel / pgsql.text=payload，本机实测）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_function_call_response",
+    "proto": "postgresql",
+    "summary": "T-PG-41: FunctionCall ('F') + FunctionCallResponse ('V') with a NULL result (-1)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "function_call",
+                "direction": "c2s",
+                "function_oid": 1244,
+                "arguments": [
+                  "42"
+                ]
+              },
+              {
+                "kind": "function_call_response",
+                "direction": "s2c",
+                "function_result_null": true
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 14,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Function call"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.oid",
+          "value": "1244"
+        },
+        {
+          "packet": 9,
+          "field": "pgsql.type",
+          "value": "Function call response"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "4600000014000004dc000000010000000234320000"
+        },
+        {
+          "packet": 9,
+          "offset": 54,
+          "hex": "5600000008ffffffff"
+        }
+      ],
+      "notes": [
+        "A′ 已接线：FunctionCall/FunctionCallResponse 由事件面驱动；NULL 结果编码为长度 -1（规范 §54.7）。",
+        "FunctionOID 缺省 1244（nextval），与 legacy planner 缺省一致。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_negotiate_protocol_version",
+    "proto": "postgresql",
+    "summary": "T-PG-42: NegotiateProtocolVersion ('v') — newest minor + unrecognized options (frames hex)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "negotiate_protocol_version",
+                "direction": "s2c",
+                "newest_minor": 0,
+                "unrecognized_options": [
+                  "_pq_.pipeline"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "frames": [
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "760000001a00000000000000015f70715f2e706970656c696e6500"
+        }
+      ],
+      "notes": [
+        "dissector 3.6.14 把 'v' 读作 Unknown——断言只走 frames hex（设计 §3.9）。",
+        "布局 = int32 最新 minor + int32 未识别选项数 + String[]（规范 §54.7）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_startup_long_params_mss",
+    "proto": "postgresql",
+    "summary": "T-PG-43: Startup parameters longer than the default MSS 1460 — TCP-layer segmentation",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.len",
+          "nonzero": true
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.length",
+          "value": "1530"
+        }
+      ],
+      "notes": [
+        "Startup 总长 1523 > 1460 → tcp 层按 MSS 分段；重组后 pgsql.length=1523（实测值）。",
+        "packet_count 走 min_packets（分段数取决于 MSS 与参数长度）。"
+      ],
+      "packet_count": 9
+    }
+  },
+  {
+    "id": "postgresql_query_long_sql_mss",
+    "proto": "postgresql",
+    "summary": "T-PG-44: 3000-byte SQL crossing MSS — segmentation with the query reassembled",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "query",
+                "direction": "c2s",
+                "sql": "SELECT 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        }
+      ],
+      "notes": [
+        "长 SQL 由 tcp 层按 MSS 1460 分段；重组后 pgsql.query 为全长、pgsql.type=Simple query 只在首段出现（规范 §54.7 + 设计 §3.1）。",
+        "分段数实测钉（先跑后钉）。"
+      ],
+      "packet_count": 14
+    }
+  },
+  {
+    "id": "postgresql_multi_session_expansion",
+    "proto": "postgresql",
+    "summary": "T-PG-45: sessions[] two independent connections (own src_port, own handshake/auth/query/teardown)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "sessions": [
+              {
+                "src_port": 45082,
+                "events": [
+                  {
+                    "kind": "startup",
+                    "direction": "c2s",
+                    "user": "bench",
+                    "database": "bench"
+                  },
+                  {
+                    "kind": "auth_request",
+                    "direction": "s2c",
+                    "authtype": 0
+                  },
+                  {
+                    "kind": "ready",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "terminate",
+                    "direction": "c2s"
+                  }
+                ]
+              },
+              {
+                "src_port": 45083,
+                "events": [
+                  {
+                    "kind": "startup",
+                    "direction": "c2s",
+                    "user": "bench",
+                    "database": "bench"
+                  },
+                  {
+                    "kind": "auth_request",
+                    "direction": "s2c",
+                    "authtype": 0
+                  },
+                  {
+                    "kind": "ready",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "terminate",
+                    "direction": "c2s"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 22,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "45082",
+            "45083"
+          ],
+          "distinct_exclude": [
+            "5432"
+          ]
+        },
+        {
+          "field": "tcp.dstport",
+          "distinct_values": [
+            "5432"
+          ],
+          "distinct_exclude": [
+            "45082",
+            "45083"
+          ]
+        }
+      ],
+      "notes": [
+        "两会话整块展开不交错（会话 s1 全流程跑完再跑 s2）；各自独立四元组/握手/挥手。",
+        "§9.38 聚合排除：srcport 聚合排除服务端固定口 5432，dstport 聚合排除两个客户端口。",
+        "每会话 4 事件 → 11 包，2×11=22。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_multi_flow_dynamic",
+    "proto": "postgresql",
+    "summary": "T-PG-46: flows=3 with per-flow ip/tcp dynamics (inc wrap / rand seed / list rotation)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": {
+              "strategy": "inc",
+              "range": [
+                "10.0.0.1",
+                "10.0.0.3"
+              ],
+              "step": 1
+            },
+            "dst": {
+              "strategy": "rand",
+              "range": [
+                "20.0.0.1",
+                "20.0.0.9"
+              ],
+              "seed": 42
+            },
+            "ttl": {
+              "strategy": "inc",
+              "range": [
+                60,
+                62
+              ],
+              "step": 1
+            }
+          }
+        },
+        {
+          "tcp": {
+            "src_port": {
+              "strategy": "list",
+              "list": [
+                "45082",
+                "45083",
+                "45084"
+              ]
+            }
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "terminate",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ],
+      "group_id": {
+        "strategy": "fixed",
+        "value": "pg-multiflow"
+      }
+    },
+    "expect": {
+      "packet_count": 33,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 0,
+          "field": "ip.src",
+          "distinct_values": [
+            "10.0.0.1",
+            "10.0.0.2",
+            "10.0.0.3"
+          ],
+          "distinct_exclude": [
+            "20.0.0.5",
+            "20.0.0.3",
+            "20.0.0.9"
+          ]
+        },
+        {
+          "packet": 0,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "45082",
+            "45083",
+            "45084"
+          ],
+          "distinct_exclude": [
+            "5432"
+          ]
+        },
+        {
+          "packet": 0,
+          "field": "tcp.dstport",
+          "distinct_values": [
+            "5432"
+          ],
+          "distinct_exclude": [
+            "45082",
+            "45083",
+            "45084"
+          ]
+        }
+      ],
+      "notes": [
+        "flows=3（strategy_fc）→ 3 流 × 11 包 = 33 包；三流 src_ip/src_port 由层内动态策略逐个取，dst_ip/dst_port 取层内常量（实测 tshark）。原声明 packet_count=11 与 distinct 期望未按 flows 放大，系 C1 缺陷之一，已按引擎实测重钉。"
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    }
+  },
+  {
+    "id": "postgresql_pcap_nic_consistency",
+    "proto": "postgresql",
+    "summary": "T-PG-47: same fixture on both output paths (pcap + port_group/NIC) with identical field values",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "query",
+                "direction": "c2s",
+                "sql": "SELECT 1"
+              },
+              {
+                "kind": "row_description",
+                "direction": "s2c"
+              },
+              {
+                "kind": "data_row",
+                "direction": "s2c"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "SELECT 1"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 16,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "pgsql.query",
+          "value": "SELECT 1"
+        },
+        {
+          "packet": 11,
+          "field": "pgsql.tag",
+          "value": "SELECT 1"
+        }
+      ],
+      "notes": [
+        "A′：本用例在 pcap 路落盘；NIC 路（output_type=port_group + enp135s0f0np0）由 P5 的 NIC 驱动另跑，两路 pgsql.type 序列与 tcp.dstport 必须一致。",
+        "NIC 抓包注意 checksum offload 边界（校验和可能由网卡补）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_kingbase_dialect_port",
+    "proto": "postgresql",
+    "summary": "T-PG-48: dialect=kingbase → contract port 54321 + mandatory decode_as",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "kingbase",
+            "wire_profile": "kingbase_es_v8_pg_compatible",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "54321"
+        },
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        }
+      ],
+      "notes": [
+        "dialect=kingbase 由 dialectFieldContract 覆盖契约端口为 54321（改父层契约常量，非新层）。",
+        "非标准端口必须显式 decode_as（实测无声明时 tshark 返回空）。"
+      ]
+    },
+    "decode_as": [
+      "tcp.port==54321,pgsql"
+    ]
+  },
+  {
+    "id": "postgresql_neg_udp_carrier",
+    "proto": "postgresql",
+    "summary": "T-PG-49: UDP carrier rejected (postgresql is TCP-only)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "tcp"
+    }
+  },
+  {
+    "id": "postgresql_neg_noncontract_port",
+    "proto": "postgresql",
+    "summary": "T-PG-50: explicit tcp.dst_port != contract port rejected (dialect=postgresql wants 5432)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082,
+            "dst_port": 5433
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "5432"
+    }
+  },
+  {
+    "id": "postgresql_neg_unknown_dialect",
+    "proto": "postgresql",
+    "summary": "T-PG-51: unregistered dialect value rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "mysql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "dialect"
+    }
+  },
+  {
+    "id": "postgresql_neg_unknown_wire_profile",
+    "proto": "postgresql",
+    "summary": "T-PG-52: unregistered wire_profile rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "pg_unknown",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "wire profile"
+    }
+  },
+  {
+    "id": "postgresql_neg_wire_profile_native_pending",
+    "proto": "postgresql",
+    "summary": "T-PG-53: kingbase_native_pending registered but has no fixed payload",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "kingbase",
+            "wire_profile": "kingbase_native_pending",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "payload"
+    }
+  },
+  {
+    "id": "postgresql_neg_query_before_ready",
+    "proto": "postgresql",
+    "summary": "T-PG-54: c2s query before the server signaled ready (state machine)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "query",
+                "direction": "c2s",
+                "sql": "SELECT 1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "state"
+    }
+  },
+  {
+    "id": "postgresql_neg_password_before_ready",
+    "proto": "postgresql",
+    "summary": "T-PG-55: c2s password before the server signaled ready (state machine)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "password",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "state"
+    }
+  },
+  {
+    "id": "postgresql_neg_unknown_event_kind",
+    "proto": "postgresql",
+    "summary": "T-PG-56: unregistered event kind rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "bindx",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "kind"
+    }
+  },
+  {
+    "id": "postgresql_neg_invalid_direction",
+    "proto": "postgresql",
+    "summary": "T-PG-57: direction other than c2s/s2c rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2b"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "direction"
+    }
+  },
+  {
+    "id": "postgresql_neg_empty_sql",
+    "proto": "postgresql",
+    "summary": "T-PG-58: query with blank sql rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "query",
+                "direction": "c2s",
+                "sql": "   "
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "sql"
+    }
+  },
+  {
+    "id": "postgresql_neg_unknown_layer_field",
+    "proto": "postgresql",
+    "summary": "T-PG-59: sixth key inside the postgresql layer rejected by the V9 whitelist",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ],
+            "auth_method": "md5"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown field"
+    }
+  },
+  {
+    "id": "postgresql_neg_wire_fault_truncate_startup",
+    "proto": "postgresql",
+    "summary": "T-PG-60: wire_fault truncate_startup rejected (anchor: length)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ],
+            "wire_fault": {
+              "kind": "truncate_startup",
+              "value": 1
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "length"
+    }
+  },
+  {
+    "id": "postgresql_neg_wire_fault_message_limit",
+    "proto": "postgresql",
+    "summary": "T-PG-61: wire_fault message_limit rejected (anchor: limit)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ],
+            "wire_fault": {
+              "kind": "message_limit",
+              "value": "over_limit"
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "limit"
+    }
+  },
+  {
+    "id": "postgresql_neg_wire_fault_unknown_kind",
+    "proto": "postgresql",
+    "summary": "T-PG-62: wire_fault with an unregistered kind rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ],
+            "wire_fault": {
+              "kind": "bogus"
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown kind"
+    }
+  },
+  {
+    "id": "postgresql_neg_wire_fault_wrong_shape",
+    "proto": "postgresql",
+    "summary": "T-PG-63: wire_fault in a non-object shape (string) rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ],
+            "wire_fault": "truncate"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "object"
+    }
+  },
+  {
+    "id": "postgresql_neg_terminate_then_query",
+    "proto": "postgresql",
+    "summary": "T-PG-64: query after terminate rejected (closed-state guard, A′ wired)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "terminate",
+                "direction": "c2s"
+              },
+              {
+                "kind": "query",
+                "direction": "c2s",
+                "sql": "SELECT 1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "state"
+    }
+  },
+  {
+    "id": "postgresql_neg_presence_top_level_postgresql",
+    "proto": "postgresql",
+    "summary": "T-PG-G6: layers + top-level postgresql sub-config presence rejected (G-PG-6 closed)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ],
+      "postgresql": {}
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "top-level postgresql sub-config"
+    }
+  },
+  {
+    "id": "postgresql_neg_static_copy",
+    "proto": "postgresql",
+    "summary": "T-PG-12.9: flows=2 with an all-static four-tuple rejected (static-copy gate)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "static four-tuple"
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    }
+  },
+  {
+    "id": "postgresql_multi_query_rounds",
+    "proto": "postgresql",
+    "summary": "A'-3.15①: same connection, three query rounds (long-lived session)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "query",
+                "direction": "c2s",
+                "sql": "SELECT 1"
+              },
+              {
+                "kind": "row_description",
+                "direction": "s2c"
+              },
+              {
+                "kind": "data_row",
+                "direction": "s2c"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "SELECT 1"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "query",
+                "direction": "c2s",
+                "sql": "SELECT 2"
+              },
+              {
+                "kind": "row_description",
+                "direction": "s2c"
+              },
+              {
+                "kind": "data_row",
+                "direction": "s2c"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "SELECT 2"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "query",
+                "direction": "c2s",
+                "sql": "SELECT 3"
+              },
+              {
+                "kind": "row_description",
+                "direction": "s2c"
+              },
+              {
+                "kind": "data_row",
+                "direction": "s2c"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "tag": "SELECT 3"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              },
+              {
+                "kind": "terminate",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 27,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "pgsql.query",
+          "value": "SELECT 1"
+        },
+        {
+          "packet": 13,
+          "field": "pgsql.query",
+          "value": "SELECT 2"
+        },
+        {
+          "packet": 18,
+          "field": "pgsql.query",
+          "value": "SELECT 3"
+        },
+        {
+          "packet": 23,
+          "field": "pgsql.type",
+          "value": "Termination"
+        }
+      ],
+      "notes": [
+        "§3.15①：同连接 >2 轮操作；协议层无 keepalive 语义（设计 §10.1 行 6 显式不适用），长保活由同连接多轮查询承载。",
+        "20 事件 → 27 包（N+7，实测）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_server_abort_rst",
+    "proto": "postgresql",
+    "summary": "A'-3.15②: abnormal end — server RST instead of the FIN four-way teardown",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082,
+            "rst": true
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 0
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "tcp.flags",
+          "value": "0x0014"
+        }
+      ],
+      "notes": [
+        "§3.15②：非正常结束 = 服务端 RST（tcp 层 rst=true 代替挥手）；flags 0x014 = RST|ACK。",
+        "4 事件 + 3 握手 + 1 RST = 8 包。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_auth_failure_disconnect",
+    "proto": "postgresql",
+    "summary": "A'-3.15②: authentication failure — server ErrorResponse then immediate close (no ReadyForQuery)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "user": "bench",
+                "database": "bench"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 3
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s"
+              },
+              {
+                "kind": "query_error",
+                "direction": "s2c",
+                "fields": [
+                  {
+                    "type": "S",
+                    "value": "FATAL"
+                  },
+                  {
+                    "type": "C",
+                    "value": "28P01"
+                  },
+                  {
+                    "type": "M",
+                    "value": "password authentication failed for user \"bench\""
+                  }
+                ]
+              },
+              {
+                "kind": "terminate",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 7,
+          "field": "pgsql.type",
+          "value": "Error"
+        },
+        {
+          "packet": 7,
+          "field": "pgsql.severity",
+          "value": "FATAL"
+        },
+        {
+          "packet": 7,
+          "field": "pgsql.code",
+          "value": "28P01"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Termination"
+        }
+      ],
+      "notes": [
+        "§3.15②：认证失败 = 服务端发 E 后立即关连接，**不发 Z**（规范 §54.2.2）；随后 TCP 挥手由 tcp 层承担。",
+        "SQLSTATE 28P01 = invalid_password（规范 §54.8 附录 A）。"
+      ]
+    }
+  },
+  {
+    "id": "postgresql_neg_auth_data_not_hex",
+    "proto": "postgresql",
+    "summary": "D-POSTGRESQL-1 负例：auth_data 非十六进制（设计 §3.4/§10 opaque 字节串）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 8,
+                "auth_data": "zzzz"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "not valid hex"
+    }
+  },
+  {
+    "id": "postgresql_neg_auth_token_not_hex",
+    "proto": "postgresql",
+    "summary": "D-POSTGRESQL-1 负例：auth_token 非十六进制（c2s opaque token 面）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.82",
+            "dst": "198.51.100.82"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 45082
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "authtype": 8
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s",
+                "auth_token": "not-hex"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "not valid hex"
     }
   }
 ]

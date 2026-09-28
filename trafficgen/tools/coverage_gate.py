@@ -9439,9 +9439,259 @@ CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
 
 
 
+def check_postgresql(cases):
+    """D-POSTGRESQL-1 P4 反查表（T-POSTGRESQL 64 ID = 48 正 + 16 负，另含
+    A' 补例与 G-PG-6 关闭后新增的 presence/静态复制负例）。返回
+    [(检查名, 通过?, 证据)]。
+
+    注记（kingbase 共存）：cases/kingbase.json 15 例与本文件同为
+    proto=postgresql，CASE_PROTO=postgresql 时两文件一并装载；kingbase.json
+    的 14 例仍携带事件内死字段 profile/result（该文件冻结不改），故
+    translateTerminalConfig 的解码保持容忍未知事件键——层顶白名单是
+    ValidateLayers V9（本文件 #59 负例覆盖），事件内键不受 registry 约束。
+    本协议的 64-ID 主形用例全部不写这两个死键。
+
+    注记（packet_count 权威）：testcase §2 表的「约定 packet_count」列与其自身
+    §3 逐例散文**互相一致但均与实测不符**（三源对账：表列==实测 14/47、散文
+    ==实测 13/46、表列 vs 散文仅 2 处分歧）——**权威 = 引擎实测（用例文件）**，
+    文档（表 + 散文）待文档轨另开单修正。原注记把方向写反（称"表列值属文档
+    缺陷"、暗指散文对），gen-review C2 已证伪并更正。本表按 §1 包数公式
+    （单会话 N+7、多会话逐会话求和）以引擎实测为准，由
+    postgresql_casefile_test.go 的 TestPostgresqlCaseFile_PacketCounts 逐例
+    钉死（§9.31/§14.20 先跑后钉）。
+    """
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("postgresql"), dict):
+                lays.append((c.get("id", "?"), l["postgresql"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 准入与接线（P4 五件套）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 postgresql", '"postgresql": true' in pg, "在列"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case postgresql（层 config->PostgreSQLConfig）",
+                 'case "postgresql":' in tr and "spec.PostgreSQL = &pg" in tr, "在案"))
+    rows.append(("FlowMeta.PostgreSQL 直传（drive meta 字面量）",
+                 re.search(r"PostgreSQL:\s+spec\.PostgreSQL\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.PostgreSQL 字段",
+                 re.search(r"PostgreSQL\s+\*core\.PostgreSQLConfig", gen) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "postgresql"')
+    reg_block = rg[i_reg:rg.index('Name: "megaco"', i_reg)]
+    rows.append(("registry postgresql 行（DependsOn tcp + FieldContract 5432 + 5 键）",
+                 'DependsOn: []string{"tcp"}' in reg_block
+                 and '"tcp.dst_port": "5432"' in reg_block
+                 and all(k in reg_block for k in
+                         ['"dialect"', '"wire_profile"', '"events"', '"sessions"', '"wire_fault"'])
+                 and reg_block.count('{Type:') == 5, "在案（5 键）"))
+    rows.append(("dialectFieldContract kingbase->54321 在案",
+                 '"kingbase": {"tcp.dst_port": "54321"}' in rg, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(postgresql)",
+                 "internal/protocol/postgresql" in mn and 'NewChainPlanner("postgresql")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat presence 判死顶层 postgresql（G-PG-6 关闭）",
+                 "no longer accepts a top-level postgresql sub-config" in sc, "在案"))
+    rows.append(("mapToFlowSpec 顶层 postgresql -> ValidationErrors（在库旧策略执法）",
+                 'if protocol == "postgresql" {' in sc, "在案"))
+
+    # 2. 死字段删除（G-PG-5）：结构体不再有 Profile/Result。
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    i_ev = ty.index("type PostgreSQLEvent struct")
+    ev_block = ty[i_ev:ty.index("// PostgreSQLSession", i_ev)]
+    rows.append(("G-PG-5：PostgreSQLEvent 死字段 Profile/Result 已删",
+                 "\tProfile " not in ev_block and "\tResult " not in ev_block
+                 and "\tAuthtype " in ev_block, "零残留"))
+    rows.append(("G-PG-5：新事件面字段在案（status/cols/row_values/oids/statement/portal）",
+                 all(k in ev_block for k in
+                     ["Status ", "Cols ", "RowValues ", "OIDs ", "Statement ", "Portal "]), "在案"))
+
+    # 3. 生成器/校验器行为面（A' 接线件）。
+    lg = (tg / "internal" / "protocol" / "postgresql" / "layer_gen.go").read_text()
+    for kind in [
+        "ssl_request", "gssenc_request", "cancel_request", "notice", "notification",
+        "empty_query", "parse", "bind", "describe", "execute", "sync", "flush",
+        "close", "parameter_description", "portal_suspended", "function_call",
+        "negotiate_protocol_version",
+    ]:
+        rows.append(("生成器 kind：" + kind, ('"%s"' % kind) in lg, "在案"))
+    vl = (tg / "internal" / "protocol" / "postgresql" / "validate.go").read_text()
+    for prim, name in [
+        ("closed", "Closed 态守卫（G-PG-8 #64）"),
+        ("after terminate", "terminate 后事件锚词"),
+        ("invalid ready status", "Z 三态域校验"),
+        ("invalid %s mode", "Describe/Close mode 域校验"),
+        ("c2sNeedsPgReady", "c2s 状态守卫（扩展协议族）"),
+    ]:
+        rows.append(("校验器：" + name, prim in vl, "在案"))
+    pw = (tg / "internal" / "protocol" / "pgwire" / "pgwire.go").read_text()
+    rows.append(("pgwire：RowDescriptionFields/DataRowColumns（列可配置）",
+                 "func RowDescriptionFields" in pw and "func DataRowColumns" in pw, "在案"))
+    rows.append(("pgwire：ErrorResponseFields/NoticeResponse（字段可配置）",
+                 "func ErrorResponseFields" in pw and "func NoticeResponse" in pw, "在案"))
+    rows.append(("pgwire：无类型三请求码 + 变长面登记（G-PG-2）",
+                 "func SSLRequest" in pw and "func CancelRequest" in pw and "G-PG-2" in pw, "在案"))
+    # 设计 §3.4 子类型 payload：R5 必带 4 字节 salt、R10 必带机制名列表、
+    # R8/R11/R12 必带 Byte^n。旧生成器对全部子类型恒发 8 字节空 payload
+    # （P4 修轮实测抓到的缺陷），本组检查钉住修复不回退。
+    rows.append(("pgwire：AuthRequestData 子类型 payload 面（设计 §3.4）",
+                 "func AuthRequestData" in pw and "func PasswordMessageRaw" in pw, "在案"))
+    rows.append(("生成器：R5 salt 缺省 12 34 56 78（length=12）",
+                 "0x12, 0x34, 0x56, 0x78" in lg, "在案"))
+    rows.append(("生成器：R10 机制名列表 SCRAM-SHA-256 + 零终止",
+                 '[]byte("SCRAM-SHA-256"), 0, 0' in lg, "在案"))
+    rows.append(("事件面：auth_data/auth_token 字段（子类型 payload 与 c2s token）",
+                 "\tAuthData " in ev_block and "\tAuthToken " in ev_block, "在案"))
+
+    # 4. 用例面：64-ID 全集（超集：含 A' 补例 + 新增负例）。
+    ids = {c.get("id", "") for c in cases}
+    core_ids = [
+        "postgresql_startup_ipv4_basic", "postgresql_startup_ipv6_basic",
+        "postgresql_startup_params_empty", "postgresql_startup_params_multi",
+        "postgresql_startup_protocol_v3_1", "postgresql_startup_protocol_v3_2",
+        "postgresql_ssl_request", "postgresql_gssenc_request",
+        "postgresql_cancel_request",
+        "postgresql_auth_ok", "postgresql_auth_kerberos_v5",
+        "postgresql_auth_cleartext", "postgresql_auth_md5_salt",
+        "postgresql_auth_scm_credential", "postgresql_auth_gss",
+        "postgresql_auth_gss_continue", "postgresql_auth_sspi",
+        "postgresql_auth_sasl_mechanisms", "postgresql_auth_sasl_continue",
+        "postgresql_auth_sasl_final",
+        "postgresql_parameter_status_cycle", "postgresql_parameter_status_explicit",
+        "postgresql_backend_key_data",
+        "postgresql_ready_for_query_idle", "postgresql_ready_in_transaction",
+        "postgresql_ready_failed_transaction",
+        "postgresql_query_select_basic", "postgresql_query_multi_statement",
+        "postgresql_query_command_tags",
+        "postgresql_row_description_multi_column", "postgresql_data_row_null_and_multi",
+        "postgresql_error_response_fields", "postgresql_notice_response",
+        "postgresql_empty_query_response",
+        "postgresql_extended_parse_bind", "postgresql_extended_describe",
+        "postgresql_extended_execute_sync", "postgresql_extended_close_flush",
+        "postgresql_extended_error_skip_to_sync",
+        "postgresql_notification_response", "postgresql_function_call_response",
+        "postgresql_negotiate_protocol_version",
+        "postgresql_startup_long_params_mss", "postgresql_query_long_sql_mss",
+        "postgresql_multi_session_expansion", "postgresql_multi_flow_dynamic",
+        "postgresql_pcap_nic_consistency", "postgresql_kingbase_dialect_port",
+        "postgresql_neg_udp_carrier", "postgresql_neg_noncontract_port",
+        "postgresql_neg_unknown_dialect", "postgresql_neg_unknown_wire_profile",
+        "postgresql_neg_wire_profile_native_pending",
+        "postgresql_neg_query_before_ready", "postgresql_neg_password_before_ready",
+        "postgresql_neg_unknown_event_kind", "postgresql_neg_invalid_direction",
+        "postgresql_neg_empty_sql", "postgresql_neg_unknown_layer_field",
+        "postgresql_neg_wire_fault_truncate_startup",
+        "postgresql_neg_wire_fault_message_limit",
+        "postgresql_neg_wire_fault_unknown_kind",
+        "postgresql_neg_wire_fault_wrong_shape",
+        "postgresql_neg_terminate_then_query",
+    ]
+    missing = [i for i in core_ids if i not in ids]
+    rows.append(("64-ID 全集在案（%d 条）" % len(core_ids), not missing, missing or "全部在案"))
+    extra_ids = ["postgresql_multi_query_rounds", "postgresql_server_abort_rst",
+                 "postgresql_auth_failure_disconnect",
+                 "postgresql_neg_presence_top_level_postgresql",
+                 "postgresql_neg_static_copy"]
+    missing_x = [i for i in extra_ids if i not in ids]
+    rows.append(("A' 补例 + 新增负例在案（5 条）", not missing_x, missing_x or "全部在案"))
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("48 正 + 16 负 下限满足", len(pos) >= 48 and len(neg) >= 16,
+                 "%d 正 / %d 负" % (len(pos), len(neg))))
+
+    # 5. 形状面。
+    bad_top = [c.get("id") for c in pos
+               if any(k not in ("layers", "flow_control", "output", "output_config", "group_id", "strategy_fc")
+                      for k in (c.get("spec_json") or {}))]
+    rows.append(("非负例顶层键=0（仅 layers/flow_control/output 家族）", not bad_top,
+                 bad_top or "零残留"))
+    bad_keys = [c.get("id") for c in neg
+                if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}", not bad_keys,
+                 bad_keys or "全部合规"))
+    no_count = [c.get("id") for c in pos
+                if not (c.get("expect") or {}).get("packet_count")
+                and not (c.get("expect") or {}).get("min_packets")]
+    rows.append(("正例均带 packet_count/min_packets", not no_count, no_count or "全部在案"))
+    # 用例文件自查件：frames hex / pgsql.type 包序 / packet_count 三面
+    # 全部由引擎实测钉死（§14.20），防手写长度字段与错位包号回归。
+    cf_test = (tg / "internal" / "core" / "layers" / "postgresql_casefile_test.go")
+    rows.append(("用例文件实测钉死件（frames/包序/包数）", cf_test.is_file(), "在案"))
+    no_payload = [c.get("id") for c in pos if not (c.get("expect") or {}).get("has_payload")]
+    rows.append(("正例均带 has_payload", not no_payload, no_payload or "全部在案"))
+    bad_pc = [c.get("id") for c in pos
+              if (c.get("expect") or {}).get("packet_count")
+              and c["expect"]["packet_count"] < 7]
+    rows.append(("packet_count 下界 >= 7（3 握手 + 4 挥手）", not bad_pc, bad_pc or "全部合规"))
+
+    # 6. 层键覆盖（5 键逐个）。
+    for k in ["dialect", "wire_profile", "events", "sessions", "wire_fault"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append(("层键覆盖：" + k, hit is not None, hit or "无用例"))
+
+    # 7. 负例锚词（与代码字面值逐条对齐）。
+    for needle, name in [
+        ("top-level postgresql sub-config", "presence 判死锚词（G-PG-6）"),
+        ("static four-tuple", "静态复制锚词"),
+        ("unknown dialect", "dialect 锚词"),
+        ("unknown wire profile", "wire profile 锚词"),
+        ("no fixed payload", "native_pending 锚词"),
+        ("requires non-empty sql", "空 sql 锚词"),
+        ("before ready", "状态机锚词"),
+        ("unknown field", "V9 白名单锚词"),
+        ("exceeds implementation limit", "wire_fault limit 锚词"),
+        ("truncated by", "wire_fault length 锚词"),
+        ("expected object", "wire_fault 形状锚词"),
+        ("invalid kind", "kind 锚词"),
+        ("invalid direction", "direction 锚词"),
+    ]:
+        rows.append(("锚词：" + name, needle in blob or needle in sc or needle in vl, "锚词出现"))
+    bad_anchor = [c.get("id") for c in neg
+                  if not (c.get("expect") or {}).get("error_contains")]
+    rows.append(("负例均带 error_contains", not bad_anchor, bad_anchor or "全部在案"))
+
+    # 8. 断言通道：hex-only 面走 frames；decode_as 分档。
+    hex_only = ["postgresql_startup_protocol_v3_1", "postgresql_startup_protocol_v3_2",
+                "postgresql_ssl_request", "postgresql_gssenc_request",
+                "postgresql_cancel_request", "postgresql_negotiate_protocol_version",
+                "postgresql_empty_query_response"]
+    no_frames = [i for i in hex_only
+                 if not any(c.get("id") == i and (c.get("expect") or {}).get("frames")
+                            for c in cases)]
+    rows.append(("hex-only 面均有 frames 断言", not no_frames, no_frames or "全部在案"))
+    kb = next((c for c in cases if c.get("id") == "postgresql_kingbase_dialect_port"), None)
+    rows.append(("dialect=kingbase 例带 decode_as",
+                 bool(kb and kb.get("decode_as")), (kb or {}).get("decode_as", "无用例")))
+    bad_da = [c.get("id") for c in cases
+              if c.get("id") != "postgresql_kingbase_dialect_port" and c.get("decode_as")]
+    rows.append(("非 kingbase 例不写 decode_as（标准端口免声明）", not bad_da,
+                 bad_da or "零残留"))
+
+    # 9. kingbase 共存注记。
+    kb_path = tg / "test" / "protocol_pcap" / "cases" / "kingbase.json"
+    rows.append(("kingbase.json 存在且 proto=postgresql（CASE_PROTO=postgresql 一并装载）",
+                 kb_path.exists()
+                 and all(c.get("proto") == "postgresql" for c in json.loads(kb_path.read_text())),
+                 "共存确认"))
+    return rows
+
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "hds": check_hds, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "isis": check_isis, "coap": check_coap, "stratum": check_stratum, "pim": check_pim, "ospf": check_ospf, "ethmining": check_ethmining, "moxa": check_moxa, "tns": check_tns, "mongodb": check_mongodb, "iec104": check_iec104}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "postgresql": check_postgresql, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms}
+
+
+
+CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
+          "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "hds": check_hds, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "isis": check_isis, "coap": check_coap, "stratum": check_stratum, "pim": check_pim, "ospf": check_ospf, "ethmining": check_ethmining, "moxa": check_moxa, "tns": check_tns, "mongodb": check_mongodb, "iec104": check_iec104, "postgresql": check_postgresql}
 
 
 def main(argv):
