@@ -15,7 +15,7 @@
 
 **过渡态声明（P4 前诚实登记）**：本形状是**违规形**（§1.4/§1.11：`layers` 与顶层 `src_ip`/`dst_ip`/`src_port`/`dst_port`/`count`/`thrift` 并存）。按顶层白名单（`{layers, strategy_fc, ttl, flow_control, output, output_config, group_id}`）机读：**非负例顶层键 = 41 处残留，全部违规**。**且经链路实读，该形状今日在 MCP 建策略即 400**：`ValidateStrategy` 无条件调 `CheckProtoFlat`（`schema/semantic.go:130`），顶层四元组/count 任一出现即拒——**存量 13 例今日不可经 MCP 跑通**（详见 §8.2）。包数与断言值本身有效，形状待 P4 迁移。
 
-**输出契约（pcap/NIC 双输出）**：两路径共用同一 cases JSON 与断言集（`tcp.dstport/srcport`、`tcp.len`、`ipv6.src/dst`、offset 54/74 frames hex）；NIC 经 tcpdump 捕获（`nic_capture` 用例级开关）；不设仅单路径可用的断言。
+**输出契约（pcap/NIC 双输出）**：设计契约 = 两路径共用同一 cases JSON 与断言集（`tcp.dstport/srcport`、`tcp.len`、`ipv6.src/dst`、offset 54/74 frames hex），不设仅单路径可用的断言。**现状诚实标注（隔离审查实测）**：存量 13 例 `nic_capture` 计数 = **0**——**今日只有 pcap 侧实证**，NIC 路径为设计契约尚未落地（P4 补 `nic_capture` 开关用例后方可声称双输出）。
 
 **TSHARK 基线**：本机 tshark 3.6.14 **有 thrift dissector**（`tshark -G fields | awk -F'\t' '$3 ~ /^thrift\./'` = **43 字段**，含 `thrift.mtype`/`thrift.method`/`thrift.seq_id`/`thrift.type`/`thrift.fid`/`thrift.i32`/`thrift.str_len`）。**存量 13 例当前只用 frames hex + `tcp.*`/`ipv6.*` 通道**；`thrift.*` 字段为增强候选（G-THRIFT-6，须先跑后钉 dissector 口径，不许凭字段名臆造）。
 
@@ -90,7 +90,7 @@ IPv6 `2001:db8::1`→`2001:db8::2`，`echo` CALL/REPLY seqid=9（STRING hello）
 | `thrift_neg_negative_length` | `wire_fault{kind:"negative_length",field_id:1}` | `negative length` | `planner.go:58` |
 | `thrift_neg_negative_container_count` | `wire_fault{kind:"negative_container_count",field_id:1}` | `negative container count` | `planner.go:60` |
 | `thrift_neg_bad_message_type` | message `type_code:9` | `invalid message type` | `planner.go:30` |
-| `thrift_neg_bad_port` | `dst_port:70000` | `port` | 迁移后为层字段 schema 范围校验（`registry.go:67` Max 65535 → `complete.go:325` out of range）——**文案不含 "port"，P4 必须重钉锚词**（G-THRIFT-9） |
+| `thrift_neg_bad_port` | `dst_port:70000` | `port` | 层字段 schema 范围校验（`registry.go:67` Max 65535 → `complete.go:325`）。**实测文案**（隔离审查）：`layers: layer "tcp" field "dst_port" = 70000 invalid: out of range [0,65535]` **含 "port"** → 锚词仍匹配，迁移后**无需重钉** |
 
 **负例原子性**：每例单一故障注入；单次执行不得混注。锚词与落码逐字一致（机读核对通过）。
 
@@ -107,13 +107,13 @@ Apache Thrift TBinaryProtocol spec（§10）+ D-THRIFT-1（设计 §11）+ tshar
 ### 5.2 9.52 对账两行 + 清单出处声明
 
 - **清单出处声明**：本清单来源 = **TBinaryProtocol spec + 旧基线契约 + 仓库落码反推 + tshark 字段表实测**，**非纯规范反推**（旧稿 §6 已给 TType 全表与错误行，本版逐条回对落码）。
-- **对账两行**（模型与 moxa §5.2 同构：**要求总数 = 覆盖 + 不适用 + 开放立项**）：
-  - **要求逻辑点总数 = 73** = 八项 8 + 矩阵 15 格 + 变体 27 行 + 商业映射 10 行 + 用例形状 13 点；
-  - **用例覆盖数 = 54** = 八项 7 + 矩阵已覆 10 + 变体已覆 17 + 商业已覆 7 + 形状已覆 13；
-  - **不适用 = 4** = 八项 1（§6 超时与活性）+ 商业 3（Compact/JSON/服务端业务语义）；
-  - **开放立项 = 15** = 矩阵 A′ 5 + 变体 A′ 10；
-  - 校验：54 + 4 + 15 = **73** ✓。逐表核对：§10.1（8 行 = 7 覆 + 1 不适用）/ §10.2（15 格 = 10 覆 + 5 立项）/ §10.3（27 行 = 17 覆 + 10 立项）/ §10.4（10 行 = 7 覆 + 3 不适用）——四表零空格，无漏项。
-  **粒度声明**：行/格粒度每点 1 计；G-THRIFT-1…G-THRIFT-9 不折进 73。**反查全绿 ≠ 覆盖全**（§9.52 原文）。
+- **对账两行**（模型与 moxa §5.2 同构：**要求总数 = 覆盖 + 明确不解决 + 开放立项**；计数由脚本 `/tmp/pipe/recon.py` 从设计文档表格机读生成，非手算）：
+  - **要求逻辑点总数 = 75** = 八项 8 + 矩阵 15 格 + 变体 29 行 + 商业映射 10 行 + 用例形状 13 点；
+  - **用例覆盖数 = 56** = 八项 6 + 矩阵已覆 10 + 变体已覆 20 + 商业已覆 7 + 形状已覆 13；
+  - **明确不解决 = 5** = 八项 2（§10.1 第 6 超时与活性 / 第 7 NAT 被动模式）+ 商业 3（Compact / JSON+THeader / 服务端业务语义）；
+  - **开放立项 = 14** = 矩阵 A′ 5 + 变体 A′ 9；
+  - 校验：56 + 5 + 14 = **75** ✓（脚本 `assert` 闭合通过）。逐表核对：§10.1（8 行 = 6 覆 + 2 不解决）/ §10.2（15 格 = 10 覆 + 5 立项）/ §10.3（29 行 = 20 覆 + 9 立项）/ §10.4（10 行 = 7 覆 + 3 不解决）——四表零空格。
+  **粒度声明**：行/格粒度每点 1 计；缺口 G-THRIFT-1…G-THRIFT-8 为条目附注，不另计行（G-THRIFT-9 已撤销，见设计 §14）。**反查全绿 ≠ 覆盖全**（§9.52 原文）。
 - **门3 抽查候选**：最复杂用例 = **#4 `thrift_containers`**（三类容器嵌套 + 负 i16 + 大端 count 多通道）；交织维度 = 容器(3)×元素类型(4)×count 语义×字段 ID 负值。若按 9.49/9.50 下限偏弱在"多流/并发"面，**建议门3 抽 #4 + #7**（`thrift_multi_sessions` 补多流面）。
 
 ### 5.3 T-编号与旧 id 对照（设计 §9 全表摘要）
@@ -146,9 +146,9 @@ Apache Thrift TBinaryProtocol spec（§10）+ D-THRIFT-1（设计 §11）+ tshar
 | 端口面 | dst_port 缺省补齐 9090 | `thrift_default_port`（删键不断言值） |
 | 地址族面 | 异族混写/非法 IP | `thrift_neg_mixed_family`（validator 有分支 `planner.go:65-70`，今日无例） |
 | 未落码校验 | 重复 field ID / 缺 STOP | `thrift_neg_duplicate_field_id` + `thrift_neg_missing_stop`（G-THRIFT-3 落码后） |
-| 锚词重钉 | N-6 越界端口迁移后文案不含 "port" | P4 重钉 `thrift_neg_bad_port` 锚词（G-THRIFT-9） |
 | 非正常结束 | `tcp.rst` 补例 | `thrift_abort_rst`（②） |
 | 断言增强 | tshark `thrift.*` 43 字段通道 | G-THRIFT-6（先跑后钉） |
+| 双输出落地 | `nic_capture` 开关用例（今日 0 例，仅 pcap 侧实证） | A′ 补 `nic_capture` 用例，NIC 侧（`enp135s0f0np0`）跑同一断言集 |
 | 现网面 | spec 条款号级引用 | G-THRIFT-7 |
 
 **B′（框架面）**：`CheckProtoFlat` thrift presence 分支（G-THRIFT-2，等框架级 unknown-key 白名单，不单独立项）/ 业务字段动态（G-THRIFT-8，allowlist 无 `thrift` 行）/ `transport` 死键（G-THRIFT-4，P4 裁定删或接线）/ BINARY 合流（G-THRIFT-5，P4 裁定）。进设计 §14，「明确不解决 + 迁入计划」。
@@ -173,7 +173,7 @@ Apache Thrift TBinaryProtocol spec（§10）+ D-THRIFT-1（设计 §11）+ tshar
 ### 8.2 现状矛盾点（P4 前诚实登记）
 
 1. **存量跑的是过渡态违规形（非负例顶层键 41 处残留），且今日建策略即 400**：`spec_json` 的 `layers=[{tcp:{}},{thrift:{}}]` 只是**空壳**（两层 config 恒 `{}`），真实配置住顶层 `thrift` 子映射 + 顶层四元组 + `count`。经链路实读：`ValidateStrategy` → `validateStrategySemantic`（`schema/semantic.go:52`）→ 无条件 `CheckProtoFlat`（`:130`）→ 顶层 `src_ip/dst_ip/src_port/dst_port/count` 任一存在即 `fail` → **策略创建 400**。故存量 13 例**今日既非绿也非红，而是跑不起来**（P4 迁移后可跑）。
-2. **层内配置不翻译（自行核实）**：`translateTerminalConfig`（`chain_planner_translate.go:695`）是逐协议 `if term.Name == "X"` 链 + `switch term.Name`（`:855`，73 个 case）结构，**两处均无 thrift**；全仓非测试代码里唯一的 `Thrift` 引用是 `:122` 的 Meta 直传（**读** `spec.Thrift`，不写），**无 FieldContract/通用通道兜底**（`term.Config` 由各 case 各自 `completedConfig` 消费）。故层内 `layers[i].thrift.messages` 今日**不翻译** → `spec.Thrift` 恒 nil → 走默认 `CALL ping` 流。这是 G-THRIFT-1 的第二半。
+2. **层内配置被静默丢弃 → 任务假成功（自行核实；比"跑不通"严重）**：`translateTerminalConfig`（`chain_planner_translate.go:695`）是逐协议 `if term.Name == "X"` 链 + `switch term.Name`（`:855`，73 个 case）结构，**两处均无 thrift**；`Thrift` 在本包外共 4 文件引用（`types.go` 类型/槽位、`generator.go:353`、`strategy_convert.go:1749`、`chain_planner_translate.go:122` Meta 直传读值），**无 FieldContract/通用通道兜底**（`term.Config` 由各 case 各自 `completedConfig` 消费）。故层内 `layers[i].thrift.messages` 今日**不翻译且无报错**：`spec.Thrift` 恒 nil → 默认 `CALL ping` 流。**隔离审查实测 `ValidateLayers` 返回 `err=nil`、`Plan` 产 9 包默认 `ping`**——用户配 `add` 却发出 `ping`，零报错 = **静默假成功**（§1.9 类问题）。这是 G-THRIFT-1 的第二半。
 3. **旧稿状态声明全部过时**：`30-thrift-*` 称"仅设计阶段、尚未实现"，实为四文件 1861 行已落码（设计 §0 表 8 项校正）。
 4. **旧稿 E-07/E-08 仍待实现**：设计 §6 标"待实现扩展负例"，落码 Validate 确认无对应分支——**继承待实现边界**，不是"已有覆盖"。
 5. **S7 缺跨流 seqid 关联断言**：旧稿 testcase §3 已声明"当前验证器没有跨流 seqid 关联断言，必须在实现集成测试补充"——本版继承，登记 A′（§6.2）。
@@ -226,4 +226,4 @@ Apache Thrift TBinaryProtocol spec（§10）+ D-THRIFT-1（设计 §11）+ tshar
 
 ## 10. 修订记录
 
-- v1.0.0（2026-09-28）：P-PIPE #102 文档轨 P1–P3。旧稿 30-* 13 ID / packet_count / 锚词 / fixture 全量继承（思路参考不搬码）；新增形状基线机读实测（§1，**非符合态：非负例顶层键 41 处残留 + 今日建策略 400 实证**）、P3 固定动作（§6）、执行建议（§7）、存量审计（§8，13/13 改写）、覆盖反查门建议断言行（§9，16 行）。自审 5 轮（第 5 轮按主线程口径纠错），末轮干净（结论见 `/tmp/pipe/doc-lanes/thrift.md`）。
+- v1.0.0（2026-09-28）：P-PIPE #102 文档轨 P1–P3。旧稿 30-* 13 ID / packet_count / 锚词 / fixture 全量继承（思路参考不搬码）；新增形状基线机读实测（§1，**非符合态：非负例顶层键 41 处残留 + 今日建策略 400 实证**）、P3 固定动作（§6）、执行建议（§7）、存量审计（§8，13/13 改写）、覆盖反查门建议断言行（§9，16 行）。自审 6 轮（第 5 轮按主线程口径纠错；**第 6 轮按隔离审查打回修 5 项**：静默假成功定性、撤销 G-THRIFT-9、对账脚本化重算 75=56+5+14、nic_capture 诚实标注），末轮干净（结论见 `/tmp/pipe/doc-lanes/thrift.md`）。
