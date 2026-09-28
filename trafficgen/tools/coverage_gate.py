@@ -7409,9 +7409,156 @@ def check_rtmfp(cases):
     return rows
 
 
+def check_mongodb(cases):
+    """D-MONGODB-1（#87）P4 反查表（21 例 = 8 正 + 13 负；MongoDB 传统
+    OP_* 线协议，TCP 27017，[ip,tcp,mongodb] 终结层族）。返回
+    [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("mongodb"), dict):
+                lays.append((c.get("id", "?"), l["mongodb"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 准入与接线（G-MONGO-1 迁层五件）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 mongodb", '"mongodb": true' in pg, "在列"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case mongodb（严格解码进 spec.MongoDB）",
+                 'case "mongodb":' in tr and "spec.MongoDB = &mcfg" in tr
+                 and "DisallowUnknownFields" in tr, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.MongoDB 字段", re.search(r"MongoDB\s+\*core\.MongoDBConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.MongoDB 字段", re.search(r"MongoDB\s+\*MongoDBConfig", ty) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "mongodb"')
+    reg_block = rg[i_reg:rg.index('Name: "dameng"', i_reg)]
+    rows.append(("registry mongodb 行（DependsOn tcp + FieldContract 27017 + 3 键，D2 死字段已删）",
+                 'DependsOn: []string{"tcp"}' in reg_block
+                 and '"tcp.dst_port": "27017"' in reg_block
+                 and '"bson_fixture_hex"' not in reg_block
+                 and all(k in reg_block for k in ['"messages"', '"sessions"', '"wire_fault"']),
+                 "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(mongodb)",
+                 "internal/protocol/mongodb" in mn and 'NewChainPlanner("mongodb")' in mn, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("链路径目的端口缺省 27017（DstPort switch，dameng 同款）",
+                 "spec.DstPort = mongodbPort" in cp and "const mongodbPort = 27017" in cp, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat 顶层 mongodb 子映射 presence 判死",
+                 "protocol mongodb no longer accepts a top-level mongodb sub-config" in sc, "在案"))
+    rows.append(("mapToFlowSpec 顶层 mongodb → ValidationErrors（在库旧策略执法）",
+                 'if protocol == "mongodb" {' in sc, "在案"))
+    rows.append(("flat 兼容路径端口缺省 27017", "setDefaultDstPort(&spec, cfg, 27017)" in sc, "在案"))
+
+    # 2. 行为面（planner/builder 关键件；G-MONGO-2/3/8）。
+    pl = (tg / "internal" / "protocol" / "mongodb" / "planner.go").read_text()
+    for guard, name in [
+        ("func checkMessages", "逐消息校验链（配对守卫 + buildMessage 预演）"),
+        ("no matching earlier request", "responseTo 配对守卫（G-MONGO-3）"),
+        ("buildMessage(m)", "生成期错误前置到 Validate（零空流假成功）"),
+        ("at least one message or session required", "空配置拒"),
+        ("messages and sessions are mutually exclusive", "二选一拒"),
+    ]:
+        rows.append((f"关键件：{name}", guard in pl, "在案"))
+    bl = (tg / "internal" / "protocol" / "mongodb" / "builder.go").read_text()
+    for prim, name in [
+        ("func knownOpcode", "数字 opcode 白名单（G-MONGO-3）"),
+        ("sort.Strings(keys)", "BSON 按键排序（G-MONGO-2）"),
+        ("func bsonWrap", "BSON 长度自洽封装"),
+        ("MaxMessagePayload", "4MB 上限常量（G-MONGO-8 D3）"),
+    ]:
+        rows.append((f"builder：{name}", prim in bl, "在案"))
+    rows.append(("MaxMessagePayload 真实执法（G-MONGO-8 D3：修前零引用）",
+                 "exceeds MaxMessagePayload" in bl, "在案"))
+    rows.append(("消息级 direction 死字段已删（G-MONGO-8 D1）",
+                 "Direction" not in ty[ty.index("type MongoDBMessage struct"):ty.index("type MongoDBSession struct")],
+                 "在案"))
+    lg = (tg / "internal" / "protocol" / "mongodb" / "layer_gen.go").read_text()
+    rows.append(("终结层事件流（opcode 定方向）",
+                 "opcodeDirection(op) != \"s2c\"" in lg, "在案"))
+
+    # 3. 用例面（21 例 = 8 正 + 13 负；proto=mongodb；顶层仅 layers/flow_control）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "mongodb_query_reply", "mongodb_write_ops", "mongodb_bson_types",
+        "mongodb_empty_boundary", "mongodb_ipv6", "mongodb_multi_session",
+        "mongodb_message_header", "mongodb_multi_flow_dynamic",
+        "mongodb_neg_truncated_header", "mongodb_neg_short_length",
+        "mongodb_neg_oversize", "mongodb_neg_bad_opcode", "mongodb_neg_bson_length",
+        "mongodb_neg_udp_carrier", "mongodb_neg_presence_top_level_mongodb",
+        "mongodb_neg_stray_src_ip", "mongodb_neg_flat_count",
+        "mongodb_neg_unknown_layer_field", "mongodb_neg_opcode_rejected",
+        "mongodb_neg_orphan_reply", "mongodb_neg_empty_layer",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("21 例对账（8 正 + 13 负）", len(pos) == 8 and len(neg) == 13 and len(cases) == 21,
+                 f"{len(pos)}+{len(neg)}={len(cases)}"))
+    bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "mongodb"]
+    rows.append(("proto 全=mongodb", not bad_proto, bad_proto or "全 mongodb"))
+    bad_top = [c.get("id") for c in pos
+               if any(k not in ("layers", "flow_control", "output", "output_config", "group_id")
+                      for k in (c.get("spec_json") or {}))]
+    rows.append(("非负例顶层键=0（仅 layers/flow_control/output 家族）", not bad_top, bad_top or "零残留"))
+    bad_keys = [c.get("id") for c in neg
+                if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}", not bad_keys, bad_keys or "全部合规"))
+    # 链形：非负例 + 非载体负例 = [ip,tcp,mongodb]。
+    carrier_neg = {"mongodb_neg_udp_carrier"}
+    bad_chain = []
+    for c in cases:
+        cid = c.get("id", "")
+        if (c.get("expect") or {}).get("expect_error") and cid in carrier_neg:
+            continue
+        sj = c.get("spec_json") or {}
+        if "layers" not in sj:
+            if not (c.get("expect") or {}).get("expect_error"):
+                bad_chain.append(cid + ":no-layers")
+            continue
+        names = []
+        for l in sj["layers"]:
+            if isinstance(l, dict):
+                names.extend(l.keys())
+        if names != ["ip", "tcp", "mongodb"]:
+            bad_chain.append(cid + ":" + ",".join(names))
+    rows.append(("链形 [ip,tcp,mongodb]（载体负例豁免）", not bad_chain, bad_chain or "全合规"))
+    # 消息级 direction 死键零残留（G-MONGO-8 D1）。
+    bad_dir = [c.get("id") for c in cases if '"direction"' in json.dumps(c.get("spec_json") or {})]
+    rows.append(("消息级 direction 零残留（G-MONGO-8 D1）", not bad_dir, bad_dir or "零残留"))
+    # 端口断言：正例上包目的端口 27017。
+    rows.append(("正例含 tcp.dstport=27017 断言", blob.count('"27017"') >= 5, f"{blob.count(chr(34)+'27017'+chr(34))} 处"))
+    # 断言通道诚实性：mongodb.* / mongo.* 字段仅正例使用（tshark 92 字段实测）。
+    bad_f = [c.get("id") for c in cases
+             for f in ((c.get("expect") or {}).get("fields") or [])
+             if str((f or {}).get("field", "")).startswith("mongodb.")]
+    rows.append(("无 mongodb.* 字段断言（tshark 前缀为 mongo.*）", not bad_f, bad_f or "零命中"))
+    # 锚词面：13 负例 error_contains 与代码锚词双向子串命中。
+    code_text = pl + bl + cp + sc + tr
+    def _hit(ec):
+        if ec in code_text:
+            return True
+        import re as _re2
+        skel = _re2.sub(r"\b\d+\b", "", ec)
+        words = [w for w in _re2.split(r"\s+", skel) if len(w.strip('",()[]:')) >= 3]
+        return len(words) >= 3 and all(w in code_text for w in words)
+    bad_a = [f"{c.get('id')}:{ec}" for c in neg
+             for ec in [(c.get("expect") or {}).get("error_contains", "")]
+             if not _hit(ec)]
+    rows.append(("13 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
+    return rows
+
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "mongodb": check_mongodb}
 
 
 def main(argv):
