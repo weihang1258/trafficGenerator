@@ -2145,7 +2145,7 @@ def check_amqp(cases):
              if ec not in code_anchors and not any(a in ec for a in
                 ("protocol", "frame", "handshake", "channel", "body", "session",
                  "carrier", "top-level amqp", "flat config field src_ip"))]
-    rows.append(("10 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
+    rows.append(("12 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
     return rows
 
 
@@ -8772,9 +8772,185 @@ def check_ethmining(cases):
     return rows
 
 
+def check_moxa(cases):
+    """D-MOXA-1 P4/P5 反查表（11 正 + 12 负 = 23 例；M-1 后补落 6 条 A′ 例
+    #14–#18 + abort_rst + block_over 对偶）。返回 [(检查名, 通过?, 证据)]。
+
+    断言通道诚实声明：tshark 3.6.14 无 moxa dissector（`tshark -G fields |
+    grep -ci moxa` = 0 实测），正例断言只有 tcp.* + ipv6.* + frames hex 三通道
+    ——本表按此口径反查，不查不存在的字段面。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线（P4 落码面）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 moxa", '"moxa": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 moxa（已准入）", '"moxa"' not in pt[i_neg:i_neg + 900], "已摘除"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "moxa"')
+    reg_block = rg[i_reg:rg.index('Name: "', i_reg + len('Name: "moxa"'))]
+    rows.append(("registry moxa 行（DependsOn tcp + stream/sessions 两键）",
+                 'DependsOn: []string{"tcp"}' in reg_block
+                 and '"stream"' in reg_block and '"sessions"' in reg_block, "在案"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case moxa（层 config → spec.MOXA）",
+                 'case "moxa":' in tr and "moxa layer config decode" in tr, "在案"))
+    rows.append(("FlowMeta.MOXA 直传", re.search(r"MOXA:\s+spec\.MOXA\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.MOXA 字段", re.search(r"MOXA\s+\*core\.MOXAConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.MOXA 字段", re.search(r"MOXA\s+\*MOXAConfig", ty) is not None, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(moxa)",
+                 "internal/protocol/moxa" in mn and 'NewChainPlanner("moxa")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat 顶层 moxa 子映射 presence 判死（G-MOXA-2 落码）",
+                 "protocol moxa no longer accepts a top-level moxa sub-config" in sc, "在案"))
+    rows.append(("strategy_convert 在库旧策略 compat（ValidationErrors）",
+                 sc.count('CheckProtoFlat(protocol, cfg)') >= 14
+                 and 'if protocol == "moxa"' in sc, "在案"))
+    rows.append(("strategy_convert moxa 目的端口缺省 4800",
+                 re.search(r'setDefaultDstPort\(&spec, cfg, 4800\)', sc) is not None, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain_planner moxa 目的端口缺省 4800",
+                 'case "moxa":' in cp and "spec.DstPort = 4800" in cp, "在案"))
+    rows.append(("chain_planner moxa 层 tcp 开关回填（handshake 载体违例可达 validator）",
+                 'p.name == "moxa" && spec.TCP == nil' in cp, "在案"))
+    gendump = json.loads((tg / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
+    entry = gendump["layers"].get("moxa", {})
+    rows.append(("generated schema moxa 条目（depends_on tcp + 2 键，与 registry 同代）",
+                 entry.get("depends_on") == ["tcp"] and len(entry.get("fields", {})) == 2, "在案"))
+    # 反查表登记后不许再出现层链+顶层 moxa 并存的非负例。
+    bad_top = [c.get("id") for c in cases
+               if "layers" in (c.get("spec_json") or {})
+               and isinstance((c.get("spec_json") or {}).get("moxa"), dict)
+               and not ((c.get("expect") or {}).get("expect_error"))]
+    rows.append(("顶层 moxa presence 零残留（非负例）", not bad_top, bad_top or "零残留"))
+
+    # 2. 行为面（planner/layer_gen 关键件；wire 面已落码，P4 只接线）。
+    pl = (tg / "internal" / "protocol" / "moxa" / "planner.go").read_text()
+    for guard, name in [
+        ("empty stream block or payload required", "N-1 空块/空 payload 锚词"),
+        ("config-packet bytes in stream are not supported", "N-2 探针前缀锚词"),
+        ("sessions=%d>1 not supported", "N-3 sessions 越界锚词"),
+        ("tcp.handshake must be true", "N-4 载体违例锚词"),
+        ("invalid payload_b64", "N-5 非法 b64 锚词"),
+        ("exceeds max %d", "N-6 超限锚词"),
+        ("invalid direction", "N-7 非法方向锚词"),
+    ]:
+        rows.append((f"守卫：{name}", guard in pl, f"锚词 {guard}"))
+    lg = (tg / "internal" / "protocol" / "moxa" / "layer_gen.go").read_text()
+    rows.append(("关键件：RegisterLayerGenerator + RegisterLayerValidator（init）",
+                 'RegisterLayerGenerator("moxa"' in lg and 'RegisterLayerValidator("moxa"' in lg, "在案"))
+    rows.append(("关键件：空配置默认流（stream \"hello\" 双默认）",
+                 lg.count('Payload: "hello"') >= 2 and pl.count('Payload: "hello"') >= 2, "在案"))
+    rows.append(("关键件：按 MSS 切片（超 MSS 块多段）",
+                 "off += mss" in pl and "mss = int(spec.TCP.MSS)" in pl, "在案"))
+    tmx = (tg / "internal" / "protocol" / "moxa" / "types.go").read_text()
+    rows.append(("关键件：MaxBlockBytes=2048（types.go）", "MaxBlockBytes = 2048" in tmx, "在案"))
+    blk = (tg / "internal" / "core" / "layers" / "moxa_chain_test.go").read_text()
+    for tc, name in [
+        ("TestMOXAChain_LayerToSpecPlan", "链级①层条目→spec 翻译出包 + 缺省端口"),
+        ("TestMOXAChain_EmptyLayerDefaultsToHello", "链级②空层 config 走 P0b-2 默认流"),
+        ("TestMOXAChain_PresenceAndStrayTopLevelKeys", "链级③presence/游离键判死"),
+        ("TestMOXAChain_CarrierRejected", "链级④载体拒（udp）"),
+        ("TestMOXAChain_HandshakeFalseRejected", "链级⑤层内 handshake=false 可达 validator"),
+        ("TestMOXAChain_StrictDecode", "链级⑥严格解码（元素内层未知键拒）"),
+        ("TestMOXAChain_CaseFileAudit", "链级⑦用例文件收官自查"),
+    ]:
+        rows.append((f"链级红测：{name}", tc in blk, "在案"))
+
+    # 3. 用例面（23 例 = 11 正 + 12 负）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "moxa_single_up", "moxa_multi_segment", "moxa_bidirectional",
+        "moxa_sessions_multi", "moxa_binary_payload", "moxa_ipv6",
+        "moxa_neg_empty_payload", "moxa_neg_config_packet", "moxa_neg_sessions_multi",
+        "moxa_neg_no_handshake", "moxa_neg_bad_b64", "moxa_neg_oversize",
+        "moxa_neg_bad_direction", "moxa_neg_top_moxa_presence_reject",
+        "moxa_neg_stray_src_ip", "moxa_neg_carrier_udp",
+        # M-1（gen-review）：设计 §12.1:351 / §13:373 + testcase §6.2/§7.1 点名的
+        # 6 条 A′ 例此前一条未落（且门把 16 硬编码 → 补例反使门变红，结构上
+        # 不可能发现分叉，与 mongodb C1 同型）。已按实测补落。
+        "moxa_up_multi", "moxa_down_only", "moxa_block_max",
+        "moxa_default_port", "moxa_neg_mixed_family", "moxa_abort_rst",
+        "moxa_neg_block_over",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    rows.append(("用例总数 23（11 正+12 负）", len(cases) == 23, f"{len(cases)} 例"))
+    pos = [c for c in cases if "expect_error" not in (c.get("expect") or {})]
+    neg = [c for c in cases if "expect_error" in (c.get("expect") or {})]
+    rows.append(("11 正 + 12 负", len(pos) == 11 and len(neg) == 12, f"{len(pos)} 正 / {len(neg)} 负"))
+    # 包数集合按实测更新（M-1 新增例：up_multi 10 / down_only 8 /
+    # block_max 9 / default_port 8 / abort_rst 5）。
+    _pcs = sorted((c.get("expect") or {}).get("packet_count") for c in pos)
+    rows.append((f"正例均带 packet_count（实测集合 {_pcs}）",
+                 all(isinstance(x, int) and x > 0 for x in _pcs), "全部在案"))
+    rows.append(("正例均带 frames hex（多流例豁免——testcase §3.4 不逐包定位）",
+                 all((c.get("expect") or {}).get("frames") for c in pos
+                     if c.get("id") != "moxa_sessions_multi"), "全部在案"))
+    bad_keys = [c.get("id") for c in neg
+                if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}", not bad_keys, bad_keys or "全部合规"))
+    allowed_top = {"layers", "flow_control", "strategy_fc"}
+    bad_top2 = [c.get("id") for c in pos
+                if any(k not in allowed_top for k in (c.get("spec_json") or {}))]
+    rows.append(("正例顶层键=0（仅 layers/flow_control）", not bad_top2, bad_top2 or "零残留"))
+    # 全例纯链形：layers 存在且末层是 moxa（旧扁平残留 5 键 → 0）。
+    bad_shape = [c.get("id") for c in cases
+                 for arr in [(c.get("spec_json") or {}).get("layers") or []]
+                 if not arr or "moxa" not in ((arr[-1] or {}) if isinstance(arr[-1], dict) else {})]
+    rows.append(("全例纯链形（末层 moxa）", not bad_shape, bad_shape or "16/16"))
+    # 多流例（flows>1）静态复制门自查（MCP 侧 schema 门，离线 executor 不跑）：
+    # 层链必须带动态对象，否则 MCP 400 而离线绿——分歧即缺口。
+    def _has_dyn(sj):
+        for layer in (sj.get("layers") or []):
+            for sub in (layer or {}).values():
+                if not isinstance(sub, dict):
+                    continue
+                for v in sub.values():
+                    if isinstance(v, dict) and "strategy" in v:
+                        return True
+        return False
+    bad_sc = [c.get("id") for c in pos
+              for fc in [(c.get("spec_json") or {}).get("flow_control") or {}]
+              if isinstance(fc, dict) and (fc.get("flows") or 0) > 1
+              and not _has_dyn(c.get("spec_json") or {})]
+    rows.append(("多流例层链带动态对象（静态复制门）", not bad_sc, bad_sc or "全部合规"))
+    # 断言通道诚实性：任何用例都不得写 moxa.* 字段（无 dissector）。
+    bad_f = [c.get("id") for c in cases
+             for f in ((c.get("expect") or {}).get("fields") or [])
+             if str((f or {}).get("field", "")).startswith("moxa.")]
+    rows.append(("无 moxa.* 字段断言（tshark 0 字段实测）", not bad_f, bad_f or "零命中"))
+    # 锚词门：负例 error_contains 与代码锚词双向子串命中（rtmfp 先例口径）。
+    # moxa 的 N-3 锚词在代码里是 printf 形（`sessions=%d>1 not supported`），
+    # 用例写的是渲染后的字面值（`sessions=3>1`）——两侧同规则归一（去数字
+    # 与 printf 动词）后再比，锚词语义不变。
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    code_text = pl + lg + sc + vl + cp + tr
+    def _norm(s):
+        return re.sub(r"%[a-zA-Z]", "", re.sub(r"\b\d+\b", "", s))
+    code_norm = _norm(code_text)
+    def _hit(ec):
+        if ec in code_text:
+            return True
+        skel = _norm(ec)
+        if skel in code_norm:
+            return True
+        words = [w for w in re.split(r"\s+", skel) if len(w.strip('",()[]:')) >= 3]
+        return len(words) >= 3 and all(w in code_text for w in words)
+    bad_a = [f"{c.get('id')}:{ec}" for c in neg
+             for ec in [(c.get("expect") or {}).get("error_contains", "")]
+             if not _hit(ec)]
+    rows.append(("10 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
+    return rows
+
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "hds": check_hds, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "isis": check_isis, "coap": check_coap, "stratum": check_stratum, "pim": check_pim, "ospf": check_ospf, "ethmining": check_ethmining}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "hds": check_hds, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "isis": check_isis, "coap": check_coap, "stratum": check_stratum, "pim": check_pim, "ospf": check_ospf, "ethmining": check_ethmining, "moxa": check_moxa}
 
 
 def main(argv):
