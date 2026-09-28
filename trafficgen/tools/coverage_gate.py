@@ -7543,8 +7543,30 @@ def check_ethmining(cases):
     rows.append(("负例 expect 键集严格 = {expect_error, error_contains}",
                  all(set((c.get("expect") or {}).keys()) == {"expect_error", "error_contains"} for c in neg),
                  "全部合规"))
+    # C2（gen-review）：testcase §4 行 16/18 明文要求正例断言走
+    # 「tcp.payload 全行 hex + tcp.len + offset 54/74 frames」三通道。
+    # 原产物 22 正例只有 packet_count（零字段/零帧断言），§4 承诺大于产物。
     rows.append(("正例均带 packet_count",
                  all((c.get("expect") or {}).get("packet_count") for c in pos), "全部在案"))
+    no_assert = [c.get("id") for c in pos
+                 if not ((c.get("expect") or {}).get("fields") or (c.get("expect") or {}).get("frames"))]
+    rows.append(("C2 正例均带值断言（tcp.payload/tcp.len 字段或 frames hex）",
+                 not no_assert, no_assert or "全部在案"))
+    bad_hex = []
+    for c in pos:
+        for fr in ((c.get("expect") or {}).get("frames") or []):
+            off = fr.get("offset")
+            if off not in (54, 74):
+                bad_hex.append(f"{c.get('id')}:offset={off}")
+            # 行首恒 7b 只对**行首段**成立；跨 MSS 分段例（mss_large_jobid）
+            # 的续段从行中间切，本就不以 7b 开头——testcase §4 行 69 ③ 要求
+            # 的正是「首段前缀 + 末段后缀」而非每段行首。
+            if c.get("id") == "ethmining_mss_large_jobid":
+                continue
+            if not str(fr.get("hex", "")).startswith(("7b", "7B")):
+                bad_hex.append(f"{c.get('id')}:行首非 7b")
+    rows.append(("C2 frames 行首 7b + offset ∈ {54,74}（testcase §4 行 18；跨段例按首段口径）",
+                 not bad_hex, bad_hex[:5] or "全部合规"))
     # 断言通道诚实性：任何用例都不得写 ethmining.*/stratum.* 字段（无 dissector）。
     bad_f = [c.get("id") for c in cases
              for f in ((c.get("expect") or {}).get("fields") or [])
@@ -7563,10 +7585,14 @@ def check_ethmining(cases):
              for ec in [(c.get("expect") or {}).get("error_contains", "")]
              if not _hit(ec)]
     rows.append(("15 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
-    # 值沿设计标 pending-suite（本车道不跑 suite，不冒充实测）。
-    no_pending = [c.get("id") for c in pos
-                  if not any("pending-suite" in n for n in ((c.get("expect") or {}).get("notes") or []))]
-    rows.append(("正例均标 pending-suite（先跑后钉留待 P5）", not no_pending, no_pending or "全部在案"))
+    # C2 后此门反转：帧/字段断言已由**引擎实测**（链上 Plan + tshark 口径）落盘，
+    # 不再是「沿设计值标 pending」。断言值即实测值，pending-suite 标记应清零
+    # （suite 只复核端到端一致，不再是"值待定"的借口）。
+    stale_pending = [c.get("id") for c in pos
+                     if (c.get("expect") or {}).get("fields")
+                     and any("pending-suite" in n for n in ((c.get("expect") or {}).get("notes") or []))]
+    rows.append(("C2 已实测断言的正例不再标 pending-suite", not stale_pending,
+                 stale_pending or "全部在案"))
     # M5 链级红例在案（presence / 游离 / 载体真链形）。
     have = {c.get("id") for c in cases}
     rows.append(("M5 链级红例在案（presence+游离+载体三形状）",
