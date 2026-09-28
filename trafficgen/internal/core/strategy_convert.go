@@ -551,6 +551,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-MONGODB-1（#87）G-MONGO-6：mongodb 在库旧策略顶层 mongodb →
+	// ValidationErrors（mms/drda 同款；空 map 也死——判死形状「层链+顶层空
+	// 子映射并存」wired 面；13 例存量正是此形，改写后此门才有执法对象）。
+	if protocol == "mongodb" {
+		if v, ok := cfg["mongodb"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-MMS-2（G-MMS-1，§14-P2）：mms 在库旧策略顶层 mms → ValidationErrors
 	// （amqp 同款；在库 0 行纯防御——新协议无存量迁移面）。
 	if protocol == "mms" {
@@ -1591,9 +1599,15 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			parseSubconfigJSON[*TNSConfig](&spec, sub, "tns", &spec.TNS)
 		}
 	case "mongodb":
+		// D-MONGODB-1（#87）：配置住 mongodb 层（顶层 mongodb 子映射由
+		// CheckProtoFlat 判死），本支仅守 out-of-band 配置（引擎直调/存量
+		// 行），层链形状下不可达。目的端口缺省 27017（FieldContract 同值；
+		// 链路径在 validateSpecBase DstPort switch 承接——本支是 flat
+		// 兼容路径，dameng 5236 同款）。
 		if sub, ok := cfg["mongodb"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*MongoDBConfig](&spec, sub, "mongodb", &spec.MongoDB)
 		}
+		setDefaultDstPort(&spec, cfg, 27017)
 	case "dameng":
 		if sub, ok := cfg["dameng"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*DamengConfig](&spec, sub, "dameng", &spec.Dameng)
@@ -8876,6 +8890,15 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "mms" {
 		if v, ok := cfg["mms"]; ok && v != nil {
 			return "protocol mms no longer accepts a top-level mms sub-config (move it into the mms layer of an [ip,tcp,mms] layers chain; the layer chain is the only config truth)"
+		}
+	}
+	// D-MONGODB-1（#87）G-MONGO-6：mongodb 顶层 mongodb 子映射 presence 判死
+	// （mms/drda 先例；空 map 也死——契约点名形状「层链+顶层空子映射并存」，
+	// 业务键 messages/sessions/wire_fault 迁 layers[i].mongodb，层链是唯一
+	// 配置真相）。层链形状不触发。
+	if protocol == "mongodb" {
+		if v, ok := cfg["mongodb"]; ok && v != nil {
+			return "protocol mongodb no longer accepts a top-level mongodb sub-config (move it into the mongodb layer of an [ip,tcp,mongodb] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-*-1 raw 自驱八协议：顶层同名子映射 presence 判死（mcp 先例；空

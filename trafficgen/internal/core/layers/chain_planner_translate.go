@@ -2958,6 +2958,38 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.CFlow = &ccfg
+	case "mongodb":
+		// D-MONGODB-1（#87）G-MONGO-1：层 config（messages/sessions/wire_fault）
+		// 经 JSON 往返解码为 core.MongoDBConfig（dameng/cql 严格解码同款——
+		// completedConfig + DisallowUnknownFields）。缺此分支时层内 mongodb
+		// 配置**静默丢弃**，生成器读到 nil → P0b-2 缺省流（配 5 条只出 1 条
+		// 默认 OP_QUERY），这是本协议 P4 第 1 顺位修复（设计 §1/§12.1 时序
+		// 约束）。层级 bson_fixture_hex 死字段已删（G-MONGO-8 D2），层内写它
+		// 由 V9 报 unknown field（到不了这里）。
+		// 层优先：spec.MongoDB 已存在（flat 顶层 mongodb/引擎直调）则不覆盖；
+		// 扁平入口已由 CheckProtoFlat 判死顶层 mongodb 子映射（存量行经
+		// strategy_convert 兼容块记 ValidationErrors）。空层 {} 翻译出非 nil
+		// 空配置 → validator 报 "at least one message or session required"
+		// （层链下显式空层不静默走 P0b 缺省流）。
+		if spec.MongoDB != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		cfgM := completedConfig(s, term.Config)
+		rawM, err := json.Marshal(cfgM)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("mongodb layer config encode: %v", err))
+			return
+		}
+		var mcfg core.MongoDBConfig
+		decM := json.NewDecoder(bytes.NewReader(rawM))
+		decM.DisallowUnknownFields()
+		if err := decM.Decode(&mcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("mongodb layer config decode: %v", err))
+			return
+		}
+		spec.MongoDB = &mcfg
 	case "gbt32960":
 		// D-GBT32960 P4：层 config 经 core.ParseGBT32960ConfigFromMap 复用
 		// 扁平解析单一真相（jt808/tftp 同款；vin_pad_byte/

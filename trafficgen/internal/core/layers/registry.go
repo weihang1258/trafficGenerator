@@ -739,13 +739,20 @@ func buildDefaultRegistry() {
 		}})
 	r.Register(LayerSchema{Name: "tns", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "1521"}})
+	// D-MONGODB-1（#87）：mongodb 层三键 = MongoDBConfig 顶层同名（messages/
+	// sessions/wire_fault 业务键）。V9 只验顶层键存在，嵌套值语义归
+	// translateTerminalConfig JSON 往返 + validator（dameng/bgp 同款）。
+	// 层级 bson_fixture_hex 死字段（G-MONGO-8 D2）已删——生成器零读取
+	// （被消费的是**消息级**同名键，builder.go buildInsertBody），留着等于
+	// "配上不生效"；删后层内再写该键由 V9 报 unknown field。
+	// FieldContract tcp.dst_port=27017（validateSpecBase DstPort switch 承接；
+	// 设计 §2.1 无强制等于校验——显式非 27017 被尊重）。
 	r.Register(LayerSchema{Name: "mongodb", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "27017"},
 		Fields: map[string]FieldSchema{
-			"messages":         {Type: "list", Default: []interface{}{}},
-			"sessions":         {Type: "list", Default: []interface{}{}},
-			"bson_fixture_hex": {Type: "string", Default: ""},
-			"wire_fault":       {Type: "object"},
+			"messages":   {Type: "list", Default: []interface{}{}},
+			"sessions":   {Type: "list", Default: []interface{}{}},
+			"wire_fault": {Type: "object"},
 		}})
 	r.Register(LayerSchema{Name: "dameng", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		// D-DAMENG-1：TCP-only 终结层（DM8 经 TCP 5236；链夹 udp 判死走

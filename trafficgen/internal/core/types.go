@@ -1230,8 +1230,12 @@ type TNSConfig struct {
 }
 
 // MongoDBMessage is one MongoDB wire protocol message.
+//
+// D-MONGODB-1（#87）G-MONGO-8 D1：`direction` 死字段已删——方向是 opcode 的
+// 函数（OP_REPLY → down，其余 → up，layer_gen.go opcodeDirection），消息级
+// direction 配置零读取（配上不生效）。配置里再写该键由 translate 的
+// DisallowUnknownFields 拒（unknown field），不再静默吞掉。
 type MongoDBMessage struct {
-	Direction      string                   `json:"direction,omitempty"`
 	RequestID      int32                    `json:"request_id,omitempty"`
 	ResponseTo     int32                    `json:"response_to,omitempty"`
 	Opcode         interface{}              `json:"opcode,omitempty"` // string or int for negative tests
@@ -1258,11 +1262,13 @@ type MongoDBSession struct {
 }
 
 // MongoDBConfig configures a MongoDB wire protocol session (TCP 27017).
+//
+// D-MONGODB-1（#87）G-MONGO-8 D2：层级 `bson_fixture_hex` 死字段已删（registry
+// 声明但生成器零读取；消息级同名键才是被消费的那个，builder.go buildInsertBody）。
 type MongoDBConfig struct {
-	Messages       []MongoDBMessage `json:"messages,omitempty"`
-	Sessions       []MongoDBSession `json:"sessions,omitempty"`
-	BSONFixtureHex string           `json:"bson_fixture_hex,omitempty"`
-	WireFault      json.RawMessage  `json:"wire_fault,omitempty"`
+	Messages  []MongoDBMessage `json:"messages,omitempty"`
+	Sessions  []MongoDBSession `json:"sessions,omitempty"`
+	WireFault json.RawMessage  `json:"wire_fault,omitempty"`
 }
 
 // DamengEvent is one Dameng database protocol event.
