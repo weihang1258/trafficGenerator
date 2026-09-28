@@ -1,6 +1,6 @@
 # #99 ldp（标签分发协议，Label Distribution Protocol）设计契约
 
-> 版本：v1.0.0（P-PIPE 文档轨 P1–P3）
+> 版本：v1.0.1（P-PIPE 文档轨 P1–P3；v1.0.1 补结果文档过期登记 G-LDP-8）
 > 日期：2026-09-28
 > 车道：A 文档轨（Lane A，#99 ldp 续号）
 > 旧基线：`docs/protocol-designs/41-ldp-design.md` v1.0.0 + `41-ldp-testcase.md` v1.0.0（25 例 = 14 正 + 11 负）
@@ -21,6 +21,10 @@
 | 5 | 旧稿 §3.2/§3.6 声明的 tshark 字段 | `tshark -G fields` 实测 `ldp.*` 字段 **262 个**，旧稿点名的 `ldp.hdr.version/pdu_len/ldpid.lsr/ldpid.lsid`、`ldp.msg.ubit/type/len/id`、`ldp.msg.tlv.type/len/value`、`ldp.msg.tlv.hello.hold/targeted`、`ldp.msg.tlv.addrl.addr_family/addr`、`ldp.msg.tlv.ipv4.taddr` 全部在册 | 字段面声明**有效**，非臆造；本契约 §3 沿用 |
 | 6 | 旧稿 §6 错误表 11 行锚词 | 逐条对码实测（见 §7 表"代码出处"列）：11/11 全部命中代码字面值 | 锚词继承有效 |
 | 7 | 旧稿 design:6 / testcase:7 引用 `docs/protocol-designs/audit/41-ldp-adversarial-audit.md` | **该目录不存在**（`ls` 实测 `No such file or directory`） | 死引用；本契约不引用该路径 |
+
+**产物过期登记（重要）**：`trafficgen/docs/protocol-pcap-test/ldp.md` 写 "Cases: 25 — pass 25, fail 0, error 0"，但该文件末次提交 `91f2487`（2026-08-30），**早于**判死提交 `0417be5`（2026-09-13）两周；`cases/ldp.json` 末改 `ed62038`（2026-08-30）同日；`docs/protocol-pcap-test/ldp/` 目录**不存在**（`ls` 实测 `No such file or directory`，0 个 pcap 文件，表内 14 个 `[pcap](ldp/*.pcap)` 链接全为死链）。**该结果文档是过期产物，25/25 pass 不代表今日可跑**——读者不得据此判断套件可用。
+
+**ldp 特例（与 pcep 的关键差异，须一并登记）**：pcep 存量 24 例今日 create 400 全红但**离线 suite 已接入**（`chainSuiteProtos` 含 pcep），去五键即可复跑；**ldp 两处皆红**——① 今日经 MCP 建策略**24/25 例 400**（`CheckProtoFlat` 五键循环 `strategy_convert.go:8632` 命中顶层四元组；唯一例外 `ldp_neg_carrier` 不带五键，create 通过但任务期 `ldp: unknown carrier "raw"` 失败，锚词 `carrier` 命中），② ldp **从未接入离线 suite**——`chainSuiteProtos`（`layer_chain_suite_test.go:70-78`）与空白导入块（`:43-63`，含块注释 `:43` 与右括号 `:63`；导入行 `:44-62`）均无 ldp，实跑 `CHAIN_PROTO=ldp go test -run TestLayerChainSuite ./test/protocol_pcap/` → **FAIL，25/25 全红**（14 正例 + 11 负例），错因 `layers: generator not implemented for layer "ldp"`。故这份「25/25 pass」**不代表今日可跑**，且**连"去五键即可用"的 pcep 式低成本解封路径也不存在**——须先补 G-LDP-1（registry `Fields` + translate 解码分支）并接入离线 suite。
 
 **依赖链判定纪律**：以上均为可判题（旧文→代码→用例三级对照），直接判定，不问偏好。
 
@@ -93,7 +97,7 @@ UDP discovery 目标形状（`[ip,udp,ldp]`）：
 | `hold_time` | config | 已落码 | 0–65535 秒 | Hello Common Parameters 的 Hold Time |
 | `targeted` | config | 已落码 | 布尔 | Hello targeted bit |
 | `keepalive_time` | config | 已落码 | 1–65535 秒 | Common Session Parameters 的 KeepAlive Time |
-| `label_control` | config | **字段在、无消费** | `independent`/`ordered` | `types.go:556` 有字段，但 `grep -rn LabelControl internal/protocol/ldp/` **零命中**——**不校验、不影响行为**；§12.2 称"影响事件/状态约束"为**未落码声明** |
+| `label_control` | config | **字段在、无消费** | `independent`/`ordered` | `types.go:556` 有字段，但 `grep -rn LabelControl internal/protocol/ldp/` **零命中**——**不校验、不影响行为** |
 | `label_advertisement` | config | 已落码 | `downstream_unsolicited`/`downstream_on_demand` | 下游标签分发纪律（DU/DoD）；非法值拒（`builder.go:486`） |
 | `fault_kind` | config | 已落码 | 6 种合法值 | `pdu_length`/`message_length`/`tlv_length`/`label_bounds`/`unknown_message`/`checksum`；未知值拒（`builder.go:326`） |
 | `kind` | event | 已落码 | 9 种合法值 | `hello`/`initialization`/`keepalive`/`address`/`label_mapping`/`label_request`/`label_withdraw`/`label_release`/`notification`；未知值拒（`builder.go:503` `unknown kind`） |
@@ -224,7 +228,7 @@ IPv4 TCP application payload offset（载荷偏移）在无额外 option 时为 
 | N4 | PDU Length 与实际 PDU 不一致/超出 | PDU 边界非法 | `pdu` | `builder.go:325` `fault injection "pdu_length"` |
 | N5 | Message Length 与消息 body 不一致 | message 边界非法 | `message` | 同上 `"message_length"` |
 | N6 | TLV Length 与 Value 不一致 | TLV 边界非法 | `tlv` | 同上 `"tlv_length"` |
-| N7 | unknown Message Type（未知消息类型） | 不能伪造基础 profile 语义 | `unknown` | **实测走两条独立路径**：① config 级 `fault_kind="unknown_message"` → `builder.go:326` `fault injection "unknown_message"`；② **存量用例实际走事件 kind 路径**——`events[2] = {kind:"wire_fault"}`（`wire_fault` **不在 9 项合法 kind 内**）→ `builder.go:503` `event 2: unknown kind "wire_fault"`。事件内嵌套的 `fault_kind`/`value` 键**被静默丢弃**（`LDPEvent` 无此 json 键 + 裸 `json.Unmarshal`，见 §2 末）；N8/N9 同理（`label_bounds`/`prefix_bounds` 亦靠事件级非法 kind 触发） |
+| N7 | unknown Message Type（未知消息类型） | 不能伪造基础 profile 语义 | `unknown` | **实测走两条独立路径**：① config 级 `fault_kind="unknown_message"` → `builder.go:326` `fault injection "unknown_message"`；② **存量用例实际走事件 kind 路径**——`events[2] = {kind:"wire_fault"}`（`wire_fault` **不在 9 项合法 kind 内**）→ `builder.go:503` `event 2: unknown kind "wire_fault"`。事件内嵌套的 `fault_kind`/`value` 键**被静默丢弃**（`LDPEvent` 无此 json 键 + 裸 `json.Unmarshal`，见 §2 末）。**N8/N9 路径不同**：二者均为**合法 kind + 越界值**——N8 走 `builder.go:520` label 20-bit 范围守卫（`label exceeds 20-bit bound`，前置 `:512` 先 `resolveFEC`），N9 走 `builder.go:309` `resolveFEC` 的 FEC 前缀长度守卫（`FEC prefix length %d out of range (max 32)`）；`label_bounds` 只是 `CheckFault` 的 config 级合法 kind（`builder.go:325`），`prefix_bounds` **不是** `CheckFault` 认的标识符（全库 `grep -rn prefix_bounds internal/` 仅命中测试注释） |
 | N8 | Generic Label 高位非零或 >1048575 | 20-bit label 越界 | `label` | 同上 `"label_bounds"` + `builder.go:520` `label exceeds 20-bit bound` |
 | N9 | FEC prefix length <0 或 >32 | IPv4 Prefix FEC 越界 | `prefix` | `builder.go:309` `FEC prefix length %d out of range (max 32)` |
 | N10 | Initialization 前发送 KeepAlive/Address/label | 会话状态错误 | `state` | `builder.go:530` `keepalive before initialization (invalid session state)` |
@@ -316,7 +320,7 @@ IPv4 TCP application payload offset（载荷偏移）在无额外 option 时为 
 | Label Release 0x0403 | 已覆（S7） | 已覆（同上代表例） | **A′ 立项**（同上） |
 | Notification 0x0001 | 已覆（S11） | 已覆（N7 unknown 代表例） | 不适用（RFC 5036 §3.5.1 Notification 可在任意状态发出，**无 init 前置**） |
 
-**逐格重数**：9 行 × 3 列 = 27 格——已覆 **22** / A′ 立项 **5** / 不适用 **0**，零空格。
+**逐格重数**：9 行 × 3 列 = 27 格——已覆 **19** / A′ 立项 **5** / 不适用 **3**，零空格。
 
 **T3 列判定依据（实跑 `ValidateConfig`，脚本输出）**：
 ```
@@ -410,7 +414,7 @@ keepalive before init                   -> ldp: event 0: keepalive before initia
 
 ### 12.3 数据结构
 
-`LDPConfig{Transport, WireProfile, Carrier, Events[], Sessions[], Adjacencies[], LSRID, LabelSpace, HoldTime, Targeted, KeepaliveTime, LabelControl, LabelAdvertisement, FaultKind}`；`LDPSession{SrcPort, SrcLSRID, DstLSRID, Events[]}`；`LDPAdjacency{Kind, Carrier, Direction, MessageID, Targeted, SrcPort, DstPort, Events[]}`；`LDPEvent{Kind, Direction, MessageID, LSRID, ...}`（`types.go:544-590` 全量，无新增）。
+`LDPConfig{Transport, WireProfile, Carrier, Events[], Sessions[], Adjacencies[], LSRID, LabelSpace, HoldTime, Targeted, KeepaliveTime, LabelControl, LabelAdvertisement, FaultKind}`；`LDPSession{SrcPort, SrcLSRID, DstLSRID, Events[]}`；`LDPAdjacency{Kind, Carrier, Direction, MessageID, Targeted, SrcPort, DstPort, Events[]}`；`LDPEvent{Kind, Direction, MessageID, LSRID, ...}`（`types.go:544-599` 全量，无新增；分段 `LDPConfig` 544-559 / `LDPSession` 563-568 / `LDPAdjacency` 573-582 / `LDPEvent` 585-599，与 §2 一致）。
 
 ### 12.4 主流程
 
@@ -445,7 +449,7 @@ keepalive before init                   -> ldp: event 0: keepalive before initia
 | §4 查规范 | RFC 5036 全文 + §3.4/§3.5 FEC 语义 + 落码反推 + tshark 262 字段实测；八项矩阵 + 子表①②③ | §11 |
 | §5 依赖与错误 | `DependsOn ["udp"]` + `TransportOn ["udp","tcp"]`（`registry.go:1383`）；11 种拒绝分支；失败传 task error | §4/§6/§12.5 |
 | §6 性能 | 见 §10（6.1–6.8 要素齐；吞吐数字标待 P4 基准，不写承诺） | §10 |
-| §7 三份文档 | `99-ldp-{design,testcase}.md` v1.0.0（草稿层）+ D-LDP-1（§12，门1 获批 = 定稿）+ T-LDP（testcase §2，25 ID）+ 旧稿 41-* 为历史层 | 修订记录 |
+| §7 三份文档 | `99-ldp-{design,testcase}.md` v1.0.1（草稿层）+ D-LDP-1（§12，门1 获批 = 定稿）+ T-LDP（testcase §2，25 ID）+ 旧稿 41-* 为历史层；`docs/protocol-pcap-test/ldp.md` 为**过期产物**（G-LDP-8） | 修订记录 |
 | §8 设计先行 | P1–P3 先于 P4 缺口收敛；门1 获批 = D-LDP-1 定稿 = 开工门 | 提交序 |
 | §9 测试三源 | 三源 = RFC 5036（§11.1）+ D-LDP-1（§12）+ tshark `ldp.*` 262 字段实测（替代"已确认现网行为"档，厂商行为未到抓包级）；25 ID 逐项回指；存量 25 例审计去向 testcase §8 | `99-ldp-testcase.md` §2/§5/§8 |
 | §10 评审闭环 | 每阶段对抗自重审（结论见 `/tmp/pipe/doc-lanes/ldp.md` §3）+ 收官隔离复审；红先绿后 | 自审日志 §3 |
@@ -513,7 +517,9 @@ keepalive before init                   -> ldp: event 0: keepalive before initia
 | G-LDP-5 | 41-ldp 两份文档引用不存在的 `docs/protocol-designs/audit/41-ldp-adversarial-audit.md` | 99 版不再引用；41 版留只读历史 |
 | G-LDP-6 | IPv6 transport/profile 未定义（N3 只做拒绝面） | 取得独立规范与 fixture 后另建 profile，不修改本套件契约 |
 | G-LDP-7 | **init 前置守卫只落码 KeepAlive**（`builder.go:529`）；Address/标签消息的 init 前置未实现，§4 声明属目标形状 | 代码阶段补 `seenInit` 守卫 + 5 条 T3 负例（§14 A′ ② 组）；守卫落码前 §4 声明不得作为 as-built 行为引用 |
+| G-LDP-8 | **结果文档过期**：`trafficgen/docs/protocol-pcap-test/ldp.md` 写 "Cases: 25 — pass 25, fail 0, error 0"，末次提交 `91f2487`（2026-08-30）早于判死提交 `0417be5`（2026-09-13）两周；`cases/ldp.json` 末改 `ed62038`（2026-08-30）同日；`docs/protocol-pcap-test/ldp/` 目录**不存在**（0 个 pcap，表内 14 条 `[pcap](ldp/*.pcap)` 全为死链）；今日 MCP 建策略 **24/25 例 400**（五键在；唯一例外 `ldp_neg_carrier` 任务期 `ldp: unknown carrier "raw"`），离线 suite **未接入**（`chainSuiteProtos`/空白导入块均无 ldp），实跑 `CHAIN_PROTO=ldp` **25/25 全红** | 代码阶段（P5 重跑套件后**重生成**该产物）；在此之前读者**不得**据此判断套件可跑（§0 产物过期登记） |
 
 ## 16. 修订记录
 
-- v1.0.0（2026-09-28）：P-PIPE #99 文档轨 P1–P3。续号：41→99 沿革与 7 项过期校正（§0）；存量 25 例机读审计（顶层残留形状、expect 形状、ID 顺序一致、包数公式符合度）；§13.1/13.3/13.12 强制展开 + 13-P2；D-LDP-1 as-built 定稿（§12）；缺口 G-LDP-1…G-LDP-6。P1–P3 合并自审 3 轮（首轮抓出标注/去向/顺序 3 处，次轮抓出适配声明/性能双路 2 处，第三轮抓出计数/行号/形状基线/对账算术 6 处，末轮全量重核干净；结论见 `/tmp/pipe/doc-lanes/ldp.md` §3）。
+- v1.0.1（2026-09-28）：补**结果文档过期登记**（G-LDP-8）——`docs/protocol-pcap-test/ldp.md` 的 "25/25 pass" 为过期产物（末次提交 `91f2487` 2026-08-30 < 判死提交 `0417be5` 2026-09-13；pcap 目录不存在；今日 MCP 建策略 24/25 例 400、离线 suite 未接入实跑 25/25 全红），登记于 §0 + §15，不得作为"套件可跑"依据；含 ldp 与 pcep 的特例差异（ldp 无"去五键即可用"路径）。仅文档，不动 JSON/代码。
+- v1.0.0（2026-09-28）：P-PIPE #99 文档轨 P1–P3。续号：41→99 沿革与 7 项过期校正（§0）；存量 25 例机读审计（顶层残留形状、expect 形状、ID 顺序一致、包数公式符合度）；§13.1/13.3/13.12 强制展开 + 13-P2；D-LDP-1 as-built 定稿（§12）；缺口 G-LDP-1…G-LDP-7。P1–P3 合并自审 3 轮（首轮抓出标注/去向/顺序 3 处，次轮抓出适配声明/性能双路 2 处，第三轮抓出计数/行号/形状基线/对账算术 6 处，末轮全量重核干净；结论见 `/tmp/pipe/doc-lanes/ldp.md` §3）。

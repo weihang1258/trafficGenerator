@@ -1,8 +1,8 @@
 # #99 ldp（标签分发协议，Label Distribution Protocol）测试用例契约
 
-> 版本：v1.0.0（P-PIPE 文档轨 P1–P3）
+> 版本：v1.0.1（P-PIPE 文档轨 P1–P3；v1.0.1 补结果文档过期登记 G-LDP-8）
 > 日期：2026-09-28
-> 配套设计：`docs/protocol-designs/99-ldp-design.md` v1.0.0（D-LDP-1）
+> 配套设计：`docs/protocol-designs/99-ldp-design.md` v1.0.1（D-LDP-1）
 > 旧基线：`docs/protocol-designs/41-ldp-testcase.md` v1.0.0（25 例；思路继承不搬码）
 > 机器契约：`trafficgen/test/protocol_pcap/cases/ldp.json`（25/25 ID 与本版 §2 一致，顺序一致，已机读实测；**现状=违规过渡形：非负例顶层残留 70 处，合规层链形待代码阶段收敛，G-LDP-1/G-LDP-3**）
 > 白话一句：**二十五条检查：十四条看正常对话（打招呼、对暗号、报地址、发标签、撤标签、说再见、多邻居并行），十一条看胡来能不能被拦下；每条只查一件事。**
@@ -146,7 +146,7 @@ RFC 5036（LDP Specification 全文 + §3.4/§3.5 FEC 语义）+ D-LDP-1（设�
 ### 5.2 对账两行 + 清单出处声明
 
 - **清单出处声明**：本清单来源 = **RFC 5036 原文反推**（§3.1–3.7 逐节、§4 状态、§6 错误）+ D-LDP-1 as-built 落码 + tshark `ldp.*` 262 字段实测，**非从现有用例反推**。
-- **对账两行**：**要求逻辑点总数 = 89**（八项 8 行 + 子表① 27 格 + 子表② 18 行 + 子表③ 11 行 + 用例形状 25 点〔25 ID 逐点〕）；**用例覆盖数 = 75**（八项 8 + 子表① 已覆 22 + 子表② 12 + 子表③ 8 + 形状 25）；**不适用 = 4**（子表② 1〔IPv6 正向形态〕+ 子表③ 3〔TCP MD5/AO、GTSM、VPN/VC FEC〕）；**开放 10 格**（子表② 变体 A′ 5 + 子表① T3 列 A′ 5）= 立项覆盖（§9.36 口径，不冒充今日可跑）。75 + 4 + 10 = 89 ✓
+- **对账两行**：**要求逻辑点总数 = 89**（八项 8 行 + 子表① 27 格 + 子表② 18 行 + 子表③ 11 行 + 用例形状 25 点〔25 ID 逐点〕）；**用例覆盖数 = 72**（八项 8 + 子表① 已覆 19 + 子表② 12 + 子表③ 8 + 形状 25）；**不适用 = 7**（子表① 3〔Hello/Initialization/Notification 的 T3 状态拒绝格〕+ 子表② 1〔IPv6 正向形态〕+ 子表③ 3〔TCP MD5/AO、GTSM、VPN/VC FEC〕）；**开放 10 格**（子表② 变体 A′ 5 + 子表① T3 列 A′ 5）= 立项覆盖（§9.36 口径，不冒充今日可跑）。72 + 7 + 10 = 89 ✓
   **粒度声明**：行/格粒度每点 1 计；G-LDP-1…G-LDP-6 不折进 89。**反查全绿 ≠ 覆盖全**（§9.52 原文）。
 - **门3 抽查候选**：最复杂用例 = **#14 `ldp_dual_adjacency`**（3 adjacency 混合载体：basic UDP + targeted UDP + TCP session，12 包跨两种传输层）；交织维度 = 邻接(3)×载体(2)×方向(2)×终态(有 FIN/无 FIN)。若按 9.49/9.50 下限偏弱在"并发交错"面，**建议门3 抽 #14 + #13**（`ldp_tcp_multi_session` 补多会话独立状态面）。
 
@@ -224,11 +224,12 @@ RFC 5036（LDP Specification 全文 + §3.4/§3.5 FEC 语义）+ D-LDP-1（设�
 ### 8.2 现状矛盾点（P4 前诚实登记）
 
 1. **存量跑的是过渡态混合形，不是纯层链**：`spec_json` 的 `layers=[{tcp:{}},{ldp:{}}]` 只是**空壳**（`ldp` 层 config 恒 `{}`，既不校验也不消费——`chain_planner_translate.go:756` 只建空 `LDPConfig`），真实配置住顶层 `ldp` 子映射 + 顶层四元组。旧 id 的 packet_count 断言**今日有效**，但顶层键断言今日是**违规形**。
-2. **「今日能绿」不成立——须先接入离线 suite（复跑实测）**：ldp **未接入** `layer_chain_suite_test.go`——`chainSuiteProtos`（`:70-78`）不含 `ldp`、空白导入块（`:44-62`）不含 `internal/protocol/ldp`（`git log -p -S 'protocol/ldp"'` 零命中）。实跑 `CHAIN_PROTO=ldp go test -run TestLayerChainSuite ./test/protocol_pcap/` → **FAIL，25/25 全红**，错因 `layers: generator not implemented for layer "ldp"`（ldp 生成器未链接，与 `CheckProtoFlat` 无关）。在**副本**补 ldp 空导入 + `chainSuiteProtos["ldp"]=true` 后重跑 → **25/25 PASS（36.8s）**，此时才复现下述机制。故正确表述为「**接入离线 suite 后**可绿」；接入属代码阶段改动，不在文档阶段做。
+2. **「今日能绿」不成立——须先接入离线 suite（复跑实测）**：ldp **未接入** `layer_chain_suite_test.go`——`chainSuiteProtos`（`:70-78`）不含 `ldp`、空白导入块（`:43-63`，含块注释 `:43` 与右括号 `:63`；导入行 `:44-62`）不含 `internal/protocol/ldp`（`git log -p -S 'protocol/ldp"' -- trafficgen/test/protocol_pcap/layer_chain_suite_test.go` 零命中；**须带该路径过滤**——不带时另有 2 个 commit 命中该字符串：`81cefc7`（server 侧注册 ldp 规划器）、`cabc0b4`（本修轮），二者都不涉及该离线 suite）。实跑 `CHAIN_PROTO=ldp go test -run TestLayerChainSuite ./test/protocol_pcap/` → **FAIL，25/25 全红**，错因 `layers: generator not implemented for layer "ldp"`（ldp 生成器未链接，与 `CheckProtoFlat` 无关）。在**副本**补 ldp 空导入 + `chainSuiteProtos["ldp"]=true` 后重跑 → **25/25 PASS（36.8s）**，此时才复现下述机制。故正确表述为「**接入离线 suite 后**可绿」；接入属代码阶段改动，不在文档阶段做。
    机制本身（接入后）：离线 suite（`:225-231`）剥离 `layers` 后把顶层扁平键**直传** `core.MapToFlowSpec`，**不经** `CheckProtoFlat`。
 3. **MCP 真实路径会 400（实测）**：`schema/semantic.go:130` 对全部协议调 `CheckProtoFlat`；实调 `CheckProtoFlat("ldp", {layers, src_ip:"192.0.2.1"})` → `"protocol ldp no longer accepts flat config field src_ip (…)"`。故存量 25 例**不是合法 MCP 任务 spec**（违反 §14.1/§14.2）。
 4. **顶层 ldp presence 不判死**：`CheckProtoFlat` 无 ldp 分支（`grep -c` = 0）→ 今日建 presence 负例会**真绿 = 假通过**，故不建（G-LDP-2）。实调 `CheckProtoFlat("ldp", {layers, ldp:{}})` → `""`（空，不判死）。
-5. **存量未覆盖精确边界**：FEC /0、label 0 / 1048575、缺省 `src_port`/`dst_port`、同 session 四轮操作**今日零用例**；另有 §11.2 T3 列 5 格（Address/标签消息 init 前置守卫未落码）。**A′ 候选合计 11 例**：子表② 变体 5 + 子表① T3 5 + §3.15① 多事务 1。
+5. **结果文档过期（G-LDP-8）**：`trafficgen/docs/protocol-pcap-test/ldp.md` 写 "Cases: 25 — pass 25, fail 0, error 0"，但该文件末次提交 `91f2487`（2026-08-30）**早于**判死提交 `0417be5`（2026-09-13）两周；`cases/ldp.json` 末改 `ed62038`（2026-08-30）同日；`docs/protocol-pcap-test/ldp/` 目录**不存在**（`ls` 实测 `No such file or directory`，0 个 pcap，表内 14 条 `[pcap](ldp/*.pcap)` 全为死链）。**该 25/25 pass 是过期产物，不代表今日可跑**。**ldp 特例**：与 pcep 不同，ldp 连"去五键即可用"的低成本解封路径也没有——今日经 MCP 建策略 **24/25 例 400**（五键在；唯一例外 `ldp_neg_carrier` 不带五键，create 通过但任务期 `ldp: unknown carrier "raw"` 失败），且 ldp **从未接入离线 suite**（`chainSuiteProtos` 与空白导入块均无 ldp），实跑 `CHAIN_PROTO=ldp go test -run TestLayerChainSuite ./test/protocol_pcap/` → **FAIL，25/25 全红**（错因 `layers: generator not implemented for layer "ldp"`）。解封须先补 G-LDP-1 并接入 suite（详见 §8.2 第 2 条与设计 §0 产物过期登记）。
+6. **存量未覆盖精确边界**：FEC /0、label 0 / 1048575、缺省 `src_port`/`dst_port`、同 session 四轮操作**今日零用例**；另有 §11.2 T3 列 5 格（Address/标签消息 init 前置守卫未落码）。**A′ 候选合计 11 例**：子表② 变体 5 + 子表① T3 5 + §3.15① 多事务 1。
 
 ### 8.3 逐条去向表（25 行）
 
