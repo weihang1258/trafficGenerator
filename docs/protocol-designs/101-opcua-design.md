@@ -530,7 +530,7 @@ opcua 层无自有状态机：握手/挥手/分段在 tcp 层；opcua 层是"按
 | G-OPCUA-5 | NodeId 只支持 FourByte（String/Guid/Opaque 未实现） | A′ 候选（`ns=N;s=Name` 形状）；今日不得声称覆盖 |
 | G-OPCUA-6 | RST 非正常结束补例（§3.15②后半） | A′ 补例 `opcua_abort_rst`（`tcp.rst` 框架能力，本层零断言） |
 | G-OPCUA-7 | 未入例拒绝分支 5 条（`bad_length` 单独 / `security_mode` 非法 / 空 `node_ids` / NodeId 解析两分支 / `ErrorInject.Op` 未知值静默 Good）+ MessageSize UInt16 上限 + `security_mode` 缺省分支（§10.3 行 14 已改判立项） | A′ 补例（含 `ErrorInject.Op` 未知值的**静默 Good 是缺陷候选**，P4 裁定拒绝或登记）。**P4 必做**：改写 `opcua_subscribe` 的 `expect.notes` 文案——存量原文 "CLO is one symmetric message and **has no CLO response**" **与实测相反**（帧 18/19 均 `CLOF` size 59）；同批删两条负例的 `notes` 键（严格两键口径） |
-| G-OPCUA-8 | 第三源（真实服务器/开源实现线字节）未取到；Part 6 §7.1.2.x 条款号未逐条核对；**CLO 是否有响应**与旧稿 §4.4/§6 记载矛盾（实测发响应） | 待确认：抓 open62541 或真实 OPC UA 服务器包对照，或查 Part 4 §5.13.3 原文；确认前按实现钉、不声称合规。**风险（须写清）**：若原文确为"CLO 单向无响应"，则 12 例中**9 例**（除 `opcua_bad_size_neg`/`opcua_no_channel_neg` 两负例外的全部正例，凡 `close:true` 者）的**帧位与 `packet_count` 需整体重算**（每例减 1 帧：13→12、15→14、23→22、19→18），§9 包数公式 `13+2×服务对数` 须改为 `12+2×服务对数`，testcase §3 各例帧位与 §1 形状基线同步重钉 |
+| G-OPCUA-8 | 第三源（真实服务器/开源实现线字节）未取到；Part 6 §7.1.2.x 条款号未逐条核对；**CLO 是否有响应**与旧稿 §4.4/§6 记载矛盾（实测发响应） | 待确认：抓 open62541 或真实 OPC UA 服务器包对照，或查 Part 4 §5.13.3 原文；确认前按实现钉、不声称合规。**风险（须写清）**：若原文确为"CLO 单向无响应"，则**全部 10 个正例**（机读实测 `close:true` = 10/10，两负例不产流不受影响）的**帧位与 `packet_count` 需整体重算**——每例减 1 帧：13→12、15→14、23→22、19→18；§9 包数公式 `13+2×服务对数` 须改为 `12+2×服务对数`；testcase §1 形状基线、§3 各例帧位与 §8.1 实测面同步重钉 |
 | G-OPCUA-9 | 响应侧 TypeId 用 DataType 值（632/674/528/752/788/827），请求侧用 Encoding 值（631/673/527/751/787/826）——**口径不统一**；tshark 响应侧表内缺失故不影响解码 | P4 与 M-1 一并修（响应侧改 634/676/530/754/790/829）；修后重跑后钉（帧数与 body 布局不变） |
 
 ## 15. 修订记录
