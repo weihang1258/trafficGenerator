@@ -6827,10 +6827,22 @@ def check_tns(cases):
     rows.append(("strategy_convert case tns 收敛（1521 缺省，不读顶层 tns）",
                  'case "tns":' in sc and "setDefaultDstPort(&spec, cfg, 1521)" in sc
                  and "parseSubconfigJSON[*TNSConfig]" not in sc, "在案"))
-    rows.append(("CheckProtoFlat presence 判死顶层 tns（G-TNS-5）",
-                 "no longer accepts a top-level tns sub-config" in sc, "在案"))
-    rows.append(("mapToFlowSpec 顶层 tns → ValidationErrors（在库旧策略执法）",
-                 'if protocol == "tns" {' in sc, "在案"))
+    # M1（scoped 复评）：原两行判据是宽泛子串——presence 行只查文案出现
+    # （文案在整文件任何位置即真），mapToFlowSpec 行只查 `if protocol == "tns" {`
+    # （与 presence 分支共用）。实测 4 组变异（停用 CheckProtoFlat 分支留文案 /
+    # 删 mapToFlowSpec 执法块 / 生成表字段改名 / 删条目加诱饵）门仍 69/69 全绿。
+    # 改为断言**各块特有的体**：presence 块体是 `return "<文案>"`，
+    # mapToFlowSpec 块体是 `spec.ValidationErrors = append(...)`。
+    _presence_tns = ('if protocol == "tns" {\n'
+                     '\t\tif v, ok := cfg["tns"]; ok && v != nil {\n'
+                     '\t\t\treturn "protocol tns no longer accepts a top-level tns sub-config')
+    _mapfs_tns = ('if protocol == "tns" {\n'
+                  '\t\tif v, ok := cfg["tns"]; ok && v != nil {\n'
+                  '\t\t\tspec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))')
+    rows.append(("CheckProtoFlat presence 判死顶层 tns（G-TNS-5，判据=块体非裸文案）",
+                 _presence_tns in sc, "在案"))
+    rows.append(("mapToFlowSpec 顶层 tns → ValidationErrors（在库旧策略执法，判据=块体非裸子串）",
+                 _mapfs_tns in sc, "在案"))
     gendump = json.loads((tg / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
     entry = gendump["layers"].get("tns", {})
     rows.append(("generated schema tns 条目（depends_on tcp + 1521 + 四键，与 registry 同代）",
