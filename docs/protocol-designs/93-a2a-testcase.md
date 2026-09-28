@@ -220,7 +220,7 @@ A2A spec v0.2.2（方法名/卡片路径/Part kind/SSE 事件/9 状态/12 错误
 
 ## 7. 实现后执行建议
 
-1. **代码阶段顺序**：G-A2A-1（registry `Fields` + translate `case "a2a"` + `mapToFlowSpec` 收敛 + `CheckProtoFlat` 判死 + schemagen 重跑）→ G-A2A-2（`FieldContract`）→ **185 例改写**（顶层残留 1081→0，改写补丁参考 `/tmp/a2a-rewrite.patch`）→ 先跑后钉 → 补 A′ 例 → 全量复跑。**今日不可执行**（建策略即 400，§8.2 #4）。
+1. **代码阶段顺序**：G-A2A-1（registry `Fields` + translate `case "a2a"` + `mapToFlowSpec` 收敛 + `CheckProtoFlat` 判死 + schemagen 重跑）→ G-A2A-2（`FieldContract`）→ **185 例改写**（顶层残留 1081→0，改写补丁参考 `/tmp/pipe/a2a-layerchain-rewrite.patch`（38232 行，含 185 例完整 diff））→ 先跑后钉 → 补 A′ 例 → 全量复跑。**今日不可执行**（建策略即 400，§8.2 #4）。
 2. **实测顺序**：先 S2/S1（9/11 包基线 + frames hex），再 S3/S10（SSE `http.content_type` 与 `data: ` 行首），再 S4/S5（状态字段），最后 T174/T177（跨段 `min_packets`）、T165/T168（多流聚合）。
 3. 二进制与 HEAD 同代确认（门2③：`find trafficgen -name '*.go' -newer <server-binary>` 无输出）；门2② 全量（`CASE_PROTO=a2a` 全量不是增量）；门2④ 反查绿后进 P6。
 4. 任何商业平台行为的具体断言须有独立文档证据和失败优先测试（设计 §1 边界纪律）。
@@ -235,12 +235,14 @@ A2A spec v0.2.2（方法名/卡片路径/Part kind/SSE 事件/9 状态/12 错误
 
 ### 8.2 缺口登记表（三要素：现象 / 证据行号 / 归属阶段）
 
+> **取证方式**：下表 #1 与 #4 附**探针实测原文**（2026-09-28，临时探针文件跑完即删、仓库零改动），非代码推理。两条探针合证：**存量形状 MCP 400 / 改写形状 `unknown field "baseUrl"`，两条路今日都不通**。
+
 | # | 现象 | 证据行号 | 归属阶段 |
 |---:|---|---|---|
-| 1 | `a2a` 层无 `Fields` → 层内任何键报 `unknown field` | `registry.go:245`（Register 无 Fields）；生成表 `layers.a2a.fields = {}` | 代码阶段（G-A2A-1 ①） |
+| 1 | `a2a` 层无 `Fields` → 层内任何键报 `unknown field`。**探针实测**：改写形状走 `ValidateLayers` 返回 `layers: layer "a2a": unknown field "baseUrl"`（原文，非推理） | `registry.go:245`（Register 无 Fields）；生成表 `layers.a2a.fields = {}`；`complete.go:293` | 代码阶段（G-A2A-1 ①） |
 | 2 | 空 `Fields` 使 `translateTerminalConfig` **在 switch 前提前 return** → 层内配置**根本不被解码** | `chain_planner_translate.go:852` `if len(s.Fields) == 0 { return }`（位于 `switch term.Name` 之前） | 代码阶段（G-A2A-1 ②） |
 | 3 | `translateTerminalConfig` 无 `case "a2a"`（即便解开 ② 也无落点） | `grep -c 'case "a2a"' internal/core/layers/` = 0 | 代码阶段（G-A2A-1 ②） |
-| 4 | 顶层四元组/`count` 经 MCP 建策略即 400 → **存量 185 例今日跑不起来** | `schema/semantic.go:130` 无条件 `CheckProtoFlat` → `strategy_convert.go:8632` 五键判死 | 代码阶段（G-A2A-1 ③ + G-A2A-12 用例改写） |
+| 4 | 顶层四元组/`count` 经 MCP 建策略即 400 → **存量 185 例今日跑不起来**。**探针实测**（`schema.ValidateStrategy` 原文两条）：`protocol a2a no longer accepts flat config field src_ip (use a layers chain: ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports, flow_control for the flow count)` + `config mixes layers with flat four-tuple field src_ip (…)` | `schema/semantic.go:130` 无条件 `CheckProtoFlat` → `strategy_convert.go:8632` 五键判死；`checkLayerFlatConflict` | 代码阶段（G-A2A-1 ③ + G-A2A-12 用例改写） |
 | 5 | 离线套件绕过上述检查（故存量"离线绿"是假象，非合规证据） | `layer_chain_suite_test.go:225-231` 剥离 `layers` 后把顶层扁平键直传 `MapToFlowSpec`，不经 `CheckProtoFlat` | 口径声明（不得据此申报已过） |
 | 6 | 顶层 `a2a` presence 今日**不判死** → 该负例建了会真绿 = 假通过 | `grep -c 'protocol == "a2a"' strategy_convert.go` = 0（对比 moxa = 2） | 代码阶段（G-A2A-1 ④）；**先补分支再建例** |
 | 7 | 无 `FieldContract` → 缺省端口落通用 80；8080 只是用例 fixture | `strategy_convert.go:341`（`DefaultDstPort`，`:54` = 80） | 代码阶段（G-A2A-2） |

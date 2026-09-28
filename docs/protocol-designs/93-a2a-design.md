@@ -49,6 +49,16 @@
 
 **合规层链形需代码阶段补三件**（G-A2A-1，文档阶段改不动）：① registry `Fields` 补 a2a 键表（否则 `:852` 提前返回，后续一切不可达）；② `translateTerminalConfig` 补 `case "a2a"`（层内 config → `spec.Payload`，层优先/已存在不覆盖）；③ `mapToFlowSpec` 顶层 `a2a` 兼容支收敛 + `CheckProtoFlat` presence 判死。**本协议 185 例现全为违规过渡形**（§12.1）。
 
+**探针实测取证（2026-09-28，非推理；探针文件跑完即删，仓库零改动）**：
+
+| 探针 | 输入 | 实际错误原文 | 出处 |
+|---|---|---|---|
+| ① 改写后形状（配置在 `a2a` 层） | `[{"ip":{src,dst}},{"tcp":{src_port,dst_port}},{"a2a":{"baseUrl":"…","tasks":[…]}}]` → `layers.ValidateLayers(raw,"a2a")` | **`layers: layer "a2a": unknown field "baseUrl"`** | `complete.go:293`（`ValidateLayerConfig`） |
+| ① 对照：空壳层 | `[{"ip":{…}},{"tcp":{…}},{"a2a":{}}]` | `err=<nil>`（config 为空不触发；但配置也进不去） | 同上 |
+| ② 存量形状（未改写） | `{layers:[{tcp:{}},{a2a:{}}], count:1, src_ip, dst_ip, src_port, dst_port, a2a:{…}}` → `schema.ValidateStrategy("synth","a2a",…)` | **`protocol a2a no longer accepts flat config field src_ip (use a layers chain: ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports, flow_control for the flow count)`** + **`config mixes layers with flat four-tuple field src_ip (…)`** | `schema/semantic.go:130`（`CheckProtoFlat`）+ `checkLayerFlatConflict` |
+
+**结论**：两条路今日都不通——存量形状经 MCP 建策略 **400**，改写形状被 `unknown field "baseUrl"` 硬拒。**合规层链形必须先补代码**。
+
 **输出契约（pcap/NIC 双输出）**：两路径共用同一 cases JSON 与断言集（`tcp.srcport/dstport`、`tcp.flags/len`、`http.content_type`、frames offset 54/74 原始字节）；NIC 经 tcpdump 捕获（`nic_capture` 用例级开关）；不设仅单路径可用的断言。
 
 ## 2. 协议栈、端口和固定偏移
@@ -470,7 +480,7 @@ a2a 层**无自有状态**（`layer_gen.go:90` 的 `for taskIdx, task := range c
 
 ### 11.8 回滚方式
 
-本协议文件独立成包，回滚 = revert 本协议 8 文件 + 接线 5 处（registry/convert/translate/protocols/main）；不触及其他协议。**cases 无需回滚**（本车道未改 `cases/a2a.json`；代码阶段改写后若需回退，`git checkout` 该文件即可——改写补丁参考存 `/tmp/a2a-rewrite.patch`）。
+本协议文件独立成包，回滚 = revert 本协议 8 文件 + 接线 5 处（registry/convert/translate/protocols/main）；不触及其他协议。**cases 无需回滚**（本车道未改 `cases/a2a.json`；代码阶段改写后若需回退，`git checkout` 该文件即可——改写补丁参考存 `/tmp/pipe/a2a-layerchain-rewrite.patch`）。
 
 ## 12. 门1 §1–§14 十四行对照表（CORE_MEMORY §15.1–15.3）
 
@@ -608,4 +618,4 @@ a2a 层**无自有状态**（`layer_gen.go:90` 的 `for taskIdx, task := range c
 ## 15. 修订记录
 
 - v1.0.0（2026-09-28）：P-PIPE #93 文档轨 P1–P3。续号重做：17→93 沿革与 9 项状态校正（§0）；存量 185 例机读审计（顶层残留 1081 处 / 非负例 914 处）；**§1 层为空壳三条实测 + 合规形需代码阶段补三件**；§12.1 改为缺口登记（含三重堵死证据表）+ §12.3/§12.12 强制展开 + 12-P2；D-A2A-1 as-built 定稿（§11）；缺口 G-A2A-1…G-A2A-12。
-- **裁定更正（同日）**：初稿曾把 `cases/a2a.json` 改写为纯层链形并提交，经主线程裁定撤销（空壳层改写只会把绿例改红且依旧不可调用）——JSON 已 `git checkout` 还原，改写补丁存 `/tmp/a2a-rewrite.patch` 备代码阶段参考；文档改为缺口登记口径。
+- **裁定更正（同日）**：初稿曾把 `cases/a2a.json` 改写为纯层链形并提交，经主线程裁定撤销（空壳层改写只会把绿例改红且依旧不可调用）——JSON 已 `git checkout` 还原，改写补丁存 `/tmp/pipe/a2a-layerchain-rewrite.patch` 备代码阶段参考；文档改为缺口登记口径。
