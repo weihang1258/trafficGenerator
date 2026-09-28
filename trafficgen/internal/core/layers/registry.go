@@ -1136,7 +1136,39 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "pim", Category: CategoryTerminal, DependsOn: []string{"ip"},
 		FieldContract: map[string]string{"ip.protocol": "103"}, // RFC 7761 PIM IPPROTO=103
 	})
-	r.Register(LayerSchema{Name: "isis", Category: CategoryTerminal, DependsOn: []string{"eth"}})
+	// D-ISIS-1：isis L2-only 终结层（[eth,isis]，LLC/EtherType 双载体，ISO
+	// 10589）。业务键登记为 22 键（= core.ISISConfig json 标签全量，routing.go
+	// :271-294 实测；键名=标签名，layer config → JSON 往返解码单一真相）；
+	// 嵌套 tlvs/events 为结构数组（元素级语义由 Planner.Validate 拒，V9 只做
+	// 结构放行），llc/wire_fault 为 object。全部无 Default（goose/arp 同款——
+	// 缺省语义在生成器/planner 侧：level→l1、pdu_type→lan_hello、
+	// wire_profile→iso10589_llc）。无 FieldContract（无端口/IP 载体）。
+	r.Register(LayerSchema{Name: "isis", Category: CategoryTerminal, DependsOn: []string{"eth"},
+		Fields: map[string]FieldSchema{
+			"wire_profile":       {Type: "string"},
+			"level":              {Type: "string"},
+			"pdu_type":           {Type: "string"},
+			"system_id":          {Type: "string"},
+			"holding_timer":      {Type: "int", Min: 0, Max: 65535},
+			"priority":           {Type: "int", Min: 0, Max: 255},
+			"lan_id":             {Type: "string"},
+			"tlvs":               {Type: "list"},
+			"lsp_id":             {Type: "string"},
+			"remaining_lifetime": {Type: "int", Min: 0, Max: 65535},
+			"sequence":           {Type: "int", Min: 0, Max: 4294967295},
+			"partition":          {Type: "int", Min: 0, Max: 1},
+			"circuit_type":       {Type: "int", Min: 0, Max: 3},
+			"checksum_mode":      {Type: "string"},
+			"address_profile":    {Type: "string"},
+			"area_addresses":     {Type: "list"},
+			"start_lsp_id":       {Type: "string"},
+			"end_lsp_id":         {Type: "string"},
+			"events":             {Type: "list"},
+			"checksum":           {Type: "int", Min: 0, Max: 65535},
+			"llc":                {Type: "object"},
+			"wire_fault":         {Type: "object"},
+		},
+	})
 	// D-ARP-1：arp 层 5 业务键（L2-only 终结层，[eth,arp] 链，RFC 826）。
 	// 无 Default（goose 决策 F 同款——缺省在生成器侧补：sender_ip=10.0.0.1/
 	// target_ip=10.0.0.2/MAC←eth 层）。operation 注册语义域 [1,2]（V9

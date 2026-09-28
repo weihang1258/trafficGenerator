@@ -1,6 +1,7 @@
 package isis
 
 import (
+	"bytes"
 	"encoding/binary"
 	"strings"
 	"testing"
@@ -391,4 +392,63 @@ func TestValidateNeighborStateUpAllowed(t *testing.T) {
 // validate wraps Planner.Validate with the FlowSpec signal.
 func validate(proto string, cfg *core.ISISConfig) error {
 	return (Planner{}).Validate(core.FlowSpec{ISIS: cfg})
+}
+
+// G-ISIS-2 (design :472): area_addresses must be a real encoder input, not a
+// dead key. Per CORE_MEMORY §1.12 a consumed field with no home must get code
+// that gives it one — the P4 ruling offered "implement encoding" or "delete
+// the key"; the delete branch is unavailable because the negative case
+// isis_neg_duplicate_area feeds area_addresses to trigger the mutex check.
+// Encoding follows §3 (TLV 1 = Area Addresses, ISO 10589 §9.5): each address
+// becomes a TLV 1 whose value is len(area-bytes) + area-bytes.
+//
+// testCfg() carries an explicit TLV 1, so these cases drop TLVs entirely —
+// otherwise a spurious pass would hide a missing synthesis.
+func areaCfg(areas ...string) *core.ISISConfig {
+	cfg := testCfg()
+	cfg.TLVs = nil
+	cfg.AreaAddresses = areas
+	return cfg
+}
+
+func TestBuildSinglePDU_AreaAddressesSynthesizeTLV1(t *testing.T) {
+	pdu, err := buildSinglePDU(areaCfg("49.0001"))
+	if err != nil {
+		t.Fatalf("buildSinglePDU: %v", err)
+	}
+	// TLV 1: type=01, length=04, value=03 49 00 01 (area 49.0001 is 3 bytes,
+	// value is length-prefixed).
+	want := []byte{0x01, 0x04, 0x03, 0x49, 0x00, 0x01}
+	if !bytes.Contains(pdu, want) {
+		t.Fatalf("PDU lacks synthesized TLV 1 % x\npdu = % x", want, pdu)
+	}
+}
+
+func TestBuildSinglePDU_AreaAddressesMultiAndHex(t *testing.T) {
+	pdu, err := buildSinglePDU(areaCfg("49.0001", "490002"))
+	if err != nil {
+		t.Fatalf("buildSinglePDU: %v", err)
+	}
+	// Dotted form and bare-hex form must both decode to the same 3 bytes.
+	for _, want := range [][]byte{
+		{0x01, 0x04, 0x03, 0x49, 0x00, 0x01},
+		{0x01, 0x04, 0x03, 0x49, 0x00, 0x02},
+	} {
+		if !bytes.Contains(pdu, want) {
+			t.Fatalf("PDU lacks TLV 1 % x\npdu = % x", want, pdu)
+		}
+	}
+}
+
+// Explicit TLVs still win when area_addresses is absent (no double TLV 1).
+func TestBuildSinglePDU_NoAreaAddressesLeavesTLVsAlone(t *testing.T) {
+	cfg := testCfg()
+	cfg.TLVs = []core.ISISTLV{{Type: 1, ValueHex: "03 49 00 01"}}
+	pdu, err := buildSinglePDU(cfg)
+	if err != nil {
+		t.Fatalf("buildSinglePDU: %v", err)
+	}
+	if n := bytes.Count(pdu, []byte{0x01, 0x04, 0x03, 0x49, 0x00, 0x01}); n != 1 {
+		t.Fatalf("want exactly 1 TLV 1, got %d\npdu = % x", n, pdu)
+	}
 }

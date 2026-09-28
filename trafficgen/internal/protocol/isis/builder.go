@@ -102,6 +102,66 @@ func parseHexSpace(s string) ([]byte, error) {
 	return b, nil
 }
 
+// parseAreaAddress decodes an IS-IS area address from its dotted form
+// ("49.0001") or a bare hex string ("490001"), returning the raw area bytes.
+func parseAreaAddress(s string) ([]byte, error) {
+	clean := strings.ReplaceAll(strings.TrimSpace(s), ".", "")
+	if clean == "" {
+		return nil, fmt.Errorf("area address is empty")
+	}
+	if len(clean)%2 != 0 {
+		return nil, fmt.Errorf("area address %q must be an even number of hex digits", s)
+	}
+	b := make([]byte, len(clean)/2)
+	for i := range b {
+		v, err := hexByte(clean[2*i : 2*i+2])
+		if err != nil {
+			return nil, fmt.Errorf("area address %q: %v", s, err)
+		}
+		b[i] = v
+	}
+	return b, nil
+}
+
+// synthesizeAreaTLVs turns the area_addresses convenience form into explicit
+// TLV 1 entries (ISO 10589 §9.5: the value is a length-prefixed list of area
+// addresses). The caller guarantees this is only used when no explicit TLV 1
+// is present — the two sources are mutually exclusive (planner.go step 6).
+func synthesizeAreaTLVs(areas []string) ([]core.ISISTLV, error) {
+	out := make([]core.ISISTLV, 0, len(areas))
+	for _, a := range areas {
+		b, err := parseAreaAddress(a)
+		if err != nil {
+			return nil, err
+		}
+		hexParts := make([]string, len(b))
+		for i, v := range b {
+			hexParts[i] = fmt.Sprintf("%02x", v)
+		}
+		// Value = length(1) + area bytes; the length byte counts the area
+		// bytes only, not itself (ISO 10589 §9.5).
+		out = append(out, core.ISISTLV{
+			Type:     1,
+			ValueHex: fmt.Sprintf("%02x %s", len(b), strings.Join(hexParts, " ")),
+		})
+	}
+	return out, nil
+}
+
+// effectiveTLVs returns the TLV list a PDU should carry: area_addresses, when
+// set, is encoded as TLV 1 and appended to any explicit TLVs (mutual exclusion
+// with an explicit TLV 1 is enforced upstream by the planner).
+func effectiveTLVs(tlvs []core.ISISTLV, areas []string) ([]core.ISISTLV, error) {
+	if len(areas) == 0 {
+		return tlvs, nil
+	}
+	areaTLVs, err := synthesizeAreaTLVs(areas)
+	if err != nil {
+		return nil, err
+	}
+	return append(append([]core.ISISTLV{}, tlvs...), areaTLVs...), nil
+}
+
 // encodeTLVs appends type(1)+length(1)+value for each TLV.
 func encodeTLVs(tlvs []core.ISISTLV) []byte {
 	var out []byte

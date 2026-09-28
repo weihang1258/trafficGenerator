@@ -118,16 +118,23 @@ func buildSinglePDU(cfg *core.ISISConfig) ([]byte, error) {
 	if pduType == "" {
 		pduType = "lan_hello"
 	}
+	// area_addresses is a convenience form for TLV 1 (ISO 10589 §9.5); fold it
+	// into the TLV list before dispatch so every PDU type carries it. The
+	// planner rejects a config that sets both sources.
+	tlvs, err := effectiveTLVs(cfg.TLVs, cfg.AreaAddresses)
+	if err != nil {
+		return nil, err
+	}
 	switch pduType {
 	case "lan_hello":
-		return buildIIH(level, cfg.SystemID, cfg.HoldingTimer, cfg.Priority, cfg.LANID, cfg.TLVs)
+		return buildIIH(level, cfg.SystemID, cfg.HoldingTimer, cfg.Priority, cfg.LANID, tlvs)
 	case "lsp":
 		return buildLSP(level, cfg.LSPID, cfg.RemainingLifetime, cfg.Sequence,
-			cfg.Partition, cfg.CircuitType, cfg.TLVs, cfg.ChecksumMode)
+			cfg.Partition, cfg.CircuitType, tlvs, cfg.ChecksumMode)
 	case "csnp":
-		return buildCSNP(level, cfg.SystemID, cfg.StartLSPID, cfg.EndLSPID, cfg.TLVs)
+		return buildCSNP(level, cfg.SystemID, cfg.StartLSPID, cfg.EndLSPID, tlvs)
 	case "psnp":
-		return buildPSNP(level, cfg.SystemID, cfg.TLVs)
+		return buildPSNP(level, cfg.SystemID, tlvs)
 	}
 	return nil, fmt.Errorf("isis: unsupported pdu_type %q", pduType)
 }
