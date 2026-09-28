@@ -56,6 +56,8 @@
 
 **本车道交付边界（主线程裁定 2026-09-28）**：`cases/modbus.json` **保持原样、不提交**——合规层链形须先补 G-MODBUS-1/2（代码阶段，按"文档先行"顺序未到）；本车道只交两份文档 + 缺口登记。
 
+**显式结论（文档阶段预期状态，非缺陷）**：**存量 213 例在当前 HEAD 上无一具备可执行断言**——三类形状（纯扁平 81 / 空壳层链 132 / 严格层链）经 live MCP 逐条探针全部被拒（§0.1 逐字错误锚词）。原因指向 **G-MODBUS-1（registry Fields 缺 `transactions`）+ G-MODBUS-2（translate 无 `case "modbus"`）**，二者属**代码阶段**；按用户"文档先行"口径，本阶段交付物即文档 + 缺口登记，故此为**预期状态**。本契约全部层链样例已按 §1.9 逐处标注「目标形状，今天跑不通，需先补代码」；可执行断言待代码阶段闭合 G-MODBUS-1/2 后按 testcase §8 逐条落地并全量复跑。
+
 ## 1. 范围、profile 与实现状态边界
 
 本版定义主站（client/master，上位机/PLC/SCADA）与从站（server/slave，PLC/RTU 网关）之间的 **TCP 承载 Modbus TCP 报文序列**：TCP 三次握手完成后直接发第一个请求 PDU；每个事务 = 一个请求帧 + 一个（可选）响应帧，帧定界由 MBAP 头的 Length 字段承担；事务之间**无会话状态依赖**（唯一状态是 TCP 连接本身，spec §4.1；旧稿 §4.1）。
@@ -614,9 +616,12 @@ modbus 层**无自有状态**（旧稿 §4.1 继承）：握手/seq-ack/挥手/�
 | **G-MODBUS-6** | 62 负例中 11 例缺 `error_contains`、8 例 expect 仅 `{expect_error}`、5 例混入成功断言 | testcase §4 修（负例纯净性 §7 需求）；锚词按 §7 表补齐 |
 | **G-MODBUS-7** | 多流展开（`master_count>1`/`flow_count>1`）在链形状拒绝 | **明确不解决**（enip/dnp3 同款：链一次一个 flow）；迁入计划 = 语义走策略级 `flow_control flows=N`，用例改写时 `master_count`/`flow_count` 用例转 `flow_control` 或标不适用 |
 | **G-MODBUS-8** | 响应超时/重传（spec §4.1 `RxTimeout`）未实现 | **明确不解决**（声明式回放无真实网络）；用例不得携带该语义 |
-| **G-MODBUS-9** | IPv6 零用例覆盖（213 例地址恒 IPv4；引擎已支持） | A′ 补例 `modbus_ipv6`（offset 74，断言 `ipv6.src/dst`） |
-| **G-MODBUS-10** | MSS 分段零用例（213 例无 `mss` 键；MBAP 帧 ≤260B < MSS 1460，默认单帧单段） | A′ 补例 `modbus_mss_segment`（显式 `mss < 帧长`，先跑后钉段数） |
+| **G-MODBUS-9** | IPv6 零用例覆盖（213 例地址恒 IPv4；引擎已支持）——**存量、非本次引入** | A′ 补例 `modbus_ipv6`（offset 74，断言 `ipv6.src/dst`） |
+| **G-MODBUS-10** | MSS 分段零用例（213 例无 `mss` 键；MBAP 帧 ≤260B < MSS 1460，默认单帧单段）——**存量、非本次引入** | A′ 补例 `modbus_mss_segment`（显式 `mss < 帧长`，先跑后钉段数） |
+| **G-MODBUS-11** | `modbus-dstport-default-502` **名实不符**：名为"缺省"但显式写了 `dst_port:502`（机读实测），未验 FieldContract 补齐——**存量、非本次引入** | A′ 补 `modbus_default_port_502`（**删键**不断言值）；存量例改名或改载荷 |
+| **G-MODBUS-12** | `validate-mastercount-0` 与 `validate-mastercount-1001` **载荷重复**（均 `master_count:1001`），且两例注记均写"=0 rejected"与载荷不符——**存量、非本次引入** | 改写时：一例保留为 `>max` 负例、另一例改载荷为 `0`（并修注记），或删除并注记原因；`flowcount-0` 同款（载荷 101、注记写 0） |
+| **G-MODBUS-13** | `layer_gen_test.go:272` 注释称"legacy modbus.go 是 3 包挥手"**与代码不符**——实读 `modbus.go:575-593` 为 **4 包**（同文件 `:398` 自述"TCP 四次挥手"）——**存量、非本次引入** | 代码车道改注释（本车道禁改代码）；**不影响包数断言**（存量 213 例已按 4 包校准，9 = 3+2+4） |
 
 ## 15. 修订记录
 
-- v1.0.0（2026-09-28）：P-PIPE #94 文档轨 P1–P3。13→94 沿革与 8 项过期校正（§0）；**存量 213 例可执行性 MCP 实测（§0.1）——三种形状全被拒，根因 G-MODBUS-1/2**；§12.1/12.3/12.12 强制展开 + 12-P2；D-MODBUS-1 as-built 定稿（§11）；缺口 G-MODBUS-1…G-MODBUS-8。自审轮次见 `/tmp/pipe/doc-lanes/modbus.md`。
+- v1.0.0（2026-09-28）：P-PIPE #94 文档轨 P1–P3。13→94 沿革与 8 项过期校正（§0）；**存量 213 例可执行性 MCP 实测（§0.1）——三种形状全被拒，根因 G-MODBUS-1/2**；§12.1/12.3/12.12 强制展开 + 12-P2；D-MODBUS-1 as-built 定稿（§11）；缺口 G-MODBUS-1…G-MODBUS-13（含 G-MODBUS-11/12/13 三项存量问题登记）。**显式结论**：213 例当前无可执行断言属文档阶段预期状态（§0.1）。主线程裁定 2026-09-28：走 (b)，本车道不改 `cases/modbus.json`。自审轮次见 `/tmp/pipe/doc-lanes/modbus.md`。
