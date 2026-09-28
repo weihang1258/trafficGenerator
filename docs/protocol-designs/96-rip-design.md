@@ -452,23 +452,30 @@ RIP 层**无自有状态**：RIP 是 UDP 上的无连接协议，无握手/无�
 
 **存量实测（逐例机读，2026-09-28）**：
 
-| 文件 | 例数 | 顶层键分布 | 链形 | 负例 expect 纯净 |
+| 文件 | 例数 | 顶层键分布（**括号内为该顶层键形状的例数，非扁平例数**） | 链形 | 负例 expect 形状 |
 |---|---|---|---|---|
-| `cases/rip.json` | 71 | `{layers,rip,src_port,count}` ×36 + `{rip,src_port,count}` ×17（扁平）+ `{layers,rip,src_port,count,dst_ip}` ×7 + `{layers,rip,src_port,count,src_ip,dst_ip,dst_port}` ×5 + `{layers,rip,src_port,count,group_id}` ×4 + `{rip,src_port,count,src_ip,dst_ip,dst_port}` ×2（扁平） | `[udp,rip]` ×52（层 config 恒 `{}` 空壳） | ✅ 19/19 只有 `{expect_error,error_contains}` |
+| `cases/rip.json` | 71 | `{layers,rip,src_port,count}` ×36 + `{rip,src_port,count}` ×17（无 `layers` 键的扁平形）+ `{layers,rip,src_port,count,dst_ip}` ×7 + `{layers,rip,src_port,count,src_ip,dst_ip,dst_port}` ×5 + `{layers,rip,src_port,count,group_id}` ×4 + `{rip,src_port,count,src_ip,dst_ip,dst_port}` ×2（扁平形） | `[udp,rip]` ×52（层 config 恒 `{}` 空壳） | **✗ 19/19 键集为 `{error_contains,expect_error,notes}`——含 `notes`，非纯净两键**（机读实测） |
+
+**扁平例数口径（防误读）**：上表 `×17`/`×2` 是**顶层键形状的例数**，不是扁平例数。**扁平例（无 `layers` 键）共 19 例**（= 17 + 2），机读实测；且这 19 例**全部是负例**（`expect_error`），链形 52 例**全部是正例**——正负与链/扁恰好同界。
 
 **旧键去向表（§15.3 要求"每个键写去向"）**：
 
-| 旧键 | 存量出现例数 | 去向 |
-|---|---:|---|
-| `src_ip` | **7**（另 0 例在扁平组） | 迁 `layers[i].ip.src`（G-RIP-1/G-RIP-2） |
-| `dst_ip` | **14** | 迁 `layers[i].ip.dst` |
-| `src_port` | **71** | 迁 `layers[i].udp.src_port`（或删，走 resolveSrcPort 保底） |
-| `dst_port` | **7** | 迁 `layers[i].udp.dst_port`（或删，走 getDstPort 版本解析） |
-| `count` | **71** | 走 `flow_control`（今日 `count=1` 为多数；>1 的 2 例 `rip_tedge22_routers_100_inc`/`rip_tpos17_100_routers` 补 `strategy_fc flows=N`） |
-| 顶层 `rip` 子映射 | **71** | **迁 `layers[i].rip`**（须先补 registry `Fields`，G-RIP-1/G-RIP-2） |
-| 顶层 `group_id` | **4** | 白名单允许（1.11 结构性键）→ **保留** |
+脚本复算（`python3` 机读，链 52 / 扁 19；列式 = 链/扁）：
 
-**结论**：本协议有实质迁移工作量——§1 门的动作 = ①补 registry `Fields`（version/command/domain/routes/auth/multicast/scenario/routers/rounds/triggered_update/split_horizon/poison_reverse 十三键）；②加 translate 分支（层内 rip→`spec.RIP`）；③71 例整体改写；④收官自查行「非负例顶层键 = 0」由 **5 键 → 0**。
+| 旧键 | 链形例数 | 扁平例数 | 合计 | 去向 |
+|---|---:|---:|---:|---|
+| `src_ip` | 5 | 2 | **7** | 迁 `layers[i].ip.src`（G-RIP-1/G-RIP-2） |
+| `dst_ip` | 12 | 2 | **14** | 迁 `layers[i].ip.dst` |
+| `dst_port` | 5 | 2 | **7** | 迁 `layers[i].udp.dst_port`（或删，走 getDstPort 版本解析） |
+| `count` | 52 | 19 | **71** | 走 `flow_control`（今日 `count=1` 为多数；>1 的 2 例 `rip_tedge22_routers_100_inc`/`rip_tpos17_100_routers` 补 `strategy_fc flows=N`） |
+| 顶层 `rip` 子映射 | 52 | 19 | **71** | **迁 `layers[i].rip`**（须先补 registry `Fields`，G-RIP-1/G-RIP-2） |
+| `src_port` | 52 | 19 | **71** | 迁 `layers[i].udp.src_port`（或删，走 resolveSrcPort 保底） |
+| **合计** | **178** | **63** | **241** | — |
+| 顶层 `group_id` | 4 | 0 | **4** | 白名单允许（1.11 结构性键）→ **保留**（不计入上表合计） |
+
+**两套口径不许混用**：① **241** = 全部 71 例的旧键出现总次数；② **178** = **非负例口径**（= 链形 52 正例的合计 178，因 19 扁平例全为负例），即 §1.11/§1.13 判死口径下要清零的数。两数分别用于"存量规模"与"判死面"两种叙述，不得互换。
+
+**结论**：本协议有实质迁移工作量——§1 门的动作 = ①补 registry `Fields`（version/command/domain/routes/auth/multicast/scenario/routers/rounds/triggered_update/split_horizon/poison_reverse 十三键）；②加 translate 分支（层内 rip→`spec.RIP`）；③71 例整体改写；④收官自查行「非负例顶层键 = 0」由 **178 处 → 0**；旧键全集 **6 个** = `src_ip` / `dst_ip` / `src_port` / **`dst_port`** / `count` / 顶层 `rip` 子映射（逐键 5/12/52/5/52/52，链形口径）。
 
 目标形状样例见 §2（顶层仅 `layers`）。
 
@@ -511,7 +518,7 @@ presence 形 {layers:[{ip:{...}},{udp:{...}},{rip:{}}], rip:{}}
 
 → `CheckProtoFlat` 内 `grep -c 'protocol == "rip"'` = **0**；**presence 形 `{layers:[…],rip:{}}` → schema errs = 0，今日不判死**（G-RIP-3）。故今日建该负例会**真绿 = 假通过**，代码阶段修复后才建。
 
-**离线套件对照实测**（scratch 副本补 rip 空导入 + `CHAIN_PROTO=rip`）：**71/71 全绿，58.5s**。原因 = `layer_chain_suite_test.go:225-231` 剥离 `layers` 后把顶层扁平键直传 `core.MapToFlowSpec`，**绕过 `CheckProtoFlat`** → "绿"不证明 MCP 可达（G-RIP-10）。
+**离线套件对照实测**（scratch 副本补 rip 空导入 + `CHAIN_PROTO=rip`）：**52/52 全绿，58.5s**——**仅 52 个链形例被执行；19 个扁平例被 `layer_chain_suite_test.go:138` 的 `if _, ok := specMap["layers"]; !ok { continue }` 跳过、从未执行**。原因 = `:230-236` 剥离 `layers` 后把顶层扁平键直传 `core.MapToFlowSpec`，**绕过 `CheckProtoFlat`** → "绿"不证明 MCP 可达（G-RIP-10）。
 
 ### 12.3 §3 强制展开：五件套
 
@@ -521,9 +528,9 @@ presence 形 {layers:[{ip:{...}},{udp:{...}},{rip:{}}], rip:{}}
 
 四元组 `ip.src/dst`、`udp.src_port/dst_port` 五策略全开（allowlist `internal/core/layer_dyn.go` 头部四行实测：`ip`/`tcp`/`udp`/`eth`；保底 `DefaultSrcPort+i`（`strategy_convert.go:49`）；dst 动态与版本端口解析和平共处——显式/动态值非零即不触发解析补齐）。
 
-**业务字段 13 项全关**（allowlist 无 `rip` 行，`grep` 零命中实测；对象即拒）：`version`/`command`/`domain`/`routes[]`/`auth`/`multicast`/`scenario`/`routers[]`/`rounds`/`triggered_update`/`split_horizon`/`poison_reverse`——逐流变体需求列 A′ 候选（testcase §6.2；今日按 §9.36 口径不冒充覆盖）。**多 router 场景的逐流变化由配置内 `routers[]` 数组承担**（每 router 显式四元组），不是动态字段。
+**业务字段 13 项全关**（`layer_dyn.go:17` 的 `layerDynAllowlist` 表无 `rip` 键——实测该表键集 = `ip`/`tcp`/`udp`/`eth`/`http`/`tls`/`dns`/`mqtt`/`h323`/`mpls`/`ngap`/`telnet`/`sip`/`radius`，无 rip；对象即拒）：`version`/`command`/`domain`/`routes[]`/`auth`/`multicast`/`scenario`/`routers[]`/`rounds`/`triggered_update`/`split_horizon`/`poison_reverse`——逐流变体需求列 A′ 候选（testcase §6.2；今日按 §9.36 口径不冒充覆盖）。**多 router 场景的逐流变化由配置内 `routers[]` 数组承担**（每 router 显式四元组），不是动态字段。
 
-序号算法实读：`parseLayerDyn`（`layer_dyn.go:78`）/ `TupleGenerator.Next`（`tuple_generator.go`）/ 保底自增（`strategy_convert.go:49` + worker 注入）/ allowlist 白名单（`layer_dyn.go` 头部）——**`rip` 无块**（grep 实测零命中），即层内任何对象值 → `does not support dynamic`。
+序号算法实读：`parseLayerDyn`（`layer_dyn.go:78`）/ `TupleGenerator.Next`（`tuple_generator.go`）/ 保底自增（`strategy_convert.go:49` + worker 注入）/ allowlist 白名单（`layer_dyn.go` 头部）——**`layerDynAllowlist` 无 `rip` 键**（表键集实测，见上），即层内任何对象值 → `does not support dynamic`。（注：`layer_dyn.go:1036` 注释中出现的 "rip" 是注释文本 "strips it"，与 allowlist 无关。）
 
 ## 13. 对接清单（testcase 草稿输入；正文落 testcase 文件）
 
@@ -539,7 +546,7 @@ presence 形 {layers:[{ip:{...}},{udp:{...}},{rip:{}}], rip:{}}
 | **G-RIP-2** 层内翻译缺失 | 层内配置即使放行也不翻译 → `spec.RIP` 恒 nil → 生成器走默认流 | `chain_planner_translate.go` 的 `translateTerminalConfig` switch（73 case）**全表无 `case "rip"`**；`:64` `RIP: spec.RIP` 仅 Meta 直传（**读 spec 不写 spec**） | **代码阶段补**（`case "rip"` 严格 JSON 往返解码进 `spec.RIP`） |
 | **G-RIP-3** CheckProtoFlat 无 rip 分支 | 顶层 `rip` 子映射 presence 形**今日不判死** | `strategy_convert.go` 内 `grep -c 'protocol == "rip"'` = **0**；探针：`ValidateStrategy("synth","rip",{layers:[…],rip:{}})` → **schema errs = 0**（对照 `{…,src_port:0}` → errs=1） | **代码阶段**；**禁加单协议黑名单分支**，走框架级 unknown-key 白名单（kingbase 裁定先例） |
 | **G-RIP-4** 顶层旧键残留 | 71 例顶层越白名单键 **178 处**（非负例口径） | 机读实测：`count` 52 / `rip` 52 / `src_port` 52 / `dst_ip` 12 / `src_ip` 5 / `dst_port` 5 = 178；白名单 = `{layers,strategy_fc,ttl,flow_control,output,output_config,group_id}` | **待代码阶段收敛**（随 G-RIP-1/G-RIP-2；收官「非负例顶层键 = 0」） |
-| **G-RIP-5** 业务字段动态全关 | 层内任何对象值 → `does not support dynamic` | `internal/core/layer_dyn.go` 头部 allowlist 四行（`ip`/`tcp`/`udp`/`eth`）**无 `rip` 行**（grep 零命中） | A′ 候选，不冒充已覆盖（§9.36 口径） |
+| **G-RIP-5** 业务字段动态全关 | 层内任何对象值 → `does not support dynamic` | `internal/core/layer_dyn.go:17` `layerDynAllowlist` 表**无 `rip` 键**（表键集实测 14 项，无 rip） | A′ 候选，不冒充已覆盖（§9.36 口径） |
 | **G-RIP-6** 旧基线无用例文档 | 只有 `10-rip-design.md`，无 `10-rip-testcase.md` | `docs/protocol-designs/` `ls` 实测 | 本批 #96 补齐（已闭环） |
 | **G-RIP-7** 旧稿 DSCP 说法与实现相左 | 旧稿 §5.5「DSCP 默认 CS6」是死参数，从不达线 | `rip.go:502` 算出 `dscp` 但 `emitRIPPacket` 用 `spec` 直配；`layer_gen.go:156` 明写「不加默认」 | 本契约 §0 表 #6 已校正（已闭环）；旧稿留只读 |
 | **G-RIP-8** MD5 摘要占位是否需真 HMAC | 现网设备互操作未知 | 未达验证级 | 待确认：抓现网 RIP MD5 报文比对，或查 Cisco/Juniper 手册对应章节（三选一）；确认前不写死进实现 |

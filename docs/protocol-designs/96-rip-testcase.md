@@ -18,7 +18,8 @@
 | 例数 / ID 唯一 | 71 / 71 唯一 | ✓ |
 | 正/负 | 52 正 + 19 负 | ✓ |
 | 例对象顶层键 | 5 键 `{expect,id,proto,spec_json,summary}`（71/71 同形） | ✓ |
-| `spec_json` 顶层键 | `{layers,rip,src_port,count}` ×36 + `{rip,src_port,count}` ×17 + `{layers,rip,src_port,count,dst_ip}` ×7 + `{layers,rip,src_port,count,src_ip,dst_ip,dst_port}` ×5 + `{layers,rip,src_port,count,group_id}` ×4 + `{rip,src_port,count,src_ip,dst_ip,dst_port}` ×2 | **✗ 71/71 违规**（顶层旧键 178 处，G-RIP-4） |
+| `spec_json` 顶层键（**括号内为该顶层键形状的例数，非扁平例数**） | `{layers,rip,src_port,count}` ×36 + `{rip,src_port,count}` ×17 + `{layers,rip,src_port,count,dst_ip}` ×7 + `{layers,rip,src_port,count,src_ip,dst_ip,dst_port}` ×5 + `{layers,rip,src_port,count,group_id}` ×4 + `{rip,src_port,count,src_ip,dst_ip,dst_port}` ×2 | **✗ 71/71 例均含旧键**；非负例口径残留 **178 处**（全 71 例口径 241 处），G-RIP-4 |
+| 链/扁 × 正/负 | 52 链形**全为正例**；19 扁平形**全为负例**（机读实测，两者恰好同界） | 口径注 |
 | 层链形 | `[udp,rip]` ×52，**层 config 恒 `{}`（空壳）** | ✗ 空壳层（G-RIP-1/G-RIP-2） |
 | 扁平形 | ×19（无 `layers` 键） | ✗ 旧形（G-RIP-4） |
 | 负例 `expect` 键集合 | `{error_contains,expect_error,notes}` ×19 | **✗ 含 `notes`**，非严格两键（差异登记，§4 末） |
@@ -281,13 +282,27 @@ ID 前缀即 T 编号（§2 表末行）：`rip_tposN_*` ≡ T-POS-N；`rip_tedg
 
 ### 8.1 存量实测面（2026-09-28）
 
-`cases/rip.json` **71 例**：52 正带 `packet_count`（1×36 / 2×9 / 3×4 / 8×1 / 100×2，全部 = 报文数）；19 负 `expect` 键集合 `{error_contains,expect_error,notes}`；层链形 52 例层 config 恒 `{}`（空壳）；扁平形 19 例；顶层旧键 71/71 残留（逐键 7/14/71/7/71）。
+`cases/rip.json` **71 例**：52 正带 `packet_count`（1×36 / 2×9 / 3×4 / 8×1 / 100×2，全部 = 报文数）；19 负 `expect` 键集合 `{error_contains,expect_error,notes}`（含 `notes`，非纯净两键）；层链形 52 例层 config 恒 `{}`（空壳）；扁平形 19 例；**链/扁与正/负恰好同界**（52 正 = 52 链形，19 负 = 19 扁平形，机读实测）。
+
+**顶层旧键逐键计数（脚本复算，链/扁分列）**：
+
+| 键 | 链形(52) | 扁平(19) | 合计 |
+|---|---:|---:|---:|
+| `src_ip` | 5 | 2 | 7 |
+| `dst_ip` | 12 | 2 | 14 |
+| `dst_port` | 5 | 2 | 7 |
+| `count` | 52 | 19 | 71 |
+| `rip` | 52 | 19 | 71 |
+| `src_port` | 52 | 19 | 71 |
+| **合计** | **178** | **63** | **241** |
+
+**两套口径**：**241** = 全 71 例旧键出现总次数；**178** = 非负例口径（= 链形 52 正例合计；19 扁平例全为负例，不计入判死面）。两数不得互换。
 
 ### 8.2 现状矛盾点（代码阶段前诚实登记）
 
 1. **存量跑的是过渡态混合形，不是纯层链**：52 例的 `layers=[{udp:{}},{rip:{}}]` 只是**空壳**（`rip` 层 config 恒 `{}`，既不校验也不消费——探针实证层内业务键被拒 `unknown field "command"`），真实配置住顶层 `rip` 子映射 + 顶层四元组。
 2. **MCP 真实路径今日 400**：52 层链例带顶层 `src_port` → `CheckProtoFlat` 通用五键检查命中（探针 `ValidateStrategy` 实证）；19 扁平例同 400。**71 例既非绿也非红**。
-3. **离线套件今日不覆盖 rip**：`chainSuiteProtos` 无 rip（实测）→ 默认跑法跳过；补空导入后 `CHAIN_PROTO=rip` 实测 **71/71 全绿 58.5s**（scratch 副本探针，验证存量断言在引擎侧真实有效）。
+3. **离线套件今日不覆盖 rip**：`chainSuiteProtos` 无 rip（实测）→ 默认跑法跳过；补空导入后 `CHAIN_PROTO=rip` 实测 **52/52 全绿 58.5s**——**只有 52 个链形例被执行，19 个扁平例被 `layer_chain_suite_test.go:138` 的 `if _, ok := specMap["layers"]; !ok { continue }` 过滤器跳过、从未执行**（scratch 副本探针）。故"绿"仅证明 52 个链形例的断言在引擎侧有效，不覆盖 19 扁平例、也不证明 MCP 可达。
 4. **presence 形今日不判死**：`CheckProtoFlat` 无 rip 分支（`grep -c` = 0）；探针 `{layers:[...],rip:{}}` → schema errs=0。**建该负例会真绿 = 假通过** → G-RIP-3 修复后才建。
 5. **19 负例 `expect` 含 `notes`**：非严格两键（不参与判定，代码阶段统一删）。
 
