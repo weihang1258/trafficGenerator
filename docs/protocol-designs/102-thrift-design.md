@@ -248,7 +248,7 @@ T-编号对照：T-THRIFT-S1…S7 ≡ #1…#7；T-THRIFT-N1…N6 ≡ #8…#13（
 | # | 八项 | 规范要求 | 业务场景 | 代码现状 | 缺口 |
 |---|---|---|---|---|---|
 | 1 | 连接模型 | TCP 长连接，客户端主动建连，消息自定界（spec §Message）；旧 §3.2 | 场景①–⑦ | `DependsOn ["tcp"]` 单值（`registry.go:780`）；多流整块展开（S7） | 无 |
-| 2 | 命令/消息表 | 四类 Message Type × 方向 × 响应形态（§10.2，15 格逐格结论）+ 配对维度（§10.3 #26/#27） | 场景①–③ | `planner.go` Validate 全分支 + `builder.go` `msgType` 四值 | 立项 5 格（A′，§13） |
+| 2 | 命令/消息表 | 四类 Message Type × 方向 × 响应形态（§10.2，15 格逐格结论）+ 配对维度（§10.3 #28/#29） | 场景①–③ | `planner.go` Validate 全分支 + `builder.go` `msgType` 四值 | 立项 5 格（A′，§13） |
 | 3 | 状态机 | 建连—数据—释放 3 态（§5 表；thrift 层无自有状态） | S1/S4/S5 多事务 | tcp 层拥有状态；thrift 纯驱动 | 无 |
 | 4 | 字段表 | 消息 5 键 + 字段 8 键 + 容器 4 键（§3.1/§3.3；`types.go:778-827`） | 数据场景层 | builder 逐类型编码 + Validate 类型/方法校验 | `transport` 死键 G-THRIFT-4；BINARY 合流 G-THRIFT-5 |
 | 5 | 错误处理 | 6 类负例（§7 表） | 负例 N-1…N-6 | planner 6 种拒绝分支（`planner.go:23-70`） | E-07/E-08 未落码 G-THRIFT-3 |
@@ -268,7 +268,7 @@ T-编号对照：T-THRIFT-S1…S7 ≡ #1…#7；T-THRIFT-N1…N6 ≡ #8…#13（
 
 **逐格重数**：5 行 × 3 列 = 15 格——已覆 10 / A′ 立项 5，零空格。
 
-**配对维度不在本表**（`CALL`↔`REPLY` 的 method/seqid 配对是跨消息校验，不是 Message Type 形态）：落 §10.3 变体表 #25/#26，今日落码无校验（G-THRIFT-3）。
+**配对维度不在本表**（`CALL`↔`REPLY` 的 method/seqid 配对是跨消息校验，不是 Message Type 形态）：落 §10.3 变体表 #28/#29，今日落码无校验（G-THRIFT-3）。
 
 ### 10.3 子表②：数据形态变体表（协议相关全部形态逐项）
 
@@ -296,7 +296,7 @@ T-编号对照：T-THRIFT-S1…S7 ≡ #1…#7；T-THRIFT-N1…N6 ≡ #8…#13（
 | 18 | field ID 负值（i16 `ff fe`） | 覆（S4，LIST 元素 -2） |
 | 19 | field ID 重复（同 struct 内） | A′ 立项（G-THRIFT-3，落码无校验） |
 | 20 | struct 缺 `STOP` | A′ 立项（G-THRIFT-3，落码无校验） |
-| 21 | `STOP` 终止符（0x00） | 覆（全正例 body 末字节 `00`：S1 帧 4/5、S3、S4、S5、S6 帧 hex 末字节机读实测） |
+| 21 | `STOP` 终止符（0x00） | 覆（**S1/S3/S4/S5/S6** body 末字节 `00`：S1 帧 4/5、S3、S4、S5、S6 帧 hex 末字节机读实测；**S2 帧断言为前缀，末字节非 STOP**——帧 4 末字节 `07`=seqid 尾、帧 5 末字节 `10`=STRING 长度，非 body 末字节） |
 | 22 | `STRUCT` field type（12） | A′ 立项（`typeCode` 支持 `"STRUCT"`（`builder.go:59`），今日无例；嵌套 struct 未覆盖） |
 | 23 | 非法 message type（9） | 覆（N-5） |
 | 24 | 非法端口（70000） | 覆（N-6） |
@@ -455,7 +455,7 @@ T-编号对照：T-THRIFT-S1…S7 ≡ #1…#7；T-THRIFT-N1…N6 ≡ #8…#13（
 
 ## 13. P3 对接清单（T-THRIFT 草稿输入；正文落 testcase 文件）
 
-13 ID（7 正 + 6 负）+ packet_count/锚词 + fixture 常量 + 双通道断言基线 + 存量审计（testcase §2–§5/§8 全量）。A′ 候选 9 例：`thrift_bool_false`（变体 2）/ `thrift_empty_containers`（变体 13）/ `thrift_multi_messages`（同连接多事务）/ `thrift_oversize_segment`（超 MSS 单消息分段）/ `thrift_default_port`（删键断言补齐 9090）/ `thrift_neg_mixed_family`（变体 23+24）/ `thrift_neg_duplicate_field_id` + `thrift_neg_missing_stop`（G-THRIFT-3 落码后）/ `thrift_abort_rst`（RST 框架能力）。
+13 ID（7 正 + 6 负）+ packet_count/锚词 + fixture 常量 + 双通道断言基线 + 存量审计（testcase §2–§5/§8 全量）。A′ 候选 9 例：`thrift_bool_false`（变体 2）/ `thrift_empty_containers`（变体 13）/ `thrift_multi_messages`（同连接多事务）/ `thrift_oversize_segment`（超 MSS 单消息分段）/ `thrift_default_port`（删键断言补齐 9090）/ `thrift_neg_mixed_family`（变体 #25+#26）/ `thrift_neg_duplicate_field_id` + `thrift_neg_missing_stop`（G-THRIFT-3 落码后）/ `thrift_abort_rst`（RST 框架能力）。
 
 ## 14. 缺口立项清单（有缺口写「缺口立项」，不许空着）
 

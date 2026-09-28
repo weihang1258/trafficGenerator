@@ -151,7 +151,7 @@ Apache Thrift TBinaryProtocol spec（§10）+ D-THRIFT-1（设计 §11）+ tshar
 | 双输出落地 | `nic_capture` 开关用例（今日 0 例，仅 pcap 侧实证） | A′ 补 `nic_capture` 用例，NIC 侧（`enp135s0f0np0`）跑同一断言集 |
 | 现网面 | spec 条款号级引用 | G-THRIFT-7 |
 
-**B′（框架面）**：`CheckProtoFlat` thrift presence 分支（G-THRIFT-2，等框架级 unknown-key 白名单，不单独立项）/ 业务字段动态（G-THRIFT-8，allowlist 无 `thrift` 行）/ `transport` 死键（G-THRIFT-4，P4 裁定删或接线）/ BINARY 合流（G-THRIFT-5，P4 裁定）。进设计 §14，「明确不解决 + 迁入计划」。
+**B′（框架面）**：`CheckProtoFlat` thrift presence 分支（G-THRIFT-2，等框架级 unknown-key 白名单，不单独立项）/ 业务字段动态（G-THRIFT-8，allowlist 无 `thrift` 行）/ `transport` 死键（G-THRIFT-4，**P4 删键**——CORE_MEMORY §1.12，零消费字段不许登记保留，**非二选一**）/ BINARY 合流（G-THRIFT-5，P4 裁定）。进设计 §14，「明确不解决 + 迁入计划」。
 
 ### 6.3 3.14 豁免边界审计
 
@@ -177,7 +177,7 @@ Apache Thrift TBinaryProtocol spec（§10）+ D-THRIFT-1（设计 §11）+ tshar
 3. **旧稿状态声明全部过时**：`30-thrift-*` 称"仅设计阶段、尚未实现"，实为四文件 1861 行已落码（设计 §0 表 8 项校正）。
 4. **旧稿 E-07/E-08 仍待实现**：设计 §6 标"待实现扩展负例"，落码 Validate 确认无对应分支——**继承待实现边界**，不是"已有覆盖"。
 5. **S7 缺跨流 seqid 关联断言**：旧稿 testcase §3 已声明"当前验证器没有跨流 seqid 关联断言，必须在实现集成测试补充"——本版继承，登记 A′（§6.2）。
-6. **`transport` 死键**：registry 注册 + struct 有字段 + planner/builder 零消费（grep 实测）——用例不得携带（G-THRIFT-4）。
+6. **`transport` 死键**：registry 注册 + struct 有字段 + planner/builder 零消费（grep 实测）——用例不得携带（G-THRIFT-4）。裁定与设计 §8/§14 一致：**P4 删键**（registry Fields 删 `transport` + struct 删字段 + 重跑 schemagen），CORE_MEMORY §1.12 不许登记保留，非二选一。
 
 ### 8.3 逐条去向表（13 行）
 
