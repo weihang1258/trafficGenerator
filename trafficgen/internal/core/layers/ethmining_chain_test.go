@@ -148,11 +148,28 @@ func TestEthminingChain_EmptyConfigBaseline(t *testing.T) {
 
 // ①c 层 config 缺省 tcp.dst_port → flat 兼容面 4444 注入（bgp 179 同款；
 // 通用默认 80 漏上线是 bgp P4 修轮 1 的实测缺陷面）。
+// M1（gen-review）：原实现用 emPlan，而 emPlan 把 DstPort 硬编码成 emPort
+// （helper 第 70 行 `DstPort: emPort`）→ 断言恒真，根本没走缺省路径，是空断言。
+// 改为 spec.DstPort=0 直接交给规划器，只有 FieldContract/链缺省能补 4444，
+// 通用默认 80 若漏上线即在此红。
 func TestEthminingChain_DefaultPortNotHTTPDefault(t *testing.T) {
-	pkts, err := emPlan(t, emLayers(map[string]interface{}{},
-		map[string]interface{}{"src_port": emSport}))
+	layersArr := emLayers(map[string]interface{}{}, map[string]interface{}{"src_port": emSport})
+	p, err := layers.BuildLayersPlanner("ethmining", emJSON(t, layersArr))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), core.FlowSpec{
+		SrcIP: emCli, DstIP: emSrv, SrcPort: emSport, DstPort: 0,
+	})
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
+	}
+	var pkts []core.PacketConfig
+	for c := range ch {
+		pkts = append(pkts, c)
+	}
+	if len(pkts) < 4 {
+		t.Fatalf("want >=4 packets, got %d", len(pkts))
 	}
 	if pkts[3].L4.DstPort != emPort {
 		t.Fatalf("dst port = %d, want %d (ethmining default, not the universal 80)", pkts[3].L4.DstPort, emPort)
