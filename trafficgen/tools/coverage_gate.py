@@ -7410,7 +7410,7 @@ def check_rtmfp(cases):
 
 
 def check_mongodb(cases):
-    """D-MONGODB-1（#87）P4 反查表（21 例 = 8 正 + 13 负；MongoDB 传统
+    """D-MONGODB-1（#87）P4 反查表（31 例 = 18 正 + 13 负；MongoDB 传统
     OP_* 线协议，TCP 27017，[ip,tcp,mongodb] 终结层族）。返回
     [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -7493,14 +7493,36 @@ def check_mongodb(cases):
         "mongodb_neg_truncated_header", "mongodb_neg_short_length",
         "mongodb_neg_oversize", "mongodb_neg_bad_opcode", "mongodb_neg_bson_length",
         "mongodb_neg_udp_carrier", "mongodb_neg_presence_top_level_mongodb",
-        "mongodb_neg_stray_src_ip", "mongodb_neg_flat_count",
+        "mongodb_neg_flat_count",
         "mongodb_neg_unknown_layer_field", "mongodb_neg_opcode_rejected",
         "mongodb_neg_orphan_reply", "mongodb_neg_empty_layer",
+        # C1 补落：契约 §2 全 27 ID（原 21 例漏 11 个——§8 明文「write_ops 保留
+        # + 拆分 → #2–#6」只做了保留，另 #10/#11/#15/#16/#17/#26 未落）。
+        "mongodb_op_insert_single", "mongodb_op_update_single",
+        "mongodb_op_delete_single", "mongodb_op_getmore_single",
+        "mongodb_op_killcursors_single", "mongodb_query_return_fields",
+        "mongodb_bson_scalar_boundary", "mongodb_request_sequence",
+        "mongodb_reply_flags", "mongodb_long_document_mss",
+        "mongodb_neg_flat_keys",
     ]:
         rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+
+    # C1 结构性收口：契约 ID 集合必须被用例集合**包含**（此前只硬编码 21 个
+    # 名字逐个 in 判定 → 文档 27 / 用例 21 的分叉在门表结构上不可能被发现，
+    # 且「补回缺例反而让门变红」）。契约表是权威，超契约例允许（须各自登记）。
+    import re as _re_c1
+    _tc = (tg.parent / "docs" / "protocol-designs" / "87-mongodb-testcase.md")
+    contract_ids = set()
+    if _tc.exists():
+        contract_ids = {m.group(1) for m in _re_c1.finditer(
+            r"\|\s*\d+\s*\|\s*`(mongodb_[a-z0-9_]+)`\s*\|", _tc.read_text())}
+    rows.append(("契约 §2 ID 集合 ⊆ 用例 ID 集合（C1：文档 27 / 用例 21 分叉）",
+                 contract_ids and contract_ids <= ids,
+                 "全落" if contract_ids <= ids else f"缺 {sorted(contract_ids - ids)}"))
     pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
     neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
-    rows.append(("21 例对账（8 正 + 13 负）", len(pos) == 8 and len(neg) == 13 and len(cases) == 21,
+    rows.append(("31 例对账（18 正 + 13 负；C1 后 27 契约 ID 全落 + 4 超契约负例）",
+                 len(pos) == 18 and len(neg) == 13 and len(cases) == 31,
                  f"{len(pos)}+{len(neg)}={len(cases)}"))
     bad_proto = [c.get("id", "?") for c in cases if c.get("proto") != "mongodb"]
     rows.append(("proto 全=mongodb", not bad_proto, bad_proto or "全 mongodb"))

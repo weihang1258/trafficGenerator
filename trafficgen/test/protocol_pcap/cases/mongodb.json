@@ -931,9 +931,9 @@
     }
   },
   {
-    "id": "mongodb_neg_stray_src_ip",
+    "id": "mongodb_neg_flat_keys",
     "proto": "mongodb",
-    "summary": "P2判死: top-level src_ip alongside layers（M5②，1.11 白名单）",
+    "summary": "#26: 顶层扁平键判死（CheckProtoFlat 通用门；src_ip/count/顶层子映射分列三例）",
     "spec_json": {
       "layers": [
         {
@@ -1262,6 +1262,751 @@
     },
     "notes": [
       "多流形按契约 §3.18 写：flows=N + ip/tcp 层动态对象；包数 8×N 与逐流值标 pending-suite（先跑后钉）"
+    ]
+  },
+  {
+    "id": "mongodb_op_insert_single",
+    "proto": "mongodb",
+    "summary": "S2-①: OP_INSERT 单消息（原子，自 write_ops 拆分）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "mongodb": {
+            "messages": [
+              {
+                "request_id": 110,
+                "response_to": 0,
+                "opcode": "OP_INSERT",
+                "namespace": "test.users",
+                "flags": 0,
+                "documents": [
+                  {
+                    "x": 1
+                  },
+                  {
+                    "_id": "a"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "27017"
+        },
+        {
+          "packet": 4,
+          "field": "mongo.opcode",
+          "value": "2002"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "3b 00 00 00 6e 00 00 00 00 00 00 00 d2 07 00 00"
+        }
+      ]
+    },
+    "notes": [
+      "pending-suite：断言沿 testcase §3 设计值（P4 未跑 suite），帧字节/suite 实测后按先跑后钉复钉。"
+    ]
+  },
+  {
+    "id": "mongodb_op_update_single",
+    "proto": "mongodb",
+    "summary": "S2-②: OP_UPDATE 单消息（原子，拆分）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "mongodb": {
+            "messages": [
+              {
+                "request_id": 120,
+                "response_to": 0,
+                "opcode": "OP_UPDATE",
+                "namespace": "test.users",
+                "zero": 0,
+                "flags": 2,
+                "selector": {
+                  "x": 1
+                },
+                "update": {}
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "mongo.opcode",
+          "value": "2001"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "34 00 00 00 78 00 00 00 00 00 00 00 d1 07 00 00"
+        }
+      ]
+    },
+    "notes": [
+      "pending-suite：断言沿 testcase §3 设计值（P4 未跑 suite），帧字节/suite 实测后按先跑后钉复钉。"
+    ]
+  },
+  {
+    "id": "mongodb_op_delete_single",
+    "proto": "mongodb",
+    "summary": "S2-③: OP_DELETE 单消息（原子，拆分）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "mongodb": {
+            "messages": [
+              {
+                "request_id": 130,
+                "response_to": 0,
+                "opcode": "OP_DELETE",
+                "namespace": "test.users",
+                "zero": 0,
+                "flags": 1,
+                "selector": {
+                  "x": 1
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "mongo.opcode",
+          "value": "2006"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "2f 00 00 00 82 00 00 00 00 00 00 00 d6 07 00 00"
+        }
+      ]
+    },
+    "notes": [
+      "pending-suite：断言沿 testcase §3 设计值（P4 未跑 suite），帧字节/suite 实测后按先跑后钉复钉。"
+    ]
+  },
+  {
+    "id": "mongodb_op_getmore_single",
+    "proto": "mongodb",
+    "summary": "S2-④: OP_GET_MORE 单消息（原子，拆分）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "mongodb": {
+            "messages": [
+              {
+                "request_id": 140,
+                "response_to": 0,
+                "opcode": "OP_GET_MORE",
+                "namespace": "test.users",
+                "zero": 0,
+                "return_count": 2,
+                "cursor_id": 72623859790382856
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "mongo.opcode",
+          "value": "2005"
+        },
+        {
+          "packet": 4,
+          "field": "mongo.cursor_id",
+          "nonzero": true
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "2b 00 00 00 8c 00 00 00 00 00 00 00 d5 07 00 00"
+        }
+      ]
+    },
+    "notes": [
+      "pending-suite：断言沿 testcase §3 设计值（P4 未跑 suite），帧字节/suite 实测后按先跑后钉复钉。"
+    ]
+  },
+  {
+    "id": "mongodb_op_killcursors_single",
+    "proto": "mongodb",
+    "summary": "S2-⑤: OP_KILL_CURSORS 单消息（原子，拆分）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "mongodb": {
+            "messages": [
+              {
+                "request_id": 150,
+                "response_to": 0,
+                "opcode": "OP_KILL_CURSORS",
+                "zero": 0,
+                "cursor_ids": [
+                  72623859790382856
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "mongo.opcode",
+          "value": "2007"
+        },
+        {
+          "packet": 4,
+          "field": "mongo.number_to_cursor_ids",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "20 00 00 00 96 00 00 00 00 00 00 00 d7 07 00 00"
+        }
+      ]
+    },
+    "notes": [
+      "pending-suite：断言沿 testcase §3 设计值（P4 未跑 suite），帧字节/suite 实测后按先跑后钉复钉。"
+    ]
+  },
+  {
+    "id": "mongodb_query_return_fields",
+    "proto": "mongodb",
+    "summary": "#10: OP_QUERY 基本形（returnFieldsSelector 现状声明：struct 无此键）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "mongodb": {
+            "messages": [
+              {
+                "request_id": 200,
+                "response_to": 0,
+                "opcode": "OP_QUERY",
+                "namespace": "test.users",
+                "flags": 0,
+                "skip": 0,
+                "return_count": 1,
+                "query": {
+                  "x": 1
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "mongo.opcode",
+          "value": "2004"
+        },
+        {
+          "packet": 4,
+          "field": "mongo.number_to_return",
+          "value": "1"
+        }
+      ]
+    },
+    "notes": [
+      "#10 现状声明：`MongoDBMessage` struct 今日无 returnFieldsSelector 键（types.go 实测），故只钉 OP_QUERY 基本形（query + return_count），selector 扩展面待 G-MONGO-4 收口后补字段——不断言不存在的键（testcase §3 第 10 条）。"
+    ]
+  },
+  {
+    "id": "mongodb_bson_scalar_boundary",
+    "proto": "mongodb",
+    "summary": "#11: BSON 标量边界（空串/false/int32 上下界/null，单键文档多消息）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "mongodb": {
+            "messages": [
+              {
+                "request_id": 210,
+                "response_to": 0,
+                "opcode": "OP_INSERT",
+                "namespace": "test.users",
+                "flags": 0,
+                "documents": [
+                  {
+                    "s": ""
+                  }
+                ]
+              },
+              {
+                "request_id": 211,
+                "response_to": 0,
+                "opcode": "OP_INSERT",
+                "namespace": "test.users",
+                "flags": 0,
+                "documents": [
+                  {
+                    "b": false
+                  }
+                ]
+              },
+              {
+                "request_id": 212,
+                "response_to": 0,
+                "opcode": "OP_INSERT",
+                "namespace": "test.users",
+                "flags": 0,
+                "documents": [
+                  {
+                    "i": 2147483647
+                  }
+                ]
+              },
+              {
+                "request_id": 213,
+                "response_to": 0,
+                "opcode": "OP_INSERT",
+                "namespace": "test.users",
+                "flags": 0,
+                "documents": [
+                  {
+                    "i": -2147483648
+                  }
+                ]
+              },
+              {
+                "request_id": 214,
+                "response_to": 0,
+                "opcode": "OP_INSERT",
+                "namespace": "test.users",
+                "flags": 0,
+                "documents": [
+                  {
+                    "n": null
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
+    },
+    "expect": {
+      "min_packets": 12,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "mongo.opcode",
+          "value": "2002"
+        }
+      ]
+    },
+    "notes": [
+      "5 条单键消息（空串/false/int32 MAX/int32 MIN/null）→ 5 + 7 = 12 包（先跑后钉）。",
+      "空 binary 面未落：bsonElement（builder.go:149）无 []byte 分支，结构化通道表达不出空 binary，留 G-MONGO-4/后续结构补键，不伪造。",
+      "实测：5 条单键消息 → 12 包，与 min_packets 一致。"
+    ]
+  },
+  {
+    "id": "mongodb_request_sequence",
+    "proto": "mongodb",
+    "summary": "#15: 同连接编排 QUERY→REPLY→INSERT→GET_MORE→KILL（§3.15① 载体）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "mongodb": {
+            "messages": [
+              {
+                "request_id": 300,
+                "response_to": 0,
+                "opcode": "OP_QUERY",
+                "namespace": "test.users",
+                "flags": 0,
+                "skip": 0,
+                "return_count": 1,
+                "query": {
+                  "x": 1
+                }
+              },
+              {
+                "request_id": 301,
+                "response_to": 300,
+                "opcode": "OP_REPLY",
+                "flags": 0,
+                "cursor_id": 0,
+                "starting_from": 0,
+                "returned": 1,
+                "documents": [
+                  {
+                    "x": 1
+                  }
+                ]
+              },
+              {
+                "request_id": 310,
+                "response_to": 0,
+                "opcode": "OP_INSERT",
+                "namespace": "test.users",
+                "flags": 0,
+                "documents": [
+                  {
+                    "x": 2
+                  }
+                ]
+              },
+              {
+                "request_id": 320,
+                "response_to": 0,
+                "opcode": "OP_GET_MORE",
+                "namespace": "test.users",
+                "zero": 0,
+                "return_count": 2,
+                "cursor_id": 72623859790382856
+              },
+              {
+                "request_id": 330,
+                "response_to": 0,
+                "opcode": "OP_KILL_CURSORS",
+                "zero": 0,
+                "cursor_ids": [
+                  72623859790382856
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 0,
+          "field": "mongo.opcode",
+          "distinct_values": [
+            "2001",
+            "2002",
+            "2004",
+            "2005",
+            "2007"
+          ]
+        },
+        {
+          "packet": 5,
+          "field": "mongo.response_to",
+          "value": "300"
+        }
+      ],
+      "packet_count": 12
+    },
+    "notes": [
+      "实测：链上 Plan 出 12 包（5 消息 + 7）。契约 §3 第 15 条写「4+7=11」与其自身 opcode 链列 5 条消息口径不一致，以引擎实测 12 为准（§14.20 先跑后钉）。"
+    ]
+  },
+  {
+    "id": "mongodb_reply_flags",
+    "proto": "mongodb",
+    "summary": "#16(A′): OP_REPLY flags 位面（AwaitCapable bit3）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "mongodb": {
+            "messages": [
+              {
+                "request_id": 400,
+                "response_to": 0,
+                "opcode": "OP_QUERY",
+                "namespace": "test.users",
+                "flags": 0,
+                "skip": 0,
+                "return_count": 1,
+                "query": {
+                  "x": 1
+                }
+              },
+              {
+                "request_id": 401,
+                "response_to": 400,
+                "opcode": "OP_REPLY",
+                "flags": 8,
+                "cursor_id": 0,
+                "starting_from": 0,
+                "returned": 1,
+                "documents": [
+                  {
+                    "x": 1
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "mongo.opcode",
+          "value": "2001"
+        },
+        {
+          "packet": 5,
+          "field": "mongo.reply.flags.awaitcapable",
+          "value": "1"
+        }
+      ]
+    },
+    "notes": [
+      "QueryFailure(bit1) + `$err` 文档档待 G-MONGO-4（REPLY 结构缺口）收口后补，本档只落 AwaitCapable(bit3)——不断言不存在的键。"
+    ]
+  },
+  {
+    "id": "mongodb_long_document_mss",
+    "proto": "mongodb",
+    "summary": "#17: 大文档 OP_INSERT 跨 MSS 1460 分段（tcp 层重组）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "mongodb": {
+            "messages": [
+              {
+                "request_id": 500,
+                "response_to": 0,
+                "opcode": "OP_INSERT",
+                "namespace": "test.users",
+                "flags": 0,
+                "documents": [
+                  {
+                    "blob": "414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "27017"
+        }
+      ],
+      "packet_count": 10
+    },
+    "notes": [
+      "实测：~1.5KB 载荷跨 MSS 1460 分 3 段 → 3 + 7 = 10 包（先跑后钉）。"
     ]
   }
 ]

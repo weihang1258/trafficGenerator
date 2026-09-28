@@ -124,6 +124,73 @@ func TestMongoDBChain_LayerConfigTranslated(t *testing.T) {
 // 时 DstPort==0，通用 FieldContract 块照样补 27017，修前也是绿的（假通过）。
 // 真 bug 是 mapToFlowSpec 把通用缺省 80 写进 spec.DstPort，使 DstPort switch
 // 与 FieldContract 块**双双失效**，线上端口变 80。
+// 链路径端口缺省的三条独立供给（gen-review m1 实证，逐条变异验证）：
+//   ① registry FieldContract "tcp.dst_port":"27017"（链路径权威）
+//   ② validateSpecBase 的 DstPort switch（chain_planner.go，冗余兜底）
+//   ③ mapToFlowSpec 的 setDefaultDstPort(27017)（flat 兼容路径）
+// 变异结论：关②仍绿（①兜住）；关①+②则 "destination port is required"。
+// 故 PortContractDefault（经 MapToFlowSpec）与下例都无法区分①/②——下例钉的是
+// **行为**（spec 无端口提示时链上仍出 27017），不是某一条 code path；②的注释
+// 声称「mapToFlowSpec 已把通用缺省 80 写进 spec」与实测（27017）不符，已勘误。
+func TestMongoDBChain_PortDefaultWithoutSpecHint(t *testing.T) {
+	layersArr := mgLayers(map[string]interface{}{"messages": mgQueryReplyMsgs()})
+	raw, _ := json.Marshal(layersArr)
+	p, err := layers.BuildLayersPlanner("mongodb", raw)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345, DstPort: 0,
+	})
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	up := 0
+	for pk := range ch {
+		if len(pk.Payload) == 0 || pk.Direction != "up" {
+			continue
+		}
+		up++
+		if pk.L4.DstPort != 27017 {
+			t.Fatalf("up packet DstPort = %d, want 27017 (universal default 80 must not leak)", pk.L4.DstPort)
+		}
+	}
+	if up == 0 {
+		t.Fatal("no up data packets produced")
+	}
+}
+
+// 设计 §2.1 明文：「无强制等于校验——显式写非 27017 被尊重、不拒绝」。
+// 层值优先（applySpecToChain）必须压过所有缺省点（①②③）。这条是 27017 三处
+// 缺省逻辑真正的风险面：任一处写成无条件赋值即在此红。
+func TestMongoDBChain_ExplicitNonDefaultPortRespected(t *testing.T) {
+	layersArr := []interface{}{
+		map[string]interface{}{"ip": map[string]interface{}{"src": "10.0.0.1", "dst": "20.0.0.1"}},
+		map[string]interface{}{"tcp": map[string]interface{}{"src_port": 12345, "dst_port": 9999}},
+		map[string]interface{}{"mongodb": map[string]interface{}{"messages": mgQueryReplyMsgs()}},
+	}
+	raw, _ := json.Marshal(layersArr)
+	p, err := layers.BuildLayersPlanner("mongodb", raw)
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	spec := core.MapToFlowSpec(map[string]interface{}{"layers": layersArr}, "mongodb")
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	for pk := range ch {
+		if len(pk.Payload) == 0 || pk.Direction != "up" {
+			continue
+		}
+		if pk.L4.DstPort != 9999 {
+			t.Fatalf("up packet DstPort = %d, want 9999 (explicit layer value must win, design §2.1)", pk.L4.DstPort)
+		}
+		return
+	}
+	t.Fatal("no up data packet")
+}
+
 func TestMongoDBChain_PortContractDefault(t *testing.T) {
 	layersArr := mgLayers(map[string]interface{}{"messages": mgQueryReplyMsgs()})
 	cfg := map[string]interface{}{"layers": layersArr}
@@ -323,7 +390,7 @@ func TestMongoDBChain_IPv6Carrier(t *testing.T) {
 	}
 }
 
-// ⑫ 用例文件收官自查（M5 清单④）：21 例（14 正 + 7 负）；非负例顶层键 ⊆
+// ⑫ 用例文件收官自查（M5 清单④）：31 例（18 正 + 13 负）；非负例顶层键 ⊆
 // 白名单；非负例链形 = [ip,tcp,mongodb]；presence 负例在案；负例 expect 键集
 // 严格两键。
 func TestMongoDBChain_CaseFileAudit(t *testing.T) {
@@ -335,8 +402,8 @@ func TestMongoDBChain_CaseFileAudit(t *testing.T) {
 	if err := json.Unmarshal(raw, &cases); err != nil {
 		t.Fatalf("parse cases: %v", err)
 	}
-	if len(cases) != 21 {
-		t.Fatalf("want 21 cases (8 pos + 13 neg), got %d", len(cases))
+	if len(cases) != 31 {
+		t.Fatalf("want 31 cases (18 pos + 13 neg), got %d", len(cases))
 	}
 	allowed := map[string]bool{"layers": true, "flow_control": true, "output": true,
 		"output_config": true, "group_id": true}
