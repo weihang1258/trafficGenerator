@@ -296,3 +296,78 @@ func TestSMBChain_IPv6Carrier(t *testing.T) {
 		t.Fatalf("want 29 packets, got %d", n)
 	}
 }
+
+// ⑪ probe_smb 路由证明（D-PROBE-SMB-1：probe 无独立层/协议名，归并 smb
+// 子例族；用例 proto=smb 经同一 ChainPlanner("smb") + case "smb" 翻译块）。
+// 断言：①probe 三 fixture（显式 close / 默认空层 / netbios 139）走 smb
+// 规划器产出与 smb 同形包数（25/29/29）；②probe 无独立注册（registry 无
+// probe 层，BuildLayersPlanner("probe_smb") 报错）。
+func TestSMBChain_ProbeRouting(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		smb  map[string]interface{}
+		tcp  map[string]interface{}
+		want int
+	}{
+		{"explicit_close", map[string]interface{}{"operations": []interface{}{
+			map[string]interface{}{"op_type": "close"}}}, nil, 25},
+		{"default_session", map[string]interface{}{}, nil, 29},
+		{"netbios_139", map[string]interface{}{"transport": "netbios"},
+			map[string]interface{}{"src_port": smbSport, "dst_port": 139}, 29},
+	} {
+		tcp := tc.tcp
+		if tcp == nil {
+			tcp = map[string]interface{}{"src_port": smbSport, "dst_port": 445}
+		}
+		pkts, err := smbPlan(t, smbLayers(tc.smb, tcp))
+		if err != nil {
+			t.Fatalf("%s: Plan: %v", tc.name, err)
+		}
+		if len(pkts) != tc.want {
+			t.Fatalf("%s: want %d packets, got %d", tc.name, tc.want, len(pkts))
+		}
+	}
+	if _, err := layers.BuildLayersPlanner("probe_smb", smbJSON(t, smbLayers(map[string]interface{}{}, nil))); err == nil {
+		t.Fatal(`BuildLayersPlanner("probe_smb") = nil error, want unregistered-protocol error`)
+	}
+}
+
+// ⑫ probe_smb 负例锚三面（testcase §4 实读锚词逐字）：扁平键 / layers+
+// 扁平混用 / 静态四元组+多流。均走与 probe_neg_* 用例同一入口。
+func TestSMBChain_ProbeNegativeAnchors(t *testing.T) {
+	if msg := core.CheckProtoFlat("smb", map[string]interface{}{
+		"layers": smbLayers(map[string]interface{}{}, nil), "src_ip": smbCli,
+	}); !strings.Contains(msg, "no longer accepts flat config field src_ip") {
+		t.Fatalf("flat anchor msg = %q", msg)
+	}
+	if _, errs := schema.ValidateStrategy("synth", "smb", map[string]any{
+		"layers": smbLayers(map[string]interface{}{}, nil), "src_port": smbSport,
+	}, nil); len(errs) == 0 {
+		t.Fatal("layers+src_port mix must be rejected")
+	} else {
+		found := false
+		for _, e := range errs {
+			if strings.Contains(e.Error(), "config mixes layers with flat four-tuple field src_port") {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("mix anchor errs = %v", errs)
+		}
+	}
+	if _, errs := schema.ValidateStrategy("synth", "smb", map[string]any{
+		"layers": smbLayers(map[string]interface{}{}, nil),
+	}, &schema.FlowControl{Type: "flows", Value: 2}); len(errs) == 0 {
+		t.Fatal("static four-tuple with flows>1 must be rejected")
+	} else {
+		found := false
+		for _, e := range errs {
+			if strings.Contains(e.Error(), "layers pin a static four-tuple but flows > 1") {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("static-copy anchor errs = %v", errs)
+		}
+	}
+}
