@@ -3,11 +3,12 @@ package layers_test
 // D-OSPF-1 P4 链级红例：[ip→ospf] raw-IP 链（RFC 2328 OSPFv2，IP proto 89；
 // ip-layer raw 族第 15 连，igmp/icmp 同构）。红例面（契约 §14-P2）：
 // ①顶层 ospf 子映射 presence 判死（空 map 也死）；
-// ②白名单外游离键拒（顶层 src_ip/count 走 CheckProtoFlat，src_mac/ttl 走
-//   schema 层链形状门）；
+// ②白名单外游离键拒（顶层 src_ip/dst_ip/count 走 CheckProtoFlat 五键，
+//   src_mac 走 schema.checkLayerFlatConflict）；
 // ③链夹 tcp/udp 拒（carrier 锚）；
 // ④链缺 ip 拒（carrier 锚，DependsOn 自动补全前拦）；
-// ⑤层 config → spec.OSPF 翻译端到端（strict 解码：嵌套未知键拒，bgp 范式）。
+// ⑤层 config → spec.OSPF 翻译端到端（strict 解码：嵌套未知键拒，bgp 范式）；
+// ⑥TTL 面实测（§10 的 P4 待测项：层 ttl 值惰性，生成器固写 1）。
 
 import (
 	"context"
