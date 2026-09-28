@@ -19,7 +19,7 @@
 | 3 | `MODBUSConfig` 定义"规划中" | `types.go:9471` 已定义 `MODBUSConfig`（6 字段）+ `:9499` `MODBUSOperation`（16 字段）；`FlowSpec.MODBUS` 槽位 `:1866` 已存在 | 已落码 |
 | 4 | `modbus` 解析接线"规划中" | `strategy_convert.go:1579` 已有 `case "modbus"`（`parseMODBUSConfig` 搬运，`:7813`）；`chain_planner.go:938` 源端口 0 保持、`:1188` 目的端口默认 502；`chain_planner_translate.go:89` Meta 直传 `MODBUS: spec.MODBUS` | **Meta 直传已通**；缺的是**层内化**（G-MODBUS-2） |
 | 5 | 旧稿 §7 用例"205 条"、§5 样例全为顶层扁平键 | 存量 `cases/modbus.json` **213 例**：顶层键分布 = `{layers, src_ip, dst_ip, src_mac, dst_mac, src_port, dst_port, modbus}` ×130 + 同形带 `count` ×2 + **纯扁平（无 layers）** ×81；132 例的 `layers` 恒为 **空壳** `[{"tcp":{}},{"modbus":{}}]`（机读唯一值） | 旧样例形 = **过渡态违规形**（§1.4 混用）；**今日 MCP 实测三种形状全被拒**（§0.1） |
-| 6 | 旧稿 §6 包数公式（无握手挥手时 N×2） | HEAD `layer_gen_test.go:269-290` 断言链上 `[ip→tcp→modbus]` 3 事务 = **13 包**（3 握手 + 6 数据 + 4 包挥手）；存量 JSON 正例 `packet_count` 众数 **9**（113 例）= 3 + 2 + 4（单事务 req+resp） | 链上公式 = **3 + 2N + 4**（N=事务数）；旧稿"仅 PDU 序列"口径作废。**挥手包数**：legacy `modbus.go:575-593` 已是 **4 包**（FIN\|ACK up → ACK down → FIN\|ACK down → ACK up），与链上 tcp 层一致——`layer_gen_test.go:272` 注释称"legacy 是 3 包挥手"系**过时注释**（同文件 `:398` 自述"TCP 四次挥手"），以代码为准 |
+| 6 | 旧稿 §6 包数公式（无握手挥手时 N×2） | HEAD `layer_gen_test.go:269-290` 断言链上 `[ip→tcp→modbus]` 3 事务 = **13 包**（3 握手 + 6 数据 + 4 包挥手）；存量 JSON 正例 `packet_count` 众数 **9**（113 例）= 3 + 2 + 4（单事务 req+resp） | 链上公式 = **3 + 2N + 4**（N=事务数）；旧稿"仅 PDU 序列"口径作废。**挥手包数**：legacy `modbus.go:575-593` 已是 **4 包**（FIN\|ACK up → ACK down → FIN\|ACK down → ACK up），与链上 tcp 层一致——`layer_gen_test.go:272` 注释称"legacy 是 3 包挥手"系**过时注释**（同协议 `modbus.go:398` 自述"TCP 四次挥手"；`layer_gen_test.go` 全文无此字样），以代码为准 |
 | 7 | 旧稿称多 master/多流"支持"（S11/S12，T-161~T-180） | 链上**显式拒绝**：`layer_gen.go:88-91` 生成器 + `layer_gen.go:158-166` validator 双拒 `master_count>1`/`flow_count>1`（enip/dnp3 同款纪律——链一次一个 flow） | 链形状下**多流不适用**；语义改由策略级 `flow_control flows=N` 承载（§5） |
 | 8 | 旧稿未提 `CheckProtoFlat` | `strategy_convert.go:8625` `CheckProtoFlat` **无 modbus 分支**（`grep -c 'protocol == "modbus"'` = **0** 实测） | 顶层 `modbus` 子映射 presence **今日不判死**（G-MODBUS-3，moxa G-MOXA-2 同形） |
 
@@ -83,7 +83,7 @@
 
 端口：IANA 分配 **TCP 502**（spec 缺省；`FieldContract {"tcp.dst_port":"502"}`，`registry.go:384`；`chain_planner.go:1188` 缺省补齐）。fixture 统一 `dst_port=502`；用例一律显式写端口并纳入断言。非缺省端口（如 1502，存量有 1 例）同样合法——端口不参与协议语义。
 
-固定偏移：无 VLAN/IP options/TCP options 时，**每帧首字节起点为 IPv4 offset 54（14+20+20）、IPv6 offset 74**（14+40+20）。存量 213 例全部断言 `offset 54`（169 例有 frames 断言，机读唯一偏移值）。
+固定偏移：无 VLAN/IP options/TCP options 时，**每帧首字节起点为 IPv4 offset 54（14+20+20）、IPv6 offset 74**（14+40+20）。存量 213 例全部断言 `offset 54`（**110 例有 frames 断言、共 169 条**，机读唯一偏移值 54）。
 
 目标形状 spec_json 样例（严格层链形，顶层仅 `layers`；**目标形状声明**：registry `modbus` Fields 今日缺 `transactions`，此形**今天跑不通，需先补代码** G-MODBUS-1+G-MODBUS-2，§1.9 口径）：
 
@@ -207,7 +207,7 @@
 | `handshake` | **恒 true**：`layer_gen.go:181-183` 无条件写 `spec.TCP.Handshake = true`（legacy modbus 恒产握手，链上不可关；显式 false 被忽略） |
 | `termination` | **恒 true**：同上（`spec.TCP.Termination = true`） |
 | `mss` | 分段粒度：MBAP 帧最大 260B < MSS 1460，单帧单段；显式小 MSS 可强制分段（§8 边界） |
-| `src_port` 缺席 + `flows>1` | worker 保底 `12345+i`（`strategy_convert.go:49`） |
+| `src_port` 缺席 + `flows>1` | worker 保底 `12345+i`（`worker.go:307-309`；`DefaultSrcPort=12345` 常量在 `strategy_convert.go:49`） |
 
 ## 4. 业务场景分析（现网典型场景与五层覆盖）
 
@@ -348,7 +348,7 @@ modbus 层**无自有状态**（旧稿 §4.1 继承）：握手/seq-ack/挥手/�
 | # | 八项 | 规范要求 | 业务场景 | 代码现状 | 缺口 |
 |---|---|---|---|---|---|
 | 1 | 连接模型 | 主站主动建连，单 TCP 连接承载 N 事务，无握手/认证阶段（spec §4.1） | 场景①–⑩ | `DependsOn ["tcp"]` 单值（`registry.go:382`）；TCP 握手/挥手由 tcp 层恒产（`layer_gen.go:180-185`） | 无 |
-| 2 | 命令/消息表 | 19 个 FC + 异常响应（spec §6.1-§6.21/§7）；适配为 FC×响应形态矩阵（§10.2，57 格逐格结论） | 场景①–⑩ | `modbus.go` 19 个 `build*Request`/`build*Response` 分支 + `Validate` 全分支 | 无（§10.2 逐格） |
+| 2 | 命令/消息表 | 19 个 FC + 异常响应（spec §6.1-§6.21/§7）；适配为 FC×响应形态矩阵（§10.2，**80 格**逐格结论） | 场景①–⑩ | `modbus.go` 19 个 `build*Request`/`build*Response` 分支 + `Validate` 全分支 | 无（§10.2 逐格） |
 | 3 | 状态机 | 建连—数据—释放 3 态；事务无跨事务状态（spec §4.1） | 全正例 | tcp 层拥有状态；modbus 纯驱动 | 无 |
 | 4 | 字段表 | MBAP 4 字段 + PDU per-FC 字段（§3.1/§3.3）；`MODBUSConfig` 6 + `MODBUSOperation` 16 字段 | 数据场景层 | `types.go:9471/9499` 已定义；builder 逐字段装配 | **层链承载**（G-MODBUS-1：Fields 缺 `transactions`） |
 | 5 | 错误处理 | 20 类负例（§7 表） | 负例 E-1…E-20 | `modbus.go` Validate 全分支（142 个单测覆盖） | 无（锚词已钉） |
@@ -596,15 +596,15 @@ modbus 层**无自有状态**（旧稿 §4.1 继承）：握手/seq-ack/挥手/�
 
 ### 12.12 §12 强制展开：动态字段清单与序号算法
 
-四元组 `ip.src/dst`、`ip.ttl`、`tcp.src_port/dst_port`、`udp.src_port/dst_port`、`eth.src_mac/dst_mac` 五策略全开（allowlist `internal/core/layer_dyn.go` 头部实测四行：`ip`/`tcp`/`udp`/`eth`；保底 `DefaultSrcPort+i`（`strategy_convert.go:49`）；dst 动态与 502 缺省和平共处——显式/动态值非零即不触发补齐）。
+四元组 `ip.src/dst`、`ip.ttl`、`tcp.src_port/dst_port`、`udp.src_port/dst_port`、`eth.src_mac/dst_mac` 五策略全开（allowlist `internal/core/layer_dyn.go` 头部实测四行：`ip`/`tcp`/`udp`/`eth`；保底 `DefaultSrcPort+i`（`worker.go:307-309`，常量 `strategy_convert.go:49`）；dst 动态与 502 缺省和平共处——显式/动态值非零即不触发补齐）。
 
 **业务字段全关**（allowlist 无 `modbus` 行，`grep` 零命中实测；对象即拒）：`transactions[]`（事务剧本，16 个 per-op 键）/ `unit_id`（从站选择器）/ `suppress_broadcast`（广播策略）/ `shared_tid_space`（TID 空间选择器）——逐流变体需求列 A′ 候选（testcase §6.2）。
 
-序号算法实读：`parseLayerDyn`（`internal/core/layer_dyn.go:78`）/ `TupleGenerator.Next`（`tuple_generator.go`）/ 保底自增（`strategy_convert.go:49` + worker 注入）/ allowlist 白名单（`layer_dyn.go` 头部）——**`modbus` 无块**（grep 实测零命中），即层内任何对象值 → `does not support dynamic`。
+序号算法实读：`parseLayerDyn`（`internal/core/layer_dyn.go:78`）/ `TupleGenerator.Next`（`tuple_generator.go`）/ 保底自增（`worker.go:307-309` 注入 `DefaultSrcPort+i`）/ allowlist 白名单（`layer_dyn.go` 头部）——**`modbus` 无块**（grep 实测零命中），即层内任何对象值 → `does not support dynamic`。
 
 ## 13. P3 对接清单（T-MODBUS 草稿输入；正文落 testcase 文件）
 
-存量 213 例（151 正 + 62 负，180 个唯一 T 编号）+ packet_count/锚词 + fixture 常量 + 双通道断言基线 + 存量缺口登记（testcase §2–§5/§8 全量；本车道不改 JSON）。A′ 候选：`modbus_ipv6`（**IPv6 零覆盖，offset 74**；引擎已支持，MCP 实测通过）/ `modbus_eth_mac_layer`（MAC 迁层验证）/ `modbus_default_port_502`（删 dst_port 验证 FieldContract 补齐）/ `modbus_mss_segment`（显式小 MSS 分段）/ `modbus_neg_unknown_field`（白名单外游离键）/ `modbus_neg_presence_shape`（**不建**，G-MODBUS-3 未闭前会假绿）。
+存量 213 例（151 正 + 62 负，180 个唯一 T 编号）+ packet_count/锚词 + fixture 常量 + 双通道断言基线 + 存量缺口登记（testcase §2–§5/§8 全量；本车道不改 JSON）。**A′ 可建 5 例**（与 testcase §6.2 对齐）：`modbus_ipv6`（**IPv6 零覆盖，offset 74**；引擎已支持，MCP 实测通过）/ `modbus_eth_mac_layer`（MAC 迁层验证）/ `modbus_default_port_502`（删 dst_port 验证 FieldContract 补齐）/ `modbus_mss_segment`（显式小 MSS 分段）/ `modbus_neg_unknown_field`（白名单外游离键）。**另有 1 例不建**：`modbus_neg_presence_shape`（G-MODBUS-3 未闭前建了假绿，不计入可建数）。
 
 ## 14. 缺口立项清单（有缺口写「缺口立项」，不许空着）
 

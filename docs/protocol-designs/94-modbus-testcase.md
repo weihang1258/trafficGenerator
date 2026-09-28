@@ -22,7 +22,7 @@
 | `strategy_fc` | **0 例** |
 | 层内 `tcp` 键 | 恒 `{}`（无 mss/handshake/initial_seq，213/213） |
 | 正例 `packet_count` | 145 例有（众数 **9** = 3 握手 + req + resp + 4 挥手，113 例）；6 例用 `min_packets` |
-| 帧断言偏移 | 169 例，**恒 offset 54**（IPv4） |
+| 帧断言偏移 | **110 例 / 169 条**，**恒 offset 54**（IPv4） |
 | 断言字段面 | `modbus.*` 30 种 + `mbtcp.*` 3 种 + `tcp.dstport/srcport` + `ip.src` |
 | 负例 | 62；expect 键集：`{ec,ee,notes}`×33 / `{ec,ee}`×13 / `{expect_error}`×8 / 含成功断言×5 / `{ee,notes}`×3。**缺 `error_contains` 者 11 例**（8 例仅 `{expect_error}` + 3 例 `{expect_error,notes}`）；**混入成功断言者 5 例** |
 
@@ -32,11 +32,11 @@
 
 **TSHARK 基线**：本机 tshark 3.6.14 有 Modbus 解析器。可用通道：① `modbus.*`（func_code/reference_num/word_cnt/bit_cnt/byte_cnt/exception_code/diagnostic_code/and_mask/or_mask/mei/conformity_level/object_*/ev_count/…，**30 种**，机读实测）；② `mbtcp.*`（trans_id/unit_id/len，3 种）；③ `tcp.dstport/srcport`/`tcp.flags`/`tcp.seq`/`tcp.len`；④ `ip.src`/`ipv6.src/dst`；⑤ frames `offset/hex`（帧首字节，IPv4 offset 54 / IPv6 offset 74）。
 
-**已知 tshark 限制**：FC 0x08 子功能 0x0015 在 Wireshark 3.6 值表未收录（实测显示 `Diagnostic Code: Unknown (21)`）——该例不依赖 tshark 诊断码字段，改断 frames hex。
+**已知 tshark 限制（更正 2026-09-28）**：FC 0x08 子功能 0x0015 在 Wireshark 3.6 **值表未收录**（显示 `Diagnostic Code: Unknown (21)`）——**但字段本身可观察**：自建 pcap 实证 `tshark -T fields -e modbus.diagnostic_code` 输出 **`21`**，`tshark -G fields` 确认 `modbus.diagnostic_code` 在册（`FT_UINT16`），仅 `tshark -G values` 缺 `21` 条目。**故该例断言 `modbus.diagnostic_code=21` 与 frames hex 并存、均有效**（存量 `modbus-fc08-sub-0015-max` 正是双断言，机读实测）；**不得**因"值表未收录"删掉字段断言（先前"改断 frames hex"的说明系误判，已删）。
 
 **动态字段禁止硬编码**：生成期值用 `same_as_packet`/`distinct_values`/`nonzero` 断言。
 
-**包数约定**：单流 = 3（握手）+ 2N（N 事务 × req+resp）+ 4（FIN 四包挥手）。响应被抑制时 `2N` 减为 N。数据帧从帧 4 起；实现期以实际输出校准 packet_count，断言以 fields/frames 为准；负例无 packet_count。
+**包数约定**：单流 = 3（握手）+ 2N（N 事务 × req+resp）+ 4（FIN 四包挥手）。**空事务（`transactions: []`）= 3 + 0 + 4 = 7 包**（无 modbus 数据帧，`modbus-transactions-empty-array` 机读实测 `packet_count=7`；该例不设 `directional`——挥手 FIN 后 server ACK 仍在，但无响应方向数据）。响应被抑制时 `2N` 减为 N（如 `responsemode-no-response` 单事务 = 3 + 1 + 4 = 8 包，机读实测）。数据帧从帧 4 起；实现期以实际输出校准 packet_count，断言以 fields/frames 为准；负例无 packet_count。
 
 **保活/重试/RST 口径**：modbus 层无 PING 类消息，不设正例亦不得进负例；RST 为框架 tcp 层能力，本协议层不新增断言；正例恒 FIN 优雅终止。**响应超时/重传显式不适用**（设计 §4 声明，用例不得携带）。
 
@@ -60,8 +60,8 @@
 | FC 0x2B MEI | 11 | `modbus-fc2b-conformity-83-extended-private` | §3.3 MEI 枚举 |
 | 异常响应 | 9 | `modbus-exception-fc03-0a`、`modbus-exception-fc05-03-fc10-04` | §3.6 异常码 |
 | 广播语义 | 3 | `modbus-broadcast-unit0-mirror`/`-suppress`/`-exception` | §5 广播三细则 |
-| TID 序列 | 9 | `modbus-tid-increment-256tx`、`modbus-tid-wrap-65536` | §5 TID 规则 |
-| 多流/multi | 21 | `modbus-flow-count-4`、`modbus-shared-tid-wrap-65538` | §5（**链上拒绝**，见 §5.4） |
+| TID 序列 | 8 | `modbus-tid-increment-256tx`、`modbus-tid-wrap-65536` | §5 TID 规则 |
+| 多流/multi | 20 | `modbus-flow-count-4`、`modbus-master2-flow2-matrix` | §5（**链上拒绝**，见 §5.4） |
 | wire 集成 | 9 | `modbus-wire-mbap-length`、`modbus-wire-fc11-no-byte-count` | §3 全帧字节 |
 | 默认/事务形态 | 5 | `modbus-transactions-empty-array`、`modbus-responsemode-no-response` | §5 自动派生规则 |
 | 地址/端口/UnitID | 7 | `modbus-addr-ffff-max`、`modbus-dstport-1502`、`modbus-unitid-128-mid` | §3.1/§8 |
@@ -175,6 +175,8 @@ Modbus.org **MB-ASYM-TCP V1.1b3**（MBAP 帧 + 19 FC + 10 异常码 + 广播语�
 
 存量 **22 例**（`master_count>1` 13 例 ∪ `flow_count>1` 12 例；19 正 + 3 负）在链形状下**生成器 + validator 双拒**（设计 §7）。去向三选一（改写时逐例裁定并注记）：① 转策略级 `flow_control {"flows": N}`（保留多流语义，如 `modbus-flow-count-4`/`modbus-mastercount2-flows3`）；② 改判为负例（锚词 `master_count`/`flow_count` 不支持）；③ 标不适用并从 ID 集合移除（若语义无法表达）。**不得静默保留为"正例"**（会真红）。
 
+**口径对齐（22 vs 表格行 20）**：22 = **真实多流判据**（`master_count>1 ∪ flow_count>1`，含 3 负例）；§2/§8.3 域表的「多流/multi」行 = **20**（= 22 − 3 负例〔归入负例行〕+ 1 `modbus-master1-flow1-baseline`〔`mc=fc=1` 未越界，按命名归本域〕）。两数口径不同、互不矛盾；**域表按"每例恰属一行"分区，求和 = 213**（机读复算）。
+
 其中 3 例负例（`modbus-validate-mastercount-0`/`-1001`、`modbus-validate-flowcount-0`）**语义需校正**：实测 `Validate` 判的是 `>1000`/`>100`（`modbus.go:70-75`），而存量注记写"master_count=0 rejected"/"flow_count=0 rejected"但载荷实为 **`1001`**/**`101`**——**注记与载荷不符**；且 `mastercount-0` 与 `mastercount-1001` **载荷完全相同（均 1001），属重复例**（改写时：一个保留为 `>max` 负例，另一个改载荷为 `0` 或删除并注记原因）。另 3 例（`modbus-master1-flow1-baseline`（mc=1/fc=1）、`modbus-tid-perflow-5tx`（无 mc/fc 键）、`modbus-shared-tid-wrap-65538`（mc=1/fc=1））名含 multi 但 `master_count`/`flow_count` **未越界**（机读实测），**链上合法**，仅需常规层链化。
 
 ## 6. P3 固定动作（CORE_MEMORY 管线：§3.15 三项 + A′/B′ 两分类 + 3.14 豁免）
@@ -201,6 +203,7 @@ Modbus.org **MB-ASYM-TCP V1.1b3**（MBAP 帧 + 19 FC + 10 异常码 + 广播语�
 | 端口面 | dst_port 缺省补齐 502 | `modbus_default_port_502`（**删键**不断言值——存量 `modbus-dstport-default-502` 名为"缺省"但**实际显式写了 `dst_port:502`**，机读实测，非真缺省例） |
 | 分段面 | 显式小 MSS 强制分段 | `modbus_mss_segment`（G-MODBUS-10，先跑后钉段数） |
 | 判死面 | 白名单外游离键 `unknown field` | `modbus_neg_unknown_field` |
+| **不建** | presence 形状（`layers` + 顶层空 `modbus` 子映射） | `modbus_neg_presence_shape`——**G-MODBUS-3 未闭前建了会真绿假通过**（§1 实测 `completed/100%`），**不列入 A′ 可建清单** |
 | 负例纯净性 | 11 例补锚词 + 8 例补 `error_contains` + 5 例删成功断言 | G-MODBUS-6（§4 表） |
 
 **B′（框架面）**：`CheckProtoFlat` modbus presence 分支（G-MODBUS-3，等框架级 unknown-key 白名单，不单独立项）/ 业务字段动态（G-MODBUS-4，allowlist 无 `modbus` 行）/ 多流展开（G-MODBUS-7，明确不解决）/ 响应超时重传（G-MODBUS-8，明确不解决）。进设计 §14，「明确不解决 + 迁入计划」。
@@ -214,7 +217,7 @@ Modbus.org **MB-ASYM-TCP V1.1b3**（MBAP 帧 + 19 FC + 10 异常码 + 广播语�
 1. **P4 顺序**：G-MODBUS-1（registry Fields + schemagen 重跑）→ G-MODBUS-2（translate 分支）→ 213 例改写（删顶层扁平键，MAC 迁 eth 层，modbus 子映射迁层内）→ 先跑后钉 213 例 → 修 G-MODBUS-6（负例纯净性）→ 补 A′ 例（IPv6/MAC/缺省端口/MSS/游离键）→ 全量复跑。
 2. **实测顺序**：先单事务基线（帧 hex 与 9 包），再异常/广播/豁免，再 3 事务 TID 序列，再边界（qty=125/1968、TID 回绕），最后 IPv6（offset 74）。
 3. 二进制与 HEAD 同代确认（门2③：`find trafficgen -name '*.go' -newer <server-binary>` 无输出）；门2② 全量（`CASE_PROTO=modbus` 全量不是增量）；门2④ 反查绿后进 P6。
-4. 任何"tshark 字段不存在"的断言须先 `tshark -G fields | grep modbus` 实证（FC 0x08 子功能 0x0015 先例）。
+4. 任何"tshark 字段不存在"的断言须先 `tshark -G fields | grep modbus` 实证（FC 0x08 子功能 0x0015 先例：**值表缺条目 ≠ 字段不可观察**——`modbus.diagnostic_code` 字段在册且输出 21，只是 `-G values` 无 21 标签；**不得据此删字段断言**）。
 
 ## 8. 存量用例缺口登记表（213 例现状 + 待代码阶段改写）
 
@@ -222,7 +225,7 @@ Modbus.org **MB-ASYM-TCP V1.1b3**（MBAP 帧 + 19 FC + 10 异常码 + 广播语�
 
 ### 8.1 存量实测面（2026-09-28，机读）
 
-`cases/modbus.json` **213 例**：151 正 + 62 负；顶层键 8 种 + 2 例 `count` + 81 例纯扁平；132 例 `layers` 恒为空壳 `[{"tcp":{}},{"modbus":{}}]`；地址/MAC 213/213 恒同值（**零 IPv6**）；`src_port` 211 例为 0；`strategy_fc` 0 例；层内 `tcp` 恒 `{}`；正例 `packet_count` 众数 9（113 例）；帧断言偏移恒 54（169 例）；负例 62 例中 11 例缺锚词、5 例混入成功断言。
+`cases/modbus.json` **213 例**：151 正 + 62 负；顶层键 8 种 + 2 例 `count` + 81 例纯扁平；132 例 `layers` 恒为空壳 `[{"tcp":{}},{"modbus":{}}]`；地址/MAC 213/213 恒同值（**零 IPv6**）；`src_port` 211 例为 0；`strategy_fc` 0 例；层内 `tcp` 恒 `{}`；正例 `packet_count` 众数 9（113 例）；帧断言偏移恒 54（**110 例 / 169 条**）；负例 62 例中 11 例缺锚词、5 例混入成功断言。
 
 **顶层旧键残留总量 = 1059 处**（**非负例口径**：151 正例 × 7 键 = 1057 + `count` 2；62 负例不计——负例不产 PCAP，合规判据只看正例，与 ldp/rip/pcep/a2a/nvgre 车道一致）。全例口径 1493。即合规化的清理量。
 
@@ -258,8 +261,8 @@ Modbus.org **MB-ASYM-TCP V1.1b3**（MBAP 帧 + 19 FC + 10 异常码 + 广播语�
 | FC 0x2B MEI | 11 | **改写** | 同上 |
 | 异常响应 | 9 | **改写** | 同上 |
 | 广播语义 | 3 | **改写** | 同上 |
-| TID 序列 | 9 | **改写** | 同上 |
-| 多流/multi | 21 | **改写 + 裁定** | §5.4 三选一（转 `flow_control` / 改负例 / 移出） |
+| TID 序列 | 8 | **改写** | 同上 |
+| 多流/multi | 20 | **改写 + 裁定** | §5.4 三选一（转 `flow_control` / 改负例 / 移出） |
 | wire 集成 | 9 | **改写** | 同基线动作；帧 hex 不变 |
 | 默认/事务形态 | 5 | **改写** | 同上；`transactions-empty-array` 保留空数组语义 |
 | 地址/端口/UnitID | 7 | **改写** | 同上；地址→`layers[ip]`、端口→`layers[tcp]` |
@@ -268,7 +271,7 @@ Modbus.org **MB-ASYM-TCP V1.1b3**（MBAP 帧 + 19 FC + 10 异常码 + 广播语�
 | 独立性（响应/请求） | 1 | **改写** | 同上 |
 | 负例（Validate） | 62 | **改写 + 修纯净性** | 顶层键删 + §8.2 #5 三类缺陷修齐 |
 
-**合计 213** ✓ 逐条裁定：**0 作废，0 等价覆盖**（全部待改写 + A′ 新增 6 例 + 21 例多流待裁定）。**无"作废不注原因"**。**本车道执行数 = 0**（缺口登记，非改写）。
+**合计 213** ✓（机读复算：23 行逐行求和 = 213；**分区口径**：每例恰属一行——负例 62 例整体归「负例」行，多流行按真实判据 `master_count>1 ∪ flow_count>1` 的 19 正例 + `modbus-master1-flow1-baseline`〔`mc=fc=1`，按命名归本域〕= 20，**非**按 id 子串 `multi` 机械计数〔该法只得 9，且多数是 FC 名如 `fc0b-multi-tx`〕）。逐条裁定：**0 作废，0 等价覆盖**（全部待改写 + **A′ 可建 5 例**〔`modbus_neg_presence_shape` 不计——G-MODBUS-3 未闭前建了假绿〕+ 20 例多流待裁定）。**无"作废不注原因"**。**本车道执行数 = 0**（缺口登记，非改写）。
 
 ## 9. 修订记录
 
