@@ -5721,6 +5721,138 @@ def check_icmp(cases):
     return rows
 
 
+def check_hds(cases):
+    """D-HDS-1（G-HDS-1）P4 反查表（21 例 = 13 改写正 + 4 自然守卫负 +
+    4 链级红例；[ip,tcp,http,hds] body 变换器族）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("hds"), dict):
+                lays.append((c.get("id", "?"), l["hds"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 准入与接线（G-HDS-1 迁层五件）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 hds", '"hds": true' in pg, "在列"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "hds"')
+    reg_block = rg[i_reg:rg.index("r.Register(", i_reg + 10)]
+    rows.append(("registry hds 行（DependsOn http + FieldContract 80 + 五键业务）",
+                 'DependsOn: []string{"http"}' in reg_block
+                 and '"tcp.dst_port": "80"' in reg_block
+                 and all('"%s"' % k in reg_block for k in
+                         ("profile", "keep_alive", "manifest", "sessions", "wire_fault")),
+                 "在案"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate 层 config 严格往返解码进 spec.HDS",
+                 "hds layer config encode" in tr and "hds layer config decode" in tr
+                 and "DisallowUnknownFields" in tr, "在案"))
+    rows.append(("FlowMeta.HDS 直传（Meta 字面量检查点）",
+                 re.search(r"HDS:\s+spec\.HDS\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.HDS 字段", re.search(r"HDS\s+\*core\.HDSConfig", gen) is not None, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(hds)",
+                 "internal/protocol/hds" in mn and 'NewChainPlanner("hds")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat presence 判死顶层 hds（自键）",
+                 "no longer accepts a top-level hds sub-config" in sc, "在案"))
+    rows.append(("mapToFlowSpec 存量兼容块记 ValidationErrors",
+                 'if protocol == "hds" {' in sc, "在案"))
+    pl_src = (tg / "internal" / "protocol" / "hds" / "planner.go").read_text()
+    rows.append(("生成器/校验器 init 注册（RegisterLayerGenerator/Validator）",
+                 "RegisterLayerGenerator" in pl_src and "RegisterLayerValidator" in pl_src, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    rows.append(("载体预检（缺 http 拒绝，锚 requires the http carrier layer）",
+                 'hasLayer(chain, "hds") && !hasLayer(chain, "http")' in vl, "在案"))
+    gl = json.loads((tg / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
+    gfields = gl["layers"]["hds"]["fields"]
+    rows.append(("schemagen 生成表 hds 五键对齐 registry",
+                 all(k in gfields for k in ("profile", "keep_alive", "manifest", "sessions", "wire_fault")),
+                 "在案"))
+    vt = (tg / "tools" / "pipe_gate.sh").read_text()
+    rows.append(("pipe_gate hds 自键 presence 红线登记",
+                 "|hds|" in vt or "|hds)" in vt, "在案"))
+
+    # 2. 行为面（生成器/变换器/构建器关键件）。
+    rows.append(("终结层事件流（每 session 一 body 事件 EmitMsg）",
+                 "EmitMsg" in pl_src and "buildSessionBody" in pl_src, "在案"))
+    for guard, name in [
+        ("manifest id is required", "manifest id 守卫"),
+        ("manifest stream_type is required", "stream_type 守卫"),
+        ("at least one media entry", "media 非空守卫"),
+        ("sessions is required", "sessions 非空守卫"),
+        ("unknown session kind", "未知 kind 守卫"),
+        ("bootstrap base64 decode", "Base64 解码守卫"),
+        ("no fragments configured", "fragment 非空守卫"),
+    ]:
+        rows.append((f"守卫：{name}", guard in pl_src, f"锚词 {guard}"))
+    bl = (tg / "internal" / "protocol" / "hds" / "builder.go").read_text()
+    for prim, name in [
+        ("func buildF4MManifest", "F4M manifest 序列化"),
+        ("func buildBootstrapBox", "abst 根盒装配"),
+        ("func buildASRTBox", "asrt segment run 表"),
+        ("func buildAFRTBox", "afrt fragment run 表"),
+        ("func buildF4FFragment", "F4F mdat 盒"),
+    ]:
+        rows.append((f"原语：{name}", prim in bl, "在案"))
+    tf = (tg / "internal" / "protocol" / "http" / "hds_transformer.go").read_text()
+    rows.append(("http 层 body 变换器（GET/200 三 Content-Type）",
+                 "generateHDSTransformer" in tf and "f4m+xml" in tf
+                 and "video/f4f" in tf, "在案"))
+    ct = tg / "internal" / "core" / "layers" / "hds_chain_test.go"
+    rows.append(("链级红例在案（hds_chain_test.go）", ct.exists(), "在案"))
+
+    # 3. 用例面（21 例 = 13 正 + 8 负；含 4 自然守卫 + presence/游离/载体）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "hds_manifest_ipv4", "hds_bootstrap_abst", "hds_asrt_segment_runs",
+        "hds_afrt_fragment_runs", "hds_fragment_f4f",
+        "hds_manifest_bootstrap_fragment", "hds_keepalive_fragments",
+        "hds_multi_session", "hds_ipv6", "hds_mss_reassembly",
+        "hds_live_update", "hds_vod_end", "hds_boundary_box",
+        "hds_neg_manifest", "hds_neg_bootstrap", "hds_neg_fragment",
+        "hds_neg_session_state",
+        "hds_neg_presence_top_level_hds", "hds_neg_stray_src_mac",
+        "hds_neg_flat_count", "hds_neg_carrier_no_http",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("用例总数 21（13 正+8 负）", len(cases) == 21 and len(pos) == 13 and len(neg) == 8,
+                 f"{len(cases)} 例 / {len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("非负例顶层键=0（仅 layers/flow_control 家族）",
+                 all(set((c.get("spec_json") or {}).keys()) <= {"layers", "flow_control", "strategy_fc", "output", "output_config", "group_id"}
+                     for c in pos), "穷尽"))
+    bad_keys = [c.get("id") for c in neg
+                if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}", not bad_keys, bad_keys or "全部合规"))
+    rows.append(("正例链形=[ip,tcp,http,hds]",
+                 all([list(l.keys()) for l in (c.get("spec_json") or {}).get("layers", [])] == [["ip"], ["tcp"], ["http"], ["hds"]]
+                     for c in pos), "穷尽"))
+    for k in ["profile", "keep_alive", "manifest", "sessions"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((f"层键覆盖：{k}", hit is not None, hit or "无用例"))
+    rows.append(("manifest 嵌套覆盖（media/bootstrap_infos 非空）",
+                 any(isinstance(m.get("manifest"), dict) and m["manifest"].get("media")
+                     and m["manifest"].get("bootstrap_infos") for _, m in lays), "在案"))
+    for needle, name in [
+        ("no longer accepts a top-level hds sub-config", "presence 判死锚（逐字）"),
+        ("no longer accepts flat config field count", "游离 count 锚（逐字）"),
+        ("requires the http carrier layer", "载体拒绝锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+    # 游离 MAC：锚词短（src_mac），对 expect.error_contains 直读断言（blob
+    # 全文搜短词无判别力，kingbase _err_anchor 同款）。
+    mac_case = next((c for c in cases if "stray_src_mac" in c.get("id", "")), None)
+    mac_anchor = (mac_case.get("expect", {}) or {}).get("error_contains") if mac_case else None
+    rows.append(("游离 MAC 锚（error_contains=src_mac，1.11 白名单）",
+                 mac_anchor == "src_mac", mac_anchor or "无用例"))
+    return rows
 def check_cwmp(cases):
     """D-CWMP-1 P6 反查表（T-CWMP-1…153：150 存量等价迁移 + 3 新例）。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -7411,7 +7543,7 @@ def check_rtmfp(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "hds": check_hds, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms}
 
 
 def main(argv):
