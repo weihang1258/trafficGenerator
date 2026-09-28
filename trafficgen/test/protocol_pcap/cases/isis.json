@@ -1,2064 +1,2131 @@
 [
   {
+    "expect": {
+      "directional": false,
+      "fields": [
+        {
+          "field": "isis.irpd",
+          "packet": 1,
+          "value": "0x83"
+        },
+        {
+          "field": "isis.len",
+          "packet": 1,
+          "value": "27"
+        },
+        {
+          "field": "isis.sysid_len",
+          "packet": 1,
+          "value": "6"
+        },
+        {
+          "field": "isis.type",
+          "packet": 1,
+          "value": "15"
+        },
+        {
+          "field": "isis.hello.circuit_type",
+          "packet": 1,
+          "value": "0x01"
+        },
+        {
+          "field": "isis.hello.source_id",
+          "packet": 1,
+          "value": "0102.0304.0506"
+        },
+        {
+          "field": "isis.hello.holding_timer",
+          "packet": 1,
+          "value": "30"
+        },
+        {
+          "field": "isis.hello.pdu_length",
+          "packet": 1,
+          "value": "33"
+        },
+        {
+          "field": "isis.hello.priority",
+          "packet": 1,
+          "value": "100"
+        },
+        {
+          "field": "isis.hello.lan_id",
+          "packet": 1,
+          "value": "0102.0304.0506.01"
+        },
+        {
+          "field": "isis.hello.area_address",
+          "packet": 1,
+          "value": "03490001"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "00 2e",
+          "offset": 12,
+          "packet": 1
+        },
+        {
+          "hex": "fe fe 03",
+          "offset": 14,
+          "packet": 1
+        },
+        {
+          "hex": "83 1b 01 06 0f 01 00 00",
+          "offset": 17,
+          "packet": 1
+        }
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
     "id": "isis_l1_iih_llc",
     "proto": "isis",
-    "summary": "LLC L1 LAN IIH with Area TLV",
     "spec_json": {
       "layers": [
         {
-          "eth": {}
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
         },
         {
-          "isis": {}
-        }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_llc",
-        "level": "l1",
-        "pdu_type": "lan_hello",
-        "system_id": "0102.0304.0506",
-        "holding_timer": 30,
-        "priority": 100,
-        "lan_id": "01020304050601",
-        "tlvs": [
-          {
-            "type": 1,
-            "value_hex": "03 49 00 01"
+          "isis": {
+            "holding_timer": 30,
+            "lan_id": "01020304050601",
+            "level": "l1",
+            "pdu_type": "lan_hello",
+            "priority": 100,
+            "system_id": "0102.0304.0506",
+            "tlvs": [
+              {
+                "type": 1,
+                "value_hex": "03 49 00 01"
+              }
+            ],
+            "wire_profile": "iso10589_llc"
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "LLC L1 LAN IIH with Area TLV"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "isis.irpd",
+          "packet": 1,
           "value": "0x83"
         },
         {
-          "packet": 1,
           "field": "isis.len",
+          "packet": 1,
           "value": "27"
         },
         {
-          "packet": 1,
           "field": "isis.sysid_len",
+          "packet": 1,
           "value": "6"
         },
         {
-          "packet": 1,
           "field": "isis.type",
-          "value": "15"
+          "packet": 1,
+          "value": "16"
         },
         {
-          "packet": 1,
           "field": "isis.hello.circuit_type",
-          "value": "0x01"
+          "packet": 1,
+          "value": "0x02"
         },
         {
-          "packet": 1,
           "field": "isis.hello.source_id",
-          "value": "0102.0304.0506"
+          "packet": 1,
+          "value": "0a0b.0c0d.0e0f"
         },
         {
-          "packet": 1,
           "field": "isis.hello.holding_timer",
-          "value": "30"
+          "packet": 1,
+          "value": "45"
         },
         {
-          "packet": 1,
           "field": "isis.hello.pdu_length",
+          "packet": 1,
           "value": "33"
         },
         {
-          "packet": 1,
           "field": "isis.hello.priority",
-          "value": "100"
+          "packet": 1,
+          "value": "64"
         },
         {
-          "packet": 1,
           "field": "isis.hello.lan_id",
-          "value": "0102.0304.0506.01"
+          "packet": 1,
+          "value": "0a0b.0c0d.0e0f.02"
         },
         {
-          "packet": 1,
           "field": "isis.hello.area_address",
-          "value": "03490001"
+          "packet": 1,
+          "value": "03490002"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "00 2e",
           "offset": 12,
-          "hex": "00 2e"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "fe fe 03",
           "offset": 14,
-          "hex": "fe fe 03"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "83 1b 01 06 10 01 00 00",
           "offset": 17,
-          "hex": "83 1b 01 06 0f 01 00 00"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
     "id": "isis_l2_iih_llc",
     "proto": "isis",
-    "summary": "LLC L2 LAN IIH",
     "spec_json": {
       "layers": [
         {
-          "eth": {}
-        },
-        {
-          "isis": {}
-        }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_llc",
-        "level": "l2",
-        "pdu_type": "lan_hello",
-        "system_id": "0a0b.0c0d.0e0f",
-        "holding_timer": 45,
-        "priority": 64,
-        "lan_id": "0a0b0c0d0e0f02",
-        "tlvs": [
-          {
-            "type": 1,
-            "value_hex": "03 49 00 02"
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
           }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 1,
-      "has_payload": true,
-      "directional": false,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "isis.irpd",
-          "value": "0x83"
         },
         {
-          "packet": 1,
-          "field": "isis.len",
-          "value": "27"
-        },
-        {
-          "packet": 1,
-          "field": "isis.sysid_len",
-          "value": "6"
-        },
-        {
-          "packet": 1,
-          "field": "isis.type",
-          "value": "16"
-        },
-        {
-          "packet": 1,
-          "field": "isis.hello.circuit_type",
-          "value": "0x02"
-        },
-        {
-          "packet": 1,
-          "field": "isis.hello.source_id",
-          "value": "0a0b.0c0d.0e0f"
-        },
-        {
-          "packet": 1,
-          "field": "isis.hello.holding_timer",
-          "value": "45"
-        },
-        {
-          "packet": 1,
-          "field": "isis.hello.pdu_length",
-          "value": "33"
-        },
-        {
-          "packet": 1,
-          "field": "isis.hello.priority",
-          "value": "64"
-        },
-        {
-          "packet": 1,
-          "field": "isis.hello.lan_id",
-          "value": "0a0b.0c0d.0e0f.02"
-        },
-        {
-          "packet": 1,
-          "field": "isis.hello.area_address",
-          "value": "03490002"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 12,
-          "hex": "00 2e"
-        },
-        {
-          "packet": 1,
-          "offset": 14,
-          "hex": "fe fe 03"
-        },
-        {
-          "packet": 1,
-          "offset": 17,
-          "hex": "83 1b 01 06 10 01 00 00"
+          "isis": {
+            "holding_timer": 45,
+            "lan_id": "0a0b0c0d0e0f02",
+            "level": "l2",
+            "pdu_type": "lan_hello",
+            "priority": 64,
+            "system_id": "0a0b.0c0d.0e0f",
+            "tlvs": [
+              {
+                "type": 1,
+                "value_hex": "03 49 00 02"
+              }
+            ],
+            "wire_profile": "iso10589_llc"
+          }
         }
       ]
-    }
+    },
+    "summary": "LLC L2 LAN IIH"
   },
   {
-    "id": "isis_l1_iih_ethertype",
-    "proto": "isis",
-    "summary": "EtherType L1 LAN IIH",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "isis": {}
-        }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "level": "l1",
-        "pdu_type": "lan_hello",
-        "system_id": "0102.0304.0506",
-        "holding_timer": 30,
-        "priority": 100,
-        "lan_id": "01020304050601",
-        "tlvs": [
-          {
-            "type": 1,
-            "value_hex": "03 49 00 01"
-          }
-        ]
-      }
-    },
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "isis.irpd",
+          "packet": 1,
           "value": "0x83"
         },
         {
-          "packet": 1,
           "field": "isis.len",
+          "packet": 1,
           "value": "27"
         },
         {
-          "packet": 1,
           "field": "isis.sysid_len",
+          "packet": 1,
           "value": "6"
         },
         {
-          "packet": 1,
           "field": "isis.type",
+          "packet": 1,
           "value": "15"
         },
         {
-          "packet": 1,
           "field": "isis.hello.circuit_type",
+          "packet": 1,
           "value": "0x01"
         },
         {
-          "packet": 1,
           "field": "isis.hello.source_id",
+          "packet": 1,
           "value": "0102.0304.0506"
         },
         {
-          "packet": 1,
           "field": "isis.hello.holding_timer",
+          "packet": 1,
           "value": "30"
         },
         {
-          "packet": 1,
           "field": "isis.hello.pdu_length",
+          "packet": 1,
           "value": "33"
         },
         {
-          "packet": 1,
           "field": "isis.hello.priority",
+          "packet": 1,
           "value": "100"
         },
         {
-          "packet": 1,
           "field": "isis.hello.lan_id",
+          "packet": 1,
           "value": "0102.0304.0506.01"
         },
         {
-          "packet": 1,
           "field": "isis.hello.area_address",
+          "packet": 1,
           "value": "03490001"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "88 70",
           "offset": 12,
-          "hex": "88 70"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "fe fe 03 83 1b 01 06 0f 01",
           "offset": 14,
-          "hex": "fe fe 03 83 1b 01 06 0f 01"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "isis_l2_iih_ethertype",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "isis_l1_iih_ethertype",
     "proto": "isis",
-    "summary": "EtherType L2 LAN IIH",
     "spec_json": {
       "layers": [
         {
-          "eth": {}
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
         },
         {
-          "isis": {}
-        }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "level": "l2",
-        "pdu_type": "lan_hello",
-        "system_id": "0a0b.0c0d.0e0f",
-        "holding_timer": 45,
-        "priority": 64,
-        "lan_id": "0a0b0c0d0e0f02",
-        "tlvs": [
-          {
-            "type": 1,
-            "value_hex": "03 49 00 02"
+          "isis": {
+            "holding_timer": 30,
+            "lan_id": "01020304050601",
+            "level": "l1",
+            "pdu_type": "lan_hello",
+            "priority": 100,
+            "system_id": "0102.0304.0506",
+            "tlvs": [
+              {
+                "type": 1,
+                "value_hex": "03 49 00 01"
+              }
+            ],
+            "wire_profile": "iso10589_ethertype"
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "EtherType L1 LAN IIH"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "isis.irpd",
+          "packet": 1,
           "value": "0x83"
         },
         {
-          "packet": 1,
           "field": "isis.len",
+          "packet": 1,
           "value": "27"
         },
         {
-          "packet": 1,
           "field": "isis.sysid_len",
+          "packet": 1,
           "value": "6"
         },
         {
-          "packet": 1,
           "field": "isis.type",
+          "packet": 1,
           "value": "16"
         },
         {
-          "packet": 1,
           "field": "isis.hello.circuit_type",
+          "packet": 1,
           "value": "0x02"
         },
         {
-          "packet": 1,
           "field": "isis.hello.source_id",
+          "packet": 1,
           "value": "0a0b.0c0d.0e0f"
         },
         {
-          "packet": 1,
           "field": "isis.hello.holding_timer",
+          "packet": 1,
           "value": "45"
         },
         {
-          "packet": 1,
           "field": "isis.hello.pdu_length",
+          "packet": 1,
           "value": "33"
         },
         {
-          "packet": 1,
           "field": "isis.hello.priority",
+          "packet": 1,
           "value": "64"
         },
         {
-          "packet": 1,
           "field": "isis.hello.lan_id",
+          "packet": 1,
           "value": "0a0b.0c0d.0e0f.02"
         },
         {
-          "packet": 1,
           "field": "isis.hello.area_address",
+          "packet": 1,
           "value": "03490002"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "88 70",
           "offset": 12,
-          "hex": "88 70"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "fe fe 03 83 1b 01 06 10 01",
           "offset": 14,
-          "hex": "fe fe 03 83 1b 01 06 10 01"
+          "packet": 1
         }
-      ]
-    }
-  },
-  {
-    "id": "isis_l1_lsp_ipv4",
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "isis_l2_iih_ethertype",
     "proto": "isis",
-    "summary": "L1 LSP with Area and IPv4 interface TLVs",
     "spec_json": {
       "layers": [
         {
-          "eth": {}
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
         },
         {
-          "isis": {}
-        }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_llc",
-        "level": "l1",
-        "pdu_type": "lsp",
-        "system_id": "0102.0304.0506",
-        "address_profile": "ipv4_basic",
-        "lsp_id": "0102030405060000",
-        "remaining_lifetime": 120,
-        "sequence": 1,
-        "checksum_mode": "auto",
-        "tlvs": [
-          {
-            "type": 1,
-            "value_hex": "03 49 00 01"
-          },
-          {
-            "type": 132,
-            "value_hex": "c0 00 02 01"
+          "isis": {
+            "holding_timer": 45,
+            "lan_id": "0a0b0c0d0e0f02",
+            "level": "l2",
+            "pdu_type": "lan_hello",
+            "priority": 64,
+            "system_id": "0a0b.0c0d.0e0f",
+            "tlvs": [
+              {
+                "type": 1,
+                "value_hex": "03 49 00 02"
+              }
+            ],
+            "wire_profile": "iso10589_ethertype"
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "EtherType L2 LAN IIH"
+  },
+  {
     "expect": {
-      "packet_count": 1,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "isis.irpd",
+          "packet": 1,
           "value": "0x83"
         },
         {
-          "packet": 1,
           "field": "isis.len",
+          "packet": 1,
           "value": "27"
         },
         {
-          "packet": 1,
           "field": "isis.sysid_len",
+          "packet": 1,
           "value": "6"
         },
         {
-          "packet": 1,
           "field": "isis.type",
+          "packet": 1,
           "value": "18"
         },
         {
-          "packet": 1,
           "field": "isis.lsp.pdu_length",
+          "packet": 1,
           "value": "39"
         },
         {
-          "packet": 1,
           "field": "isis.lsp.remaining_life",
+          "packet": 1,
           "value": "120"
         },
         {
-          "packet": 1,
           "field": "isis.lsp.lsp_id",
+          "packet": 1,
           "value": "0102.0304.0506.00-00"
         },
         {
-          "packet": 1,
           "field": "isis.lsp.sequence_number",
+          "packet": 1,
           "value": "0x00000001"
         },
         {
-          "packet": 1,
           "field": "isis.lsp.checksum",
+          "packet": 1,
           "value": "0xb792"
         },
         {
-          "packet": 1,
           "field": "isis.lsp.is_type",
+          "packet": 1,
           "value": "1"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "00 2e",
           "offset": 12,
-          "hex": "00 2e"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "fe fe 03",
           "offset": 14,
-          "hex": "fe fe 03"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "83 1b 01 06 12 01 00 00",
           "offset": 17,
-          "hex": "83 1b 01 06 12 01 00 00"
-        }
-      ]
-    }
-  },
-  {
-    "id": "isis_l2_lsp_ipv6",
-    "proto": "isis",
-    "summary": "L2 LSP with IPv6 interface TLV",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "isis": {}
+          "packet": 1
         }
       ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "level": "l2",
-        "pdu_type": "lsp",
-        "system_id": "0a0b.0c0d.0e0f",
-        "address_profile": "ipv6_basic",
-        "lsp_id": "0a0b0c0d0e0f0001",
-        "remaining_lifetime": 120,
-        "sequence": 7,
-        "checksum_mode": "auto",
-        "tlvs": [
-          {
-            "type": 232,
-            "value_hex": "20 01 0d b8 00 00 00 00 00 00 00 00 00 00 00 01"
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 1,
       "has_payload": true,
-      "directional": false,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "isis.irpd",
-          "value": "0x83"
-        },
-        {
-          "packet": 1,
-          "field": "isis.len",
-          "value": "27"
-        },
-        {
-          "packet": 1,
-          "field": "isis.sysid_len",
-          "value": "6"
-        },
-        {
-          "packet": 1,
-          "field": "isis.type",
-          "value": "20"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.pdu_length",
-          "value": "45"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.remaining_life",
-          "value": "120"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.lsp_id",
-          "value": "0a0b.0c0d.0e0f.00-01"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.sequence_number",
-          "value": "0x00000007"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.checksum",
-          "value": "0xdeea"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.is_type",
-          "value": "2"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 12,
-          "hex": "88 70"
-        },
-        {
-          "packet": 1,
-          "offset": 14,
-          "hex": "fe fe 03 83 1b 01 06 14 01"
-        }
-      ]
-    }
-  },
-  {
-    "id": "isis_l1_lsp_tlv_order",
-    "proto": "isis",
-    "summary": "L1 LSP preserves standard TLV order",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "isis": {}
-        }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "level": "l1",
-        "pdu_type": "lsp",
-        "system_id": "0102.0304.0506",
-        "address_profile": "ipv4_basic",
-        "lsp_id": "0102030405060000",
-        "remaining_lifetime": 120,
-        "sequence": 2,
-        "checksum_mode": "auto",
-        "tlvs": [
-          {
-            "type": 1,
-            "value_hex": "03 49 00 01"
-          },
-          {
-            "type": 132,
-            "value_hex": "c0 00 02 01"
-          }
-        ]
-      }
+      "packet_count": 1
     },
-    "expect": {
-      "packet_count": 1,
-      "has_payload": true,
-      "directional": false,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "isis.irpd",
-          "value": "0x83"
-        },
-        {
-          "packet": 1,
-          "field": "isis.len",
-          "value": "27"
-        },
-        {
-          "packet": 1,
-          "field": "isis.sysid_len",
-          "value": "6"
-        },
-        {
-          "packet": 1,
-          "field": "isis.type",
-          "value": "18"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.pdu_length",
-          "value": "39"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.remaining_life",
-          "value": "120"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.lsp_id",
-          "value": "0102.0304.0506.00-00"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.sequence_number",
-          "value": "0x00000002"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.checksum",
-          "value": "0xb593"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.is_type",
-          "value": "1"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 12,
-          "hex": "88 70"
-        },
-        {
-          "packet": 1,
-          "offset": 14,
-          "hex": "fe fe 03 83 1b 01 06 12 01"
-        }
-      ]
-    }
-  },
-  {
-    "id": "isis_l1_csnp",
+    "id": "isis_l1_lsp_ipv4",
     "proto": "isis",
-    "summary": "L1 CSNP with one LSP Entry",
     "spec_json": {
       "layers": [
         {
-          "eth": {}
-        },
-        {
-          "isis": {}
-        }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_llc",
-        "level": "l1",
-        "pdu_type": "csnp",
-        "system_id": "0102.0304.0506",
-        "tlvs": [
-          {
-            "type": 9,
-            "value_hex": "00 78 01 02 03 04 05 06 00 00 00 00 00 01 00 01"
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
           }
-        ],
-        "start_lsp_id": "0102030405060000",
-        "end_lsp_id": "010203040506ffff"
-      }
-    },
-    "expect": {
-      "packet_count": 1,
-      "has_payload": true,
-      "directional": false,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "isis.irpd",
-          "value": "0x83"
-        },
-        {
-          "packet": 1,
-          "field": "isis.len",
-          "value": "33"
-        },
-        {
-          "packet": 1,
-          "field": "isis.sysid_len",
-          "value": "6"
-        },
-        {
-          "packet": 1,
-          "field": "isis.type",
-          "value": "24"
-        },
-        {
-          "packet": 1,
-          "field": "isis.csnp.pdu_length",
-          "value": "51"
-        },
-        {
-          "packet": 1,
-          "field": "isis.csnp.source_id",
-          "value": "0102.0304.0506"
-        },
-        {
-          "packet": 1,
-          "field": "isis.csnp.start_lsp_id",
-          "value": "0102.0304.0506.00-00"
-        },
-        {
-          "packet": 1,
-          "field": "isis.csnp.end_lsp_id",
-          "value": "0102.0304.0506.ff-ff"
-        },
-        {
-          "packet": 1,
-          "field": "isis.csnp.clv.type",
-          "value": "9"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 12,
-          "hex": "00 36"
-        },
-        {
-          "packet": 1,
-          "offset": 14,
-          "hex": "fe fe 03"
-        },
-        {
-          "packet": 1,
-          "offset": 17,
-          "hex": "83 21 01 06 18 01 00 00"
-        }
-      ]
-    }
-  },
-  {
-    "id": "isis_l2_psnp",
-    "proto": "isis",
-    "summary": "L2 PSNP with one LSP Entry",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "isis": {}
-        }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "level": "l2",
-        "pdu_type": "psnp",
-        "system_id": "0a0b.0c0d.0e0f",
-        "tlvs": [
-          {
-            "type": 9,
-            "value_hex": "00 78 0a 0b 0c 0d 0e 0f 00 01 00 00 00 07 00 01"
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 1,
-      "has_payload": true,
-      "directional": false,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "isis.irpd",
-          "value": "0x83"
-        },
-        {
-          "packet": 1,
-          "field": "isis.len",
-          "value": "17"
-        },
-        {
-          "packet": 1,
-          "field": "isis.sysid_len",
-          "value": "6"
-        },
-        {
-          "packet": 1,
-          "field": "isis.type",
-          "value": "27"
-        },
-        {
-          "packet": 1,
-          "field": "isis.psnp.pdu_length",
-          "value": "35"
-        },
-        {
-          "packet": 1,
-          "field": "isis.psnp.source_id",
-          "value": "0a0b.0c0d.0e0f"
-        },
-        {
-          "packet": 1,
-          "field": "isis.psnp.clv.type",
-          "value": "9"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 12,
-          "hex": "88 70"
-        },
-        {
-          "packet": 1,
-          "offset": 14,
-          "hex": "fe fe 03 83 11 01 06 1b 01"
-        }
-      ]
-    }
-  },
-  {
-    "id": "isis_length_checksum",
-    "proto": "isis",
-    "summary": "L1 LSP length and Fletcher checksum",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "isis": {}
-        }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "level": "l1",
-        "pdu_type": "lsp",
-        "system_id": "0102.0304.0506",
-        "lsp_id": "0102030405060000",
-        "remaining_lifetime": 300,
-        "sequence": 270544960,
-        "checksum_mode": "auto",
-        "address_profile": "ipv4_basic",
-        "tlvs": [
-          {
-            "type": 132,
-            "value_hex": "c0 00 02 01"
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 1,
-      "has_payload": true,
-      "directional": false,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "isis.irpd",
-          "value": "0x83"
-        },
-        {
-          "packet": 1,
-          "field": "isis.len",
-          "value": "27"
-        },
-        {
-          "packet": 1,
-          "field": "isis.sysid_len",
-          "value": "6"
-        },
-        {
-          "packet": 1,
-          "field": "isis.type",
-          "value": "18"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.pdu_length",
-          "value": "33"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.remaining_life",
-          "value": "300"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.lsp_id",
-          "value": "0102.0304.0506.00-00"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.sequence_number",
-          "value": "0x10203040"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.checksum",
-          "value": "0x7e7e"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.is_type",
-          "value": "1"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 12,
-          "hex": "88 70"
-        },
-        {
-          "packet": 1,
-          "offset": 14,
-          "hex": "fe fe 03 83 1b 01 06 12 01"
-        }
-      ]
-    }
-  },
-  {
-    "id": "isis_area_system_id",
-    "proto": "isis",
-    "summary": "L2 LSP separates Area and System ID",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "isis": {}
-        }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_llc",
-        "level": "l2",
-        "pdu_type": "lsp",
-        "system_id": "1122.3344.5566",
-        "lsp_id": "1122334455660302",
-        "remaining_lifetime": 90,
-        "sequence": 9,
-        "checksum_mode": "auto",
-        "tlvs": [
-          {
-            "type": 1,
-            "value_hex": "05 49 00 02 00 03"
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 1,
-      "has_payload": true,
-      "directional": false,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "isis.irpd",
-          "value": "0x83"
-        },
-        {
-          "packet": 1,
-          "field": "isis.len",
-          "value": "27"
-        },
-        {
-          "packet": 1,
-          "field": "isis.sysid_len",
-          "value": "6"
-        },
-        {
-          "packet": 1,
-          "field": "isis.type",
-          "value": "20"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.pdu_length",
-          "value": "35"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.remaining_life",
-          "value": "90"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.lsp_id",
-          "value": "1122.3344.5566.03-02"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.sequence_number",
-          "value": "0x00000009"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.checksum",
-          "value": "0x0629"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.is_type",
-          "value": "2"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 12,
-          "hex": "00 2e"
-        },
-        {
-          "packet": 1,
-          "offset": 14,
-          "hex": "fe fe 03"
-        },
-        {
-          "packet": 1,
-          "offset": 17,
-          "hex": "83 1b 01 06 14 01 00 00"
-        }
-      ]
-    }
-  },
-  {
-    "id": "isis_neighbor_up_sequence",
-    "proto": "isis",
-    "summary": "Explicit neighbor up sequence",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "isis": {}
-        }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "level": "l1",
-        "pdu_type": "events",
-        "system_id": "0102.0304.0506",
-        "events": [
-          {
-            "kind": "iih",
-            "pdu_type": "lan_hello",
-            "level": "l1",
-            "system_id": "0102.0304.0506",
-            "neighbor_state": "Initializing",
-            "holding_timer": 30,
-            "priority": 64,
-            "lan_id": "01020304050601",
-            "tlvs": [
-              {
-                "type": 1,
-                "value_hex": "03 49 00 01"
-              }
-            ]
-          },
-          {
-            "kind": "iih",
-            "pdu_type": "lan_hello",
-            "level": "l1",
-            "system_id": "0102.0304.0506",
-            "neighbor_state": "Up",
-            "holding_timer": 30,
-            "priority": 64,
-            "lan_id": "01020304050601",
-            "tlvs": [
-              {
-                "type": 1,
-                "value_hex": "03 49 00 01"
-              }
-            ]
-          },
-          {
-            "kind": "lsp",
-            "pdu_type": "lsp",
-            "level": "l1",
-            "system_id": "0102.0304.0506",
-            "neighbor_state": "Up",
-            "lsp_id": "0102030405060000",
-            "remaining_lifetime": 120,
-            "sequence": 1,
-            "partition": 0,
-            "circuit_type": 1,
-            "checksum_mode": "auto",
-            "tlvs": [
-              {
-                "type": 132,
-                "value_hex": "c0 00 02 01"
-              }
-            ]
-          },
-          {
-            "kind": "psnp",
-            "pdu_type": "psnp",
-            "level": "l1",
-            "system_id": "0102.0304.0506",
-            "neighbor_state": "Up",
-            "tlvs": [
-              {
-                "type": 9,
-                "value_hex": "00 78 01 02 03 04 05 06 00 00 00 00 00 01 00 01"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "expect": {
-      "packet_count": 4,
-      "has_payload": true,
-      "directional": false,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "isis.irpd",
-          "value": "0x83"
-        },
-        {
-          "packet": 1,
-          "field": "isis.len",
-          "value": "27"
-        },
-        {
-          "packet": 1,
-          "field": "isis.sysid_len",
-          "value": "6"
-        },
-        {
-          "packet": 1,
-          "field": "isis.type",
-          "value": "15"
-        },
-        {
-          "packet": 1,
-          "field": "isis.hello.circuit_type",
-          "value": "0x01"
-        },
-        {
-          "packet": 1,
-          "field": "isis.hello.source_id",
-          "value": "0102.0304.0506"
-        },
-        {
-          "packet": 1,
-          "field": "isis.hello.holding_timer",
-          "value": "30"
-        },
-        {
-          "packet": 1,
-          "field": "isis.hello.pdu_length",
-          "value": "33"
-        },
-        {
-          "packet": 1,
-          "field": "isis.hello.priority",
-          "value": "64"
-        },
-        {
-          "packet": 1,
-          "field": "isis.hello.lan_id",
-          "value": "0102.0304.0506.01"
-        },
-        {
-          "packet": 1,
-          "field": "isis.hello.area_address",
-          "value": "03490001"
-        },
-        {
-          "packet": 2,
-          "field": "isis.irpd",
-          "value": "0x83"
-        },
-        {
-          "packet": 2,
-          "field": "isis.len",
-          "value": "27"
-        },
-        {
-          "packet": 2,
-          "field": "isis.sysid_len",
-          "value": "6"
-        },
-        {
-          "packet": 2,
-          "field": "isis.type",
-          "value": "15"
-        },
-        {
-          "packet": 2,
-          "field": "isis.hello.circuit_type",
-          "value": "0x01"
-        },
-        {
-          "packet": 2,
-          "field": "isis.hello.source_id",
-          "value": "0102.0304.0506"
-        },
-        {
-          "packet": 2,
-          "field": "isis.hello.holding_timer",
-          "value": "30"
-        },
-        {
-          "packet": 2,
-          "field": "isis.hello.pdu_length",
-          "value": "33"
-        },
-        {
-          "packet": 2,
-          "field": "isis.hello.priority",
-          "value": "64"
-        },
-        {
-          "packet": 2,
-          "field": "isis.hello.lan_id",
-          "value": "0102.0304.0506.01"
-        },
-        {
-          "packet": 2,
-          "field": "isis.hello.area_address",
-          "value": "03490001"
-        },
-        {
-          "packet": 3,
-          "field": "isis.irpd",
-          "value": "0x83"
-        },
-        {
-          "packet": 3,
-          "field": "isis.len",
-          "value": "27"
-        },
-        {
-          "packet": 3,
-          "field": "isis.sysid_len",
-          "value": "6"
-        },
-        {
-          "packet": 3,
-          "field": "isis.type",
-          "value": "18"
-        },
-        {
-          "packet": 3,
-          "field": "isis.lsp.pdu_length",
-          "value": "33"
-        },
-        {
-          "packet": 3,
-          "field": "isis.lsp.remaining_life",
-          "value": "120"
-        },
-        {
-          "packet": 3,
-          "field": "isis.lsp.lsp_id",
-          "value": "0102.0304.0506.00-00"
-        },
-        {
-          "packet": 3,
-          "field": "isis.lsp.sequence_number",
-          "value": "0x00000001"
-        },
-        {
-          "packet": 3,
-          "field": "isis.lsp.checksum",
-          "value": "0x5e3e"
-        },
-        {
-          "packet": 3,
-          "field": "isis.lsp.is_type",
-          "value": "1"
-        },
-        {
-          "packet": 4,
-          "field": "isis.irpd",
-          "value": "0x83"
-        },
-        {
-          "packet": 4,
-          "field": "isis.len",
-          "value": "17"
-        },
-        {
-          "packet": 4,
-          "field": "isis.sysid_len",
-          "value": "6"
-        },
-        {
-          "packet": 4,
-          "field": "isis.type",
-          "value": "26"
-        },
-        {
-          "packet": 4,
-          "field": "isis.psnp.pdu_length",
-          "value": "35"
-        },
-        {
-          "packet": 4,
-          "field": "isis.psnp.source_id",
-          "value": "0102.0304.0506"
-        },
-        {
-          "packet": 4,
-          "field": "isis.psnp.clv.type",
-          "value": "9"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 12,
-          "hex": "88 70"
-        },
-        {
-          "packet": 1,
-          "offset": 14,
-          "hex": "fe fe 03 83 1b 01 06 0f 01"
-        },
-        {
-          "packet": 2,
-          "offset": 12,
-          "hex": "88 70"
-        },
-        {
-          "packet": 2,
-          "offset": 14,
-          "hex": "fe fe 03 83 1b 01 06 0f 01"
-        },
-        {
-          "packet": 3,
-          "offset": 12,
-          "hex": "88 70"
-        },
-        {
-          "packet": 3,
-          "offset": 14,
-          "hex": "fe fe 03 83 1b 01 06 12 01"
-        },
-        {
-          "packet": 4,
-          "offset": 12,
-          "hex": "88 70"
-        },
-        {
-          "packet": 4,
-          "offset": 14,
-          "hex": "fe fe 03 83 11 01 06 1a 01"
-        }
-      ]
-    }
-  },
-  {
-    "id": "isis_ipv4_ipv6_tlv_profiles",
-    "proto": "isis",
-    "summary": "Independent IPv4 and IPv6 TLV profiles",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
         },
         {
-          "isis": {}
-        }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "level": "l1",
-        "pdu_type": "events",
-        "system_id": "0102.0304.0506",
-        "events": [
-          {
-            "kind": "lsp",
-            "pdu_type": "lsp",
-            "level": "l1",
-            "system_id": "0102.0304.0506",
+          "isis": {
             "address_profile": "ipv4_basic",
+            "checksum_mode": "auto",
+            "level": "l1",
             "lsp_id": "0102030405060000",
+            "pdu_type": "lsp",
             "remaining_lifetime": 120,
             "sequence": 1,
-            "partition": 0,
-            "circuit_type": 1,
-            "checksum_mode": "auto",
+            "system_id": "0102.0304.0506",
             "tlvs": [
+              {
+                "type": 1,
+                "value_hex": "03 49 00 01"
+              },
               {
                 "type": 132,
                 "value_hex": "c0 00 02 01"
               }
             ],
-            "neighbor_state": "Up"
-          },
-          {
-            "kind": "lsp",
-            "pdu_type": "lsp",
-            "level": "l2",
-            "system_id": "0102.0304.0506",
+            "wire_profile": "iso10589_llc"
+          }
+        }
+      ]
+    },
+    "summary": "L1 LSP with Area and IPv4 interface TLVs"
+  },
+  {
+    "expect": {
+      "directional": false,
+      "fields": [
+        {
+          "field": "isis.irpd",
+          "packet": 1,
+          "value": "0x83"
+        },
+        {
+          "field": "isis.len",
+          "packet": 1,
+          "value": "27"
+        },
+        {
+          "field": "isis.sysid_len",
+          "packet": 1,
+          "value": "6"
+        },
+        {
+          "field": "isis.type",
+          "packet": 1,
+          "value": "20"
+        },
+        {
+          "field": "isis.lsp.pdu_length",
+          "packet": 1,
+          "value": "45"
+        },
+        {
+          "field": "isis.lsp.remaining_life",
+          "packet": 1,
+          "value": "120"
+        },
+        {
+          "field": "isis.lsp.lsp_id",
+          "packet": 1,
+          "value": "0a0b.0c0d.0e0f.00-01"
+        },
+        {
+          "field": "isis.lsp.sequence_number",
+          "packet": 1,
+          "value": "0x00000007"
+        },
+        {
+          "field": "isis.lsp.checksum",
+          "packet": 1,
+          "value": "0xdeea"
+        },
+        {
+          "field": "isis.lsp.is_type",
+          "packet": 1,
+          "value": "2"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "88 70",
+          "offset": 12,
+          "packet": 1
+        },
+        {
+          "hex": "fe fe 03 83 1b 01 06 14 01",
+          "offset": 14,
+          "packet": 1
+        }
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "isis_l2_lsp_ipv6",
+    "proto": "isis",
+    "spec_json": {
+      "layers": [
+        {
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
+        },
+        {
+          "isis": {
             "address_profile": "ipv6_basic",
-            "lsp_id": "0102030405060001",
-            "remaining_lifetime": 120,
-            "sequence": 2,
-            "partition": 0,
-            "circuit_type": 2,
             "checksum_mode": "auto",
+            "level": "l2",
+            "lsp_id": "0a0b0c0d0e0f0001",
+            "pdu_type": "lsp",
+            "remaining_lifetime": 120,
+            "sequence": 7,
+            "system_id": "0a0b.0c0d.0e0f",
             "tlvs": [
               {
                 "type": 232,
                 "value_hex": "20 01 0d b8 00 00 00 00 00 00 00 00 00 00 00 01"
               }
             ],
-            "neighbor_state": "Up"
+            "wire_profile": "iso10589_ethertype"
           }
-        ]
-      }
+        }
+      ]
     },
+    "summary": "L2 LSP with IPv6 interface TLV"
+  },
+  {
     "expect": {
-      "packet_count": 2,
-      "has_payload": true,
       "directional": false,
       "fields": [
         {
-          "packet": 1,
           "field": "isis.irpd",
+          "packet": 1,
           "value": "0x83"
         },
         {
-          "packet": 1,
           "field": "isis.len",
+          "packet": 1,
           "value": "27"
         },
         {
-          "packet": 1,
           "field": "isis.sysid_len",
+          "packet": 1,
           "value": "6"
         },
         {
-          "packet": 1,
           "field": "isis.type",
+          "packet": 1,
           "value": "18"
         },
         {
-          "packet": 1,
           "field": "isis.lsp.pdu_length",
-          "value": "33"
+          "packet": 1,
+          "value": "39"
         },
         {
-          "packet": 1,
           "field": "isis.lsp.remaining_life",
+          "packet": 1,
           "value": "120"
         },
         {
-          "packet": 1,
           "field": "isis.lsp.lsp_id",
+          "packet": 1,
           "value": "0102.0304.0506.00-00"
         },
         {
-          "packet": 1,
           "field": "isis.lsp.sequence_number",
-          "value": "0x00000001"
-        },
-        {
           "packet": 1,
-          "field": "isis.lsp.checksum",
-          "value": "0x5e3e"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.is_type",
-          "value": "1"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.clv.type",
-          "value": "132"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.clv_ipv4_int_addr",
-          "value": "192.0.2.1"
-        },
-        {
-          "packet": 2,
-          "field": "isis.irpd",
-          "value": "0x83"
-        },
-        {
-          "packet": 2,
-          "field": "isis.len",
-          "value": "27"
-        },
-        {
-          "packet": 2,
-          "field": "isis.sysid_len",
-          "value": "6"
-        },
-        {
-          "packet": 2,
-          "field": "isis.type",
-          "value": "20"
-        },
-        {
-          "packet": 2,
-          "field": "isis.lsp.pdu_length",
-          "value": "45"
-        },
-        {
-          "packet": 2,
-          "field": "isis.lsp.remaining_life",
-          "value": "120"
-        },
-        {
-          "packet": 2,
-          "field": "isis.lsp.lsp_id",
-          "value": "0102.0304.0506.00-01"
-        },
-        {
-          "packet": 2,
-          "field": "isis.lsp.sequence_number",
           "value": "0x00000002"
         },
         {
-          "packet": 2,
           "field": "isis.lsp.checksum",
+          "packet": 1,
+          "value": "0xb593"
+        },
+        {
+          "field": "isis.lsp.is_type",
+          "packet": 1,
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "88 70",
+          "offset": 12,
+          "packet": 1
+        },
+        {
+          "hex": "fe fe 03 83 1b 01 06 12 01",
+          "offset": 14,
+          "packet": 1
+        }
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "isis_l1_lsp_tlv_order",
+    "proto": "isis",
+    "spec_json": {
+      "layers": [
+        {
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
+        },
+        {
+          "isis": {
+            "address_profile": "ipv4_basic",
+            "checksum_mode": "auto",
+            "level": "l1",
+            "lsp_id": "0102030405060000",
+            "pdu_type": "lsp",
+            "remaining_lifetime": 120,
+            "sequence": 2,
+            "system_id": "0102.0304.0506",
+            "tlvs": [
+              {
+                "type": 1,
+                "value_hex": "03 49 00 01"
+              },
+              {
+                "type": 132,
+                "value_hex": "c0 00 02 01"
+              }
+            ],
+            "wire_profile": "iso10589_ethertype"
+          }
+        }
+      ]
+    },
+    "summary": "L1 LSP preserves standard TLV order"
+  },
+  {
+    "expect": {
+      "directional": false,
+      "fields": [
+        {
+          "field": "isis.irpd",
+          "packet": 1,
+          "value": "0x83"
+        },
+        {
+          "field": "isis.len",
+          "packet": 1,
+          "value": "33"
+        },
+        {
+          "field": "isis.sysid_len",
+          "packet": 1,
+          "value": "6"
+        },
+        {
+          "field": "isis.type",
+          "packet": 1,
+          "value": "24"
+        },
+        {
+          "field": "isis.csnp.pdu_length",
+          "packet": 1,
+          "value": "51"
+        },
+        {
+          "field": "isis.csnp.source_id",
+          "packet": 1,
+          "value": "0102.0304.0506"
+        },
+        {
+          "field": "isis.csnp.start_lsp_id",
+          "packet": 1,
+          "value": "0102.0304.0506.00-00"
+        },
+        {
+          "field": "isis.csnp.end_lsp_id",
+          "packet": 1,
+          "value": "0102.0304.0506.ff-ff"
+        },
+        {
+          "field": "isis.csnp.clv.type",
+          "packet": 1,
+          "value": "9"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "00 36",
+          "offset": 12,
+          "packet": 1
+        },
+        {
+          "hex": "fe fe 03",
+          "offset": 14,
+          "packet": 1
+        },
+        {
+          "hex": "83 21 01 06 18 01 00 00",
+          "offset": 17,
+          "packet": 1
+        }
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "isis_l1_csnp",
+    "proto": "isis",
+    "spec_json": {
+      "layers": [
+        {
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
+        },
+        {
+          "isis": {
+            "end_lsp_id": "010203040506ffff",
+            "level": "l1",
+            "pdu_type": "csnp",
+            "start_lsp_id": "0102030405060000",
+            "system_id": "0102.0304.0506",
+            "tlvs": [
+              {
+                "type": 9,
+                "value_hex": "00 78 01 02 03 04 05 06 00 00 00 00 00 01 00 01"
+              }
+            ],
+            "wire_profile": "iso10589_llc"
+          }
+        }
+      ]
+    },
+    "summary": "L1 CSNP with one LSP Entry"
+  },
+  {
+    "expect": {
+      "directional": false,
+      "fields": [
+        {
+          "field": "isis.irpd",
+          "packet": 1,
+          "value": "0x83"
+        },
+        {
+          "field": "isis.len",
+          "packet": 1,
+          "value": "17"
+        },
+        {
+          "field": "isis.sysid_len",
+          "packet": 1,
+          "value": "6"
+        },
+        {
+          "field": "isis.type",
+          "packet": 1,
+          "value": "27"
+        },
+        {
+          "field": "isis.psnp.pdu_length",
+          "packet": 1,
+          "value": "35"
+        },
+        {
+          "field": "isis.psnp.source_id",
+          "packet": 1,
+          "value": "0a0b.0c0d.0e0f"
+        },
+        {
+          "field": "isis.psnp.clv.type",
+          "packet": 1,
+          "value": "9"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "88 70",
+          "offset": 12,
+          "packet": 1
+        },
+        {
+          "hex": "fe fe 03 83 11 01 06 1b 01",
+          "offset": 14,
+          "packet": 1
+        }
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "isis_l2_psnp",
+    "proto": "isis",
+    "spec_json": {
+      "layers": [
+        {
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
+        },
+        {
+          "isis": {
+            "level": "l2",
+            "pdu_type": "psnp",
+            "system_id": "0a0b.0c0d.0e0f",
+            "tlvs": [
+              {
+                "type": 9,
+                "value_hex": "00 78 0a 0b 0c 0d 0e 0f 00 01 00 00 00 07 00 01"
+              }
+            ],
+            "wire_profile": "iso10589_ethertype"
+          }
+        }
+      ]
+    },
+    "summary": "L2 PSNP with one LSP Entry"
+  },
+  {
+    "expect": {
+      "directional": false,
+      "fields": [
+        {
+          "field": "isis.irpd",
+          "packet": 1,
+          "value": "0x83"
+        },
+        {
+          "field": "isis.len",
+          "packet": 1,
+          "value": "27"
+        },
+        {
+          "field": "isis.sysid_len",
+          "packet": 1,
+          "value": "6"
+        },
+        {
+          "field": "isis.type",
+          "packet": 1,
+          "value": "18"
+        },
+        {
+          "field": "isis.lsp.pdu_length",
+          "packet": 1,
+          "value": "33"
+        },
+        {
+          "field": "isis.lsp.remaining_life",
+          "packet": 1,
+          "value": "300"
+        },
+        {
+          "field": "isis.lsp.lsp_id",
+          "packet": 1,
+          "value": "0102.0304.0506.00-00"
+        },
+        {
+          "field": "isis.lsp.sequence_number",
+          "packet": 1,
+          "value": "0x10203040"
+        },
+        {
+          "field": "isis.lsp.checksum",
+          "packet": 1,
+          "value": "0x7e7e"
+        },
+        {
+          "field": "isis.lsp.is_type",
+          "packet": 1,
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "88 70",
+          "offset": 12,
+          "packet": 1
+        },
+        {
+          "hex": "fe fe 03 83 1b 01 06 12 01",
+          "offset": 14,
+          "packet": 1
+        }
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "isis_length_checksum",
+    "proto": "isis",
+    "spec_json": {
+      "layers": [
+        {
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
+        },
+        {
+          "isis": {
+            "address_profile": "ipv4_basic",
+            "checksum_mode": "auto",
+            "level": "l1",
+            "lsp_id": "0102030405060000",
+            "pdu_type": "lsp",
+            "remaining_lifetime": 300,
+            "sequence": 270544960,
+            "system_id": "0102.0304.0506",
+            "tlvs": [
+              {
+                "type": 132,
+                "value_hex": "c0 00 02 01"
+              }
+            ],
+            "wire_profile": "iso10589_ethertype"
+          }
+        }
+      ]
+    },
+    "summary": "L1 LSP length and Fletcher checksum"
+  },
+  {
+    "expect": {
+      "directional": false,
+      "fields": [
+        {
+          "field": "isis.irpd",
+          "packet": 1,
+          "value": "0x83"
+        },
+        {
+          "field": "isis.len",
+          "packet": 1,
+          "value": "27"
+        },
+        {
+          "field": "isis.sysid_len",
+          "packet": 1,
+          "value": "6"
+        },
+        {
+          "field": "isis.type",
+          "packet": 1,
+          "value": "20"
+        },
+        {
+          "field": "isis.lsp.pdu_length",
+          "packet": 1,
+          "value": "35"
+        },
+        {
+          "field": "isis.lsp.remaining_life",
+          "packet": 1,
+          "value": "90"
+        },
+        {
+          "field": "isis.lsp.lsp_id",
+          "packet": 1,
+          "value": "1122.3344.5566.03-02"
+        },
+        {
+          "field": "isis.lsp.sequence_number",
+          "packet": 1,
+          "value": "0x00000009"
+        },
+        {
+          "field": "isis.lsp.checksum",
+          "packet": 1,
+          "value": "0x0629"
+        },
+        {
+          "field": "isis.lsp.is_type",
+          "packet": 1,
+          "value": "2"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "00 2e",
+          "offset": 12,
+          "packet": 1
+        },
+        {
+          "hex": "fe fe 03",
+          "offset": 14,
+          "packet": 1
+        },
+        {
+          "hex": "83 1b 01 06 14 01 00 00",
+          "offset": 17,
+          "packet": 1
+        }
+      ],
+      "has_payload": true,
+      "packet_count": 1
+    },
+    "id": "isis_area_system_id",
+    "proto": "isis",
+    "spec_json": {
+      "layers": [
+        {
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
+        },
+        {
+          "isis": {
+            "checksum_mode": "auto",
+            "level": "l2",
+            "lsp_id": "1122334455660302",
+            "pdu_type": "lsp",
+            "remaining_lifetime": 90,
+            "sequence": 9,
+            "system_id": "1122.3344.5566",
+            "tlvs": [
+              {
+                "type": 1,
+                "value_hex": "05 49 00 02 00 03"
+              }
+            ],
+            "wire_profile": "iso10589_llc"
+          }
+        }
+      ]
+    },
+    "summary": "L2 LSP separates Area and System ID"
+  },
+  {
+    "expect": {
+      "directional": false,
+      "fields": [
+        {
+          "field": "isis.irpd",
+          "packet": 1,
+          "value": "0x83"
+        },
+        {
+          "field": "isis.len",
+          "packet": 1,
+          "value": "27"
+        },
+        {
+          "field": "isis.sysid_len",
+          "packet": 1,
+          "value": "6"
+        },
+        {
+          "field": "isis.type",
+          "packet": 1,
+          "value": "15"
+        },
+        {
+          "field": "isis.hello.circuit_type",
+          "packet": 1,
+          "value": "0x01"
+        },
+        {
+          "field": "isis.hello.source_id",
+          "packet": 1,
+          "value": "0102.0304.0506"
+        },
+        {
+          "field": "isis.hello.holding_timer",
+          "packet": 1,
+          "value": "30"
+        },
+        {
+          "field": "isis.hello.pdu_length",
+          "packet": 1,
+          "value": "33"
+        },
+        {
+          "field": "isis.hello.priority",
+          "packet": 1,
+          "value": "64"
+        },
+        {
+          "field": "isis.hello.lan_id",
+          "packet": 1,
+          "value": "0102.0304.0506.01"
+        },
+        {
+          "field": "isis.hello.area_address",
+          "packet": 1,
+          "value": "03490001"
+        },
+        {
+          "field": "isis.irpd",
+          "packet": 2,
+          "value": "0x83"
+        },
+        {
+          "field": "isis.len",
+          "packet": 2,
+          "value": "27"
+        },
+        {
+          "field": "isis.sysid_len",
+          "packet": 2,
+          "value": "6"
+        },
+        {
+          "field": "isis.type",
+          "packet": 2,
+          "value": "15"
+        },
+        {
+          "field": "isis.hello.circuit_type",
+          "packet": 2,
+          "value": "0x01"
+        },
+        {
+          "field": "isis.hello.source_id",
+          "packet": 2,
+          "value": "0102.0304.0506"
+        },
+        {
+          "field": "isis.hello.holding_timer",
+          "packet": 2,
+          "value": "30"
+        },
+        {
+          "field": "isis.hello.pdu_length",
+          "packet": 2,
+          "value": "33"
+        },
+        {
+          "field": "isis.hello.priority",
+          "packet": 2,
+          "value": "64"
+        },
+        {
+          "field": "isis.hello.lan_id",
+          "packet": 2,
+          "value": "0102.0304.0506.01"
+        },
+        {
+          "field": "isis.hello.area_address",
+          "packet": 2,
+          "value": "03490001"
+        },
+        {
+          "field": "isis.irpd",
+          "packet": 3,
+          "value": "0x83"
+        },
+        {
+          "field": "isis.len",
+          "packet": 3,
+          "value": "27"
+        },
+        {
+          "field": "isis.sysid_len",
+          "packet": 3,
+          "value": "6"
+        },
+        {
+          "field": "isis.type",
+          "packet": 3,
+          "value": "18"
+        },
+        {
+          "field": "isis.lsp.pdu_length",
+          "packet": 3,
+          "value": "33"
+        },
+        {
+          "field": "isis.lsp.remaining_life",
+          "packet": 3,
+          "value": "120"
+        },
+        {
+          "field": "isis.lsp.lsp_id",
+          "packet": 3,
+          "value": "0102.0304.0506.00-00"
+        },
+        {
+          "field": "isis.lsp.sequence_number",
+          "packet": 3,
+          "value": "0x00000001"
+        },
+        {
+          "field": "isis.lsp.checksum",
+          "packet": 3,
+          "value": "0x5e3e"
+        },
+        {
+          "field": "isis.lsp.is_type",
+          "packet": 3,
+          "value": "1"
+        },
+        {
+          "field": "isis.irpd",
+          "packet": 4,
+          "value": "0x83"
+        },
+        {
+          "field": "isis.len",
+          "packet": 4,
+          "value": "17"
+        },
+        {
+          "field": "isis.sysid_len",
+          "packet": 4,
+          "value": "6"
+        },
+        {
+          "field": "isis.type",
+          "packet": 4,
+          "value": "26"
+        },
+        {
+          "field": "isis.psnp.pdu_length",
+          "packet": 4,
+          "value": "35"
+        },
+        {
+          "field": "isis.psnp.source_id",
+          "packet": 4,
+          "value": "0102.0304.0506"
+        },
+        {
+          "field": "isis.psnp.clv.type",
+          "packet": 4,
+          "value": "9"
+        }
+      ],
+      "frames": [
+        {
+          "hex": "88 70",
+          "offset": 12,
+          "packet": 1
+        },
+        {
+          "hex": "fe fe 03 83 1b 01 06 0f 01",
+          "offset": 14,
+          "packet": 1
+        },
+        {
+          "hex": "88 70",
+          "offset": 12,
+          "packet": 2
+        },
+        {
+          "hex": "fe fe 03 83 1b 01 06 0f 01",
+          "offset": 14,
+          "packet": 2
+        },
+        {
+          "hex": "88 70",
+          "offset": 12,
+          "packet": 3
+        },
+        {
+          "hex": "fe fe 03 83 1b 01 06 12 01",
+          "offset": 14,
+          "packet": 3
+        },
+        {
+          "hex": "88 70",
+          "offset": 12,
+          "packet": 4
+        },
+        {
+          "hex": "fe fe 03 83 11 01 06 1a 01",
+          "offset": 14,
+          "packet": 4
+        }
+      ],
+      "has_payload": true,
+      "packet_count": 4
+    },
+    "id": "isis_neighbor_up_sequence",
+    "proto": "isis",
+    "spec_json": {
+      "layers": [
+        {
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
+        },
+        {
+          "isis": {
+            "events": [
+              {
+                "holding_timer": 30,
+                "kind": "iih",
+                "lan_id": "01020304050601",
+                "level": "l1",
+                "neighbor_state": "Initializing",
+                "pdu_type": "lan_hello",
+                "priority": 64,
+                "system_id": "0102.0304.0506",
+                "tlvs": [
+                  {
+                    "type": 1,
+                    "value_hex": "03 49 00 01"
+                  }
+                ]
+              },
+              {
+                "holding_timer": 30,
+                "kind": "iih",
+                "lan_id": "01020304050601",
+                "level": "l1",
+                "neighbor_state": "Up",
+                "pdu_type": "lan_hello",
+                "priority": 64,
+                "system_id": "0102.0304.0506",
+                "tlvs": [
+                  {
+                    "type": 1,
+                    "value_hex": "03 49 00 01"
+                  }
+                ]
+              },
+              {
+                "checksum_mode": "auto",
+                "circuit_type": 1,
+                "kind": "lsp",
+                "level": "l1",
+                "lsp_id": "0102030405060000",
+                "neighbor_state": "Up",
+                "partition": 0,
+                "pdu_type": "lsp",
+                "remaining_lifetime": 120,
+                "sequence": 1,
+                "system_id": "0102.0304.0506",
+                "tlvs": [
+                  {
+                    "type": 132,
+                    "value_hex": "c0 00 02 01"
+                  }
+                ]
+              },
+              {
+                "kind": "psnp",
+                "level": "l1",
+                "neighbor_state": "Up",
+                "pdu_type": "psnp",
+                "system_id": "0102.0304.0506",
+                "tlvs": [
+                  {
+                    "type": 9,
+                    "value_hex": "00 78 01 02 03 04 05 06 00 00 00 00 00 01 00 01"
+                  }
+                ]
+              }
+            ],
+            "level": "l1",
+            "pdu_type": "events",
+            "system_id": "0102.0304.0506",
+            "wire_profile": "iso10589_ethertype"
+          }
+        }
+      ]
+    },
+    "summary": "Explicit neighbor up sequence"
+  },
+  {
+    "expect": {
+      "directional": false,
+      "fields": [
+        {
+          "field": "isis.irpd",
+          "packet": 1,
+          "value": "0x83"
+        },
+        {
+          "field": "isis.len",
+          "packet": 1,
+          "value": "27"
+        },
+        {
+          "field": "isis.sysid_len",
+          "packet": 1,
+          "value": "6"
+        },
+        {
+          "field": "isis.type",
+          "packet": 1,
+          "value": "18"
+        },
+        {
+          "field": "isis.lsp.pdu_length",
+          "packet": 1,
+          "value": "33"
+        },
+        {
+          "field": "isis.lsp.remaining_life",
+          "packet": 1,
+          "value": "120"
+        },
+        {
+          "field": "isis.lsp.lsp_id",
+          "packet": 1,
+          "value": "0102.0304.0506.00-00"
+        },
+        {
+          "field": "isis.lsp.sequence_number",
+          "packet": 1,
+          "value": "0x00000001"
+        },
+        {
+          "field": "isis.lsp.checksum",
+          "packet": 1,
+          "value": "0x5e3e"
+        },
+        {
+          "field": "isis.lsp.is_type",
+          "packet": 1,
+          "value": "1"
+        },
+        {
+          "field": "isis.lsp.clv.type",
+          "packet": 1,
+          "value": "132"
+        },
+        {
+          "field": "isis.lsp.clv_ipv4_int_addr",
+          "packet": 1,
+          "value": "192.0.2.1"
+        },
+        {
+          "field": "isis.irpd",
+          "packet": 2,
+          "value": "0x83"
+        },
+        {
+          "field": "isis.len",
+          "packet": 2,
+          "value": "27"
+        },
+        {
+          "field": "isis.sysid_len",
+          "packet": 2,
+          "value": "6"
+        },
+        {
+          "field": "isis.type",
+          "packet": 2,
+          "value": "20"
+        },
+        {
+          "field": "isis.lsp.pdu_length",
+          "packet": 2,
+          "value": "45"
+        },
+        {
+          "field": "isis.lsp.remaining_life",
+          "packet": 2,
+          "value": "120"
+        },
+        {
+          "field": "isis.lsp.lsp_id",
+          "packet": 2,
+          "value": "0102.0304.0506.00-01"
+        },
+        {
+          "field": "isis.lsp.sequence_number",
+          "packet": 2,
+          "value": "0x00000002"
+        },
+        {
+          "field": "isis.lsp.checksum",
+          "packet": 2,
           "value": "0x22e2"
         },
         {
-          "packet": 2,
           "field": "isis.lsp.is_type",
+          "packet": 2,
           "value": "2"
         },
         {
-          "packet": 2,
           "field": "isis.lsp.clv.type",
+          "packet": 2,
           "value": "232"
         },
         {
-          "packet": 2,
           "field": "isis.lsp.clv_ipv6_int_addr",
+          "packet": 2,
           "value": "2001:db8::1"
         }
       ],
       "frames": [
         {
-          "packet": 1,
+          "hex": "88 70",
           "offset": 12,
-          "hex": "88 70"
+          "packet": 1
         },
         {
-          "packet": 1,
+          "hex": "fe fe 03 83 1b 01 06 12 01",
           "offset": 14,
-          "hex": "fe fe 03 83 1b 01 06 12 01"
+          "packet": 1
         },
         {
-          "packet": 2,
+          "hex": "88 70",
           "offset": 12,
-          "hex": "88 70"
+          "packet": 2
         },
         {
-          "packet": 2,
+          "hex": "fe fe 03 83 1b 01 06 14 01",
           "offset": 14,
-          "hex": "fe fe 03 83 1b 01 06 14 01"
+          "packet": 2
+        }
+      ],
+      "has_payload": true,
+      "packet_count": 2
+    },
+    "id": "isis_ipv4_ipv6_tlv_profiles",
+    "proto": "isis",
+    "spec_json": {
+      "layers": [
+        {
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
+        },
+        {
+          "isis": {
+            "events": [
+              {
+                "address_profile": "ipv4_basic",
+                "checksum_mode": "auto",
+                "circuit_type": 1,
+                "kind": "lsp",
+                "level": "l1",
+                "lsp_id": "0102030405060000",
+                "neighbor_state": "Up",
+                "partition": 0,
+                "pdu_type": "lsp",
+                "remaining_lifetime": 120,
+                "sequence": 1,
+                "system_id": "0102.0304.0506",
+                "tlvs": [
+                  {
+                    "type": 132,
+                    "value_hex": "c0 00 02 01"
+                  }
+                ]
+              },
+              {
+                "address_profile": "ipv6_basic",
+                "checksum_mode": "auto",
+                "circuit_type": 2,
+                "kind": "lsp",
+                "level": "l2",
+                "lsp_id": "0102030405060001",
+                "neighbor_state": "Up",
+                "partition": 0,
+                "pdu_type": "lsp",
+                "remaining_lifetime": 120,
+                "sequence": 2,
+                "system_id": "0102.0304.0506",
+                "tlvs": [
+                  {
+                    "type": 232,
+                    "value_hex": "20 01 0d b8 00 00 00 00 00 00 00 00 00 00 00 01"
+                  }
+                ]
+              }
+            ],
+            "level": "l1",
+            "pdu_type": "events",
+            "system_id": "0102.0304.0506",
+            "wire_profile": "iso10589_ethertype"
+          }
         }
       ]
-    }
+    },
+    "summary": "Independent IPv4 and IPv6 TLV profiles"
   },
   {
+    "expect": {
+      "error_contains": "profile",
+      "expect_error": true
+    },
     "id": "isis_neg_profile",
     "proto": "isis",
-    "summary": "Reject unknown wire profile",
     "spec_json": {
       "layers": [
         {
-          "eth": {}
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
         },
         {
-          "isis": {}
+          "isis": {
+            "level": "l1",
+            "pdu_type": "lsp",
+            "system_id": "0102.0304.0506",
+            "wire_profile": "unknown_profile"
+          }
         }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "unknown_profile",
-        "level": "l1",
-        "pdu_type": "lsp",
-        "system_id": "0102.0304.0506"
-      }
+      ]
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "profile"
-    }
+    "summary": "Reject unknown wire profile"
   },
   {
+    "expect": {
+      "error_contains": "system",
+      "expect_error": true
+    },
     "id": "isis_neg_identifier",
     "proto": "isis",
-    "summary": "Reject malformed System ID",
     "spec_json": {
       "layers": [
         {
-          "eth": {}
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
         },
         {
-          "isis": {}
+          "isis": {
+            "level": "l1",
+            "pdu_type": "lsp",
+            "system_id": "0102",
+            "wire_profile": "iso10589_ethertype"
+          }
         }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "level": "l1",
-        "pdu_type": "lsp",
-        "system_id": "0102"
-      }
+      ]
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "system"
-    }
+    "summary": "Reject malformed System ID"
   },
   {
+    "expect": {
+      "error_contains": "state",
+      "expect_error": true
+    },
     "id": "isis_neg_state",
     "proto": "isis",
-    "summary": "Reject event outside adjacency state",
     "spec_json": {
       "layers": [
         {
-          "eth": {}
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
         },
         {
-          "isis": {}
-        }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "level": "l1",
-        "pdu_type": "events",
-        "system_id": "0102.0304.0506",
-        "events": [
-          {
-            "kind": "lsp",
-            "pdu_type": "lsp",
+          "isis": {
+            "events": [
+              {
+                "checksum_mode": "auto",
+                "circuit_type": 1,
+                "kind": "lsp",
+                "level": "l1",
+                "lsp_id": "0102030405060000",
+                "neighbor_state": "Down",
+                "partition": 0,
+                "pdu_type": "lsp",
+                "remaining_lifetime": 120,
+                "sequence": 1,
+                "system_id": "0102.0304.0506",
+                "tlvs": []
+              }
+            ],
             "level": "l1",
-            "neighbor_state": "Down",
-            "lsp_id": "0102030405060000",
-            "remaining_lifetime": 120,
-            "sequence": 1,
-            "partition": 0,
-            "circuit_type": 1,
-            "checksum_mode": "auto",
-            "tlvs": [],
-            "system_id": "0102.0304.0506"
+            "pdu_type": "events",
+            "system_id": "0102.0304.0506",
+            "wire_profile": "iso10589_ethertype"
           }
-        ]
-      }
+        }
+      ]
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "state"
-    }
+    "summary": "Reject event outside adjacency state"
   },
   {
+    "expect": {
+      "error_contains": "address",
+      "expect_error": true
+    },
     "id": "isis_neg_address_family",
     "proto": "isis",
-    "summary": "Reject mixed address-family TLV profile",
     "spec_json": {
       "layers": [
         {
-          "eth": {}
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
         },
         {
-          "isis": {}
-        }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "level": "l1",
-        "pdu_type": "lsp",
-        "system_id": "0102.0304.0506",
-        "address_profile": "ipv4_basic",
-        "lsp_id": "0102030405060000",
-        "remaining_lifetime": 120,
-        "sequence": 1,
-        "partition": 0,
-        "circuit_type": 1,
-        "checksum_mode": "auto",
-        "tlvs": [
-          {
-            "type": 232,
-            "value_hex": "20 01 0d b8 00 00 00 00 00 00 00 00 00 00 00 01"
+          "isis": {
+            "address_profile": "ipv4_basic",
+            "checksum_mode": "auto",
+            "circuit_type": 1,
+            "level": "l1",
+            "lsp_id": "0102030405060000",
+            "partition": 0,
+            "pdu_type": "lsp",
+            "remaining_lifetime": 120,
+            "sequence": 1,
+            "system_id": "0102.0304.0506",
+            "tlvs": [
+              {
+                "type": 232,
+                "value_hex": "20 01 0d b8 00 00 00 00 00 00 00 00 00 00 00 01"
+              }
+            ],
+            "wire_profile": "iso10589_ethertype"
           }
-        ]
-      }
+        }
+      ]
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "address"
-    }
+    "summary": "Reject mixed address-family TLV profile"
   },
   {
+    "expect": {
+      "error_contains": "area",
+      "expect_error": true
+    },
     "id": "isis_neg_duplicate_area",
     "proto": "isis",
-    "summary": "Reject duplicate Area TLV sources",
     "spec_json": {
       "layers": [
         {
-          "eth": {}
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
         },
         {
-          "isis": {}
-        }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "level": "l1",
-        "pdu_type": "lsp",
-        "system_id": "0102.0304.0506",
-        "area_addresses": [
-          "49.0001"
-        ],
-        "tlvs": [
-          {
-            "type": 1,
-            "value_hex": "03 49 00 01"
+          "isis": {
+            "area_addresses": [
+              "49.0001"
+            ],
+            "level": "l1",
+            "pdu_type": "lsp",
+            "system_id": "0102.0304.0506",
+            "tlvs": [
+              {
+                "type": 1,
+                "value_hex": "03 49 00 01"
+              }
+            ],
+            "wire_profile": "iso10589_ethertype"
           }
-        ]
-      }
+        }
+      ]
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "area"
-    }
+    "summary": "Reject duplicate Area TLV sources"
   },
   {
+    "expect": {
+      "error_contains": "carrier",
+      "expect_error": true
+    },
     "id": "isis_neg_ip_carrier",
     "proto": "isis",
-    "summary": "Reject IP carrier",
     "spec_json": {
       "layers": [
         {
           "ip": {}
         },
         {
-          "isis": {}
+          "isis": {
+            "pdu_type": "lsp",
+            "wire_profile": "iso10589_ethertype"
+          }
         }
-      ],
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "pdu_type": "lsp"
-      }
+      ]
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "carrier"
-    }
+    "summary": "Reject IP carrier"
   },
   {
+    "expect": {
+      "error_contains": "carrier",
+      "expect_error": true
+    },
     "id": "isis_neg_mixed_carrier",
     "proto": "isis",
-    "summary": "Reject mixed LLC and EtherType",
     "spec_json": {
       "layers": [
         {
-          "eth": {}
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
         },
         {
-          "isis": {}
+          "isis": {
+            "level": "l1",
+            "llc": {
+              "control": 3,
+              "dsap": 254,
+              "ssap": 254
+            },
+            "pdu_type": "lsp",
+            "system_id": "0102.0304.0506",
+            "wire_fault": {
+              "kind": "mixed_carrier"
+            },
+            "wire_profile": "iso10589_ethertype"
+          }
         }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "level": "l1",
-        "pdu_type": "lsp",
-        "system_id": "0102.0304.0506",
-        "llc": {
-          "dsap": 254,
-          "ssap": 254,
-          "control": 3
-        },
-        "wire_fault": {
-          "kind": "mixed_carrier"
-        }
-      }
+      ]
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "carrier"
-    }
+    "summary": "Reject mixed LLC and EtherType"
   },
   {
+    "expect": {
+      "error_contains": "header",
+      "expect_error": true
+    },
     "id": "isis_neg_header",
     "proto": "isis",
-    "summary": "Reject malformed Common Header",
     "spec_json": {
       "layers": [
         {
-          "eth": {}
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
         },
         {
-          "isis": {}
+          "isis": {
+            "level": "l1",
+            "pdu_type": "lsp",
+            "system_id": "0102.0304.0506",
+            "wire_fault": {
+              "header_length": 7,
+              "kind": "header"
+            },
+            "wire_profile": "iso10589_ethertype"
+          }
         }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "level": "l1",
-        "pdu_type": "lsp",
-        "system_id": "0102.0304.0506",
-        "wire_fault": {
-          "kind": "header",
-          "header_length": 7
-        }
-      }
+      ]
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "header"
-    }
+    "summary": "Reject malformed Common Header"
   },
   {
+    "expect": {
+      "error_contains": "level",
+      "expect_error": true
+    },
     "id": "isis_neg_level_type",
     "proto": "isis",
-    "summary": "Reject level/type mismatch",
     "spec_json": {
       "layers": [
         {
-          "eth": {}
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
         },
         {
-          "isis": {}
+          "isis": {
+            "level": "l1",
+            "pdu_type": "lsp",
+            "system_id": "0102.0304.0506",
+            "wire_fault": {
+              "circuit_type": 2,
+              "kind": "level_type",
+              "pdu_type": 20
+            },
+            "wire_profile": "iso10589_ethertype"
+          }
         }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "level": "l1",
-        "pdu_type": "lsp",
-        "system_id": "0102.0304.0506",
-        "wire_fault": {
-          "kind": "level_type",
-          "pdu_type": 20,
-          "circuit_type": 2
-        }
-      }
+      ]
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "level"
-    }
+    "summary": "Reject level/type mismatch"
   },
   {
+    "expect": {
+      "error_contains": "length",
+      "expect_error": true
+    },
     "id": "isis_neg_length",
     "proto": "isis",
-    "summary": "Reject PDU/TLV length mismatch",
     "spec_json": {
       "layers": [
         {
-          "eth": {}
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
         },
         {
-          "isis": {}
+          "isis": {
+            "level": "l1",
+            "pdu_type": "lsp",
+            "system_id": "0102.0304.0506",
+            "wire_fault": {
+              "kind": "length",
+              "pdu_length": 27
+            },
+            "wire_profile": "iso10589_ethertype"
+          }
         }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "level": "l1",
-        "pdu_type": "lsp",
-        "system_id": "0102.0304.0506",
-        "wire_fault": {
-          "kind": "length",
-          "pdu_length": 27
-        }
-      }
+      ]
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "length"
-    }
+    "summary": "Reject PDU/TLV length mismatch"
   },
   {
+    "expect": {
+      "error_contains": "tlv",
+      "expect_error": true
+    },
     "id": "isis_neg_vendor_tlv",
     "proto": "isis",
-    "summary": "Reject unregistered vendor TLV",
     "spec_json": {
       "layers": [
         {
-          "eth": {}
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
         },
         {
-          "isis": {}
-        }
-      ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "level": "l1",
-        "pdu_type": "lsp",
-        "system_id": "0102.0304.0506",
-        "tlvs": [
-          {
-            "type": 250,
-            "value_hex": "00"
+          "isis": {
+            "level": "l1",
+            "pdu_type": "lsp",
+            "system_id": "0102.0304.0506",
+            "tlvs": [
+              {
+                "type": 250,
+                "value_hex": "00"
+              }
+            ],
+            "wire_profile": "iso10589_ethertype"
           }
-        ]
-      }
+        }
+      ]
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "tlv"
-    }
+    "summary": "Reject unregistered vendor TLV"
   },
   {
+    "expect": {
+      "error_contains": "checksum",
+      "expect_error": true
+    },
     "id": "isis_neg_checksum",
     "proto": "isis",
-    "summary": "Reject bad LSP checksum",
     "spec_json": {
       "layers": [
         {
-          "eth": {}
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
+        },
+        {
+          "isis": {
+            "checksum": 1,
+            "checksum_mode": "manual",
+            "level": "l1",
+            "pdu_type": "lsp",
+            "system_id": "0102.0304.0506",
+            "wire_fault": {
+              "kind": "checksum"
+            },
+            "wire_profile": "iso10589_ethertype"
+          }
+        }
+      ]
+    },
+    "summary": "Reject bad LSP checksum"
+  },
+  {
+    "expect": {
+      "error_contains": "no longer accepts a top-level isis sub-config",
+      "expect_error": true
+    },
+    "id": "isis_neg_presence_top_level_isis",
+    "proto": "isis",
+    "spec_json": {
+      "isis": {},
+      "layers": [
+        {
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
+        },
+        {
+          "isis": {}
+        }
+      ]
+    },
+    "summary": "presence 判死：层链 + 顶层空 isis 子映射并存（M5①）"
+  },
+  {
+    "expect": {
+      "error_contains": "no longer accepts flat config field src_ip",
+      "expect_error": true
+    },
+    "id": "isis_neg_stray_src_ip",
+    "proto": "isis",
+    "spec_json": {
+      "layers": [
+        {
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
         },
         {
           "isis": {}
         }
       ],
-      "src_mac": "02:00:00:00:10:01",
-      "isis": {
-        "wire_profile": "iso10589_ethertype",
-        "level": "l1",
-        "pdu_type": "lsp",
-        "system_id": "0102.0304.0506",
-        "checksum_mode": "manual",
-        "checksum": 1,
-        "wire_fault": {
-          "kind": "checksum"
-        }
-      }
+      "src_ip": "192.0.2.99"
     },
+    "summary": "白名单外游离键判死：layers + 顶层 src_ip（M5②，1.11–1.13）"
+  },
+  {
     "expect": {
-      "expect_error": true,
-      "error_contains": "checksum"
-    }
+      "error_contains": "must not have an ip/transport carrier",
+      "expect_error": true
+    },
+    "id": "isis_neg_tcp_carrier",
+    "proto": "isis",
+    "spec_json": {
+      "layers": [
+        {
+          "eth": {
+            "src_mac": "02:00:00:00:10:01"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "isis": {}
+        }
+      ]
+    },
+    "summary": "载体判死（V7b Transport 分支）：[eth,tcp,isis] 夹传输层（M5③；#19 覆 Network 分支）"
   }
 ]

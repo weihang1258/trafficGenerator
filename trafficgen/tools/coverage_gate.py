@@ -7409,9 +7409,209 @@ def check_rtmfp(cases):
     return rows
 
 
+def check_isis(cases):
+    """D-ISIS-1 P4 反查表（28 例 = 13 正 + 15 负；[eth,isis] L2-only 终结层）。
+    返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 准入与接线。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 isis", '"isis": true' in pg, "在列"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "isis"')
+    reg_block = rg[i_reg:rg.index("r.Register(", i_reg + 10)]
+    rows.append(("registry isis 行（DependsOn eth + 22 键 Fields + 无 FieldContract）",
+                 'DependsOn: []string{"eth"}' in reg_block
+                 and reg_block.count("{Type:") == 22
+                 and "FieldContract" not in reg_block, "在案"))
+    for k in ["wire_profile", "level", "pdu_type", "system_id", "holding_timer",
+              "priority", "lan_id", "tlvs", "lsp_id", "remaining_lifetime",
+              "sequence", "partition", "circuit_type", "checksum_mode",
+              "address_profile", "area_addresses", "start_lsp_id", "end_lsp_id",
+              "events", "checksum", "llc", "wire_fault"]:
+        if f'"{k}"' not in reg_block:
+            rows.append((f"registry 键 {k}", False, "缺键"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case isis（层 config → spec.ISIS，JSON 往返严格解码）",
+                 'case "isis":' in tr and "DisallowUnknownFields" in tr
+                 and "isis layer config decode" in tr, "在案"))
+    rows.append(("isisConfigHasContent 层优先判别式（空壳例外，cflow/enip 同款）",
+                 "func isisConfigHasContent" in tr, "在案"))
+    rows.append(("FlowMeta.ISIS 直传",
+                 re.search(r"ISIS:\s+spec\.ISIS\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.ISIS 字段", re.search(r"ISIS\s+\*core\.ISISConfig", gen) is not None, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(isis)",
+                 "internal/protocol/isis" in mn and 'NewChainPlanner("isis")' in mn, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("L2-only 直发分支（EtherType 0x8870 强制 + L3 清空）",
+                 'p.name == "isis"' in cp and "core.EtherTypeISIS" in cp
+                 and "pkt.L3 = core.L3Config{}" in cp, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "complete.go").read_text()
+    rows.append(("V7b 载体守卫（L2 终结层不得有 ip/transport 载体）",
+                 "must not have an ip/transport carrier" in vl, "在案"))
+
+    # 2. 守卫面。
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    # presence 文案由 rawWrapChains 表在运行时拼出（"no longer accepts a
+    # top-level <proto> sub-config"），源码里没有 isis 字面量——按表项查。
+    rows.append(("CheckProtoFlat presence 判死顶层 isis 子映射（rawWrapChains 表项）",
+                 re.search(r'"isis":\s*"\[eth,isis\]"', sc) is not None, "在案"))
+    rows.append(("rawWrapChains 收 isis（[eth,isis] 提示）",
+                 re.search(r'"isis":\s*"\[eth,isis\]"', sc) is not None, "在案"))
+    rows.append(("mapToFlowSpec 顶层 isis → ValidationErrors（在库旧策略执法）",
+                 'if protocol == "isis" {' in sc, "在案"))
+    bl = (tg / "internal" / "protocol" / "isis" / "builder.go").read_text()
+    for prim, name in [
+        ("func parseSystemID", "System ID 6 字节解析"),
+        ("func parseLSPID", "LSP ID 8 字节解析"),
+        ("func commonHeader", "8B 公共头装配"),
+        ("func buildIIH", "LAN IIH 渲染"),
+        ("func buildLSP", "LSP 渲染 + Fletcher-16 回填"),
+        ("func buildCSNP", "CSNP range 渲染"),
+        ("func buildPSNP", "PSNP entry 渲染"),
+        ("func osiFletcherChecksum", "ISO 10589 Fletcher-16"),
+    ]:
+        rows.append((f"原语：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "isis" / "planner.go").read_text()
+    for guard, name in [
+        ("unknown wire profile", "profile 锚（:28）"),
+        ("duplicate area address source", "area 锚（:58）"),
+        ("mixed carrier", "carrier 锚（:66/69）"),
+        ("bad header", "header 锚（:74）"),
+        ("level/type mismatch", "level 锚（:79）"),
+        ("length mismatch", "length 锚（:83/86）"),
+        ("unsupported tlv type", "tlv 锚（:91）"),
+        ("bad LSP checksum", "checksum 锚（:102）"),
+        ("address family mismatch", "address 锚（:192）"),
+        ("Down is only valid for IIH", "state 锚（:154）"),
+    ]:
+        rows.append((f"守卫：{name}", guard in pl, f"锚词 {guard}"))
+    lg = (tg / "internal" / "protocol" / "isis" / "layer_gen.go").read_text()
+    for prim, name in [
+        ("func (g *ISISGenerator) Generate", "终结层事件流"),
+        ("iso10589_ethertype", "EtherType profile 前置 LLC"),
+        ("func padPayload", "802.3 最小载荷 padding"),
+        ("func buildEventPDU", "事件序渲染"),
+        ("RegisterLayerGenerator", "层生成器注册"),
+        ("RegisterLayerValidator", "层校验器注册"),
+    ]:
+        rows.append((f"关键件：{name}", prim in lg, "在案"))
+
+    # 3. 用例面（28 例 = 13 正 + 15 负）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "isis_l1_iih_llc", "isis_l2_iih_llc", "isis_l1_iih_ethertype",
+        "isis_l2_iih_ethertype", "isis_l1_lsp_ipv4", "isis_l2_lsp_ipv6",
+        "isis_l1_lsp_tlv_order", "isis_l1_csnp", "isis_l2_psnp",
+        "isis_length_checksum", "isis_area_system_id", "isis_neighbor_up_sequence",
+        "isis_ipv4_ipv6_tlv_profiles", "isis_neg_profile", "isis_neg_identifier",
+        "isis_neg_state", "isis_neg_address_family", "isis_neg_duplicate_area",
+        "isis_neg_ip_carrier", "isis_neg_mixed_carrier", "isis_neg_header",
+        "isis_neg_level_type", "isis_neg_length", "isis_neg_vendor_tlv",
+        "isis_neg_checksum",
+    ]:
+        rows.append((f"存量 25 例在案：{cid}", cid in ids, "在案"))
+    for cid, name in [
+        ("isis_neg_presence_top_level_isis", "M5① presence 红例"),
+        ("isis_neg_stray_src_ip", "M5② 游离键红例"),
+        ("isis_neg_tcp_carrier", "M5③ 载体红例（V7b Transport 分支）"),
+    ]:
+        rows.append((name, cid in ids, cid if cid in ids else "无用例"))
+    rows.append(("28 例 = 13 正 + 15 负", len(cases) == 28 and len(pos) == 13 and len(neg) == 15,
+                 f"{len(cases)} 例 / {len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("正例顶层键=0（仅 layers）",
+                 all(set((c.get("spec_json") or {}).keys()) == {"layers"} for c in pos), "穷尽"))
+    rows.append(("负例 expect 纯净（仅 expect_error + error_contains）",
+                 all(set((c.get("expect") or {}).keys()) == {"expect_error", "error_contains"}
+                     for c in neg), "纯净"))
+    # 正例四项齐全（packet_count/fields/frames/has_payload）+ directional 恒 false。
+    rows.append(("正例四项齐全（packet_count/fields/frames/has_payload）",
+                 all(all(k in (c.get("expect") or {}) for k in
+                         ("packet_count", "fields", "frames", "has_payload")) for c in pos), "穷尽"))
+    rows.append(("directional 正例恒 false（L2 无连接诚实口径）",
+                 all((c.get("expect") or {}).get("directional") is False for c in pos), "穷尽"))
+    rows.append(("has_handshake/terminates/notes 零出现",
+                 not any(k in (c.get("expect") or {}) for c in cases
+                         for k in ("has_handshake", "terminates", "notes")), "零出现"))
+    # packet_count 序列 [1×11,4,2]（总 17）。
+    seq = [(c.get("expect") or {}).get("packet_count") for c in pos]
+    rows.append(("packet_count 序列 [1×11,4,2]（总包数 17）",
+                 seq == [1] * 11 + [4, 2], seq))
+    # 层条目：正例恒 [eth,isis] 且 isis 条目非空（业务键全量迁入）。
+    bad_layers = [c.get("id") for c in pos
+                  if [list(l.keys())[0] for l in (c.get("spec_json") or {}).get("layers", [])]
+                  != ["eth", "isis"]
+                  or not next((l["isis"] for l in (c.get("spec_json") or {}).get("layers", [])
+                               if "isis" in l), None)]
+    rows.append(("正例层链恒 [eth,isis] 且 isis 条目非空", not bad_layers, bad_layers or "穷尽"))
+    # eth 层 src_mac 迁移（24 例 fixture；#19 载体例无）。
+    with_mac = [c.get("id") for c in cases
+                if any(isinstance(l.get("eth"), dict) and "src_mac" in l["eth"]
+                       for l in (c.get("spec_json") or {}).get("layers", []))]
+    rows.append(("eth 层 src_mac 迁移 27 例（#19 载体例无 eth 层）",
+                 len(with_mac) == 27, f"{len(with_mac)} 例"))
+    # 顶层 src_mac 零残留（非负例）。
+    bad_top = [c.get("id") for c in cases if "src_mac" in (c.get("spec_json") or {})]
+    rows.append(("顶层 src_mac 零残留", not bad_top, bad_top or "零残留"))
+    # 事件例：包数 = 事件数（#12=4/#13=2，一一对应）。
+    for cid, want in [("isis_neighbor_up_sequence", 4), ("isis_ipv4_ipv6_tlv_profiles", 2)]:
+        c = next((x for x in cases if x.get("id") == cid), None)
+        n_ev = 0
+        if c:
+            for l in (c.get("spec_json") or {}).get("layers", []):
+                if isinstance(l.get("isis"), dict) and isinstance(l["isis"].get("events"), list):
+                    n_ev = len(l["isis"]["events"])
+        rows.append((f"{cid} 事件数=包数={want}", n_ev == want
+                     and (c.get("expect") or {}).get("packet_count") == want, f"{n_ev} 事件"))
+    # 断言通道：28 去重字段（isis.* + clv*）——无 ip.*/eth.*（L2 无 IP 外层）。
+    fields = {f.get("field") for c in pos for f in (c.get("expect") or {}).get("fields", [])}
+    rows.append(("断言字段 ⊆ isis.*/clv*（无 ip.*/eth.* 自创）",
+                 all(f.startswith("isis.") or f.startswith("clv") for f in fields), sorted(fields)[:3]))
+    rows.append((f"字段面 {len(fields)} 去重", len(fields) == 28, f"{len(fields)} 字段"))
+    # frames 三档 offset（12/14/17）。
+    offs = {f.get("offset") for c in pos for f in (c.get("expect") or {}).get("frames", [])}
+    rows.append(("frames offset ⊆ {12,14,17}（802.3 length / LLC 起 / PDU 首字节）",
+                 offs <= {12, 14, 17} and offs == {12, 14, 17}, sorted(offs)))
+    # 负例锚词覆盖（15 负例锚词逐字 = cases 表值）。
+    anchors = {"profile", "system", "state", "address", "area", "carrier",
+               "header", "level", "length", "tlv", "checksum",
+               "no longer accepts a top-level isis sub-config",
+               "no longer accepts flat config field src_ip",
+               "must not have an ip/transport carrier"}
+    got = {(c.get("expect") or {}).get("error_contains") for c in neg}
+    missing = sorted(a for a in anchors if a not in got)
+    rows.append((f"负例锚词覆盖 {len(anchors)} 族", not missing, missing or "全覆盖"))
+    # 锚词逐字命中代码（tftp 先例口径）。
+    code_text = pl + sc + vl + lg + bl + cp
+    bad_a = [f"{c.get('id')}:{ec}" for c in neg
+             for ec in [(c.get("expect") or {}).get("error_contains", "")]
+             if ec not in code_text and not all(
+                 w in code_text for w in re.split(r"\s+", re.sub(r"\b\d+\b", "", ec))
+                 if len(w.strip('",()[]:')) >= 3)]
+    rows.append(("15 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
+    # 链级红例测试在案（M5 五件套）。
+    blk = (tg / "internal" / "core" / "layers" / "isis_chain_test.go").read_text()
+    for tc, name in [
+        ("TestISISChain_LayerToSpecPlan", "链级①层条目→spec 翻译出包"),
+        ("TestISISChain_EtherTypeProfile", "链级①b 双 profile（LLC/ET）"),
+        ("TestISISChain_PresenceAndStrayTopLevelKeys", "链级②presence/游离键判死"),
+        ("TestISISChain_CarrierRejected", "链级③载体拒（carrier）"),
+        ("TestISISChain_L2OnlySpecDefaults", "链级⑤L2-only 默认面（无假 IP/端口）"),
+        ("TestISISChain_CaseFileAudit", "链级④用例文件收官自查"),
+    ]:
+        rows.append((name, tc in blk, "在案"))
+    return rows
+
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "isis": check_isis}
 
 
 def main(argv):
