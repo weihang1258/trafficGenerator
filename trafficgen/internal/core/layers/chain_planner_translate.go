@@ -2999,6 +2999,47 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.DRDA = &dcfg
+	case "moxa":
+		// D-MOXA-1 G-MOXA-1：层 config 经 JSON 往返严格解码为 core.MOXAConfig
+		// （bgp :707 范式——completedConfig + DisallowUnknownFields）。层内
+		// 顶层层键的未知由 ValidateLayers V9 前置拒；元素内层未知键
+		// （stream[] 的 direction/payload/payload_b64 之外的 typo）只有严格
+		// 解码能拦——宽容 Unmarshal 会静默丢弃成空块，再以误导锚词
+		// "empty stream block" 报错（红测 TestMOXAChain_StrictDecode 实证）。
+		// 层优先：spec.MOXA 已存在（引擎直调路径）则不覆盖；扁平入口已由
+		// CheckProtoFlat 判死顶层 moxa 子映射。
+		//
+		// 二态（设计 §5 自动派生规则①，bgp events 同款）：
+		//   - 空层 config（`{"moxa":{}}`，completedConfig 后 len==0）→ 留
+		//     spec.MOXA nil：planner.Plan / layer_gen.Generate 双默认化为
+		//     单块 "hello"（P0b-2 空配置默认流；planner.Validate 对 nil 放行）；
+		//   - 显式写键（含 `stream: []`）→ 翻译出非 nil，交给 validator：
+		//     空 stream 命中 "empty stream block or payload required"（N-1），
+		//     sessions>1 命中 "sessions=3>1 not supported"（N-3）。
+		// 反例（P4 修轮实证）：无条件赋非 nil 会把空层 config 打成空 stream
+		// 拒绝，P0b-2 默认流在链形状下失效（红测 TestMOXAChain_EmptyLayerDefaultsToHello）。
+		if spec.MOXA != nil {
+			return
+		}
+		cfgM := completedConfig(s, term.Config)
+		if len(cfgM) == 0 {
+			return
+		}
+		rawM, err := json.Marshal(cfgM)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("moxa layer config encode: %v", err))
+			return
+		}
+		var mcfg core.MOXAConfig
+		decM := json.NewDecoder(bytes.NewReader(rawM))
+		decM.DisallowUnknownFields()
+		if err := decM.Decode(&mcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("moxa layer config decode: %v", err))
+			return
+		}
+		spec.MOXA = &mcfg
 	}
 }
 

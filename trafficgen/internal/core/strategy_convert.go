@@ -515,6 +515,15 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-MOXA-1 G-MOXA-1/G-MOXA-2：moxa 在库旧策略顶层 moxa → ValidationErrors
+	// （bgp 同款；空 map 也死——判死形状「层链+顶层空子映射并存」wired 面）。
+	// 时序：层内翻译（translateTerminalConfig case "moxa"）先落码，13 例改写
+	// 后此门才有执法对象。
+	if protocol == "moxa" {
+		if v, ok := cfg["moxa"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-S7-85（G-S7-1）：s7 在库旧策略顶层 s7 → ValidationErrors（amqp
 	// 同款；空 map 也死——顶层 s7 子映射 presence 判死，层链形状不触发）。
 	if protocol == "s7" {
@@ -1582,6 +1591,10 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["moxa"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*MOXAConfig](&spec, sub, "moxa", &spec.MOXA)
 		}
+		// D-MOXA-1 G-MOXA-1：moxa 目的端口默认 4800（doip/dameng 同款；flat
+		// 兼容路径缺省——链路径在 validateSpecBase 补齐）。仅当用户未指定
+		// dst_port 时覆盖。
+		setDefaultDstPort(&spec, cfg, 4800)
 	case "someip":
 		if sub, ok := cfg["someip"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*SOMEIPConfig](&spec, sub, "someip", &spec.SOMEIP)
@@ -8693,6 +8706,15 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "drda" {
 		if v, ok := cfg["drda"]; ok && v != nil {
 			return "protocol drda no longer accepts a top-level drda sub-config (move it into the drda layer of an [ip,tcp,drda] layers chain)"
+		}
+	}
+	// D-MOXA-1 G-MOXA-2（P4 落码）：moxa 顶层 moxa 子映射 presence 判死
+	// （drda 先例；空 map 也死——契约 §12-P2 点名形状「层链+顶层空子映射
+	// 并存=判死负例」）。层链形状不触发。P4 之前此处无分支（p123 报告
+	// 实测 grep -c = 0），presence 形不判死 = G-MOXA-2 缺口。
+	if protocol == "moxa" {
+		if v, ok := cfg["moxa"]; ok && v != nil {
+			return "protocol moxa no longer accepts a top-level moxa sub-config (move it into the moxa layer of an [ip,tcp,moxa] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-SSTP-1：sstp 顶层 sstp 子映射 presence 判死（kerberos 之后的 sstp

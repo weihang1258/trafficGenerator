@@ -323,6 +323,43 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 	// 且 neg_udp_port（v9 层写 4739）反向漏放。
 	// D-DRDA-1：drda 同款（契约端口 446 的域校验住 planner.Validate，
 	// 显式 5000 不先回填则同样旁路）。
+	// D-MOXA-1 G-MOXA-1（P4 修轮实证）：moxa 同款但语义不同——moxa 的载体
+	// 校验（"tcp.handshake must be true"，N-4）读的是 spec.TCP，而链形状下
+	// 顶层 tcp 子映射已被 CheckProtoFlat 判死，spec.TCP 恒为 nil ⟹ 层内
+	// tcp.handshake=false 无从到达 validator（负例假通过，红测实证
+	// moxa_chain_test.go TestMOXAChain_HandshakeFalseRejected）。回填 tcp 层
+	// 三个开关（handshake/termination/rst）与端口同源：层值是链形状的载体
+	// 真相。仅在 spec.TCP 缺席时回填（flat 直调路径权威保留）。
+	if p.name == "moxa" && spec.TCP == nil {
+		for _, l := range chain {
+			if l.Name != "tcp" {
+				continue
+			}
+			hs, hasHS := l.Config["handshake"]
+			term, hasTerm := l.Config["termination"]
+			rst, hasRST := l.Config["rst"]
+			if !hasHS && !hasTerm && !hasRST {
+				break
+			}
+			spec.TCP = &core.TCPConfig{Handshake: true, Termination: true}
+			if hasHS {
+				if b, ok := configBool(hs); ok {
+					spec.TCP.Handshake = b
+				}
+			}
+			if hasTerm {
+				if b, ok := configBool(term); ok {
+					spec.TCP.Termination = b
+				}
+			}
+			if hasRST {
+				if b, ok := configBool(rst); ok {
+					spec.TCP.RST = b
+				}
+			}
+			break
+		}
+	}
 	if p.name == "enip" || p.name == "dameng" || p.name == "cflow" || p.name == "drda" {
 		for _, l := range chain {
 			if l.Name != "tcp" && l.Name != "udp" {

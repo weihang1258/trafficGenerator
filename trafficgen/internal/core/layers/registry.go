@@ -713,7 +713,22 @@ func buildDefaultRegistry() {
 		"errorClassName":          {Type: "string"},
 		"errorValue":              {Type: "int", Default: 0, Min: 0, Max: 255},
 	}})
-	r.Register(LayerSchema{Name: "moxa", Category: CategoryTerminal, DependsOn: []string{"tcp"}})
+	r.Register(LayerSchema{Name: "moxa", Category: CategoryTerminal, DependsOn: []string{"tcp"},
+		// D-MOXA-1 G-MOXA-1：moxa 层两键（契约 §12.1 旧键去向表——顶层 moxa
+		// 子映射迁 layers[i].moxa）。stream 是块剧本（[]MOXAStreamBlock，
+		// 元素 direction/payload/payload_b64）；sessions 是结构选择器
+		// （>1 由 planner/生成器双拒，V9 Min/Max 双 0 = 无界跳过 → 锚词
+		// 归 validator）。
+		// Default nil（NOT []interface{}{}）：completedConfig 对 nil Default
+		// 不落键——"stream 缺键"（→ 默认单块 "hello"）与"显式 stream: []"
+		// （→ 空 stream 拒绝）二态必须可分（bgp events 同款）。
+		// sessions 同列：nil Default 使"空层 config"（completedConfig 后
+		// len==0）与"写了 sessions"可分——前者走 P0b-2 默认流（translate
+		// 留 spec.MOXA nil），后者必须到 validator（N-3 锚词）。
+		Fields: map[string]FieldSchema{
+			"stream":   {Type: "list"},
+			"sessions": {Type: "int", Min: 0, Max: 0},
+		}})
 	r.Register(LayerSchema{Name: "someip", Category: CategoryTerminal, DependsOn: []string{"udp"}, TransportOn: []string{"udp", "tcp"}})
 	r.Register(LayerSchema{Name: "drda", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "446"},

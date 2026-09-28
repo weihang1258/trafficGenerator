@@ -2326,7 +2326,14 @@
       "depends_on": [
         "tcp"
       ],
-      "fields": {}
+      "fields": {
+        "sessions": {
+          "type": "int"
+        },
+        "stream": {
+          "type": "list"
+        }
+      }
     },
     "mpls": {
       "category": "terminal",
