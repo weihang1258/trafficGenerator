@@ -1529,14 +1529,6 @@
           "default": 0,
           "max": 255
         },
-        "repeat": {
-          "type": "int",
-          "default": 0
-        },
-        "role": {
-          "type": "string",
-          "default": ""
-        },
         "sco": {
           "type": "uint8",
           "default": 0,
@@ -1550,14 +1542,6 @@
           "type": "uint8",
           "default": 0,
           "max": 255
-        },
-        "startdt": {
-          "type": "bool",
-          "default": false
-        },
-        "stopdt": {
-          "type": "bool",
-          "default": false
         },
         "time": {
           "type": "string",

@@ -551,6 +551,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-IEC104-1：iec104 在库旧策略顶层 iec104 → ValidationErrors（drda
+	// 同款；空 map 也死——存量 16 例正是「层链+顶层 iec104 子映射并存」形，
+	// 改写后此门即有执法对象）。
+	if protocol == "iec104" {
+		if v, ok := cfg["iec104"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-MMS-2（G-MMS-1，§14-P2）：mms 在库旧策略顶层 mms → ValidationErrors
 	// （amqp 同款；在库 0 行纯防御——新协议无存量迁移面）。
 	if protocol == "mms" {
@@ -1547,6 +1555,10 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["iec104"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*IEC104Config](&spec, sub, "iec104", &spec.IEC104)
 		}
+		// D-IEC104-1：IEC104 默认端口 2404（FieldContract 同值；drda 446 /
+		// enip 44818 同款）。缺此行则链形状下 spec.DstPort 停在通用缺省 80，
+		// 被 planner 的端口契约守卫（设计 §1 不变式 1）误杀为错端口。
+		setDefaultDstPort(&spec, cfg, 2404)
 	case "bgp":
 		if sub, ok := cfg["bgp"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*BGPConfig](&spec, sub, "bgp", &spec.BGP)
@@ -8868,6 +8880,14 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "igmp" {
 		if v, ok := cfg["igmp"]; ok && v != nil {
 			return "protocol igmp no longer accepts a top-level igmp sub-config (move it into the igmp layer of an [ip,igmp] layers chain; the layer chain is the only config truth)"
+		}
+	}
+	// D-IEC104-1：iec104 顶层 iec104 子映射 presence 判死（mms 先例；空
+	// map 也死——B6 扁平注入形退役，配置迁 iec104 层，层链是唯一真相）。
+	// 层链形状不触发。
+	if protocol == "iec104" {
+		if v, ok := cfg["iec104"]; ok && v != nil {
+			return "protocol iec104 no longer accepts a top-level iec104 sub-config (move it into the iec104 layer of an [ip,tcp,iec104] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-MMS-2（G-MMS-1，§14-P2）：mms 顶层 mms 子映射 presence 判死

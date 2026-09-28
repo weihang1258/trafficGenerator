@@ -1020,14 +1020,17 @@ func buildDefaultRegistry() {
 			"wire_fault": {Type: "object"},
 		},
 	})
+	// D-IEC104-1 P4（G-IEC104-2 幽灵键裁决）：role/startdt/stopdt 在
+	// builder/planner/layer_gen 三处零消费（design §8 幽灵键表实测），
+	// G-IEC104-2 裁定=删除，不接线；`repeat` 同为零消费（负例探针形锚词
+	// 实际来自 max_apdu_length 守卫），删除。`transport` 保留（planner.go:19
+	// 载体守卫有消费，单测 iec104_test.go:172 已覆）；value 保留（I 帧
+	// NVA/DCO/SCO 体有消费，builder.go:64/74/84）。
 	r.Register(LayerSchema{Name: "iec104", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "2404"},
 		Fields: map[string]FieldSchema{
 			"transport":       {Type: "string", Default: ""},
-			"role":            {Type: "string", Default: ""},
 			"common_address":  {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
-			"startdt":         {Type: "bool", Default: false},
-			"stopdt":          {Type: "bool", Default: false},
 			"events":          {Type: "list", Default: []interface{}{}},
 			"commands":        {Type: "list", Default: []interface{}{}},
 			"type_id":         {Type: "uint8", Default: uint8(0), Min: 0, Max: 255},
@@ -1043,7 +1046,6 @@ func buildDefaultRegistry() {
 			"select":          {Type: "bool", Default: false},
 			"time":            {Type: "string", Default: ""},
 			"max_apdu_length": {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
-			"repeat":          {Type: "int", Default: 0, Min: 0, Max: 0},
 		}})
 	// D-GOOSE-1：层 config 收 GOOSEConfig 同名 18 用户键，一律不设 Default
 	// （fins 16 键同款——dns 14 键带 Default 是例外非先例：dns 走"缺席=

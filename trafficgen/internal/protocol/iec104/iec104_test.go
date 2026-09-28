@@ -295,6 +295,51 @@ func TestGeneratorEmptyConfigProducesDefaultFlow(t *testing.T) {
 	}
 }
 
+// G-IEC104-8（P4 必办，失败测试先行）：value 是 16-bit 信息体（NVA/DCO/SCO
+// 单字节取低 8 位），builder 走 `uint16(cfg.Value)` 截断——负值静默回绕、
+// >65535 静默丢高位，两者都产出"看起来合法"的字节。Validate 必须显式拒收，
+// 使负例走 task error 终态（零假成功）而不是静默错字节。
+func TestPlannerRejectsOutOfRangeValue(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value int32
+	}{
+		{"negative", -1},
+		{"overflow", 65536},
+		{"far_overflow", 1 << 20},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &IEC104Config{Events: []IEC104Event{{
+				Direction: "up", Kind: "i", TypeID: TypeMMeNa, Cause: 3, IOA: 1, Value: tc.value,
+			}}}
+			err := (Planner{}).Validate(core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345, DstPort: 2404, IEC104: cfg})
+			if err == nil {
+				t.Fatalf("value=%d accepted, want rejection (16-bit information element)", tc.value)
+			}
+			if !contains(err.Error(), "value") {
+				t.Fatalf("value=%d err=%q, want anchor \"value\"", tc.value, err.Error())
+			}
+		})
+	}
+	// 边界两侧必须放行：0 与 65535 都是合法 16-bit 值。
+	for _, v := range []int32{0, 65535} {
+		cfg := &IEC104Config{Events: []IEC104Event{{
+			Direction: "up", Kind: "i", TypeID: TypeMMeNa, Cause: 3, IOA: 1, Value: v,
+		}}}
+		if err := (Planner{}).Validate(core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345, DstPort: 2404, IEC104: cfg}); err != nil {
+			t.Fatalf("value=%d rejected: %v (0..65535 are legal)", v, err)
+		}
+	}
+}
+
+// G-IEC104-8 同面：顶层单对象快捷键 value 同域（commands 路同 builder）。
+func TestPlannerRejectsOutOfRangeTopLevelValue(t *testing.T) {
+	cfg := &IEC104Config{TypeID: TypeMMeNa, Cause: 3, InformationObjectAddress: 1, Value: 70000}
+	if err := (Planner{}).Validate(core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345, DstPort: 2404, IEC104: cfg}); err == nil {
+		t.Fatal("top-level value=70000 accepted, want rejection")
+	}
+}
+
 func contains(s, sub string) bool {
 	for i := 0; i+len(sub) <= len(s); i++ {
 		if s[i:i+len(sub)] == sub {

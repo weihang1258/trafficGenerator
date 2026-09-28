@@ -323,7 +323,10 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 	// 且 neg_udp_port（v9 层写 4739）反向漏放。
 	// D-DRDA-1：drda 同款（契约端口 446 的域校验住 planner.Validate，
 	// 显式 5000 不先回填则同样旁路）。
-	if p.name == "enip" || p.name == "dameng" || p.name == "cflow" || p.name == "drda" {
+	// D-IEC104-1：iec104 同款（设计 §1 不变式 1——契约端口 2404 的域校验
+	// 住 planner.Validate，层内显式 5000 不先回填则 spec.DstPort 停在
+	// FieldContract 的 2404，错端口被静默放行）。
+	if p.name == "enip" || p.name == "dameng" || p.name == "cflow" || p.name == "drda" || p.name == "iec104" {
 		for _, l := range chain {
 			if l.Name != "tcp" && l.Name != "udp" {
 				continue
