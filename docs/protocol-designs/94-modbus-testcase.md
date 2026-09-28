@@ -23,14 +23,14 @@
 | 层内 `tcp` 键 | 恒 `{}`（无 mss/handshake/initial_seq，213/213） |
 | 正例 `packet_count` | 145 例有（众数 **9** = 3 握手 + req + resp + 4 挥手，113 例）；6 例用 `min_packets` |
 | 帧断言偏移 | 169 例，**恒 offset 54**（IPv4） |
-| 断言字段面 | `modbus.*` 34 种 + `mbtcp.*` 3 种 + `tcp.dstport/srcport` + `ip.src` |
+| 断言字段面 | `modbus.*` 30 种 + `mbtcp.*` 3 种 + `tcp.dstport/srcport` + `ip.src` |
 | 负例 | 62；expect 键集：`{ec,ee,notes}`×33 / `{ec,ee}`×13 / `{expect_error}`×8 / 含成功断言×5 / `{ee,notes}`×3。**缺 `error_contains` 者 11 例**（8 例仅 `{expect_error}` + 3 例 `{expect_error,notes}`）；**混入成功断言者 5 例** |
 
 **执行可行性（MCP 实测，设计 §0.1）**：三种形状**全部被拒**——纯扁平 → `no longer accepts flat config field src_ip`；空壳 layers + 顶层扁平键 → 同上 + `config mixes layers with flat four-tuple field src_ip`；严格层链 → `layers: layer "modbus": unknown field "transactions"`。**本文件全部断言在 G-MODBUS-1/2 闭合前无法执行**（不冒充已覆盖，CORE_MEMORY §1.9 / B6 §1 JSON ID 纪律）。
 
 **输出契约（pcap/NIC 双输出）**：两路径共用同一 cases JSON 与断言集（`tcp.dstport/srcport`、`tcp.flags`、`modbus.*`/`mbtcp.*`、offset 54/74 frames）；NIC 经 tcpdump 捕获（`nic_capture` 用例级开关）；不设仅单路径可用的断言。
 
-**TSHARK 基线**：本机 tshark 3.6.14 有 Modbus 解析器。可用通道：① `modbus.*`（func_code/reference_num/word_cnt/bit_cnt/byte_cnt/exception_code/diagnostic_code/and_mask/or_mask/mei/conformity_level/object_*/ev_count/…，34 种，机读实测）；② `mbtcp.*`（trans_id/unit_id/len，3 种）；③ `tcp.dstport/srcport`/`tcp.flags`/`tcp.seq`/`tcp.len`；④ `ip.src`/`ipv6.src/dst`；⑤ frames `offset/hex`（帧首字节，IPv4 offset 54 / IPv6 offset 74）。
+**TSHARK 基线**：本机 tshark 3.6.14 有 Modbus 解析器。可用通道：① `modbus.*`（func_code/reference_num/word_cnt/bit_cnt/byte_cnt/exception_code/diagnostic_code/and_mask/or_mask/mei/conformity_level/object_*/ev_count/…，**30 种**，机读实测）；② `mbtcp.*`（trans_id/unit_id/len，3 种）；③ `tcp.dstport/srcport`/`tcp.flags`/`tcp.seq`/`tcp.len`；④ `ip.src`/`ipv6.src/dst`；⑤ frames `offset/hex`（帧首字节，IPv4 offset 54 / IPv6 offset 74）。
 
 **已知 tshark 限制**：FC 0x08 子功能 0x0015 在 Wireshark 3.6 值表未收录（实测显示 `Diagnostic Code: Unknown (21)`）——该例不依赖 tshark 诊断码字段，改断 frames hex。
 
@@ -78,7 +78,7 @@
 
 ### 3.1 单事务基线（9 包）
 
-FC=0x03 addr=0 qty=1：帧 4（offset 54）hex `00 00 00 00 00 06 01 03 00 00 00 01`（MBAP: TID=0, PID=0, Len=6, Unit=1；PDU: 03 0000 0001）；帧 5（down，offset 54）hex `00 00 00 00 00 05 01 03 02 00 00`。`tcp.dstport=502`（帧 4）+ `tcp.flags=0x018`（帧 4）；`has_handshake`/`terminates`/`directional` 全 true。
+FC=0x03 addr=0 qty=1（`modbus-addr-0-min`）：帧 4（offset 54）hex `00 00 00 00 00 06 01 03 00 00 00 01`（MBAP: TID=0, PID=0, Len=6, Unit=1；PDU: 03 0000 0001）；帧 5（down）响应由 `response_values` 决定（如 `modbus-fc03-qty1-min` 帧 5 = `00 00 00 00 00 05 01 03 02 ab cd`，MBAP Len=5、Byte Count=2）。`tcp.dstport=502` + `mbtcp.trans_id=0` + `mbtcp.unit_id=1` + `modbus.func_code=3`（均帧 4）；`has_handshake`/`terminates`/`directional` 全 true。
 
 ### 3.2 三事务序列（13 包）
 
@@ -86,27 +86,27 @@ FC=0x03 addr=0 qty=1：帧 4（offset 54）hex `00 00 00 00 00 06 01 03 00 00 00
 
 ### 3.3 位打包（FC 0x01/0x02/0x0F）
 
-`modbus-fc01-read-coils`（qty=10）→ 响应 Byte Count=2，第 2 字节高 6 位补 0；`modbus-fc01-bit-order-lsb` 钉 bit0 = starting_address+0。`modbus-fc0f-qty123-unaligned`（qty=123）→ ⌈123/8⌉=16 字节。
+`modbus-fc01-read-coils`（qty=9）→ 帧 4 = `00 00 00 00 00 06 01 01 00 00 00 09`（bit_cnt=9）、帧 5 = `00 00 00 00 00 05 01 01 02 13 01`（Byte Count=2 = ⌈9/8⌉，末字节高 7 位补 0）；`modbus-fc01-bit-order-lsb` 钉 bit0 = starting_address+0。`modbus-fc0f-qty123-unaligned`（qty=123）→ 帧 4 = `00 00 00 00 00 17 01 0f 00 00 00 7b 10`（Byte Count=0x10=16=⌈123/8⌉）。
 
 ### 3.4 数量上限边界
 
-`modbus-fc03-qty125-max`（FC 0x03 qty=125）→ 响应 PDU = 1+1+250 = 252B，MBAP Length = 253（`mbtcp.len=253`），帧 259B。`modbus-fc10-qty123-max` 同值；`modbus-fc0f-qty1968-max` → PDU 1+4+1+246 = 252B。
+`modbus-fc03-qty125-max`（FC 0x03 qty=125）→ 帧 5 `00 00 00 00 00 fd 01 03 fa`（`mbtcp.len=253`、`modbus.byte_cnt=250`），帧长 259B。`modbus-fc10-qty123-max` 同值；`modbus-fc0f-qty1968-max`（qty=1968）→ 帧 4 = `00 00 00 00 00 fd 01 0f 00 00 07 b0 f6`（`modbus.byte_cnt=246`，MBAP Len=253）。
 
 ### 3.5 异常响应
 
-`exception_code != 0` → 响应 PDU 恒 2B（`FC|0x80 + code`），MBAP Length = 3。`modbus-exception-fc03-02`（Illegal Data Address）/`-0a`（Gateway Path Unavailable）/`-0b`（Gateway Target Device Failed to Respond）；`modbus-exception-fc05-03-fc10-04` 两事务各带不同异常码。**请求 PDU 仍按该 FC 正常构造**（设计 §5 关键设计点 4）。
+`exception_code != 0` → 响应 PDU 恒 2B（`FC|0x80 + code`），MBAP Length = 3（`mbtcp.len=3`）。`modbus-exception-fc03-02`：帧 4 = `00 00 00 00 00 06 01 03 00 00 00 01`（**请求 PDU 正常构造**）、帧 5 = `00 00 00 00 00 03 01 83 02`（`0x03|0x80=0x83`）。`-0a`（Gateway Path Unavailable）/`-0b`（Gateway Target Device Failed to Respond）同形；`modbus-exception-fc05-03-fc10-04` 两事务各带不同异常码（11 包）。
 
 ### 3.6 广播语义
 
-`modbus-broadcast-unit0-mirror`（unit_id=0 + FC 0x05）→ 默认发镜像响应（`mbtcp.unit_id=0` 双向）；`-suppress`（`suppress_broadcast=true`）→ **无响应帧**，包数 = 3 + N + 4；`-exception`（广播 + 异常码 + suppress）→ 异常响应一并抑制。
+`modbus-broadcast-unit0-mirror`（unit_id=0 + FC 0x05 write_value=1）→ **双向镜像**：帧 4 = 帧 5 = `00 00 00 00 00 06 00 05 00 64 ff 00`（`mbtcp.unit_id=0`）；`-suppress`（`suppress_broadcast=true`）→ **无响应帧**，8 包 = 3 + 1 + 4；`-exception`（广播 + 异常码 0x02 + suppress）→ 异常响应一并抑制，帧 4 = `00 00 00 00 00 06 00 06 00 64 00 01`（FC 0x06 写单寄存器），8 包。
 
 ### 3.7 豁免路径
 
-`modbus-fc99-exemption`（FC=0x99 ∉ 支持集 + `exception_code=0x01`）→ 请求 PDU 仅 FC 一字节（`99`），响应 PDU `99 01`（`0x99|0x80 = 0x99`）。
+`modbus-fc99-exemption`（FC=0x99 ∉ 支持集 + `exception_code=0x01`）→ 请求 PDU 仅 FC 一字节，帧 4 = `00 00 00 00 00 02 01 99`（MBAP Len=2）、帧 5 = `00 00 00 00 00 03 01 99 01`（`0x99|0x80 = 0x99`，9 包）。
 
 ### 3.8 wire 集成（MBAP 全帧）
 
-`modbus-wire-mbap-length` 逐帧核 `mbtcp.len`；`modbus-wire-fc11-no-byte-count` 钉 FC 0x11 响应首字节即 Slave ID（无 Byte Count）；`modbus-wire-fc15-reftype6` 钉 item 首字节 = Reference Type 0x06；`modbus-wire-fc16-echo` 钉 FC 0x16 echo 全字节；`modbus-wire-pid-unreachable-skip` 钉 Protocol ID 恒 0。
+`modbus-wire-mbap-length` 逐帧核 `mbtcp.len`；`modbus-wire-fc11-no-byte-count`：帧 5 = `00 00 00 00 00 04 01 11 01 ff`（FC 0x11 响应首字节即 Slave ID=0x01、Run Indicator=0xff，**无 Byte Count**）；`modbus-wire-fc15-reftype6` 钉 item 首字节 = Reference Type 0x06；`modbus-wire-fc16-echo`：帧 4 = 帧 5 = `00 00 00 00 00 08 01 16 00 32 aa aa 55 55`（AND/OR 掩码 echo）；`modbus-wire-pid-unreachable-skip` 钉 Protocol ID 恒 0（帧 4 offset 2-3 = `00 00`）。
 
 **正例总则**：`exception_code == 0`、Unit ID=0 + 纯写 FC、FC 0x99 + 异常码、FC 0x05 写值 ∈ {0,1,0xFF00,0x0000}、FC 0x18 FIFO count ∈ {0..31} 均为正例形态，只有配置/线格式/状态/关联/长度错误进入负例。
 
@@ -160,8 +160,9 @@ Modbus.org **MB-ASYM-TCP V1.1b3**（MBAP 帧 + 19 FC + 10 异常码 + 广播语�
 ### 5.2 9.52 对账两行 + 清单出处声明
 
 - **清单出处声明**：本清单来源 = **spec MB-ASYM-TCP V1.1b3 + PI-MBUS-300 Rev. J + 仓库落码反推 + tshark 通道实测**，**非从现有用例反推**（旧稿 §7 的 T-001~T-205 是按规范章节逐条派生的）。
-- **对账两行**：**要求逻辑点总数 = 196**（八项 8 行 + FC×响应形态矩阵 80 格 + 数据变体 60 行 + 商业映射 11 行 + 用例形状 37 点）；**用例覆盖数 = 177**（八项 6 + 矩阵已覆 63 + 变体已覆 55 + 商业已覆 9 + 形状已覆 44）；**不适用 = 19**（八项 2 + 矩阵 17）；**开放 = 6**（变体 A′ 3〔IPv6/MAC 层/缺省端口〕+ 缺口立项 3〔G-MODBUS-4 动态、G-MODBUS-9 IPv6、G-MODBUS-10 MSS〕）。177 + 19 = 196。✓
-  **粒度声明**：行/格粒度每点 1 计；G-MODBUS-1…G-MODBUS-10 不折进 196。**反查全绿 ≠ 覆盖全**（§9.52 原文）——且本协议今日**连反查都无法进行**（213 例全不可执行，§1）。
+- **对账两行**：**要求逻辑点总数 = 167**（八项 8 行 + FC×响应形态矩阵 80 格 + 数据变体 60 行 + 商业映射 11 行 + 用例形状 8 点）；**用例覆盖数 = 141**（八项 6 + 矩阵已覆 63 + 变体已覆 58 + 商业已覆 9 + 形状已覆 5）；**不适用 = 21**（八项 2〔超时活性/NAT 被动〕+ 矩阵 17 + 商业 2〔TLS 802/UDP 承载〕）；**开放 = 5**（变体 2〔IPv6 零覆盖、缺省端口名实不符〕+ 形状 3〔顶层键残留 G-MODBUS-5 / 负例纯净性 G-MODBUS-6 / presence 判死不可建 G-MODBUS-3〕）。141 + 21 + 5 = 167。✓
+  **形状 8 点**：① 顶层键白名单（§1.11）② presence 负例可建性 ③ 负例纯净性 ④ 包数公式 ⑤ 帧偏移 ⑥ pcap/NIC 双输出 ⑦ 断言字段面 ⑧ ID 顺序稳定。
+  **粒度声明**：行/格粒度每点 1 计；G-MODBUS-1…G-MODBUS-10 不折进 167。**反查全绿 ≠ 覆盖全**（§9.52 原文）——且本协议今日**连反查都无法进行**（213 例全不可执行，§1）。
 - **门3 抽查候选**：最复杂用例 = `modbus-fc17-read-write` 或 `modbus-wire-multi-tx-session`（3 事务 × 多 FC × TID 递增 × req/resp 配对 × 帧 hex 双通道）；交织维度 = 事务(3)×FC(3)×方向(2)×TID 序列。若按 9.49/9.50 下限偏弱在"并发交错"面，**建议门3 抽 `modbus-wire-multi-tx-session` + `modbus-tid-perflow-5tx`**。
 
 ### 5.3 三分类（A/B/C，B6 §9.15-9.18）
@@ -174,7 +175,7 @@ Modbus.org **MB-ASYM-TCP V1.1b3**（MBAP 帧 + 19 FC + 10 异常码 + 广播语�
 
 存量 **22 例**（`master_count>1` 13 例 ∪ `flow_count>1` 12 例；19 正 + 3 负）在链形状下**生成器 + validator 双拒**（设计 §7）。去向三选一（改写时逐例裁定并注记）：① 转策略级 `flow_control {"flows": N}`（保留多流语义，如 `modbus-flow-count-4`/`modbus-mastercount2-flows3`）；② 改判为负例（锚词 `master_count`/`flow_count` 不支持）；③ 标不适用并从 ID 集合移除（若语义无法表达）。**不得静默保留为"正例"**（会真红）。
 
-其中 3 例负例（`modbus-validate-mastercount-0`/`-1001`、`modbus-validate-flowcount-0`）**语义需校正**：实测 `Validate` 判的是 `>1000`/`>100`（`modbus.go:70-75`），而存量注记写"master_count=0 rejected"/"flow_count=0 rejected"但载荷实为 **`1001`**/**`101`**——**注记与载荷不符**；且 `mastercount-0` 与 `mastercount-1001` **载荷完全相同（均 1001），属重复例**（改写时：一个保留为 `>max` 负例，另一个改载荷为 `0` 或删除并注记原因）。另 4 例（`modbus-master1-flow1-baseline`/`modbus-tid-perflow-5tx`/`modbus-shared-tid-wrap-65538`/`modbus-shared-tid-space-true`）名含 multi 但 `master_count`/`flow_count` 未越界，**链上合法**，仅需常规层链化。
+其中 3 例负例（`modbus-validate-mastercount-0`/`-1001`、`modbus-validate-flowcount-0`）**语义需校正**：实测 `Validate` 判的是 `>1000`/`>100`（`modbus.go:70-75`），而存量注记写"master_count=0 rejected"/"flow_count=0 rejected"但载荷实为 **`1001`**/**`101`**——**注记与载荷不符**；且 `mastercount-0` 与 `mastercount-1001` **载荷完全相同（均 1001），属重复例**（改写时：一个保留为 `>max` 负例，另一个改载荷为 `0` 或删除并注记原因）。另 3 例（`modbus-master1-flow1-baseline`（mc=1/fc=1）、`modbus-tid-perflow-5tx`（无 mc/fc 键）、`modbus-shared-tid-wrap-65538`（mc=1/fc=1））名含 multi 但 `master_count`/`flow_count` **未越界**（机读实测），**链上合法**，仅需常规层链化。
 
 ## 6. P3 固定动作（CORE_MEMORY 管线：§3.15 三项 + A′/B′ 两分类 + 3.14 豁免）
 
@@ -197,7 +198,7 @@ Modbus.org **MB-ASYM-TCP V1.1b3**（MBAP 帧 + 19 FC + 10 异常码 + 广播语�
 | 层链化 | registry `Fields` 补 `transactions` + 19 per-op 键 + translate `case "modbus"` | G-MODBUS-1/2，213 例全依赖 |
 | 地址族面 | IPv6 载体（**零覆盖**） | `modbus_ipv6`（G-MODBUS-9，offset 74） |
 | MAC 层 | `src_mac`/`dst_mac` 迁 `layers[eth]` | `modbus_eth_mac_layer`（§1.11 白名单） |
-| 端口面 | dst_port 缺省补齐 502 | `modbus_default_port_502`（删键不断言值） |
+| 端口面 | dst_port 缺省补齐 502 | `modbus_default_port_502`（**删键**不断言值——存量 `modbus-dstport-default-502` 名为"缺省"但**实际显式写了 `dst_port:502`**，机读实测，非真缺省例） |
 | 分段面 | 显式小 MSS 强制分段 | `modbus_mss_segment`（G-MODBUS-10，先跑后钉段数） |
 | 判死面 | 白名单外游离键 `unknown field` | `modbus_neg_unknown_field` |
 | 负例纯净性 | 11 例补锚词 + 8 例补 `error_contains` + 5 例删成功断言 | G-MODBUS-6（§4 表） |
@@ -226,8 +227,9 @@ Modbus.org **MB-ASYM-TCP V1.1b3**（MBAP 帧 + 19 FC + 10 异常码 + 广播语�
 1. **213 例全部不可执行**：三种形状全被 schema 门/层校验拒（设计 §0.1 MCP 实测）。**不是"跑过了"而是"跑不了"**。
 2. **132 例的"层链"是空壳**：`layers` 只声明 `tcp`/`modbus` 两个空对象，真配置住顶层扁平键——属 §1.4 混用违规形（moxa G-MOXA-1 同形先例）。
 3. **零 IPv6 覆盖**：213 例地址恒 `10.0.0.1→20.0.0.1`；引擎已支持（MCP 实测 IPv6 链通过）→ A′ 补例。
-4. **多流用例与链形状冲突**：25 例（13 master_count>1 + 12 flow_count>1）在链上被双拒 → §5.4 三选一裁定。
-5. **负例不纯净**：24 例（11 缺锚词 + 8 仅 expect_error + 5 混入成功断言）→ G-MODBUS-6。
+4. **多流用例与链形状冲突**：22 例（13 `master_count>1` ∪ 12 `flow_count>1`，19 正 + 3 负）在链上被双拒 → §5.4 三选一裁定；其中 `validate-mastercount-0` 与 `-1001` 载荷重复（均 1001）。
+5. **负例不纯净**：16 例（11 缺锚词 + 5 混入成功断言）→ G-MODBUS-6。
+6. **"缺省端口"例名实不符**：`modbus-dstport-default-502` 显式写了 `dst_port:502`（机读），**不是真缺省验证** → A′ 补 `modbus_default_port_502`（删键）。
 
 ### 8.3 逐条去向表（213 行，按域汇总；逐 ID 明细见 JSON 顺序）
 

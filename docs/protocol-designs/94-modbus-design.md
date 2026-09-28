@@ -439,7 +439,7 @@ modbus 层**无自有状态**（旧稿 §4.1 继承）：握手/seq-ack/挥手/�
 | 57 | direction 字段已废弃 | 覆 `direction-ignored` |
 | 58 | IPv6 载体 | **零覆盖（A′ 立项）**——213 例地址恒 `10.0.0.1→20.0.0.1`（机读唯一值）；引擎已支持（MCP 实测 IPv6 链 `completed/9 包`，`ipv6.src/dst` 正确）→ 补例 `modbus_ipv6`（offset 74） |
 | 59 | 非缺省端口（1502） | 覆 `dstport-1502` |
-| 60 | 缺省端口（502 补齐） | 覆 `dstport-default-502` |
+| 60 | 缺省端口（502 补齐） | **A′ 立项**——存量 `dstport-default-502` 名为"缺省"但**实际显式写了 `dst_port:502`**（机读实测），未验补齐；补例 `modbus_default_port_502`（**删键**） |
 
 60 行全部有落点。✓
 
