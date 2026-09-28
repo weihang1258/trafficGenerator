@@ -1,1431 +1,1604 @@
 [
- {
-  "id": "coap_con_get",
-  "proto": "coap",
-  "summary": "C-001：CON GET /sensors/temp，ACK 2.05 回显 MID/Token",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
-    },
-    {
-     "coap": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 56565,
-   "dst_port": 5683,
-   "coap": {
-    "method": "GET",
-    "path": [
-     "sensors",
-     "temp"
-    ],
-    "confirmable": true,
-    "token": "AQIDBA==",
-    "message_id": 4097,
-    "response_code": "2.05",
-    "response_payload": "eyJ2YWx1ZSI6MjMuNX0=",
-    "response_content_format": 50
-   }
-  },
-  "expect": {
-   "packet_count": 2,
-   "directional": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "coap.version",
-     "value": "1"
-    },
-    {
-     "packet": 1,
-     "field": "coap.type",
-     "value": "0"
-    },
-    {
-     "packet": 1,
-     "field": "coap.code",
-     "value": "1"
-    },
-    {
-     "packet": 1,
-     "field": "coap.mid",
-     "value": "4097"
-    },
-    {
-     "packet": 1,
-     "field": "coap.token_len",
-     "value": "4"
-    },
-    {
-     "packet": 1,
-     "field": "coap.token",
-     "value": "01020304"
-    },
-    {
-     "packet": 1,
-     "field": "coap.opt.uri_path",
-     "value": "sensors,temp"
-    },
-    {
-     "packet": 2,
-     "field": "coap.type",
-     "value": "2"
-    },
-    {
-     "packet": 2,
-     "field": "coap.code",
-     "value": "69"
-    },
-    {
-     "packet": 2,
-     "field": "coap.mid",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 2,
-     "field": "coap.token",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 2,
-     "field": "coap.opt.ctype",
-     "value": "application/json"
-    },
-    {
-     "packet": 2,
-     "field": "coap.payload_length",
-     "nonzero": true
-    },
-    {
-     "packet": 1,
-     "field": "udp.dstport",
-     "value": "5683"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 1,
-     "offset": 42,
-     "hex": "44 01 10 01"
-    },
-    {
-     "packet": 2,
-     "offset": 42,
-     "hex": "64 45 10 01"
-    }
-   ],
-   "notes": [
-    "offset=42 仅适用于无 VLAN 和 IPv4 options 的典型 Ethernet+IPv4+UDP 帧"
-   ]
-  }
- },
- {
-  "id": "coap_non_post",
-  "proto": "coap",
-  "summary": "C-002：NON POST /events，Content-Format=50，JSON 负载",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
-    },
-    {
-     "coap": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 56566,
-   "dst_port": 5683,
-   "coap": {
-    "method": "POST",
-    "path": [
-     "events"
-    ],
-    "confirmable": false,
-    "token": "ERITFA==",
-    "message_id": 4098,
-    "content_format": 50,
-    "payload": "eyJ2IjoyM30=",
-    "response": false
-   }
-  },
-  "expect": {
-   "packet_count": 1,
-   "directional": false,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "coap.type",
-     "value": "1"
-    },
-    {
-     "packet": 1,
-     "field": "coap.code",
-     "value": "2"
-    },
-    {
-     "packet": 1,
-     "field": "coap.opt.ctype",
-     "value": "application/json"
-    },
-    {
-     "packet": 1,
-     "field": "coap.payload_length",
-     "nonzero": true
-    },
-    {
-     "packet": 1,
-     "field": "udp.dstport",
-     "value": "5683"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 1,
-     "offset": 42,
-     "hex": "54 02 10 02"
-    }
-   ],
-   "notes": [
-    "NON 不要求 ACK；无自动重传"
-   ]
-  }
- },
- {
-  "id": "coap_put_changed",
-  "proto": "coap",
-  "summary": "C-003：CON PUT /devices/7，ACK 2.04 Changed",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
-    },
-    {
-     "coap": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 56567,
-   "dst_port": 5683,
-   "coap": {
-    "method": "PUT",
-    "path": [
-     "devices",
-     "7"
-    ],
-    "confirmable": true,
-    "token": "FRYXGA==",
-    "message_id": 4099,
-    "content_format": 50,
-    "payload": "eyJlbmFibGVkIjp0cnVlfQ==",
-    "response_code": "2.04"
-   }
-  },
-  "expect": {
-   "packet_count": 2,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "coap.type",
-     "value": "0"
-    },
-    {
-     "packet": 1,
-     "field": "coap.code",
-     "value": "3"
-    },
-    {
-     "packet": 1,
-     "field": "coap.opt.uri_path",
-     "value": "devices,7"
-    },
-    {
-     "packet": 2,
-     "field": "coap.type",
-     "value": "2"
-    },
-    {
-     "packet": 2,
-     "field": "coap.code",
-     "value": "68"
-    },
-    {
-     "packet": 2,
-     "field": "coap.mid",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 2,
-     "field": "coap.token",
-     "same_as_packet": 1
-    }
-   ],
-   "notes": [
-    "2.04 是 CoAP Changed，不是 HTTP 204"
-   ]
-  }
- },
- {
-  "id": "coap_delete_deleted",
-  "proto": "coap",
-  "summary": "C-004：CON DELETE /devices/7，ACK 2.02 Deleted",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
-    },
-    {
-     "coap": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 56568,
-   "dst_port": 5683,
-   "coap": {
-    "method": "DELETE",
-    "path": [
-     "devices",
-     "7"
-    ],
-    "confirmable": true,
-    "token": "GRobHA==",
-    "message_id": 4100,
-    "response_code": "2.02"
-   }
-  },
-  "expect": {
-   "packet_count": 2,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "coap.type",
-     "value": "0"
-    },
-    {
-     "packet": 1,
-     "field": "coap.code",
-     "value": "4"
-    },
-    {
-     "packet": 2,
-     "field": "coap.type",
-     "value": "2"
-    },
-    {
-     "packet": 2,
-     "field": "coap.code",
-     "value": "66"
-    },
-    {
-     "packet": 2,
-     "field": "coap.mid",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 2,
-     "field": "coap.token",
-     "same_as_packet": 1
-    }
-   ],
-   "notes": [
-    "响应无业务 Payload，但仍有合法 Deleted Code"
-   ]
-  }
- },
- {
-  "id": "coap_con_timeout_retransmit",
-  "proto": "coap",
-  "summary": "C-005：CON GET 超时，初始包加 4 次重传共 5 包",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
-    },
-    {
-     "coap": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 56569,
-   "dst_port": 5683,
-   "coap": {
-    "method": "GET",
-    "path": [
-     "health"
-    ],
-    "confirmable": true,
-    "token": "HR4fIA==",
-    "message_id": 4101,
-    "retransmit": {
-     "ack_timeout": "2s",
-     "max_retransmit": 4,
-     "force_timeout": true
-    },
-    "response": false
-   }
-  },
-  "expect": {
-   "packet_count": 5,
-   "directional": false,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "coap.type",
-     "value": "0"
-    },
-    {
-     "packet": 1,
-     "field": "coap.code",
-     "value": "1"
-    },
-    {
-     "packet": 1,
-     "field": "coap.mid",
-     "value": "4101"
-    },
-    {
-     "packet": 2,
-     "field": "coap.mid",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 3,
-     "field": "coap.mid",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 4,
-     "field": "coap.mid",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 5,
-     "field": "coap.mid",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 5,
-     "field": "coap.token",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 2,
-     "field": "coap.token",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 2,
-     "field": "coap.type",
-     "value": "0"
-    },
-    {
-     "packet": 2,
-     "field": "coap.code",
-     "value": "1"
-    },
-    {
-     "packet": 3,
-     "field": "coap.token",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 3,
-     "field": "coap.type",
-     "value": "0"
-    },
-    {
-     "packet": 3,
-     "field": "coap.code",
-     "value": "1"
-    },
-    {
-     "packet": 4,
-     "field": "coap.token",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 4,
-     "field": "coap.type",
-     "value": "0"
-    },
-    {
-     "packet": 4,
-     "field": "coap.code",
-     "value": "1"
-    },
-    {
-     "packet": 5,
-     "field": "coap.type",
-     "value": "0"
-    },
-    {
-     "packet": 5,
-     "field": "coap.code",
-     "value": "1"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 1,
-     "offset": 42,
-     "hex": "44 01 10 05"
-    },
-    {
-     "packet": 2,
-     "offset": 42,
-     "hex": "44 01 10 05"
-    },
-    {
-     "packet": 5,
-     "offset": 42,
-     "hex": "44 01 10 05"
-    },
-    {
-     "packet": 3,
-     "offset": 42,
-     "hex": "44 01 10 05"
-    },
-    {
-     "packet": 4,
-     "offset": 42,
-     "hex": "44 01 10 05"
-    }
-   ],
-   "notes": [
-    "MAX_RETRANSMIT=4 是重传次数，总发送 5 次；每次保持相同 MID/Token/字节"
-   ]
-  }
- },
- {
-  "id": "coap_uri_path_query",
-  "proto": "coap",
-  "summary": "C-006：GET 多段 Uri-Path 与两个 Uri-Query",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
-    },
-    {
-     "coap": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 56570,
-   "dst_port": 5683,
-   "coap": {
-    "method": "GET",
-    "path": [
-     "api",
-     "v1",
-     "devices",
-     "7"
-    ],
-    "query": [
-     "unit=celsius",
-     "verbose=1"
-    ],
-    "confirmable": true,
-    "token": "ISIjJA==",
-    "message_id": 4102,
-    "response_code": "2.05"
-   }
-  },
-  "expect": {
-   "packet_count": 2,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "coap.opt.uri_path",
-     "value": "api,v1,devices,7"
-    },
-    {
-     "packet": 1,
-     "field": "coap.opt.uri_query",
-     "value": "unit=celsius,verbose=1"
-    },
-    {
-     "packet": 2,
-     "field": "coap.token",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 2,
-     "field": "coap.code",
-     "value": "69"
-    }
-   ],
-   "notes": [
-    "每段一个 Uri-Path、每项一个 Uri-Query，按 Option Number 排序"
-   ]
-  }
- },
- {
-  "id": "coap_content_format_accept",
-  "proto": "coap",
-  "summary": "C-007：POST Content-Format=50、Accept=50，响应显式声明格式",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
-    },
-    {
-     "coap": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 56571,
-   "dst_port": 5683,
-   "coap": {
-    "method": "POST",
-    "path": [
-     "api",
-     "v1",
-     "report"
-    ],
-    "confirmable": true,
-    "token": "JSYnKA==",
-    "message_id": 4103,
-    "content_format": 50,
-    "accept": 50,
-    "payload": "eyJvayI6dHJ1ZX0=",
-    "response_code": "2.05",
-    "response_content_format": 50,
-    "response_payload": "eyJhY2NlcHRlZCI6dHJ1ZX0="
-   }
-  },
-  "expect": {
-   "packet_count": 2,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "coap.opt.ctype",
-     "value": "application/json"
-    },
-    {
-     "packet": 1,
-     "field": "coap.opt.accept",
-     "value": "application/json"
-    },
-    {
-     "packet": 1,
-     "field": "coap.payload_length",
-     "nonzero": true
-    },
-    {
-     "packet": 2,
-     "field": "coap.opt.ctype",
-     "value": "application/json"
-    },
-    {
-     "packet": 2,
-     "field": "coap.payload_length",
-     "nonzero": true
-    }
-   ],
-   "notes": [
-    "请求 Content-Format 和响应 Content-Format 是独立 Option"
-   ]
-  }
- },
- {
-  "id": "coap_block2_two_blocks",
-  "proto": "coap",
-  "summary": "C-008：Block2 两块响应，SZX=3（128B），M=1 后续 M=0",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
-    },
-    {
-     "coap": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 56572,
-   "dst_port": 5683,
-   "coap": {
-    "method": "GET",
-    "path": [
-     "large"
-    ],
-    "confirmable": true,
-    "token": "KSorLA==",
-    "message_id": 4104,
-    "block2": {
-     "number": 0,
-     "more": false,
-     "size_exp": 3
-    },
-    "response_blocks": [
-     {
-      "number": 0,
-      "more": true,
-      "size_exp": 3,
-      "payload": "YmxvY2stMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA="
-     },
-     {
-      "number": 1,
-      "more": false,
-      "size_exp": 3,
-      "payload": "YmxvY2stMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE="
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 4,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "coap.opt.block_number",
-     "value": "0"
-    },
-    {
-     "packet": 2,
-     "field": "coap.opt.block_number",
-     "value": "0"
-    },
-    {
-     "packet": 2,
-     "field": "coap.opt.block_mflag",
-     "value": "1"
-    },
-    {
-     "packet": 2,
-     "field": "coap.opt.block_size",
-     "value": "3"
-    },
-    {
-     "packet": 3,
-     "field": "coap.opt.block_number",
-     "value": "1"
-    },
-    {
-     "packet": 4,
-     "field": "coap.opt.block_number",
-     "value": "1"
-    },
-    {
-     "packet": 4,
-     "field": "coap.opt.block_mflag",
-     "value": "0"
-    },
-    {
-     "packet": 4,
-     "field": "coap.opt.block_size",
-     "value": "3"
-    },
-    {
-     "packet": 2,
-     "field": "coap.token",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 4,
-     "field": "coap.token",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 1,
-     "field": "coap.type",
-     "value": "0"
-    },
-    {
-     "packet": 1,
-     "field": "coap.code",
-     "value": "1"
-    },
-    {
-     "packet": 1,
-     "field": "coap.opt.block_mflag",
-     "value": "0"
-    },
-    {
-     "packet": 1,
-     "field": "coap.opt.block_size",
-     "value": "3"
-    },
-    {
-     "packet": 3,
-     "field": "coap.type",
-     "value": "0"
-    },
-    {
-     "packet": 3,
-     "field": "coap.code",
-     "value": "1"
-    },
-    {
-     "packet": 3,
-     "field": "coap.opt.block_mflag",
-     "value": "0"
-    },
-    {
-     "packet": 3,
-     "field": "coap.opt.block_size",
-     "value": "3"
-    },
-    {
-     "packet": 2,
-     "field": "coap.type",
-     "value": "2"
-    },
-    {
-     "packet": 2,
-     "field": "coap.code",
-     "value": "69"
-    },
-    {
-     "packet": 4,
-     "field": "coap.type",
-     "value": "2"
-    },
-    {
-     "packet": 4,
-     "field": "coap.code",
-     "value": "69"
-    },
-    {
-     "packet": 1,
-     "field": "coap.mid",
-     "value": "4104"
-    },
-    {
-     "packet": 3,
-     "field": "coap.mid",
-     "value": "4105"
-    },
-    {
-     "packet": 2,
-     "field": "coap.mid",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 4,
-     "field": "coap.mid",
-     "same_as_packet": 3
-    },
-    {
-     "packet": 3,
-     "field": "coap.token",
-     "same_as_packet": 1
-    }
-   ],
-   "notes": [
-    "NUM/M/SZX 按 RFC 7959 编码；请求 MID 改变而 Token 保持"
-   ],
-   "directional": true
-  }
- },
- {
-  "id": "coap_observe_notifications",
-  "proto": "coap",
-  "summary": "C-009：Observe 注册首响应和两次通知，含 CON 通知 ACK",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
-    },
-    {
-     "coap": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 56573,
-   "dst_port": 5683,
-   "coap": {
-    "method": "GET",
-    "path": [
-     "temperature"
-    ],
-    "confirmable": true,
-    "token": "ISIjJA==",
-    "message_id": 4105,
-    "observe": {
-     "register": true,
-     "start_sequence": 100,
-     "notify_count": 2,
-     "confirmable": true,
-     "notification_types": [
-      "NON",
-      "CON"
-     ]
-    },
-    "response_code": "2.05",
-    "response_payload": "MjMuNQ=="
-   }
-  },
-  "expect": {
-   "min_packets": 5,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "coap.opt.observe",
-     "value": "0"
-    },
-    {
-     "packet": 2,
-     "field": "coap.code",
-     "value": "69"
-    },
-    {
-     "packet": 2,
-     "field": "coap.opt.observe",
-     "value": "100"
-    },
-    {
-     "packet": 3,
-     "field": "coap.opt.observe",
-     "value": "101"
-    },
-    {
-     "packet": 4,
-     "field": "coap.opt.observe",
-     "value": "102"
-    },
-    {
-     "packet": 3,
-     "field": "coap.token",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 4,
-     "field": "coap.token",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 5,
-     "field": "coap.mid",
-     "same_as_packet": 4
-    },
-    {
-     "packet": 1,
-     "field": "coap.type",
-     "value": "0"
-    },
-    {
-     "packet": 1,
-     "field": "coap.code",
-     "value": "1"
-    },
-    {
-     "packet": 2,
-     "field": "coap.type",
-     "value": "2"
-    },
-    {
-     "packet": 3,
-     "field": "coap.type",
-     "value": "1"
-    },
-    {
-     "packet": 3,
-     "field": "coap.code",
-     "value": "69"
-    },
-    {
-     "packet": 4,
-     "field": "coap.type",
-     "value": "0"
-    },
-    {
-     "packet": 4,
-     "field": "coap.code",
-     "value": "69"
-    },
-    {
-     "packet": 5,
-     "field": "coap.type",
-     "value": "2"
-    },
-    {
-     "packet": 5,
-     "field": "coap.code",
-     "value": "0"
-    },
-    {
-     "packet": 5,
-     "field": "coap.token_len",
-     "value": "0"
-    },
-    {
-     "packet": 2,
-     "field": "coap.token",
-     "same_as_packet": 1
-    }
-   ],
-   "notes": [
-    "Observe 24 bit 序列递增；CON 通知由最后一个 ACK 确认；错误响应不带 Observe"
-   ],
-   "directional": true
-  }
- },
- {
-  "id": "coap_error_responses",
-  "proto": "coap",
-  "summary": "C-010：业务错误覆盖 4.04、4.13、5.00，保持 MID/Token 关联",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
-    },
-    {
-     "coap": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 56574,
-   "dst_port": 5683,
-   "coap": {
-    "method": "GET",
-    "path": [
-     "missing"
-    ],
-    "confirmable": true,
-    "token": "LS4vMA==",
-    "message_id": 4106,
-    "error_responses": [
-     {
-      "code": "4.04",
-      "path": [
-       "missing"
+  {
+    "id": "coap_con_get",
+    "proto": "coap",
+    "summary": "C-001：CON GET /sensors/temp，ACK 2.05 回显 MID/Token",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 56565,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "GET",
+            "path": [
+              "sensors",
+              "temp"
+            ],
+            "confirmable": true,
+            "token": "AQIDBA==",
+            "message_id": 4097,
+            "response_code": "2.05",
+            "response_payload": "eyJ2YWx1ZSI6MjMuNX0=",
+            "response_content_format": 50
+          }
+        }
       ]
-     },
-     {
-      "code": "4.13",
-      "path": [
-       "too-large"
+    },
+    "expect": {
+      "packet_count": 2,
+      "directional": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "coap.version",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "coap.type",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "coap.code",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "coap.mid",
+          "value": "4097"
+        },
+        {
+          "packet": 1,
+          "field": "coap.token_len",
+          "value": "4"
+        },
+        {
+          "packet": 1,
+          "field": "coap.token",
+          "value": "01020304"
+        },
+        {
+          "packet": 1,
+          "field": "coap.opt.uri_path",
+          "value": "sensors,temp"
+        },
+        {
+          "packet": 2,
+          "field": "coap.type",
+          "value": "2"
+        },
+        {
+          "packet": 2,
+          "field": "coap.code",
+          "value": "69"
+        },
+        {
+          "packet": 2,
+          "field": "coap.mid",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 2,
+          "field": "coap.token",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 2,
+          "field": "coap.opt.ctype",
+          "value": "application/json"
+        },
+        {
+          "packet": 2,
+          "field": "coap.payload_length",
+          "nonzero": true
+        },
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "5683"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "44 01 10 01"
+        },
+        {
+          "packet": 2,
+          "offset": 42,
+          "hex": "64 45 10 01"
+        }
+      ],
+      "notes": [
+        "offset=42 仅适用于无 VLAN 和 IPv4 options 的典型 Ethernet+IPv4+UDP 帧"
       ]
-     },
-     {
-      "code": "5.00",
-      "path": [
-       "failure"
+    }
+  },
+  {
+    "id": "coap_non_post",
+    "proto": "coap",
+    "summary": "C-002：NON POST /events，Content-Format=50，JSON 负载",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 56566,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "POST",
+            "path": [
+              "events"
+            ],
+            "confirmable": false,
+            "token": "ERITFA==",
+            "message_id": 4098,
+            "content_format": 50,
+            "payload": "eyJ2IjoyM30=",
+            "response": false
+          }
+        }
       ]
-     }
-    ]
-   }
+    },
+    "expect": {
+      "packet_count": 1,
+      "directional": false,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "coap.type",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "coap.code",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "coap.opt.ctype",
+          "value": "application/json"
+        },
+        {
+          "packet": 1,
+          "field": "coap.payload_length",
+          "nonzero": true
+        },
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "5683"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "54 02 10 02"
+        }
+      ],
+      "notes": [
+        "NON 不要求 ACK；无自动重传"
+      ]
+    }
   },
-  "expect": {
-   "min_packets": 6,
-   "fields": [
-    {
-     "packet": 2,
-     "field": "coap.code",
-     "value": "132"
+  {
+    "id": "coap_put_changed",
+    "proto": "coap",
+    "summary": "C-003：CON PUT /devices/7，ACK 2.04 Changed",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 56567,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "PUT",
+            "path": [
+              "devices",
+              "7"
+            ],
+            "confirmable": true,
+            "token": "FRYXGA==",
+            "message_id": 4099,
+            "content_format": 50,
+            "payload": "eyJlbmFibGVkIjp0cnVlfQ==",
+            "response_code": "2.04"
+          }
+        }
+      ]
     },
-    {
-     "packet": 4,
-     "field": "coap.code",
-     "value": "141"
-    },
-    {
-     "packet": 6,
-     "field": "coap.code",
-     "value": "160"
-    },
-    {
-     "packet": 2,
-     "field": "coap.type",
-     "value": "2"
-    },
-    {
-     "packet": 4,
-     "field": "coap.type",
-     "value": "2"
-    },
-    {
-     "packet": 6,
-     "field": "coap.type",
-     "value": "2"
-    },
-    {
-     "packet": 1,
-     "field": "coap.type",
-     "value": "0"
-    },
-    {
-     "packet": 1,
-     "field": "coap.code",
-     "value": "1"
-    },
-    {
-     "packet": 3,
-     "field": "coap.type",
-     "value": "0"
-    },
-    {
-     "packet": 3,
-     "field": "coap.code",
-     "value": "1"
-    },
-    {
-     "packet": 5,
-     "field": "coap.type",
-     "value": "0"
-    },
-    {
-     "packet": 5,
-     "field": "coap.code",
-     "value": "1"
-    },
-    {
-     "packet": 2,
-     "field": "coap.mid",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 2,
-     "field": "coap.token",
-     "same_as_packet": 1
-    },
-    {
-     "packet": 4,
-     "field": "coap.mid",
-     "same_as_packet": 3
-    },
-    {
-     "packet": 4,
-     "field": "coap.token",
-     "same_as_packet": 3
-    },
-    {
-     "packet": 6,
-     "field": "coap.mid",
-     "same_as_packet": 5
-    },
-    {
-     "packet": 6,
-     "field": "coap.token",
-     "same_as_packet": 5
+    "expect": {
+      "packet_count": 2,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "coap.type",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "coap.code",
+          "value": "3"
+        },
+        {
+          "packet": 1,
+          "field": "coap.opt.uri_path",
+          "value": "devices,7"
+        },
+        {
+          "packet": 2,
+          "field": "coap.type",
+          "value": "2"
+        },
+        {
+          "packet": 2,
+          "field": "coap.code",
+          "value": "68"
+        },
+        {
+          "packet": 2,
+          "field": "coap.mid",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 2,
+          "field": "coap.token",
+          "same_as_packet": 1
+        }
+      ],
+      "notes": [
+        "2.04 是 CoAP Changed，不是 HTTP 204"
+      ]
     }
-   ],
-   "notes": [
-    "若 runner 不支持 error_responses 数组，应拆成三个 Case 并更新索引"
-   ],
-   "directional": true
-  }
- },
- {
-  "id": "coap_ipv6_get",
-  "proto": "coap",
-  "summary": "C-011：IPv6 GET /sensors/temp，验证 IPv6 地址与 CoAP 字段",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
-    },
-    {
-     "coap": {}
-    }
-   ],
-   "src_ip": "2001:db8::1",
-   "dst_ip": "2001:db8::2",
-   "src_port": 56575,
-   "dst_port": 5683,
-   "coap": {
-    "method": "GET",
-    "path": [
-     "sensors",
-     "temp"
-    ],
-    "confirmable": true,
-    "token": "MTIzNA==",
-    "message_id": 4107,
-    "response_code": "2.05",
-    "response_payload": "MjMuNQ=="
-   }
   },
-  "expect": {
-   "packet_count": 2,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "ipv6.src",
-     "value": "2001:db8::1"
+  {
+    "id": "coap_delete_deleted",
+    "proto": "coap",
+    "summary": "C-004：CON DELETE /devices/7，ACK 2.02 Deleted",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 56568,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "DELETE",
+            "path": [
+              "devices",
+              "7"
+            ],
+            "confirmable": true,
+            "token": "GRobHA==",
+            "message_id": 4100,
+            "response_code": "2.02"
+          }
+        }
+      ]
     },
-    {
-     "packet": 1,
-     "field": "ipv6.dst",
-     "value": "2001:db8::2"
-    },
-    {
-     "packet": 1,
-     "field": "coap.version",
-     "value": "1"
-    },
-    {
-     "packet": 1,
-     "field": "coap.type",
-     "value": "0"
-    },
-    {
-     "packet": 1,
-     "field": "coap.code",
-     "value": "1"
-    },
-    {
-     "packet": 2,
-     "field": "coap.code",
-     "value": "69"
-    },
-    {
-     "packet": 1,
-     "field": "udp.dstport",
-     "value": "5683"
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "coap.type",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "coap.code",
+          "value": "4"
+        },
+        {
+          "packet": 2,
+          "field": "coap.type",
+          "value": "2"
+        },
+        {
+          "packet": 2,
+          "field": "coap.code",
+          "value": "66"
+        },
+        {
+          "packet": 2,
+          "field": "coap.mid",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 2,
+          "field": "coap.token",
+          "same_as_packet": 1
+        }
+      ],
+      "notes": [
+        "响应无业务 Payload，但仍有合法 Deleted Code"
+      ]
     }
-   ],
-   "notes": [
-    "CoAP bytes与 IPv4 相同，但 IPv6 不复用 IPv4 offset=42"
-   ]
-  }
- },
- {
-  "id": "coap_multi_session",
-  "proto": "coap",
-  "summary": "C-012：两条独立 IPv4 4-tuple，会话 Token/MID/返回端口不串流",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
-    },
-    {
-     "coap": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 56565,
-   "dst_port": 5683,
-   "sessions": 2,
-   "coap": {
-    "method": "GET",
-    "path": [
-     "session"
-    ],
-    "confirmable": true,
-    "tokens": [
-     "AQIDBA==",
-     "BQYHCA=="
-    ],
-    "message_ids": [
-     20481,
-     24577
-    ],
-    "session_src_ips": [
-     "10.0.0.1",
-     "10.0.0.2"
-    ],
-    "session_src_ports": [
-     56565,
-     56566
-    ],
-    "response_code": "2.05",
-    "response_payload": "b2s="
-   }
   },
-  "expect": {
-   "min_packets": 4,
-   "directional": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 0,
-     "field": "udp.dstport",
-     "distinct_values": [
-      "5683",
-      "56565",
-      "56566"
-     ]
+  {
+    "id": "coap_con_timeout_retransmit",
+    "proto": "coap",
+    "summary": "C-005：CON GET 超时，初始包加 4 次重传共 5 包",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 56569,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "GET",
+            "path": [
+              "health"
+            ],
+            "confirmable": true,
+            "token": "HR4fIA==",
+            "message_id": 4101,
+            "retransmit": {
+              "max_retransmit": 4
+            },
+            "response": false
+          }
+        }
+      ]
     },
-    {
-     "packet": 0,
-     "field": "udp.srcport",
-     "distinct_values": [
-      "56565",
-      "56566",
-      "5683"
-     ]
-    },
-    {
-     "packet": 0,
-     "field": "coap.token",
-     "distinct_values": [
-      "01020304",
-      "05060708"
-     ]
-    },
-    {
-     "packet": 0,
-     "field": "coap.mid",
-     "distinct_values": [
-      "20481",
-      "24577"
-     ]
+    "expect": {
+      "packet_count": 5,
+      "directional": false,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "coap.type",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "coap.code",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "coap.mid",
+          "value": "4101"
+        },
+        {
+          "packet": 2,
+          "field": "coap.mid",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 3,
+          "field": "coap.mid",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 4,
+          "field": "coap.mid",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 5,
+          "field": "coap.mid",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 5,
+          "field": "coap.token",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 2,
+          "field": "coap.token",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 2,
+          "field": "coap.type",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "coap.code",
+          "value": "1"
+        },
+        {
+          "packet": 3,
+          "field": "coap.token",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 3,
+          "field": "coap.type",
+          "value": "0"
+        },
+        {
+          "packet": 3,
+          "field": "coap.code",
+          "value": "1"
+        },
+        {
+          "packet": 4,
+          "field": "coap.token",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 4,
+          "field": "coap.type",
+          "value": "0"
+        },
+        {
+          "packet": 4,
+          "field": "coap.code",
+          "value": "1"
+        },
+        {
+          "packet": 5,
+          "field": "coap.type",
+          "value": "0"
+        },
+        {
+          "packet": 5,
+          "field": "coap.code",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "44 01 10 05"
+        },
+        {
+          "packet": 2,
+          "offset": 42,
+          "hex": "44 01 10 05"
+        },
+        {
+          "packet": 5,
+          "offset": 42,
+          "hex": "44 01 10 05"
+        },
+        {
+          "packet": 3,
+          "offset": 42,
+          "hex": "44 01 10 05"
+        },
+        {
+          "packet": 4,
+          "offset": 42,
+          "hex": "44 01 10 05"
+        }
+      ],
+      "notes": [
+        "MAX_RETRANSMIT=4 是重传次数，总发送 5 次；每次保持相同 MID/Token/字节"
+      ]
     }
-   ],
-   "notes": [
-    "多流调度顺序不确定，distinct_values 按整个 pcap 聚合；请求目的端口为 5683，响应目的端口回到 56565/56566，源端口集合同时包含客户端和服务端端口",
-    "聚合集合不能证明 Token/MID 与具体四元组绑定；需逐会话 verifier 扩展或独立抓包断言。"
-   ]
-  }
- },
- {
-  "id": "coap_invalid_version",
-  "proto": "coap",
-  "summary": "N-001：固定头 Version=2（高两位 10）应拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
-    },
-    {
-     "coap": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 56576,
-   "dst_port": 5683,
-   "coap": {
-    "method": "GET",
-    "path": [
-     "bad"
-    ],
-    "version": 2,
-    "token": "AQI=",
-    "message_id": 4108
-   }
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "version",
-   "notes": [
-    "Version 必须为 RFC 7252 的 1"
-   ]
-  }
- },
- {
-  "id": "coap_invalid_tkl",
-  "proto": "coap",
-  "summary": "N-002：TKL=9，超过 Token 最大 8 字节应拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
+  {
+    "id": "coap_uri_path_query",
+    "proto": "coap",
+    "summary": "C-006：GET 多段 Uri-Path 与两个 Uri-Query",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 56570,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "GET",
+            "path": [
+              "api",
+              "v1",
+              "devices",
+              "7"
+            ],
+            "query": [
+              "unit=celsius",
+              "verbose=1"
+            ],
+            "confirmable": true,
+            "token": "ISIjJA==",
+            "message_id": 4102,
+            "response_code": "2.05"
+          }
+        }
+      ]
     },
-    {
-     "coap": {}
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "coap.opt.uri_path",
+          "value": "api,v1,devices,7"
+        },
+        {
+          "packet": 1,
+          "field": "coap.opt.uri_query",
+          "value": "unit=celsius,verbose=1"
+        },
+        {
+          "packet": 2,
+          "field": "coap.token",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 2,
+          "field": "coap.code",
+          "value": "69"
+        }
+      ],
+      "notes": [
+        "每段一个 Uri-Path、每项一个 Uri-Query，按 Option Number 排序"
+      ]
     }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 56577,
-   "dst_port": 5683,
-   "coap": {
-    "method": "GET",
-    "path": [
-     "bad"
-    ],
-    "token_length": 9,
-    "token": "AQIDBAUGBwgJ",
-    "message_id": 4109
-   }
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "token",
-   "notes": [
-    "TKL=9 是保留编码，不是合法 9 字节 Token"
-   ]
-  }
- },
- {
-  "id": "coap_invalid_code",
-  "proto": "coap",
-  "summary": "N-003：Code=0x1f 保留/非法，不得默认为 GET",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
+  {
+    "id": "coap_content_format_accept",
+    "proto": "coap",
+    "summary": "C-007：POST Content-Format=50、Accept=50，响应显式声明格式",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 56571,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "POST",
+            "path": [
+              "api",
+              "v1",
+              "report"
+            ],
+            "confirmable": true,
+            "token": "JSYnKA==",
+            "message_id": 4103,
+            "content_format": 50,
+            "accept": 50,
+            "payload": "eyJvayI6dHJ1ZX0=",
+            "response_code": "2.05",
+            "response_content_format": 50,
+            "response_payload": "eyJhY2NlcHRlZCI6dHJ1ZX0="
+          }
+        }
+      ]
     },
-    {
-     "coap": {}
+    "expect": {
+      "packet_count": 2,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "coap.opt.ctype",
+          "value": "application/json"
+        },
+        {
+          "packet": 1,
+          "field": "coap.opt.accept",
+          "value": "application/json"
+        },
+        {
+          "packet": 1,
+          "field": "coap.payload_length",
+          "nonzero": true
+        },
+        {
+          "packet": 2,
+          "field": "coap.opt.ctype",
+          "value": "application/json"
+        },
+        {
+          "packet": 2,
+          "field": "coap.payload_length",
+          "nonzero": true
+        }
+      ],
+      "notes": [
+        "请求 Content-Format 和响应 Content-Format 是独立 Option"
+      ]
     }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 56578,
-   "dst_port": 5683,
-   "coap": {
-    "method": "GET",
-    "code": 31,
-    "path": [
-     "bad"
-    ],
-    "message_id": 4110,
-    "token": ""
-   }
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "code",
-   "notes": [
-    "0x1f 不属于四个基础请求 Code"
-   ]
-  }
- },
- {
-  "id": "coap_uri_too_long",
-  "proto": "coap",
-  "summary": "N-004：URI Path 超过实现上限，不得静默截断",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
+  {
+    "id": "coap_block2_two_blocks",
+    "proto": "coap",
+    "summary": "C-008：Block2 两块响应，SZX=3（128B），M=1 后续 M=0",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 56572,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "GET",
+            "path": [
+              "large"
+            ],
+            "confirmable": true,
+            "token": "KSorLA==",
+            "message_id": 4104,
+            "block2": {
+              "number": 0,
+              "more": false,
+              "size_exp": 3
+            },
+            "response_blocks": [
+              {
+                "number": 0,
+                "more": true,
+                "size_exp": 3,
+                "payload": "YmxvY2stMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA="
+              },
+              {
+                "number": 1,
+                "more": false,
+                "size_exp": 3,
+                "payload": "YmxvY2stMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE="
+              }
+            ]
+          }
+        }
+      ]
     },
-    {
-     "coap": {}
+    "expect": {
+      "packet_count": 4,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "coap.opt.block_number",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "coap.opt.block_number",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "coap.opt.block_mflag",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "coap.opt.block_size",
+          "value": "3"
+        },
+        {
+          "packet": 3,
+          "field": "coap.opt.block_number",
+          "value": "1"
+        },
+        {
+          "packet": 4,
+          "field": "coap.opt.block_number",
+          "value": "1"
+        },
+        {
+          "packet": 4,
+          "field": "coap.opt.block_mflag",
+          "value": "0"
+        },
+        {
+          "packet": 4,
+          "field": "coap.opt.block_size",
+          "value": "3"
+        },
+        {
+          "packet": 2,
+          "field": "coap.token",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 4,
+          "field": "coap.token",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 1,
+          "field": "coap.type",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "coap.code",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "coap.opt.block_mflag",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "coap.opt.block_size",
+          "value": "3"
+        },
+        {
+          "packet": 3,
+          "field": "coap.type",
+          "value": "0"
+        },
+        {
+          "packet": 3,
+          "field": "coap.code",
+          "value": "1"
+        },
+        {
+          "packet": 3,
+          "field": "coap.opt.block_mflag",
+          "value": "0"
+        },
+        {
+          "packet": 3,
+          "field": "coap.opt.block_size",
+          "value": "3"
+        },
+        {
+          "packet": 2,
+          "field": "coap.type",
+          "value": "2"
+        },
+        {
+          "packet": 2,
+          "field": "coap.code",
+          "value": "69"
+        },
+        {
+          "packet": 4,
+          "field": "coap.type",
+          "value": "2"
+        },
+        {
+          "packet": 4,
+          "field": "coap.code",
+          "value": "69"
+        },
+        {
+          "packet": 1,
+          "field": "coap.mid",
+          "value": "4104"
+        },
+        {
+          "packet": 3,
+          "field": "coap.mid",
+          "value": "4105"
+        },
+        {
+          "packet": 2,
+          "field": "coap.mid",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 4,
+          "field": "coap.mid",
+          "same_as_packet": 3
+        },
+        {
+          "packet": 3,
+          "field": "coap.token",
+          "same_as_packet": 1
+        }
+      ],
+      "notes": [
+        "NUM/M/SZX 按 RFC 7959 编码；请求 MID 改变而 Token 保持"
+      ],
+      "directional": true
     }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 56579,
-   "dst_port": 5683,
-   "coap": {
-    "method": "GET",
-    "path": [
-     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-    ],
-    "uri_max_length": 64,
-    "message_id": 4111,
-    "token": ""
-   }
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "URI",
-   "notes": [
-    "单段长度超过 uri_max_length=64；应返回错误而非截断"
-   ]
+  {
+    "id": "coap_observe_notifications",
+    "proto": "coap",
+    "summary": "C-009：Observe 注册首响应和两次通知，含 CON 通知 ACK",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 56573,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "GET",
+            "path": [
+              "temperature"
+            ],
+            "confirmable": true,
+            "token": "ISIjJA==",
+            "message_id": 4105,
+            "observe": {
+              "start_sequence": 100,
+              "notify_count": 2,
+              "confirmable": true,
+              "notification_types": [
+                "NON",
+                "CON"
+              ]
+            },
+            "response_code": "2.05",
+            "response_payload": "MjMuNQ=="
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 5,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "coap.opt.observe",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "coap.code",
+          "value": "69"
+        },
+        {
+          "packet": 2,
+          "field": "coap.opt.observe",
+          "value": "100"
+        },
+        {
+          "packet": 3,
+          "field": "coap.opt.observe",
+          "value": "101"
+        },
+        {
+          "packet": 4,
+          "field": "coap.opt.observe",
+          "value": "102"
+        },
+        {
+          "packet": 3,
+          "field": "coap.token",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 4,
+          "field": "coap.token",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 5,
+          "field": "coap.mid",
+          "same_as_packet": 4
+        },
+        {
+          "packet": 1,
+          "field": "coap.type",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "coap.code",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "coap.type",
+          "value": "2"
+        },
+        {
+          "packet": 3,
+          "field": "coap.type",
+          "value": "1"
+        },
+        {
+          "packet": 3,
+          "field": "coap.code",
+          "value": "69"
+        },
+        {
+          "packet": 4,
+          "field": "coap.type",
+          "value": "0"
+        },
+        {
+          "packet": 4,
+          "field": "coap.code",
+          "value": "69"
+        },
+        {
+          "packet": 5,
+          "field": "coap.type",
+          "value": "2"
+        },
+        {
+          "packet": 5,
+          "field": "coap.code",
+          "value": "0"
+        },
+        {
+          "packet": 5,
+          "field": "coap.token_len",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "coap.token",
+          "same_as_packet": 1
+        }
+      ],
+      "notes": [
+        "Observe 24 bit 序列递增；CON 通知由最后一个 ACK 确认；错误响应不带 Observe"
+      ],
+      "directional": true
+    }
+  },
+  {
+    "id": "coap_error_responses",
+    "proto": "coap",
+    "summary": "C-010：业务错误覆盖 4.04、4.13、5.00，保持 MID/Token 关联",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 56574,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "GET",
+            "path": [
+              "missing"
+            ],
+            "confirmable": true,
+            "token": "LS4vMA==",
+            "message_id": 4106,
+            "error_responses": [
+              {
+                "code": "4.04",
+                "path": [
+                  "missing"
+                ]
+              },
+              {
+                "code": "4.13",
+                "path": [
+                  "too-large"
+                ]
+              },
+              {
+                "code": "5.00",
+                "path": [
+                  "failure"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 6,
+      "fields": [
+        {
+          "packet": 2,
+          "field": "coap.code",
+          "value": "132"
+        },
+        {
+          "packet": 4,
+          "field": "coap.code",
+          "value": "141"
+        },
+        {
+          "packet": 6,
+          "field": "coap.code",
+          "value": "160"
+        },
+        {
+          "packet": 2,
+          "field": "coap.type",
+          "value": "2"
+        },
+        {
+          "packet": 4,
+          "field": "coap.type",
+          "value": "2"
+        },
+        {
+          "packet": 6,
+          "field": "coap.type",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "coap.type",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "coap.code",
+          "value": "1"
+        },
+        {
+          "packet": 3,
+          "field": "coap.type",
+          "value": "0"
+        },
+        {
+          "packet": 3,
+          "field": "coap.code",
+          "value": "1"
+        },
+        {
+          "packet": 5,
+          "field": "coap.type",
+          "value": "0"
+        },
+        {
+          "packet": 5,
+          "field": "coap.code",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "coap.mid",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 2,
+          "field": "coap.token",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 4,
+          "field": "coap.mid",
+          "same_as_packet": 3
+        },
+        {
+          "packet": 4,
+          "field": "coap.token",
+          "same_as_packet": 3
+        },
+        {
+          "packet": 6,
+          "field": "coap.mid",
+          "same_as_packet": 5
+        },
+        {
+          "packet": 6,
+          "field": "coap.token",
+          "same_as_packet": 5
+        }
+      ],
+      "notes": [
+        "若 runner 不支持 error_responses 数组，应拆成三个 Case 并更新索引"
+      ],
+      "directional": true
+    }
+  },
+  {
+    "id": "coap_ipv6_get",
+    "proto": "coap",
+    "summary": "C-011：IPv6 GET /sensors/temp，验证 IPv6 地址与 CoAP 字段",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 56575,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "GET",
+            "path": [
+              "sensors",
+              "temp"
+            ],
+            "confirmable": true,
+            "token": "MTIzNA==",
+            "message_id": 4107,
+            "response_code": "2.05",
+            "response_payload": "MjMuNQ=="
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ipv6.src",
+          "value": "2001:db8::1"
+        },
+        {
+          "packet": 1,
+          "field": "ipv6.dst",
+          "value": "2001:db8::2"
+        },
+        {
+          "packet": 1,
+          "field": "coap.version",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "coap.type",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "coap.code",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "coap.code",
+          "value": "69"
+        },
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "5683"
+        }
+      ],
+      "notes": [
+        "CoAP bytes与 IPv4 相同，但 IPv6 不复用 IPv4 offset=42"
+      ]
+    }
+  },
+  {
+    "id": "coap_multi_session",
+    "proto": "coap",
+    "summary": "C-012：两条独立 IPv4 4-tuple，会话 Token/MID/返回端口不串流",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 56565,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "GET",
+            "path": [
+              "session"
+            ],
+            "confirmable": true,
+            "tokens": [
+              "AQIDBA==",
+              "BQYHCA=="
+            ],
+            "message_ids": [
+              20481,
+              24577
+            ],
+            "session_src_ips": [
+              "10.0.0.1",
+              "10.0.0.2"
+            ],
+            "session_src_ports": [
+              56565,
+              56566
+            ],
+            "response_code": "2.05",
+            "response_payload": "b2s="
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 2
+      }
+    },
+    "expect": {
+      "min_packets": 4,
+      "directional": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 0,
+          "field": "udp.dstport",
+          "distinct_values": [
+            "5683",
+            "56565",
+            "56566"
+          ]
+        },
+        {
+          "packet": 0,
+          "field": "udp.srcport",
+          "distinct_values": [
+            "56565",
+            "56566",
+            "5683"
+          ]
+        },
+        {
+          "packet": 0,
+          "field": "coap.token",
+          "distinct_values": [
+            "01020304",
+            "05060708"
+          ]
+        },
+        {
+          "packet": 0,
+          "field": "coap.mid",
+          "distinct_values": [
+            "20481",
+            "24577"
+          ]
+        }
+      ],
+      "notes": [
+        "多流调度顺序不确定，distinct_values 按整个 pcap 聚合；请求目的端口为 5683，响应目的端口回到 56565/56566，源端口集合同时包含客户端和服务端端口",
+        "聚合集合不能证明 Token/MID 与具体四元组绑定；需逐会话 verifier 扩展或独立抓包断言。"
+      ]
+    }
+  },
+  {
+    "id": "coap_invalid_version",
+    "proto": "coap",
+    "summary": "N-001：固定头 Version=2（高两位 10）应拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 56576,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "GET",
+            "path": [
+              "bad"
+            ],
+            "version": 2,
+            "token": "AQI=",
+            "message_id": 4108
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "version"
+    }
+  },
+  {
+    "id": "coap_invalid_tkl",
+    "proto": "coap",
+    "summary": "N-002：TKL=9，超过 Token 最大 8 字节应拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 56577,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "GET",
+            "path": [
+              "bad"
+            ],
+            "token_length": 9,
+            "token": "AQIDBAUGBwgJ",
+            "message_id": 4109
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "token"
+    }
+  },
+  {
+    "id": "coap_invalid_code",
+    "proto": "coap",
+    "summary": "N-003：Code=0x1f 保留/非法，不得默认为 GET",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 56578,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "GET",
+            "code": 31,
+            "path": [
+              "bad"
+            ],
+            "message_id": 4110,
+            "token": ""
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "code"
+    }
+  },
+  {
+    "id": "coap_uri_too_long",
+    "proto": "coap",
+    "summary": "N-004：URI Path 超过实现上限，不得静默截断",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 56579,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "GET",
+            "path": [
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ],
+            "uri_max_length": 64,
+            "message_id": 4111,
+            "token": ""
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "URI"
+    }
+  },
+  {
+    "id": "coap_neg_presence_top_level_coap",
+    "proto": "coap",
+    "summary": "P2 判死：层链 + 顶层空 coap 子映射并存（M5①，presence 非残留）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 56580,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "GET",
+            "path": [
+              "sensors",
+              "temp"
+            ],
+            "confirmable": true,
+            "token": "AQIDBA==",
+            "message_id": 4097,
+            "response_code": "2.05",
+            "response_payload": "eyJ2YWx1ZSI6MjMuNX0=",
+            "response_content_format": 50
+          }
+        }
+      ],
+      "coap": {}
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "top-level"
+    }
+  },
+  {
+    "id": "coap_neg_stray_src_mac",
+    "proto": "coap",
+    "summary": "P2 判死：层级+顶层游离键 src_mac（M5②，1.11–1.13 白名单制）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 56581,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "GET",
+            "path": [
+              "sensors",
+              "temp"
+            ],
+            "confirmable": true,
+            "token": "AQIDBA==",
+            "message_id": 4097,
+            "response_code": "2.05",
+            "response_payload": "eyJ2YWx1ZSI6MjMuNX0=",
+            "response_content_format": 50
+          }
+        }
+      ],
+      "src_mac": "aa:bb:cc:dd:ee:01"
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "src_mac"
+    }
+  },
+  {
+    "id": "coap_neg_carrier_tcp",
+    "proto": "coap",
+    "summary": "P2 判死：tcp 载体（coap 仅坐 udp；补全插入 udp 后 transport 重复，锚词 tcp）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 56582,
+            "dst_port": 5683
+          }
+        },
+        {
+          "coap": {
+            "method": "GET",
+            "path": [
+              "sensors",
+              "temp"
+            ],
+            "confirmable": true,
+            "token": "AQIDBA==",
+            "message_id": 4097,
+            "response_code": "2.05",
+            "response_payload": "eyJ2YWx1ZSI6MjMuNX0=",
+            "response_content_format": 50
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "tcp"
+    }
   }
- }
 ]
