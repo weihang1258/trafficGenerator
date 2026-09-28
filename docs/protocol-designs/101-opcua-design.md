@@ -4,7 +4,7 @@
 > 日期：2026-09-28
 > 车道：文档轨（#101 opcua 续号）
 > 旧基线：`docs/protocol-designs/25-opcua-design.md` v1.0.0 + `25-opcua-testcase.md` v1.0.0（12 例 = 10 正 + 2 负；本 #101 为 P-PIPE 续号重做，**承 25-opcua-design 审计通过的分层模型、MessageHeader 布局、NodeId/Variant 编码表、RequestHeader 字段序、订阅链路顺序、AttributeId/枚举表**，不搬旧稿的过时状态声明与错误数字，逐条见 §0）
-> 存量用例：`trafficgen/test/protocol_pcap/cases/opcua.json`（12/12 ID 与旧稿一致，顺序一致，已机读实测；**顶层键已是纯层链形，零残留**——本协议无 §1 迁移工作量，见 §12.1）
+> 存量用例：`trafficgen/test/protocol_pcap/cases/opcua.json`（12/12 ID 与旧稿一致，顺序一致，已机读实测；**顶层键已是纯层链形，零残留**——本协议无 §1 迁移工作量，见 §12.1；全仓另有 26 个协议同为此形，见 §12.1 注）
 > 规范基线：① OPC UA Part 6（UA Binary 线格式：MessageHeader / SecureConversationMessageHeader / 内置类型编码，下称 **spec**）；② OPC UA Part 4（服务定义与 RequestHeader/ResponseHeader）；③ OPC Foundation `UA-Nodeset` 官方 `NodeIds.csv` / `StatusCode.csv`（**NodeId 与 StatusCode 取值的唯一权威**，2026-09-28 拉取实测，§3.5/§9.1）；④ 本机 tshark 3.6.14 `opcua.*` 字段表与 12 例实测 pcap（`/tmp/mcp-pcaps/opcua/`，包数与偏移的唯一权威）；⑤ 本仓库落码（`internal/protocol/opcua/` 五文件 + 接线，§11）；⑥ 旧基线设计文档（内部契约，非外部规范）
 > 白话一句：**工业设备的"通用电话系统"——先握手（HEL/ACK 报缓冲大小），再开一条安全通道（OPN 领令牌），然后在这条通道上打电话（MSG：读、写、浏览、订阅），最后挂断（CLO）。所有数字都是小端。**
 
@@ -21,11 +21,11 @@
 | 5 | §5.6 三例 JSON 用 `{"strategy":{"type":"custom","layers":[...]},"spec":[...]}` 形；§8.2.3 用顶层 `opcua` 子映射形 | 存量 12 例机读：12/12 顶层键 = `{layers}`（**仅此一键**），层链 `[tcp,opcua]` ×11 + `[ip,tcp,opcua]` ×1 | **旧稿两种样例形均已作废**（一种是策略包装形、一种是过渡态违规形）；本版 §2 只给纯层链形，且**存量已达标** |
 | 6 | §6 S1/S2/S3/S5 包数速查表：S1 仅握手 11 / S2 OPN 13 / S3 Read 13 / S5 订阅 21 | 12 例实测 pcap 帧数：hello_ack **13** / open_none **15** / open_sign **13** / write **15** / browse **15** / subscribe **23** / bad_node **15** / denied **15** / ipv6 **15** / multi_session **19**；JSON `packet_count` 与 pcap **10/10 逐例一致**（机读对账） | **旧稿包数全错**（漏算 CLO 响应与 FIN 包）；本版 §9 按 JSON/pcap 钉死 |
 | 7 | §4.1 称"CLO 无响应（Part 4 §5.13.3），CLO 后直接 FIN"；§6 S5 序列写"包 22 CLO → 包 23 FIN" | 实测：CLO 是**对称 MSG 家族的一对**——请求包 + 响应包（两帧均 `CLOF` size 59），之后才是 FIN 四包（`hello_ack` 帧 8/9 = CLO 对，帧 10-13 = FIN） | **旧稿"CLO 无响应"与实测不符**（与 Part 4 原文对照列为 G-OPCUA-8）；本版 §5 按实测 |
-| 8 | §4.2 安全策略矩阵：None → PolicyUri 70B（`#None` URI）、证书双 null；Sign → PolicyUri 102B + 证书 512B/20B 占位 | 实测 OPN 包体**恒 79 字节**（帧长 147）：PolicyUri / SenderCertificate / ReceiverCertificateThumbprint **三个字符串全部写成长度 0 的空串**（`builder.go:125-126`）；None 与 Sign 的**唯一差异**是请求体 SecurityMode 字段（@129）`01 00 00 00` → `02 00 00 00` | **旧稿"PolicyUri 70B/证书占位"未实现**（旧稿是设计意图，代码未落）；本版 §3.4 按代码+实测钉，差异列 G-OPCUA-4 |
+| 8 | §4.2 安全策略矩阵：None → PolicyUri 70B（`#None` URI）、证书双 null；Sign → PolicyUri 102B + 证书 512B/20B 占位 | 实测 OPN 包体**恒 79 字节**（MessageSize **87** = 79+8；以太帧 141 = 54+87）：PolicyUri / SenderCertificate / ReceiverCertificateThumbprint **三个字符串全部写成长度 0 的空串**（`builder.go:125-126`）；None 与 Sign 的**唯一差异**是请求体 SecurityMode 字段（@129）`01 00 00 00` → `02 00 00 00` | **旧稿"PolicyUri 70B/证书占位"未实现**（旧稿是设计意图，代码未落）；本版 §3.4 按代码+实测钉，差异列 G-OPCUA-4 |
 | 9 | §3.3 RequestHeader：`AuthenticationToken` 无会话时 TwoByte 0（**2B**）、AdditionalHeader null（**2B**） | 代码 `putRequestHeader`（`builder.go:85-95`）写 **FourByte** NodeId（4B `01 00 00 00`）+ timestamp 8B + handle 4B + returnDiagnostics 4B + auditEntryId null 4B + timeoutHint 4B + additionalHeader null **3B**（TwoByte NodeId 2B + encoding 1B）= **31B**；实测 @82 `01 00 00 00` 4B | **旧稿字段尺寸错**（2B→4B、2B→3B）；本版 §3.3 按代码逐字节 |
 | 10 | §3.4/§10.3 Browse：`NodeClassMask` 默认 **0x3F**（Object\|Variable\|Method\|…）、`ResultMask` 0x3F | 代码 `browseRequestBody`（`builder.go:292-294`）：nodeClassMask 写 **0**，resultMask 写 **63**（0x3F） | **旧稿把 nodeClassMask 默认值写错**（0x3F 只对 resultMask 成立）；本版 §3.6 按代码 |
 | 11 | §3.4 Read：`MaxAge` Duration UInt32、`TimestampsToReturn` 枚举 Int32 | 代码 `readRequestBody`（`builder.go:193`）：MaxAge 写 **Double 8B**（0.0），timestampsToReturn 4B = 0 | **旧稿 MaxAge 类型错**（UInt32→Double）；本版 §3.5 按代码 |
-| 12 | §1.4 服务清单：Read=629、Write=671、Browse=525、CreateSubscription=785、CreateMonitoredItems=749、SetPublishingMode=797、Publish=824、OpenSecureChannel=446、CloseSecureChannel=450；§2.8 明言"本设计统一用 FourByte 编码" | 实测 TypeId 与官方 `NodeIds.csv` **DataTypes 列**逐条一致（446/452/631*/673/527/751/787/826）；但旧稿把 **DataType id 与 DefaultBinary Encoding id 混用**（Read=629 是 DataType，线上必须写 631）；**SetPublishingMode 实际写 791/792**，官方为 **797/800** | **旧稿表内混用两类 id**；SetPublishingMode 取值见 M-1（§9.2）——**该对是全表唯一既非官方也非 tshark 的取值** |
+| 12 | §1.4 服务清单：Read=629、Write=671、Browse=525、CreateSubscription=785、CreateMonitoredItems=749、SetPublishingMode=797、Publish=824、OpenSecureChannel=446、CloseSecureChannel=450；§2.8 明言"本设计统一用 FourByte 编码" | 实测 TypeId 与官方 `NodeIds.csv` **DataTypes 列**逐条一致（446/452/631*/673/527/751/787/826）；但旧稿把 **DataType id 与 DefaultBinary Encoding id 混用**（Read=629 是 DataType，线上必须写 631）；**SetPublishingMode 实际写 791/792**，官方为 **797/800** | **旧稿表内混用两类 id**；SetPublishingMode 取值见 M-1（§9.2）——**该对是全表唯一"指向了另一个服务"的取值**（791/792 确实存在于官方 NodeIds.csv 与 tshark 表中，但属 `ModifySubscriptionRequest`；其余响应侧偏差是同服务的 DataType/Encoding 口径差异，见 G-OPCUA-9） |
 | 13 | §9.1 StatusCode 表：`BadSecurityModeRejected 0x80890000`、`BadSecureChannelIdInvalid 0x80870000` | 官方 `StatusCode.csv` 实测：**BadSecurityModeRejected = 0x80540000**、**BadSecureChannelIdInvalid = 0x80220000**（`Good/BadUserAccessDenied/BadNodeIdUnknown` 三值旧稿正确） | **旧稿两个取值臆造**；本版 §9.1 按官方 CSV |
 | 14 | testcase §4.1："**OPC UA 的 tshark 字段名在当前 Wireshark 树中不存在**（gitlab 当前树无 packet-opcua.c 解析器）"，故"MessageHeader 断言一律用 FrameAssert" | tshark **3.6.14 有 opcua dissector**：`tshark -G fields` 中 `opcua.*` **442 字段**；`tshark -G decodes` 有 `tcp.port 4840 opcua`；12 例 pcap 全部被解码（`_ws.col.Protocol = OpcUa`，`frame.protocols` 含 `:opcua`），**零 malformed** | **旧稿"无 dissector"已过时**（可能是旧版本 tshark 或未按端口绑定时的结论）；本版 §1 给出可用字段通道，A′ 立项把 field 断言补起来（G-OPCUA-3） |
 | 15 | testcase §1.2 表列 **T1–T14** 十四条；§2.4 T4、§2.8 T8 自述"已合并到 T2/T7，不再独立成 JSON 用例" | JSON 实测 **12 例**；T4/T8 无独立 id | **旧稿"14 例"是虚数**（含 2 个仅存于文档的引用锚点）；本版 §9 以 12 个唯一语义 ID 为准 |
@@ -134,11 +134,11 @@
 
 ### 3.4 传输层与安全通道消息
 
-**HEL**（`BuildHEL`，`builder.go:33-43`）：body 24B + EndpointUrl；`protocolVersion=0`、`receiveBufferSize=65536`、`sendBufferSize=65536`、`maxMessageSize=0`、`maxChunkCount=0`、`endpointUrl` 长度 4B + 字节（**本实现恒传空串**，`buildEvents` 调 `BuildHEL("")`）。空串 → 帧长 32，MessageSize = `20 00 00 00`（实测帧 4 offset 54）。
+**HEL**（`BuildHEL`，`builder.go:33-43`）：body 24B + EndpointUrl；`protocolVersion=0`、`receiveBufferSize=65536`、`sendBufferSize=65536`、`maxMessageSize=0`、`maxChunkCount=0`、`endpointUrl` 长度 4B + 字节（**本实现恒传空串**，`buildEvents` 调 `BuildHEL("")`）。空串 → **MessageSize 32**（以太帧 86），字段 = `20 00 00 00`（实测帧 4 offset 54）。
 
-**ACK**（`BuildACK`，`builder.go:46-54`）：body 恒 20B（无 EndpointUrl）→ 帧长 28，MessageSize = `1c 00 00 00`（实测帧 5）。
+**ACK**（`BuildACK`，`builder.go:46-54`）：body 恒 20B（无 EndpointUrl）→ **MessageSize 28**（以太帧 82），字段 = `1c 00 00 00`（实测帧 5）。
 
-**OPN**（`BuildOPN`，`builder.go:119-141`）：body 恒 **79B**，帧长 **147**：
+**OPN**（`BuildOPN`，`builder.go:119-141`）：body 恒 **79B**，**MessageSize 87**（= 79+8；以太帧 141 = 54+87）：
 
 | body 偏移 | 字段 | 值 |
 |---|---|---|
@@ -153,7 +153,7 @@
 
 **诚实边界（Sign 模式）**：旧稿设计的"PolicyUri 70B/102B + 证书 512B/20B 占位"**未实现**（§0 #8）。今日 Sign 只是把 SecurityMode 枚举从 1 改成 2，**不产证书、不算签名、不改安全头长度**。本版**不声称**该路径产出的流可被真实服务器验证。
 
-**CLO**（`BuildCLO`，`builder.go:165-171`）：对称头（16B）+ TypeId 452 + RequestHeader(31) = body 51B，帧长 **59**；`buildEvents` 发**请求 + 响应各一帧**（§5、§0 #7）。
+**CLO**（`BuildCLO`，`builder.go:165-171`）：对称头（16B）+ TypeId 452 + RequestHeader(31) = body 51B，**MessageSize 59**（以太帧 = 54+59 = 113；此 113 是**以太帧长**，与 §8 的最大 **MessageSize** 113 数值巧合、口径不同）；`buildEvents` 发**请求 + 响应各一帧**（§5、§0 #7）。
 
 ### 3.5 服务请求体（逐服务，按代码钉）
 
@@ -236,7 +236,7 @@ opcua 层无自有状态机：握手/挥手/分段在 tcp 层；opcua 层是"按
 ## 6. 性能设计与验收（CORE_MEMORY §6.1–6.8）
 
 - **目标与边界**：单流全链 ≤23 帧（含握手挥手，订阅最长）；订阅 5 对服务为最大服务序列；多会话 3 对为最大服务对数；MessageSize 上限 UInt16（65535，`builder.go:17`）。吞吐数字待 P4 基准，**本版不写承诺**（§6.5）。
-- **依据**：事件序列流式产出（`buildEvents` 返回切片，长度 = 4 + 2×服务对数 + 2，**与配置规模线性**，无全量包聚合）；每帧内存 = 帧长（最大 HEL 32B / OPN 147B / 订阅 Publish 响应 74B）；无跨流共享状态；无锁（常量与局部变量）。
+- **依据**：事件序列流式产出（`buildEvents` 返回切片，长度 = 4 + 2×服务对数 + 2，**与配置规模线性**，无全量包聚合）；每帧内存 = 该帧 MessageSize（最小 ACK 28B / HEL 32B；**最大 = 订阅 CreateMonitoredItems 请求 113**，见 §8）；无跨流共享状态；无锁（常量与局部变量）。
 - **验收两路（§6.3 强制）**：pcap（`/tmp/mcp-pcaps/opcua/`，`<id>.pcap` / 负例 `<id>.neg.pcap`）与 NIC（`enp135s0f0np0`，`nic_capture` 开关）共用同一断言集；断言实际 `opcua.transport.*` 字段、帧原始 hex 与 `packet_count`，不只断言"任务没报错"。
 - **六类场景落点（§6.6）**：基线（#1，13 帧）/ 目标规模（#6 订阅 23 帧）/ 压力上限（#2 多节点 Read + #10 多会话 19 帧）/ 长时间运行（订阅多周期展开承载语义）/ 并发交错（顺序多对承载语义，并发路径为例外不启用）/ 背压（`packet_count` 精确计数守卫帧数漂移 + MessageSize UInt16 守卫）。
 
@@ -257,7 +257,7 @@ opcua 层无自有状态机：握手/挥手/分段在 tcp 层；opcua 层是"按
 
 ## 8. 边界
 
-- **帧长与 MessageSize**：ACK 28B / HEL 32B 为最小两帧；OPN 147B 为最大单帧；MessageSize UInt16 上限 65535 今日无例 → A′ 补例（G-OPCUA-7）。
+- **帧长与 MessageSize**：ACK **MessageSize 28** / HEL **32** 为最小两帧；**最大 MessageSize = 113**（`opcua_subscribe` 帧 10 CreateMonitoredItems 请求，body `43+42×1`）；对应**最大以太帧 = 167**（同帧；`opcua_ipv6` **帧 8** Read 请求亦 167 = 74+93，IPv6 头多 20B 故 MessageSize 仅 93 而以太长持平）；OPN 为 87（**非最大**）。MessageSize UInt16 上限 65535 今日无例 → A′ 补例（G-OPCUA-7）。
 - **服务对数**：`Read` 多节点为**一帧多节点**（`47+18n`），不是多帧；`Write`/`Browse` 每 op 一对；`sessions=N` 为 N 对。
 - **SecurityMode**：只接受 `none`/`sign`（`planner.go:23`）；`signandencrypt` 旧稿列入枚举但**代码拒绝**（§0 #12 表内枚举与实现差异）。
 - **NodeId**：只 FourByte（`ns<=255` 且 `id<=65535`）；String/Guid/Opaque 拒绝 → A′ 立项。
@@ -303,7 +303,7 @@ opcua 层无自有状态机：握手/挥手/分段在 tcp 层；opcua 层是"按
 | 官方 DataType | **797** / **800** | `NodeIds.csv:609/612` |
 | 官方 DefaultBinary Encoding | **799** / **802** | `NodeIds.csv:611/614` |
 | tshark 3.6.14 表 | **799** / **802** | 探针实测：patch 成 799 → `SetPublishingModeRequest (799)`；802 → `SetPublishingModeResponse (802)` |
-| **结论** | **791/792 既非官方也非 tshark 表内取值** | 791 = `ModifySubscriptionRequest` DataType；792 = `ModifySubscriptionRequest_Encoding_DefaultXml`（tshark 实测把 792 解成 `ModifySubscriptionRequest (XML Encoding)`） |
+| **结论** | **791/792 不是 SetPublishingMode 的正确线上 id**（正确 = 799/802） | 791/792 本身**存在**于官方 NodeIds.csv 与 tshark 表中，但属 `ModifySubscriptionRequest`：791 = 该服务 DataType；792 = 其 `_Encoding_DefaultXml`（tshark 实测把 792 解成 `ModifySubscriptionRequest (XML Encoding)`）。**即该对指向了另一个服务**——全表唯一一处此形态（其余偏差是同服务的 DataType/Encoding 口径差异，G-OPCUA-9） |
 
 **成因**：`planner.go:95-125` 的订阅分支 id 不是从官方表取，而是按"787/788 → 791/792 → 826/827"的**自增规律**推出来的——787（CreateSub ✓）、751（CreateMon ✓）、826（Publish ✓）三个对了，中间那个跟着 `+4` 规律写成了 791/792，而官方在 788→797 之间跳了 9。
 
@@ -361,7 +361,7 @@ opcua 层无自有状态机：握手/挥手/分段在 tcp 层；opcua 层是"按
 | 11 | NodeId 非 `ns=;i=` 文本 | A′ 立项（`builder.go:69` 有分支） |
 | 12 | `security_mode="none"` | 覆（#1/#2/#4–#10） |
 | 13 | `security_mode="sign"` | 覆（#3） |
-| 14 | `security_mode` 缺省 | 覆（#4/#5/#6 均显式写 none；缺省路径由 #1 语义等价覆盖） |
+| 14 | `security_mode` 缺省 | **A′ 立项**（机读实测 **12/12 例全部显式写 `security_mode`**；缺省分支 `planner.go:20-22` **无任何用例走过**，与同表行 6/10/11 同口径） |
 | 15 | `security_mode` 非法（如 `signandencrypt`） | A′ 立项（`planner.go:24` 有分支，今日无例） |
 | 16 | Write + DataValue/Variant | 覆（#4） |
 | 17 | Browse 前向引用 | 覆（#5） |
@@ -371,9 +371,9 @@ opcua 层无自有状态机：握手/挥手/分段在 tcp 层；opcua 层是"按
 | 21 | `sessions` 缺省（=0） | 覆（全正例除 #10） |
 | 22 | `sessions` 越界（<0 或 >100） | A′ 立项（`planner.go:40` 有分支） |
 | 23 | `close=false` | A′ 立项（少 CLO 对，今日无正例） |
-| 24 | IPv6 载体 | 覆（#10，offset 74） |
+| 24 | IPv6 载体 | 覆（#9，offset 74） |
 
-16 覆 + 8 立项 = 24。✓
+15 覆 + 9 立项 = 24。✓
 ### 10.4 子表③：商业行为→用例映射表
 
 | # | 商业行为（出处） | 用例映射 | 结论 |
@@ -387,7 +387,7 @@ opcua 层无自有状态机：握手/挥手/分段在 tcp 层；opcua 层是"按
 | 7 | 订阅周期发布（变化上报） | #6 | 已覆 |
 | 8 | 权限拒绝（只读节点写） | #8 | 已覆 |
 | 9 | 节点不存在 | #7 | 已覆 |
-| 10 | 多客户端/多会话并发 | #9 | 已覆（**但实现为连续非交错**，§5） |
+| 10 | 多客户端/多会话并发 | #10 | 已覆（**但实现为连续非交错**，§5） |
 | 11 | 真实证书/签名校验 | — | **明确不解决**（G-OPCUA-4） |
 | 12 | 会话层（CreateSession/ActivateSession） | — | **明确不解决**（§1 边界③） |
 | 13 | 分段传输（超缓冲大消息） | — | **明确不解决**（恒单 final 块） |
@@ -460,7 +460,7 @@ opcua 层无自有状态机：握手/挥手/分段在 tcp 层；opcua 层是"按
 
 | § | 本协议怎么满足 | 证据 |
 |---|---|---|
-| §1 层链唯一真相 | 见 §12.1 强制展开：存量 12/12 顶层 = `{layers}` **仅此一键，零残留**；目标形状见 §2 样例且**存量已达标**（无迁移工作量） | §12.1；`cases/opcua.json` 机读实测 |
+| §1 层链唯一真相 | 见 §12.1 强制展开：存量 12/12 顶层 = `{layers}` **仅此一键，零残留**；目标形状见 §2 样例且**存量已达标**（本协议无迁移工作量；全仓同形协议 27 个，见 §12.1 注） | §12.1；`cases/opcua.json` 机读实测 |
 | §2 策略/任务 | 策略 = 单 opcua 流量模板；任务 = 多策略合跑 + 总量封顶；框架语义未动 | 设计 §2 样例 |
 | §3 五件套 | 见 §12.3 强制展开：会话表/事务序列/关联（无派生流诚实声明）/插入位置（终结层）/时间线。有长连接，不豁免 | §12.3 + §5 |
 | §4 查规范 | Part 6/Part 4 + 官方 `NodeIds.csv`/`StatusCode.csv` + tshark 3.6.14 字段与 12 例 pcap 实测 + 落码反推；八项矩阵 + 子表①②③ | §10 |
@@ -487,14 +487,15 @@ opcua 层无自有状态机：握手/挥手/分段在 tcp 层；opcua 层是"按
 
 | 旧键 | 存量出现例数 | 去向 |
 |---|---:|---|
-| `src_ip` / `dst_ip` | **0** | 本协议**从未用过顶层地址**；IPv6 例已住 `layers[0].ip.{src,dst}`（#10） |
+| `src_ip` / `dst_ip` | **0** | 本协议**从未用过顶层地址**；IPv6 例已住 `layers[0].ip.{src,dst}`（#9） |
 | `src_port` | **0** | 本已 absent（保底 `12345+i`）；目标形按需迁 `layers[i].tcp.src_port` |
 | `dst_port` | **0** | 已住 `layers[i].tcp.dst_port`（12/12 显式写 4840） |
 | `count` | **0** | 走 `flow_control`（本版未用） |
 | 顶层 `opcua` 子映射 | **0** | 已住 `layers[i].opcua`（12/12） |
 | `strategy_fc` / `flow_control` | **0** | 本协议无多流用例；目标形按需加 |
 
-**结论**：**本协议是唯一"零迁移"协议**——§1 门的动作 = ①**无旧键可删**；②收官自查行「非负例顶层键 = 0」**今日即成立**（机读实测 12/12 顶层仅 `layers`）；③A′ 新增例全部沿用纯 layers 形（§13）。
+**结论**：**本协议存量 12/12 顶层零残留**——§1 门的动作 = ①**无旧键可删**；②收官自查行「非负例顶层键 = 0」**今日即成立**（机读实测 12/12 顶层仅 `layers`）；③A′ 新增例全部沿用纯 layers 形（§13）。
+> **注（2026-09-28 机读全仓统计）**：全仓 `cases/*.json` 中**共 27 个协议**今日已是纯 `{layers}` 形（bacnet/dcerpc/dtls/edp/ftp/hl7/igmp/jt808/jt809/jtt905/kerberos/kingbase/ldap/megaco/mmse/ntlm/ocsp/**opcua**/pppoe/pptp/rtmp/rtsp/sctp/sstp/vnc/xmpp/xmrmining），本协议只是其中之一，**并非"唯一"**；其余 98 个协议文件仍含顶层旧键或协议子映射。本协议的**特有事实**仅是"12/12 例今日即零残留"，不构成全仓唯一性。
 
 目标形状样例见 §2（顶层仅 `layers`）。
 
@@ -504,7 +505,7 @@ opcua 层无自有状态机：握手/挥手/分段在 tcp 层；opcua 层是"按
 
 ### 12.3 §3 强制展开：五件套
 
-会话表：`s1` 单连接基线（#1/#2/#3/#4/#5/#6/#7/#8/#10，各自四元组，HEL→ACK→OPN 对→服务对→CLO 对→FIN 四包）/ `s2` 多逻辑会话（#9，`sessions=3`，**连续三对 Read 非交错**，§5 诚实声明）。事务：`t1` 传输层握手（HEL/ACK，tcp 层建连后）/ `t2` 通道打开（OPN 对，领 TokenId 1000）/ `t3` 服务调用（MSG 对，每 op 一对）/ `t4` 关闭（CLO 对 + tcp 层 FIN）；每事务四件事（前置/触发/成功/失败）见 §5 阶段表 + §4 场景表。关联关系：**无派生流**（诚实声明：单 TCP 连接承载全部消息，无 `driven_by`；订阅的 Publish 不派生新连接）。插入位置：终结层（`[ip,tcp,opcua]`，无中间层）。时间线：消息内严格顺序 / 服务对顺序展开 / 多会话连续（#9）/ 无交错（`concurrent` 为例外路径不启用）。
+会话表：`s1` 单连接基线（#1/#2/#3/#4/#5/#6/#7/#8/#10，各自四元组，HEL→ACK→OPN 对→服务对→CLO 对→FIN 四包）/ `s2` 多逻辑会话（#10，`sessions=3`，**连续三对 Read 非交错**，§5 诚实声明）。事务：`t1` 传输层握手（HEL/ACK，tcp 层建连后）/ `t2` 通道打开（OPN 对，领 TokenId 1000）/ `t3` 服务调用（MSG 对，每 op 一对）/ `t4` 关闭（CLO 对 + tcp 层 FIN）；每事务四件事（前置/触发/成功/失败）见 §5 阶段表 + §4 场景表。关联关系：**无派生流**（诚实声明：单 TCP 连接承载全部消息，无 `driven_by`；订阅的 Publish 不派生新连接）。插入位置：终结层（`[ip,tcp,opcua]`，无中间层）。时间线：消息内严格顺序 / 服务对顺序展开 / 多会话连续（#10）/ 无交错（`concurrent` 为例外路径不启用）。
 
 ### 12.12 §12 强制展开：动态字段清单与序号算法
 
@@ -523,13 +524,13 @@ opcua 层无自有状态机：握手/挥手/分段在 tcp 层；opcua 层是"按
 | 缺口 | 内容 | 去向 |
 |---|---|---|
 | G-OPCUA-1 | `CheckProtoFlat` 无 opcua 分支（顶层 `opcua` 子映射 presence 不判死）+ 无游离顶层键通用门 + `Transport` 键未登记 registry Fields | P4 先实测再建例；**禁加单协议黑名单分支**（等框架级 unknown-key 白名单）；`Transport` 键裁定登记或删 |
-| G-OPCUA-2 | `sessions>1` 实现为**连续 N 对 Read**，无独立 AuthenticationToken / 独立 RequestHandle 空间 / 交错调度（旧稿 §4.5 描述未落码） | A′ 候选：补实现（每会话独立令牌 + 交错）或**明确不解决**并收窄用例 #9 断言口径；用例今日不得声称状态隔离 |
+| G-OPCUA-2 | `sessions>1` 实现为**连续 N 对 Read**，无独立 AuthenticationToken / 独立 RequestHandle 空间 / 交错调度（旧稿 §4.5 描述未落码） | A′ 候选：补实现（每会话独立令牌 + 交错）或**明确不解决**并收窄用例 #10 断言口径；用例今日不得声称状态隔离。**P4 必做**：改写 `opcua_multi_session` 的 `expect.notes` 文案——存量原文 "the three Read request/response pairs are **interleaved** and each keeps its own AuthenticationToken and RequestHandle space" **与实现相反**（实测三对 @82 全 `01 00 00 00`、handle 2/3/4 共用计数器、帧 8/10/12 连续非交错） |
 | G-OPCUA-3 | 业务字段动态全关（allowlist 无 `opcua` 行） | A′ 候选，不冒充已覆盖（§9.36 口径） |
 | G-OPCUA-4 | Sign 模式只改 SecurityMode 枚举，**不产证书/不算签名/不改安全头长度**（旧稿 §4.2 的 PolicyUri 70B/102B + 证书占位未实现） | **明确不解决**（真实密码学非本生成器范围）+ 用例 #3 只断结构；若未来实现须新增独立例并重算帧长 |
 | G-OPCUA-5 | NodeId 只支持 FourByte（String/Guid/Opaque 未实现） | A′ 候选（`ns=N;s=Name` 形状）；今日不得声称覆盖 |
 | G-OPCUA-6 | RST 非正常结束补例（§3.15②后半） | A′ 补例 `opcua_abort_rst`（`tcp.rst` 框架能力，本层零断言） |
-| G-OPCUA-7 | 未入例拒绝分支 5 条（`bad_length` 单独 / `security_mode` 非法 / 空 `node_ids` / NodeId 解析两分支 / `ErrorInject.Op` 未知值静默 Good）+ MessageSize UInt16 上限 | A′ 补例（含 `ErrorInject.Op` 未知值的**静默 Good 是缺陷候选**，P4 裁定拒绝或登记） |
-| G-OPCUA-8 | 第三源（真实服务器/开源实现线字节）未取到；Part 6 §7.1.2.x 条款号未逐条核对；**CLO 是否有响应**与旧稿 §4.4/§6 记载矛盾（实测发响应） | 待确认：抓 open62541 或真实 OPC UA 服务器包对照，或查 Part 4 §5.13.3 原文；确认前按实现钉、不声称合规 |
+| G-OPCUA-7 | 未入例拒绝分支 5 条（`bad_length` 单独 / `security_mode` 非法 / 空 `node_ids` / NodeId 解析两分支 / `ErrorInject.Op` 未知值静默 Good）+ MessageSize UInt16 上限 + `security_mode` 缺省分支（§10.3 行 14 已改判立项） | A′ 补例（含 `ErrorInject.Op` 未知值的**静默 Good 是缺陷候选**，P4 裁定拒绝或登记）。**P4 必做**：改写 `opcua_subscribe` 的 `expect.notes` 文案——存量原文 "CLO is one symmetric message and **has no CLO response**" **与实测相反**（帧 18/19 均 `CLOF` size 59）；同批删两条负例的 `notes` 键（严格两键口径） |
+| G-OPCUA-8 | 第三源（真实服务器/开源实现线字节）未取到；Part 6 §7.1.2.x 条款号未逐条核对；**CLO 是否有响应**与旧稿 §4.4/§6 记载矛盾（实测发响应） | 待确认：抓 open62541 或真实 OPC UA 服务器包对照，或查 Part 4 §5.13.3 原文；确认前按实现钉、不声称合规。**风险（须写清）**：若原文确为"CLO 单向无响应"，则 12 例中**9 例**（除 `opcua_bad_size_neg`/`opcua_no_channel_neg` 两负例外的全部正例，凡 `close:true` 者）的**帧位与 `packet_count` 需整体重算**（每例减 1 帧：13→12、15→14、23→22、19→18），§9 包数公式 `13+2×服务对数` 须改为 `12+2×服务对数`，testcase §3 各例帧位与 §1 形状基线同步重钉 |
 | G-OPCUA-9 | 响应侧 TypeId 用 DataType 值（632/674/528/752/788/827），请求侧用 Encoding 值（631/673/527/751/787/826）——**口径不统一**；tshark 响应侧表内缺失故不影响解码 | P4 与 M-1 一并修（响应侧改 634/676/530/754/790/829）；修后重跑后钉（帧数与 body 布局不变） |
 
 ## 15. 修订记录
