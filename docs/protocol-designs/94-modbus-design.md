@@ -36,14 +36,25 @@
 | 严格层链（配置搬进 `layers[modbus]`） | — | `layers: layer "modbus": unknown field "transactions"` |
 | 空层探针（`layers:[{ip},{tcp},{modbus:{}}]`） | — | 任务 `status=failed`：`validation failed: modbus: MODBUS config is required` |
 
-**根因 = 两个 Go 缺口**（本车道禁改代码 → 只能立项）：
+**根因 = 三个 Go 缺口**（本车道禁改代码 → 只能立项）：
 
 | 缺口 | 内容 | 证据 |
 |---|---|---|
-| **G-MODBUS-1** | registry `modbus` Fields **缺 `transactions`**（业务键全缺） | `registry.go:382-394` 仅 5 键；`MODBUSConfig`（`types.go:9471`）含 `Transactions []MODBUSOperation` + 16 个 per-op 键 |
+| **G-MODBUS-1** | registry `modbus` Fields **缺 `transactions`**（业务键全缺，故层内配置无处可住） | `registry.go:385-391` 仅 5 键（unit_id/suppress_broadcast/master_count/flow_count/shared_tid_space）；`MODBUSConfig`（`types.go:9471`）含 `Transactions []MODBUSOperation` + 16 个 per-op 键 |
 | **G-MODBUS-2** | `translateTerminalConfig` **无 `case "modbus"`** → 层 config 永不进 `spec.MODBUS` | `chain_planner_translate.go:855` switch 全文 73 个 case，`grep modbus` = **0 命中**（对照 moxa `:3304` 有分支） |
+| **G-MODBUS-3** | `CheckProtoFlat` **无 modbus 分支** → 顶层 `modbus` 子映射 presence 今日不判死 | `strategy_convert.go:8625` 起逐协议 if 链无 modbus；§0.1 探针实测 `layers+modbus:{}` → `completed/100%` |
 
-**因 §1.9 纪律，本契约全部层链样例标注为「目标形状，今天跑不通，需先补代码」**；存量 213 例的改写去向见 testcase §8。
+**机制补充（防误判"空壳即无需 translate"）**：`chain_planner_translate.go:852` 有前置守卫 `if len(s.Fields) == 0 { return }`——**modbus 有 5 个 Fields，守卫不触发**，控制流**进入** `switch term.Name`（`:855`）但因**无 `case "modbus"`** 而落空 → `spec.MODBUS` 保持 nil。故"层内配置不被解码"的**准确原因是缺 case，不是缺 Fields**（Fields 缺 `transactions` 是**第二道**拦截：即便补了 case，`transactions` 仍会被 `ValidateLayerConfig` 报 `unknown field`）。两道缺口须**同时**补齐。
+
+**因 §1.9 纪律，本契约全部层链样例标注为「目标形状，今天跑不通，需先补代码」**；存量 213 例的改写去向见 testcase §8（**缺口登记表**，本车道不改 JSON）。
+
+**顶层键残留总量（机读实测）**：213 例中顶层旧键出现 **1493 处**——逐键：`src_ip` 213 + `dst_ip` 213 + `src_mac` 213 + `dst_mac` 213 + `src_port` 213 + `dst_port` 213 + `modbus` 213 + `count` 2 = 1493。合规化的清理量即此。
+
+（**口径说明**：本表按**八键全计**，含 MAC 两键——`checkLayerFlatConflict`（`semantic.go:183-189`）明确把 `src_mac`/`dst_mac` 列为混用键，§1.11 白名单要求 MAC 真相住 `eth` 层。主线程静态扫描得 1059，**本车道未能复现该数**：最接近的口径是"五键（`src_ip`/`dst_ip`/`src_port`/`dst_port`/`modbus`）全例计数 = 1065"，差 6 未定位。**不作推测性解释**；两数均指向"存量几乎每例都带顶层旧键"这同一结论，不影响缺口登记与改写清单。）
+
+**presence 负例（G-MODBUS-3）不建，登记为待办**：§0.1 探针实测 `{"layers":[…],"modbus":{}}` → 任务 `completed/100%`（**未被拒**）。**建该负例 = 真绿假通过**（CORE_MEMORY §1.9；moxa §12-P2 同款先例）。登记为"**待 `CheckProtoFlat` 补 modbus 分支后方可建立**"的缺口；**禁止**以"给 modbus 单加黑名单分支"的方式闭合（kingbase 裁定：等框架级 unknown-key 白名单）。
+
+**本车道交付边界（主线程裁定 2026-09-28）**：`cases/modbus.json` **保持原样、不提交**——合规层链形须先补 G-MODBUS-1/2（代码阶段，按"文档先行"顺序未到）；本车道只交两份文档 + 缺口登记。
 
 ## 1. 范围、profile 与实现状态边界
 
@@ -535,7 +546,7 @@ modbus 层**无自有状态**（旧稿 §4.1 继承）：握手/seq-ack/挥手/�
 | §6 性能 | 见 §6（6.1–6.8 要素齐；吞吐数字标待基准，不写承诺） | §6 |
 | §7 三份文档 | `94-modbus-{design,testcase}.md` v1.0.0（草稿层）+ D-MODBUS-1（§11，门1 获批 = 定稿）+ T-MODBUS（testcase §2）+ 旧稿 13-* 为历史层 | 修订记录 |
 | §8 设计先行 | P1–P3 先于 G-MODBUS-1/2 补齐；门1 获批 = D-MODBUS-1 定稿 = 开工门 | 提交序 |
-| §9 测试三源 | 三源 = spec（§10）+ D-MODBUS-1（§11）+ tshark 通道实测（`modbus.*`/`mbtcp.*`）；213 ID 逐项回指；存量审计去向 testcase §8 | `94-modbus-testcase.md` §2/§5/§8 |
+| §9 测试三源 | 三源 = spec（§10）+ D-MODBUS-1（§11）+ tshark 通道实测（`modbus.*`/`mbtcp.*`）；213 ID 逐项回指；存量缺口登记 testcase §8（本车道不改 JSON） | `94-modbus-testcase.md` §2/§5/§8 |
 | §10 评审闭环 | 每阶段对抗自重审（结论见 `/tmp/pipe/doc-lanes/modbus.md`）+ 收官隔离复审；红先绿后 | 车道日志 |
 | §11 白话 | 每阶段白话一句先行（见本文首节） | 汇报 |
 | §12 动态清单 | 见 §12.12 强制展开：四元组全开（allowlist 实测）；业务字段逐个列开/不开 + 理由；序号算法实读行号 | §12.12 |
@@ -589,7 +600,7 @@ modbus 层**无自有状态**（旧稿 §4.1 继承）：握手/seq-ack/挥手/�
 
 ## 13. P3 对接清单（T-MODBUS 草稿输入；正文落 testcase 文件）
 
-存量 213 例（151 正 + 62 负，180 个唯一 T 编号）+ packet_count/锚词 + fixture 常量 + 双通道断言基线 + 存量审计（testcase §2–§5/§8 全量）。A′ 候选：`modbus_ipv6`（**IPv6 零覆盖，offset 74**；引擎已支持，MCP 实测通过）/ `modbus_eth_mac_layer`（MAC 迁层验证）/ `modbus_default_port_502`（删 dst_port 验证 FieldContract 补齐）/ `modbus_mss_segment`（显式小 MSS 分段）/ `modbus_neg_unknown_field`（白名单外游离键）/ `modbus_neg_presence_shape`（**不建**，G-MODBUS-3 未闭前会假绿）。
+存量 213 例（151 正 + 62 负，180 个唯一 T 编号）+ packet_count/锚词 + fixture 常量 + 双通道断言基线 + 存量缺口登记（testcase §2–§5/§8 全量；本车道不改 JSON）。A′ 候选：`modbus_ipv6`（**IPv6 零覆盖，offset 74**；引擎已支持，MCP 实测通过）/ `modbus_eth_mac_layer`（MAC 迁层验证）/ `modbus_default_port_502`（删 dst_port 验证 FieldContract 补齐）/ `modbus_mss_segment`（显式小 MSS 分段）/ `modbus_neg_unknown_field`（白名单外游离键）/ `modbus_neg_presence_shape`（**不建**，G-MODBUS-3 未闭前会假绿）。
 
 ## 14. 缺口立项清单（有缺口写「缺口立项」，不许空着）
 
