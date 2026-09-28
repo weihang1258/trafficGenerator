@@ -372,7 +372,7 @@ T-编号对照：T-THRIFT-S1…S7 ≡ #1…#7；T-THRIFT-N1…N6 ≡ #8…#13（
 
 ### 11.7 与现有逻辑的冲突点
 
-- **translate 层内无 `case "thrift"`**（`chain_planner_translate.go` 的 `term.Name` switch 有 73 个 case，含 `moxa`/`tns`，**无 thrift**，grep 实测）：层内 `thrift` 子映射 config **不翻译** → `spec.Thrift` 恒 nil（除 flat 路径）→ 默认 `CALL ping` 流。目标形状（§2）需 P4 补 translate 分支（G-THRIFT-1）。
+- **translate 层内无 `case "thrift"`（自行核实，决定性证据链）**：`translateTerminalConfig`（`chain_planner_translate.go:695`）是逐协议结构——顶部一串 `if term.Name == "X" && spec.X == nil`（ethmining/bgp/pcep/ldp/isis…），后接 `switch term.Name`（`:855`，73 个 case，含 `moxa`/`tns`）；**两处均无 thrift**（grep 实测）。全仓非测试代码中 `Thrift` 仅出现两次：`registry.go:780`（注册）+ `chain_planner_translate.go:122`（Meta 直传，**读** `spec.Thrift`）。**无 FieldContract 通用通道、无 default 兜底**（`term.Config` 由每个 case 各自 `completedConfig` 消费）⟹ 层内 `thrift` 子映射 config **确实不翻译** → `spec.Thrift` 恒 nil（除 flat 路径）→ 默认 `CALL ping` 流。目标形状（§2）需 P4 补 translate 分支（G-THRIFT-1）。
 - **`CheckProtoFlat`（`strategy_convert.go:8625`）无 thrift 分支**：顶层 `thrift` 子映射 presence **不判死**（grep 实测）——与 D-MOXA-1 等已登记协议不同，属缺口 G-THRIFT-2（**禁加单协议黑名单分支**，等框架级 unknown-key 白名单；kingbase 记忆裁定）。
 - **`ValidateStrategy` 无条件调用 `CheckProtoFlat`**（`schema/semantic.go:130`，无 layers 短路）：存量 13 例的顶层 `src_ip/dst_ip/src_port/dst_port/count` **在策略创建即 400**——存量用例今日**不可经 MCP 跑通**（§12.1 实证链）。
 - **`case "thrift"`（`strategy_convert.go:1747`）是 flat 遗留路径**：读顶层 `cfg["thrift"]`（无"配置住 thrift 层"注记，与 tns/mongodb/drda 的已收敛形不同）→ 层链化后此支仅守 out-of-band 配置（引擎直调）。
@@ -387,7 +387,7 @@ T-编号对照：T-THRIFT-S1…S7 ≡ #1…#7；T-THRIFT-N1…N6 ≡ #8…#13（
 
 | § | 本协议怎么满足 | 证据 |
 |---|---|---|
-| §1 层链唯一真相 | 见 §12.1 强制展开：存量 13/13 顶层 = `layers`（空壳）+ `src_ip/dst_ip/src_port/dst_port/count/thrift`（旧扁平残留，P4 迁移 G-THRIFT-1）；目标形状见 §2 样例；presence 判死形状缺口 G-THRIFT-2 | §12.1；`cases/thrift.json` 机读实测 |
+| §1 层链唯一真相 | 见 §12.1 强制展开：**非符合态**——非负例顶层键 **41 处残留**（`src_ip`/`dst_ip`/`dst_port`/`count`/`thrift` 各 ×7 + `src_port` ×6），全违规（§1.4/§1.11）；目标形状见 §2 样例；presence 判死形状缺口 G-THRIFT-2 | §12.1；`cases/thrift.json` 机读实测 |
 | §2 策略/任务 | 策略 = 单 thrift 流量模板，自带 `flow_control`；任务 = 多策略合跑 + 总量封顶；框架语义未动 | 设计 §2 样例 |
 | §3 五件套 | 见 §12.3 强制展开：会话表/事务序列/关联（无派生流诚实声明）/插入位置（终结层）/时间线。有长连接，不豁免 | §12.3 + §5 |
 | §4 查规范 | TBinaryProtocol spec + 旧基线 + tshark 43 字段实测 + 落码反推；八项矩阵 + 子表①②③ | §10 |
@@ -410,6 +410,13 @@ T-编号对照：T-THRIFT-S1…S7 ≡ #1…#7；T-THRIFT-N1…N6 ≡ #8…#13（
 |---|---|---|---|---|
 | `cases/thrift.json` | 13 | `{layers, src_ip, dst_ip, dst_port, count, thrift}` ×13（`src_port` ×12）+ `strategy_fc` ×1（S7） | `[tcp, thrift]` ×13，**两层 config 均空 `{}`**（机读实测） | ✅ 6/6 只有 `{expect_error,error_contains}` |
 
+**合规判据与残留计数（按顶层白名单 `{layers, strategy_fc, ttl, flow_control, output, output_config, group_id}` 机读）**：
+
+- **非负例顶层键 = 41 处残留**（7 正例 × 6 键 − `thrift_multi_sessions` 缺 `src_port` = 41）：`src_ip` ×7 + `dst_ip` ×7 + `dst_port` ×7 + `count` ×7 + `thrift` ×7 + `src_port` ×6。
+- **全部违规**：顶层 `thrift` 子映射 + 顶层四元组 + `count` 与 `layers` 并存 = 判死形状（§1.4/§1.11 混用禁令；1.11 顶层白名单制下黑名单漏点照样红）。
+- 负例 6 例同样带残留（合计 77 处全量），但判据以**非负例**为准（1.13）。
+- **结论：本协议非符合态**；合规形 = 非负例顶层键 **41 → 0**，需代码阶段补（§14 G-THRIFT-1）。
+
 **旧键去向表（§15.3 要求"每个键写去向"）**：
 
 | 旧键 | 存量出现例数 | 去向 |
@@ -423,7 +430,7 @@ T-编号对照：T-THRIFT-S1…S7 ≡ #1…#7；T-THRIFT-N1…N6 ≡ #8…#13（
 | `layers[].tcp` 空壳 | **13** | 由空 `{}` 变实配（端口迁入） |
 | `layers[].thrift` 空壳 | **13** | 由空 `{}` 变实配（`messages` 迁入） |
 
-**结论**：本协议有实质迁移工作量——§1 门的动作 = ①补 translate `case "thrift"`（层内 config → `spec.Thrift`，须先 `completedConfig` + 严格解码，moxa :3304 范式）；②补 `CheckProtoFlat` presence 判死顶层 `thrift`（G-THRIFT-2，禁单协议黑名单分支）；③13 例整体改写（删顶层旧键、层内实配）；④新增 A′ 例全部纯 layers 形；⑤收官自查行「非负例顶层键 = 0」由 **6 键 → 0**。
+**结论**：本协议有实质迁移工作量——§1 门的动作 = ①补 translate 层内分支（**层内配置路径已自行核实：`translateTerminalConfig`（`chain_planner_translate.go:695`）是逐协议 `if term.Name == "X"` 链 + `switch term.Name`（`:855`）结构，73 个 case 与 `if` 块中**均无 thrift**；全仓非测试代码里唯一的 `Thrift` 引用是 `:122` 的 Meta 直传（读 `spec.Thrift`，不写），**无 FieldContract/通用通道兜底**——`term.Config` 逐 case 消费（`completedConfig(s, term.Config)` 出现在每个 case 内）。故层内 `thrift.messages` 今日确实不翻译，G-THRIFT-1 成立）；②补 `CheckProtoFlat` presence 判死顶层 `thrift`（G-THRIFT-2，禁单协议黑名单分支）；③13 例整体改写（删顶层旧键、层内实配）；④新增 A′ 例全部纯 layers 形；⑤收官自查行「非负例顶层键 = 0」由 **41 处 → 0**。
 
 目标形状样例见 §2（顶层仅 `layers`+`flow_control`）。
 
@@ -451,7 +458,7 @@ T-编号对照：T-THRIFT-S1…S7 ≡ #1…#7；T-THRIFT-N1…N6 ≡ #8…#13（
 
 | 缺口 | 内容 | 去向 |
 |---|---|---|
-| G-THRIFT-1 | translate 无 `case "thrift"`（层内 config 不翻译）+ `case "thrift"`（`strategy_convert.go:1747`）仍是 flat 遗留路径 → 顶层 `thrift` 子映射迁层内 + 13 例改写 | P4 首动作；收官「非负例顶层键=0」 |
+| G-THRIFT-1 | translate 无 thrift 层内分支（`translateTerminalConfig:695` 的 `if` 链 + `:855` 的 73-case switch 均缺席，无通用通道，自行核实）+ `case "thrift"`（`strategy_convert.go:1747`）仍是 flat 遗留路径 → 顶层 `thrift` 子映射迁层内 + 13 例改写（非负例顶层键 41 → 0） | P4 首动作；收官「非负例顶层键=0」 |
 | G-THRIFT-2 | `CheckProtoFlat` 无 thrift 分支 → presence 形今日不判死 | P4 先实测再建例；**禁加单协议黑名单分支**（等框架级 unknown-key 白名单） |
 | G-THRIFT-3 | E-07（CALL/REPLY method·seqid 不配对）、E-08（struct 缺 STOP、重复 field ID、字段值截断）落码无校验 | A′ 补例（先写失败测试，再补 Validate 分支）；**今日不建例** |
 | G-THRIFT-4 | `transport` 键 registry 有、`types.go:779` 有字段、planner/builder 零消费（死配置） | P4 裁定：删键或接线（`transport` 语义待 spec 核实） |
@@ -463,4 +470,4 @@ T-编号对照：T-THRIFT-S1…S7 ≡ #1…#7；T-THRIFT-N1…N6 ≡ #8…#13（
 
 ## 15. 修订记录
 
-- v1.0.0（2026-09-28）：P-PIPE #102 文档轨 P1–P3。承 30 版续号：30→102 沿革与 8 项过期校正（§0）；线格式三路对照审计通过（§3，结论继承）；存量 13 例机读审计（**过渡态违规形实证**：层链空壳 + 6 顶层旧键）；§12.1/12.3/12.12 强制展开 + 12-P2；D-THRIFT-1 as-built 定稿（§11）；缺口 G-THRIFT-1…G-THRIFT-8。自审 3 轮，末轮干净（结论见 `/tmp/pipe/doc-lanes/thrift.md`）。
+- v1.0.0（2026-09-28）：P-PIPE #102 文档轨 P1–P3。承 30 版续号：30→102 沿革与 8 项过期校正（§0）；线格式三路对照审计通过（§3，结论继承）；存量 13 例机读审计（**非符合态实证**：层链空壳 + **非负例顶层键 41 处残留**，按顶层白名单判据）；§12.1/12.3/12.12 强制展开 + 12-P2；D-THRIFT-1 as-built 定稿（§11）；缺口 G-THRIFT-1…G-THRIFT-9。自审 5 轮（第 5 轮按主线程口径纠错：合规判据改白名单制、层内配置路径自行核实补决定性证据链），末轮干净（结论见 `/tmp/pipe/doc-lanes/thrift.md`）。
