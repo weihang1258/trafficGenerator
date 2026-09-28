@@ -7453,8 +7453,16 @@ def check_coap(cases):
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("G-COAP-1② CheckProtoFlat presence 判死顶层 coap",
                  "no longer accepts a top-level coap sub-config" in sc, "在案"))
-    rows.append(("mapToFlowSpec 顶层 coap → ValidationErrors（在库旧策略执法）",
-                 'if protocol == "coap" {' in sc, "在案"))
+    # C1（gen-review）：原判据是裸子串 `if protocol == "coap" {`，与
+    # CheckProtoFlat 的 presence 分支共用 → 删掉 mapToFlowSpec 执法块门仍全绿
+    # （MUT7 实证），被点名的「在库旧策略执法口」实际无机器门。改为断言
+    # **该块特有的三行体**（含 ValidationErrors append，presence 分支是 return
+    # 文案，两者体不同）。
+    _mapfs_coap = ('if protocol == "coap" {\n'
+                   '\t\tif v, ok := cfg["coap"]; ok && v != nil {\n'
+                   '\t\t\tspec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))')
+    rows.append(("mapToFlowSpec 顶层 coap → ValidationErrors（在库旧策略执法，判据=块体非裸子串）",
+                 _mapfs_coap in sc, "在案"))
     rows.append(("端口 5683 缺省住 validateSpecBase DstPort switch（P4 不改机制，flat 不另设）",
                  'case "coap":\n\t\t\tspec.DstPort = 5683' in (tg / "internal" / "core" / "layers"
                                                           / "chain_planner.go").read_text()
@@ -7559,6 +7567,21 @@ def check_coap(cases):
     dead = [cid for cid, m in lays for k in ("block1", "error_code", "error_payload") if k in m]
     rows.append(("G-COAP-2 死键无用例冒充（block1/error_code/error_payload）",
                  not dead, dead or "零命中"))
+    # M2（gen-review）：上行的死键面窄于 §1.12 口径——设计 §3 行 3/行 6 另点名
+    # retransmit.{ack_timeout,random_factor,force_timeout} 与 observe.register
+    # 零消费（实测字段访问数 0/0/0/0）。§1.12 对「字段根本不被消费」的场景允许
+    # 「明确不解决」，但**用例配置里必须删掉该字段**——此门即该条的执行点。
+    sub_dead = []
+    for cid, m in lays:
+        rt = m.get("retransmit")
+        if isinstance(rt, dict):
+            sub_dead += [f"{cid}:retransmit.{k}" for k in
+                         ("ack_timeout", "random_factor", "force_timeout") if k in rt]
+        ob = m.get("observe")
+        if isinstance(ob, dict) and "register" in ob:
+            sub_dead.append(f"{cid}:observe.register")
+    rows.append(("§1.12 零消费子键用例配置零残留（retransmit.ack_timeout/random_factor/force_timeout、observe.register）",
+                 not sub_dead, sub_dead or "零命中"))
     # 断言通道：19 去重字段（15 coap.* + 4 载体）全部 ∈ 用例 fields。
     fields = {str((f or {}).get("field", "")) for c in cases
               for f in ((c.get("expect") or {}).get("fields") or [])}
