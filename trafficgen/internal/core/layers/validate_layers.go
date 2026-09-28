@@ -44,6 +44,33 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 			}
 		}
 	}
+	if protocol == "ethmining" {
+		// D-ETHMINING-1 P4：tcp 单载体预检（xmrmining/edp 预检同构——
+		// DependsOn tcp 自动补全前拦，裸 ethmining 层不被补全掩盖）。
+		//   - 链夹 udp → 拒（ethmining 只走 TCP，契约 §2/§10.4；bacnet 镜像面）；
+		//   - 缺 tcp → 拒（[ip,ethmining] 直连，dcerpc 同款）。
+		// 锚词按契约 §7 负例 31：carrier / tcp（§12-P2 链级红例）。
+		//
+		// 地址族混族不在本预检——validateSpecBase 的通用 same-version 门
+		// （chain_planner.go:833）已覆盖（锚词 "must be same IP version"），
+		// 一处一面；本块重复实现会造出两套锚词（edp/xmrmining 预检里的
+		// 混族分支是历史残留，不在本协议复制）。
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			hasTCP := false
+			for _, item := range probe {
+				if _, ok := item["udp"]; ok {
+					return nil, fmt.Errorf("ethmining chain: udp carrier is not supported — ethmining rides tcp only (EthereumStratum over a TCP byte stream) (carrier)")
+				}
+				if _, ok := item["tcp"]; ok {
+					hasTCP = true
+				}
+			}
+			if !hasTCP {
+				return nil, fmt.Errorf("ethmining chain: missing tcp carrier — ethmining requires an [ip,tcp,ethmining] chain (carrier)")
+			}
+		}
+	}
 	if protocol == "edp" {
 		var probe []map[string]json.RawMessage
 		if err := json.Unmarshal(layersJSON, &probe); err == nil {
