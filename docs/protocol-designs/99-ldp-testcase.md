@@ -4,7 +4,7 @@
 > 日期：2026-09-28
 > 配套设计：`docs/protocol-designs/99-ldp-design.md` v1.0.0（D-LDP-1）
 > 旧基线：`docs/protocol-designs/41-ldp-testcase.md` v1.0.0（25 例；思路继承不搬码）
-> 机器契约：`trafficgen/test/protocol_pcap/cases/ldp.json`（25/25 ID 与本版 §2 一致，顺序一致，已机读实测；顶层旧键残留待 P4 迁移，G-LDP-1/G-LDP-3）
+> 机器契约：`trafficgen/test/protocol_pcap/cases/ldp.json`（25/25 ID 与本版 §2 一致，顺序一致，已机读实测；**现状=违规过渡形：非负例顶层残留 70 处，合规层链形待代码阶段收敛，G-LDP-1/G-LDP-3**）
 > 白话一句：**二十五条检查：十四条看正常对话（打招呼、对暗号、报地址、发标签、撤标签、说再见、多邻居并行），十一条看胡来能不能被拦下；每条只查一件事。**
 
 ## 1. 测试原则和形状基线
@@ -205,8 +205,8 @@ RFC 5036（LDP Specification 全文 + §3.4/§3.5 FEC 语义）+ D-LDP-1（设�
 | 10 | 目的端口缺省 646 | `chain_planner.go` 含 `case "ldp":` 与 `spec.DstPort = 646` |
 | 11 | 混合载体分支 | `chain_planner_util.go` 含 `isCarrierMixedChain` 且 `chain_planner.go` 含 `isCarrierMixedChain(p.name, chain) && spec.LDP != nil` |
 | 12 | generated schema ldp 条目同代 | `layers.generated.json` 的 `ldp.depends_on == ["udp"]` 且 `transport_on == ["udp","tcp"]` |
-| 13 | 顶层 ldp presence 零残留（非负例） | 无「有 `layers` + 顶层 `ldp` dict + 非 `expect_error`」的例（**P4 迁移后转绿**；今日红） |
-| 14 | 正例顶层键白名单 | 非负例顶层键 ⊆ `{layers, strategy_fc, flow_control, output, output_config, group_id}`（**P4 迁移后转绿**；今日红） |
+| 13 | 顶层 ldp presence 零残留（非负例） | 无「有 `layers` + 顶层 `ldp` dict + 非 `expect_error`」的例；存量 14 例命中，**待代码阶段收敛**（**今日红**） |
+| 14 | 正例顶层键白名单（§1.11/§1.13 判据：非负例顶层键 = 0） | 非负例顶层键 ⊆ `{layers, strategy_fc, ttl, flow_control, output, output_config, group_id}`；存量 70 处残留（14 × 5）**待代码阶段收敛**（**今日红**） |
 | 15 | 9 种消息类型全覆盖 | cases 中 `ldp.msg.type` 断言集 ⊇ `{0x0001,0x0100,0x0200,0x0201,0x0300,0x0400,0x0401,0x0402,0x0403}` |
 | 16 | 负例锚词 11/11 | 11 负例 `error_contains` 集 = `{carrier,port,profile,pdu,message,tlv,unknown,label,prefix,state,checksum}` |
 | 17 | 负例 expect 纯净 | 11/11 `expect` 键严格 `{expect_error,error_contains}` |
@@ -262,7 +262,7 @@ RFC 5036（LDP Specification 全文 + §3.4/§3.5 FEC 语义）+ D-LDP-1（设�
 
 ## 9. 实现后执行建议
 
-1. **P4 顺序**：G-LDP-1（registry Fields + translate 严格解码分支 + schemagen 重跑）→ 存量 25 例改写（删顶层旧键）→ 先跑后钉 25 例 → 补 A′ 6 条 + `ldp_multi_txn_roundtrip` → 全量复跑。
+1. **代码阶段顺序**：G-LDP-1（registry Fields + translate 严格解码分支 + MapToFlowSpec 顶层收敛 + schemagen 重跑）→ 存量 25 例改写（删顶层旧键）→ 先跑后钉 25 例 → 补 A′ 6 条 + `ldp_multi_txn_roundtrip` → 全量复跑。
 2. **实测顺序**：先 S1/S2（TCP 基线与 KeepAlive 11 包），再 S9/S10（UDP offset 42），再 S4/S5/S8（FEC /24 与 /32），再 S6/S7（Withdraw/Release 区分），再 S11/S12，最后 S13（多 session 聚合）、S14（混合载体）。
 3. 二进制与 HEAD 同代确认（门2③：`find trafficgen -name '*.go' -newer <server-binary>` 无输出）；门2② 全量（`CASE_PROTO=ldp` 全量不是增量）；门2④ 反查绿后进 P6。
 4. 混合载体例（S14）走 `isCarrierMixedChain` 自产完整包分支，实现期须确认 UDP Hello 与 TCP 会话的包序与 packet_count 12 一致。

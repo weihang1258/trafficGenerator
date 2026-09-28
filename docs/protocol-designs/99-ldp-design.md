@@ -4,7 +4,7 @@
 > 日期：2026-09-28
 > 车道：A 文档轨（Lane A，#99 ldp 续号）
 > 旧基线：`docs/protocol-designs/41-ldp-design.md` v1.0.0 + `41-ldp-testcase.md` v1.0.0（25 例 = 14 正 + 11 负）
-> 存量用例：`trafficgen/test/protocol_pcap/cases/ldp.json`（25/25 ID 与 41 版一致、顺序一致，已机读实测；**顶层旧键残留待 P4 迁移，G-LDP-1/G-LDP-3**）
+> 存量用例：`trafficgen/test/protocol_pcap/cases/ldp.json`（25/25 ID 与 41 版一致、顺序一致，已机读实测；**现状=违规过渡形：非负例顶层残留 70 处（顶层 ldp 子映射 + 顶层四元组与 layers 并存），合规层链形待代码阶段收敛，G-LDP-1/G-LDP-3**）
 > 规范基线：① RFC 5036（LDP Specification）；② RFC 5036 §3.4/§3.5（IPv4 FEC 语义）；③ 本仓库落码（`internal/protocol/ldp/` 四文件 + 接线 6 处，§11.1）；④ 本机 tshark 实测（**ldp dissector 在册，262 个 `ldp.*` 字段**，实测）；⑤ 旧基线设计文档（内部契约，非外部规范）
 > 白话一句：**路由器之间互相打招呼、对暗号、然后互相报"哪个网段用哪个标签"的一套话术；引擎里它是一层薄皮——把配置里写好的一串话术按顺序编成字节，握手和挥手交给 TCP，发现用的 Hello 交给 UDP。**
 
@@ -15,7 +15,7 @@
 | # | 旧稿说法（41-*） | HEAD 实测（2026-09-28） | 校正结论 |
 |---|---|---|---|
 | 1 | "`ldp` 层尚未注册，不宣称当前 MCP 套件或 PCAP 用例可运行"（design §5 头注、testcase §8） | `registry.go:1383` 已注册 `ldp`（`CategoryTerminal`、`DependsOn ["udp"]`、`TransportOn ["udp","tcp"]`、**无 Fields**）；`internal/protocol/ldp/` 四文件已落码（`builder.go` 537 行、`layer_gen.go` 213、`planner.go` 145、`ldp_test.go` 699，`wc -l` 实测）；51 个 `Test*`（`grep -c` 实测）；`main.go:100` 空导入 + `:548` `NewChainPlanner("ldp")` | "尚未注册/不可运行"已过时；本契约 §11 为 as-built 逆向定稿 |
-| 2 | 旧稿 spec_json 样例全部顶层扁平键（design §2 样例：`src_ip/dst_ip/src_port/dst_port` + 顶层 `ldp`） | 存量 **24/25 例**含顶层 `src_ip`/`dst_ip`/`src_port`/`dst_port`（N1 `ldp_neg_carrier` 例外，只有 `{layers,ldp}`），**25/25 例**含顶层 `ldp` 子映射（机读实测） | 旧样例形 = **过渡态违规形**（§1.4/§1.5/§1.11），P4 按 §13.1 迁移；本契约 §2 样例只给纯层链形 |
+| 2 | 旧稿 spec_json 样例全部顶层扁平键（design §2 样例：`src_ip/dst_ip/src_port/dst_port` + 顶层 `ldp`） | 存量 25/25 例为**判死形状**（顶层协议子映射 + 顶层四元组与 `layers` 并存）：非负例顶层残留 **70 处**（14 正例 × 5 键 `src_ip/dst_ip/src_port/dst_port/ldp`），全体残留 **121 处**（N1 只带 `ldp`，10 负例 × 5 + 1）；逐键例数 `src_ip` 24 / `dst_ip` 24 / `src_port` 24 / `dst_port` 24 / `ldp` 25（机读实测） | 旧样例形 = **违规过渡形**（§1.4/§1.5/§1.11/§1.13 判死）；合规层链形**需代码阶段先补**（G-LDP-1）后方可改写例；本契约 §2 样例只给纯层链形 |
 | 3 | 旧稿称"配置经 flat 键携带"（隐含层内无键可行） | `chain_planner_translate.go:756` 对 ldp **只建空配置**（`if term.Name=="ldp" && spec.LDP==nil { spec.LDP = &core.LDPConfig{} }`），**不**像 bgp(`:747`)/pim(`:780`)/moxa(`:3304`) 那样 JSON 往返严格解码层内 config | 层内化**未做**——registry 无 `Fields` + translate 无解码分支，层内 `events`/`carrier` 今日无处可住 → G-LDP-1 |
 | 4 | 旧稿 §7 称"25 个闭环用例" | 存量 JSON 25/25 ID 与 41 版一致、顺序一致；14 正例 `packet_count` 全符合 `3+N+4`（9/11/10/10/10/11/11/10/1/2/10/11/22/12，机读实测）；11 负例 `expect` 键严格 `{expect_error,error_contains}` | 计数与 ID 继承有效；**但用例形状是过渡态**（校正项 2） |
 | 5 | 旧稿 §3.2/§3.6 声明的 tshark 字段 | `tshark -G fields` 实测 `ldp.*` 字段 **262 个**，旧稿点名的 `ldp.hdr.version/pdu_len/ldpid.lsr/ldpid.lsid`、`ldp.msg.ubit/type/len/id`、`ldp.msg.tlv.type/len/value`、`ldp.msg.tlv.hello.hold/targeted`、`ldp.msg.tlv.addrl.addr_family/addr`、`ldp.msg.tlv.ipv4.taddr` 全部在册 | 字段面声明**有效**，非臆造；本契约 §3 沿用 |
@@ -39,6 +39,8 @@ LDP（Label Distribution Protocol，标签分发协议）控制 MPLS（多协议
 `ldp_rfc5036_ipv4_basic` 是本版唯一正向 profile。IPv6 transport/profile 的负例必须独立拒绝，不能因为 LDP common header 相同而混入 IPv4 profile。未知消息、TLV 或 malformed（畸形）输入只作为拒绝契约，不是成功 PCAP。
 
 **实现状态（2026-09-28 实测，与旧稿"尚未注册"已不同）**：`ldp` 层已注册（`registry.go:1383`）、planner/validator/生成器已落码（`internal/protocol/ldp/` 四文件共 1594 行）、`allowedProtocols["ldp"]=true`（`protocols.go:46`）、25 语义用例已落 `cases/ldp.json`。旧稿"代码未写"描述已过时（§0 表）。
+
+**但协议侧未达符合态**：层是空壳（registry 无 `Fields`、translate 无 `case "ldp"` 解码分支），配置只能住顶层 `ldp` 子映射；25 例因此全部违反 §1.13 白名单制（非负例顶层残留 70 处）。合规层链形**须代码阶段先补**（G-LDP-1），当前不宣称符合。
 
 **输出契约（pcap/NIC 双输出）**：两路径共用同一 cases JSON 与断言集（`ldp.*` 字段 + `tcp.srcport/dstport` + `udp.srcport/dstport` + offset 42/54 frames）；NIC 经 tcpdump 捕获（`nic_capture` 用例级开关）；不设仅单路径可用的断言。
 
@@ -403,7 +405,7 @@ IPv4 TCP application payload offset（载荷偏移）在无额外 option 时为 
 
 | § | 本协议怎么满足 | 证据 |
 |---|---|---|
-| §1 层链唯一真相 | 见 §13.1 强制展开：存量 25/25 顶层 = `layers + src_ip/dst_ip/src_port/dst_port + ldp`（旧扁平残留，P4 迁移 G-LDP-1/G-LDP-3）；目标形状见 §2 样例；presence 判死形状缺口 G-LDP-2 | §13.1；`cases/ldp.json` 机读实测 |
+| §1 层链唯一真相 | 见 §13.1 强制展开：存量 25/25 为**违规过渡形**（非负例顶层残留 70 处：`src_ip/dst_ip/src_port/dst_port/ldp` 与 `layers` 并存，= §1.13 白名单制下的判死形状）；合规层链形**待代码阶段收敛**（G-LDP-1）；目标形状见 §2 样例；presence 判死形状缺口 G-LDP-2 | §13.1；`cases/ldp.json` 机读实测 |
 | §2 策略/任务 | 策略 = 单 ldp 流量模板，自带 `flow_control`；任务 = 多策略合跑 + 总量封顶；框架语义未动 | 设计 §2 样例 |
 | §3 五件套 | 见 §13.3 强制展开：会话表/事务序列/关联（无派生流诚实声明）/插入位置（终结层）/时间线。有长连接（TCP session），不豁免 | §13.3 + §9 |
 | §4 查规范 | RFC 5036 全文 + §3.4/§3.5 FEC 语义 + 落码反推 + tshark 262 字段实测；八项矩阵 + 子表①②③ | §11 |
@@ -424,20 +426,24 @@ IPv4 TCP application payload offset（载荷偏移）在无额外 option 时为 
 
 | 文件 | 例数 | 顶层键分布 | 链形 | 负例 expect 纯净 |
 |---|---|---|---|---|
-| `cases/ldp.json` | 25 | `{layers, src_ip, dst_ip, src_port, dst_port, ldp}` ×24（N1 `ldp_neg_carrier` 无四元组，只有 `{layers, ldp}`）；顶层 `ldp` 子映射 25/25 | `[tcp,ldp]` ×18、`[udp,ldp]` ×5、`[ip,ldp]` ×1（S14 混合载体）、`[eth,ldp]` ×1（N1 判死载体） | ✅ 11/11 只有 `{expect_error,error_contains}` |
+| `cases/ldp.json` | 25 | `{layers, src_ip, dst_ip, src_port, dst_port, ldp}` ×24（N1 `ldp_neg_carrier` 无四元组，只有 `{layers, ldp}`）；顶层 `ldp` 子映射 25/25；**非负例顶层残留 70 处**（14 × 5 键），**全体 121 处** | `[tcp,ldp]` ×18、`[udp,ldp]` ×5、`[ip,ldp]` ×1（S14 混合载体）、`[eth,ldp]` ×1（N1 判死载体） | ✅ 11/11 只有 `{expect_error,error_contains}` |
 
-**旧键去向表（§15.3 要求"每个键写去向"）**：
+**合规判据（§1.11/§1.13 白名单制）**：非负例顶层键必须为 **0**——白名单仅 `layers`/`strategy_fc`/`ttl`/`flow_control`/`output`/`output_config`/`group_id`。按此判据，存量 25/25 例**全部违规**：顶层 `ldp` 子映射与顶层四元组同 `layers` 并存，正是 §1.13 点名的判死形状。
+
+**层壳状态（判死之外的第二重违规）**：`layers` 里的 `{"ldp": {}}` 是**空壳**——`registry.go:1383` 无 `Fields`、`chain_planner_translate.go` 无 `case "ldp"` 解码分支（只有 `:756` 建空 `LDPConfig`），层内配置**不被解码**；真实配置只能住顶层 `ldp` 子映射。即"层链形"今日**表达不了 ldp 配置**。
+
+**旧键去向表（§15.3 要求"每个键写去向"；本协议全部为"待代码阶段收敛"）**：
 
 | 旧键 | 存量出现例数 | 去向 |
 |---|---:|---|
-| `src_ip` | **24**（除 N1） | 迁 `layers[i].ip.src`（G-LDP-1） |
-| `dst_ip` | **24** | 迁 `layers[i].ip.dst` |
-| `src_port` | **24** | 迁 `layers[i].tcp/udp.src_port`；TCP 可删（保底 `12345+i`）；UDP Hello 必须显式 646 |
-| `dst_port` | **24** | 迁 `layers[i].tcp/udp.dst_port`；**或删**（由 646 缺省补齐，A′ `ldp_default_port` 验证） |
+| `src_ip` | **24**（除 N1） | 待代码阶段收敛 → 迁 `layers[i].ip.src`（G-LDP-1） |
+| `dst_ip` | **24** | 待代码阶段收敛 → 迁 `layers[i].ip.dst` |
+| `src_port` | **24** | 待代码阶段收敛 → 迁 `layers[i].tcp/udp.src_port`；TCP 可删（保底 `12345+i`）；UDP Hello 必须显式 646 |
+| `dst_port` | **24** | 待代码阶段收敛 → 迁 `layers[i].tcp/udp.dst_port`；**或删**（由 646 缺省补齐，A′ `ldp_default_port` 验证） |
 | `count` | **0** | 走 `flow_control`（本套件无多流例） |
-| 顶层 `ldp` 子映射 | **25** | **迁 `layers[i].ldp`**（须先补 registry `Fields` + translate 解码分支，G-LDP-1） |
+| 顶层 `ldp` 子映射 | **25** | 待代码阶段收敛 → **迁 `layers[i].ldp`**（须先补 registry `Fields` + translate 解码分支，G-LDP-1） |
 
-**结论**：本协议有实质迁移工作量——§1 门的动作 = ①补 registry `Fields`（wire_profile/carrier/events/sessions/adjacencies/lsr_id/label_space/hold_time/targeted/keepalive_time/label_control/label_advertisement/fault_kind）；②加 translate 严格解码分支（层内 ldp→`spec.LDP`，bgp/pim/moxa 范式）；③25 例整体改写；④新增 5 A′ 例全部纯 layers 形；⑤收官自查行「非负例顶层键 = 0」由 **5 键 → 0**。
+**结论**：本协议**不是符合态**，是有实质迁移工作量的违规过渡形。§1 门的动作 = ①补 registry `Fields`（wire_profile/carrier/events/sessions/adjacencies/lsr_id/label_space/hold_time/targeted/keepalive_time/label_control/label_advertisement/fault_kind）；②加 translate 严格解码分支（层内 ldp→`spec.LDP`，bgp/pim/moxa 范式）；③`MapToFlowSpec` 顶层收敛；④25 例整体改写；⑤新增 6 A′ 例全部纯 layers 形；⑥收官自查行「非负例顶层键 = 0」由 **70 → 0**。
 
 目标形状样例见 §2（顶层仅 `layers`+`flow_control`）。
 
@@ -465,9 +471,9 @@ IPv4 TCP application payload offset（载荷偏移）在无额外 option 时为 
 
 | 缺口 | 内容 | 去向 |
 |---|---|---|
-| G-LDP-1 | registry `ldp` Fields 为空 + translate 只建空配置（`chain_planner_translate.go:756`）→ 层内 `events`/`carrier`/`adjacencies` 无处可住；25 例顶层扁平 | P4 首动作；收官「非负例顶层键=0」 |
+| G-LDP-1 | registry `ldp` Fields 为空 + translate 无 `case "ldp"` 解码分支（`:756` 只建空配置）→ 层内 `events`/`carrier`/`adjacencies` 无处可住；25 例顶层残留 121 处（非负例 70 处） | **代码阶段首动作**；收官「非负例顶层键=0」由 70→0 |
 | G-LDP-2 | `CheckProtoFlat` 无 ldp 分支 → presence 形今日不判死 | P4 先实测再建例；**禁加单协议黑名单分支**（等框架级 unknown-key 白名单） |
-| G-LDP-3 | 存量 25 例顶层旧键残留（5 键，24 例命中；顶层 `ldp` 子映射 25/25） | 随 G-LDP-1 改写 |
+| G-LDP-3 | 存量 25 例顶层旧键残留（非负例 70 处；顶层 `ldp` 子映射 25/25） | **待代码阶段收敛**，随 G-LDP-1 改写例 |
 | G-LDP-4 | 业务字段动态全关（allowlist 无 `ldp` 行） | A′ 候选，不冒充已覆盖（§9.36 口径） |
 | G-LDP-5 | 41-ldp 两份文档引用不存在的 `docs/protocol-designs/audit/41-ldp-adversarial-audit.md` | 99 版不再引用；41 版留只读历史 |
 | G-LDP-6 | IPv6 transport/profile 未定义（N3 只做拒绝面） | 取得独立规范与 fixture 后另建 profile，不修改本套件契约 |
