@@ -2405,10 +2405,6 @@
         "tcp.dst_port": "27017"
       },
       "fields": {
-        "bson_fixture_hex": {
-          "type": "string",
-          "default": ""
-        },
         "messages": {
           "type": "list",
           "default": []

@@ -162,7 +162,6 @@ func TestOpcodeDirection(t *testing.T) {
 func TestBuildQueryMessage(t *testing.T) {
 	// S1: OP_QUERY, requestID=100, query {"x":1}
 	msg := core.MongoDBMessage{
-		Direction:   "c2s",
 		RequestID:   100,
 		ResponseTo:  0,
 		Opcode:      "OP_QUERY",
@@ -195,7 +194,6 @@ func TestBuildQueryMessage(t *testing.T) {
 func TestBuildReplyMessage(t *testing.T) {
 	// S1: OP_REPLY, requestID=101, responseTo=100, doc {"x":1}
 	msg := core.MongoDBMessage{
-		Direction:    "s2c",
 		RequestID:    101,
 		ResponseTo:   100,
 		Opcode:       "OP_REPLY",
@@ -443,8 +441,8 @@ func TestPlanQueryReply(t *testing.T) {
 		DstPort: 27017,
 		MongoDB: &core.MongoDBConfig{
 			Messages: []core.MongoDBMessage{
-				{Direction: "c2s", RequestID: 100, Opcode: "OP_QUERY", Namespace: "test.users", Skip: 0, ReturnCount: 1, Query: map[string]interface{}{"x": 1}},
-				{Direction: "s2c", RequestID: 101, ResponseTo: 100, Opcode: "OP_REPLY", Returned: 1, Documents: []map[string]interface{}{{"x": 1}}},
+				{RequestID: 100, Opcode: "OP_QUERY", Namespace: "test.users", Skip: 0, ReturnCount: 1, Query: map[string]interface{}{"x": 1}},
+				{RequestID: 101, ResponseTo: 100, Opcode: "OP_REPLY", Returned: 1, Documents: []map[string]interface{}{{"x": 1}}},
 			},
 		},
 	}
@@ -609,8 +607,8 @@ func TestPlanDefaultPort(t *testing.T) {
 func TestLayerGeneratorGenerate(t *testing.T) {
 	cfg := &core.MongoDBConfig{
 		Messages: []core.MongoDBMessage{
-			{Direction: "c2s", RequestID: 100, Opcode: "OP_QUERY", Namespace: "test.users", ReturnCount: 1, Query: map[string]interface{}{"x": 1}},
-			{Direction: "s2c", RequestID: 101, ResponseTo: 100, Opcode: "OP_REPLY", Returned: 1, Documents: []map[string]interface{}{{"x": 1}}},
+			{RequestID: 100, Opcode: "OP_QUERY", Namespace: "test.users", ReturnCount: 1, Query: map[string]interface{}{"x": 1}},
+			{RequestID: 101, ResponseTo: 100, Opcode: "OP_REPLY", Returned: 1, Documents: []map[string]interface{}{{"x": 1}}},
 		},
 	}
 	var events []layers.MessageEvent

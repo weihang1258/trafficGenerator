@@ -56,6 +56,15 @@ const gbtPort = 10020
 // mapToFlowSpec 兼容路径则走 flat 键）。
 const damengPort = 5236
 
+// mongodbPort is the MongoDB wire protocol service port (27017)。layers 包内
+// 复刻（不能引用 protocol/mongodb 的端口——protocol 包反向依赖 layers）。
+// D-MONGODB-1（#87）G-MONGO-1：链路径目的端口缺省（registry FieldContract
+// 同值 27017——validateSpecBase DstPort switch 承接，dameng 同款：通用
+// FieldContract 块只在 spec.DstPort==0 时生效，而 mapToFlowSpec 已把通用
+// 缺省 80 写进 spec，故链路径必须由本 switch 承接）。设计 §2.1 无强制等于
+// 校验——用户显式写 dst_port 非 0/80 时已被尊重、不落此分支。
+const mongodbPort = 27017
+
 // mcpStdioPort is the MCP stdio default port (22, plan.go:61-68 同款)。
 // layers 包内复刻（不能引用 protocol/mcp 的 DefaultPortStdio——protocol 包
 // 反向依赖 layers）。
@@ -1150,6 +1159,18 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// dameng DefaultPort 同款——用户显式写 dst_port 时已非零不落
 			// 此分支，写 5236 以外由 dameng Validate 拒绝，锚词 "5236"）。
 			spec.DstPort = damengPort
+		case "mongodb":
+			// D-MONGODB-1（#87）G-MONGO-1：MongoDB 目的端口默认 27017。
+			// 与 registry FieldContract "tcp.dst_port":"27017" 同值——变异
+			// 实测（gen-review m1）两者各自充分：关本分支仍绿（FieldContract
+			// 兜住），关本分支 + FieldContract 才报 "destination port is
+			// required"。本分支是防御性兜底（dameng/gbt 同款）。
+			// 勘误：原注释称「mapToFlowSpec 已把通用缺省 80 写进 spec」与实测
+			// 不符——mapToFlowSpec 对 mongodb 写的是 27017（strategy_convert.go
+			// setDefaultDstPort(27017)），故链路径不存在 80 泄漏面。
+			// 设计 §2.1 无强制等于校验：显式非 27017 被尊重（层值经
+			// applySpecToChain 最后落线，压过本缺省）。
+			spec.DstPort = mongodbPort
 		case "mcp":
 			// MCP 目的端口默认（legacy Plan plan.go:61-68 同款）：
 			// stdio → 22（DefaultPortStdio）、http_sse/streamable → 8081

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"sort"
 
 	"github.com/trafficgen/trafficgen/internal/core"
 )
@@ -36,7 +37,9 @@ const (
 // HeaderSize is the MongoDB wire protocol header size.
 const HeaderSize = 16
 
-// MaxMessagePayload is the maximum allowed message payload size (4 MB).
+// MaxMessagePayload is the maximum allowed MongoDB message payload size
+// (4 MB). D-MONGODB-1（#87）G-MONGO-8 D3：修前零引用（"看起来有限制"），
+// 现由 buildMessage 真实执法——超限同步报错而非静默产出超大帧。
 const MaxMessagePayload = 4 << 20
 
 // opcodeForOp maps an opcode string to its int32 value.
@@ -58,6 +61,17 @@ func opcodeForOp(s string) (int32, bool) {
 		return OpKillCursors, true
 	}
 	return 0, false
+}
+
+// knownOpcode reports whether op is one of the seven legacy opcodes
+// (D-MONGODB-1 G-MONGO-3：数字路径白名单的唯一真相——resolveOpcode 与
+// buildMessage 共用，杜绝"validator 放行 / builder 拒绝"的错位）。
+func knownOpcode(op int32) bool {
+	switch op {
+	case OpReply, OpUpdate, OpInsert, OpQuery, OpGetMore, OpDelete, OpKillCursors:
+		return true
+	}
+	return false
 }
 
 // opcodeDirection returns the wire direction for a known opcode.
@@ -102,20 +116,31 @@ func buildHeader(requestID, responseTo, opCode int32, body []byte) []byte {
 }
 
 // buildBSON builds a BSON document from a Go map.
+//
+// D-MONGODB-1（#87）G-MONGO-2：字段**按键名升序**编码。修前是
+// `for k, v := range doc`（Go map 随机序）——同一配置两次运行产出不同字节
+// （多键文档字段序随机），frames hex 断言与跨运行比对不可复现。BSON 规范不
+// 规定字段序，但确定性是本引擎的契约。数组同修（见 bsonArrayElement）。
 func buildBSON(doc map[string]interface{}) []byte {
-	if len(doc) == 0 {
-		// Empty BSON: int32(5) + 0x00 = 5 bytes
-		return []byte{0x05, 0x00, 0x00, 0x00, 0x00}
+	keys := make([]string, 0, len(doc))
+	for k := range doc {
+		keys = append(keys, k)
 	}
+	sort.Strings(keys)
 	var elements []byte
-	for k, v := range doc {
-		elements = append(elements, bsonElement(k, v)...)
+	for _, k := range keys {
+		elements = append(elements, bsonElement(k, doc[k])...)
 	}
+	return bsonWrap(elements)
+}
+
+// bsonWrap wraps already-encoded elements into a BSON document: int32 total
+// length (including itself and the terminator) + elements + 0x00. Empty
+// elements → the legal minimum five-byte document `05 00 00 00 00`.
+func bsonWrap(elements []byte) []byte {
 	elements = append(elements, 0x00) // terminator
-	// Prepend totalSize
-	totalSize := int32(4 + len(elements))
 	out := make([]byte, 4+len(elements))
-	binary.LittleEndian.PutUint32(out[0:4], uint32(totalSize))
+	binary.LittleEndian.PutUint32(out[0:4], uint32(int32(4+len(elements))))
 	copy(out[4:], elements)
 	return out
 }
@@ -174,15 +199,20 @@ func bsonDocElement(cname []byte, doc map[string]interface{}) []byte {
 	return b
 }
 
+// bsonArrayElement encodes a JSON array as a BSON array.
+//
+// D-MONGODB-1（#87）G-MONGO-2：元素**按索引序**直编。修前先转
+// map[string]interface{}（键 "0","1",…）再走 buildBSON，顺序取决于 map
+// 遍历序（多元素数组顺序随机）。BSON 数组语义就是索引序，这里直接顺序
+// 编码，不经 map。
 func bsonArrayElement(cname []byte, arr []interface{}) []byte {
 	b := []byte{BSONArray}
 	b = append(b, cname...)
-	// Build a document with numeric keys
-	doc := make(map[string]interface{})
+	var elements []byte
 	for i, v := range arr {
-		doc[fmt.Sprintf("%d", i)] = v
+		elements = append(elements, bsonElement(fmt.Sprintf("%d", i), v)...)
 	}
-	b = append(b, buildBSON(doc)...)
+	b = append(b, bsonWrap(elements)...)
 	return b
 }
 
@@ -263,6 +293,13 @@ func buildMessage(msg core.MongoDBMessage) ([]byte, error) {
 		body = buildKillCursorsBody(msg)
 	default:
 		return nil, fmt.Errorf("mongodb: unsupported opcode %d (%s)", opCode, opcodeString(opCode))
+	}
+	// D-MONGODB-1 G-MONGO-8 D3：MaxMessagePayload 真实执法（修前零引用）。
+	// buildMessage 在 Generate 期运行，链路径下错误会被 drive 吞成空流，
+	// 故 Planner.Validate 经 checkMessages 用同一 builder 预演一遍，本处是
+	// 最后的守门（防引擎直调绕过 validator）。
+	if len(body) > MaxMessagePayload {
+		return nil, fmt.Errorf("mongodb: message body %d exceeds MaxMessagePayload %d (message_limit)", len(body), MaxMessagePayload)
 	}
 	return buildHeader(msg.RequestID, msg.ResponseTo, opCode, body), nil
 }
