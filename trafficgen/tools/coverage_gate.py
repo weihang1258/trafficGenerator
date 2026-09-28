@@ -9301,9 +9301,147 @@ CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
 
 
 
+def check_iec104(cases):
+    """D-IEC104-1 P4/P5 反查表（12 正 + 9 负 = 21 例）。返回 [(检查名, 通过?, 证据)]。
+
+    断言通道诚实声明：tshark 3.6.14 的 iec60870_104.* 只有 6 字段
+    （apdulen/type/id/... 实测），iec60870_asdu.* 84 字段本件未用（基线误记
+    更正）——正例断言只有 frames hex + apdulen + 载体 tcp/ipv6 字段三通道，
+    本表按此口径反查，不查未使用的 asdu 字段面。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线（G-IEC104-9）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 iec104", '"iec104": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 iec104（已准入）", '"iec104"' not in pt[i_neg:i_neg + 900], "已摘除"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "iec104"')
+    reg_block = rg[i_reg:rg.index('// D-GOOSE-1', i_reg)]
+    rows.append(("registry iec104 行（DependsOn tcp + FieldContract 2404）",
+                 'DependsOn: []string{"tcp"}' in reg_block
+                 and '"tcp.dst_port": "2404"' in reg_block, "在案"))
+    rows.append(("G-IEC104-2 幽灵键裁决：role/startdt/stopdt/repeat 已删（零消费键不接线）",
+                 all(f'"{k}"' not in reg_block for k in ("role", "startdt", "stopdt", "repeat"))
+                 and '"transport"' in reg_block, "在案"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("G-IEC104-9① translate case iec104（严格解码）",
+                 'case "iec104":' in tr and "iec104 layer config decode" in tr
+                 and "DisallowUnknownFields" in tr, "在案"))
+    rows.append(("FlowMeta.IEC104 直传", re.search(r"IEC104:\s+spec\.IEC104\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.IEC104 字段", re.search(r"IEC104\s+\*core\.IEC104Config", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.IEC104 字段", re.search(r"IEC104\s+\*IEC104Config", ty) is not None, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(iec104)",
+                 "internal/protocol/iec104" in mn and 'NewChainPlanner("iec104")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    # M（gen-review）：原判据是全文子串——presence 行只查文案在整文件任意位置；
+    # compat 行查 `if protocol == "iec104"` + `CheckProtoFlat(protocol, cfg)` 两个
+    # 各自全文件可见的子串（后者被 100+ 协议共用）→ 两行都恒真。改为断言各块
+    # **特有体**（presence 块体 = return "<文案>"；compat 块体 = ValidationErrors
+    # append 三行）。
+    _presence_ie = ('if protocol == "iec104" {\n'
+                    '\t\tif v, ok := cfg["iec104"]; ok && v != nil {\n'
+                    '\t\t\treturn "protocol iec104 no longer accepts a top-level iec104 sub-config')
+    _compat_ie = ('if protocol == "iec104" {\n'
+                  '\t\tif v, ok := cfg["iec104"]; ok && v != nil {\n'
+                  '\t\t\tspec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))')
+    rows.append(("G-IEC104-9② CheckProtoFlat 顶层 iec104 子映射 presence 判死（判据=块体非裸文案）",
+                 _presence_ie in sc, "在案"))
+    rows.append(("strategy_convert 在库旧策略 compat（ValidationErrors，判据=块体非裸子串）",
+                 _compat_ie in sc, "在案"))
+    gendump = json.loads((tg / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
+    entry = gendump["layers"].get("iec104", {})
+    rows.append(("generated schema iec104 条目（depends_on tcp + contract 2404 + 17 键，与 registry 同代）",
+                 entry.get("depends_on") == ["tcp"]
+                 and entry.get("field_contract") == {"tcp.dst_port": "2404"}
+                 and len(entry.get("fields", {})) == 17, "在案"))
+
+    # 2. 行为面（builder/planner/layer_gen 关键件；wire 面已落码，P4 只验证）。
+    bl = (tg / "internal" / "protocol" / "iec104" / "builder.go").read_text()
+    for prim, name in [
+        ("func BuildUFrame", "U 帧六控制字（68 04 + C，白名单外拒）"),
+        ("func BuildSFrame", "S 帧 68 04 01 00 + N(R)<<1 小端"),
+        ("func BuildInformation", "I 帧 N(S)/N(R) 小端 + L=4+ASDU"),
+        ("func buildASDU", "ASDU 头（TypeID/VSQ=1/COT/OA/CA 小端/IOA 3B 小端）"),
+        ("func encodeCP56Time2a", "CP56Time2a 7B（空串零字节 / RFC3339Nano）"),
+        ("func validType", "8 类 TypeID 白名单（1/3/9/30/34/45/59/100）"),
+    ]:
+        rows.append((f"关键件：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "iec104" / "planner.go").read_text()
+    for guard, name in [
+        ("invalid control event kind", "T-013 锚词 control（planner.go:31）"),
+        ("unknown type_id", "T-014 锚词 unknown type_id（planner.go:35）"),
+        ("APDU too long", "T-015 锚词 APDU too long（planner.go:46）"),
+        ("exceeds 24-bit range", "T-016 锚词 IOA（planner.go:41）"),
+        ("value %d out of range", "G-IEC104-8 value 越界守卫（16-bit 信息体）"),
+    ]:
+        rows.append((f"关键件：{name}", guard in pl, "在案"))
+    lg = (tg / "internal" / "protocol" / "iec104" / "layer_gen.go").read_text()
+    rows.append(("关键件：事件序双向序号（up/down 各自 N(S) 递增）",
+                 "upTx, downTx := uint16(0), uint16(0)" in lg and "upTx++" in lg and "downTx++" in lg, "在案"))
+    rows.append(("关键件：默认路（STARTDT 对 + 空 commands 补默认 M_SP）",
+                 "len(cfg.Commands) == 0" in lg and "UStartDTAct" in lg, "在案"))
+    ct = (tg / "internal" / "core" / "layers" / "iec104_chain_test.go")
+    rows.append(("链级红例在案（iec104_chain_test.go）", ct.exists(), "在案"))
+
+    # 3. 用例面（21 例 = 12 正 + 9 负）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "iec104_startdt_msp", "iec104_polling", "iec104_m_me_na_type9",
+        "iec104_timed_measurement", "iec104_timed_single_point",
+        "iec104_single_command", "iec104_double_command_timed",
+        "iec104_u_frames", "iec104_s_ack", "iec104_spontaneous_event",
+        "iec104_ipv6", "iec104_multi_flow",
+        "iec104_neg_control", "iec104_neg_unknown_type",
+        "iec104_neg_oversize_apdu", "iec104_neg_ioa",
+        "iec104_neg_presence_top_level_iec104", "iec104_neg_flat_count",
+        "iec104_neg_stray_src_mac", "iec104_neg_dst_port_contract",
+        "iec104_neg_udp_carrier",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("用例总数 21（12 正+9 负）", len(cases) == 21 and len(pos) == 12 and len(neg) == 9,
+                 f"{len(cases)} 例 / {len(pos)} 正 / {len(neg)} 负"))
+    rows.append(("正例顶层键=0（仅 layers + flow_control）",
+                 all(set((c.get("spec_json") or {}).keys()) <= {"layers", "flow_control"} for c in pos),
+                 "穷尽"))
+    rows.append(("负例 expect 纯净（仅 expect_error + error_contains）",
+                 all(set((c.get("expect") or {}).keys()) == {"expect_error", "error_contains"}
+                     for c in neg), "纯净"))
+    rows.append(("presence 判死形状在案（层链+顶层空 iec104 子映射）",
+                 any(isinstance((c.get("spec_json") or {}).get("iec104"), dict)
+                     and (c.get("expect") or {}).get("expect_error") for c in cases), "在案"))
+    # 4. 锚词面（§9 四行 + M5 三条）。
+    anchors = {"control", "unknown type_id", "APDU too long", "IOA",
+               "top-level iec104 sub-config",
+               "no longer accepts flat config field count", "src_mac", "carrier",
+               "dst_port must be 2404"}
+    got = {(c.get("expect") or {}).get("error_contains") for c in neg}
+    missing = sorted(a for a in anchors if a not in got)
+    rows.append((f"负例锚词覆盖 {len(anchors)} 族", not missing, missing or "全覆盖"))
+    # 5. 先跑后钉面：正例 frames 逐例非空（I 帧序号字节 P5 落盘校准）。
+    noframes = [c.get("id") for c in pos
+                if not (c.get("expect") or {}).get("frames")
+                and not (c.get("expect") or {}).get("min_packets")]
+    rows.append(("先跑后钉：正例 frames/聚合断言非空", not noframes, noframes or "已钉"))
+    return rows
+
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "hds": check_hds, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "isis": check_isis, "coap": check_coap, "stratum": check_stratum, "pim": check_pim, "ospf": check_ospf, "ethmining": check_ethmining, "moxa": check_moxa, "tns": check_tns, "mongodb": check_mongodb}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "iec104": check_iec104}
+
+
+
+CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
+          "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "hds": check_hds, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "isis": check_isis, "coap": check_coap, "stratum": check_stratum, "pim": check_pim, "ospf": check_ospf, "ethmining": check_ethmining, "moxa": check_moxa, "tns": check_tns, "mongodb": check_mongodb, "iec104": check_iec104}
 
 
 def main(argv):

@@ -142,12 +142,13 @@ type BGPSession struct {
 }
 
 // IEC104Config configures an IEC 60870-5-104 session.
+// G-IEC104-2 幽灵键裁决（P4）：role/startdt/stopdt/repeat 在
+// builder/planner/layer_gen 三处零消费（design §8 实测），已从层注册表
+// 删除——结构体字段一并删除，防后续扁平路径复活成静默无消费键。
+// transport 保留（planner.go:19 载体守卫有消费）。
 type IEC104Config struct {
 	Transport                string          `json:"transport,omitempty"`
-	Role                     string          `json:"role,omitempty"`
 	CommonAddress            uint16          `json:"common_address,omitempty"`
-	StartDT                  bool            `json:"startdt,omitempty"`
-	StopDT                   bool            `json:"stopdt,omitempty"`
 	Events                   []IEC104Event   `json:"events,omitempty"`
 	Commands                 []IEC104Command `json:"commands,omitempty"`
 	TypeID                   uint8           `json:"type_id,omitempty"`
@@ -163,7 +164,6 @@ type IEC104Config struct {
 	Select                   bool            `json:"select,omitempty"`
 	Time                     string          `json:"time,omitempty"`
 	MaxAPDULength            uint16          `json:"max_apdu_length,omitempty"`
-	Repeat                   int             `json:"repeat,omitempty"`
 }
 
 type IEC104Event struct {

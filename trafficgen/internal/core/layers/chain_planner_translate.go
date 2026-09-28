@@ -3192,6 +3192,35 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.GBT32960 == nil {
 			spec.GBT32960 = core.ParseGBT32960ConfigFromMap(completedConfig(s, term.Config))
 		}
+	case "iec104":
+		// D-IEC104-1 P4：层条目 layers[].iec104 经 JSON 往返解码为
+		// core.IEC104Config（s7/drda 同款严格解码——未知键在更早的
+		// BuildLayersPlanner/ValidateLayers V9 白名单即拒 `layer "iec104":
+		// unknown field %q`，本处只做搬运）。走 **原始用户层**（term.Config）
+		// 而非 completedConfig：schema 默认会把 events 补成 `[]`，presence
+		// 语义丢失——events 缺省（nil）走 layer_gen.go:56 默认路（STARTDT 对
+		// + 默认 M_SP），显式 `[]` 同 nil 在 layer_gen 分支等价（len==0），
+		// 但 nil/[] 之别在用例面是「未写 vs 写空」，保持原值即可。层优先：
+		// spec.IEC104 已存在（引擎直调/flat 兼容路径）则不覆盖；扁平入口
+		// 已由 CheckProtoFlat 判死顶层 iec104 子映射。
+		if spec.IEC104 != nil {
+			return
+		}
+		rawIEC, err := json.Marshal(term.Config)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("iec104 layer config encode: %v", err))
+			return
+		}
+		var icfg core.IEC104Config
+		decIEC := json.NewDecoder(bytes.NewReader(rawIEC))
+		decIEC.DisallowUnknownFields()
+		if err := decIEC.Decode(&icfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("iec104 layer config decode: %v", err))
+			return
+		}
+		spec.IEC104 = &icfg
 	case "drda":
 		// D-DRDA-1：层 config 经 JSON 往返解码为 core.DRDAConfig（未知键
 		// 在更早的 BuildLayersPlanner/ValidateLayers V9 白名单已拒——实测

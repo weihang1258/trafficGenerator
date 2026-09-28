@@ -19,6 +19,13 @@ func (Planner) Validate(spec core.FlowSpec) error {
 	if spec.IEC104.Transport != "" && spec.IEC104.Transport != transportTCP {
 		return fmt.Errorf("iec104: transport %q is invalid", spec.IEC104.Transport)
 	}
+	// 端口契约（设计 §1 不变式 1 / testcase §1）：IEC104 恒 TCP 2404，层内
+	// 显式写非 2404 即拒（drda 446 / enip 44818 同款）。链路径的层值经
+	// validateSpecBase 的 enip/dameng/cflow/drda 前置回填块写进 spec.DstPort
+	// 后到达本校验器；0 = 未写，由 FieldContract 补齐 2404。
+	if spec.DstPort != 0 && spec.DstPort != dstPortIEC104 {
+		return fmt.Errorf("iec104: dst_port must be %d (IEC 60870-5-104 rides TCP %d only)", dstPortIEC104, dstPortIEC104)
+	}
 	cfg := spec.IEC104
 	if cfg.TypeID != 0 && !validType(cfg.TypeID) {
 		return fmt.Errorf("iec104: invalid type %d", cfg.TypeID)
@@ -40,10 +47,21 @@ func (Planner) Validate(spec core.FlowSpec) error {
 			if event.IOA > 0xffffff {
 				return fmt.Errorf("iec104: IOA %d exceeds 24-bit range", event.IOA)
 			}
+			// G-IEC104-8：信息体是 16-bit（NVA 2B；SCO/DCO 取低 8 位），
+			// builder 走 `uint16(cfg.Value)` 截断——负值回绕、>65535 丢高位，
+			// 静默产出看似合法的字节。Validate 显式拒收（负例走 task error，
+			// 零假成功）。
+			if event.Value < 0 || event.Value > 0xffff {
+				return fmt.Errorf("iec104: value %d out of range [0,65535]", event.Value)
+			}
 		}
 	}
 	if cfg.MaxAPDULength > 0 && cfg.MaxAPDULength > maxAPDULength {
 		return fmt.Errorf("iec104: APDU too long: max %d", cfg.MaxAPDULength)
+	}
+	// G-IEC104-8 同面：顶层单对象快捷键 value 与事件内同域（同 builder 截断）。
+	if cfg.Value < 0 || cfg.Value > 0xffff {
+		return fmt.Errorf("iec104: value %d out of range [0,65535]", cfg.Value)
 	}
 	for _, c := range cfg.Commands {
 		if !validType(c.TypeID) {
@@ -51,6 +69,9 @@ func (Planner) Validate(spec core.FlowSpec) error {
 		}
 		if c.Cause == 0 || c.Cause > 63 {
 			return fmt.Errorf("iec104: invalid cause %d", c.Cause)
+		}
+		if c.Value < 0 || c.Value > 0xffff {
+			return fmt.Errorf("iec104: value %d out of range [0,65535]", c.Value)
 		}
 	}
 	return nil
