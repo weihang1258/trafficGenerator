@@ -2999,6 +2999,45 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.DRDA = &dcfg
+	case "coap":
+		// D-COAP-1 G-COAP-1①：层 config 严格往返解码进 spec.CoAP（bgp
+		// 先例——DisallowUnknownFields；未知键在 config 层即拒）。层优先：
+		// spec.CoAP 已存在（引擎直调/flat 预 resolve）则不覆盖。
+		//
+		// 只搬**用户显式键**（tds/cflow/s7 先例；term.Config 是原始用户层
+		// config，非 completedConfig）——两个 JSON 往返陷阱（探测实证）：
+		//  ①`accept`/`response` 是**指针三态**字段（Accept *uint16 /
+		//    Response *bool）：schema 零值（0/false）经 json 往返会解码成
+		//    **非 nil** 指针，压掉生成器的 presence 默认——缺键的 `response`
+		//    本该默认自动响应（shouldRespond 的 nil 分支），零值指针会静默
+		//    变成"不响应"（#1 只发 1 包而非 2）。
+		//  ②`payload`/`token`/`response_payload`/`error_payload` 是
+		//    []byte：schema 默认 []interface{}{} 往返成空 `[]`，解码为非 nil
+		//    空切片——与缺键等价（len==0），无行为差。
+		// 走原始 config 后：空层 {} 不进解码（spec.CoAP 保 nil）→ 生成器
+		// configFromValue 的 nil 分支默认化（GET + 不响应，layer_gen.go:271-275
+		// 的 P0b-2 默认流）；显式键则逐键落 spec（缺键的指针字段保持 nil 三态）。
+		if spec.CoAP != nil {
+			return
+		}
+		if len(term.Config) == 0 {
+			return
+		}
+		rawC, err := json.Marshal(term.Config)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("coap layer config encode: %v", err))
+			return
+		}
+		var ccfg core.CoAPConfig
+		decC := json.NewDecoder(bytes.NewReader(rawC))
+		decC.DisallowUnknownFields()
+		if err := decC.Decode(&ccfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("coap layer config decode: %v", err))
+			return
+		}
+		spec.CoAP = &ccfg
 	}
 }
 

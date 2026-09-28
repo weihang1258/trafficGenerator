@@ -404,6 +404,15 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-COAP-1：coap 在库旧策略顶层 coap → ValidationErrors（smb 同款；
+	// 空 map 也死——契约 §13-P2 判死形状「层链+顶层空子映射并存」wired 面；
+	// 存量 16 例并存现状的执法口）。时序：翻译分支先落码，cases 改写后此门
+	// 才有执法对象。
+	if protocol == "coap" {
+		if v, ok := cfg["coap"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-SSTP-1：sstp 在库旧策略顶层 sstp → ValidationErrors（hl7/mmse 同款；
 	// 空 map 也死——契约 §16-P2 判死形状「层链+顶层空子映射并存」wired 面）。
 	if protocol == "sstp" {
@@ -8613,6 +8622,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "bgp" {
 		if v, ok := cfg["bgp"]; ok && v != nil {
 			return "protocol bgp no longer accepts a top-level bgp sub-config (move it into the bgp layer of an [ip,tcp,bgp] layers chain; the layer chain is the only config truth)"
+		}
+	}
+	// D-COAP-1 G-COAP-1②：coap 顶层 coap 子映射 presence 判死（bgp 先例；
+	// 空 map 也死——29 键业务面迁 coap 层，层链是唯一真相）。层链形状不触发。
+	if protocol == "coap" {
+		if v, ok := cfg["coap"]; ok && v != nil {
+			return "protocol coap no longer accepts a top-level coap sub-config (move it into the coap layer of an [ip,udp,coap] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-CQL-1（G-CQL-1）：cql 顶层 cql 子映射 presence 判死（tds 先例；

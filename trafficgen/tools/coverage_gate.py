@@ -7409,9 +7409,178 @@ def check_rtmfp(cases):
     return rows
 
 
+def check_coap(cases):
+    """D-COAP-1 P4 反查表（12 改写正 + 3 M5 红例 + 4 validate 负 = 19 例）。
+    返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("coap"), dict):
+                lays.append((c.get("id", "?"), l["coap"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 准入与接线（G-COAP-1 四件）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 coap", '"coap": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 coap（已准入）", '"coap"' not in pt[i_neg:i_neg + 1500], "已摘除"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "coap"')
+    reg_block = rg[i_reg:rg.index('Name: "stun"', i_reg)]
+    rows.append(("registry coap 行（DependsOn udp + 29 键 + 无 TransportOn/FieldContract）",
+                 'DependsOn: []string{"udp"}' in reg_block
+                 and len(re.findall(r'^\s+"[a-z0-9_]+":\s+\{Type:', reg_block, re.M)) == 29
+                 and "TransportOn" not in reg_block
+                 and "FieldContract" not in reg_block, "在案"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    i_tr = tr.index('case "coap":')
+    tr_block = tr[i_tr:tr.index("// decodeNodeOps", i_tr)]
+    rows.append(("G-COAP-1① translate case coap（用户显式键严格往返解码进 spec.CoAP）",
+                 "coap layer config encode" in tr_block and "coap layer config decode" in tr_block
+                 and "DisallowUnknownFields" in tr_block and "spec.CoAP = &ccfg" in tr_block
+                 and "len(term.Config) == 0" in tr_block, "在案"))
+    rows.append(("FlowMeta.CoAP 直传", re.search(r"CoAP:\s+spec\.CoAP\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.CoAP 字段", re.search(r"CoAP\s+\*core\.CoAPConfig", gen) is not None, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(coap)",
+                 "internal/protocol/coap" in mn and 'NewChainPlanner("coap")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("G-COAP-1② CheckProtoFlat presence 判死顶层 coap",
+                 "no longer accepts a top-level coap sub-config" in sc, "在案"))
+    rows.append(("mapToFlowSpec 顶层 coap → ValidationErrors（在库旧策略执法）",
+                 'if protocol == "coap" {' in sc, "在案"))
+    rows.append(("端口 5683 缺省住 validateSpecBase DstPort switch（P4 不改机制，flat 不另设）",
+                 'case "coap":\n\t\t\tspec.DstPort = 5683' in (tg / "internal" / "core" / "layers"
+                                                          / "chain_planner.go").read_text()
+                 and "setDefaultDstPort(&spec, cfg, 5683)" not in sc, "在案"))
+    gl = json.loads((tg / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
+    gcoap = gl["layers"]["coap"]
+    rows.append(("schemagen 无过期（generated coap = 29 fields + depends_on udp）",
+                 len(gcoap["fields"]) == 29 and gcoap["depends_on"] == ["udp"]
+                 and "transport_on" not in gcoap, "在案"))
+    vt = (tg / "tools" / "pipe_gate.sh").read_text()
+    rows.append(("pipe_gate presence 红线登记 coap", "|coap|" in vt or "|coap)" in vt, "在案"))
+
+    # 2. 行为面（builder/planner/layer_gen 关键件 + 四锚词）。
+    bl = (tg / "internal" / "protocol" / "coap" / "builder.go").read_text()
+    for prim, name in [
+        ("func BuildMessage", "消息装配（请求/响应两形）"),
+        ("func block2Value", "Block2 值 (NUM<<4)|(M<<3)|SZX"),
+        ("func optionNibble", "Option nibble 13/14 扩展编码"),
+        ("func uintBytes32", "Observe 最短大端编码"),
+        ("sort.SliceStable(opts", "Option 编号稳定排序"),
+        ("options out of order", "Option 逆序守卫"),
+    ]:
+        rows.append((f"原语：{name}", prim in bl, "在案"))
+    pl = (tg / "internal" / "protocol" / "coap" / "planner.go").read_text()
+    for guard, name in [
+        ("coap: version %d is invalid", "版本锚词 version"),
+        ("coap: token length %d exceeds 8", "TKL 锚词 token"),
+        ("coap: token length is invalid", "TKL 一致性锚词 token"),
+        ("coap: code %d is invalid", "Code 锚词 code"),
+        ("coap: URI exceeds maximum length", "URI 锚词 URI（大写敏感）"),
+        ("must be 0-6 (SZX=7 reserved)", "SZX 上界"),
+        ("exceeds RFC 7252 MAX_RETRANSMIT (4)", "重传上界"),
+        ("func shouldRespond", "response 三态默认响应"),
+    ]:
+        rows.append((f"关键件：{name}", guard in pl, "在案"))
+    lg = (tg / "internal" / "protocol" / "coap" / "layer_gen.go").read_text()
+    for prim, name in [
+        ("func (g *CoAPGenerator) Generate", "终结层事件流"),
+        ("case cfg.Retransmit != nil", "重传分支"),
+        ("case len(cfg.ErrorResponses) > 0", "错误响应序列分支"),
+        ("case cfg.Block2 != nil", "Block2 分支"),
+        ("case cfg.Observe != nil", "Observe 分支"),
+        ("len(cfg.SessionSrcPorts) > 0", "多会话分支"),
+        ("func configFromValue", "配置缺省化（空配置 GET+不响应）"),
+    ]:
+        rows.append((f"关键件：{name}", prim in lg, "在案"))
+    ct = (tg / "internal" / "core" / "layers" / "coap_chain_test.go")
+    rows.append(("链级红例在案（coap_chain_test.go）", ct.exists(), "在案"))
+    ct_txt = ct.read_text() if ct.exists() else ""
+    for tc, name in [
+        ("TestCoAPChain_LayerConfigTranslated", "链级①层条目→spec 翻译出包"),
+        ("TestCoAPChain_ResponseTriState", "链级①b response 三态"),
+        ("TestCoAPChain_PresenceAndStrayTopLevelKeys", "链级②presence/游离键判死"),
+        ("TestCoAPChain_TCPCarrierRejected", "链级③载体拒"),
+        ("TestCoAPChain_EmptyLayerDefaultFlow", "链级④b 空层 P0b-2 缺省流"),
+        ("TestCoAPChain_CaseFileAudit", "链级⑤用例文件收官自查"),
+    ]:
+        rows.append((f"链级红测：{name}", tc in ct_txt, "在案"))
+
+    # 3. 用例面（19 例 = 12 正 + 7 负）。
+    ids = {c.get("id", "") for c in cases}
+    for cid in [
+        "coap_con_get", "coap_non_post", "coap_put_changed", "coap_delete_deleted",
+        "coap_con_timeout_retransmit", "coap_uri_path_query", "coap_content_format_accept",
+        "coap_block2_two_blocks", "coap_observe_notifications", "coap_error_responses",
+        "coap_ipv6_get", "coap_multi_session",
+        "coap_invalid_version", "coap_invalid_tkl", "coap_invalid_code", "coap_uri_too_long",
+        "coap_neg_presence_top_level_coap", "coap_neg_stray_src_mac", "coap_neg_carrier_tcp",
+    ]:
+        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    rows.append(("用例总数 19（12 正 + 7 负）", len(cases) == 19 and len(pos) == 12 and len(neg) == 7,
+                 f"{len(cases)} 例 / {len(pos)} 正 / {len(neg)} 负"))
+    bad_top = [c.get("id") for c in pos
+               if any(k not in ("layers", "flow_control", "output", "output_config", "group_id")
+                      for k in (c.get("spec_json") or {}))]
+    rows.append(("非负例顶层键=0（仅 layers/flow_control/output 家族）", not bad_top, bad_top or "零残留"))
+    bad_keys = [c.get("id") for c in neg
+                if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}", not bad_keys, bad_keys or "全部合规"))
+    # 正例链形恒 [ip,udp,coap]（§13.1 目标形状；单层豁免例除外）。
+    bad_shape = []
+    for c in pos:
+        lays_c = (c.get("spec_json") or {}).get("layers") or []
+        names = [next(iter(l)) for l in lays_c if isinstance(l, dict)]
+        if names != ["ip", "udp", "coap"]:
+            bad_shape.append(f"{c.get('id')}:{names}")
+    rows.append(("正例链形恒 [ip,udp,coap]", not bad_shape, bad_shape or "穷尽"))
+    # 层键覆盖：29 键同名单里的业务面必须有用例（G-COAP-2 死键除外）。
+    for k in ["method", "path", "query", "payload", "content_format", "accept",
+              "confirmable", "token", "message_id", "response_code", "response_payload",
+              "response_content_format", "response_blocks", "block2", "observe",
+              "retransmit", "error_responses", "tokens", "message_ids",
+              "session_src_ips", "session_src_ports", "version", "code", "response",
+              "uri_max_length"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((f"层键覆盖：{k}", hit is not None, hit or "无用例"))
+    # 断言通道：19 去重字段（15 coap.* + 4 载体）全部 ∈ 用例 fields。
+    fields = {str((f or {}).get("field", "")) for c in cases
+              for f in ((c.get("expect") or {}).get("fields") or [])}
+    want_fields = {"coap.version", "coap.type", "coap.code", "coap.mid", "coap.token",
+                   "coap.token_len", "coap.opt.uri_path", "coap.opt.uri_query",
+                   "coap.opt.ctype", "coap.opt.accept", "coap.opt.observe",
+                   "coap.opt.block_number", "coap.opt.block_mflag", "coap.opt.block_size",
+                   "coap.payload_length", "udp.dstport", "udp.srcport",
+                   "ipv6.src", "ipv6.dst"}
+    missing = sorted(want_fields - fields)
+    rows.append((f"断言字段覆盖 {len(want_fields)} 个（§12 实测 19/19）", not missing, missing or "全覆盖"))
+    # 锚词门：负例 error_contains 逐字 ∈ 代码/用例锚词集。
+    anchors = {"version", "token", "code", "URI", "top-level", "src_mac", "tcp"}
+    got = {(c.get("expect") or {}).get("error_contains") for c in neg}
+    missing_a = sorted(a for a in anchors if a not in got)
+    rows.append((f"负例锚词覆盖 {len(anchors)} 族", not missing_a, missing_a or "全覆盖"))
+    for needle, name in [
+        ("no longer accepts a top-level coap sub-config", "presence 判死锚词"),
+        ("coap layer config decode", "翻译解码锚词"),
+    ]:
+        hit = needle in blob or needle in sc or needle in tr
+        rows.append((name, hit, "锚词出现" if hit else "无命中"))
+    return rows
+
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "coap": check_coap}
 
 
 def main(argv):
