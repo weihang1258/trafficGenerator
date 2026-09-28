@@ -4,7 +4,7 @@
 > 日期：2026-09-28
 > 车道：A 文档轨（Lane A，#93 a2a 续号）
 > 旧基线：`docs/protocol-designs/17-a2a-design.md` v2.0.3（2232 行，无独立 testcase 文件）+ `#52 a2a P1–P3 报告`（`/tmp/pipe/52-a2a/p123-report.md`，门1 十四行 + 11 项缺口 G-A2A-1…G-A2A-11）
-> 存量用例：`trafficgen/test/protocol_pcap/cases/a2a.json`（185 例，**本版保持原样**；改写版已产出并存 patch，见 §12.1；现状 185/185 带顶层扁平四元组 + 顶层 `a2a` 子映射，153/185 另带空壳 `layers:[{tcp:{}},{a2a:{}}]`——**全为违规过渡形**（§1.4/§1.11 判死），见 §12.1 缺口登记）
+> 存量用例：`trafficgen/test/protocol_pcap/cases/a2a.json`（185 例，**本版保持原样**；改写版已产出并存 patch，见 §12.1；现状 185/185 带顶层 `a2a` 子映射 + 顶层四元组（**`src_port` 183/185**——T165/T168 两条多流例缺），153/185 另带空壳 `layers:[{tcp:{}},{a2a:{}}]`——**全为违规过渡形**（§1.4/§1.11 判死），见 §12.1 缺口登记）
 > 规范基线：① A2A spec v0.2.2（本版目标版本，方法名/Agent Card 路径/Part kind/事件类型以它为准）；② A2A spec v0.2.5 / v0.3.0 / v1.0.0 / v1.0.1（差异面，只记不实现）；③ JSON-RPC 2.0；④ RFC 8615（well-known URI）/ RFC 7235（HTTP 认证）；⑤ 本仓库落码（`internal/protocol/a2a/` 八文件 + 接线 5 处，§11.1）；⑥ 本机 tshark 3.6.14 实测（**`a2a.*` 字段 0 个、`json.*` 29 个**，断言通道走 `http.*`/`json.*`/`tcp.*`/frames，§3.5）
 > 白话一句：**两个 AI 代理隔着网线说话，说的话是 HTTP 快递盒里装的 JSON 小纸条；引擎里它是一层薄皮——把配置里写好的每个 task 编成"一个请求盒 + 一个响应盒"，握手、分段、挥手全交给 TCP 层。**
 > **阶段命名**：本文中 **P4 = 代码阶段**（`docs-first-workflow` 新顺序：文档全部定稿后才批量改代码）、**P5 = 跑测阶段**；P1–P3 为本文档轨。
@@ -17,7 +17,7 @@
 |---|---|---|---|
 | 1 | #52 报告称 "`a2a` 层已注册（`registry.go:205-207`）" | `registry.go:245` 注册 `a2a`（`CategoryTerminal`、`DependsOn ["tcp"]`、**无 `Fields`/`FieldContract`/`TransportOn`**）；生成表 127 层中 `a2a` = `{"category":"terminal","depends_on":["tcp"],"fields":{}}`（机读实测） | 已注册；**行号漂移**（205→245），本契约以 HEAD 行号为准 |
 | 2 | #52 报告称 "`main.go:622` 只注册 ChainPlanner" | `cmd/server/main.go:20` 空导入 a2a 包、`:630` `RegisterPlanner(layers.NewChainPlanner("a2a"))`；`internal/core/layers/legacy_migrate_test.go:126` 已有 a2a 链冒烟（`a2aMinimalSpec`，`:183`） | 接线已通；行号漂移（622→630） |
-| 3 | #52 报告称 "`cases/a2a.json` 185 例全旧扁平形（185/185 带顶层 `a2a`）" | 实测：185/185 带顶层 `a2a` 子映射 + 顶层四元组；**153 例另带空壳 `layers:[{tcp:{}},{a2a:{}}]`**（两层 config 恒 `{}`，既不校验也不消费），32 例无 `layers` | 旧形 = **违规过渡形**（§1.4/§1.11 判死）；**本版保持原样**（改写版已产出存 patch，落地须先补代码，§12.1/G-A2A-1） |
+| 3 | #52 报告称 "`cases/a2a.json` 185 例全旧扁平形（185/185 带顶层 `a2a`）" | 实测：185/185 带顶层 `a2a` 子映射 + 顶层四元组（`src_port` 183/185）；**153 例另带空壳 `layers:[{tcp:{}},{a2a:{}}]`**（两层 config 恒 `{}`，既不校验也不消费），32 例无 `layers` | 旧形 = **违规过渡形**（§1.4/§1.11 判死）；**本版保持原样**（改写版已产出存 patch，落地须先补代码，§12.1/G-A2A-1） |
 | 4 | 旧稿 §5.1 `A2AConfig` 含 `HTTP`/`TCP`/`FlowControl` 三个子结构 | `types.go:23-33` `A2AConfig` **字段齐在**（`BaseURL/AgentCardPath/Discover/AgentCard/Tasks/Auth/HTTP/TCP/FlowControl`）；但存量 185 例**零例使用** `tcp`/`http`/`flowControl` 三键（机读：`tcp` 0 例、`http` 0 例、`flowControl` 0 例） | 三键已落码但**无用例面** → A′ 立项（§13）；**注**：三键的迁层去向仍在 G-A2A-1（层内化）之后，非「无迁移量」 |
 | 5 | 旧稿 §7 称"246 条测试用例" | 存量 JSON **185 例**（唯一 ID 185）；#52 报告 §② 自审已核为"167 合入 + 9 等价 + 9 作废"，即**设计行 246 ≠ 存量 185**（差 87 条无存量例，G-A2A-9） | 计数口径继承 #52 结论；本契约 §9 以**存量 185** 为 JSON 权威、246 为设计行台账 |
 | 6 | #52 报告称 "`Fields` 空表 + 无 translate 分支 → `layers[].a2a` 今日判死（G-A2A-1）" | 三重确认：① `chain_planner_translate.go` **无 `case "a2a"`**（`grep -c` = 0 实测）；② `chain_planner_translate.go:852` **`if len(s.Fields) == 0 { return }` 位于整个 `switch term.Name` 之前**——空壳层**连 case 都到不了，层内配置根本不被解码**；③ `complete.go:293`（`ValidateLayerConfig`）对 `Fields` 为空的层报 `layers: layer "a2a": unknown field %q` | **G-A2A-1 确认成立**：层为空壳，目标形状需先补代码（§1.9 口径） |
@@ -172,7 +172,7 @@ A2A 的全部报文都是 JSON-RPC 2.0 信封（spec v0.2.2 §7）：
 | `status-update` | `taskId`, `contextId`, `kind`, `status`, **`final`** | `final` 必填，`false` 时也必须显式输出（spec required） |
 | `artifact-update` | `taskId`, `contextId`, `kind`, `artifact`（`parts` ≥1） | `append`/`lastChunk` 可选，默认 false |
 
-**SSE 序列约束**（`a2a.go:186-251`，规则 V9/V10；`if task.Streaming` 起于 `:186`）：首事件 kind ∈ {task, message}；末事件若为 status-update 则 `final=true`；事件 kind ∈ 4 种；状态转换按 §4.2 表逐跳校验。
+**SSE 序列约束**（`a2a.go:187-251`，规则 V9/V10；`if task.Streaming` 起于 `:187`）：首事件 kind ∈ {task, message}；末事件若为 status-update 则 `final=true`；事件 kind ∈ 4 种；状态转换按 §4.2 表逐跳校验。
 
 ### 3.4 对象字段表
 
@@ -227,7 +227,7 @@ A2A 的全部报文都是 JSON-RPC 2.0 信封（spec v0.2.2 §7）：
 - **功能层**——7 方法各正例（S2/S3/S4/S5/S6/S7 + S1 发现）；9 状态各正例（T105–T115）；12 错误码各正例（T187–T198；**-32007 零例**——v2 路线图，设计 §1 显式不支持，见 §13 A′）；4 事件 kind 各正例（T043/T044/T124–T138）；Part 3 kind 各正例（T147/T148/T149 三 kind + T222/T223/T224 互斥正例）；6 认证写法（T096–T098/T012/T103）；负例 32 条覆盖配置/线格式/状态机/关联/长度/载体六类（§7）。
 - **性能层**——1MB text（T174，`min_packets=700`）、10MB file（T177，`min_packets=9000`）跨 MSS 分段；1024 skills / 1024 parts（T180/T181）；4096B description（T183）；3 流聚合（T165/T168）、10 task 同连接（T167）。
 - **数据场景层**——长度边界 128/1024/4096/1MB/10MB 逐项（T174–T183）；id 类型 string/integer/null 三态（T003/T004/T179）；9 状态逐值（机读实测：submitted 34 / working 41 / input-required 6 / auth-required 4 / completed 134 / canceled 8 / failed 3 / rejected 2 / unknown 1）；12 错误码中 **11 值有例、-32007 零例**（v2 路线图）；Part 互斥三向（T222–T227）。
-- **地址与流层**——IPv4 基线 + **IPv6 独立用例**（T-S6 族，offset 74）；单流基线；多流总包数断言（T164/T165/T168，**今日无端口聚合断言**——跨流包序随机交织；A′ 候选补 `distinct_values`，testcase §6.2）。
+- **地址与流层**——IPv4 基线全正例（185/185 恒 `10.0.0.1`/`20.0.0.1`）；**IPv6 零例**（机读实测 `grep -c '::'` = 0；旧稿 `17-a2a-design.md` 亦零提 IPv6）→ **未覆盖**，登记缺口 G-A2A-13，属代码阶段或后续补例；单流基线；多流总包数断言（T164/T165/T168，**今日无端口聚合断言**——跨流包序随机交织；A′ 候选补 `distinct_values`，testcase §6.2）。
 - **业务层**——发现→对话→查询→取消的完整链（T204/T208）；多轮交互（T106 `input-required→working→completed`）；并发多会话（T165/T168）；复合大场景 = T205（stream 全流程：SSE 3 事件 × final × 流关闭）。
 
 **次要合法行为显式不适用声明（不设正例、亦不得进负例）**：① webhook 反向连接（G-A2A-5，需反向 flow，本引擎链单向）；② `agent/authenticatedExtendedCard` 端点（v2 路线图）；③ `signatures` JWS 签名（v0.3.0，保留字段不生成）；④ MutualTLS 实际握手（Agent Card 可声明，不生成 mTLS）。
@@ -309,7 +309,7 @@ a2a 层**无自有状态**（`layer_gen.go:90` 的 `for taskIdx, task := range c
 - **长度上限**（spec §2.10）：`id` string ≤128B / integer ≥0；`taskId`/`contextId`/`messageId` 1–128B；`name`/`version` 1–128B；`description` 0–4096B；`Part.text` 0–1MB；`File.bytes` 解码后 ≤10MB；`skills` 0–1024；`parts` 1–1024；`history` 0–1000。
 - **状态机**：9 值 × 转换表（§5）；终态不可变；`unknown` 不带 `message`。
 - **Part 互斥**：三向互斥（V4）；`file` 必须 `bytes` 或 `uri` 至少一个。
-- **地址族**：IPv4 fixture 全正例 + IPv6 独立用例（offset 74）；**异族混写今日零用例**（a2a validator 只校验 `net.ParseIP` 逐字段合法性，无 a2a 专属异族分支，通用链级异族检查仅部分协议有）→ A′ 补例（§13）。
+- **地址族**：IPv4 fixture 全正例；**IPv6 零用例、异族混写亦零用例**（机读实测：地址 distinct 仅 `10.0.0.1`/`20.0.0.1`）——两者均为**未覆盖**（G-A2A-13），非 A′ 候选而是实缺口（a2a validator 只校验 `net.ParseIP` 逐字段合法性，无 a2a 专属异族分支）。
 - **端口**：8080 显式全正例；**缺省端口今日无 FieldContract → 落通用缺省 80** → A′ 补例（G-A2A-2，§13/§14）。
 - **`cfg.TCP`/`cfg.HTTP`/`cfg.FlowControl` 三键**：已落码、零用例面 → A′ 补例（§13）。
 - **RST 异常中断**：框架 tcp 层能力，本层零断言 → A′ 补例（G-A2A-10）。
@@ -330,7 +330,7 @@ a2a 层**无自有状态**（`layer_gen.go:90` 的 `for taskIdx, task := range c
 
 **T167 包数裁定（2026-09-28 探针实测，非推理）**：该例 `packet_count=27` **正确**，其 `notes` 自述「36 包 = 3 握手 + 10×2 + 3 挥手」**双重错误**（① 算术本身 3+20+3 = 26 ≠ 36；② 挥手是 4 包非 3 包）。实测 1/2/3/10 task 分别产 9/11/13/27 包，**公式 `3 + 2N + 4` 全中**（N=10 → 27）。该例 `frames` 钉帧 4 与帧 22 亦与 10-task 结构自洽（task k 的请求帧 = `4 + 2(k-1)` → k=1 帧 4、k=10 帧 22）。故 `packet_count` 为权威、`notes` 文本待代码阶段先跑后钉时修正。
 
-完成定义：`tcp→a2a` 层链注册已落码；7 方法 + 4 事件 + 9 状态 + 12 错误码（-32007 除外）+ 3 Part kind 全部可观测；发现/流式/多任务/多流/v4/v6 全部有例；185 ID 正负断言与错误传播完成；不声称真实 Agent 平台处理时序与 webhook 反向连接。
+完成定义：`tcp→a2a` 层链注册已落码；7 方法 + 4 事件 + 9 状态 + 12 错误码（-32007 除外）+ 3 Part kind 全部可观测；发现/流式/多任务/多流/**v4 全部有例、v6 零例**（G-A2A-13）；185 ID 正负断言与错误传播完成；不声称真实 Agent 平台处理时序与 webhook 反向连接。
 
 **完成度现状（诚实口径）**：**文档面完成，代码面与用例面未完成**——层为空壳（§1），185 例全为违规过渡形（§12.1 / G-A2A-12）；`packet_count`/锚词等断言值本身有效但今日**不可执行**（MCP 建策略即 400）。
 
@@ -364,7 +364,7 @@ a2a 层**无自有状态**（`layer_gen.go:90` 的 `for taskIdx, task := range c
 | `tasks/pushNotificationConfig/get` | 已覆（T089） | 不适用 | 已覆（T091/T092） |
 | `GET` Agent Card | 已覆（S1/T014/T204） | 不适用 | 已覆（T021 404 / T234 复数路径） |
 
-**逐格重数**：8 行 × 3 列 = 24 格——已覆 18 / 不适用 6，零空格。**注**：旧稿 T 号 `T013`/`T033`/`T058`/`T061`/`T192`/`T194`/`T195`/`T232` **无存量例**（G-A2A-9 的 87 条设计行缺口之一）；本表所列 ID 均为**存量实际存在**的用例（机读核过），缺口号不冒充覆盖。
+**逐格重数（脚本复算）**：8 行 × 3 列 = 24 格——**已覆 16 / 不适用 8**，零空格。**注**：旧稿 T 号 `T013`/`T033`/`T058`/`T061`/`T192`/`T194`/`T195`/`T232` **无存量例**（G-A2A-9 的 87 条设计行缺口之一）；本表所列 ID 均为**存量实际存在**的用例（机读核过），缺口号不冒充覆盖。
 
 ### 10.3 子表②：数据形态变体表（协议相关全部形态逐项）
 
@@ -397,28 +397,30 @@ a2a 层**无自有状态**（`layer_gen.go:90` 的 `for taskIdx, task := range c
 | 23 | 12 错误码逐值 | 覆 11/12（T187–T198 覆盖 -32700…-32006；**-32007 零例** = v2 路线图不实现） |
 | 24 | 长度边界（128/1024/4096/1MB/10MB） | 覆（T174–T183） |
 | 25 | 6 认证写法 | 覆（T096–T098/T012/T103） |
-| 26 | IPv6 载体 | 覆（T-S6 族） |
+| 26 | IPv6 载体 | **未覆盖**（机读实测：`grep -c '::'` = 0，地址 distinct 仅 `10.0.0.1`/`20.0.0.1`，**零 IPv6 例**）→ 缺口 G-A2A-13 |
 
-24 覆 + 1 立项 + 1 不适用（HTTP keep-alive 无报文级变体）= 26。✓
+**合计（脚本复算）**：26 行 = **23 行已覆 + 2 行部分覆 + 1 行未覆盖**。部分覆 = #21（末事件违例待 A′ 补例）与 #23（错误码 11/12 有例）；未覆盖 = #26（IPv6 零例）；**0 行不适用**——原合计行「24 覆 + 1 立项 + 1 不适用」与表内 26 行全标「覆」自相矛盾，已按机读复算订正。
 
 ### 10.4 子表③：商业行为→用例映射表
 
-| # | 商业行为（出处） | 用例映射 | 结论 |
+| # | 商业行为（出处） | 存量用例（逐号） | 结论 |
 |---:|---|---|---|
-| 1 | Agent 能力发现（spec §5.3 well-known） | S1/T013/T204 | 已覆 |
-| 2 | 同步对话（`message/send`） | S2/T025–T036 | 已覆 |
-| 3 | 流式对话（SSE） | S3/S10/T041–T049 | 已覆 |
-| 4 | 任务轮询（`tasks/get`） | S4/T055–T064 | 已覆 |
-| 5 | 任务取消（`tasks/cancel`） | S5/T065–T072 | 已覆 |
-| 6 | 断线重连（`tasks/resubscribe`） | S6/T073–T080 | 已覆 |
-| 7 | 推送通知配置 | S7/T081–T092 | 已覆 |
-| 8 | 认证（6 写法） | S8/S8b/S8c/T096–T104 | 已覆 |
-| 9 | 多任务/多会话并发 | S9/T161–T172 | 已覆 |
+| 1 | Agent 能力发现（spec §5.3 well-known） | S1/T204 | 已覆（`T013` 无存量例，不冒充） |
+| 2 | 同步对话（`message/send`） | S2/T027/T030/T031/T035/T036 | 部分覆（存量 5/12；区间内 T025/026/028/029/032/033/034 无例） |
+| 3 | 流式对话（SSE） | S3/S10/T043/T044 | 部分覆（存量 2/9；区间内 T041/042/045–049 无例） |
+| 4 | 任务轮询（`tasks/get`） | S4/T057/T059/T060/T062/T063 | 部分覆（存量 5/10；区间内 T055/056/058/061/064 无例） |
+| 5 | 任务取消（`tasks/cancel`） | S5/T066/T067/T068/T069/T071/T072 | 部分覆（存量 6/8；区间内 T065/070 无例） |
+| 6 | 断线重连（`tasks/resubscribe`） | S6/T075/T076/T077/T078/T080 | 部分覆（存量 5/8；区间内 T073/074/079 无例） |
+| 7 | 推送通知配置 | S7/T085/T086/T087/T088/T089/T091/T092 | 部分覆（存量 7/12；区间内 T081–084/090 无例） |
+| 8 | 认证（6 写法） | S8/S8b/S8c/T096/T097/T098/T100/T101/T103/T104 | 部分覆（存量 7/9；区间内 T099/102 无例） |
+| 9 | 多任务/多会话并发 | S9/T162/T163/T164/T165/T167/T168 | 部分覆（存量 6/12；区间内 T161/166/169/170/171/172 无例） |
 | 10 | **webhook 反向通知**（Agent → 客户端） | — | **明确不解决**（G-A2A-5：链单向，无反向 flow 承载） |
 | 11 | 真实 Agent 平台处理时序 | — | 待确认（G-A2A-4：查官方文档或抓现网包，二选一） |
 | 12 | v0.3.0+ 扩展（list/delete/扩展卡片/分页） | — | **明确不解决**（G-A2A-11，v2 路线图） |
 
-9 覆 + 2 不适用 + 1 待确认 = 12。✓无映射无确认即缺口——本表零缺口。
+**合计（脚本复算）**：1 已覆 + 8 部分覆 + 2 不适用 + 1 待确认 = 12。✓
+
+**口径订正**：原表用旧稿 T 区间（如 `T025–T036`）标「已覆」，但区间内多数号**无存量例**。脚本口径（可复算）：取原表第 3 列全部引用（8 个区间 `T025–T036`/`T041–T049`/`T055–T064`/`T065–T072`/`T073–T080`/`T081–T092`/`T096–T104`/`T161–T172` + 单号 `T013`/`T204`），比对存量 ID 集（正则 `t(\d+)`）→ **引用 82 号，其中 38 号无存量例**；故 8 行区间全部由「已覆」改标「部分覆」。现表第 3 列为**逐号列存量例**（每号均经机读核过存在），不冒充覆盖。
 
 ### 10.5 三路对照与候选方案对比（§4.12–4.15 / §4.17）
 
@@ -441,7 +443,7 @@ a2a 层**无自有状态**（`layer_gen.go:90` 的 `for taskIdx, task := range c
 |---|---|---:|
 | `trafficgen/internal/protocol/a2a/types.go` | `A2AConfig` 全类型树（Agent Card/Task/Message/Part/事件/PushConfig）+ 常量 + `ValidMethods`/`ValidTaskStates`/`validTaskTransitions`/`StreamingMethods`/`SyncMethods` | 417 |
 | `trafficgen/internal/protocol/a2a/a2a.go` | `Planner.Validate`（V1–V16 + 载体 + 长度）+ `Planner.Plan`（legacy 包序列）+ 报文构造函数（`buildA2ARequest`/`buildHTTPResponse`/`buildSSEResponse`/`segmentByMSS`…） | 1307 |
-| `trafficgen/internal/protocol/a2a/builder.go` | 独立可测的报文构造器（`BuildJSONRPCRequest`/`BuildSSEStream`/`BuildAgentCard`…21 个导出函数） | 296 |
+| `trafficgen/internal/protocol/a2a/builder.go` | 独立可测的报文构造器（`BuildJSONRPCRequest`/`BuildSSEStream`/`BuildAgentCard`…**18 个导出函数**，脚本 `grep -c '^func [A-Z]'` 实测） | 296 |
 | `trafficgen/internal/protocol/a2a/layer_gen.go` | 终结层生成器（`RegisterLayerGenerator("a2a")` + `RegisterLayerValidator("a2a")`，`init()`）+ `Generate` 逐 task 事件 emit + `spec.TCP` 校准 | 247 |
 | `trafficgen/internal/protocol/a2a/parser.go` | 报文解析辅助 | 205 |
 | `trafficgen/internal/protocol/a2a/a2a_test.go` | 77 个 `Test*` | 2611 |
@@ -617,9 +619,12 @@ a2a 层**无自有状态**（`layer_gen.go:90` 的 `for taskIdx, task := range c
 | G-A2A-9 | 覆盖缺口：旧稿 §7 的 246 条设计行中 87 条无存量例 | P4 casegen 并入 + 全量重跑；A′ 清单见 §13 |
 | G-A2A-10 | 真中断/无终态收尾（FIN/RST mid-task、SSE 无终态事件） | A′ 补例 `a2a_abort_rst` + `a2a_sse_last_final_false`（§13） |
 | G-A2A-11 | v0.3.0+/v1.0 扩展（list/delete/扩展卡片/`agent-card.json`/`A2A-Version`/分页） | **明确不支持**（v2 路线图；`ValidMethods` 拒绝） |
-| G-A2A-12 | **用例侧迁移全额待办**：185 例顶层残留 1081 处（非负例 914 处）未迁；本车道按裁定**不改 JSON** | 与 G-A2A-1 同批（代码落码后改写 185 例 + 补 A′ 例）；收官自查行「非负例顶层键 = 0」**今日红，不得申报已过** |
+| G-A2A-12 | **用例侧迁移全额待办**：185 例顶层残留 1081 处（非负例 914 处）未迁；本版按口径**保持原样**（改写版存 patch） | 与 G-A2A-1 同批（代码落码后套用改写版 185 例 + 补 A′ 例）；收官自查行「非负例顶层键 = 0」**今日红，不得申报已过** |
+| G-A2A-13 | **IPv6 零覆盖（审查 P0-1 订正）**：机读实测 `grep -c '::'` = 0，地址 distinct 仅 `10.0.0.1`/`20.0.0.1`，**零 IPv6 例**；旧稿 `17-a2a-design.md` 亦零提 IPv6（原 §4/§8/§9/§10.3 的「IPv6 独立用例 / T-S6 族 / v4/v6 全部有例」为**虚报**，已订正；`T-S6` 系幽灵族号——S6 实为断线重连） | 代码阶段或后续补例（A′：IPv6 fixture，offset 74）；补前不得申报地址族已覆盖 |
 
 ## 15. 修订记录
 
-- v1.0.0（2026-09-28）：P-PIPE #93 文档轨 P1–P3。续号重做：17→93 沿革与 9 项状态校正（§0）；存量 185 例机读审计（顶层残留 1081 处 / 非负例 914 处）；**§1 层为空壳三条实测 + 合规形需代码阶段补三件**；§12.1 改为缺口登记（含三重堵死证据表）+ §12.3/§12.12 强制展开 + 12-P2；D-A2A-1 as-built 定稿（§11）；缺口 G-A2A-1…G-A2A-12。
+- v1.0.0（2026-09-28）：P-PIPE #93 文档轨 P1–P3。续号重做：17→93 沿革与 9 项状态校正（§0）；存量 185 例机读审计（顶层残留 1081 处 / 非负例 914 处）；**§1 层为空壳三条实测 + 合规形需代码阶段补三件**；§12.1 改为缺口登记（含三重堵死证据表）+ §12.3/§12.12 强制展开 + 12-P2；D-A2A-1 as-built 定稿（§11）；缺口 G-A2A-1…G-A2A-13。
 - **改写成果与落地时点（同日）**：车道已完成 `cases/a2a.json` **185/185 全量层链改写**（顶层残留 914 → 0，顶层键集只剩 `['layers']`），经主线程 `git show` 复核确认完整正确。因 a2a 层为空壳（§1），合规化属代码阶段，**本版 JSON 保持原样**；改写版存 `/tmp/pipe/a2a-layerchain-rewrite.patch` 与 `/tmp/pipe/patches/a2a-layerchain.json`（同内容，主线程亦存一份），**待 G-A2A-1 落码后套用**。文档本版取缺口登记口径。
+
+- **隔离审查回修（同日）**：审查 9 项（2 P0 / 3 P1 / 4 P2）+ 1 P3，全部按**脚本复算**订正。P0-1 **IPv6 虚报覆盖**：§10.3 变体26 / §4 地址层 / §8 地址族 / §9 完成定义四处原称「IPv6 独立用例 / T-S6 族 / v4/v6 全部有例」，实测 `grep -c '::'` = 0、地址 distinct 仅 `10.0.0.1`/`20.0.0.1`、**零 IPv6 例**，且 `T-S6` 为幽灵族号（S6 实为断线重连）、旧稿零提 IPv6——四处改为**未覆盖**，登记 **G-A2A-13**，并消除与 §8「异族混写今日零用例」的自相矛盾。P1：§10.2 算术 18/6 → **16/8**（脚本复算）；§10.3 合计行与 26 行全标「覆」矛盾 → 改为 **23 覆 + 2 部分覆 + 1 未覆盖 / 0 不适用**；§10.4 旧稿 T 区间标「已覆」→ 改**逐号列存量例**（原表引用 82 号中 38 号无例，脚本可复算）。P2：builder.go 21 → **18** 个导出函数（`grep -c '^func [A-Z]'`）；`a2a.go:186` → **187**（186 为注释行）；§2.3 补第 3 条（T212 双命中）+ §8.3 同号重复 8 组 → **9 组**；头部「185/185 四元组」→ 补注 **`src_port` 183/185**。P3：§8.4 白名单补 `ttl`（`tuples` 经核为 `TrafficClass` 批量类字段，非顶层键，不列入）。**计数一律脚本复算后粘贴，禁止手算。**
