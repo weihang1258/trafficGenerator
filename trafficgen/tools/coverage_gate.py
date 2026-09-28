@@ -6911,11 +6911,18 @@ def check_tns(cases):
     # frames 豁免面：①多会话聚合例（包位不固定）；②标 pending-suite 的
     # 新增例（本阶段不跑 suite，帧字节待实测钉死——诚实豁免而非放水，
     # P5 suite 后此豁免应收敛为 0）。
-    rows.append(("正例均带 frames hex（多会话聚合/pending-suite 例外）",
-                 all((c.get("expect") or {}).get("frames")
-                     or c.get("id") == "tns_multi_session"
-                     or "pending-suite" in (c.get("summary") or "") for c in pos),
-                 "全部在案"))
+    # frames 豁免面：①多会话聚合例（包位随会话握手序浮动，断言口径决定不写
+    # frames）；②P4 新增、待 suite 实测钉死帧字节的例。豁免名单由本门**显式
+    # 持有**——曾用 `"pending-suite" in c.summary` 判定，等于让被测产物自己
+    # 写一句话就免检（scoped 复评 m2：豁免面从 1 例扩到 7 例）。P5 跑完 suite
+    # 后此名单应收敛为 0。
+    frames_exempt = {"tns_multi_session", "tns_data_flags_zero", "tns_nonstd_port",
+                     "tns_body_constants", "tns_dyn_srcport", "tns_ipv4_baseline",
+                     "tns_refuse_session"}
+    missing_frames = [c.get("id") for c in pos
+                      if not (c.get("expect") or {}).get("frames") and c.get("id") not in frames_exempt]
+    rows.append(("正例均带 frames hex（豁免面由门显式持有）",
+                 not missing_frames, missing_frames or "全部在案"))
     bad_keys = [c.get("id") for c in neg
                 if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
     rows.append(("负例 expect 键集严格 = {expect_error, error_contains}", not bad_keys, bad_keys or "全部合规"))

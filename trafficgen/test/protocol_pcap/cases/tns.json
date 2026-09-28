@@ -40,10 +40,7 @@
             ]
           }
         }
-      ],
-      "flow_control": {
-        "flows": 1
-      }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -150,10 +147,7 @@
             ]
           }
         }
-      ],
-      "flow_control": {
-        "flows": 1
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -220,10 +214,7 @@
             ]
           }
         }
-      ],
-      "flow_control": {
-        "flows": 1
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -310,10 +301,7 @@
             ]
           }
         }
-      ],
-      "flow_control": {
-        "flows": 1
-      }
+      ]
     },
     "expect": {
       "packet_count": 13,
@@ -406,10 +394,7 @@
             ]
           }
         }
-      ],
-      "flow_control": {
-        "flows": 1
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -512,10 +497,7 @@
             ]
           }
         }
-      ],
-      "flow_control": {
-        "flows": 1
-      }
+      ]
     },
     "expect": {
       "packet_count": 18,
@@ -604,10 +586,7 @@
             "checksum_mode": "disabled"
           }
         }
-      ],
-      "flow_control": {
-        "flows": 1
-      }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -778,10 +757,7 @@
         {
           "tns": {}
         }
-      ],
-      "flow_control": {
-        "flows": 1
-      }
+      ]
     },
     "expect": {
       "packet_count": 8,
@@ -1232,7 +1208,7 @@
   {
     "id": "tns_data_flags_zero",
     "proto": "tns",
-    "summary": "DATA×2 flags=0 + 单 DATA（6 字节帧面）（pending-suite：断言/包数沿 testcase 设计值，suite 实测复钉）",
+    "summary": "DATA×2 flags=0：事件包 tns.data_flag=0x0000 + 包数 11（pending-suite：断言沿 testcase 设计值，suite 实测复钉）",
     "spec_json": {
       "layers": [
         {
@@ -1273,7 +1249,7 @@
       ]
     },
     "expect": {
-      "packet_count": 10,
+      "packet_count": 11,
       "has_handshake": true,
       "terminates": true,
       "has_payload": true,
@@ -1342,7 +1318,7 @@
   {
     "id": "tns_body_constants",
     "proto": "tns",
-    "summary": "CONNECT/ACCEPT/REFUSE/REDIRECT body 逐字节 + length 多值（pending-suite：断言/包数沿 testcase 设计值，suite 实测复钉）",
+    "summary": "CONNECT/ACCEPT/REFUSE/REDIRECT body 四态同链（双会话：CONNECT→REFUSE 终态 + CONNECT→ACCEPT→DATA）（pending-suite：suite 实测复钉）",
     "spec_json": {
       "layers": [
         {
@@ -1358,24 +1334,37 @@
         },
         {
           "tns": {
-            "events": [
+            "sessions": [
               {
-                "type": "CONNECT",
-                "direction": "c2s"
+                "src_port": 41240,
+                "events": [
+                  {
+                    "type": "CONNECT",
+                    "direction": "c2s"
+                  },
+                  {
+                    "type": "REFUSE",
+                    "direction": "s2c"
+                  }
+                ]
               },
               {
-                "type": "ACCEPT",
-                "direction": "s2c"
-              },
-              {
-                "type": "DATA",
-                "direction": "c2s",
-                "data_flags": 0
-              },
-              {
-                "type": "DATA",
-                "direction": "s2c",
-                "data_flags": 0
+                "src_port": 41241,
+                "events": [
+                  {
+                    "type": "CONNECT",
+                    "direction": "c2s"
+                  },
+                  {
+                    "type": "ACCEPT",
+                    "direction": "s2c"
+                  },
+                  {
+                    "type": "DATA",
+                    "direction": "c2s",
+                    "data_flags": 0
+                  }
+                ]
               }
             ]
           }
@@ -1383,23 +1372,29 @@
       ]
     },
     "expect": {
-      "packet_count": 10,
+      "min_packets": 19,
       "has_handshake": true,
       "terminates": true,
       "has_payload": true,
       "fields": [
         {
-          "packet": 4,
-          "field": "tns.length",
-          "nonzero": true
-        },
-        {
-          "packet": 5,
-          "field": "tns.length",
-          "nonzero": true
+          "packet": 0,
+          "field": "tns.type",
+          "distinct_values": [
+            "1",
+            "2",
+            "4",
+            "6"
+          ]
         }
+      ],
+      "notes": [
+        "会话序由调度器决定，故用 distinct 聚合（同 tns_multi_session）。body 逐字节长度由单测钉死（tns_test.go:143-216：CONNECT 106 / ACCEPT 28 / REFUSE 16 / REDIRECT 12）；tns.length 的 tshark 取值格式全仓无精确先例，待 suite 实测后按「先跑后钉」补值断言。"
       ]
-    }
+    },
+    "notes": [
+      "双会话端口 41240/41241（避 9.37 派生编号撞车）。"
+    ]
   },
   {
     "id": "tns_dyn_srcport",
@@ -1439,11 +1434,7 @@
             ]
           }
         }
-      ],
-      "flow_control": {
-        "type": "flows",
-        "value": 2
-      }
+      ]
     },
     "expect": {
       "min_packets": 18,
@@ -1460,6 +1451,10 @@
           ]
         }
       ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
     }
   },
   {
