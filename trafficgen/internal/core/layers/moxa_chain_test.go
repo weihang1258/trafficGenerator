@@ -19,7 +19,7 @@ import (
 // ④载体拒绝：夹 udp 载体（carrier）
 // ⑤载体违例：层内 tcp.handshake=false 必须仍被拒（层链形状下 spec.TCP 回填）
 // ⑥严格解码（stream[] 元素内层未知键拒，bgp 范式）
-// ⑦用例文件收官自查（16 例：6 正 + 10 负；非负例顶层键 ⊆ 白名单）
+// ⑦用例文件收官自查（23 例：11 正 + 12 负；非负例顶层键 ⊆ 白名单）
 
 const (
 	moxaCli = "10.0.0.1"
@@ -188,7 +188,8 @@ func TestMOXAChain_StrictDecode(t *testing.T) {
 	}
 }
 
-// ⑦用例文件收官自查：16 例（6 正 + 10 负 = 7 协议负例 + 3 §12-P2 链级红例）；
+// ⑦用例文件收官自查：23 例（11 正 + 12 负 = 9 协议负例 + 3 §12-P2 链级红例；
+// M-1 后补落 6 条 A′ 例 + 1 条 block_over 对偶）；
 // 非负例顶层键 ⊆ {layers, flow_control, strategy_fc}；presence/游离键红例在案；
 // 负例 expect 键集严格 = {expect_error, error_contains}；断言无 moxa.* 字段；
 // 多流例（flows>1）的层链必须带动态对象（否则 MCP 静态复制门 400——离线
@@ -202,8 +203,8 @@ func TestMOXAChain_CaseFileAudit(t *testing.T) {
 	if err := json.Unmarshal(raw, &cases); err != nil {
 		t.Fatalf("parse cases: %v", err)
 	}
-	if len(cases) != 16 {
-		t.Fatalf("want 16 cases (6 pos + 10 neg), got %d", len(cases))
+	if len(cases) != 23 {
+		t.Fatalf("want 23 cases (11 pos + 12 neg), got %d", len(cases))
 	}
 	allowed := map[string]bool{"layers": true, "flow_control": true, "strategy_fc": true}
 	presence, stray, carrier := false, false, false
@@ -273,8 +274,8 @@ func TestMOXAChain_CaseFileAudit(t *testing.T) {
 			}
 		}
 	}
-	if pos != 6 || neg != 10 {
-		t.Fatalf("want 6 pos + 10 neg, got %d pos + %d neg", pos, neg)
+	if pos != 11 || neg != 12 {
+		t.Fatalf("want 11 pos + 12 neg, got %d pos + %d neg", pos, neg)
 	}
 	if !presence || !stray || !carrier {
 		t.Fatalf("chain red cases missing: presence=%v stray=%v carrier=%v", presence, stray, carrier)

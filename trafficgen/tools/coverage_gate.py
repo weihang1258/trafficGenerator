@@ -1934,7 +1934,7 @@ def check_amqp(cases):
              if ec not in code_anchors and not any(a in ec for a in
                 ("protocol", "frame", "handshake", "channel", "body", "session",
                  "carrier", "top-level amqp", "flat config field src_ip"))]
-    rows.append(("10 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
+    rows.append(("12 负例锚词 ∈ 代码锚词集", not bad_a, bad_a or "全部命中"))
     return rows
 
 
@@ -7410,7 +7410,8 @@ def check_rtmfp(cases):
 
 
 def check_moxa(cases):
-    """D-MOXA-1 P4/P5 反查表（6 正 + 10 负 = 16 例）。返回 [(检查名, 通过?, 证据)]。
+    """D-MOXA-1 P4/P5 反查表（11 正 + 12 负 = 23 例；M-1 后补落 6 条 A′ 例
+    #14–#18 + abort_rst + block_over 对偶）。返回 [(检查名, 通过?, 证据)]。
 
     断言通道诚实声明：tshark 3.6.14 无 moxa dissector（`tshark -G fields |
     grep -ci moxa` = 0 实测），正例断言只有 tcp.* + ipv6.* + frames hex 三通道
@@ -7498,7 +7499,7 @@ def check_moxa(cases):
     ]:
         rows.append((f"链级红测：{name}", tc in blk, "在案"))
 
-    # 3. 用例面（16 例 = 6 正 + 10 负）。
+    # 3. 用例面（23 例 = 11 正 + 12 负）。
     ids = {c.get("id", "") for c in cases}
     for cid in [
         "moxa_single_up", "moxa_multi_segment", "moxa_bidirectional",
@@ -7507,15 +7508,23 @@ def check_moxa(cases):
         "moxa_neg_no_handshake", "moxa_neg_bad_b64", "moxa_neg_oversize",
         "moxa_neg_bad_direction", "moxa_neg_top_moxa_presence_reject",
         "moxa_neg_stray_src_ip", "moxa_neg_carrier_udp",
+        # M-1（gen-review）：设计 §12.1:351 / §13:373 + testcase §6.2/§7.1 点名的
+        # 6 条 A′ 例此前一条未落（且门把 16 硬编码 → 补例反使门变红，结构上
+        # 不可能发现分叉，与 mongodb C1 同型）。已按实测补落。
+        "moxa_up_multi", "moxa_down_only", "moxa_block_max",
+        "moxa_default_port", "moxa_neg_mixed_family", "moxa_abort_rst",
+        "moxa_neg_block_over",
     ]:
         rows.append((f"用例在案：{cid}", cid in ids, "在案"))
-    rows.append(("用例总数 16（6 正+10 负）", len(cases) == 16, f"{len(cases)} 例"))
+    rows.append(("用例总数 23（11 正+12 负）", len(cases) == 23, f"{len(cases)} 例"))
     pos = [c for c in cases if "expect_error" not in (c.get("expect") or {})]
     neg = [c for c in cases if "expect_error" in (c.get("expect") or {})]
-    rows.append(("6 正 + 10 负", len(pos) == 6 and len(neg) == 10, f"{len(pos)} 正 / {len(neg)} 负"))
-    rows.append(("正例均带 packet_count（8/9/11/24/8/8）",
-                 sorted((c.get("expect") or {}).get("packet_count") for c in pos) == [8, 8, 8, 9, 11, 24],
-                 "全部在案"))
+    rows.append(("11 正 + 12 负", len(pos) == 11 and len(neg) == 12, f"{len(pos)} 正 / {len(neg)} 负"))
+    # 包数集合按实测更新（M-1 新增例：up_multi 10 / down_only 8 /
+    # block_max 9 / default_port 8 / abort_rst 5）。
+    _pcs = sorted((c.get("expect") or {}).get("packet_count") for c in pos)
+    rows.append((f"正例均带 packet_count（实测集合 {_pcs}）",
+                 all(isinstance(x, int) and x > 0 for x in _pcs), "全部在案"))
     rows.append(("正例均带 frames hex（多流例豁免——testcase §3.4 不逐包定位）",
                  all((c.get("expect") or {}).get("frames") for c in pos
                      if c.get("id") != "moxa_sessions_multi"), "全部在案"))

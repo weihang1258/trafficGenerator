@@ -1,766 +1,1148 @@
 [
- {
-  "id": "moxa_single_up",
-  "proto": "moxa",
-  "summary": "S1/T-MOXA-S1-01: 单向上行 \"hello\"，8 包 = 3 握手 + 1 数据 + 4 挥手（事件模式无单独 ACK）",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "dst_port": 4800
-     }
-    },
-    {
-     "moxa": {
-      "stream": [
-       {
-        "payload": "hello"
-       }
+  {
+    "id": "moxa_single_up",
+    "proto": "moxa",
+    "summary": "S1/T-MOXA-S1-01: 单向上行 \"hello\"，8 包 = 3 握手 + 1 数据 + 4 挥手（事件模式无单独 ACK）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "payload": "hello"
+              }
+            ]
+          }
+        }
       ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "packet_count": 8,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": false,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "4800"
     },
-    {
-     "packet": 4,
-     "field": "tcp.flags",
-     "value": "0x018"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "68 65 6c 6c 6f"
-    }
-   ],
-   "notes": [
-    "S1: 单向上行固定 payload；dst_port 显式 4800"
-   ]
-  },
-  "notes": [
-   "S1: 单向上行固定 payload;dst_port 显式 4800;8 包=3握手+1数据+4挥手(事件模式无独立ACK)"
-  ]
- },
- {
-  "id": "moxa_multi_segment",
-  "proto": "moxa",
-  "summary": "S2/T-MOXA-S2-01: 单块 2000B A > MSS1460 → 2 段（1460+540），payload 首字节 41，段 1=包4 段 2=包5",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "mss": 1460,
-      "dst_port": 4800
-     }
-    },
-    {
-     "moxa": {
-      "stream": [
-       {
-        "payload": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-       }
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": false,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "4800"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.flags",
+          "value": "0x018"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "68 65 6c 6c 6f"
+        }
+      ],
+      "notes": [
+        "S1: 单向上行固定 payload；dst_port 显式 4800"
       ]
-     }
-    }
-   ]
+    },
+    "notes": [
+      "S1: 单向上行固定 payload;dst_port 显式 4800;8 包=3握手+1数据+4挥手(事件模式无独立ACK)"
+    ]
   },
-  "expect": {
-   "has_handshake": true,
-   "has_payload": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "4800"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "41"
-    },
-    {
-     "packet": 5,
-     "offset": 54,
-     "hex": "41"
-    }
-   ],
-   "notes": [
-    "S2: 2000B 单块 MSS 分段；hex 前缀匹配首字节，不整段穷举"
-   ],
-   "packet_count": 9
-  },
-  "notes": [
-   "S2: 2000B>MSS1460 分 2 段(1460+540);段1=包4 段2=包5;帧长1514>80 故 has_payload=True"
-  ]
- },
- {
-  "id": "moxa_bidirectional",
-  "proto": "moxa",
-  "summary": "S3/T-MOXA-S3-01: 双向 4 块流（up WR/down RT 交替），事件模式每块 1 包，11 包 = 3 握手 + 4 数据 + 4 挥手",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "mss": 536,
-      "dst_port": 4800
-     }
-    },
-    {
-     "moxa": {
-      "stream": [
-       {
-        "direction": "up",
-        "payload": "WR"
-       },
-       {
-        "direction": "down",
-        "payload": "RT"
-       },
-       {
-        "direction": "up",
-        "payload": "WR"
-       },
-       {
-        "direction": "down",
-        "payload": "RT"
-       }
+  {
+    "id": "moxa_multi_segment",
+    "proto": "moxa",
+    "summary": "S2/T-MOXA-S2-01: 单块 2000B A > MSS1460 → 2 段（1460+540），payload 首字节 41，段 1=包4 段 2=包5",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "mss": 1460,
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "payload": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+              }
+            ]
+          }
+        }
       ]
-     }
-    }
-   ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "has_payload": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "4800"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "41"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "41"
+        }
+      ],
+      "notes": [
+        "S2: 2000B 单块 MSS 分段；hex 前缀匹配首字节，不整段穷举"
+      ],
+      "packet_count": 9
+    },
+    "notes": [
+      "S2: 2000B>MSS1460 分 2 段(1460+540);段1=包4 段2=包5;帧长1514>80 故 has_payload=True"
+    ]
   },
-  "expect": {
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "directional": true,
-   "has_payload": false,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "4800"
-    },
-    {
-     "packet": 5,
-     "field": "tcp.srcport",
-     "value": "4800"
-    },
-    {
-     "field": "tcp.dstport",
-     "distinct_values": [
-      "4800"
-     ],
-     "distinct_exclude": [
-      "12345"
-     ]
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "57 52"
-    },
-    {
-     "packet": 5,
-     "offset": 54,
-     "hex": "52 54"
-    }
-   ],
-   "notes": [
-    "S3: down 段 srcport=4800（服务器端口对换）；directional 双向",
-    "packet5 tcp.srcport=4800 是 down 端口对换唯一守卫（设计 §6.3/R1）",
-    "dstport distinct_exclude 滤下行握手/挥手包 dst=客户端源端口 12345"
-   ],
-   "packet_count": 11
-  },
-  "notes": [
-   "S3: 事件模式 4 数据块各 1 包(WR/RT 交替 up/down);11 包=3+4+4;directional≥2 ip.src;packet5 srcport=4800"
-  ]
- },
- {
-  "id": "moxa_sessions_multi",
-  "proto": "moxa",
-  "summary": "S4/T-MOXA-S4-01: 多串口会话 = flows=3，src_port 12345/12346/12347，dst_port 恒 4800，3×8=24 包；聚合用 distinct_exclude 滤掉对端口",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": {
-       "strategy": "inc",
-       "range": [
-        12345,
-        12347
-       ],
-       "step": 1
-      },
-      "dst_port": 4800
-     }
-    },
-    {
-     "moxa": {
-      "stream": [
-       {
-        "payload": "hello"
-       }
+  {
+    "id": "moxa_bidirectional",
+    "proto": "moxa",
+    "summary": "S3/T-MOXA-S3-01: 双向 4 块流（up WR/down RT 交替），事件模式每块 1 包，11 包 = 3 握手 + 4 数据 + 4 挥手",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "mss": 536,
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "direction": "up",
+                "payload": "WR"
+              },
+              {
+                "direction": "down",
+                "payload": "RT"
+              },
+              {
+                "direction": "up",
+                "payload": "WR"
+              },
+              {
+                "direction": "down",
+                "payload": "RT"
+              }
+            ]
+          }
+        }
       ]
-     }
-    }
-   ],
-   "flow_control": {
-    "flows": 3
-   }
-  },
-  "strategy_fc": {
-   "type": "flows",
-   "value": 3
-  },
-  "expect": {
-   "has_handshake": true,
-   "has_payload": false,
-   "fields": [
-    {
-     "field": "tcp.srcport",
-     "distinct_values": [
-      "12345",
-      "12346",
-      "12347"
-     ],
-     "distinct_exclude": [
-      "4800"
-     ]
     },
-    {
-     "field": "tcp.dstport",
-     "distinct_values": [
-      "4800"
-     ],
-     "distinct_exclude": [
-      "12345",
-      "12346",
-      "12347"
-     ]
-    }
-   ],
-   "notes": [
-    "S4: 3 流 × 8 包 = 24；流交织 → distinct_values 聚合断言"
-   ],
-   "terminates": true,
-   "packet_count": 24
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "directional": true,
+      "has_payload": false,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "4800"
+        },
+        {
+          "packet": 5,
+          "field": "tcp.srcport",
+          "value": "4800"
+        },
+        {
+          "field": "tcp.dstport",
+          "distinct_values": [
+            "4800"
+          ],
+          "distinct_exclude": [
+            "12345"
+          ]
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "57 52"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "52 54"
+        }
+      ],
+      "notes": [
+        "S3: down 段 srcport=4800（服务器端口对换）；directional 双向",
+        "packet5 tcp.srcport=4800 是 down 端口对换唯一守卫（设计 §6.3/R1）",
+        "dstport distinct_exclude 滤下行握手/挥手包 dst=客户端源端口 12345"
+      ],
+      "packet_count": 11
+    },
+    "notes": [
+      "S3: 事件模式 4 数据块各 1 包(WR/RT 交替 up/down);11 包=3+4+4;directional≥2 ip.src;packet5 srcport=4800"
+    ]
   },
-  "notes": [
-   "S4: flows=3 策略级多会话;src 12345-47/dst 4800;distinct_exclude 滤对端端口",
-   "四元组动态（src_port inc 12345..12347）满足静态复制门；解析值与保底递增同值，断言不变（dameng_multi_flow_dynamic 先例）"
-  ]
- },
- {
-  "id": "moxa_binary_payload",
-  "proto": "moxa",
-  "summary": "S5/T-MOXA-S5-01: payload_b64 aGFoYQ== → \"haha\"，8 包",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "dst_port": 4800
-     }
-    },
-    {
-     "moxa": {
-      "stream": [
-       {
-        "payload_b64": "aGFoYQ=="
-       }
+  {
+    "id": "moxa_sessions_multi",
+    "proto": "moxa",
+    "summary": "S4/T-MOXA-S4-01: 多串口会话 = flows=3，src_port 12345/12346/12347，dst_port 恒 4800，3×8=24 包；聚合用 distinct_exclude 滤掉对端口",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": {
+              "strategy": "inc",
+              "range": [
+                12345,
+                12347
+              ],
+              "step": 1
+            },
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "payload": "hello"
+              }
+            ]
+          }
+        }
       ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "packet_count": 8,
-   "has_handshake": true,
-   "terminates": true,
-   "has_payload": false,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "4800"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "68 61 68 61"
-    }
-   ],
-   "notes": [
-    "S5: base64 解码 + 二进制原样透传"
-   ]
-  },
-  "notes": [
-   "S5: payload_b64 解码+二进制原样透传;8 包"
-  ]
- },
- {
-  "id": "moxa_ipv6",
-  "proto": "moxa",
-  "summary": "S6/T-MOXA-S6-01: IPv6 载体，payload 偏移 74，8 包",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "2001:db8::1",
-      "dst": "2001:db8::2"
-     }
     },
-    {
-     "tcp": {
-      "dst_port": 4800
-     }
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
     },
-    {
-     "moxa": {
-      "stream": [
-       {
-        "payload": "hello"
-       }
+    "expect": {
+      "has_handshake": true,
+      "has_payload": false,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "12345",
+            "12346",
+            "12347"
+          ],
+          "distinct_exclude": [
+            "4800"
+          ]
+        },
+        {
+          "field": "tcp.dstport",
+          "distinct_values": [
+            "4800"
+          ],
+          "distinct_exclude": [
+            "12345",
+            "12346",
+            "12347"
+          ]
+        }
+      ],
+      "notes": [
+        "S4: 3 流 × 8 包 = 24；流交织 → distinct_values 聚合断言"
+      ],
+      "terminates": true,
+      "packet_count": 24
+    },
+    "notes": [
+      "S4: flows=3 策略级多会话;src 12345-47/dst 4800;distinct_exclude 滤对端端口",
+      "四元组动态（src_port inc 12345..12347）满足静态复制门；解析值与保底递增同值，断言不变（dameng_multi_flow_dynamic 先例）",
+      "spec_json.flow_control 为死配置（全仓无读取方，真机制是 case 级 strategy_fc，离线执行器 layer_chain_suite_test.go 与 MCP 均读它）——按 §1.12 删。"
+    ]
+  },
+  {
+    "id": "moxa_binary_payload",
+    "proto": "moxa",
+    "summary": "S5/T-MOXA-S5-01: payload_b64 aGFoYQ== → \"haha\"，8 包",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "payload_b64": "aGFoYQ=="
+              }
+            ]
+          }
+        }
       ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "packet_count": 8,
-   "has_handshake": true,
-   "terminates": true,
-   "has_payload": false,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "ipv6.src",
-     "value": "2001:db8::1"
     },
-    {
-     "packet": 4,
-     "field": "ipv6.dst",
-     "value": "2001:db8::2"
-    },
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "4800"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 74,
-     "hex": "68 65 6c 6c 6f"
-    }
-   ],
-   "notes": [
-    "S6: IPv6 载体偏移 74；tcp 校验和覆盖 IPv6 伪头"
-   ]
-  },
-  "notes": [
-   "S6: IPv6 载体 eth14+ipv6 40+tcp20=偏移 74;8 包;不写 has_payload(帧≤80)"
-  ]
- },
- {
-  "id": "moxa_neg_empty_payload",
-  "proto": "moxa",
-  "summary": "N-1/E-T1: stream 空 payload → validator 拒绝（任务失败 = PASS）",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "dst_port": 4800
-     }
-    },
-    {
-     "moxa": {
-      "stream": [
-       {
-        "payload": ""
-       }
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": false,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "4800"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "68 61 68 61"
+        }
+      ],
+      "notes": [
+        "S5: base64 解码 + 二进制原样透传"
       ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "moxa: empty stream block or payload required"
-  },
-  "notes": [
-   "N-1/E-T1: 空 payload 校验拒绝"
-  ]
- },
- {
-  "id": "moxa_neg_config_packet",
-  "proto": "moxa",
-  "summary": "N-2: 配置报文字节（受控探针 5a 5a 5a）混入 stream → 拒绝（诚实边界，待定字节不进数据面，设计 §9.2）",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
     },
-    {
-     "tcp": {
-      "dst_port": 4800
-     }
-    },
-    {
-     "moxa": {
-      "stream": [
-       {
-        "payload": "ZZZ"
-       }
+    "notes": [
+      "S5: payload_b64 解码+二进制原样透传;8 包"
+    ]
+  },
+  {
+    "id": "moxa_ipv6",
+    "proto": "moxa",
+    "summary": "S6/T-MOXA-S6-01: IPv6 载体，payload 偏移 74，8 包",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "payload": "hello"
+              }
+            ]
+          }
+        }
       ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "moxa: config-packet bytes in stream are not supported"
-  },
-  "notes": [
-   "N-2: 配置探针字节拒绝(诚实边界,设计 §9.2 待定不编造)"
-  ]
- },
- {
-  "id": "moxa_neg_sessions_multi",
-  "proto": "moxa",
-  "summary": "N-3/E-S3: sessions=3 > 1 → 拒绝（v1 多会话走 strategy flows，设计 §4.3）",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
     },
-    {
-     "tcp": {
-      "dst_port": 4800
-     }
-    },
-    {
-     "moxa": {
-      "sessions": 3,
-      "stream": [
-       {
-        "payload": "hello"
-       }
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": false,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "ipv6.src",
+          "value": "2001:db8::1"
+        },
+        {
+          "packet": 4,
+          "field": "ipv6.dst",
+          "value": "2001:db8::2"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "4800"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 74,
+          "hex": "68 65 6c 6c 6f"
+        }
+      ],
+      "notes": [
+        "S6: IPv6 载体偏移 74；tcp 校验和覆盖 IPv6 伪头"
       ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "moxa: sessions=3>1 not supported"
-  },
-  "notes": [
-   "N-3/E-S3: sessions>1 (v1) 拒绝,多会话走 strategy flows"
-  ]
- },
- {
-  "id": "moxa_neg_no_handshake",
-  "proto": "moxa",
-  "summary": "N-4/E-T5: tcp.handshake=false → 拒绝（透明透传需 TCP 连接）",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
     },
-    {
-     "tcp": {
-      "handshake": false,
-      "dst_port": 4800
-     }
-    },
-    {
-     "moxa": {
-      "stream": [
-       {
-        "payload": "hello"
-       }
+    "notes": [
+      "S6: IPv6 载体 eth14+ipv6 40+tcp20=偏移 74;8 包;不写 has_payload(帧≤80)"
+    ]
+  },
+  {
+    "id": "moxa_neg_empty_payload",
+    "proto": "moxa",
+    "summary": "N-1/E-T1: stream 空 payload → validator 拒绝（任务失败 = PASS）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "payload": ""
+              }
+            ]
+          }
+        }
       ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "moxa: tcp.handshake must be true"
-  },
-  "notes": [
-   "N-4/E-T5: tcp.handshake=false 拒绝"
-  ]
- },
- {
-  "id": "moxa_neg_bad_b64",
-  "proto": "moxa",
-  "summary": "N-5/E-T3: payload_b64 非法 → 拒绝（非法 base64；非法方向同族见设计 §9.1 E-T2）",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
     },
-    {
-     "tcp": {
-      "dst_port": 4800
-     }
+    "expect": {
+      "expect_error": true,
+      "error_contains": "moxa: empty stream block or payload required"
     },
-    {
-     "moxa": {
-      "stream": [
-       {
-        "payload_b64": "%%%"
-       }
+    "notes": [
+      "N-1/E-T1: 空 payload 校验拒绝"
+    ]
+  },
+  {
+    "id": "moxa_neg_config_packet",
+    "proto": "moxa",
+    "summary": "N-2: 配置报文字节（受控探针 5a 5a 5a）混入 stream → 拒绝（诚实边界，待定字节不进数据面，设计 §9.2）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "payload": "ZZZ"
+              }
+            ]
+          }
+        }
       ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "moxa: invalid payload_b64"
-  },
-  "notes": [
-   "N-5/E-T3: 非法 payload_b64 拒绝"
-  ]
- },
- {
-  "id": "moxa_neg_oversize",
-  "proto": "moxa",
-  "summary": "N-6/E-B1: payload 3000B > MaxBlockBytes2048 → 拒绝（超长>MSS 且>2048 合并于本用例）",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
     },
-    {
-     "tcp": {
-      "mss": 1460,
-      "dst_port": 4800
-     }
+    "expect": {
+      "expect_error": true,
+      "error_contains": "moxa: config-packet bytes in stream are not supported"
     },
-    {
-     "moxa": {
-      "stream": [
-       {
-        "payload": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-       }
+    "notes": [
+      "N-2: 配置探针字节拒绝(诚实边界,设计 §9.2 待定不编造)"
+    ]
+  },
+  {
+    "id": "moxa_neg_sessions_multi",
+    "proto": "moxa",
+    "summary": "N-3/E-S3: sessions=3 > 1 → 拒绝（v1 多会话走 strategy flows，设计 §4.3）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {
+            "sessions": 3,
+            "stream": [
+              {
+                "payload": "hello"
+              }
+            ]
+          }
+        }
       ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "moxa: block 0 payload 3000 exceeds max 2048"
-  },
-  "notes": [
-   "N-6/E-B1: 3000B>MaxBlockBytes2048 拒绝"
-  ]
- },
- {
-  "id": "moxa_neg_bad_direction",
-  "proto": "moxa",
-  "summary": "N-7/E-T2: stream 块 direction 非法值 'sideways' → 校验拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
     },
-    {
-     "tcp": {
-      "dst_port": 4800
-     }
+    "expect": {
+      "expect_error": true,
+      "error_contains": "moxa: sessions=3>1 not supported"
     },
-    {
-     "moxa": {
-      "stream": [
-       {
-        "direction": "sideways",
-        "payload": "hello"
-       }
+    "notes": [
+      "N-3/E-S3: sessions>1 (v1) 拒绝,多会话走 strategy flows"
+    ]
+  },
+  {
+    "id": "moxa_neg_no_handshake",
+    "proto": "moxa",
+    "summary": "N-4/E-T5: tcp.handshake=false → 拒绝（透明透传需 TCP 连接）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "handshake": false,
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "payload": "hello"
+              }
+            ]
+          }
+        }
       ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "moxa: invalid direction"
-  },
-  "notes": [
-   "N-7/E-T2: 补 testcase §6.2 承诺的方向负例;与 F5 修复配套"
-  ]
- },
- {
-  "id": "moxa_neg_top_moxa_presence_reject",
-  "proto": "moxa",
-  "summary": "§12-P2 presence 判死形状：层链 + 顶层空 moxa 子映射并存（G-MOXA-2）",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
     },
-    {
-     "tcp": {
-      "dst_port": 4800
-     }
+    "expect": {
+      "expect_error": true,
+      "error_contains": "moxa: tcp.handshake must be true"
     },
-    {
-     "moxa": {}
-    }
-   ],
-   "moxa": {}
+    "notes": [
+      "N-4/E-T5: tcp.handshake=false 拒绝"
+    ]
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "no longer accepts a top-level moxa sub-config"
-  },
-  "notes": [
-   "§12-P2 ①：层链+顶层空子映射并存=判死负例；空 map 也死（presence 语义）",
-   "G-MOXA-2 落码前此形不判死（p123 报告 grep -c = 0 实测），P4 补 CheckProtoFlat moxa 分支"
-  ]
- },
- {
-  "id": "moxa_neg_stray_src_ip",
-  "proto": "moxa",
-  "summary": "§12-P2 白名单外游离顶层键判死：layers + src_ip",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
+  {
+    "id": "moxa_neg_bad_b64",
+    "proto": "moxa",
+    "summary": "N-5/E-T3: payload_b64 非法 → 拒绝（非法 base64；非法方向同族见设计 §9.1 E-T2）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "payload_b64": "%%%"
+              }
+            ]
+          }
+        }
+      ]
     },
-    {
-     "tcp": {
-      "dst_port": 4800
-     }
+    "expect": {
+      "expect_error": true,
+      "error_contains": "moxa: invalid payload_b64"
     },
-    {
-     "moxa": {}
-    }
-   ],
-   "src_ip": "10.0.0.99"
+    "notes": [
+      "N-5/E-T3: 非法 payload_b64 拒绝"
+    ]
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "no longer accepts flat config field src_ip"
-  },
-  "notes": [
-   "§12-P2 ②：白名单外游离顶层键判死（rtmfp_neg_stray_src_ip 先例）"
-  ]
- },
- {
-  "id": "moxa_neg_carrier_udp",
-  "proto": "moxa",
-  "summary": "§12-P2 载体判死：moxa 只走 tcp（DependsOn=[tcp] ⟹ tcp-only），夹 udp 载体拒",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
+  {
+    "id": "moxa_neg_oversize",
+    "proto": "moxa",
+    "summary": "N-6/E-B1: payload 3000B > MaxBlockBytes2048 → 拒绝（超长>MSS 且>2048 合并于本用例）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "mss": 1460,
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "payload": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+              }
+            ]
+          }
+        }
+      ]
     },
-    {
-     "udp": {
-      "dst_port": 4800
-     }
+    "expect": {
+      "expect_error": true,
+      "error_contains": "moxa: block 0 payload 3000 exceeds max 2048"
     },
-    {
-     "moxa": {}
-    }
-   ]
+    "notes": [
+      "N-6/E-B1: 3000B>MaxBlockBytes2048 拒绝"
+    ]
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "carrier"
+  {
+    "id": "moxa_neg_bad_direction",
+    "proto": "moxa",
+    "summary": "N-7/E-T2: stream 块 direction 非法值 'sideways' → 校验拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "direction": "sideways",
+                "payload": "hello"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "moxa: invalid direction"
+    },
+    "notes": [
+      "N-7/E-T2: 补 testcase §6.2 承诺的方向负例;与 F5 修复配套"
+    ]
   },
-  "notes": [
-   "§12-P2 ③：moxa 仅 TCP Server 裸字节载体，udp 层判死（complete.go V3 tcp-only 分支）"
-  ]
- }
+  {
+    "id": "moxa_neg_top_moxa_presence_reject",
+    "proto": "moxa",
+    "summary": "§12-P2 presence 判死形状：层链 + 顶层空 moxa 子映射并存（G-MOXA-2）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {}
+        }
+      ],
+      "moxa": {}
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "no longer accepts a top-level moxa sub-config"
+    },
+    "notes": [
+      "§12-P2 ①：层链+顶层空子映射并存=判死负例；空 map 也死（presence 语义）",
+      "G-MOXA-2 落码前此形不判死（p123 报告 grep -c = 0 实测），P4 补 CheckProtoFlat moxa 分支"
+    ]
+  },
+  {
+    "id": "moxa_neg_stray_src_ip",
+    "proto": "moxa",
+    "summary": "§12-P2 白名单外游离顶层键判死：layers + src_ip",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {}
+        }
+      ],
+      "src_ip": "10.0.0.99"
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "no longer accepts flat config field src_ip"
+    },
+    "notes": [
+      "§12-P2 ②：白名单外游离顶层键判死（rtmfp_neg_stray_src_ip 先例）"
+    ]
+  },
+  {
+    "id": "moxa_neg_carrier_udp",
+    "proto": "moxa",
+    "summary": "§12-P2 载体判死：moxa 只走 tcp（DependsOn=[tcp] ⟹ tcp-only），夹 udp 载体拒",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {}
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "carrier"
+    },
+    "notes": [
+      "§12-P2 ③：moxa 仅 TCP Server 裸字节载体，udp 层判死（complete.go V3 tcp-only 分支）"
+    ]
+  },
+  {
+    "id": "moxa_up_multi",
+    "proto": "moxa",
+    "summary": "A′ #14: 单连接连续 up 多块（A/BB/CCC），10 包 = 3 握手 + 3 数据 + 4 挥手",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "direction": "up",
+                "payload": "A"
+              },
+              {
+                "direction": "up",
+                "payload": "BB"
+              },
+              {
+                "direction": "up",
+                "payload": "CCC"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 10,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "4800"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.payload",
+          "value": "41"
+        },
+        {
+          "packet": 5,
+          "field": "tcp.payload",
+          "value": "4242"
+        },
+        {
+          "packet": 6,
+          "field": "tcp.payload",
+          "value": "434343"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "41"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "42 42"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "43 43 43"
+        }
+      ]
+    },
+    "notes": [
+      "A′ #14（testcase §6.2 方向面「连续 up 多块」）：实测 10 包 = 3 握手 + 3 数据 + 4 挥手。",
+      "三块 payload 逐块帧断言（1B/2B/3B），证明连续同向块不被合并。",
+      "has_payload 不设：moxa 无负载长度字段，验证器回退 frame.len>80 启发式，小 payload 例（1–3B/5B）恒误报；载荷由 frames hex 逐字节断言覆盖。"
+    ]
+  },
+  {
+    "id": "moxa_down_only",
+    "proto": "moxa",
+    "summary": "A′ #15: 纯 down 单块（无 up 数据），8 包 = 3 握手 + 1 数据 + 4 挥手",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "direction": "down",
+                "payload": "RT"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.srcport",
+          "value": "4800"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "52 54"
+        }
+      ]
+    },
+    "notes": [
+      "A′ #15（方向面「纯 down 单块」）：实测 8 包；首数据包由服务端（4800）发出，方向 down。",
+      "has_payload 不设：moxa 无负载长度字段，验证器回退 frame.len>80 启发式，小 payload 例（1–3B/5B）恒误报；载荷由 frames hex 逐字节断言覆盖。"
+    ]
+  },
+  {
+    "id": "moxa_block_max",
+    "proto": "moxa",
+    "summary": "A′ #16: 单块 2048B 精确边界（MaxBlockBytes 上限，先跑后钉）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "direction": "up",
+                "payload": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.len",
+          "value": "1460"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "41 41 41 41 41 41 41 41 41 41 41 41 41 41 41 41"
+        }
+      ]
+    },
+    "notes": [
+      "A′ #16（边界精化「单块 =2048 精确边界」）：2048 = MaxBlockBytes 恰好放行（2049 拒，见 moxa_neg_block_over）。",
+      "跨 MSS 分 2 段（1460 + 588），tcp.len 逐段断言首段 1460。",
+      "首段 offset 54 起为 0x41 填充（16 字节前缀断言）。",
+      "has_payload 不设：moxa 无负载长度字段，验证器回退 frame.len>80 启发式，小 payload 例（1–3B/5B）恒误报；载荷由 frames hex 逐字节断言覆盖。"
+    ]
+  },
+  {
+    "id": "moxa_default_port",
+    "proto": "moxa",
+    "summary": "A′ #17: tcp 层不写 dst_port，缺省由 FieldContract 补齐 4800（通用默认 80 不得漏上线）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "payload": "hello"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "4800"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.payload",
+          "value": "68656c6c6f"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "68 65 6c 6c 6f"
+        }
+      ]
+    },
+    "notes": [
+      "A′ #17（端口面「dst_port 缺省补齐 4800」）：删 dst_port 键不断言值——按实测断言 4800，证明走的是 FieldContract 而非通用默认 80。实测 8 包。",
+      "has_payload 不设：moxa 无负载长度字段，验证器回退 frame.len>80 启发式，小 payload 例（1–3B/5B）恒误报；载荷由 frames hex 逐字节断言覆盖。"
+    ]
+  },
+  {
+    "id": "moxa_neg_mixed_family",
+    "proto": "moxa",
+    "summary": "A′ #18: ip 层 src/dst 异族混写（v4/v6）判死",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "2001:db8::1"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "payload": "hello"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "same IP version"
+    },
+    "notes": [
+      "A′ #18（地址族面「异族混写/非法 IP」）：实测 plan 期拒，锚词 `must be same IP version`（框架通用 same-version 门，moxa 无专属分支）。"
+    ]
+  },
+  {
+    "id": "moxa_abort_rst",
+    "proto": "moxa",
+    "summary": "A′ ②: 非正常结束 tcp.rst=true（框架能力，moxa 层零断言）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 4800,
+            "rst": true
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "direction": "up",
+                "payload": "hello"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 5,
+      "has_handshake": true,
+      "negotiated": true,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "tcp.flags",
+          "value": "0x004"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "68 65 6c 6c 6f"
+        }
+      ]
+    },
+    "notes": [
+      "A′ ②（非正常结束面）：tcp 层 rst=true → 实测 5 包 = 3 握手 + 1 数据 + 1 RST（无 4 包挥手）。",
+      "moxa 无应用层终止类型，网络层异常由框架 tcp 层承载（本层零断言）。",
+      "has_payload 不设：moxa 无负载长度字段，验证器回退 frame.len>80 启发式，小 payload 例（1–3B/5B）恒误报；载荷由 frames hex 逐字节断言覆盖。"
+    ]
+  },
+  {
+    "id": "moxa_neg_block_over",
+    "proto": "moxa",
+    "summary": "A′ #16 对偶: 单块 2049B 超 MaxBlockBytes=2048 判死",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 4800
+          }
+        },
+        {
+          "moxa": {
+            "stream": [
+              {
+                "direction": "up",
+                "payload": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "exceeds max"
+    },
+    "notes": [
+      "与 moxa_block_max 构成边界对偶：2048 放行、2049 拒（planner.go MaxBlockBytes 守卫）。"
+    ]
+  }
 ]
