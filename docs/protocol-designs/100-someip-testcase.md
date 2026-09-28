@@ -1,10 +1,10 @@
 # #100 someip（SOME/IP）测试用例契约
 
-> 版本：v1.0.0（P-PIPE 文档轨 P1–P3）
+> 版本：v1.0.2（P-PIPE 文档轨 P1–P3 + 隔离审查修轮 + 小补登记；修订记录见 §9）
 > 日期：2026-09-28
-> 配套设计：`docs/protocol-designs/100-someip-design.md` v1.0.0（D-SOMEIP-1）
+> 配套设计：`docs/protocol-designs/100-someip-design.md` v1.0.2（D-SOMEIP-1）
 > 旧基线：`docs/protocol-designs/28-someip-testcase.md` v1.1.0（16 例；**承其审计通过的场景与断言思路**，冲突处按 JSON 事实改正）
-> 机器契约：`trafficgen/test/protocol_pcap/cases/someip.json`（16/16 ID 与本版 §2 一致，顺序一致，已机读实测；顶层旧键残留待 P4 迁移，G-SOMEIP-1）
+> 机器契约：`trafficgen/test/protocol_pcap/cases/someip.json`（16/16 ID 与本版 §2 一致，顺序一致，已机读实测；顶层旧键残留待 P4 迁移，G-SOMEIP-1；**存量 16 例今日 create 400 全红**，详见 §8.2 第 7 条 G-SOMEIP-12）
 > 白话一句：**十六条检查：十二条看正常收发（调用、空包、多会话、无返回、错误、黄页发现、订阅、事件、切段、新网段、IPv6 黄页、TCP），四条看胡来能不能被拦下；每条只查一件事。**
 
 ## 1. 测试原则和形状基线
@@ -183,7 +183,7 @@ AUTOSAR SOME/IP PRS（16B 头字段域 / Message Type / Return Code / SD entry-o
 
 - **清单出处声明**：本清单来源 = **AUTOSAR PRS 公开语义 + 旧基线契约 + 仓库落码反推 + tshark 3.6.14 字段实测**，**非纯规范反推**（未逐条核对 PRS 条款号 → G-SOMEIP-8）。
 - **对账两行**：**要求逻辑点总数 = 70**（八项 8 行 + 矩阵 30 格 + 变体 22 行 + 商业映射 10 行）；**用例覆盖数 = 40**（八项 3 + 矩阵已覆 10 + 变体已覆 19 + 商业已覆 8）；**不适用 = 18**（八项 2 + 矩阵 16）；**开放立项 = 12**（八项 3 + 矩阵 4 + 变体 3 + 商业 2）。40 + 18 + 12 = 70。✓
-  **粒度声明**：行/格粒度每点 1 计；G-SOMEIP-1…G-SOMEIP-11 不折进 70。**反查全绿 ≠ 覆盖全**（§9.52 原文）。逐表重数见设计 §10.1（八项）/§10.2（30 格）/§10.3（22 行）/§10.4（10 行）。
+  **粒度声明**：行/格粒度每点 1 计；G-SOMEIP-1…G-SOMEIP-12 不折进 70。**反查全绿 ≠ 覆盖全**（§9.52 原文）。逐表重数见设计 §10.1（八项）/§10.2（30 格）/§10.3（22 行）/§10.4（10 行）。
 - **门3 抽查候选**：最复杂用例 = **#8 `someip_multi_method_event`**（5 包：两方法往返 + 事件，MethodID 0x0001/0x0002/0x8001 × Type 0x00/0x80/0x02 × 方向 up/down × SessionID 分配，交织维度 = 方法(3)×类型(3)×方向(2)）；**建议门3 抽 #8 + #9**（`someip_tp_segments` 补分段/重组面）。
 
 ### 5.3 T-编号与旧 id 对照（设计 §9 全表摘要）
@@ -230,7 +230,7 @@ AUTOSAR SOME/IP PRS（16B 头字段域 / Message Type / Return Code / SD entry-o
 
 1. **P4 顺序**：G-SOMEIP-1（registry Fields + translate 分支 + schemagen 重跑）→ 存量 16 例改写（删顶层旧键，`someip` 子映射迁层内）→ 先跑后钉 16 例（**特别重钉 #6 的 Option FrameAssert**，旧稿 hex 过时）→ 补 A′ 例 → 全量复跑。
 2. **实测顺序**：先 #1/#2（头字段与 Length 基线），再 #6/#7（SD entry/Option 布局），再 #9（TP 分段与重组长度），再 #8（多方法多事件序列），最后 #11（IPv6 SD Option）、#12（TCP 载体）。
-3. 二进制与 HEAD 同代确认（门2③：`find trafficgen -name '*.go' -newer <server-binary>` 无输出）；门2② 全量（`CASE_PROTO=someip` 全量不是增量）；门2④ 反查绿后进 P6。
+3. 二进制与 HEAD 同代确认（门2③：`find trafficgen -name '*.go' -newer <server-binary>` 无输出）；门2② 全量（`CASE_PROTO=someip` 全量不是增量）；门2④ 反查绿后进 P6。**另注意**：`docs/protocol-pcap-test/someip.md` 的 16/16 pass 是过期产物（G-SOMEIP-12），不得作为"套件可跑"依据。
 4. 任何 AUTOSAR PRS 条款号的具体引用须有规范原文证据（G-SOMEIP-8 纪律）。
 
 ## 8. 存量审计（16 例逐条去向）
@@ -241,12 +241,13 @@ AUTOSAR SOME/IP PRS（16B 头字段域 / Message Type / Return Code / SD entry-o
 
 ### 8.2 现状矛盾点（P4 前诚实登记）
 
-1. **存量跑的是过渡态混合形，不是纯层链**：`spec_json` 的 `layers=[{udp:{}},{someip:{}}]` 只是**空壳**（`someip` 层 config 恒 `{}`，既不校验也不消费），真实配置住顶层 `someip` 子映射 + 顶层四元组。旧 id 的 `packet_count` 断言**今日有效**，但顶层键断言今日是**违规形**。
+1. **存量跑的是过渡态混合形，不是纯层链，且今日 create 400 全红**：`spec_json` 的 `layers=[{udp:{}},{someip:{}}]` 只是**空壳**（`someip` 层 config 恒 `{}`，既不校验也不消费），真实配置住顶层 `someip` 子映射 + 顶层四元组。按"非负例顶层键必须为 0"判据，**非负例 12/12 全部违规**（60 处残留）；五键在即被 `CheckProtoFlat`（`strategy_convert.go:8632`）拒，**今日 16/16 例 MCP 建策略 400、无一条可创建**——旧 id 的 `packet_count` 断言只有**改写落地后**才有效（第 7 条 G-SOMEIP-12）。
 2. **旧稿 TP 数字与执行事实源不符**：28-design §6 S8 / 28-testcase §4.9 写 2500B/1400/2516，JSON 实测 2560B/1408/2560。P4 不改包数（2 段不变），本版 §3.9 按 JSON 钉死。
 3. **旧稿 S5 Option 断言过时**：28-testcase §4.6 的 FrameAssert 把 Type 写首字节且 type=01；代码 `builder.go:273-276` 是 Length 先写、wire type=0x04。本版 §3.6 改正，P4 先跑后钉重写 hex。
 4. **旧稿 V5 锚词臆造**：28-design §9.1 写 `someip: tp segment N out of range`，代码实际 `tp segment_size must be > 0` / `tp segment_size %d too small`。本版 §4 按代码逐字。
 5. **负例 `notes` 键**：4 负例 expect 含 `notes`，与严格两键口径不符（G-SOMEIP-7）。
 6. **存量未覆盖**：TP 变体 0x21/0x22/0xA0/0xA1、Return Code 其余 9+ 值、IPv4 Multicast Option、StopOffer/StopSubscribe、`segment_size` 边界、`session_start=0`、缺省端口、异族混写**今日零用例**（A′ 补）。
+7. **结果文档过期（G-SOMEIP-12）**：`trafficgen/docs/protocol-pcap-test/someip.md` 写 "Cases: 16 — pass 16, fail 0, error 0"，但末次提交 `3c5991a`（2026-08-28）**早于判死提交 `0417be5`（2026-09-13）**；`cases/someip.json` 末改同为 `3c5991a`；`docs/protocol-pcap-test/someip/` **0 个 pcap**；**今日 16/16 例经 MCP 建策略 400 全红**（顶层旧键 60 处残留、非负例 12/12 全违规形）。该 16/16 pass **是过期产物，不代表今日可跑**；归属**代码阶段（P5 重跑套件后重生成该产物）**。
 
 ### 8.3 逐条去向表（16 行）
 
@@ -273,5 +274,6 @@ AUTOSAR SOME/IP PRS（16B 头字段域 / Message Type / Return Code / SD entry-o
 
 ## 9. 修订记录
 
+- v1.0.2（2026-09-28，小补登记）：§8.2 新增第 7 条 **G-SOMEIP-12 结果文档过期**——`docs/protocol-pcap-test/someip.md` 的 16/16 pass 为过期产物（末次提交 `3c5991a` 2026-08-28 早于判死提交 `0417be5` 2026-09-13；`docs/protocol-pcap-test/someip/` 0 个 pcap；今日 16/16 例经 MCP 建策略 400 全红）。归属**代码阶段（P5 重跑套件后重生成）**。口径与 pcep 车道 G-PCEP-11 一致。设计侧同步 §0 产物过期登记 + §14 缺口行。
 - v1.0.1（2026-09-28，隔离审查 B-1/B-2/B-3 + D 类修轮）：**B-1** §3.6 的 SD Entry 偏移表按代码/探针重写（ServiceID@4-5、InstanceID@6-7、Major@8、TTL@9-11、Minor@12-15；Index1@1/Index2@2 为独立字节，NumOpts 合并于 `entry[3]`）——旧稿偏移整体错位 1 字节；补 SD 报文完整布局（含 4B Options Length）。**B-2** §3.9 TP 头由 8B 改 **4B**（低 28bit=offset 16 对齐、bit0=more），并声明**后续段重复完整 16B 头**（`planner.go:247`）——旧稿头长与后续段结构全错。**B-3** §4 补 planner 拒绝分支**全表 10 条**（入例 4 + A′ 立项 6，原写"7 种"漏 3 条：`sd.type`/`src IP`/`dst IP`），补 `subscribe_ack` 独立配置写法。**D 类**：§1 形状基线补 `decode_as` 12/16 与 `notes` 位置；§3.1 补缺省化；§3.9 标注 `tp.payload_length` 死配置（G-SOMEIP-9）。每条附复算命令与原始输出。自审见审计日志 §E。
 - v1.0.0（2026-09-28）：P-PIPE #100 文档轨 P1–P3。**承 28-someip-testcase 审计通过的 16 ID / 锚词 / fixture 思路**；形状基线机读实测（§1）；P3 固定动作（§6）；执行建议（§7）；存量审计（§8，16/16 改写）；冲突处按 JSON/代码事实改正（TP 2560/1408/2560、Option type=4 与 wire 布局、`ipv6.nxt=17`、V5 锚词）。自审见审计日志 §E。

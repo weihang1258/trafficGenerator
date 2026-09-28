@@ -1,10 +1,10 @@
 # #100 someip（SOME/IP · AUTOSAR 面向服务中间件）设计契约
 
-> 版本：v1.0.0（P-PIPE 文档轨 P1–P3）
+> 版本：v1.0.2（P-PIPE 文档轨 P1–P3 + 隔离审查修轮 + 小补登记；修订记录见 §15）
 > 日期：2026-09-28
 > 车道：文档轨（#100 someip 续号）
 > 旧基线：`docs/protocol-designs/28-someip-design.md` v1.1.0 + `28-someip-testcase.md` v1.1.0（16 例 = 12 正 + 4 负；本 #100 为 P-PIPE 续号重做，**承 28 稿的场景划分与用例 ID 集合**；线格式以代码 + tshark 探针为唯一权威，28 稿线格式表经审计确认有 7 处错误并已逐条改正，见 §0 第 6–13 行）
-> 存量用例：`trafficgen/test/protocol_pcap/cases/someip.json`（16/16 ID 与旧稿一致，顺序一致，已机读实测；顶层旧键残留待 P4 迁移，G-SOMEIP-1）
+> 存量用例：`trafficgen/test/protocol_pcap/cases/someip.json`（16/16 ID 与旧稿一致，顺序一致，已机读实测；顶层旧键残留待 P4 迁移，G-SOMEIP-1；**存量 16 例今日 create 400 全红**——五键在即被 `CheckProtoFlat` 拒，详见 §0 产物过期登记 G-SOMEIP-12）
 > 规范基线：① AUTOSAR SOME/IP 协议规范（PRS SOME/IP Protocol Specification：16B 消息头字段域、Message Type/Return Code 编码、SD entry/option 结构、TP 分段，下称 **spec**）；② 本机 tshark 3.6.14 `someip.*`/`someipsd.*`/`someip.tp.*` 字段表实测（字段名与进制显示的唯一权威）；③ 本仓库落码（`internal/protocol/someip/` planner/builder/生成器 + 接线，§11）；④ 旧基线设计文档（内部契约，非外部规范）
 > 白话一句：**车里的"服务电话系统"——一条消息 16 字节头（谁打给谁、哪个方法、第几通电话），头后面跟业务数据；还有两个附件：SD 是"黄页"（服务在哪儿），TP 是"把超长内容切段寄"。**
 
@@ -31,6 +31,30 @@
 **依赖链判定纪律**：以上均为可判题（旧文→代码→用例三级对照），直接判定，不问偏好。不可判的（AUTOSAR 规范原文条款号）标"待确认"并写清确认方式（G-SOMEIP-8）。
 
 > **第 12/13 行属"旧稿继承错误"而非"新错"**：本版 §3.4.1/§3.5 初稿照抄了 28 稿表，经隔离审查 B-1/B-2 打回后按代码 + tshark 探针重写（§3.4.1/§3.5 各附复算命令与原始输出）。教训：**字段/偏移表必须实调 tshark 探针产出，禁由旧稿搬运**。
+
+**产物过期登记（重要，G-SOMEIP-12）**：`trafficgen/docs/protocol-pcap-test/someip.md` 写 "Cases: 16 — pass 16, fail 0, error 0"，但该文件末次提交 `3c5991a`（2026-08-28），**早于**判死提交 `0417be5`（2026-09-13）**16 天**；`cases/someip.json` 末改同为 `3c5991a`（2026-08-28）；`docs/protocol-pcap-test/someip/` 目录 **0 个 pcap 文件**（目录本身不存在）。更关键：**存量 16 例今日经 MCP 建策略 400 全红**——顶层旧键残留 **60 处**（非负例 12/12 全违规形，每例 `src_ip`/`dst_ip`/`src_port`/`dst_port` + 顶层 `someip` 子映射 5 键），首条即被 `CheckProtoFlat`（`strategy_convert.go:8632`）拒：`protocol someip no longer accepts flat config field src_ip`。**该结果文档是过期产物，16/16 pass 不代表今日可跑**——读者不得据此判断套件可用。
+
+复算命令与原始输出（`trafficgen/` 下执行）：
+
+```bash
+git log -1 --format='%h %ad %s' --date=short -- docs/protocol-pcap-test/someip.md
+# → 3c5991a 2026-08-28 fix(someip): SOME/IP-SD wire layout + TP segmentation (someip 4/16→16/16)
+git log -1 --format='%h %ad %s' --date=short 0417be5
+# → 0417be5 2026-09-13 feat(core): 扁平判死泛化全协议（CheckProtoFlat）
+ls docs/protocol-pcap-test/someip/ | wc -l
+# → 0（ls: No such file or directory）
+git log -1 --format='%h %ad %s' --date=short -- test/protocol_pcap/cases/someip.json
+# → 3c5991a 2026-08-28（与结果文档同提交）
+python3 -c "
+import json
+cs=json.load(open('test/protocol_pcap/cases/someip.json'))
+cs=cs if isinstance(cs,list) else cs['cases']
+fk={'src_ip','dst_ip','src_port','dst_port','someip'}
+print('non-neg residue', sum(len(set(c['spec_json'])&fk) for c in cs if 'expect_error' not in c['expect']),
+      '| violating non-neg', sum(1 for c in cs if 'expect_error' not in c['expect'] and set(c['spec_json'])&fk), '/12')"
+# → non-neg residue 60 | violating non-neg 12 /12
+# MCP 建策略 16/16 → 400（`protocol someip no longer accepts flat config field src_ip …`）
+```
 
 ## 1. 范围、profile 与实现状态边界
 
@@ -563,8 +587,10 @@ someip 层无自有连接状态（承 28 稿 §4）：UDP 无连接，TCP 握手
 | G-SOMEIP-9 | `tp.payload_length` 是**死配置**（`grep -rc PayloadLength` 在 planner/builder/layer_gen = 0/0/0；代码只用 `len(cfg.Payload)` + `SegmentSize`） | P4 裁定：补消费或删键；**断言 `reassembled.length=2560` 实际来自 `len(payload)`，非该字段**（§3.5 已注明） |
 | G-SOMEIP-10 | `sd.type="subscribe_ack"` 独立配置无例（`sdTypeFromString` 支持，存量只走 subscribe 自动派生） | A′ 补例（独立 Ack 报文） |
 | G-SOMEIP-11 | 6 条未入例的 planner 拒绝分支（`protocol_version`/`segment_size<8`/`sd.type`/`events[i].message_type`/`src IP`/`dst IP`，§7 表）+ builder 3 条 | A′ 逐分支补负例（§9.47 错误码全表枚举） |
+| G-SOMEIP-12 | **结果文档过期**：`trafficgen/docs/protocol-pcap-test/someip.md` 写 "Cases: 16 — pass 16, fail 0, error 0"，末次提交 `3c5991a`（2026-08-28）**早于判死提交 `0417be5`（2026-09-13）**；`cases/someip.json` 末改同为 `3c5991a`；`docs/protocol-pcap-test/someip/` **0 个 pcap**；**今日 16/16 例经 MCP 建策略 400 全红**（顶层旧键 60 处残留、非负例 12/12 全违规形） | **代码阶段（P5）**：套件重跑后**重生成**结果文档；在此之前读者不得据此判断套件可跑（§0 产物过期登记） |
 
 ## 15. 修订记录
 
+- v1.0.2（2026-09-28，小补登记）：新增 **G-SOMEIP-12 结果文档过期**（§0 产物过期登记 + §14 缺口行）——`docs/protocol-pcap-test/someip.md` 写 16/16 pass，末次提交 `3c5991a`（2026-08-28）早于判死提交 `0417be5`（2026-09-13）；`docs/protocol-pcap-test/someip/` **0 个 pcap**；今日 16/16 例经 MCP 建策略 **400 全红**（顶层旧键 60 处残留、非负例 12/12 全违规形）。归属**代码阶段（P5 重跑套件后重生成该产物）**。口径与 pcep 车道 G-PCEP-11 一致。附复算命令与原始输出。
 - v1.0.1（2026-09-28，隔离审查 B-1/B-2/B-3 + D 类修轮）：**B-1** §3.4.1 SD Entry 偏移表按代码/探针重写（ServiceID@4-5、InstanceID@6-7、Major@8、TTL@9-11、Minor@12-15；`entry[1]`/`entry[2]` 是 tshark `index1`/`index2` 独立字节，NumOpts 合并于 `entry[3]` 高/低 4bit）——初稿照抄 28 稿、偏移整体错位 1 字节（§0 第 12 行登记）；补 4B Options Length 字段与 Eventgroup 变体布局（counter@[13] 低 4bit、eventgroupID@[14:16]）；§12.3 关联表述改为"位置相邻、不做 index 引用"。**B-2** §3.5 TP 头由 8B 改 **4B**（低 28bit=offset 16 对齐、bit0=more），并声明**后续段重复完整 16B 头**（`planner.go:247`）——初稿照抄 28 稿、头长与后续段结构全错（§0 第 13 行登记）；§6 性能节 TP 头同步改 4B。**B-3** §7 补 planner 拒绝分支**全表 10 条**（入例 4 + A′ 立项 6，原写"7 种"漏 3 条：`sd.type`/`src IP`/`dst IP`）；§10.1 #5、§11.1、§11.5、§12 计数同步 10；补 `subscribe_ack` 独立配置写法。**D 类**：§10.1 #4 补 `tp.payload_length` 死配置缺口；§8 补"引擎不强制 16 对齐"事实；新增 G-SOMEIP-9/10/11。**每条附复算命令与原始输出**（§3.4.1/§3.5 探针段）。自审见审计日志 §E。
 - v1.0.0（2026-09-28）：P-PIPE #100 文档轨 P1–P3。28→100 沿革与 11 项校正（§0）；存量 16 例机读审计（顶层残留形状、expect 形状、ID 顺序一致）；§12.1/12.3/12.12 强制展开 + 12-P2；D-SOMEIP-1 as-built 定稿（§11）；缺口 G-SOMEIP-1…G-SOMEIP-8；**承 28-someip-design 审计通过的线格式与场景结论**，冲突处按代码/JSON 事实改正（TP 2560/1408、Option wire 0x04、S5 hexdump、V5 锚词、ipv6.nxt）。自审见审计日志 §E。
