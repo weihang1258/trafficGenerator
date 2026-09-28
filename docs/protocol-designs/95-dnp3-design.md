@@ -39,7 +39,7 @@
 | 路径 | 实测 | 证据 |
 |---|---|---|
 | MCP / 建策略 | **存量 70/70 全部 400** | `schema/semantic.go:130` 调 `core.CheckProtoFlat`——该调用位于 layers 分支（`:109-120`）**之后且无条件**；`CheckProtoFlat`（`strategy_convert.go:8625+`）对 `src_ip`/`dst_ip`/`src_port`/`dst_port`/`count` 任一出现即返 400。存量 70/70 带 `src_ip`+`dst_ip` → 全红，文案 `protocol dnp3 no longer accepts flat config field src_ip`。**本车道实测复现：70 rejected / 0 accepted** |
-| 离线 suite | **根本不跑 dnp3** | `layer_chain_suite_test.go:70` 的 `chainSuiteProtos` 白名单**不含 dnp3**；且 29 例无 `layers` 键被 `:133` 跳过（41 例有 layers 但同带顶层四元组，剥离 layers 后直传 `MapToFlowSpec`，**绕过 `CheckProtoFlat`**，属套件内部旁路、非生产路径） |
+| 离线 suite | **根本不跑 dnp3** | `layer_chain_suite_test.go:70` 的 `chainSuiteProtos` 白名单**不含 dnp3**；且 29 例无 `layers` 键被 `:138` 跳过（41 例有 layers 但同带顶层四元组，剥离 layers 后直传 `MapToFlowSpec`，**绕过 `CheckProtoFlat`**，属套件内部旁路、非生产路径） |
 
 **结论**："legacy flat 路径"**今日已不存在**（Step 1 全协议扁平判死关闭）。**存量 70 例今日既非绿也非红——它们不可执行**；其 `packet_count`/frames 断言仅为**历史实测值**（旧版本遗留），待代码阶段层链内化后**重新校准**（§9.31 先跑后钉）。
 
@@ -57,7 +57,7 @@
 
 | profile | 承载 | 本版允许内容 | 不从 profile 推导 |
 |---|---|---|---|
-| `dnp3_tcp_master_v1`（主） | TCP 明文（fixture 20000，可配置覆盖） | scenario 全表（**16 个 distinct 名**；`scenario.go` 主 switch 15 个 case 行 = 17 个标签〔含多标签行 `multi_object_response`+`respond`、`read_class0`+`read_class123`〕+ 空串缺省臂；三口径关系见 §3.6 脚注）+ objects 全形态 + IIN 全位 | 真实 RTU 响应时序、设备轮询周期 |
+| `dnp3_tcp_master_v1`（主） | TCP 明文（fixture 20000，可配置覆盖） | scenario 全表（**16 个 distinct 名**；`scenario.go` 主 switch 15 个 case 行 = 17 个标签〔含多标签行 `multi_object_response`+`respond`、`read_class0`+`read_class123`〕+ 空串缺省臂；三口径关系见 §5「scenario 计数三口径」）+ objects 全形态 + IIN 全位 | 真实 RTU 响应时序、设备轮询周期 |
 | `dnp3_tcp_outstation_v1` | 同上，`link_type=outstation` | respond/unsolicited 方向 | 从 master fixture 推导外设行为 |
 
 显式边界（"不实现、不声称、不许静默转换"）：**UDP 传输不在本版**（层链生成器显式拒绝，`layer_gen.go:52`；legacy `Plan` 代码在但扁平入口已判死，§0 表 #7/§0.1 判据 B）；**multi_outstation 多流展开不在本版**（显式拒绝，`layer_gen.go:55`；同上，§0 表 #8）；串行链路（DNP3 serial）不在本版；不声称任何帧与真实 RTU 字节到达时序一致。
@@ -237,7 +237,7 @@ dnp3 层无自有状态（`layer_gen.go:43-67` 纯函数驱动）：握手/seq-a
 
 **多会话展开**：多会话语义由策略级 `flow_control {"flows": N}` 表达（worker 递增 `src_port`）；`multi_outstation` 层链显式拒绝（`layer_gen.go:55`）→ 转负例。
 
-**scenario 计数三口径（避免混用）**：① **16 个 distinct 名**（`grep -o 'case "…"' scenario.go | sort -u | wc -l`，排除空串）；② **主 switch 15 个 case 行**（`scenario.go:60-91`，多标签行按行计）；③ **主 switch 17 个标签**（多标签行拆分后；含空串缺省臂 1 个）。全文"16 项"一律指口径 ①。
+**scenario 计数三口径（避免混用）**：① **16 个 distinct 名**（`grep -oE 'case [^:]*:' scenario.go | grep -oE '"[^"]*"' | grep -v '^""$' | sort -u | wc -l` = 16；**全文件范围**，排除空串缺省臂；与主 switch 口径同值）；② **主 switch 15 个 case 行**（`scenario.go:60-91`，多标签行按行计）；③ **主 switch 17 个标签**（多标签行拆分后；含空串缺省臂 1 个）。全文"16 项"一律指口径 ①。
 
 **自动派生规则**：① `scenario` 缺省 → `exchange(AppRead, ...)`（`scenario.go:87-89`，等价 read）；② `objects` 缺省 → `defaultObjects(scenario)`（`scenario.go:94-102`）；③ TCP 握手/FIN 由 tcp 层自动补；④ 广播（`dst_addr=0xFFFF`）与 No-Ack 类 FC 不产 ACK/Respond（`scenario.go:52`）；⑤ `isResponse` 判定的响应类 scenario 走 `respond()`（`scenario.go:62-64`）。
 
@@ -324,21 +324,21 @@ dnp3 层无自有状态（`layer_gen.go:43-67` 纯函数驱动）：握手/seq-a
 
 | scenario | T1 正常 FIN 终态 | T2 配置拒绝 | T3 层链能力边界 |
 |---|---|---|---|
-| reset_link | 已覆（T21，flat） | 已覆（N-1/N-2/N-4 代表） | 待代码阶段（N-22 若带 multi，G-DNP3-11） |
-| read_class0 | 已覆（T22，flat） | 已覆（N-6/N-13/N-14/N-15） | 待代码阶段（G-DNP3-11） |
-| read_class123 | 已覆（T17，flat） | 已覆（N-16） | 待代码阶段（G-DNP3-11） |
-| select_operate | 已覆（T23/T67，flat） | 已覆（N-13） | 待代码阶段（G-DNP3-11） |
-| direct_operate | 已覆（T24，flat） | 已覆（N-14/N-15） | 待代码阶段（G-DNP3-11） |
-| write_single | 已覆（`dnp3_write_single_80_1`，flat） | 已覆（代表） | 待代码阶段（G-DNP3-11） |
-| unsolicited | 已覆（T25，flat） | 已覆（N-5） | 待代码阶段（G-DNP3-11） |
-| cold/warm_restart | 已覆（T26，flat） | 已覆（代表） | 待代码阶段（G-DNP3-11） |
-| freeze/freeze_clear | 已覆（T72/T64，flat） | 已覆（N-18） | 待代码阶段（G-DNP3-11） |
+| reset_link | 已覆（T21） | 已覆（N-1/N-2/N-4 代表） | 待代码阶段（N-22 若带 multi，G-DNP3-11） |
+| read_class0 | 已覆（T22） | 已覆（N-6/N-13/N-14/N-15） | 待代码阶段（G-DNP3-11） |
+| read_class123 | 已覆（T17） | 已覆（N-16） | 待代码阶段（G-DNP3-11） |
+| select_operate | 已覆（T23/T67） | 已覆（N-13） | 待代码阶段（G-DNP3-11） |
+| direct_operate | 已覆（T24） | 已覆（N-14/N-15） | 待代码阶段（G-DNP3-11） |
+| write_single | 已覆（`dnp3_write_single_80_1`） | 已覆（代表） | 待代码阶段（G-DNP3-11） |
+| unsolicited | 已覆（T25） | 已覆（N-5） | 待代码阶段（G-DNP3-11） |
+| cold/warm_restart | 已覆（T26） | 已覆（代表） | 待代码阶段（G-DNP3-11） |
+| freeze/freeze_clear | 已覆（T72/T64） | 已覆（N-18） | 待代码阶段（G-DNP3-11） |
 | enable/disable_unsolicited | **待建**（补例 `dnp3_enable_unsolicited`） | 已覆（代表） | 待代码阶段（G-DNP3-11） |
 | assign_class | **待建**（补例 `dnp3_assign_class`） | 已覆（代表） | 待代码阶段（G-DNP3-11） |
 | delay_measurement | **待建**（补例 `dnp3_delay_measurement`） | 已覆（代表） | 待代码阶段（G-DNP3-11） |
-| respond / multi_object_response | 已覆（T3/T68/T78，flat） | 已覆（N-17） | 待代码阶段（G-DNP3-11） |
-| UDP 传输 | 已覆（T27，flat；**层链显式拒绝**） | 已覆（N-2） | **层链不支持**（`layer_gen.go:52`，G-DNP3-11） |
-| 多外设展开 | 已覆（8 例，flat；**层链显式拒绝**） | 已覆（N-7…N-11） | **层链不支持**（`layer_gen.go:55`，G-DNP3-11） |
+| respond / multi_object_response | 已覆（T3/T68/T78） | 已覆（N-17） | 待代码阶段（G-DNP3-11） |
+| UDP 传输 | 已覆（T27；**层链显式拒绝**） | 已覆（N-2） | **层链不支持**（`layer_gen.go:52`，G-DNP3-11） |
+| 多外设展开 | 已覆（8 例；**层链显式拒绝**） | 已覆（N-7…N-11） | **层链不支持**（`layer_gen.go:55`，G-DNP3-11） |
 
 **逐格重数（可复算）**：15 行 × 3 列 = 45 格——**已具断言 27**（T1 列 12 + T2 列 15）+ **待建 3**（T1 列 enable_unsolicited/assign_class/delay_measurement）+ **层链不支持 2**（T3 列 UDP/多外设）+ **待代码阶段 13**（T3 列其余 13 行）= 45。零空格。
 
