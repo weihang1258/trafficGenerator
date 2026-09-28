@@ -1149,8 +1149,42 @@ func buildDefaultRegistry() {
 			"events":            {Type: "list"},
 		},
 	})
+	// D-OSPF-1：ospf 层 23 业务键对齐 core.OSPFConfig json 标签（routing.go
+	// :66-90；键名=标签名）。无 Default（决策 F；缺省语义在生成器侧——空层
+	// config 不落 spec.OSPF，生成器 P0b-2 缺省 hello，layer_gen.go:27）；V9
+	// 数值域只做类型界（version=3 / packet_type=unknown 等语义拒留
+	// planner.go:24/:54，锚词 version/type）；events/neighbors/requests/lsas/
+	// lsa_headers 为结构数组，元素级校验归 Planner.Validate（§6 锚词表）；
+	// wire_fault 为故障注入块（carrier/declared_length/area_id 三 kind 在
+	// planner.go:41/:73/:66 拒；块内未知键不进执法面）；flags 为 DBD 三标志
+	// 对象（OSPFDDFlags）。
 	r.Register(LayerSchema{Name: "ospf", Category: CategoryTerminal, DependsOn: []string{"ip"},
 		FieldContract: map[string]string{"ip.protocol": "89"}, // RFC 2328 OSPF IPPROTO=89
+		Fields: map[string]FieldSchema{
+			"version":                  {Type: "uint8", Min: 0, Max: 255},
+			"packet_type":              {Type: "string"},
+			"router_id":                {Type: "string"},
+			"area_id":                  {Type: "string"},
+			"profile":                  {Type: "string"},
+			"auth_type":                {Type: "uint16", Min: 0, Max: 65535},
+			"checksum_mode":            {Type: "string"},
+			"network_mask":             {Type: "string"},
+			"hello_interval":           {Type: "uint16", Min: 0, Max: 65535},
+			"dead_interval":            {Type: "uint32", Min: 0, Max: 4294967295},
+			"options":                  {Type: "uint8", Min: 0, Max: 255},
+			"priority":                 {Type: "uint8", Min: 0, Max: 255},
+			"designated_router":        {Type: "string"},
+			"backup_designated_router": {Type: "string"},
+			"neighbors":                {Type: "list"},
+			"interface_mtu":            {Type: "uint16", Min: 0, Max: 65535},
+			"flags":                    {Type: "object"},
+			"dd_sequence":              {Type: "uint32", Min: 0, Max: 4294967295},
+			"lsa_headers":              {Type: "list"},
+			"requests":                 {Type: "list"},
+			"lsas":                     {Type: "list"},
+			"events":                   {Type: "list"},
+			"wire_fault":               {Type: "object"},
+		},
 	})
 	// D-PIM-1 G-PIM-1：pim 层 4 业务键 = core.PIMConfig json 标签（routing.go
 	// :174-179；键名=标签名），无 Default（缺省语义在生成器侧——空层

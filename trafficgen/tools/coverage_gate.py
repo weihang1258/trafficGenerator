@@ -1625,6 +1625,217 @@ def check_mms(cases):
     return rows
 
 
+def check_ospf(cases):
+    """D-OSPF-1 P4 反查表（24 例 = 12 正 + 12 负；[ip,ospf] raw-IP 终结层，
+    RFC 2328 OSPFv2 / IP proto 89）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线（P4 落码面）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 ospf", '"ospf": true' in pg, "在列"))
+    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
+    i_neg = pt.index("negativeOnly := []string{")
+    rows.append(("negativeOnly 不含 ospf（已准入）", '"ospf"' not in pt[i_neg:i_neg + 900], "已摘除"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "ospf"')
+    reg_block = rg[i_reg:rg.index('Name: "', i_reg + 20)]
+    rows.append(("registry ospf 行（DependsOn ip + FieldContract ip.protocol=89）",
+                 'DependsOn: []string{"ip"}' in reg_block
+                 and '"ip.protocol": "89"' in reg_block, "在案"))
+    want_keys = ["version", "packet_type", "router_id", "area_id", "profile",
+                 "auth_type", "checksum_mode", "network_mask", "hello_interval",
+                 "dead_interval", "options", "priority", "designated_router",
+                 "backup_designated_router", "neighbors", "interface_mtu", "flags",
+                 "dd_sequence", "lsa_headers", "requests", "lsas", "events",
+                 "wire_fault"]
+    miss = [k for k in want_keys if f'"{k}"' not in reg_block]
+    rows.append(("registry Fields 23 键齐（层业务键 V9 放行）", not miss, miss or "23/23"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    i_tr = tr.index('case "ospf":')
+    tr_block = tr[i_tr:i_tr + 1400]
+    rows.append(("translate case ospf（层 config 严格解码进 spec.OSPF）",
+                 "ospf layer config decode" in tr_block
+                 and "DisallowUnknownFields" in tr_block, "在案"))
+    rows.append(("translate 层优先守卫（spec.OSPF != nil 不覆盖）",
+                 "if spec.OSPF == nil {" in tr_block, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    # M-2（gen-review）：原判据为宽泛子串（presence 行查整文件任意位置的文案；
+    # mapToFlowSpec 行查与 presence 分支共用的 `if protocol == "ospf" {`）。
+    # 同 coap C1 / tns M1 / stratum M1 同型缺陷——门断言「文本出现过」而非
+    # 「行为成立」。改为断言各块**特有体**。
+    _presence_ospf = ('if protocol == "ospf" {\n'
+                      '\t\tif v, ok := cfg["ospf"]; ok && v != nil {\n'
+                      '\t\t\treturn "protocol ospf no longer accepts a top-level ospf sub-config')
+    _mapfs_ospf = ('if protocol == "ospf" {\n'
+                   '\t\tif v, ok := cfg["ospf"]; ok && v != nil {\n'
+                   '\t\t\tspec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))')
+    rows.append(("CheckProtoFlat 顶层 ospf 子映射 presence 判死（判据=块体非裸文案）",
+                 _presence_ospf in sc, "在案"))
+    rows.append(("mapToFlowSpec 顶层 ospf → ValidationErrors（在库旧策略执法，判据=块体非裸子串）",
+                 _mapfs_ospf in sc, "在案"))
+    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
+    i_vl = vl.index('if protocol == "ospf" {')
+    vl_block = vl[i_vl:vl.index("effective, err := ValidateLayers", i_vl)]
+    rows.append(("链预检三支：tcp carrier / udp carrier / 缺 ip carrier",
+                 "tcp carrier is not supported" in vl_block
+                 and "udp carrier is not supported" in vl_block
+                 and "missing ip carrier" in vl_block, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(ospf)",
+                 "internal/protocol/ospf" in mn and 'NewChainPlanner("ospf")' in mn, "在案"))
+    cu = (tg / "internal" / "core" / "layers" / "chain_planner_util.go").read_text()
+    rows.append(("isRawIPChain 认 ospf（无传输层族）",
+                 '"ospf"' in cu.split("func isRawIPChain")[1][:600], "在案"))
+    rows.append(("transportProtocol ospf→ProtocolOSPF（末层/倒二层双看位）",
+                 cu.count("return core.ProtocolOSPF") >= 2, "在案"))
+    gen = json.loads((tg / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
+    gf = ((gen.get("layers") or {}).get("ospf") or {}).get("fields") or {}
+    rows.append(("生成表 ospf 层与 registry 对齐（23 键）",
+                 len(gf) == 23 and {"packet_type", "events", "wire_fault"} <= set(gf), f"{len(gf)} 键"))
+    rows.append(("生成表 ospf field_contract ip.protocol=89（无过期）",
+                 ((gen.get("layers") or {}).get("ospf") or {}).get("field_contract", {}).get("ip.protocol") == "89",
+                 "在案"))
+    blk = (tg / "internal" / "core" / "layers" / "ospf_chain_test.go").read_text()
+    for tc, name in [
+        ("TestOSPFChain_FlatPresenceRejected", "链级①presence 判死"),
+        ("TestOSPFChain_StrayTopLevelKeys", "链级②游离键判死"),
+        ("TestOSPFChain_CarrierRejected", "链级③载体拒（tcp/udp/缺 ip）"),
+        ("TestOSPFChain_LayerToSpecPlan", "链级④层 config → spec.OSPF 翻译出包"),
+        ("TestOSPFChain_StrictDecodeNestedUnknownKey", "链级⑤strict 解码嵌套未知键拒"),
+        ("TestOSPFChain_LayerTTLIsInert", "链级⑥TTL 面实测（层值惰性，生成器固写 1）"),
+    ]:
+        rows.append((f"链级红测：{name}", tc in blk, "在案"))
+
+    # 2. 用例面（24 例 = 12 正 + 12 负）。
+    exp_ids = ["ospf_hello_dr_bdr", "ospf_hello_neighbors", "ospf_dbd_master",
+               "ospf_dbd_slave", "ospf_lsr_router_lsa", "ospf_lsr_network_lsa",
+               "ospf_lsu_router_lsa", "ospf_lsu_network_lsa", "ospf_lsack",
+               "ospf_neighbor_full_exchange", "ospf_ipv4_transport",
+               "ospf_checksum_length", "ospf_neg_udp", "ospf_neg_ipv6_v2",
+               "ospf_neg_version", "ospf_neg_type", "ospf_neg_length",
+               "ospf_neg_area", "ospf_neg_router_id", "ospf_ipv6_rfc5340_boundary",
+               "ospf_neg_presence_top_level_ospf", "ospf_neg_stray_src_mac",
+               "ospf_neg_carrier_tcp", "ospf_neg_carrier_missing_ip"]
+    got_ids = [c.get("id") for c in cases]
+    rows.append(("24 例 ID 与契约 §7 索引 + §14-P2 四链级红例同序",
+                 got_ids == exp_ids,
+                 "同序" if got_ids == exp_ids else f"差异: {set(exp_ids) ^ set(got_ids)}"))
+    pos = [c for c in cases if "expect_error" not in (c.get("expect") or {})]
+    neg = [c for c in cases if "expect_error" in (c.get("expect") or {})]
+    rows.append(("12 正 + 12 负", len(pos) == 12 and len(neg) == 12, f"{len(pos)} 正 / {len(neg)} 负"))
+    seq = [(c.get("expect") or {}).get("packet_count") for c in pos]
+    want_seq = [1, 1, 1, 1, 1, 1, 1, 1, 1, 6, 1, 1]
+    rows.append(("packet_count 序列 = 契约 §7（总包数 17）", seq == want_seq, str(seq)))
+    bad_keys = [c.get("id") for c in neg
+                if set((c.get("expect") or {}).keys()) != {"expect_error", "error_contains"}]
+    rows.append(("负例 expect 键集严格 = {expect_error, error_contains}",
+                 not bad_keys, bad_keys or "12/12 合规"))
+    five = [c.get("id") for c in pos if not (
+        (c.get("expect") or {}).get("packet_count")
+        and (c.get("expect") or {}).get("fields")
+        and (c.get("expect") or {}).get("frames")
+        and (c.get("expect") or {}).get("has_payload") is True)]
+    rows.append(("正例四项齐全（packet_count/fields/frames/has_payload）",
+                 not five, five or "12/12"))
+    dir_true = [c.get("id") for c in pos if (c.get("expect") or {}).get("directional") is True]
+    rows.append(("directional=true 仅 #10（六事件邻接交换，契约 §2 唯一例）",
+                 dir_true == ["ospf_neighbor_full_exchange"], dir_true or "零例"))
+    hs = [c.get("id") for c in cases if "has_handshake" in json.dumps(c)]
+    rows.append(("has_handshake 零出现（raw-IP 无握手族）", not hs, hs or "0/24"))
+    tm = [c.get("id") for c in cases if "terminates" in json.dumps(c)]
+    rows.append(("terminates 零出现（raw-IP 无挥手族）", not tm, tm or "0/24"))
+
+    # 3. 断言通道（§1/§3 实测口径：34 字段去重 + offset 34 单档）。
+    flds = set()
+    for c in pos:
+        for f in (c.get("expect") or {}).get("fields") or []:
+            if isinstance(f, dict) and f.get("field"):
+                flds.add(f["field"])
+    rows.append(("字段面 ⊆ 契约 34 字段去重集（ospf.* 30 + ip.* 4）",
+                 flds <= OSPF_FIELDS_34, f"{len(flds)} 个"
+                 + ("" if flds <= OSPF_FIELDS_34 else f"，超集 {flds - OSPF_FIELDS_34}")))
+    rows.append(("字段面覆盖 ip.proto=89 载体不变量（12/12 正例）",
+                 all(any(f.get("field") == "ip.proto" and f.get("value") == "89"
+                         for f in (c.get("expect") or {}).get("fields") or []) for c in pos),
+                 "12/12"))
+    offs = set()
+    for c in pos:
+        for f in (c.get("expect") or {}).get("frames") or []:
+            if isinstance(f, dict) and f.get("offset") is not None:
+                offs.add(f["offset"])
+    rows.append(("frames offset 单档 = 34（IPv4 无 option 的 OSPF 起点）",
+                 offs == {34}, str(sorted(offs))))
+    hexes = {f.get("hex", "") for c in pos
+             for f in (c.get("expect") or {}).get("frames") or []}
+    rows.append(("frames 前缀 ⊆ 契约八类 + 六事件短前缀（Version/Type 面）",
+                 bool(hexes) and all(h.startswith(("02 01", "02 02", "02 03", "02 04", "02 05"))
+                                     for h in hexes), f"{len(hexes)} 类"))
+    lit = [c.get("id") for c in pos for f in (c.get("expect") or {}).get("fields") or []
+           if f.get("field") in ("ospf.checksum", "ospf.lsa.chksum") and "value" in f]
+    rows.append(("checksum 只以 nonzero 观察（不钉未复算十六进制）", not lit, lit or "零字面量"))
+
+    # 4. 负例锚词：case 侧 error_contains 逐字 = 契约 §6/§14-P2 表值，且每个
+    #    值命中已落码文案（planner / strategy_convert / validate_layers）。
+    pl = (tg / "internal" / "protocol" / "ospf" / "planner.go").read_text()
+    want_anchor = {
+        "ospf_neg_udp": "ip",
+        "ospf_neg_ipv6_v2": "rfc5340",
+        "ospf_neg_version": "version",
+        "ospf_neg_type": "type",
+        "ospf_neg_length": "length",
+        "ospf_neg_area": "area",
+        "ospf_neg_router_id": "router",
+        "ospf_ipv6_rfc5340_boundary": "rfc5340",
+        "ospf_neg_presence_top_level_ospf": "no longer accepts a top-level ospf sub-config",
+        "ospf_neg_stray_src_mac": "src_mac",
+        "ospf_neg_carrier_tcp": "carrier",
+        "ospf_neg_carrier_missing_ip": "carrier",
+    }
+    bad = [c.get("id") for c in neg
+           if (c.get("expect") or {}).get("error_contains") != want_anchor.get(c.get("id"))]
+    rows.append(("12 负例 error_contains 逐字 = 契约 §6/§14-P2 表值", not bad, bad or "12/12 逐字"))
+    code_anchors = {
+        "ip": "carrier must be ip protocol 89",
+        "rfc5340": "rfc5340",
+        "version": "version/profile uses rfc5340",
+        "type": "invalid packet_type",
+        "length": "wire_fault declared_length",
+        "area": "wire_fault area_id",
+        "router": "invalid router_id",
+        "no longer accepts a top-level ospf sub-config": "no longer accepts a top-level ospf sub-config",
+        "src_mac": "flat four-tuple field",
+        "carrier": "carrier is not supported",
+    }
+    miss_a = [v for v in want_anchor.values() if code_anchors[v] not in pl + sc + vl]
+    rows.append(("锚词均命中已落码文案（planner/strategy_convert/validate_layers）",
+                 not miss_a, miss_a or "10 族命中"))
+
+    # 5. 顶层残留为零（层链唯一配置真相，非负例顶层键=0）。
+    leaked = [c.get("id") for c in pos for k in (c.get("spec_json") or {})
+              if k not in ("layers", "flow_control", "output", "output_config", "group_id")]
+    rows.append(("非负例顶层键=0（仅 layers/flow_control/output/group_id）",
+                 not leaked, leaked or "零残留"))
+    return rows
+
+
+# OSPF_FIELDS_34：契约 §1/§3 实测去重字段集（ospf.* 30 + ip.* 4），逐个对
+# `tshark -G fields`（3.6.14）命中 34/34，零自创（P1 实测）。
+OSPF_FIELDS_34 = {
+    "ospf.advrouter", "ospf.area_id", "ospf.checksum", "ospf.db.dd_sequence",
+    "ospf.db.interface_mtu", "ospf.dbd", "ospf.hello.active_neighbor",
+    "ospf.hello.backup_designated_router", "ospf.hello.designated_router",
+    "ospf.hello.hello_interval", "ospf.hello.network_mask",
+    "ospf.hello.router_dead_interval", "ospf.hello.router_priority",
+    "ospf.link_state_id", "ospf.ls.number_of_lsas", "ospf.lsa", "ospf.lsa.chksum",
+    "ospf.lsa.id", "ospf.lsa.length", "ospf.lsa.network.attchrtr",
+    "ospf.lsa.network.netmask", "ospf.lsa.number_of_links",
+    "ospf.lsa.router.linkid", "ospf.lsa.router.linktype", "ospf.lsa.router.metric0",
+    "ospf.msg", "ospf.packet_length", "ospf.srcrouter", "ospf.v2.router.lsa.flags",
+    "ospf.version",
+    "ip.dst", "ip.proto", "ip.ttl", "ip.version",
+}
+
 def check_sstp(cases):
     """D-SSTP-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -8370,7 +8581,7 @@ def check_coap(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "hds": check_hds, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "isis": check_isis, "coap": check_coap, "stratum": check_stratum, "pim": check_pim}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "hds": check_hds, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "isis": check_isis, "coap": check_coap, "stratum": check_stratum, "pim": check_pim, "ospf": check_ospf}
 
 
 def main(argv):
