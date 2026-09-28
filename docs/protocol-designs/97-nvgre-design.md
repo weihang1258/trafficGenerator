@@ -4,7 +4,7 @@
 > 日期：2026-09-28
 > 车道：文档轨（Lane，nvgre RESUME，#97）
 > 旧基线：`docs/protocol-designs/55-nvgre-design.md` v1.0.0 + `55-nvgre-testcase.md` v1.0.0（20 例 = 14 正 + 6 负；本 #97 为 P-PIPE 重做，思路继承、不搬码——旧稿"层尚未注册/代码未写"状态已过时，见 §0）
-> 存量用例：`trafficgen/test/protocol_pcap/cases/nvgre.json`（20/20 ID 与旧稿一致，顺序一致，已机读实测；**20/20 为扁平过渡态违规形**，顶层旧键 **56 处**残留（**非负例口径**：14 正例 × 4 键 src_ip/dst_ip/count/nvgre，各 14；全例口径 80），待**代码阶段**迁移，G-NVGRE-1；本版**不动 cases**，见 §12.1）
+> 存量用例：`trafficgen/test/protocol_pcap/cases/nvgre.json`（20/20 ID 与旧稿一致，顺序一致，已机读实测；**20/20 存量今日全量失效（0 pass）**——扁平形被 `CheckProtoFlat` 拒（`strategy_convert.go:8625-8637`）、层链形被 `unknown field` 拒（`complete.go:293`），两路皆红；顶层旧键 **56 处**残留（**非负例口径**：14 正例 × 4 键 src_ip/dst_ip/count/nvgre，各 14；全例口径 80）。迁移待**代码阶段**，G-NVGRE-1；本版**不动 cases**，见 §12.1）
 > 规范基线：① RFC 7637（NVGRE）+ RFC 2784/2890（GRE 基础头与扩展）；② 旧基线设计文档（内部契约，非外部规范）；③ 本仓库落码（registry/generator/validator/convert/chain_planner，§11.1）；④ 本机 tshark 实测（有 `gre.*`/`eth.*`/`ip.*`/`vlan.*` 通道，**无 `nvgre.*` dissector**）；⑤ 公开资料 + 假设（逐处标注）
 > 白话一句：**NVGRE 就是把一整个以太网帧（带着它自己的 MAC 和 IP）塞进一个 GRE 信封里寄出去，信封上盖的编号（VSID）决定这帧属于哪个虚拟子网；引擎里它是一层"自己造整封信"的终结层，不走 TCP/UDP，没有端口。**
 
@@ -19,7 +19,7 @@
 | 3 | "NVGRE 使用 IP protocol 47 的 GRE，**不使用 UDP**"（design §2） | 生成器 `L3.Protocol = core.ProtocolGRE`（`layer_gen.go:90`），包内无 UDP/TCP 头；`isRawIPChain` 收录 nvgre（`chain_planner_util.go:54`） | 旧稿此条**正确**；本版重申：**无 UDP 4789 载体、无端口概念**（与同族 vxlan/geneve 的 UDP 载体形状不同，§2/§12.1） |
 | 4 | "当前仓库没有注册 `nvgre` layer、planner、validator 或生成器"（design §1） | `internal/protocol/nvgre/layer_gen.go` 397 行已落码（生成器 + validator + `init()` 注册）；13 个 `Test*` 函数（`grep -c` 实测） | 已落码；本契约 §11 为 as-built 定稿 |
 | 5 | `NVGREConfig{Profile, Outer, VSIDs[], WireFault}`（design §5 typedef，"设计契约，不是当前存在的 Go struct"） | `internal/core/encapsulation.go:298` 实际定义为 `NVGREConfig{VSID, FlowID, TTL*, Inner*, Datagrams[], WireFault*}`（**无 Profile/Outer/VSIDs**）；`NVGREOuter`/`NVGREVSID`/`NVGREInner` 三个旧 typedef **不存在** | 旧 typedef 作废；as-built 结构体见 §11.3（§3.1/§3.2 逐字段） |
-| 6 | 旧稿 spec_json 样例全部顶层扁平键（design §5 + 存量 20 例） | 存量 20/20 例含顶层 `src_ip`/`dst_ip`/`count` + 顶层 `nvgre` 子映射（机读 **56 处**残留，**非负例口径**：14 正例 × 4 键，各 14）；20/20 均无 `layers` 键 | 旧样例形 = **过渡态违规形**（CORE_MEMORY §1.4/§1.11）；迁移需**先补代码**（G-NVGRE-1），故 cases 本版**保持原样**；本契约 §2 样例只给纯层链形（目标形，今天跑不通） |
+| 6 | 旧稿 spec_json 样例全部顶层扁平键（design §5 + 存量 20 例） | 存量 20/20 例含顶层 `src_ip`/`dst_ip`/`count` + 顶层 `nvgre` 子映射（机读 **56 处**残留，**非负例口径**：14 正例 × 4 键，各 14）；20/20 均无 `layers` 键 | 旧样例形**今日全量失效**（0 pass——扁平路径已被 `CheckProtoFlat` 关闭，非「仍可跑的过渡态」）；迁移需**先补代码**（G-NVGRE-1），故 cases 本版**保持原样**（改了硬红、不改也全红，两条理由见 §12.1）；本契约 §2 样例只给纯层链形（目标形，今天跑不通） |
 | 7 | 旧稿断言 `gre.key` 值为 `0x0003e801` 等 hex，并注"tshark 渲染格式待校准" | 生成器 `GREKey()` 用 `(vsid & 0xffffff) << 8 \| flowID`（`layer_gen.go:181-183`），builder 经 `binary.BigEndian.PutUint32` 落线；单测 `TestGREKeyBytes`（`layer_gen_test.go:35`）钉 raw bytes | 断言以 **raw frames hex** 为准（`frames[].hex`），不依赖 `gre.key` 的渲染格式；旧稿"待校准"注记由 §3.1 raw 字节面收口 |
 | 8 | 旧稿 §9 #12 要求"IP 分片/重组" | 生成器每 datagram 发**完整单帧**，不做底层 IP 分片；`maxInnerPayload = 0xffff - 42 - 20` 兜住外层 IPv4 total length 回绕（`layer_gen.go:53`），超限由 validator 拒（`layer_gen.go:384`） | 分片面按"完整大 payload 单帧 + 长度上界拒绝"表达（§8）；旧稿"分片重组"降级为长度边界例 |
 
@@ -55,17 +55,17 @@
 
 ### 2.1 同族 vxlan/geneve 层 Fields 实况对比（2026-09-28 机读，防"照抄范本"）
 
-任务前提"三兄弟层形状应当一致"经核**不成立**，且"照抄 vxlan/geneve 用例作范本"亦**不成立**——两者 cases 至今仍是扁平过渡态：
+任务前提「三兄弟层形状应当一致」经核**不成立**，且「照抄 vxlan/geneve 用例作范本」亦**不成立**——但**三者存量形状并不同形**（机读：vxlan/geneve 20/20 **带 `layers`**，是「layers + 顶层残留**并存**」形；nvgre **0/20 带 `layers`**，是**纯扁平**形）：
 
 | 协议 | registry Fields（`registry.go`） | FieldContract | DependsOn | cases 形状（机读） |
 |---|---|---|---|---|
-| vxlan | **`{}` 空** | `{"udp.dst_port":"4789"}` | `["udp"]` | **扁平过渡态**：**70 处顶层旧键**（非负例口径）= 扁平标量 56（`src_ip`/`dst_ip`/`src_port`/`dst_port` 各 14）+ 顶层 `vxlan` 子映射 14 |
-| geneve | **`{}` 空** | `{"udp.dst_port":"6081"}` | `["udp"]` | **扁平过渡态**：**70 处顶层旧键**（非负例口径）= 扁平标量 56（`src_ip`/`dst_ip`/`src_port`/`dst_port` 各 14）+ 顶层 `geneve` 子映射 14 |
-| **nvgre** | **`{}` 空** | **无** | **`["ip"]`** | **扁平过渡态**：**56 处顶层旧键**（非负例口径）= 扁平标量 42（`src_ip`/`dst_ip`/`count` 各 14）+ 顶层 `nvgre` 子映射 14 |
+| vxlan | **`{}` 空** | `{"udp.dst_port":"4789"}` | `["udp"]` | **layers + 顶层残留并存形**（`layers` 20/20 = `[ip,udp,vxlan]`）：**70 处顶层旧键**（非负例口径）= 扁平标量 56（`src_ip`/`dst_ip`/`src_port`/`dst_port` 各 14）+ 顶层 `vxlan` 子映射 14 |
+| geneve | **`{}` 空** | `{"udp.dst_port":"6081"}` | `["udp"]` | **layers + 顶层残留并存形**（`layers` 20/20 = `[ip,udp,geneve]`）：**70 处顶层旧键**（非负例口径）= 扁平标量 56（`src_ip`/`dst_ip`/`src_port`/`dst_port` 各 14）+ 顶层 `geneve` 子映射 14 |
+| **nvgre** | **`{}` 空** | **无** | **`["ip"]`** | **纯扁平形**（`layers` **0/20**）：**56 处顶层旧键**（非负例口径）= 扁平标量 42（`src_ip`/`dst_ip`/`count` 各 14）+ 顶层 `nvgre` 子映射 14 |
 | icmp（真范本） | `{code,data,identifier,pattern,sequence,type}` | `{"ip.protocol":"1"}` | `["ip"]` | **纯层链**：`[ip,icmp]` ×8，顶层仅 `layers`（1 例 presence 负例除外） |
 | moxa（P4 后范本） | `{sessions,stream}` | 无 | `["tcp"]` | **纯层链**：23 例（含 20 处 A′ 新增） |
 
-**结论**：① nvgre/vxlan/geneve 三层 Fields **同为空壳**——三者的层内配置今日**都不被解码**（`chain_planner_translate.go:852` 对空 Fields 提前返回）；② 三者的 cases **同为扁平过渡态**，vxlan/geneve 不可作"已全层链"范本；③ 可作范本的是 **icmp**（`[ip,icmp]` raw-IP 同构，8 例全层链）与 **moxa**（P4 完成后 23 例）。④ nvgre 与 vxlan/geneve 的**形状差异**（`DependsOn ["ip"]` vs `["udp"]`、无 FieldContract vs 有）来自协议本身——**不因同族而趋同**。
+**结论**：① nvgre/vxlan/geneve 三层 Fields **同为空壳**——三者的层内配置今日**都不被解码**（`chain_planner_translate.go:852` 对空 Fields 提前返回）；② 三者的 cases **形状并不同形**——vxlan/geneve 是「layers + 顶层残留并存」（`layers` 20/20），nvgre 是纯扁平（`layers` 0/20）；**两者皆不可作「已全层链」范本**（残留未清）；③ 可作范本的是 **icmp**（`[ip,icmp]` raw-IP 同构，8 例全层链）与 **moxa**（P4 完成后 23 例）。④ nvgre 与 vxlan/geneve 的**形状差异**（`DependsOn ["ip"]` vs `["udp"]`、无 FieldContract vs 有）来自协议本身——**不因同族而趋同**。
 
 固定偏移（无 VLAN/IP options/外层扩展头时，`frames[].hex` 逐字节锚点）：
 
@@ -84,7 +84,7 @@
 
 GRE 基础头 4 字节；NVGRE 必须置 Key Present（K）位，Key 字段紧随其后占 4 字节，故 inner Ethernet 起点 = 外层 IP 头尾 + 8。IPv4 外层 42、IPv6 外层 62。若外层 IP options、IPv6 扩展头、外层 VLAN 或显式内层 VLAN 存在，断言必须按实际头长定位，**不能继续套用上述常量**。
 
-目标形状 spec_json 样例（严格层链形，顶层仅 `layers`；**目标形状声明**：registry `nvgre` Fields 今日为空 + `translateTerminalConfig` 对空 Fields 层提前返回（`chain_planner_translate.go:852`），层内任何键今日被 `ValidateLayerConfig` 以 `unknown field` 拒（`complete.go:279`）→ 此形**今天跑不通，需先补代码** G-NVGRE-1，CORE_MEMORY §1.9 口径）：
+目标形状 spec_json 样例（严格层链形，顶层仅 `layers`；**目标形状声明**：registry `nvgre` Fields 今日为空 + `translateTerminalConfig` 对空 Fields 层提前返回（`chain_planner_translate.go:852`），层内任何键今日被 `ValidateLayerConfig` 以 `unknown field` 拒（函数起 `complete.go:279`，拒绝返回在 `:293`）→ 此形**今天跑不通，需先补代码** G-NVGRE-1，CORE_MEMORY §1.9 口径）：
 
 ```json
 {
@@ -222,7 +222,7 @@ nvgre 层**无自有状态**：无连接、无握手、无序号、无挥手；�
 | 无状态（每条 datagram 独立） | 逐条 emit 完整包：外层 IP + GRE + Key + inner 帧 | #1–#14 |
 | 结束 | 事件流结束（无挥手报文） | 全正例 |
 
-**多 datagram 展开**：`foldDatagrams`（`layer_gen.go:125`）——`Datagrams` 空 → 用顶层 `VSID/FlowID/Inner` 发**单包**；非空 → 逐 entry 发一包，entry `inner` 缺席回退顶层 `inner`（`layer_gen.go:136-139`）。方向：`Up` 指针 `nil`/`true` = up，`false` = down（down 由 raw-IP 分支交换 L3 地址，`layer_gen.go:81-84`）。
+**多 datagram 展开**：`foldDatagrams`（`layer_gen.go:125`）——`Datagrams` 空 → 用顶层 `VSID/FlowID/Inner` 发**单包**；非空 → 逐 entry 发一包，entry `inner` 缺席回退顶层 `inner`（`layer_gen.go:136-139`）。方向：`Up` 指针 `nil`/`true` = up，`false` = down（`layer_gen.go:81-84` 仅置 direction 字符串；**L3 地址交换在 raw-IP 分支的 Emit 闭包 `chain_planner.go:1546-1547`**）。
 
 **自动派生规则**：① 空层 config（`{}`）→ 生成器用 `defaultFixture()`（`layer_gen.go:156-165`：MAC `02:00:00:00:00:01/02`、EtherType ipv4、IP `172.16.1.1/2`、payload `nvgre-default-inner`），vsid/flow 均 0——P0b 空配置默认流；② 外层 Ethernet 头由引擎补；③ 外层 IP 头/GRE 头由生成器自产（raw-IP 链）；④ TTL 缺省 64。
 
@@ -387,7 +387,7 @@ nvgre 层**无自有状态**：无连接、无握手、无序号、无挥手；�
 | `trafficgen/internal/core/encapsulation.go`（§172/§197/§287/§298） | `EncapEthernetFixture`/`EncapWireFault`/`NVGREDatagram`/`NVGREConfig` 配置类型（三封装协议共用前两者） | —（共享文件） |
 | `trafficgen/internal/protocol/nvgre/layer_gen.go` | 终结层生成器 + `ValidateConfig`/`validateWireFault`/`validateFixture` + `init()` 注册 | 397 |
 | `trafficgen/internal/protocol/nvgre/layer_gen_test.go` | 13 个 `Test*`（Key 字节/GRE wire/IPv4/IPv6 外层/TTL/datagram 折叠/空配置/边界/拒绝面/接口） | — |
-| 接线 6 件 | registry 注册（`layers/registry.go:1695`）/ translate Meta 直传（`chain_planner_translate.go:268`）/ raw-IP Meta 补传（`chain_planner.go:1512`）/ convert flat case（`strategy_convert.go:1461`）/ protocols 准入（`protocols.go:63`）/ raw-IP 名单（`chain_planner_util.go:54`）+ 端口豁免（`chain_planner.go:770`） | — |
+| 接线 7 件 | registry 注册（`layers/registry.go:1695`）/ translate Meta 直传（`chain_planner_translate.go:268`）/ raw-IP Meta 补传（`chain_planner.go:1512`）/ convert flat case（`strategy_convert.go:1461`）/ protocols 准入（`protocols.go:63`）/ raw-IP 名单（`chain_planner_util.go:54`）+ 端口豁免（`chain_planner.go:770`） | — |
 
 ### 11.2 接口签名
 
@@ -418,7 +418,7 @@ nvgre 层**无自有状态**：无连接、无握手、无序号、无挥手；�
 ### 11.7 与现有逻辑的冲突点
 
 - **`translateTerminalConfig` 无 nvgre 分支 + registry Fields 为空**（`chain_planner_translate.go:852` 的 `if len(s.Fields) == 0 { return }` 对 nvgre 直接返回）→ 层内 `nvgre` 配置**不被翻译**进 `spec.NVGRE`，生成器读 `req.Meta.NVGRE`（`layer_gen.go:71`）为 nil → 走 `defaultFixture()` 发**默认包**。属缺口 G-NVGRE-1（moxa G-MOXA-1 / someip G-SOMEIP-1 同构）。
-- **`ValidateLayerConfig` 未知字段即拒**（`complete.go:279`）：nvgre Fields 为空 ⇒ 层内**任何键**今日被 `layers: layer "nvgre": unknown field "vsid"` 拒。故目标形状（§2）今日**不是静默走错，而是硬拒**（P4 前建例即红）。
+- **`ValidateLayerConfig` 未知字段即拒**（函数起 `complete.go:279`，`unknown field` 返回在 `:293`）：nvgre Fields 为空 ⇒ 层内**任何键**今日被 `layers: layer "nvgre": unknown field "vsid"` 拒。故目标形状（§2）今日**不是静默走错，而是硬拒**（P4 前建例即红）。
 - **`CheckProtoFlat` 无 nvgre 分支**（`strategy_convert.go:8625` 起 60 个 `protocol ==` 分支无 nvgre（机读 `awk NR>=8625 && NR<=9114 | grep -c` = 60）；`rawWrapChains`（`:9095`）不含 nvgre）→ 顶层 `nvgre` 子映射 presence **不判死**，属缺口 G-NVGRE-2（禁加单协议黑名单分支，等框架级 unknown-key 白名单；moxa G-MOXA-2 / kingbase 裁定）。
 - 动态 allowlist（`layer_dyn.go:17-21`）：`nvgre` 零命中实测 → 业务字段动态对象即拒；四元组 `ip` 全开（`src`/`dst`/`ttl`）；`nvgre` 无传输层故无 `tcp`/`udp` 端口动态面。见 §12.12。
 
@@ -451,7 +451,7 @@ nvgre 层**无自有状态**：无连接、无握手、无序号、无挥手；�
 
 | 文件 | 例数 | 顶层键分布 | 链形 | 负例 expect 纯净 |
 |---|---|---|---|---|
-| `cases/nvgre.json` | 20（14 正 + 6 负） | 非负例 14 例 × `{src_ip, dst_ip, count, nvgre}`（**56 处顶层旧键残留**：四键各 14）；负例 6 例同形（另 24 处） | **无 `layers` 键 ×20**（纯扁平；链由 `BuildLayersPlanner` 从 protocol 合成） | ✅ 6/6 只有 `{expect_error,error_contains}` |
+| `cases/nvgre.json` | 20（14 正 + 6 负） | 非负例 14 例 × `{src_ip, dst_ip, count, nvgre}`（**56 处顶层旧键残留**：四键各 14）；负例 6 例同形（另 24 处） | **无 `layers` 键 ×20**（纯扁平；链来自已注册 `ChainPlanner` 的 `completedChainUncached`/`completeSynthesized`，`chain_planner_chain.go:59-107`——**非** `BuildLayersPlanner`，后者要求 `layers` 键 `validate_layers.go:23`） | ✅ 6/6 只有 `{expect_error,error_contains}` |
 
 **残留计数口径对账（2026-09-28 机读复算，2026-09-28 定案）**：
 
@@ -465,19 +465,29 @@ nvgre 层**无自有状态**：无连接、无握手、无序号、无挥手；�
 
 **键数差异的根因**：nvgre 是 raw-IP 无端口 → 业务键 4 个（`src_ip`/`dst_ip`/`count`/`nvgre`）；vxlan/geneve 是 UDP 载体、端口住顶层 → 业务键 5 个（`src_ip`/`dst_ip`/`src_port`/`dst_port`/`<proto>`，无 `count`）。故非负例口径 nvgre = 14×4 = **56**，vxlan/geneve = 14×5 = **70**。
 
-**本文档一律写 56（非负例口径，仅指 nvgre 自身）**。三种口径**指向同一事实**：20/20 全为扁平过渡态、`layers` 键 0、cases 本版未改、合规化属代码阶段。门脚本口径（nvgre 60）可复现：`bash trafficgen/tools/pipe_gate.sh nvgre` 逐条列出。
+**本文档一律写 56（非负例口径，仅指 nvgre 自身）**。三种口径**指向同一事实**：nvgre 20/20 为**纯扁平形**（`layers` 键 0）、**今日全量失效（0 pass）**、cases 本版未改、合规化属代码阶段。门脚本口径（nvgre 60）可复现：`bash trafficgen/tools/pipe_gate.sh nvgre` 逐条列出。
 
 **全部数字由脚本生成**（非手算）：`git show cf6e2f0:<proto>.json` → 非负例集合 × 业务键（排除白名单）逐键计数。
+
+**存量今日实跑状态（本车道自跑，2026-09-28）**：
+```
+CASE_PROTO=nvgre go test ./test/protocol_pcap/ -run TestProtocolPcapDrive -count=1
+RESULT: 0 pass, 6 fail, 14 error (of 20)
+  nvgre    0/20
+```
+- 14 正例 = `error`：submit 被 `CheckProtoFlat` 拒（`protocol nvgre no longer accepts flat config field src_ip`，`strategy_convert.go:8625-8637`）。
+- 6 负例 = `fail`：被拒但错误文本**不含** `flags`/`vsid`/`inner`/`family`/`length`/`isolation`——**锚词全部失守**（harness 报 `rejected but error "..." does not contain "flags"` 等 6 条）。
+⇒ 存量**不是「仍可跑的过渡态」，而是全量失效（0 pass）**；「本版不动 cases」有两条理由——**改了硬红**（层链形被 `unknown field` 拒）+ **不改也全红**（扁平形被 `CheckProtoFlat` 拒）。
 
 目标形状样例见 §2（**今天跑不通**，CORE_MEMORY §1.9 口径）。
 
 ### 12-P2 判死负例形状（链级红例必含清单①③④）
 
-- ① presence 形状 `{"layers":[…],"nvgre":{}}` 今日**不会被拒**（`CheckProtoFlat` 无 nvgre 分支，`grep` 零命中实测）→ **P4 先补分支再建例**（不补就建会真绿 = 假通过）→ 缺口 G-NVGRE-2 登记。② 白名单外游离键判死（`unknown field`）P4 建一条（A′）。③ 6 负例每条带锚词（已齐，§7）。④ 收官自查「非负例顶层键 = 0」——**待代码阶段**（存量 20/20 顶层有旧键，迁移与改写同步落地后执行）。
+- ① presence 形状 `{"layers":[…],"nvgre":{}}` 今日**不会被拒**（`CheckProtoFlat` 无 nvgre 分支，`grep` 零命中实测）→ **P4 先补分支再建例**（不补就建会真绿 = 假通过）→ 缺口 G-NVGRE-2 登记。② 白名单外游离键判死（`unknown field`）P4 建一条（A′）。③ 6 负例每条带锚词（已齐，§7）——**但今日锚词全部失守**（见 §12.1 实跑 RESULT：6 负例 `fail`，非正确红）。④ 收官自查「非负例顶层键 = 0」——**待代码阶段**（存量 20/20 顶层有旧键，迁移与改写同步落地后执行）。⑤ **存量 20/20 今日全红**（0 pass），非「仍可跑的过渡态」。
 
 ### 12.3 §3 强制展开：五件套
 
-会话表：`s1` 单 flow 基线（#1–#6、#9、#10、#12–#14，各一 datagram；无连接故无"会话"语义，单 flow 即全部）。事务：`t1` 发 datagram（`req.Emit` 一条完整包）；`t2` 结束（事件流关闭，**无挥手报文**）；每事务四件事（前置/触发/成功/失败）见 §5 + §4 场景表。关联关系：**无派生流**（诚实声明：NVGRE 是无连接封装，无控制流/数据流主从关系，无 `driven_by`；CancelRequest 类关联不适用）。插入位置：终结层（`[ip,nvgre]`，无中间层）。时间线：datagram 内严格顺序（`datagrams[]` 顺序即 emit 顺序）/ 单 flow 内顺序 / 跨 flow 由 worker 调度不假设全局包序（用例用 distinct 聚合断言，不用逐包定位）。
+会话表：`s1` 单 flow 基线（#1–#6、#9、#10、#12–#14，各一 datagram；无连接故无"会话"语义，单 flow 即全部）。事务：`t1` 发 datagram（`req.Emit` 一条完整包）；`t2` 结束（事件流关闭，**无挥手报文**）；每事务四件事（前置/触发/成功/失败）见 §5 + §4 场景表。关联关系：**无派生流**（诚实声明：NVGRE 是无连接封装，无控制流/数据流主从关系，无 `driven_by`；CancelRequest 类关联不适用）。插入位置：终结层（`[ip,nvgre]`，无中间层）。时间线：datagram 内严格顺序（`datagrams[]` 顺序即 emit 顺序）/ 单 flow 内顺序 / 跨 flow 由 worker 调度不假设全局包序（用例用 distinct 聚合断言，不用逐包定位）。方向：`up`/`down` 由 `layer_gen.go:81-84` 置 direction 字符串，**L3 地址交换在 raw-IP 分支 Emit 闭包 `chain_planner.go:1546-1547`**。
 
 ### 12.12 §12 强制展开：动态字段清单与序号算法
 
@@ -499,11 +509,11 @@ nvgre 层**无自有状态**：无连接、无握手、无序号、无挥手；�
 
 | 缺口 | 内容 | 去向 |
 |---|---|---|
-| G-NVGRE-1（**阻塞级**） | registry `nvgre` Fields 为空（`registry.go:1695`）+ `translateTerminalConfig` 无 nvgre 分支（空 Fields 提前返回 `:852`）→ 层内配置**根本不被解码**；且 `ValidateLayerConfig` 未知字段即拒（`complete.go:279`）→ 目标形状今日硬红 | **代码阶段首动作**：补 registry Fields（vsid/flow_id/ttl/inner/datagrams/wire_fault）+ translate `case "nvgre"`（`completedConfig` + `DisallowUnknownFields`，moxa `:3304` 范式）+ schemagen 重跑 → 20 例改写（顶层旧键 56→0，非负例口径）+ 先跑后钉；**本版不动 cases** |
+| G-NVGRE-1（**阻塞级**） | registry `nvgre` Fields 为空（`registry.go:1695`）+ `translateTerminalConfig` 无 nvgre 分支（空 Fields 提前返回 `:852`）→ 层内配置**根本不被解码**；且 `ValidateLayerConfig` 未知字段即拒（函数起 `complete.go:279`，返回在 `:293`）→ 目标形状今日硬红 | **代码阶段首动作**：补 registry Fields（vsid/flow_id/ttl/inner/datagrams/wire_fault）+ translate `case "nvgre"`（`completedConfig` + `DisallowUnknownFields`，moxa `:3304` 范式）+ schemagen 重跑 → 20 例改写（顶层旧键 56→0，非负例口径）+ 先跑后钉；**本版不动 cases** |
 | G-NVGRE-2 | `CheckProtoFlat` 无 nvgre 分支（`:8625-9114` 内 60 个 `protocol ==` 无 nvgre，机读实测；`rawWrapChains`（`:9095`）不含 nvgre）→ presence 形今日不判死 | P4 先补分支再建例；**禁加单协议黑名单分支**（等框架级 unknown-key 白名单；kingbase 记忆裁定） |
 | G-NVGRE-3 | 业务字段动态全关（allowlist 无 `nvgre` 行，`layer_dyn.go:17`） | A′ 候选，不冒充已覆盖（§9.36 口径） |
 | G-NVGRE-4 | 4 种 wire_fault kind 无用例（`protocol_not_teb`/`key_missing`/`key_endian`/`carrier_protocol`） | A′ 补例（validator 分支已落码，逐 kind 一例） |
-| G-NVGRE-5 | 方向变体（`datagrams[].up=false`）与 entry inner 回退无例（代码有分支 `:81-84`/`:136-139`） | A′ 补例 |
+| G-NVGRE-5 | 方向变体（`datagrams[].up=false`）与 entry inner 回退无例（direction 分支 `layer_gen.go:81-84`；地址交换 `chain_planner.go:1546-1547`；inner 回退 `layer_gen.go:136-139`） | A′ 补例 |
 | G-NVGRE-6 | 外层 IPv6 + 内层 `vlan_ipv6` 组合、VLAN 边界（VID 4095/PCP 7/VID=0）、payload 上界拒绝无例 | A′ 补例（validator 分支已落码） |
 | G-NVGRE-7 | 旧稿 §9 #12"IP 分片/重组"未实现（生成器发完整单帧） | **明确不解决** + 迁入计划：分片面按长度上界拒绝表达（§8）；若实现则补驱动/用例 |
 | G-NVGRE-8 | 出厂/现网 VSID-FlowID 分配实践无抓包实证（③ 源未达验证级） | 待确认：抓现网 NVGRE 包或查 Hyper-V NVGRE 文档；确认前不写死进实现 |
@@ -511,3 +521,4 @@ nvgre 层**无自有状态**：无连接、无握手、无序号、无挥手；�
 ## 15. 修订记录
 
 - v1.0.0（2026-09-28）：P-PIPE #97 文档轨 P1–P3。RESUME 续写：55→97 沿革与 8 项过期校正（§0，含层链形状 `[ip,gre,nvgre]`→`[ip,nvgre]` 与 typedef 作废两项硬校正）；存量 20 例机读审计（顶层残留 56 处，非负例口径、无 `layers` 键、expect 形状、ID 顺序一致）；§12.1/12.3/12.12 强制展开 + 12-P2；D-NVGRE-1 as-built 定稿（§11）；缺口 G-NVGRE-1…G-NVGRE-8。P1 自审 2 轮 / P2 自审 2 轮 / P3 自审 2 轮，末轮干净（结论见 `/tmp/pipe/doc-lanes/nvgre.md` §2）。
+- v1.0.1（2026-09-28，隔离审查修轮）：审查报告 `/tmp/pipe/doc-reviews/nvgre.md`（有条件通过，2×P0 + 2×P1 + 5×P2）。修：**P0-1** 改口「假绿风险已排除」为「负例锚词全部失守」（实跑 `RESULT: 0 pass, 6 fail, 14 error`，拒因 `CheckProtoFlat`）；**P0-2**「扁平过渡态」→「存量今日全量失效（0 pass）」，补「不改也全红」第二条理由；**P1-①** vxlan/geneve 形状标签改「layers + 顶层残留并存形」（`layers` 20/20）vs nvgre「纯扁平形」（0/20）；**P1-②** 27B（原 28B）、1×11（原 1×12）；**P2-1** `complete.go` 引用补 `:293` 返回行；**P2-2** 扁平链来源改 `ChainPlanner.completedChainUncached`/`completeSynthesized`（非 `BuildLayersPlanner`）；**P2-3** 接线 7 件（原 6）；**P2-4** down 地址交换改指 `chain_planner.go:1546-1547`；**P2-5** `notes` 住 `expect` 内。自审 1 轮，末轮干净。
