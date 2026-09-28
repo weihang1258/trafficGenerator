@@ -1,6 +1,6 @@
 # #102 thrift（Apache Thrift Binary Protocol，TBinaryProtocol）设计契约
 
-> 版本：v1.0.0（P-PIPE 文档轨 P1–P3）
+> 版本：v1.0.1（P-PIPE 文档轨 P1–P3 + 结果文档过期登记）
 > 日期：2026-09-28
 > 车道：文档轨（thrift #102，承 `30-thrift-*` 续号）
 > 旧基线：`docs/protocol-designs/30-thrift-design.md` v1.0.0（设计稿，2026-08-20）+ `30-thrift-testcase.md` v1.0.0；本 #102 为 P-PIPE 审计+续号，**旧稿线格式结论（§2 严格消息头、§2.1 TType 表、§3 RPC 语义）逐条审计通过，本文承其结论不重写**；旧稿"仅设计阶段、尚未实现"状态声明已过时（§0）
@@ -24,6 +24,8 @@
 | 8 | 旧稿 §2/§3 线格式（严格消息头、TType 表、RPC 语义） | 与 `builder.go` 逐项对照一致（§3 三路对照） | **审计通过，继承** |
 
 **依赖链判定纪律**：以上均为可判题（旧文→代码→用例三级对照），直接判定，不问偏好。不可判的（spec 原文条款号级引用）标"待确认"并写清确认方式（§14 缺口）。
+
+**产物过期登记（重要，车道间一致性缺口）**：`trafficgen/docs/protocol-pcap-test/thrift.md`（**tracked 产物**）写 `Cases: 13 — pass 13, fail 0, error 0`，但该文件末次提交 `91f2487`（**2026-08-30**），**早于**判死提交 `0417be5`（2026-09-13，扁平判死泛化全协议 `CheckProtoFlat`）；`trafficgen/docs/protocol-pcap-test/thrift/` **目录不存在**（**0 个 pcap**）。**该 13/13 pass 是过期产物，不得作为"套件可跑"依据**——今日存量 13 例经 MCP 建策略 **400 全红**（全部被拒；**非负例口径顶层旧键残留 41 处**，见 §12.1）。缺口编号 **G-THRIFT-10**（§14）。**归属阶段：代码阶段**（P5 重跑套件后重生成该产物）。登记口径同 pcep 先例（G-PCEP-11）。
 
 ## 1. 范围、profile 与实现状态边界
 
@@ -396,7 +398,7 @@ T-编号对照：T-THRIFT-S1…S7 ≡ #1…#7；T-THRIFT-N1…N6 ≡ #8…#13（
 | §4 查规范 | TBinaryProtocol spec + 旧基线 + tshark 43 字段实测 + 落码反推；八项矩阵 + 子表①②③ | §10 |
 | §5 依赖与错误 | `DependsOn ["tcp"]` 单值（`registry.go:780`）；6 种拒绝分支；失败传 task error | §5/§7/§11.5 |
 | §6 性能 | 见 §6（6.1–6.8 要素齐；吞吐数字标待 P4 基准，不写承诺） | §6 |
-| §7 三份文档 | `102-thrift-{design,testcase}.md` v1.0.0（草稿层）+ D-THRIFT-1（§11，门1 获批 = 定稿）+ T-THRIFT（testcase §2，13 ID）+ 旧稿 30-* 为历史层 | 修订记录 |
+| §7 三份文档 | `102-thrift-{design,testcase}.md` v1.0.1（草稿层）+ D-THRIFT-1（§11，门1 获批 = 定稿）+ T-THRIFT（testcase §2，13 ID）+ 旧稿 30-* 为历史层 | 修订记录 |
 | §8 设计先行 | P1–P3 先于 P4 缺口收敛；门1 获批 = D-THRIFT-1 定稿 = 开工门 | 提交序 |
 | §9 测试三源 | 三源 = TBinaryProtocol spec（§10）+ D-THRIFT-1（§11）+ tshark 通道实测（43 字段存在但**存量未用**，§3.4 诚实标注）；13 ID 逐项回指；存量 13 例审计去向 testcase §8 | `102-thrift-testcase.md` §2/§5/§8 |
 | §10 评审闭环 | 每阶段对抗自重审（结论见 /tmp/pipe/doc-lanes/thrift.md）+ 收官隔离复审；红先绿后 | 自审报告 |
@@ -470,7 +472,9 @@ T-编号对照：T-THRIFT-S1…S7 ≡ #1…#7；T-THRIFT-N1…N6 ≡ #8…#13（
 | G-THRIFT-7 | spec 条款号级引用缺失（本文引"spec"未到章节号） | 待确认：取 Apache Thrift 仓库 `doc/specs/thrift-binary-protocol.md` 原文核章节；确认前标注未达验证级 |
 | G-THRIFT-8 | 业务字段动态全关（allowlist 无 `thrift` 行） | A′ 候选，不冒充已覆盖（§9.36 口径） |
 | G-THRIFT-9 | ~~存量 N-6 锚词迁移后不匹配~~ **已撤销（假缺口）**：实测文案 `layer "tcp" field "dst_port" = 70000 invalid: out of range [0,65535]` **含 "port"**，锚词仍匹配 | 无需动作（隔离审查 F1 纠错） |
+| G-THRIFT-10 | **结果文档过期**：`trafficgen/docs/protocol-pcap-test/thrift.md`（**tracked 产物**）写 `Cases: 13 — pass 13, fail 0, error 0`，**不得作为"套件可跑"依据**——今日存量 13 例经 MCP 建策略 **400 全红**（**非负例口径顶层旧键残留 41 处**：`thrift`/`src_ip`/`dst_ip`/`dst_port`/`count` 各 ×7 + `src_port` ×6；全例口径 77 = 正 41 + 负 36，见 §12.1） | 该文件末次提交 `91f2487`（**2026-08-30**），早于判死提交 `0417be5`（2026-09-13）；`docs/protocol-pcap-test/thrift/` **0 个 pcap**（目录不存在）。**归属阶段：代码阶段**（P5 重跑套件后重生成该产物）；本版不删不改（tracked 产物，删除属 P5 动作，此处仅登记事实） |
 
 ## 15. 修订记录
 
 - v1.0.0（2026-09-28）：P-PIPE #102 文档轨 P1–P3。承 30 版续号：30→102 沿革与 8 项过期校正（§0）；线格式三路对照审计通过（§3，结论继承）；存量 13 例机读审计（**非符合态实证**：层链空壳 + **非负例顶层键 41 处残留**，按顶层白名单判据）；§12.1/12.3/12.12 强制展开 + 12-P2；D-THRIFT-1 as-built 定稿（§11）；缺口 G-THRIFT-1…G-THRIFT-8。自审 6 轮（第 5 轮按主线程口径纠错；**第 6 轮按隔离审查打回修 5 项**：F3 定性改"静默假成功"、F1 撤销假缺口 G-THRIFT-9、F2 修正 Thrift 引用计数、F4/F5 修对账与矩阵计数、transport 死键改判直接删、nic_capture 诚实标注），末轮干净（结论见 `/tmp/pipe/doc-lanes/thrift.md`）。
+- v1.0.1（2026-09-28）：补登记**结果文档过期**（**G-THRIFT-10**，车道间一致性缺口，照 pcep G-PCEP-11 先例）：§0 新增产物过期登记段、§14 缺口表新增 G-THRIFT-10 行。**只改本文 + testcase 文档，不动代码/JSON。**
