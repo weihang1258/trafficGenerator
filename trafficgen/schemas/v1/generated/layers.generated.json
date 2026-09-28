@@ -2940,7 +2940,20 @@
       "field_contract": {
         "ip.protocol": "103"
       },
-      "fields": {}
+      "fields": {
+        "checksum_mode": {
+          "type": "string"
+        },
+        "events": {
+          "type": "list"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "wire_fault": {
+          "type": "object"
+        }
+      }
     },
     "pop3": {
       "category": "terminal",

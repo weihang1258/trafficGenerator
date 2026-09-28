@@ -574,6 +574,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-PIM-1（§14-P2）：pim 在库旧策略顶层 pim → ValidationErrors（igmp
+	// 同款；空 map 也死——判死形状「层链+顶层空子映射并存」wired 面，
+	// 24 例存量正是此形）。层链形状不触发。
+	if protocol == "pim" {
+		if v, ok := cfg["pim"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-MMS-2（G-MMS-1，§14-P2）：mms 在库旧策略顶层 mms → ValidationErrors
 	// （amqp 同款；在库 0 行纯防御——新协议无存量迁移面）。
 	if protocol == "mms" {
@@ -8940,6 +8948,14 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "mms" {
 		if v, ok := cfg["mms"]; ok && v != nil {
 			return "protocol mms no longer accepts a top-level mms sub-config (move it into the mms layer of an [ip,tcp,mms] layers chain; the layer chain is the only config truth)"
+		}
+	}
+	// D-PIM-1（§14-P2）：pim 顶层 pim 子映射 presence 判死（igmp 先例；空
+	// map 也死——判死形状「层链+顶层空子映射并存」wired 面，存量 24 例
+	// 正是此形）。层链形状不触发。
+	if protocol == "pim" {
+		if v, ok := cfg["pim"]; ok && v != nil {
+			return "protocol pim no longer accepts a top-level pim sub-config (move it into the pim layer of an [ip,pim] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-*-1 raw 自驱八协议：顶层同名子映射 presence 判死（mcp 先例；空
