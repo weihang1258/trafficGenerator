@@ -4,9 +4,10 @@
 > 日期：2026-09-28
 > 车道：A 文档轨（Lane A，#93 a2a 续号）
 > 旧基线：`docs/protocol-designs/17-a2a-design.md` v2.0.3（2232 行，无独立 testcase 文件）+ `#52 a2a P1–P3 报告`（`/tmp/pipe/52-a2a/p123-report.md`，门1 十四行 + 11 项缺口 G-A2A-1…G-A2A-11）
-> 存量用例：`trafficgen/test/protocol_pcap/cases/a2a.json`（185 例；**本车道已按 §12.1 机读改写为纯层链形**，改写前 185/185 带顶层扁平键 + 顶层 `a2a` 子映射，改写后非负例顶层键 = 0）
+> 存量用例：`trafficgen/test/protocol_pcap/cases/a2a.json`（185 例，**本车道未改动**；现状 185/185 带顶层扁平四元组 + 顶层 `a2a` 子映射，153/185 另带空壳 `layers:[{tcp:{}},{a2a:{}}]`——**全为违规过渡形**（§1.4/§1.11 判死），见 §12.1 缺口登记）
 > 规范基线：① A2A spec v0.2.2（本版目标版本，方法名/Agent Card 路径/Part kind/事件类型以它为准）；② A2A spec v0.2.5 / v0.3.0 / v1.0.0 / v1.0.1（差异面，只记不实现）；③ JSON-RPC 2.0；④ RFC 8615（well-known URI）/ RFC 7235（HTTP 认证）；⑤ 本仓库落码（`internal/protocol/a2a/` 八文件 + 接线 5 处，§11.1）；⑥ 本机 tshark 3.6.14 实测（**`a2a.*` 字段 0 个、`json.*` 29 个**，断言通道走 `http.*`/`json.*`/`tcp.*`/frames，§3.5）
 > 白话一句：**两个 AI 代理隔着网线说话，说的话是 HTTP 快递盒里装的 JSON 小纸条；引擎里它是一层薄皮——把配置里写好的每个 task 编成"一个请求盒 + 一个响应盒"，握手、分段、挥手全交给 TCP 层。**
+> **阶段命名**：本文中 **P4 = 代码阶段**（`docs-first-workflow` 新顺序：文档全部定稿后才批量改代码）、**P5 = 跑测阶段**；P1–P3 为本文档轨。
 
 ## 0. 17→93 沿革与旧稿状态校正（门1 必答：基线继承关系）
 
@@ -16,10 +17,10 @@
 |---|---|---|---|
 | 1 | #52 报告称 "`a2a` 层已注册（`registry.go:205-207`）" | `registry.go:245` 注册 `a2a`（`CategoryTerminal`、`DependsOn ["tcp"]`、**无 `Fields`/`FieldContract`/`TransportOn`**）；生成表 127 层中 `a2a` = `{"category":"terminal","depends_on":["tcp"],"fields":{}}`（机读实测） | 已注册；**行号漂移**（205→245），本契约以 HEAD 行号为准 |
 | 2 | #52 报告称 "`main.go:622` 只注册 ChainPlanner" | `cmd/server/main.go:20` 空导入 a2a 包、`:630` `RegisterPlanner(layers.NewChainPlanner("a2a"))`；`internal/core/layers/legacy_migrate_test.go:126` 已有 a2a 链冒烟（`a2aMinimalSpec`，`:183`） | 接线已通；行号漂移（622→630） |
-| 3 | #52 报告称 "`cases/a2a.json` 185 例全旧扁平形（185/185 带顶层 `a2a`）" | 改写前实测：185/185 带顶层 `a2a` 子映射；**153 例带空壳 `layers:[{tcp:{}},{a2a:{}}]` + 顶层四元组并存**（混用违规），32 例无 `layers`；改写后 185/185 为 `[ip,tcp,a2a]` 纯层链（§12.1） | 旧形 = **违规过渡形**（§1.4/§1.11 判死）；**本车道已改写** |
-| 4 | 旧稿 §5.1 `A2AConfig` 含 `HTTP`/`TCP`/`FlowControl` 三个子结构 | `types.go:23-33` `A2AConfig` **字段齐在**（`BaseURL/AgentCardPath/Discover/AgentCard/Tasks/Auth/HTTP/TCP/FlowControl`）；但存量 185 例**零例使用** `tcp`/`http`/`flowControl` 三键（机读：`tcp` 0 例、`http` 0 例、`flowControl` 0 例） | 三键已落码但**无用例面** → §12.1 迁层计划标"无迁移量"；A′ 立项（§13） |
+| 3 | #52 报告称 "`cases/a2a.json` 185 例全旧扁平形（185/185 带顶层 `a2a`）" | 实测：185/185 带顶层 `a2a` 子映射 + 顶层四元组；**153 例另带空壳 `layers:[{tcp:{}},{a2a:{}}]`**（两层 config 恒 `{}`，既不校验也不消费），32 例无 `layers` | 旧形 = **违规过渡形**（§1.4/§1.11 判死）；**本车道不改用例**（裁定：改写须先补代码，§12.1/G-A2A-1） |
+| 4 | 旧稿 §5.1 `A2AConfig` 含 `HTTP`/`TCP`/`FlowControl` 三个子结构 | `types.go:23-33` `A2AConfig` **字段齐在**（`BaseURL/AgentCardPath/Discover/AgentCard/Tasks/Auth/HTTP/TCP/FlowControl`）；但存量 185 例**零例使用** `tcp`/`http`/`flowControl` 三键（机读：`tcp` 0 例、`http` 0 例、`flowControl` 0 例） | 三键已落码但**无用例面** → A′ 立项（§13）；**注**：三键的迁层去向仍在 G-A2A-1（层内化）之后，非「无迁移量」 |
 | 5 | 旧稿 §7 称"246 条测试用例" | 存量 JSON **185 例**（唯一 ID 185）；#52 报告 §② 自审已核为"167 合入 + 9 等价 + 9 作废"，即**设计行 246 ≠ 存量 185**（差 87 条无存量例，G-A2A-9） | 计数口径继承 #52 结论；本契约 §9 以**存量 185** 为 JSON 权威、246 为设计行台账 |
-| 6 | #52 报告称 "`Fields` 空表 + 无 translate 分支 → `layers[].a2a` 今日判死（G-A2A-1）" | `chain_planner_translate.go` **无 `case "a2a"`**（`grep -c` = 0 实测）；`complete.go:293`（`ValidateLayerConfig`）的 unknown-field 检查对 `Fields` 为空的层生效 → 层内写任何键 = `layers: layer "a2a": unknown field %q` | **G-A2A-1 确认成立**：层内化未做，目标形状需先补代码（§1.9 口径） |
+| 6 | #52 报告称 "`Fields` 空表 + 无 translate 分支 → `layers[].a2a` 今日判死（G-A2A-1）" | 三重确认：① `chain_planner_translate.go` **无 `case "a2a"`**（`grep -c` = 0 实测）；② `chain_planner_translate.go:852` **`if len(s.Fields) == 0 { return }` 位于整个 `switch term.Name` 之前**——空壳层**连 case 都到不了，层内配置根本不被解码**；③ `complete.go:293`（`ValidateLayerConfig`）对 `Fields` 为空的层报 `layers: layer "a2a": unknown field %q` | **G-A2A-1 确认成立**：层为空壳，目标形状需先补代码（§1.9 口径） |
 | 7 | #52 报告称 "`a2a.*`=0、`jsonrpc.*`=0" | 本机 tshark 3.6.14 复测：`a2a.*` = **0**、`json.*` = **29**（`jsonrpc.*` 前缀 0，JSON-RPC 字段住 `json.*`） | 实测一致；断言通道定案见 §3.5 |
 | 8 | #52 报告称 "8080 端口可被 HTTP 解析器自动解码" | 存量 185/185 显式 `dst_port=8080`；HTTP dissector 按 8080 自动解码（自造探针实测，无需 `decode_as`） | 端口 fixture 继承有效 |
 | 9 | 旧稿（17-design）**无独立 testcase 文件**，#52 报告称"ID 权威已在 design §7，另起文件=双头维护" | `ls docs/protocol-designs/ \| grep a2a` = 仅 `17-a2a-design.md`；本批次交付契约为 **design + testcase + cases JSON 三件套**（`protocol-doc-requirements.md` §1） | 双头顾虑**不成立**：#93 两份文档职责分离（design 管代码生成、testcase 管测试保障），不是同一份 ID 表抄两遍（§7 方法论） |
@@ -38,7 +39,15 @@
 
 **显式边界（"不实现、不声称、不许静默转换"）**：① v0.3.0+ 的 `tasks/pushNotificationConfig/list|delete`、`agent/getAuthenticatedExtendedCard`（JSON-RPC，-32007）、`/.well-known/agent-card.json` 路径、`A2A-Version` 头、分页——**v2 路线图**（G-A2A-11），Validate 按 `ValidMethods`（`types.go:351`）拒绝；② webhook 反向连接（Agent → 客户端 webhook）**不生成**——本引擎的链是单向发起（客户端建连），反向连接需第二个 flow 且方向相反，`driven_by` 关联今日无处可住（G-A2A-5，§12.3 关联关系）；③ 真实 SSE 分块时序（`Transfer-Encoding: chunked` 的实际 chunk 边界）不声称与真实服务端一致，只保证事件序列与字节内容；④ MutualTLSSecurityScheme 的 Agent Card 声明可承载（`A2ASecurityScheme` 是 `map[string]any`），但不生成 mTLS 握手。
 
-**实现状态（2026-09-28 实测）**：`a2a` 层已注册（`registry.go:245`）、planner/validator/生成器已落码（`internal/protocol/a2a/` 八文件共 5741 行，`wc -l` 实测；95 个 `Test*` 函数，`grep -c` 实测）、`allowedProtocols["a2a"]=true`（`protocols.go:22`）、185 语义用例已落 `cases/a2a.json`。旧稿"待实现"描述对**骨架**已过时；**未过时的是层内化**（G-A2A-1，§0 表 #6）。
+**实现状态（2026-09-28 实测）**：`a2a` 层已注册（`registry.go:245`）、planner/validator/生成器已落码（`internal/protocol/a2a/` 八文件共 5741 行，`wc -l` 实测；95 个 `Test*` 函数，`grep -c` 实测）、`allowedProtocols["a2a"]=true`（`protocols.go:22`）、185 语义用例已落 `cases/a2a.json`。旧稿"待实现"描述对**骨架**已过时。
+
+**层为空壳（本协议最关键的现状事实，门1 §1 行的核心）**：
+
+- `registry.go:245` 的 `a2a` 注册**无 `Fields`**（生成表 `layers.a2a = {"category":"terminal","depends_on":["tcp"],"fields":{}}`，机读实测）。
+- `chain_planner_translate.go:852` 的 `if len(s.Fields) == 0 { return }` **位于整个 `switch term.Name` 之前** → 空壳层**连 translate case 都到不了**，层内 config **根本不被解码**（`translateTerminalConfig` 亦无 `case "a2a"`，`grep -c` = 0）。
+- 故层内写任何键的今日行为是 `complete.go:293` 报 `layers: layer "a2a": unknown field %q`；而唯一能承载 `A2AConfig` 的通道是**顶层 `a2a` 子映射**（`strategy_convert.go:1633` → `spec.Payload` → `chain_planner_translate.go:48` `FlowMeta.Payload` 直传生成器）。
+
+**合规层链形需代码阶段补三件**（G-A2A-1，文档阶段改不动）：① registry `Fields` 补 a2a 键表（否则 `:852` 提前返回，后续一切不可达）；② `translateTerminalConfig` 补 `case "a2a"`（层内 config → `spec.Payload`，层优先/已存在不覆盖）；③ `mapToFlowSpec` 顶层 `a2a` 兼容支收敛 + `CheckProtoFlat` presence 判死。**本协议 185 例现全为违规过渡形**（§12.1）。
 
 **输出契约（pcap/NIC 双输出）**：两路径共用同一 cases JSON 与断言集（`tcp.srcport/dstport`、`tcp.flags/len`、`http.content_type`、frames offset 54/74 原始字节）；NIC 经 tcpdump 捕获（`nic_capture` 用例级开关）；不设仅单路径可用的断言。
 
@@ -309,7 +318,9 @@ a2a 层**无自有状态**（`layer_gen.go:90` 的 `for taskIdx, task := range c
 
 `packet_count` 分布（148 例带 `packet_count` 的正例）：9 包 ×122 / 11 包 ×22 / 13 包 ×1（T164，3 task）/ 27 包 ×3（T165/T167/T168）；另 **5 例改用 `min_packets`**（T174=700 / T177=9000 / T180=40 / T181=31 / T183=14），122+22+1+3+5 = **153 正例**。
 
-完成定义：`tcp→a2a` 层链注册已落码；7 方法 + 4 事件 + 9 状态 + 12 错误码 + 3 Part kind 全部可观测；发现/流式/多任务/多流/v4/v6 全部有例；185 ID 正负断言与错误传播完成；不声称真实 Agent 平台处理时序与 webhook 反向连接。
+完成定义：`tcp→a2a` 层链注册已落码；7 方法 + 4 事件 + 9 状态 + 12 错误码（-32007 除外）+ 3 Part kind 全部可观测；发现/流式/多任务/多流/v4/v6 全部有例；185 ID 正负断言与错误传播完成；不声称真实 Agent 平台处理时序与 webhook 反向连接。
+
+**完成度现状（诚实口径）**：**文档面完成，代码面与用例面未完成**——层为空壳（§1），185 例全为违规过渡形（§12.1 / G-A2A-12）；`packet_count`/锚词等断言值本身有效但今日**不可执行**（MCP 建策略即 400）。
 
 ## 10. P1 规范矩阵（CORE_MEMORY §4 八项：规范要求→业务场景→代码现状→缺口）
 
@@ -459,13 +470,13 @@ a2a 层**无自有状态**（`layer_gen.go:90` 的 `for taskIdx, task := range c
 
 ### 11.8 回滚方式
 
-本协议文件独立成包，回滚 = revert 本协议 8 文件 + 接线 5 处（registry/convert/translate/protocols/main）；不触及其他协议。cases 回滚 = 恢复改写前 185 例 JSON（`git revert` 本车道 test 提交）。
+本协议文件独立成包，回滚 = revert 本协议 8 文件 + 接线 5 处（registry/convert/translate/protocols/main）；不触及其他协议。**cases 无需回滚**（本车道未改 `cases/a2a.json`；代码阶段改写后若需回退，`git checkout` 该文件即可——改写补丁参考存 `/tmp/a2a-rewrite.patch`）。
 
 ## 12. 门1 §1–§14 十四行对照表（CORE_MEMORY §15.1–15.3）
 
 | § | 本协议怎么满足 | 证据 |
 |---|---|---|
-| §1 层链唯一真相 | 见 §12.1 强制展开：改写前 185/185 顶层 = `layers + src_ip/dst_ip/src_port/dst_port + count + a2a`（违规过渡形）；**本车道已改写为纯层链**，非负例顶层键 = 0；目标形状见 §2 样例；presence 判死形状缺口 G-A2A-1 | §12.1；`cases/a2a.json` 机读实测 |
+| §1 层链唯一真相 | 见 §12.1 强制展开：存量 185/185 顶层 = `layers + src_ip/dst_ip/src_port/dst_port + count + a2a`（**违规过渡形，本车道未改**，顶层残留 1081 处）；层为空壳（§1 三条实测），合规形需代码阶段补 G-A2A-1 三项；目标形状见 §2 样例（今日跑不通）；presence 判死缺口 G-A2A-1 后半 | §12.1 + §1；`cases/a2a.json` 机读实测 |
 | §2 策略/任务 | 策略 = 单 a2a 流量模板（`tasks[]` 有序事务序列），自带 `flow_control`；任务 = 多策略合跑 + 总量封顶；框架语义未动 | 设计 §2 样例 |
 | §3 五件套 | 见 §12.3 强制展开：会话表/事务序列/关联（webhook 反向连接诚实声明不解决）/插入位置（终结层）/时间线。有长连接，不豁免 | §12.3 + §5 |
 | §4 查规范 | spec v0.2.2（主）+ v0.2.5/v0.3.0/v1.0 差异面 + JSON-RPC 2.0 + RFC 8615/7235 + a2a-python SDK 间接证据 + tshark 实测（`a2a.*`=0）；八项矩阵 + 子表①②③ | §10 |
@@ -478,35 +489,47 @@ a2a 层**无自有状态**（`layer_gen.go:90` 的 `for taskIdx, task := range c
 | §11 白话 | 每阶段白话一句先行（见本文首节） | 汇报 |
 | §12 动态清单 | 见 §12.12 强制展开：四元组全开（allowlist 实测）；业务字段逐个列开/不开 + 理由；序号算法实读行号 | §12.12 |
 | §13 schema 派生 | `a2a` 已在 `registry.go:245` 注册（**不新增层**）；`allowedProtocols["a2a"]=true`（`protocols.go:22`）；Payload 已直传；**P4 补 registry `Fields` 必须重跑 schemagen** | §11.1 |
-| §14 真实流程 | suite 经 MCP 建策略建任务 → 引擎真实生成 → tshark `http.*`/`json.*`/frames 三通道 → 先跑后钉；pcap 落 `/tmp/mcp-pcaps/a2a/` | testcase §7 |
+| §14 真实流程 | suite 经 MCP 建策略建任务 → 引擎真实生成 → tshark `http.*`/`json.*`/frames 三通道 → 先跑后钉；pcap 落 `/tmp/mcp-pcaps/a2a/`。**今日存量 185 例经 MCP 建策略即 400**（§12.1 堵点 3），真实流程待 G-A2A-1 落码后方可执行 | testcase §7 |
 
-### 12.1 §1 强制展开：旧键去向 + 完整 spec_json 样例
+### 12.1 §1 强制展开：旧键去向 + 缺口登记（本协议**用例未改**，裁定依据）
 
-**改写前存量实测（逐例机读，2026-09-28）**：
+**裁定（2026-09-28 主线程）**：`cases/a2a.json` **本车道不动**。理由：a2a 层是**空壳**（§1 三条实测），改写后层内配置无处可住、仍带顶层旧键则经 MCP 建策略 400，**改了只会把绿例改红且依旧不可调用**；合规层链形必须先补代码（G-A2A-1）。故本节只登记去向与缺口，不声称已迁移。
+
+**存量实测（逐例机读，2026-09-28）**：
 
 | 文件 | 例数 | 顶层键分布 | 链形 | 负例 expect 纯净 |
 |---|---|---|---|---|
 | `cases/a2a.json` | 185 | `{layers, src_ip, dst_ip, src_port, dst_port, count, a2a}` ×151 + 同形无 `layers` ×7 + `{layers, src_ip, dst_ip, dst_port, a2a}` ×2（T165/T168 带 `strategy_fc`）+ `{src_ip, dst_ip, src_port, dst_port, a2a}` ×25 | 空壳 `[tcp,a2a]` ×153 / 无 layers ×32 | ✅ 32/32 只有 `{expect_error,error_contains,notes}` |
 
+**顶层残留计数**：`src_ip` 185 / `dst_ip` 185 / `dst_port` 185 / `src_port` 183 / `count` 158 / 顶层 `a2a` 子映射 185 = **合计 1081 处**（非负例 914 处 + 负例 167 处）。
+
 **旧键去向表（§15.3 要求"每个键写去向"）**：
 
-| 旧键 | 改写前出现例数 | 去向 | 本车道动作 |
+| 旧键 | 出现例数 | 去向（代码阶段落地后执行） | 今日状态 |
 |---|---:|---|---|
-| `src_ip` | **185** | 迁 `layers[0].ip.src` | **已改写** |
-| `dst_ip` | **185** | 迁 `layers[0].ip.dst` | **已改写** |
-| `src_port` | **183** | 迁 `layers[1].tcp.src_port`（2 例 T165/T168 无 `src_port`，走 worker 保底递增） | **已改写** |
-| `dst_port` | **185** | 迁 `layers[1].tcp.dst_port`（值 8080 保留） | **已改写** |
-| `count` | **158** | 删除（值恒 1；数量走 `flow_control`） | **已改写** |
-| 顶层 `a2a` 子映射 | **185** | 迁 `layers[2].a2a`（**须先补 registry `Fields`**，G-A2A-1） | **已改写（目标形）** |
-| `strategy_fc`（顶层，非 spec_json 内） | 2 | 保留（`pcaptest.Case.StrategyFC` 字段；P4 可转 spec 内 `flow_control`） | **保留** |
+| `src_ip` | **185** | 迁 `layers[0].ip.src` | **未迁**（保留顶层） |
+| `dst_ip` | **185** | 迁 `layers[0].ip.dst` | **未迁** |
+| `src_port` | **183** | 迁 `layers[1].tcp.src_port`（2 例 T165/T168 无 `src_port`，走 worker 保底递增） | **未迁** |
+| `dst_port` | **185** | 迁 `layers[1].tcp.dst_port`（值 8080 保留） | **未迁** |
+| `count` | **158** | 删除（值恒 1；数量走 `flow_control`） | **未迁** |
+| 顶层 `a2a` 子映射 | **185** | 迁 `layers[2].a2a`（**前置 = G-A2A-1 三项全落**） | **未迁**（唯一有效通道） |
+| `strategy_fc`（顶层 Case 字段） | 2 | 保留（`pcaptest.Case.StrategyFC`；可转 spec 内 `flow_control`） | 保留 |
 
-**结论**：本协议**已完成用例侧迁移**——非负例顶层键 = **0**（改写前 914 处残留）。剩余迁移量在**代码侧**：①补 registry `Fields`（a2a 层键表）；②加 translate 分支（层内 a2a → `spec.Payload`）；③补 `FieldContract`（`tcp.dst_port` 契约，G-A2A-2）；④补 `CheckProtoFlat` presence 判死分支（G-A2A-1 后半）。
+**为什么现在改不动（三重堵死，逐条有证据）**：
 
-目标形状样例见 §2（顶层仅 `layers` + `flow_control`）。
+| # | 堵点 | 证据 | 后果 |
+|---|---|---|---|
+| 1 | 层内键无处可住 | `registry.go:245` 无 `Fields` → `complete.go:293` 报 `unknown field` | 目标形状（层内 a2a 配置）被拒 |
+| 2 | 层内配置不被解码 | `chain_planner_translate.go:852` `if len(s.Fields)==0 { return }` **在 switch 之前** + 无 `case "a2a"` | 即使绕过 ①，层内配置也被静默丢弃 |
+| 3 | 顶层旧键经 MCP 即 400 | `schema/semantic.go:130` 无条件 `CheckProtoFlat` → 顶层四元组/count 任一出现即拒 | 存量 185 例**今日既非绿也非红，而是跑不起来**（MCP 路径） |
+
+**注**：离线套件（`layer_chain_suite_test.go:225-231`）剥离 `layers` 后把顶层扁平键直传 `MapToFlowSpec`，**绕过 `CheckProtoFlat`**——故存量例在离线套件里是绿的、在 MCP 里是 400 的。两种口径都不是合规层链形。
+
+**结论**：本协议**用例侧迁移量为 185 例全额待办**（非 0）。迁移前置 = G-A2A-1 三项（registry `Fields` + translate `case` + `mapToFlowSpec` 收敛/presence 判死）+ G-A2A-2（`FieldContract`）。目标形状样例见 §2（顶层仅 `layers` + `flow_control`），**今日跑不通**（§1.9 口径）。
 
 ### 12-P2 判死负例形状（链级红例必含清单①③④）
 
-- ① presence 形状 `{"layers":[…],"a2a":{}}` 今日**不会被拒**（`CheckProtoFlat` 无 a2a 分支，`grep -c` = 0 实测）→ **P4 建该负例前须先补判死分支**（moxa G-MOXA-2 同款纪律：先实测再建例，建了会真绿 = 假通过）→ 缺口 G-A2A-1 后半登记。② 白名单外游离键判死（`unknown field`）P4 建一条（A′）。③ 32 负例每条带锚词（已齐，§7）。④ 收官自查「非负例顶层键 = 0」——**本车道已达成**（185/185）。
+- ① presence 形状 `{"layers":[…],"a2a":{}}` 今日**不会被拒**（`CheckProtoFlat` 无 a2a 分支，`grep -c` = 0 实测）→ **P4 建该负例前须先补判死分支**（moxa G-MOXA-2 同款纪律：先实测再建例，建了会真绿 = 假通过）→ 缺口 G-A2A-1 后半登记。② 白名单外游离键判死（`unknown field`）P4 建一条（A′）。③ 32 负例每条带锚词（已齐，§7）。④ 收官自查「非负例顶层键 = 0」——**今日红**（非负例顶层残留 **914 处**，全量 1081 处）；**不得作为「今日已过」申报**，待 G-A2A-1 落码 + 185 例改写后方可转绿。
 
 ### 12.3 §3 强制展开：五件套
 
@@ -550,6 +573,8 @@ a2a 层**无自有状态**（`layer_gen.go:90` 的 `for taskIdx, task := range c
 
 185 ID（153 正 + 32 负）+ `packet_count`/`min_packets`/锚词 + fixture 常量 + 双通道断言基线 + 存量审计（testcase §2–§5/§8 全量）。
 
+**前置（硬门）**：G-A2A-1 三项落码前，本协议**无法产生任何合规层链用例**（§12.1 三重堵死）；下列 A′ 例全部挂在代码阶段。
+
 **A′ 候选补例**（P4 落码后补，今日不冒充覆盖）：
 
 | # | 候选 ID | 内容 | 依赖 |
@@ -567,7 +592,7 @@ a2a 层**无自有状态**（`layer_gen.go:90` 的 `for taskIdx, task := range c
 
 | 缺口 | 内容 | 去向 |
 |---|---|---|
-| G-A2A-1 | 层内化未做：registry `a2a` `Fields` 为空（生成表 `fields: {}`）+ `translateTerminalConfig` 无 `case "a2a"` + `CheckProtoFlat` 无 a2a 分支 → 层内任何键今日 `unknown field`，顶层 `a2a` presence 今日不判死 | P4 首动作（补 `Fields` + translate 分支 + presence 判死 + schemagen 重跑）；**禁加单协议黑名单分支**（等框架级 unknown-key 白名单） |
+| G-A2A-1 | **层为空壳（本协议头号缺口，挡用例改写）**：① `registry.go:245` 无 `Fields`；② `chain_planner_translate.go:852` `if len(s.Fields)==0 { return }` **在 switch 之前** + 无 `case "a2a"` → 层内配置**根本不被解码**；③ `complete.go:293` 层内任何键报 `unknown field`；④ `CheckProtoFlat` 无 a2a 分支 → 顶层 `a2a` presence 今日不判死。**后果：185 例全为违规过渡形且经 MCP 建策略即 400**（§12.1） | 代码阶段首动作，**三项同批**：补 `Fields` + 补 `case "a2a"`（层内→`spec.Payload`，层优先/已存在不覆盖）+ `mapToFlowSpec` 顶层 `a2a` 兼容支收敛 + presence 判死 + schemagen 重跑；**禁加单协议黑名单分支**（等框架级 unknown-key 白名单）。落地后 185 例方可改写 |
 | G-A2A-2 | 端口契约缺失（无 `FieldContract`）→ 缺省落通用 80；fixture 8080 只是用例值 | P4 与 G-A2A-1 同批；端口值待主线程批准 |
 | G-A2A-3 | V3/V13/V14/V15 未实装（`grep` 实测 `a2a.go` 只有 V1/V2/V4–V12/V16） | P4 前定口径：实装或设计删条（二选一） |
 | G-A2A-4 | 商业平台基线未确认（真实 Agent 平台现网行为） | 待确认：查官方文档对应章节，或抓现网 Agent 包（三选一已写清）；确认前不写死进实现 |
@@ -578,7 +603,9 @@ a2a 层**无自有状态**（`layer_gen.go:90` 的 `for taskIdx, task := range c
 | G-A2A-9 | 覆盖缺口：旧稿 §7 的 246 条设计行中 87 条无存量例 | P4 casegen 并入 + 全量重跑；A′ 清单见 §13 |
 | G-A2A-10 | 真中断/无终态收尾（FIN/RST mid-task、SSE 无终态事件） | A′ 补例 `a2a_abort_rst` + `a2a_sse_last_final_false`（§13） |
 | G-A2A-11 | v0.3.0+/v1.0 扩展（list/delete/扩展卡片/`agent-card.json`/`A2A-Version`/分页） | **明确不支持**（v2 路线图；`ValidMethods` 拒绝） |
+| G-A2A-12 | **用例侧迁移全额待办**：185 例顶层残留 1081 处（非负例 914 处）未迁；本车道按裁定**不改 JSON** | 与 G-A2A-1 同批（代码落码后改写 185 例 + 补 A′ 例）；收官自查行「非负例顶层键 = 0」**今日红，不得申报已过** |
 
 ## 15. 修订记录
 
-- v1.0.0（2026-09-28）：P-PIPE #93 文档轨 P1–P3。续号重做：17→93 沿革与 9 项状态校正（§0）；存量 185 例机读审计 + **全量改写为纯层链形**（§12.1，非负例顶层键 914→0）；§12.1/12.3/12.12 强制展开 + 12-P2；D-A2A-1 as-built 定稿（§11）；缺口 G-A2A-1…G-A2A-11 继承 #52 报告并逐条对码校正。P1 自审 2 轮 / P2 自审 2 轮 / P3 自审 2 轮，末轮干净（结论见 `/tmp/pipe/doc-lanes/a2a.md`）。
+- v1.0.0（2026-09-28）：P-PIPE #93 文档轨 P1–P3。续号重做：17→93 沿革与 9 项状态校正（§0）；存量 185 例机读审计（顶层残留 1081 处 / 非负例 914 处）；**§1 层为空壳三条实测 + 合规形需代码阶段补三件**；§12.1 改为缺口登记（含三重堵死证据表）+ §12.3/§12.12 强制展开 + 12-P2；D-A2A-1 as-built 定稿（§11）；缺口 G-A2A-1…G-A2A-12。
+- **裁定更正（同日）**：初稿曾把 `cases/a2a.json` 改写为纯层链形并提交，经主线程裁定撤销（空壳层改写只会把绿例改红且依旧不可调用）——JSON 已 `git checkout` 还原，改写补丁存 `/tmp/a2a-rewrite.patch` 备代码阶段参考；文档改为缺口登记口径。
