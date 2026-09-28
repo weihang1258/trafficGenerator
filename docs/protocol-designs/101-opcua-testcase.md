@@ -1,8 +1,8 @@
 # #101 opcua（OPC UA）测试用例契约
 
-> 版本：v1.0.0（P-PIPE 文档轨 P1–P3）
+> 版本：v1.0.1（P-PIPE 文档轨 P1–P3 + 结果文档过期登记）
 > 日期：2026-09-28
-> 配套设计：`docs/protocol-designs/101-opcua-design.md` v1.0.0（D-OPCUA-1）
+> 配套设计：`docs/protocol-designs/101-opcua-design.md` v1.0.1（D-OPCUA-1）
 > 旧基线：`docs/protocol-designs/25-opcua-testcase.md` v1.0.0（文档列 T1–T14，实际 JSON 12 例；**承其断言思路**，冲突处按实测 pcap 与代码事实改正，见设计 §0）
 > 机器契约：`trafficgen/test/protocol_pcap/cases/opcua.json`（12/12 ID 与本版 §2 一致，顺序一致，已机读实测；**顶层键已是纯层链形，零残留**）
 > 白话一句：**十二条检查：十条看正常收发（握手、开通道、带签名、读写浏览、订阅、两类错误码、多会话、新网段），两条看胡来能不能被拦下；每条只查一件事。**
@@ -163,7 +163,7 @@ OPC UA Part 6/Part 4 + 官方 `NodeIds.csv`/`StatusCode.csv`（设计 §10）+ D
 
 - **清单出处声明**：本清单来源 = **OPC UA Part 6/Part 4 公开语义 + 官方 NodeIds/StatusCode CSV + 旧基线契约 + 仓库落码反推 + tshark 3.6.14 字段与 pcap 实测**，**非纯规范反推**（Part 6 条款号未逐条核对 → G-OPCUA-8）。
 - **对账两行**：**要求逻辑点总数 = 74**（八项 8 行 + 矩阵 27 格 + 变体 24 行 + 商业映射 15 行）；**用例覆盖数 = 46**（八项已覆 4 + 矩阵已覆 17 + 变体已覆 15 + 商业已覆 10）；**不适用 = 8**（八项 1 + 矩阵 2 + 商业 5）；**开放立项 = 20**（八项 3 + 矩阵 A′ 8 + 变体立项 9）。46 + 8 + 20 = 74。✓
-  **粒度声明**：行/格粒度每点 1 计；G-OPCUA-1…G-OPCUA-9 与 M-1 不折进 74。**反查全绿 ≠ 覆盖全**（§9.52 原文）。逐表重数见设计 §10.1（八项 8 = 覆 4 + 立项 3 + 不适用 1）/§10.2（27 格 = 覆 17 + A′ 8 + 不适用 2）/§10.3（24 行 = 覆 15 + 立项 9）/§10.4（15 行 = 覆 10 + 不适用 5）。
+  **粒度声明**：行/格粒度每点 1 计；G-OPCUA-1…G-OPCUA-10 与 M-1 不折进 74。**反查全绿 ≠ 覆盖全**（§9.52 原文）。逐表重数见设计 §10.1（八项 8 = 覆 4 + 立项 3 + 不适用 1）/§10.2（27 格 = 覆 17 + A′ 8 + 不适用 2）/§10.3（24 行 = 覆 15 + 立项 9）/§10.4（15 行 = 覆 10 + 不适用 5）。
 - **门3 抽查候选**：最复杂用例 = **#6 `opcua_subscribe`**（23 帧：传输层 2 + OPN 对 + **5 对订阅服务**（CreateSub/CreateMon/SetPubMode/Publish通知/Publish keep-alive）+ CLO 对 + FIN 四包；交织维度 = 服务(5)×方向(2)×通知有无(2)×TypeId(5 组)）；**建议门3 抽 #6 + #10**（`opcua_multi_session` 补多会话面）。
 
 ### 5.3 T-编号与旧 id 对照（设计 §9 全表摘要）
@@ -232,6 +232,7 @@ OPC UA Part 6/Part 4 + 官方 `NodeIds.csv`/`StatusCode.csv`（设计 §10）+ D
 7. **负例 `notes` 键**：2 负例 expect 含 `notes`，与严格两键口径不符（G-OPCUA-7）。
 8. **存量 `expect.notes` 文案与实现相反（2 条，C-6）**：`opcua_multi_session` 的 notes 称三对 Read "**interleaved**" 且 "each keeps its own AuthenticationToken and RequestHandle space"——实测**连续非交错**、三对 @82 全 `01 00 00 00`、handle 2/3/4 共用计数器；`opcua_subscribe` 的 notes 称 "CLO … **has no CLO response**"——实测帧 18/19 均 `CLOF` size 59。**本文档 §3.10/§3.6 已诚实声明事实，但存量 JSON 的 notes 字段本身仍是错的**，P4 必须改写（G-OPCUA-2/G-OPCUA-7 的 P4 动作已列）。
 9. **存量未覆盖**：`bad_length` 单独、`security_mode` 非法、`security_mode` 缺省、NodeId 非法/越界、空 `node_ids`、`close=false`、缺省端口、异族混写、单周期订阅、非空 EndpointUrl、MessageSize 上限、RST**今日零用例**（A′ 补）。
+10. **结果文档过期（G-OPCUA-10）**：tracked 结果产物 `trafficgen/docs/protocol-pcap-test/opcua.md` 写 "Cases: 12 — pass 12, fail 0, error 0"，但末次提交 `91f2487`（**2026-08-30**）早于判死提交 `0417be5`（2026-09-13）；`docs/protocol-pcap-test/opcua/` **0 个 pcap**（目录根本不存在）。故该 12/12 **是过期产物、未经今日复跑证实，不得作为"今日已复跑"依据**。**opcua 特殊性（须写清，不得夸大）**：opcua 是本批**唯一已合规**的协议（12/12 顶层键仅 `{layers}`，§1），其 12 例**今日仍应可跑**——本缺口**不是**"不可跑"，而是"**数字未经今日复跑证实 + 无 pcap 留档**"；本车道未跑该套件，故不以任何形式引用该产物。归属**代码阶段**（P5 重跑套件后重生成该产物）。
 
 ### 8.3 逐条去向表（12 行）
 
@@ -267,6 +268,9 @@ OPC UA Part 6/Part 4 + 官方 `NodeIds.csv`/`StatusCode.csv`（设计 §10）+ D
 | 7 | 每正例至少一条 frames 断言落在 offset 54（IPv4）或 74（IPv6） | 本契约 §3 |
 | 8 | M-1 修复后：`opcua_subscribe` 帧 12/13 TypeId ∈ `{799, 802}` | 设计 §9.2 |
 
+**另注意**：`docs/protocol-pcap-test/opcua.md` 的 12/12 pass 是**过期产物**（G-OPCUA-10，末次提交 `91f2487` 2026-08-30 早于判死提交 `0417be5` 2026-09-13；`docs/protocol-pcap-test/opcua/` 0 个 pcap），**不得作为"今日已复跑"依据**（口径与 pcep 车道 G-PCEP-11 一致）。**但 opcua 是本批唯一已合规协议（12/12 顶层键仅 `{layers}`），12 例今日仍应可跑**——该提醒**仅限**"数字未经今日复跑证实 + 无 pcap 留档"，**不得读成"套件不可跑"**。
+
 ## 10. 修订记录
 
+- v1.0.1（2026-09-28，小补登记）：§8.2 新增第 10 条 **G-OPCUA-10**（结果文档过期）——`docs/protocol-pcap-test/opcua.md`（tracked 产物）写「12 — pass 12」是**过期产物**（末次提交 `91f2487` 2026-08-30，早于判死提交 `0417be5` 2026-09-13；`docs/protocol-pcap-test/opcua/` **0 个 pcap**），**未经今日复跑证实，不得作为"今日已复跑"依据**；§9 表末加同口径提醒句；粒度声明缺口范围 `G-OPCUA-1…G-OPCUA-9` → **`…G-OPCUA-10`**；配套设计版本 `v1.0.0` → `v1.0.1`。**本缺口不代表 opcua 不可跑**——opcua 为本批唯一已合规协议（12/12 顶层键仅 `{layers}`，§1），12 例今日仍应可跑；本车道未跑该套件，登记仅限"数字未经今日复跑证实 + 无 pcap 留档"。口径对齐 pcep 先例 G-PCEP-11。仅文档，未动 JSON/代码。自审 1 轮，末轮干净。
 - v1.0.0（2026-09-28）：P-PIPE #101 文档轨 P1–P3。**承 25-opcua-testcase 的 12 ID / 锚词 / 断言思路**；形状基线机读实测（§1，**顶层零残留**）；48 条 frame 断言逐条对实测 pcap 复核（全 OK）；包数公式 `13+2×服务对数` 与实测 10/10 一致；冲突处按实测/代码改正（旧稿包数全错、CLO 有响应、tshark dissector 存在、T4/T8 虚例、ServiceResult 偏移收窄、M-1 TypeId 缺陷）；P3 固定动作（§6）；执行建议（§7）；存量审计（§8，12/12 保留或改写）；覆盖反查门建议断言行（§9）。自审见 `/tmp/pipe/doc-lanes/opcua.md`。

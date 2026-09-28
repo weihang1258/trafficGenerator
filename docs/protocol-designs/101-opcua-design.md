@@ -1,6 +1,6 @@
 # #101 opcua（OPC UA · 工业互操作统一架构，二进制协议 TCP 4840）设计契约
 
-> 版本：v1.0.0（P-PIPE 文档轨 P1–P3）
+> 版本：v1.0.1（P-PIPE 文档轨 P1–P3 + 结果文档过期登记；修订记录见 §15）
 > 日期：2026-09-28
 > 车道：文档轨（#101 opcua 续号）
 > 旧基线：`docs/protocol-designs/25-opcua-design.md` v1.0.0 + `25-opcua-testcase.md` v1.0.0（12 例 = 10 正 + 2 负；本 #101 为 P-PIPE 续号重做，**承 25-opcua-design 审计通过的分层模型、MessageHeader 布局、NodeId/Variant 编码表、RequestHeader 字段序、订阅链路顺序、AttributeId/枚举表**，不搬旧稿的过时状态声明与错误数字，逐条见 §0）
@@ -33,6 +33,10 @@
 | 17 | design §7 / testcase §1.2 引用 `docs/protocol-designs/audit/25-opcua-adversarial-audit.md` | 该目录**不存在**（`ls audit/` 实测：No such file or directory）；`INDEX.md:119` 同引 | **死引用**（与 ldp/someip 车道同款）；本版不复制该死引用 |
 
 **依赖链判定纪律**：以上均为可判题（旧文→官方 CSV/代码/pcap 三级对照），直接判定，不问偏好。不可判的（Part 6 §7.1.2.x 条款号逐条对应、CLO 响应是否合规）标"待确认"并写清确认方式（G-OPCUA-8）。
+
+**产物过期登记（重要，G-OPCUA-10）**：`trafficgen/docs/protocol-pcap-test/opcua.md`（**tracked 结果产物**，`git ls-files` 可证）写 "Cases: 12 — pass 12, fail 0, error 0"，但该文件末次提交 `91f2487`（**2026-08-30**），**早于**判死提交 `0417be5`（2026-09-13，扁平判死泛化全协议 `CheckProtoFlat`）；`docs/protocol-pcap-test/opcua/` 目录**根本不存在（0 个 pcap 文件）**。**该结果文档是过期产物，12/12 pass 未经今日复跑证实，不代表今日已复跑**——读者不得据此判断套件已复跑。
+
+**opcua 特殊性（须写清，不得夸大）**：opcua 是本批**唯一已合规**的协议（12/12 例 `spec_json` 顶层键仅 `{layers}`，机读实测；全仓另有 26 个协议同形），故其 12 例**今日仍应可跑**。本缺口**不是**"不可跑"登记，而是"**12/12 数字未经今日复跑证实 + `docs/protocol-pcap-test/opcua/` 无 pcap 留档**"。本车道**未跑**该套件，故本文档**不以任何形式**（含"今日已跑通"）引用该产物作为套件可跑证据。
 
 ## 1. 范围、profile 与实现状态边界
 
@@ -466,7 +470,7 @@ opcua 层无自有状态机：握手/挥手/分段在 tcp 层；opcua 层是"按
 | §4 查规范 | Part 6/Part 4 + 官方 `NodeIds.csv`/`StatusCode.csv` + tshark 3.6.14 字段与 12 例 pcap 实测 + 落码反推；八项矩阵 + 子表①②③ | §10 |
 | §5 依赖与错误 | `DependsOn ["tcp"]` 单值（`registry.go:720`）；7+2 种拒绝分支；失败传 task error（两负例 0 帧实测） | §5/§7/§11.5 |
 | §6 性能 | 见 §6（6.1–6.8 要素齐；吞吐数字标待 P4 基准，不写承诺；pcap/NIC 两路验收明写） | §6 |
-| §7 三份文档 | `101-opcua-{design,testcase}.md` v1.0.0（草稿层）+ D-OPCUA-1（§11，门1 获批 = 定稿）+ T-OPCUA（testcase §2，12 ID）+ 旧稿 25-* 为历史层 | 修订记录 |
+| §7 三份文档 | `101-opcua-{design,testcase}.md` v1.0.1（草稿层）+ D-OPCUA-1（§11，门1 获批 = 定稿）+ T-OPCUA（testcase §2，12 ID）+ 旧稿 25-* 为历史层 | 修订记录 |
 | §8 设计先行 | P1–P3 先于 P4 缺口收敛；门1 获批 = D-OPCUA-1 定稿 = 开工门 | 提交序 |
 | §9 测试三源 | 三源 = Part 6/Part 4 + 官方 CSV（§10）+ D-OPCUA-1（§11）+ tshark 3.6.14 字段与 pcap 实测（**已到抓包级**：12 例 pcap 在案、48 条 frame 断言逐条复核 OK）；12 ID 逐项回指；存量 12 例审计去向 testcase §8 | `101-opcua-testcase.md` §2/§5/§8 |
 | §10 评审闭环 | 每阶段对抗自重审（结论见 `/tmp/pipe/doc-lanes/opcua.md`）+ 收官隔离复审；红先绿后 | 自审日志 |
@@ -532,7 +536,9 @@ opcua 层无自有状态机：握手/挥手/分段在 tcp 层；opcua 层是"按
 | G-OPCUA-7 | 未入例拒绝分支 5 条（`bad_length` 单独 / `security_mode` 非法 / 空 `node_ids` / NodeId 解析两分支 / `ErrorInject.Op` 未知值静默 Good）+ MessageSize UInt16 上限 + `security_mode` 缺省分支（§10.3 行 14 已改判立项） | A′ 补例（含 `ErrorInject.Op` 未知值的**静默 Good 是缺陷候选**，P4 裁定拒绝或登记）。**P4 必做**：改写 `opcua_subscribe` 的 `expect.notes` 文案——存量原文 "CLO is one symmetric message and **has no CLO response**" **与实测相反**（帧 18/19 均 `CLOF` size 59）；同批删两条负例的 `notes` 键（严格两键口径） |
 | G-OPCUA-8 | 第三源（真实服务器/开源实现线字节）未取到；Part 6 §7.1.2.x 条款号未逐条核对；**CLO 是否有响应**与旧稿 §4.4/§6 记载矛盾（实测发响应） | 待确认：抓 open62541 或真实 OPC UA 服务器包对照，或查 Part 4 §5.13.3 原文；确认前按实现钉、不声称合规。**风险（须写清）**：若原文确为"CLO 单向无响应"，则**全部 10 个正例**（机读实测 `close:true` = 10/10，两负例不产流不受影响）的**帧位与 `packet_count` 需整体重算**——每例减 1 帧：13→12、15→14、23→22、19→18；§9 包数公式 `13+2×服务对数` 须改为 `12+2×服务对数`；testcase §1 形状基线、§3 各例帧位与 §8.1 实测面同步重钉 |
 | G-OPCUA-9 | 响应侧 TypeId 用 DataType 值（632/674/528/752/788/827），请求侧用 Encoding 值（631/673/527/751/787/826）——**口径不统一**；tshark 响应侧表内缺失故不影响解码 | P4 与 M-1 一并修（响应侧改 634/676/530/754/790/829）；修后重跑后钉（帧数与 body 布局不变） |
+| G-OPCUA-10 | **结果文档过期**：`trafficgen/docs/protocol-pcap-test/opcua.md`（**tracked 产物**）写 `Cases: 12 — pass 12, fail 0, error 0`，但末次提交 `91f2487`（**2026-08-30**）早于判死提交 `0417be5`（2026-09-13）；`docs/protocol-pcap-test/opcua/` **0 个 pcap**（目录根本不存在，非"空目录"）——故该 12/12 **未经今日复跑证实，不得作为"今日已复跑"依据**。**opcua 特殊性（须写清，不得夸大）**：opcua 是本批**唯一已合规**的协议（12/12 顶层键仅 `{layers}`，机读实测），故其 12 例今日**仍应可跑**——本缺口**不是**"不可跑"，而是"**数字未经今日复跑证实 + 无 pcap 留档**"；本车道亦未跑该套件，故**不以任何形式**（含"今日已跑通"）引用该产物 | **代码阶段**（P5 重跑套件后重生成该产物）；本版**不删不改**（tracked 产物，删除属 P5 动作，此处仅登记事实）；在此之前读者不得据此判断套件已复跑（口径与 pcep 先例 G-PCEP-11 一致） |
 
 ## 15. 修订记录
 
+- v1.0.1（2026-09-28，小补登记）：新增缺口 **G-OPCUA-10**（§14）——`trafficgen/docs/protocol-pcap-test/opcua.md` 的「12/12 pass」是**过期产物**（末次提交 `91f2487` 2026-08-30，早于判死提交 `0417be5` 2026-09-13；`docs/protocol-pcap-test/opcua/` 0 个 pcap），**归属代码阶段**（P5 重跑套件后重生成）；§0 增产物过期登记段；缺口范围 `G-OPCUA-1…G-OPCUA-9` → **`…G-OPCUA-10`**。**本缺口不代表 opcua 不可跑**——opcua 为本批唯一已合规协议（12/12 顶层键仅 `{layers}`），12 例今日应可跑，登记仅限"数字未经今日复跑证实 + 无 pcap 留档"。**不改任何 tracked 产物**（`trafficgen/docs/protocol-pcap-test/` 下零改动）。自审 1 轮，末轮干净。
 - v1.0.0（2026-09-28）：P-PIPE #101 文档轨 P1–P3。续号重做：25→101 沿革与 **17 项**旧稿校正（§0，含 2 处官方 CSV 实证的取值臆造、1 处包数全错、1 处 tshark dissector 存在性反转、1 处"CLO 无响应"与实测矛盾）；存量 12 例机读审计（**顶层零残留**，本协议无迁移工作量）；48 条 frame 断言逐条对实测 pcap 复核（全 OK）；§12.1/12.3/12.12 强制展开 + 12-P2；D-OPCUA-1 as-built 定稿（§11）；**M-1（SetPublishingMode TypeId 791/792 → 799/802）confirmed finding**（§9.2）；缺口 G-OPCUA-1…G-OPCUA-9。自审见 `/tmp/pipe/doc-lanes/opcua.md`。
