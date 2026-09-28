@@ -324,8 +324,31 @@ func buildEventLines(run *sessionRun, ev core.StratumEvent) ([]builtLine, error)
 
 	case "configure":
 		run.vrActive = true
+		// D-STRATUM-1 G-ST-2：事件级 extensions/version_rolling_mask/
+		// min_bit_count 三键接线（今日静默丢弃）。两者皆缺省时沿用钉死的
+		// FixtureCfgParams 字面量——字节与存量 40 例断言逐字相同。
+		var exts, params json.RawMessage
+		if len(ev.Extensions) > 0 {
+			if b, err := json.Marshal(ev.Extensions); err == nil {
+				exts = b
+			}
+		}
+		if ev.VersionRollingMask != "" || ev.MinBitCount != 0 {
+			mask := ev.VersionRollingMask
+			if mask == "" {
+				mask = FixtureMinerMask
+			}
+			cnt := ev.MinBitCount
+			if cnt == 0 {
+				cnt = FixtureMinBitCnt
+			}
+			params = json.RawMessage(`{"version-rolling.mask":` + quoteJSON(mask) +
+				`,"version-rolling.min-bit-count":` + intStr(cnt) + `}`)
+		} else if len(ev.Params) > 0 {
+			params = ev.Params
+		}
 		return []builtLine{
-			{up: true, bytes: BuildConfigureReq(ev.ID, nil, ev.Params)},
+			{up: true, bytes: BuildConfigureReq(ev.ID, exts, params)},
 			{up: false, bytes: BuildConfigureResp(ev.ID, ev.CfgResult)},
 		}, nil
 	case "set_version_mask":

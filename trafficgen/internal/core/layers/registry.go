@@ -629,14 +629,25 @@ func buildDefaultRegistry() {
 		},
 	})
 	// stratum（比特币 Stratum v1）：终结层事件为行式 JSON（LF 边界、紧凑
-	// 形态），[tcp→stratum] 直连（ip 层由依赖补全自动插入）。协议配置经
-	// spec.Stratum（顶层 "stratum" 子映射）注入，层 config 恒空；3333 端口
-	// 经 FieldContract 供通用应用补齐。无 stratum dissector，断言全走
-	// tcp.payload/frames（设计 §2 实测基线）。
+	// 形态），[tcp→stratum] 直连（ip 层由依赖补全自动插入）。配置住 stratum
+	// 层条目（顶层 "stratum" 子映射由 CheckProtoFlat presence 判死，D-STRATUM-1
+	// G-ST-4）；3333 端口经 FieldContract 供通用应用补齐。无 stratum
+	// dissector，断言全走 tcp.payload/frames（设计 §2 实测基线）。
 	r.Register(LayerSchema{Name: "stratum", Category: CategoryTerminal,
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "3333"},
-	})
+		// Fields = 层 config 键白名单（ValidateLayerConfig V9 拒绝未知键）。
+		// 五键与 core.StratumConfig 的 json tag 一一对应：嵌套值语义（事件
+		// 级 27+ 键）归 translate 的严格 JSON 往返 + planner 校验，V9 只看
+		// 顶层键是否存在（xmrmining/bgp 同款）。sessions Default 保持
+		// []interface{}{}（空层 {} 与显式 sessions:[] 同落生成器缺省基线流）。
+		Fields: map[string]FieldSchema{
+			"profile":    {Type: "string", Default: ""},  // 信息性（stratum_v1 / stratum_ipv6_v1 / stratum_bip310_ext）
+			"concurrent": {Type: "bool", Default: false}, // 多会话交错回放（tcp 层须同时 concurrent:true）
+			"extensions": {Type: "list", Default: []interface{}{}},
+			"sessions":   {Type: "list", Default: []interface{}{}},
+			"wire_fault": {Type: "string", Default: ""}, // 11 值枚举（设计 §7）；""=无故障
+		}})
 	// ethmining（以太坊挖矿 stratum 协议，EthereumStratum/1.0.0）：终结层
 	// 事件为行式 JSON（LF 边界、紧凑形态），[tcp→ethmining] 直连（ip 层由依
 	// 赖补全自动插入）。协议配置经 spec.ETHMining（顶层 "ethmining" 子映射）

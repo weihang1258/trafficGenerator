@@ -6,36 +6,38 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -49,40 +51,42 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "extranonce_subscribe",
+          "id": 2
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "extranonce_subscribe",
-        "id": 2
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -96,43 +100,45 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -146,43 +152,45 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": false
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": false
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -196,62 +204,64 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -265,62 +275,64 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": true
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": true
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -334,48 +346,50 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -389,81 +403,83 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 32768,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "4",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 32768,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "4",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -477,75 +493,77 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "extranonce_subscribe",
+          "id": 2
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_extranonce",
+          "extranonce1": "b3f10a44",
+          "extranonce2_size": 8
+         },
+         {
+          "kind": "notify",
+          "job_id": "4",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         },
+         {
+          "kind": "submit",
+          "id": 3,
+          "username": "alice.rig1",
+          "job_id": "4",
+          "extranonce2": "1a2b3c4d5e6f7081",
+          "ntime": "64f50123",
+          "nonce": "9c5a2b1d"
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "extranonce_subscribe",
-        "id": 2
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_extranonce",
-        "extranonce1": "b3f10a44",
-        "extranonce2_size": 8
-       },
-       {
-        "kind": "notify",
-        "job_id": "4",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       },
-       {
-        "kind": "submit",
-        "id": 3,
-        "username": "alice.rig1",
-        "job_id": "4",
-        "extranonce2": "1a2b3c4d5e6f7081",
-        "ntime": "64f50123",
-        "nonce": "9c5a2b1d"
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -559,71 +577,73 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         },
+         {
+          "kind": "submit",
+          "id": 3,
+          "username": "alice.rig1",
+          "job_id": "3",
+          "extranonce2": "1a2b3c4d",
+          "ntime": "64f50123",
+          "nonce": "9c5a2b1d"
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       },
-       {
-        "kind": "submit",
-        "id": 3,
-        "username": "alice.rig1",
-        "job_id": "3",
-        "extranonce2": "1a2b3c4d",
-        "ntime": "64f50123",
-        "nonce": "9c5a2b1d"
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -637,72 +657,74 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         },
+         {
+          "kind": "submit",
+          "id": 3,
+          "username": "alice.rig1",
+          "job_id": "3",
+          "extranonce2": "1a2b3c4d",
+          "ntime": "64f50123",
+          "nonce": "9c5a2b1d",
+          "result": false
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       },
-       {
-        "kind": "submit",
-        "id": 3,
-        "username": "alice.rig1",
-        "job_id": "3",
-        "extranonce2": "1a2b3c4d",
-        "ntime": "64f50123",
-        "nonce": "9c5a2b1d",
-        "result": false
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -716,71 +738,73 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 100,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 101,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         },
+         {
+          "kind": "submit",
+          "id": 102,
+          "username": "alice.rig1",
+          "job_id": "3",
+          "extranonce2": "1a2b3c4d",
+          "ntime": "64f50123",
+          "nonce": "9c5a2b1d"
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 100,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 101,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       },
-       {
-        "kind": "submit",
-        "id": 102,
-        "username": "alice.rig1",
-        "job_id": "3",
-        "extranonce2": "1a2b3c4d",
-        "ntime": "64f50123",
-        "nonce": "9c5a2b1d"
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -794,71 +818,73 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         },
+         {
+          "kind": "submit",
+          "id": 3,
+          "username": "alice.rig1",
+          "job_id": "3",
+          "extranonce2": "1a2b3c4d",
+          "ntime": "64f50123",
+          "nonce": "9c5a2b1d"
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       },
-       {
-        "kind": "submit",
-        "id": 3,
-        "username": "alice.rig1",
-        "job_id": "3",
-        "extranonce2": "1a2b3c4d",
-        "ntime": "64f50123",
-        "nonce": "9c5a2b1d"
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -872,47 +898,49 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "get_version",
+          "id": 8
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "get_version",
-        "id": 8
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -926,47 +954,49 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "show_message",
+          "message": "Maintenence in 10 minutes"
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "show_message",
-        "message": "Maintenence in 10 minutes"
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -980,45 +1010,47 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "configure",
+          "id": 5,
+          "extensions": [
+           "version-rolling"
+          ],
+          "version_rolling_mask": "ffffffff",
+          "min_bit_count": 16
+         },
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "configure",
-        "id": 5,
-        "extensions": [
-         "version-rolling"
-        ],
-        "version_rolling_mask": "ffffffff",
-        "min_bit_count": 16
-       },
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -1032,47 +1064,49 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_version_mask",
+          "mask": "00003000"
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_version_mask",
-        "mask": "00003000"
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -1086,84 +1120,86 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         },
+         {
+          "kind": "configure",
+          "id": 5,
+          "params": {
+           "version-rolling.mask": "ffffffff",
+           "version-rolling.min-bit-count": 16
+          },
+          "cfg_result": {
+           "version-rolling": true,
+           "version-rolling.mask": "1fffe000"
+          }
+         },
+         {
+          "kind": "submit",
+          "id": 3,
+          "username": "alice.rig1",
+          "job_id": "3",
+          "extranonce2": "1a2b3c4d",
+          "ntime": "64f50123",
+          "nonce": "9c5a2b1d",
+          "version_bits": "18000000"
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       },
-       {
-        "kind": "configure",
-        "id": 5,
-        "params": {
-         "version-rolling.mask": "ffffffff",
-         "version-rolling.min-bit-count": 16
-        },
-        "cfg_result": {
-         "version-rolling": true,
-         "version-rolling.mask": "1fffe000"
-        }
-       },
-       {
-        "kind": "submit",
-        "id": 3,
-        "username": "alice.rig1",
-        "job_id": "3",
-        "extranonce2": "1a2b3c4d",
-        "ntime": "64f50123",
-        "nonce": "9c5a2b1d",
-        "version_bits": "18000000"
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -1177,60 +1213,62 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": true
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": true
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -1244,71 +1282,73 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 8
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         },
+         {
+          "kind": "submit",
+          "id": 3,
+          "username": "alice.rig1",
+          "job_id": "3",
+          "extranonce2": "1a2b3c4d5e6f7081",
+          "ntime": "64f50123",
+          "nonce": "9c5a2b1d"
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 8
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       },
-       {
-        "kind": "submit",
-        "id": 3,
-        "username": "alice.rig1",
-        "job_id": "3",
-        "extranonce2": "1a2b3c4d5e6f7081",
-        "ntime": "64f50123",
-        "nonce": "9c5a2b1d"
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -1322,62 +1362,64 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": true
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": true
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -1391,71 +1433,73 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "0100000001000000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         },
+         {
+          "kind": "submit",
+          "id": 3,
+          "username": "alice.rig1",
+          "job_id": "3",
+          "extranonce2": "1a2b3c4d",
+          "ntime": "64f50123",
+          "nonce": "9c5a2b1d"
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "0100000001000000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       },
-       {
-        "kind": "submit",
-        "id": 3,
-        "username": "alice.rig1",
-        "job_id": "3",
-        "extranonce2": "1a2b3c4d",
-        "ntime": "64f50123",
-        "nonce": "9c5a2b1d"
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -1476,32 +1520,31 @@
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "2001:db8::75",
-   "dst_ip": "2001:db8::100:75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -1515,118 +1558,120 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         },
+         {
+          "kind": "submit",
+          "id": 3,
+          "username": "alice.rig1",
+          "job_id": "3",
+          "extranonce2": "1a2b3c4d",
+          "ntime": "64f50123",
+          "nonce": "9c5a2b1d"
+         }
+        ],
+        "src_port": 4075
+       },
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig2",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "4",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         },
+         {
+          "kind": "submit",
+          "id": 3,
+          "username": "alice.rig2",
+          "job_id": "4",
+          "extranonce2": "1a2b3c4d",
+          "ntime": "64f50123",
+          "nonce": "9c5a2b1d"
+         }
+        ],
+        "src_port": 4076
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       },
-       {
-        "kind": "submit",
-        "id": 3,
-        "username": "alice.rig1",
-        "job_id": "3",
-        "extranonce2": "1a2b3c4d",
-        "ntime": "64f50123",
-        "nonce": "9c5a2b1d"
-       }
-      ],
-      "src_port": 4075
-     },
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig2",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "4",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       },
-       {
-        "kind": "submit",
-        "id": 3,
-        "username": "alice.rig2",
-        "job_id": "4",
-        "extranonce2": "1a2b3c4d",
-        "ntime": "64f50123",
-        "nonce": "9c5a2b1d"
-       }
-      ],
-      "src_port": 4076
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -1640,94 +1685,96 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         },
+         {
+          "kind": "submit",
+          "id": 3,
+          "username": "alice.rig1",
+          "job_id": "3",
+          "extranonce2": "1a2b3c4d",
+          "ntime": "64f50123",
+          "nonce": "9c5a2b1d"
+         },
+         {
+          "kind": "notify",
+          "job_id": "4",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": true
+         },
+         {
+          "kind": "submit",
+          "id": 4,
+          "username": "alice.rig1",
+          "job_id": "4",
+          "extranonce2": "1a2b3c4d",
+          "ntime": "64f50123",
+          "nonce": "9c5a2b1d"
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       },
-       {
-        "kind": "submit",
-        "id": 3,
-        "username": "alice.rig1",
-        "job_id": "3",
-        "extranonce2": "1a2b3c4d",
-        "ntime": "64f50123",
-        "nonce": "9c5a2b1d"
-       },
-       {
-        "kind": "notify",
-        "job_id": "4",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": true
-       },
-       {
-        "kind": "submit",
-        "id": 4,
-        "username": "alice.rig1",
-        "job_id": "4",
-        "extranonce2": "1a2b3c4d",
-        "ntime": "64f50123",
-        "nonce": "9c5a2b1d"
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -1741,167 +1788,169 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333,
       "concurrent": true
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         },
+         {
+          "kind": "submit",
+          "id": 3,
+          "username": "alice.rig1",
+          "job_id": "3",
+          "extranonce2": "1a2b3c4d",
+          "ntime": "64f50123",
+          "nonce": "9c5a2b1d"
+         }
+        ],
+        "src_port": 4075
+       },
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567d",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig2",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         },
+         {
+          "kind": "submit",
+          "id": 3,
+          "username": "alice.rig2",
+          "job_id": "3",
+          "extranonce2": "1a2b3c4d",
+          "ntime": "64f50123",
+          "nonce": "9c5a2b1d"
+         }
+        ],
+        "src_port": 4076
+       },
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567e",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig3",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         },
+         {
+          "kind": "submit",
+          "id": 3,
+          "username": "alice.rig3",
+          "job_id": "3",
+          "extranonce2": "1a2b3c4d",
+          "ntime": "64f50123",
+          "nonce": "9c5a2b1d"
+         }
+        ],
+        "src_port": 4077
+       }
+      ],
+      "concurrent": true
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       },
-       {
-        "kind": "submit",
-        "id": 3,
-        "username": "alice.rig1",
-        "job_id": "3",
-        "extranonce2": "1a2b3c4d",
-        "ntime": "64f50123",
-        "nonce": "9c5a2b1d"
-       }
-      ],
-      "src_port": 4075
-     },
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567d",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig2",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       },
-       {
-        "kind": "submit",
-        "id": 3,
-        "username": "alice.rig2",
-        "job_id": "3",
-        "extranonce2": "1a2b3c4d",
-        "ntime": "64f50123",
-        "nonce": "9c5a2b1d"
-       }
-      ],
-      "src_port": 4076
-     },
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567e",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig3",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       },
-       {
-        "kind": "submit",
-        "id": 3,
-        "username": "alice.rig3",
-        "job_id": "3",
-        "extranonce2": "1a2b3c4d",
-        "ntime": "64f50123",
-        "nonce": "9c5a2b1d"
-       }
-      ],
-      "src_port": 4077
-     }
-    ],
-    "concurrent": true
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -1915,73 +1964,74 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333,
       "rst": true
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x",
+          "result": true
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384,
+          "pack_next": false
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         },
+         {
+          "kind": "submit",
+          "id": 3,
+          "username": "alice.rig1",
+          "job_id": "3",
+          "extranonce2": "1a2b3c4d",
+          "ntime": "64f50123",
+          "nonce": "9c5a2b1d"
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x",
-        "result": true
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384,
-        "pack_next": false
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       },
-       {
-        "kind": "submit",
-        "id": 3,
-        "username": "alice.rig1",
-        "job_id": "3",
-        "extranonce2": "1a2b3c4d",
-        "ntime": "64f50123",
-        "nonce": "9c5a2b1d"
-       }
-      ],
-      "src_port": 4075
-     }
-    ],
-    "termination": "rst"
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -1995,114 +2045,116 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x"
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         },
+         {
+          "kind": "submit",
+          "id": 3,
+          "username": "alice.rig1",
+          "job_id": "3",
+          "extranonce2": "1a2b3c4d",
+          "ntime": "64f50123",
+          "nonce": "9c5a2b1d"
+         }
+        ],
+        "src_port": 4075
+       },
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567f",
+          "extranonce2_size": 4
+         },
+         {
+          "kind": "authorize",
+          "id": 2,
+          "username": "alice.rig1",
+          "password": "x"
+         },
+         {
+          "kind": "set_difficulty",
+          "difficulty": 16384
+         },
+         {
+          "kind": "notify",
+          "job_id": "3",
+          "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
+          "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
+          "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
+          "merkle_branch": [
+           "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+          ],
+          "version": "20000000",
+          "nbits": "a13c2c17",
+          "ntime": "64f50123",
+          "clean_jobs": false
+         },
+         {
+          "kind": "submit",
+          "id": 3,
+          "username": "alice.rig1",
+          "job_id": "3",
+          "extranonce2": "1a2b3c4d",
+          "ntime": "64f50123",
+          "nonce": "9c5a2b1d"
+         }
+        ],
+        "src_port": 4076
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x"
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       },
-       {
-        "kind": "submit",
-        "id": 3,
-        "username": "alice.rig1",
-        "job_id": "3",
-        "extranonce2": "1a2b3c4d",
-        "ntime": "64f50123",
-        "nonce": "9c5a2b1d"
-       }
-      ],
-      "src_port": 4075
-     },
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567f",
-        "extranonce2_size": 4
-       },
-       {
-        "kind": "authorize",
-        "id": 2,
-        "username": "alice.rig1",
-        "password": "x"
-       },
-       {
-        "kind": "set_difficulty",
-        "difficulty": 16384
-       },
-       {
-        "kind": "notify",
-        "job_id": "3",
-        "prevhash": "b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5c43402000000000000000000",
-        "coinb1": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1603aa1a0b2f706f6f6c2e746573742f",
-        "coinb2": "1603018e0c2f706f6f6c2e746573742f00000000",
-        "merkle_branch": [
-         "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
-        ],
-        "version": "20000000",
-        "nbits": "a13c2c17",
-        "ntime": "64f50123",
-        "clean_jobs": false
-       },
-       {
-        "kind": "submit",
-        "id": 3,
-        "username": "alice.rig1",
-        "job_id": "3",
-        "extranonce2": "1a2b3c4d",
-        "ntime": "64f50123",
-        "nonce": "9c5a2b1d"
-       }
-      ],
-      "src_port": 4076
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -2116,36 +2168,38 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 4444
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "sessions": [
+       {
+        "events": [
+         {
+          "kind": "subscribe",
+          "id": 1,
+          "user_agent": "MinerName/1.0.0",
+          "extranonce1": "ea02567c",
+          "extranonce2_size": 4
+         }
+        ],
+        "src_port": 4075
+       }
+      ]
+     }
     }
    ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 4444,
-   "stratum": {
-    "sessions": [
-     {
-      "events": [
-       {
-        "kind": "subscribe",
-        "id": 1,
-        "user_agent": "MinerName/1.0.0",
-        "extranonce1": "ea02567c",
-        "extranonce2_size": 4
-       }
-      ],
-      "src_port": 4075
-     }
-    ]
+   "flow_control": {
+    "flows": 1
    }
   },
   "expect": {
@@ -2159,24 +2213,23 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "wire_fault": "json"
+     }
     }
-   ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "wire_fault": "json"
-   }
+   ]
   },
   "expect": {
    "expect_error": true,
@@ -2193,24 +2246,23 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "wire_fault": "framing"
+     }
     }
-   ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "wire_fault": "framing"
-   }
+   ]
   },
   "expect": {
    "expect_error": true,
@@ -2227,24 +2279,23 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "wire_fault": "method"
+     }
     }
-   ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "wire_fault": "method"
-   }
+   ]
   },
   "expect": {
    "expect_error": true,
@@ -2261,24 +2312,23 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "wire_fault": "params"
+     }
     }
-   ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "wire_fault": "params"
-   }
+   ]
   },
   "expect": {
    "expect_error": true,
@@ -2295,24 +2345,23 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "wire_fault": "hex"
+     }
     }
-   ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "wire_fault": "hex"
-   }
+   ]
   },
   "expect": {
    "expect_error": true,
@@ -2329,24 +2378,23 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "wire_fault": "state"
+     }
     }
-   ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "wire_fault": "state"
-   }
+   ]
   },
   "expect": {
    "expect_error": true,
@@ -2363,24 +2411,23 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "wire_fault": "id"
+     }
     }
-   ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "wire_fault": "id"
-   }
+   ]
   },
   "expect": {
    "expect_error": true,
@@ -2397,24 +2444,23 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "wire_fault": "job"
+     }
     }
-   ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "wire_fault": "job"
-   }
+   ]
   },
   "expect": {
    "expect_error": true,
@@ -2431,19 +2477,15 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "stratum": {}
     }
-   ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "wire_fault": "carrier"
-   }
+   ]
   },
   "expect": {
    "expect_error": true,
@@ -2460,22 +2502,23 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "2001:db8::75",
+      "dst": "2001:db8::100"
+     }
     },
     {
-     "tcp": {}
+     "tcp": {
+      "src_port": 4075,
+      "dst_port": 3333
+     }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "wire_fault": "address_family"
+     }
     }
-   ],
-   "src_ip": "2001:db8::75",
-   "dst_ip": "2001:db8::100",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "wire_fault": "address_family"
-   }
+   ]
   },
   "expect": {
    "expect_error": true,
@@ -2492,24 +2535,23 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {}
+     "ip": {
+      "src": "192.0.2.75",
+      "dst": "198.51.100.75"
+     }
     },
     {
      "tcp": {
+      "src_port": 4075,
       "dst_port": 3333
      }
     },
     {
-     "stratum": {}
+     "stratum": {
+      "wire_fault": "propagation"
+     }
     }
-   ],
-   "src_ip": "192.0.2.75",
-   "dst_ip": "198.51.100.75",
-   "src_port": 4075,
-   "dst_port": 3333,
-   "stratum": {
-    "wire_fault": "propagation"
-   }
+   ]
   },
   "expect": {
    "expect_error": true,

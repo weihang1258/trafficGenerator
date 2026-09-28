@@ -546,6 +546,41 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 		}
 	}
 
+	if protocol == "stratum" {
+		// D-STRATUM-1 G-ST-6：tcp 唯一载体 + 混合地址族（smb/xmrmining 预检
+		// 同构——DependsOn tcp 自动补全前拦，裸 stratum 层不被补全掩盖；
+		// 存量负例 #38 stratum_neg_carrier 的 [ip,stratum] 形今日靠 planner
+		// 注入文案，此块给链面自然守卫）。
+		var probe []map[string]json.RawMessage
+		if err := json.Unmarshal(layersJSON, &probe); err == nil {
+			hasTCP, hasUDP := false, false
+			for _, item := range probe {
+				if _, ok := item["tcp"]; ok {
+					hasTCP = true
+				}
+				if _, ok := item["udp"]; ok {
+					hasUDP = true
+				}
+				if rawIP, ok := item["ip"]; ok && len(rawIP) > 0 {
+					var ipcfg map[string]interface{}
+					if err := json.Unmarshal(rawIP, &ipcfg); err == nil {
+						srcS, _ := ipcfg["src"].(string)
+						dstS, _ := ipcfg["dst"].(string)
+						if srcS != "" && dstS != "" && strings.Contains(srcS, ":") != strings.Contains(dstS, ":") {
+							return nil, fmt.Errorf("stratum chain: mixed address family in ip layer (src %q / dst %q) — src and dst must be the same family (family)", srcS, dstS)
+						}
+					}
+				}
+			}
+			if hasUDP {
+				return nil, fmt.Errorf("stratum chain: udp carrier is not supported — stratum rides tcp only ([ip,tcp,stratum]) (carrier)")
+			}
+			if !hasTCP {
+				return nil, fmt.Errorf("stratum chain: missing tcp carrier — stratum requires an [ip,tcp,stratum] chain (carrier)")
+			}
+		}
+	}
+
 	if protocol == "amqp" {
 		// D-AMQP-1：tcp 单载体预检（hl7/edp/xmrmining/ntlm 预检同构——
 		// DependsOn tcp 自动补全前拦，裸 amqp 层不被补全掩盖）。

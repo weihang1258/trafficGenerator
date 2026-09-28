@@ -582,6 +582,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-STRATUM-1 G-ST-4：stratum 在库旧策略顶层 stratum → ValidationErrors
+	// （bgp 同款；空 map 也死——判死形状「层链+顶层空子映射并存」wired 面）。
+	if protocol == "stratum" {
+		if v, ok := cfg["stratum"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 
 	// D-FTP-3 §5: 扁平四键收动态对象（引擎直调路径，REST 形状层已先 400）→
 	// spec.ValidationErrors 拒绝并指路层字段，worker 预检终态 error，绝不
@@ -784,11 +791,11 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// cwmp 依赖 http 层，目的端口 7547 由 FieldContract（tcp.dst_port）
 		// 补齐，不在此默认化。
 	case "stratum":
-		if sub, ok := cfg["stratum"].(map[string]interface{}); ok {
-			parseSubconfigJSON[*StratumConfig](&spec, sub, "stratum", &spec.Stratum)
-		}
-		// stratum 依赖 tcp 层，目的端口 3333 由 FieldContract（tcp.dst_port）
-		// 补齐，不在此默认化。
+		// D-STRATUM-1 G-ST-1：配置住 stratum 层（顶层 stratum 子映射由
+		// CheckProtoFlat 判死，层链是唯一配置真相）；此处仅守 out-of-band
+		// 配置（引擎直调/存量行带类型配置），cflow 同款——层链形状下顶层
+		// stratum 不可达。stratum 依赖 tcp 层，目的端口 3333 由 FieldContract
+		// （tcp.dst_port）补齐，不在此默认化。
 	case "ethmining":
 		if sub, ok := cfg["ethmining"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*ETHMiningConfig](&spec, sub, "ethmining", &spec.ETHMining)
@@ -8644,6 +8651,14 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "coap" {
 		if v, ok := cfg["coap"]; ok && v != nil {
 			return "protocol coap no longer accepts a top-level coap sub-config (move it into the coap layer of an [ip,udp,coap] layers chain; the layer chain is the only config truth)"
+		}
+	}
+	// D-STRATUM-1 G-ST-4：stratum 顶层 stratum 子映射 presence 判死（bgp
+	// 先例；空 map 也死——业务键 sessions[]/events[] 迁 layers[i].stratum，
+	// 层链是唯一配置真相）。层链形状不触发。
+	if protocol == "stratum" {
+		if v, ok := cfg["stratum"]; ok && v != nil {
+			return "protocol stratum no longer accepts a top-level stratum sub-config (move it into the stratum layer of an [ip,tcp,stratum] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-CQL-1（G-CQL-1）：cql 顶层 cql 子映射 presence 判死（tds 先例；

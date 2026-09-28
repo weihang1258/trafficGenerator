@@ -86,7 +86,16 @@ type StratumEvent struct {
 	Message    string          `json:"message,omitempty"`    // show_message 文本
 
 	// --- configure ---
-	Params json.RawMessage `json:"params,omitempty"` // 扩展参数映射
+	// Extensions is the BIP310 extension-name array (params[0]); empty →
+	// builder default ["version-rolling"] (D-STRATUM-1 G-ST-2).
+	Extensions []string        `json:"extensions,omitempty"`
+	Params     json.RawMessage `json:"params,omitempty"` // 扩展参数映射
+	// VersionRollingMask / MinBitCount are the miner-side BIP310 configure
+	// parameters (D-STRATUM-1 G-ST-2). When either is set the configure
+	// request params map is built from them; otherwise the pinned
+	// FixtureCfgParams literal is used (bit-identical to the old default).
+	VersionRollingMask string `json:"version_rolling_mask,omitempty"`
+	MinBitCount        int    `json:"min_bit_count,omitempty"`
 	// CfgResult is the configure response result mapping (per-extension
 	// TExtensionResult; version-rolling carries the intersection mask).
 	CfgResult json.RawMessage `json:"cfg_result,omitempty"`
