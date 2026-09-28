@@ -48,9 +48,9 @@
 
 **因 §1.9 纪律，本契约全部层链样例标注为「目标形状，今天跑不通，需先补代码」**；存量 213 例的改写去向见 testcase §8（**缺口登记表**，本车道不改 JSON）。
 
-**顶层键残留总量（机读实测）**：213 例中顶层旧键出现 **1493 处**——逐键：`src_ip` 213 + `dst_ip` 213 + `src_mac` 213 + `dst_mac` 213 + `src_port` 213 + `dst_port` 213 + `modbus` 213 + `count` 2 = 1493。合规化的清理量即此。
+**顶层键残留总量（机读实测，非负例口径）= 1059 处**——构成：`src_ip` 151 + `dst_ip` 151 + `src_mac` 151 + `dst_mac` 151 + `src_port` 151 + `dst_port` 151 + `modbus` 151 + `count` 2 = 1059。**口径：非负例口径**（151 正例；62 负例不计——负例不产 PCAP，合规判据只看正例，与 ldp/rip/pcep/a2a/nvgre 车道一致）。全例口径（含 62 负例）为 **1493** 处。合规化的清理量按**非负例口径 1059** 计。
 
-（**口径说明**：本表按**八键全计**，含 MAC 两键——`checkLayerFlatConflict`（`semantic.go:183-189`）明确把 `src_mac`/`dst_mac` 列为混用键，§1.11 白名单要求 MAC 真相住 `eth` 层。主线程静态扫描得 1059，**本车道未能复现该数**：最接近的口径是"五键（`src_ip`/`dst_ip`/`src_port`/`dst_port`/`modbus`）全例计数 = 1065"，差 6 未定位。**不作推测性解释**；两数均指向"存量几乎每例都带顶层旧键"这同一结论，不影响缺口登记与改写清单。）
+（**口径说明**：本表按**非负例口径**计，含 MAC 两键——`checkLayerFlatConflict`（`semantic.go:183-189`）明确把 `src_mac`/`dst_mac` 列为混用键，§1.11 白名单要求 MAC 真相住 `eth` 层。与主线程静态扫描基线 **1059 一致**；全例口径 1493（多出 62 负例 × 7 键 = 434）。两口径非矛盾，本契约统一采用**非负例口径 1059**。）
 
 **presence 负例（G-MODBUS-3）不建，登记为待办**：§0.1 探针实测 `{"layers":[…],"modbus":{}}` → 任务 `completed/100%`（**未被拒**）。**建该负例 = 真绿假通过**（CORE_MEMORY §1.9；moxa §12-P2 同款先例）。登记为"**待 `CheckProtoFlat` 补 modbus 分支后方可建立**"的缺口；**禁止**以"给 modbus 单加黑名单分支"的方式闭合（kingbase 裁定：等框架级 unknown-key 白名单）。
 
@@ -565,18 +565,20 @@ modbus 层**无自有状态**（旧稿 §4.1 继承）：握手/seq-ack/挥手/�
 
 **旧键去向表（§15.3 要求"每个键写去向"）**：
 
-| 旧键 | 存量出现例数 | 去向 |
-|---|---:|---|
-| `src_ip` | **213** | 迁 `layers[i].ip.src` |
-| `dst_ip` | **213** | 迁 `layers[i].ip.dst` |
-| `src_mac` | **213** | 迁 `layers[i].eth.src_mac`（§1.11 白名单明确 MAC 真相住 eth 层） |
-| `dst_mac` | **213** | 迁 `layers[i].eth.dst_mac` |
-| `src_port` | **213**（211 例值 0） | 迁 `layers[i].tcp.src_port`；**值 0 = "不写"**（`chain_planner.go:938` 保持 0），改写时删除键（走保底递增） |
-| `dst_port` | **213**（212 例 502 / 1 例 1502） | 迁 `layers[i].tcp.dst_port`；502 例**或删**（由 FieldContract 缺省补齐，A′ 验证） |
-| `count` | **2** | 迁 `flow_control {"flows": N}`（§1.3） |
-| 顶层 `modbus` 子映射 | **213** | **迁 `layers[i].modbus`**（须先补 registry `Fields`，G-MODBUS-1） |
+> **口径**：出现例数按**全例口径**（213 例）列出，便于看"该键在存量里覆盖多广"；合规化清理量按**非负例口径 1059**（见 §0.1）。两列并列，避免口径混淆。
 
-**结论**：本协议有实质迁移工作量——§1 门的动作 = ①补 registry `Fields`（transactions + 19 per-op 键，G-MODBUS-1）；②加 translate 分支（层内 modbus → `spec.MODBUS`，G-MODBUS-2）；③213 例整体改写；④收官自查行「非负例顶层键 = 0」由 **8 键 → 0**。
+| 旧键 | 出现例数（全例 213） | 非负例（151） | 去向 |
+|---|---:|---:|---|
+| `src_ip` | **213** | 151 | 迁 `layers[i].ip.src` |
+| `dst_ip` | **213** | 151 | 迁 `layers[i].ip.dst` |
+| `src_mac` | **213** | 151 | 迁 `layers[i].eth.src_mac`（§1.11 白名单明确 MAC 真相住 eth 层） |
+| `dst_mac` | **213** | 151 | 迁 `layers[i].eth.dst_mac` |
+| `src_port` | **213**（211 例值 0） | 151 | 迁 `layers[i].tcp.src_port`；**值 0 = "不写"**（`chain_planner.go:938` 保持 0），改写时删除键（走保底递增） |
+| `dst_port` | **213**（212 例 502 / 1 例 1502） | 151 | 迁 `layers[i].tcp.dst_port`；502 例**或删**（由 FieldContract 缺省补齐，A′ 验证） |
+| `count` | **2** | 2 | 迁 `flow_control {"flows": N}`（§1.3） |
+| 顶层 `modbus` 子映射 | **213** | 151 | **迁 `layers[i].modbus`**（须先补 registry `Fields`，G-MODBUS-1） |
+
+**结论**：本协议有实质迁移工作量——§1 门的动作 = ①补 registry `Fields`（transactions + 16 个 per-op 键，G-MODBUS-1）；②加 translate 分支（层内 modbus → `spec.MODBUS`，G-MODBUS-2）；③213 例整体改写；④收官自查行「非负例顶层键 = 0」由 **8 键 → 0**（清理量 1059 处，非负例口径）。
 
 目标形状样例见 §2（顶层仅 `layers` + `flow_control`）。
 

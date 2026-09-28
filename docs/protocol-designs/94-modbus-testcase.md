@@ -195,7 +195,7 @@ Modbus.org **MB-ASYM-TCP V1.1b3**（MBAP 帧 + 19 FC + 10 异常码 + 广播语�
 
 | 类 | 内容 | 落点 |
 |---|---|---|
-| 层链化 | registry `Fields` 补 `transactions` + 19 per-op 键 + translate `case "modbus"` | G-MODBUS-1/2，213 例全依赖 |
+| 层链化 | registry `Fields` 补 `transactions` + 16 个 per-op 键 + translate `case "modbus"` | G-MODBUS-1/2，213 例全依赖 |
 | 地址族面 | IPv6 载体（**零覆盖**） | `modbus_ipv6`（G-MODBUS-9，offset 74） |
 | MAC 层 | `src_mac`/`dst_mac` 迁 `layers[eth]` | `modbus_eth_mac_layer`（§1.11 白名单） |
 | 端口面 | dst_port 缺省补齐 502 | `modbus_default_port_502`（**删键**不断言值——存量 `modbus-dstport-default-502` 名为"缺省"但**实际显式写了 `dst_port:502`**，机读实测，非真缺省例） |
@@ -224,7 +224,7 @@ Modbus.org **MB-ASYM-TCP V1.1b3**（MBAP 帧 + 19 FC + 10 异常码 + 广播语�
 
 `cases/modbus.json` **213 例**：151 正 + 62 负；顶层键 8 种 + 2 例 `count` + 81 例纯扁平；132 例 `layers` 恒为空壳 `[{"tcp":{}},{"modbus":{}}]`；地址/MAC 213/213 恒同值（**零 IPv6**）；`src_port` 211 例为 0；`strategy_fc` 0 例；层内 `tcp` 恒 `{}`；正例 `packet_count` 众数 9（113 例）；帧断言偏移恒 54（169 例）；负例 62 例中 11 例缺锚词、5 例混入成功断言。
 
-**顶层旧键残留总量 = 1493 处**（八键逐例计数求和）——即合规化的清理量。
+**顶层旧键残留总量 = 1059 处**（**非负例口径**：151 正例 × 7 键 = 1057 + `count` 2；62 负例不计——负例不产 PCAP，合规判据只看正例，与 ldp/rip/pcep/a2a/nvgre 车道一致）。全例口径 1493。即合规化的清理量。
 
 ### 8.2 现状缺口清单（**全部为阻断项**，代码阶段闭合）
 
