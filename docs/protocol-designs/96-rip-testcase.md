@@ -4,7 +4,7 @@
 > 日期：2026-09-28
 > 配套设计：`docs/protocol-designs/96-rip-design.md` v1.0.0
 > 旧基线：`docs/protocol-designs/10-rip-design.md` v1.0.0（仅设计稿，**无用例文档**——本版新建补缺 G-RIP-5）
-> 机器契约：`trafficgen/test/protocol_pcap/cases/rip.json`（71 例 = 52 正 + 19 负；ID/包数/锚词已机读实测与本文一致；**顶层旧键残留 71/71，代码阶段迁移**，G-RIP-1/G-RIP-3）
+> 机器契约：`trafficgen/test/protocol_pcap/cases/rip.json`（71 例 = 52 正 + 19 负；ID/包数/锚词已机读实测与本文一致；**顶层旧键残留 71/71（178 处，非负例口径），代码阶段迁移**，G-RIP-1/G-RIP-2/G-RIP-4）
 > 白话一句：**七十一道检查：五十二道看正常喊话（各版本、各场景、各种边界值、多路由器），十九道看胡来能不能被拦下；每道只查一件事。**
 
 ## 1. 测试原则和形状基线
@@ -18,9 +18,9 @@
 | 例数 / ID 唯一 | 71 / 71 唯一 | ✓ |
 | 正/负 | 52 正 + 19 负 | ✓ |
 | 例对象顶层键 | 5 键 `{expect,id,proto,spec_json,summary}`（71/71 同形） | ✓ |
-| `spec_json` 顶层键 | `{layers,rip,src_port,count}` ×36 + `{rip,src_port,count}` ×17 + `{layers,rip,src_port,count,dst_ip}` ×7 + `{layers,rip,src_port,count,src_ip,dst_ip,dst_port}` ×5 + `{layers,rip,src_port,count,group_id}` ×4 + `{rip,src_port,count,src_ip,dst_ip,dst_port}` ×2 | **✗ 71/71 违规**（顶层旧键，G-RIP-3） |
-| 层链形 | `[udp,rip]` ×52，**层 config 恒 `{}`（空壳）** | ✗ 空壳层（G-RIP-1） |
-| 扁平形 | ×19（无 `layers` 键） | ✗ 旧形（G-RIP-3） |
+| `spec_json` 顶层键 | `{layers,rip,src_port,count}` ×36 + `{rip,src_port,count}` ×17 + `{layers,rip,src_port,count,dst_ip}` ×7 + `{layers,rip,src_port,count,src_ip,dst_ip,dst_port}` ×5 + `{layers,rip,src_port,count,group_id}` ×4 + `{rip,src_port,count,src_ip,dst_ip,dst_port}` ×2 | **✗ 71/71 违规**（顶层旧键 178 处，G-RIP-4） |
+| 层链形 | `[udp,rip]` ×52，**层 config 恒 `{}`（空壳）** | ✗ 空壳层（G-RIP-1/G-RIP-2） |
+| 扁平形 | ×19（无 `layers` 键） | ✗ 旧形（G-RIP-4） |
 | 负例 `expect` 键集合 | `{error_contains,expect_error,notes}` ×19 | **✗ 含 `notes`**，非严格两键（差异登记，§4 末） |
 | 正例 `expect` 键集合 | `{fields,frames,notes,packet_count}` ×39 + `{fields,notes,packet_count}` ×7 + `{frames,notes,packet_count}` ×5 + `{notes,packet_count}` ×1 | 正例不设严格键约束（`notes` 为设计回指，非断言） |
 
@@ -38,7 +38,7 @@
 
 **保活/重试/RST 口径**：RIP 层无 PING 类消息、无握手/挥手（UDP 无连接），不设正例亦不得进负例；RST 概念不适用（无 TCP 载体）。
 
-**DSCP 口径（G-RIP-6）**：设计 §0 表 #6 校正——旧稿「DSCP 默认 CS6」是**死参数**（`rip.go:502` 算出但从不达线）。**用例不得断言 CS6**；线上 DSCP 恒 = `spec.DSCP`（0 时落 ip 层 schema 默认 0）。
+**DSCP 口径（G-RIP-7）**：设计 §0 表 #6 校正——旧稿「DSCP 默认 CS6」是**死参数**（`rip.go:502` 算出但从不达线）。**用例不得断言 CS6**；线上 DSCP 恒 = `spec.DSCP`（0 时落 ip 层 schema 默认 0）。
 
 ## 2. 原子用例索引（71 ID = 52 正 + 19 负；顺序 = `cases/rip.json` 顺序，为权威）
 
@@ -226,13 +226,13 @@ T-编号对照：ID 前缀即 T 编号（`rip_tposN_*` = T-POS-N，`rip_tedgeN_*
 
 ### 5.1 三源回指行
 
-RFC 1058/2453/2080/4822（§10 八项矩阵 + 三子表）+ 设计 §11 as-built 代码条目 + tshark 26 字段实测（`rip.*` 18 + `ripng.*` 8）→ 71 ID（本契约 §2）。第三源"已确认现网行为"当前 = **旧基线继承级**（Cisco/Juniper 默认行为，未达本批抓包级 → G-RIP-8，不冒充第三源）。
+RFC 1058/2453/2080/4822（§10 八项矩阵 + 三子表）+ 设计 §11 as-built 代码条目 + tshark 26 字段实测（`rip.*` 18 + `ripng.*` 8）→ 71 ID（本契约 §2）。第三源"已确认现网行为"当前 = **旧基线继承级**（Cisco/Juniper 默认行为，未达本批抓包级 → G-RIP-9，不冒充第三源）。
 
 ### 5.2 §9.52 对账两行 + 清单出处声明
 
 - **清单出处声明**：本清单来源 = **RFC 四篇规范反推 + 设计 §10 三子表 + 存量 71 例机读**（`rip.*`/`ripng.*` 字段实测在册），**非纯现有用例反推**。
 - **对账两行**：**要求逻辑点总数 = 89**（八项矩阵 8 + 子表① 12 格 + 子表② 50 行 + 子表③ 10 行 + §3.15 三项 3 + 性能六类 6；逐表重数见设计 §10.1–10.4/§6）；**用例覆盖数 = 75**（八项已覆 5〔行 1/2/4/5/8〕+ 子表① 已覆 7 + 子表② 50 + 子表③ 已覆 8 + §3.15 等价面 0 + 性能已覆 5〔基线/目标规模/压力上限/长时间/背压〕）；**不适用 = 13**（八项 3〔行 3/6/7〕+ 子表① 4 + 子表③ 2 + §3.15 三项 3 + 性能 1〔并发交错〕）；**立项 = 1**（子表① 空格 A′ `rip_ripng_request`）。**75 + 13 + 1 = 89 ✓**。
-  **粒度声明**：行/格粒度每点 1 计；G-RIP-1…G-RIP-9 不折进 89。**反查全绿 ≠ 覆盖全**（§9.52 原文）。
+  **粒度声明**：行/格粒度每点 1 计；G-RIP-1…G-RIP-10 不折进 89。**反查全绿 ≠ 覆盖全**（§9.52 原文）。
 - **门3 抽查候选**：最复杂用例 = **`rip_tpos17_100_routers`**（100 router × 独立四元组 × FlowID × group_id 绑定）或 **`rip_tpos27_auth_25_routes`**（认证 + 满包拆包 + 双报文）。交织维度 = router 数 × 认证 × 拆包 × 版本。若按 9.49/9.50 下限偏弱在"并发交错"面（RIP 无并发路径，顺序展开承载），**建议门3 抽 `rip_tpos27_auth_25_routes` + `rip_tpos16_3_routers`**。
 
 ### 5.3 T-编号与 ID 对照
@@ -257,13 +257,13 @@ ID 前缀即 T 编号（§2 表末行）：`rip_tposN_*` ≡ T-POS-N；`rip_tedg
 
 | 类 | 内容 | 落点 |
 |---|---|---|
-| 层链化 | registry `Fields` 补十三键 + translate `case "rip"` 层内分支 | G-RIP-1，用例 #1–#71 全依赖 |
+| 层链化 | registry `Fields` 补十三键 + translate `case "rip"` 层内分支 | G-RIP-1/G-RIP-2，用例 #1–#71 全依赖 |
 | 空格补齐 | RIPng Request | `rip_ripng_request`（设计 §10.2 唯一空格） |
 | 游离键负例 | 白名单外顶层键判死 | `rip_neg_stray_src_ip`（今日已生效，探针实证） |
-| presence 负例 | 层链 + 顶层空 `rip` 子映射 | `rip_neg_top_rip_presence`——**待 G-RIP-2 修复后**才建（今日建会真绿 = 假通过） |
+| presence 负例 | 层链 + 顶层空 `rip` 子映射 | `rip_neg_top_rip_presence`——**待 G-RIP-3 修复后**才建（今日建会真绿 = 假通过） |
 | 形状统一 | 19 负例删 `expect.notes` | §4 末（代码阶段改写时执行） |
 
-**B′（框架面）**：`CheckProtoFlat` rip presence 分支（G-RIP-2，等框架级 unknown-key 白名单，不单独立项）/ 业务字段动态（G-RIP-4，allowlist 无 `rip` 行）/ 离线 harness strip-layers（G-RIP-9，框架级 P6 票）。进设计 §14，「明确不解决 + 迁入计划」。
+**B′（框架面）**：`CheckProtoFlat` rip presence 分支（G-RIP-3，等框架级 unknown-key 白名单，不单独立项）/ 业务字段动态（G-RIP-5，allowlist 无 `rip` 行）/ 离线 harness strip-layers（G-RIP-10，框架级 P6 票）。进设计 §14，「明确不解决 + 迁入计划」。
 
 ### 6.3 3.14 豁免边界审计
 
@@ -271,11 +271,11 @@ ID 前缀即 T 编号（§2 表末行）：`rip_tposN_*` ≡ T-POS-N；`rip_tedg
 
 ## 7. 实现后执行建议
 
-1. **代码阶段顺序**：G-RIP-1（registry Fields 十三键 + translate 分支 + schemagen 重跑）→ 71 例改写（删顶层旧键 `src_ip/dst_ip/src_port/dst_port/count` + 顶层 `rip` 子映射迁层内；`count>1` 的 2 例补 `strategy_fc flows=N`；19 负例删 `expect.notes`）→ 先跑后钉 71 例 → 补 A′（`rip_ripng_request` + `rip_neg_stray_src_ip`）→ G-RIP-2 修复后再建 `rip_neg_top_rip_presence` → 全量复跑。
+1. **代码阶段顺序**：G-RIP-1 + G-RIP-2（registry Fields 十三键 + translate 分支 + schemagen 重跑）→ 71 例改写（删顶层旧键 `src_ip/dst_ip/src_port/dst_port/count` + 顶层 `rip` 子映射迁层内；`count>1` 的 2 例补 `strategy_fc flows=N`；19 负例删 `expect.notes`）→ 先跑后钉 71 例 → 补 A′（`rip_ripng_request` + `rip_neg_stray_src_ip`）→ G-RIP-3 修复后再建 `rip_neg_top_rip_presence` → 全量复跑。
 2. **实测顺序**：先 #4/#17（单报文基线与端口），再 #6/#7（认证 hex），再 #1（request_full 双包），再 #24/#26（拆包），最后 #10（RIPng offset 62 与 `ripng.*` 字段）、#41/#42（多 router 聚合）。
 3. 二进制与 HEAD 同代确认（门2③：`find trafficgen -name '*.go' -newer <server-binary>` 无输出）；门2② 全量（`CASE_PROTO=rip` 全量不是增量）；门2④ 反查绿后进 P6。
-4. **离线套件注意**：`layer_chain_suite_test.go` 的 `chainSuiteProtos` 今日**不含 rip**（实测映射 0 命中）——不带 `CHAIN_PROTO=rip` 时 71 例全被 `loadChainCases` 跳过（默认全仓跑法不红）。单跑须 `CHAIN_PROTO=rip`，且需在 import 块补 rip 空导入（今日缺，G-RIP-9 关联）。
-5. 任何 MD5 摘要占位的具体断言须有独立证据和失败优先测试（设计 §1 G-RIP-7 纪律）。
+4. **离线套件注意**：`layer_chain_suite_test.go` 的 `chainSuiteProtos` 今日**不含 rip**（实测映射 0 命中）——不带 `CHAIN_PROTO=rip` 时 71 例全被 `loadChainCases` 跳过（默认全仓跑法不红）。单跑须 `CHAIN_PROTO=rip`，且需在 import 块补 rip 空导入（今日缺，G-RIP-10 关联）。
+5. 任何 MD5 摘要占位的具体断言须有独立证据和失败优先测试（设计 §1 G-RIP-8 纪律）。
 
 ## 8. 存量审计（71 例逐条去向）
 
@@ -288,12 +288,12 @@ ID 前缀即 T 编号（§2 表末行）：`rip_tposN_*` ≡ T-POS-N；`rip_tedg
 1. **存量跑的是过渡态混合形，不是纯层链**：52 例的 `layers=[{udp:{}},{rip:{}}]` 只是**空壳**（`rip` 层 config 恒 `{}`，既不校验也不消费——探针实证层内业务键被拒 `unknown field "command"`），真实配置住顶层 `rip` 子映射 + 顶层四元组。
 2. **MCP 真实路径今日 400**：52 层链例带顶层 `src_port` → `CheckProtoFlat` 通用五键检查命中（探针 `ValidateStrategy` 实证）；19 扁平例同 400。**71 例既非绿也非红**。
 3. **离线套件今日不覆盖 rip**：`chainSuiteProtos` 无 rip（实测）→ 默认跑法跳过；补空导入后 `CHAIN_PROTO=rip` 实测 **71/71 全绿 58.5s**（scratch 副本探针，验证存量断言在引擎侧真实有效）。
-4. **presence 形今日不判死**：`CheckProtoFlat` 无 rip 分支（`grep -c` = 0）；探针 `{layers:[...],rip:{}}` → schema errs=0。**建该负例会真绿 = 假通过** → G-RIP-2 修复后才建。
+4. **presence 形今日不判死**：`CheckProtoFlat` 无 rip 分支（`grep -c` = 0）；探针 `{layers:[...],rip:{}}` → schema errs=0。**建该负例会真绿 = 假通过** → G-RIP-3 修复后才建。
 5. **19 负例 `expect` 含 `notes`**：非严格两键（不参与判定，代码阶段统一删）。
 
 ### 8.3 逐条去向表（71 行摘要，按组）
 
-| 存量组 | 例数 | 去向 | 改写动作（G-RIP-1 落地时） |
+| 存量组 | 例数 | 去向 | 改写动作（G-RIP-1/G-RIP-2 落地时） |
 |---|---:|---|---|
 | T-POS（#1–#52 中 27 例） | 27 | **改写** | 目标形状化（`ip` 层地址 + `udp` 层端口 + `rip` 层十三键）；`packet_count` 不变（报文数） |
 | T-EDGE 正（22 例中 15） | 15 | **改写** | 同上；边界值内联保留 |
@@ -304,6 +304,39 @@ ID 前缀即 T 编号（§2 表末行）：`rip_tposN_*` ≡ T-POS-N；`rip_tedg
 
 无"作废不注原因"：0 作废，0 等价覆盖（全部改写 + 4 新增 A′）。
 
-## 9. 修订记录
+## 9. 覆盖反查门建议断言行（供主线程合后登记 coverage gate，本车道不碰 `coverage_gate.py`）
 
-- v1.0.0（2026-09-28）：文档先行批次一 #96。**新建**（旧基线无 testcase 文档，G-RIP-5）；71 ID（52 正 + 19 负）全量继承并逐条回指设计；形状基线机读实测（§1，含断言通道分布与 offset 分布）；§3 正例分组断言契约（7 族）；§4 负例 19 锚词逐条对码 + `notes` 差异登记；§5 对账两行（105 = 95 + 9 + 1）；§6 固定动作（3.15 三项 + A′/B′ + 3.14）；§7 执行建议（含离线套件 rip 缺席实证）；§8 存量 71 例去向。自审 3 轮，末轮干净（结论见 /tmp/pipe/doc-lanes/rip.md）。
+以下为 `check_rip(cases)` 的建议检查项，供主线程在代码阶段落码后登记。**红项如实标红，不得作为"今日已过"申报**（ldp 先例）。
+
+| # | 检查项 | 判据 | 今日 |
+|---:|---|---|---|
+| 1 | 白名单收 rip | `protocols.go` 含 `"rip": true` | 绿 |
+| 2 | registry rip 行 | `DependsOn: []string{"udp"}` / `CategoryTerminal` | 绿（`registry.go:184`） |
+| 3 | registry rip Fields 补全（G-RIP-1 落码后） | `fields` 键数 = 13（version/command/domain/routes/auth/multicast/scenario/routers/rounds/triggered_update/split_horizon/poison_reverse） | **红**（今日 `fields = {}`） |
+| 4 | translate rip 严格解码分支（G-RIP-2 落码后） | `chain_planner_translate.go` 含 `case "rip":` 且含 `"rip layer config decode"` | **红**（switch 73 case 无 rip） |
+| 5 | FlowMeta.RIP 直传 | `chain_planner_translate.go:64` 含 `RIP:    spec.RIP` | 绿 |
+| 6 | FlowMeta.RIP 字段 | `generator.go` 含 `RIP` 字段 | 绿 |
+| 7 | FlowSpec.RIP 字段 | `types.go` 含 `RIP *RIPConfig` | 绿 |
+| 8 | main.go 空导入 + ChainPlanner | `internal/protocol/rip` 在 `main.go` 且 `NewChainPlanner("rip")` 在册 | 绿 |
+| 9 | 目的端口不静态默认化 | `chain_planner.go:1132` 含 `case "rip":` 且 `spec.DstPort = 0` | 绿 |
+| 10 | SrcPort 不静态默认化 | `chain_planner.go:913` 含 `case "rip":`（保持 0） | 绿 |
+| 11 | isRIPChain 豁免 | `chain_planner_util.go:161` 含 `isRIPChain` 且 `applySpecToChain` ip 分支引用 | 绿 |
+| 12 | generated schema rip 条目同代 | `layers.generated.json` 的 `rip.depends_on == ["udp"]` | 绿 |
+| 13 | CheckProtoFlat 顶层 rip presence 判死（G-RIP-3 落码后） | `strategy_convert.go` 含 `protocol rip no longer accepts a top-level rip sub-config` | **红**（`grep -c` = 0；探针 presence 形 errs=0） |
+| 14 | 顶层 rip presence 零残留（非负例） | 无「有 `layers` + 顶层 `rip` dict + 非 `expect_error`」的例；存量 **52 例命中** | **红**（待代码阶段收敛） |
+| 15 | 正例顶层键白名单（§1.11/§1.13 判据：非负例顶层键 = 0） | 非负例顶层键 ⊆ `{layers, strategy_fc, ttl, flow_control, output, output_config, group_id}`；存量 **178 处残留**（`count` 52 / `rip` 52 / `src_port` 52 / `dst_ip` 12 / `src_ip` 5 / `dst_port` 5） | **红**（待代码阶段收敛） |
+| 16 | 命令 × 版本 × 认证矩阵 | cases 中命令/版本/认证取值组合 ⊇ 设计 §10.2 已覆 7 格 | 绿（除 `rip_ripng_request` 立项） |
+| 17 | 负例锚词 19/19 | 19 负例 `error_contains` 集与 `rip.go` 字面值一一对应 | 绿 |
+| 18 | 负例 expect 纯净 | 19/19 `expect` 键严格 `{expect_error,error_contains}` | **红**（今日含 `notes`，代码阶段删） |
+| 19 | packet_count = 报文数 | 52 正例 = routers × rounds × ceil(entries/25) | 绿 |
+| 20 | RIPng 字段族分离 | ng 例断言走 `ripng.*` 而非 `rip.*` | 绿 |
+
+**注**：第 3/4/13/14/15/18 项今日为红（G-RIP-1/G-RIP-2/G-RIP-3/G-RIP-4 未落码 + 形状未统一），属**登记在案的缺口**，不得作为"今日已过"申报。
+
+## 10. 修订记录
+
+- v1.0.0（2026-09-28）：文档先行批次一 #96。**新建**（旧基线只有 `10-rip-design.md`，无 testcase 文档，G-RIP-6）。
+  **本版按主线程裁定交付：cases/rip.json 不改写**——层空壳实证（设计 §12-P3 三条探针证据原文）；改写会打断 52 例存量离线绿且新 JSON 仍不可经 MCP 调用（违反 §14.1）。
+  缺口编号按主线程口径：G-RIP-1（层空壳）/ G-RIP-2（translate 缺 case）/ G-RIP-3（CheckProtoFlat 无 rip 分支）/ G-RIP-4（顶层旧键 178 处）/ G-RIP-5…G-RIP-10。
+  内容：71 ID（52 正 + 19 负）全量继承并逐条回指设计；形状基线机读实测（§1，含断言通道 24 字段分布与 offset 10 档分布）；§2 索引顺序 = JSON 顺序；§3 正例 7 族断言契约；§4 负例 19 锚词逐条对码 + `notes` 差异登记；§5 对账两行（**89 = 75 + 13 + 1**）；§6 固定动作（3.15 三项 + A′/B′ + 3.14）；§7 执行建议（含离线套件 rip 缺席实证）；§8 存量 71 例去向；**§9 覆盖反查门建议断言行 20 项（6 项红如实标注，ldp 先例）**。
+  自审 4 轮，末轮干净（结论见 /tmp/pipe/doc-lanes/rip.md）。

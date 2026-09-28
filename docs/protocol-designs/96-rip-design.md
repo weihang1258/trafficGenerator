@@ -16,14 +16,14 @@
 |---|---|---|---|
 | 1 | 只有一份 `10-rip-design.md`（1340 行），**无用例文档** | `docs/protocol-designs/` 无 `10-rip-testcase.md`（实测 `ls`）；本 #96 新建 testcase | 用例文档缺失 → #96 补齐（B6 契约要求两份独立文档） |
 | 2 | §9 集成点列 `types.go`/`strategy_convert.go`/`protocol.go` 三处，无层链概念 | 层已注册 `registry.go:184`（`CategoryTerminal` / `DependsOn ["udp"]` / **无 `Fields`**）；生成表 `rip.fields = {}`（机读实测） | 层注册已落码；**层内配置无处可住**（缺口 G-RIP-1） |
-| 3 | §3 Config 结构体 = 顶层 `rip` 子映射（flat） | `strategy_convert.go:1584` 有 `case "rip"`（`parseRIPConfig` 搬运顶层子映射）；`chain_planner_translate.go` 的 switch（73 case）**无 `case "rip"`** | flat 接线在；**层内翻译不在**（G-RIP-1） |
+| 3 | §3 Config 结构体 = 顶层 `rip` 子映射（flat） | `strategy_convert.go:1584` 有 `case "rip"`（`parseRIPConfig` 搬运顶层子映射）；`chain_planner_translate.go` 的 switch（73 case）**无 `case "rip"`** | flat 接线在；**层内翻译不在**（G-RIP-2） |
 | 4 | §5 Plan 输出（legacy planner 直驱） | `internal/protocol/rip/layer_gen.go` 323 行（`RIPGenerator`）已落码，事件面复刻 legacy `Plan`；`chain_planner_translate.go:64` `RIP: spec.RIP` Meta 直传已接线 | 层生成器已落码；legacy `Planner.Plan` 与 `layer_gen.Generate` 双路并存（§11.4） |
-| 5 | 旧稿样例全部顶层扁平键（`src_ip/dst_ip/src_port/dst_port` + 顶层 `rip`） | 存量 **71/71** 例含顶层旧键（52 层链例带 `src_port`/`count`/顶层 `rip`；19 扁平例带 `count`/`rip`/部分 `src_ip/dst_ip`；逐键计数见 §12.1） | 旧样例形 = **过渡态违规形**（§1.4/§1.11），属代码阶段收敛（G-RIP-1/G-RIP-3）；本契约 §2 样例只给纯层链形 |
+| 5 | 旧稿样例全部顶层扁平键（`src_ip/dst_ip/src_port/dst_port` + 顶层 `rip`） | 存量 **71/71** 例含顶层旧键（52 层链例带 `src_port`/`count`/顶层 `rip`；19 扁平例带 `count`/`rip`/部分 `src_ip/dst_ip`；逐键计数见 §12.1） | 旧样例形 = **过渡态违规形**（§1.4/§1.11），属代码阶段收敛（G-RIP-1/G-RIP-2/G-RIP-4）；本契约 §2 样例只给纯层链形 |
 | 6 | §5.5「DSCP 默认 CS6」 | `rip.go:502` 算出的 `dscp` 是**死参数**（从未传给 `L3Base`，`emitRIPPacket` 用 `spec` 直配）→ `layer_gen.go:156` 明写「不加默认」；线上 DSCP 恒 = `spec.DSCP`（0 时落 ip 层 schema 默认 0） | **旧稿说法作废**：CS6 默认从不达线；用例不得断言 CS6（§3.3 钉正） |
 | 7 | §6.13「多路由器 src_port 由 worker 端 4-tuple 分配器动态分配（默认 52001 起）」 | `rip.go:586-592` `resolveSrcPort` 明写：显式值 > Response 单 router = well-known 520/521 > **52001+routerIdx**（多 router） | 数值一致（52001 起），但归属是 **planner 内 resolveSrcPort** 不是 worker 分配器 → 旧稿归属描述作废 |
 | 8 | §2.5「trafficgen 在摘要位置填 0xAA」 | `builder.go` 摘要占位字节机读实测（§3.5 表）；旧稿未给行号 | 待 §3.5 逐字节钉正 |
 
-**依赖链判定纪律**：以上均为可判题（旧文→代码→用例三级对照），直接判定，不问偏好。不可判的（RIP 摘要占位是否需真 HMAC 计算——现网设备行为）标"待确认"并写清确认方式（G-RIP-7）。
+**依赖链判定纪律**：以上均为可判题（旧文→代码→用例三级对照），直接判定，不问偏好。不可判的（RIP 摘要占位是否需真 HMAC 计算——现网设备行为）标"待确认"并写清确认方式（G-RIP-8）。
 
 ## 1. 范围、profile 与实现状态边界
 
@@ -37,7 +37,7 @@
 
 显式边界（"不实现、不声称、不许静默转换"）：真实路由表收敛/撤销/垃圾回收定时器不在本版（生成器只按配置发**单次或 N 轮**报文，不模拟 RFC 2453 §2.3 的 30s/180s 定时器）；RFC 2080 的 IPsec 认证不在本版（spec §4 明示 RIPng 用 IPsec，非应用层认证）；RFC 1058 的「9/10 私有命令」不在本版（spec 已废弃）。
 
-**实现状态（2026-09-28 实测）**：`rip` 层已注册（`registry.go:184`）、生成器已落码（`internal/protocol/rip/layer_gen.go` 323 行 `RIPGenerator` + `builder.go` 226 行 + `parser.go` 188 行 + `rip.go` 681 行 + `rip_test.go` 1479 行 + `types.go` 17 行 = 2914 行）、`chain_planner_translate.go:64` Meta 直传已接线、`chain_planner.go:1132` 目的端口保持 0（生成器按版本运行时解析）、`chain_planner_util.go:161` `isRIPChain` 豁免 ip 层 dst 默认删除。**缺口**：层内配置不翻译（G-RIP-1）。
+**实现状态（2026-09-28 实测）**：`rip` 层已注册（`registry.go:184`）、生成器已落码（`internal/protocol/rip/layer_gen.go` 323 行 `RIPGenerator` + `builder.go` 226 行 + `parser.go` 188 行 + `rip.go` 681 行 + `rip_test.go` 1479 行 + `types.go` 17 行 = 2914 行）、`chain_planner_translate.go:64` Meta 直传已接线、`chain_planner.go:1132` 目的端口保持 0（生成器按版本运行时解析）、`chain_planner_util.go:161` `isRIPChain` 豁免 ip 层 dst 默认删除。**缺口**：层为空壳（G-RIP-1）+ 层内配置不翻译（G-RIP-2）。
 
 **输出契约（pcap/NIC 双输出）**：两路径共用同一 cases JSON 与断言集（`rip.command`/`rip.version`/`rip.family`/`rip.metric`/`udp.dstport`/`ip.dst` + frames `offset/hex`）；NIC 经 tcpdump 捕获（`nic_capture` 用例级开关）；不设仅单路径可用的断言。
 
@@ -49,7 +49,7 @@
 
 固定偏移：无 VLAN/IP options/UDP 校验和字段等变长项时，**RIP 头首字节起点为 IPv4 offset 42（14+20+8）、IPv6 offset 62（14+40+8）**。每个 UDP 数据报内：RIP 头 4B，其后 N×20B 条目（N ≤ 25，首包带认证时 ≤ 24）。
 
-目标形状 spec_json 样例（严格层链形，顶层仅 `layers`；**目标形状声明**：registry `rip` 的 `Fields` 今日为空，层内 `version`/`command`/`routes` 等键今日无处可住，故此形**今天跑不通，需先补代码** G-RIP-1，§1.9 口径）：
+目标形状 spec_json 样例（严格层链形，顶层仅 `layers`；**目标形状声明**：registry `rip` 的 `Fields` 今日为空，层内 `version`/`command`/`routes` 等键今日无处可住，故此形**今天跑不通，需先补代码** G-RIP-1/G-RIP-2，§1.9 口径）：
 
 ```json
 {
@@ -278,7 +278,7 @@ RIP 层**无自有状态**：RIP 是 UDP 上的无连接协议，无握手/无�
 | 1 | 连接模型 | UDP 无连接；v1/v2 端口 520、ng 端口 521（RFC 2453 §3.6 / RFC 2080 §2） | 场景①–⑧ | `DependsOn ["udp"]`（`registry.go:184`）；`getDstPort`（`rip.go:348`） | 无 |
 | 2 | 命令/消息表 | Command 1/2 两值（RFC 2453 §3.1）；RIPng 同（RFC 2080 §2.1） | 全正例 | `commandFromString`（`rip.go:95`）+ Validate 拒绝非 1/2 | 无（9/10 私有命令显式不适用） |
 | 3 | 状态机 | 无连接，无状态机（UDP 单发） | — | rip 层纯函数驱动 | **显式不适用**（§5），无缺口 |
-| 4 | 字段表 | 头 3 字段 + v2 RTE 6 字段 + v1 RTE 3 字段 + RIPng RTE 4 字段 + 认证条目（§3.1–3.5） | 数据场景层 | `builder.go` 逐字段构造 + `validateRoute` 全分支 | 无（层内字段面见 G-RIP-1） |
+| 4 | 字段表 | 头 3 字段 + v2 RTE 6 字段 + v1 RTE 3 字段 + RIPng RTE 4 字段 + 认证条目（§3.1–3.5） | 数据场景层 | `builder.go` 逐字段构造 + `validateRoute` 全分支 | 无（层内字段面见 G-RIP-1/G-RIP-2） |
 | 5 | 错误处理 | 19 类负例（§7 表） | 负例 N-1…N-19 | `rip.go` Validate + validateRoute 全分支 | 无（锚词 19/19 钉死） |
 | 6 | 超时与活性 | RIP 有 30s/180s/120s 定时器（RFC 2453 §2.3） | — | 协议层无（生成器按显式 `rounds` 发，不模拟定时器） | **显式不适用**（§4 声明），无缺口 |
 | 7 | NAT/代理/被动 | 无被动模式概念（UDP 单发） | — | 无 | **显式不适用**；NAT 穿透为框架面 |
@@ -420,9 +420,9 @@ RIP 层**无自有状态**：RIP 是 UDP 上的无连接协议，无握手/无�
 
 ### 11.7 与现有逻辑的冲突点
 
-- **registry `rip` 无 `Fields`**（`registry.go:184`，生成表 `rip.fields = {}` 实测）→ 层内业务键无处可住（`ValidateLayerConfig` 拒 `unknown field "command"`，探针实证）→ 缺口 G-RIP-1。
-- **`translateTerminalConfig` 无 `case "rip"`**（switch 73 case 全表无 rip，实测）→ 层内配置即使放行也不翻译，`spec.RIP` 恒 nil（`chain_planner_translate.go:64` 只做 Meta 直传，读 spec 不写 spec）→ G-RIP-1。
-- **`CheckProtoFlat` 无 rip 分支**（`grep -c 'protocol == "rip"'` = 0 实测）→ 顶层 `rip` 子映射 presence 形今日**不判死**（探针实证：`{layers:[...],rip:{}}` → schema errs=0）→ 缺口 G-RIP-2（禁加单协议黑名单分支，等框架级 unknown-key 白名单）。
+- **registry `rip` 无 `Fields`**（`registry.go:184`，生成表 `rip.fields = {}` 实测）→ 层内业务键无处可住（`ValidateLayerConfig` 拒 `unknown field "command"`，探针实证）→ 缺口 **G-RIP-1（层空壳）**。
+- **`translateTerminalConfig` 无 `case "rip"`**（switch 73 case 全表无 rip，实测）→ 层内配置即使放行也不翻译，`spec.RIP` 恒 nil（`chain_planner_translate.go:64` 只做 Meta 直传，读 spec 不写 spec）→ **G-RIP-2（层内配置不翻译）**。
+- **`CheckProtoFlat` 无 rip 分支**（`grep -c 'protocol == "rip"'` = 0 实测）→ 顶层 `rip` 子映射 presence 形今日**不判死**（探针实证：`{layers:[...],rip:{}}` → schema errs=0）→ 缺口 G-RIP-3（禁加单协议黑名单分支，等框架级 unknown-key 白名单）。
 - **动态 allowlist**（`internal/core/layer_dyn.go` 头部）：`rip` 零命中 → 业务字段动态对象即拒；四元组 `ip`/`udp` 全开。见 §12.12。
 
 ### 11.8 回滚方式
@@ -433,15 +433,15 @@ RIP 层**无自有状态**：RIP 是 UDP 上的无连接协议，无握手/无�
 
 | § | 本协议怎么满足 | 证据 |
 |---|---|---|
-| §1 层链唯一真相 | 见 §12.1 强制展开：存量 71/71 顶层含旧键（过渡态违规形，代码阶段收敛 G-RIP-1/G-RIP-3）；目标形状见 §2 样例；presence 判死形状缺口 G-RIP-2 | §12.1；`cases/rip.json` 机读实测 |
+| §1 层链唯一真相 | 见 §12.1 强制展开：存量 71/71 顶层含旧键（过渡态违规形，代码阶段收敛 G-RIP-1/G-RIP-2/G-RIP-4）；目标形状见 §2 样例；presence 判死形状缺口 G-RIP-3 | §12.1；`cases/rip.json` 机读实测 |
 | §2 策略/任务 | 策略 = 单 rip 流量模板，自带 `flow_control`；任务 = 多策略合跑 + 总量封顶；框架语义未动 | 设计 §2 样例 |
 | §3 五件套 | 见 §12.3 强制展开：会话表（无会话，显式不适用+理由）/事务序列/关联关系（无派生流诚实声明）/插入位置（udp 终结层）/时间线 | §12.3 + §5 |
 | §4 查规范 | RFC 1058/2453/2080/4822 + 旧基线 + tshark 26 字段实测 + 落码反推；八项矩阵 + 子表①②③ | §10 |
 | §5 依赖与错误 | `DependsOn ["udp"]`（`registry.go:184`）；19 种拒绝分支；失败传 task error | §5/§7/§11.5 |
 | §6 性能 | 见 §6（6.1–6.8 要素齐；吞吐数字标待 P5 基准，不写承诺） | §6 |
 | §7 三份文档 | `96-rip-{design,testcase}.md` v1.0.0（本批）+ 旧稿 `10-rip-design.md` 为历史层（§7.4）；无 `10-rip-testcase.md`（新建补缺） | 修订记录 |
-| §8 设计先行 | 本批 = 文档先行；代码阶段动作 = 缺口收敛（G-RIP-1） | 提交序 |
-| §9 测试三源 | 三源 = RFC 四篇（§10）+ 本设计（§11）+ tshark 26 字段实测（§3.7，替代"已确认现网行为"档；现网行为为旧基线继承，未达抓包级 → G-RIP-8）；71 ID 逐项回指；存量 71 例审计去向 testcase §8 | `96-rip-testcase.md` §2/§5/§8 |
+| §8 设计先行 | 本批 = 文档先行；代码阶段动作 = 缺口收敛（G-RIP-1/G-RIP-2） | 提交序 |
+| §9 测试三源 | 三源 = RFC 四篇（§10）+ 本设计（§11）+ tshark 26 字段实测（§3.7，替代"已确认现网行为"档；现网行为为旧基线继承，未达抓包级 → G-RIP-9）；71 ID 逐项回指；存量 71 例审计去向 testcase §8 | `96-rip-testcase.md` §2/§5/§8 |
 | §10 评审闭环 | 本批自审（结论见 /tmp/pipe/doc-lanes/rip.md）+ 批次隔离审查；红先绿后 | lane 报告 |
 | §11 白话 | 本文首节白话一句 | 汇报 |
 | §12 动态清单 | 见 §12.12 强制展开：四元组全开（allowlist 实测）；业务字段逐个列开/不开 + 理由；序号算法实读行号 | §12.12 |
@@ -460,12 +460,12 @@ RIP 层**无自有状态**：RIP 是 UDP 上的无连接协议，无握手/无�
 
 | 旧键 | 存量出现例数 | 去向 |
 |---|---:|---|
-| `src_ip` | **7**（另 0 例在扁平组） | 迁 `layers[i].ip.src`（G-RIP-1） |
+| `src_ip` | **7**（另 0 例在扁平组） | 迁 `layers[i].ip.src`（G-RIP-1/G-RIP-2） |
 | `dst_ip` | **14** | 迁 `layers[i].ip.dst` |
 | `src_port` | **71** | 迁 `layers[i].udp.src_port`（或删，走 resolveSrcPort 保底） |
 | `dst_port` | **7** | 迁 `layers[i].udp.dst_port`（或删，走 getDstPort 版本解析） |
 | `count` | **71** | 走 `flow_control`（今日 `count=1` 为多数；>1 的 2 例 `rip_tedge22_routers_100_inc`/`rip_tpos17_100_routers` 补 `strategy_fc flows=N`） |
-| 顶层 `rip` 子映射 | **71** | **迁 `layers[i].rip`**（须先补 registry `Fields`，G-RIP-1） |
+| 顶层 `rip` 子映射 | **71** | **迁 `layers[i].rip`**（须先补 registry `Fields`，G-RIP-1/G-RIP-2） |
 | 顶层 `group_id` | **4** | 白名单允许（1.11 结构性键）→ **保留** |
 
 **结论**：本协议有实质迁移工作量——§1 门的动作 = ①补 registry `Fields`（version/command/domain/routes/auth/multicast/scenario/routers/rounds/triggered_update/split_horizon/poison_reverse 十三键）；②加 translate 分支（层内 rip→`spec.RIP`）；③71 例整体改写；④收官自查行「非负例顶层键 = 0」由 **5 键 → 0**。
@@ -474,7 +474,44 @@ RIP 层**无自有状态**：RIP 是 UDP 上的无连接协议，无握手/无�
 
 ### 12-P2 判死负例形状（链级红例必含清单①③④）
 
-- ① presence 形状 `{"layers":[…],"rip":{}}` 今日**不会被拒**（`CheckProtoFlat` 无 rip 分支，`grep -c` = 0 实测；探针 `ValidateStrategy` → errs=0）→ **代码阶段不建该负例**（建了会真绿 = 假通过）→ 缺口 G-RIP-2 登记。② 白名单外游离键判死（`no longer accepts flat config field src_ip`）今日**已生效**（`CheckProtoFlat` 通用五键检查，探针实证）→ 代码阶段建一条（A′）。③ 19 负例每条带锚词（已齐，§7）。④ 收官自查「非负例顶层键 = 0」（代码阶段迁移后执行）。
+- ① presence 形状 `{"layers":[…],"rip":{}}` 今日**不会被拒**（`CheckProtoFlat` 无 rip 分支，`grep -c` = 0 实测；探针 `ValidateStrategy` → errs=0）→ **代码阶段不建该负例**（建了会真绿 = 假通过）→ 缺口 G-RIP-3 登记。② 白名单外游离键判死（`no longer accepts flat config field src_ip`）今日**已生效**（`CheckProtoFlat` 通用五键检查，探针实证）→ 代码阶段建一条（A′）。③ 19 负例每条带锚词（已齐，§7）。④ 收官自查「非负例顶层键 = 0」（代码阶段迁移后执行）。
+
+### 12-P3 判死形状与 MCP 可达性：三条探针证据原文（2026-09-28 实测）
+
+**探针环境**：scratch 副本 `/tmp/rip-probe`（`cp -r` 自 worktree），worktree 与仓库零改动。以下为原文摘录。
+
+**证据 1——层为空壳，层内业务键被拒**（`ValidateLayers`，探针测试 `TestZZProbeRIPLayerInternalConfig`）：
+
+```
+链 = [{"ip":{...}},{"udp":{...}},{"rip":{"version":"v2","command":"request","scenario":"request_full","multicast":true,"routes":[]}}]
+输出 = LAYER-CONFIG-REJECTED: layers: layer "rip": unknown field "command"
+```
+
+→ registry `rip` 无 `Fields`，层内 `command`/`version`/`routes` 等键**无处可住**（G-RIP-1）。
+
+**证据 2——71 例经 MCP 建策略直接 400（既非绿也非红）**（`schema.ValidateStrategy("synth","rip",…)`）：
+
+```
+存量层链形 {layers:[{udp:{}},{rip:{}}], count:1, src_port:0, rip:{...}}
+  → errs = "protocol rip no longer accepts flat config field src_port (use a layers chain: …)"
+存量扁平形 {count:1, src_port:0, rip:{...}}
+  → errs = "protocol rip no longer accepts flat config field src_port (use a layers chain: …)"
+```
+
+→ 52 个层链例（带顶层 `src_port`）与 19 个扁平例**全部 400**：既不是绿（MCP 建不了策略）也不是红（离线套件仍绿）。**存量 71 例不是合法 MCP 任务 spec**（违反 §14.1/§14.2）。
+
+**证据 3——presence 形不判死（CheckProtoFlat 缺 rip 分支的实证）**（同探针）：
+
+```
+目标形状 {layers:[{ip:{...}},{udp:{src_port:12345,dst_port:520}},{rip:{version:"v2",multicast:true}}]}
+  → errs = "layers: layer "rip": unknown field "multicast""   ← 被 V9 拦（非 presence 门）
+presence 形 {layers:[{ip:{...}},{udp:{...}},{rip:{}}], rip:{}}
+  → errs = （空，0 条）                                          ← 今日不判死
+```
+
+→ `CheckProtoFlat` 内 `grep -c 'protocol == "rip"'` = **0**；**presence 形 `{layers:[…],rip:{}}` → schema errs = 0，今日不判死**（G-RIP-3）。故今日建该负例会**真绿 = 假通过**，代码阶段修复后才建。
+
+**离线套件对照实测**（scratch 副本补 rip 空导入 + `CHAIN_PROTO=rip`）：**71/71 全绿，58.5s**。原因 = `layer_chain_suite_test.go:225-231` 剥离 `layers` 后把顶层扁平键直传 `core.MapToFlowSpec`，**绕过 `CheckProtoFlat`** → "绿"不证明 MCP 可达（G-RIP-10）。
 
 ### 12.3 §3 强制展开：五件套
 
@@ -490,22 +527,27 @@ RIP 层**无自有状态**：RIP 是 UDP 上的无连接协议，无握手/无�
 
 ## 13. 对接清单（testcase 草稿输入；正文落 testcase 文件）
 
-71 ID（52 正 + 19 负）+ packet_count/锚词 + fixture 常量 + 双通道断言基线 + 存量审计（testcase §2–§5/§8 全量）。A′ 候选（代码阶段）：`rip_ripng_request`（§10.2 空格）/ `rip_neg_stray_src_ip`（白名单游离键，今日已生效）/ `rip_neg_top_rip_presence`（**待 G-RIP-2 修复后**才建）。
+71 ID（52 正 + 19 负）+ packet_count/锚词 + fixture 常量 + 双通道断言基线 + 存量审计（testcase §2–§5/§8 全量）+ **覆盖反查门建议断言行 20 项**（testcase §9，红项 6 项如实标红：G-RIP-1/G-RIP-2/G-RIP-3/G-RIP-4 未落码 + 形状未统一）。A′ 候选（代码阶段）：`rip_ripng_request`（§10.2 空格）/ `rip_neg_stray_src_ip`（白名单游离键，今日已生效）/ `rip_neg_top_rip_presence`（**待 G-RIP-3 修复后**才建）。
 
 ## 14. 缺口立项清单（有缺口写「缺口立项」，不许空着）
 
-| 缺口 | 内容 | 去向 |
-|---|---|---|
-| G-RIP-1 | registry `rip` `Fields` 为空（`registry.go:184`）+ 无 translate 层内分支（`chain_planner_translate.go` switch 73 case 无 rip）→ 层内业务键被拒（探针：`unknown field "command"`）+ 顶层 `rip` 子映射迁层内 + 71 例改写 + schemagen 重跑 | **代码阶段首动作**；收官「非负例顶层键=0」 |
-| G-RIP-2 | `CheckProtoFlat` 无 rip 分支（`grep -c` = 0）→ presence 形今日不判死（探针 errs=0） | 代码阶段先实测再建例；**禁加单协议黑名单分支**（等框架级 unknown-key 白名单，kingbase 记忆裁定） |
-| G-RIP-3 | 存量 71 例顶层旧键残留（5 键，逐键 7/14/71/7/71） | 随 G-RIP-1 改写；收官自查「非负例顶层键=0」 |
-| G-RIP-4 | 业务字段动态全关（allowlist 无 `rip` 行） | A′ 候选，不冒充已覆盖（§9.36 口径） |
-| G-RIP-5 | 无 `10-rip-testcase.md`（旧基线只有设计稿，无用例文档） | 本批 #96 testcase 补齐 |
-| G-RIP-6 | 旧稿 §5.5「DSCP 默认 CS6」与实现相左（死参数） | 本契约 §0 表 #6 已校正；旧稿留只读 |
-| G-RIP-7 | MD5 摘要占位字节是否需真 HMAC（现网设备互操作） | 待确认：抓现网 RIP MD5 报文比对，或查 Cisco/Juniper 手册对应章节（三选一）；确认前不写死进实现 |
-| G-RIP-8 | 现网行为（Cisco/Juniper 默认 30s 周期、水平分割默认开）为旧基线继承，未达本批抓包级 | 待确认：抓现网 RIP 报文（三选一）；本版按旧基线继承标注，不冒充第三源 |
-| G-RIP-9 | 离线 harness strip-layers（`layer_chain_suite_test.go:225-231` 剥离 layers 直传 MapToFlowSpec，绕过 CheckProtoFlat）→ 顶层扁平违规例今日离线仍绿 | 框架级 P6 票（ledger 已登记，跨协议） |
+每条含三要素：**现象 / 证据（行号）/ 归属阶段**。
+
+| 缺口 | 现象 | 证据（行号/实测） | 归属阶段 |
+|---|---|---|---|
+| **G-RIP-1** 层空壳 | rip 层无字段表 → 层内业务键无处可住，`ValidateLayerConfig` 直接拒 | `layers/registry.go:184`（`Name:"rip"` / `CategoryTerminal` / `DependsOn ["udp"]` / **无 `Fields`**）；生成表 `schemas/v1/generated/layers.generated.json` → `rip.fields = {}`；`chain_planner_translate.go:852` `if len(s.Fields) == 0 { return }` 使层内配置**根本不被解码**；探针：`ValidateLayers([{ip},{udp},{rip:{version,command,...}}])` → `layers: layer "rip": unknown field "command"` | **代码阶段补**（registry 十三键 + 重跑 schemagen） |
+| **G-RIP-2** 层内翻译缺失 | 层内配置即使放行也不翻译 → `spec.RIP` 恒 nil → 生成器走默认流 | `chain_planner_translate.go` 的 `translateTerminalConfig` switch（73 case）**全表无 `case "rip"`**；`:64` `RIP: spec.RIP` 仅 Meta 直传（**读 spec 不写 spec**） | **代码阶段补**（`case "rip"` 严格 JSON 往返解码进 `spec.RIP`） |
+| **G-RIP-3** CheckProtoFlat 无 rip 分支 | 顶层 `rip` 子映射 presence 形**今日不判死** | `strategy_convert.go` 内 `grep -c 'protocol == "rip"'` = **0**；探针：`ValidateStrategy("synth","rip",{layers:[…],rip:{}})` → **schema errs = 0**（对照 `{…,src_port:0}` → errs=1） | **代码阶段**；**禁加单协议黑名单分支**，走框架级 unknown-key 白名单（kingbase 裁定先例） |
+| **G-RIP-4** 顶层旧键残留 | 71 例顶层越白名单键 **178 处**（非负例口径） | 机读实测：`count` 52 / `rip` 52 / `src_port` 52 / `dst_ip` 12 / `src_ip` 5 / `dst_port` 5 = 178；白名单 = `{layers,strategy_fc,ttl,flow_control,output,output_config,group_id}` | **待代码阶段收敛**（随 G-RIP-1/G-RIP-2；收官「非负例顶层键 = 0」） |
+| **G-RIP-5** 业务字段动态全关 | 层内任何对象值 → `does not support dynamic` | `internal/core/layer_dyn.go` 头部 allowlist 四行（`ip`/`tcp`/`udp`/`eth`）**无 `rip` 行**（grep 零命中） | A′ 候选，不冒充已覆盖（§9.36 口径） |
+| **G-RIP-6** 旧基线无用例文档 | 只有 `10-rip-design.md`，无 `10-rip-testcase.md` | `docs/protocol-designs/` `ls` 实测 | 本批 #96 补齐（已闭环） |
+| **G-RIP-7** 旧稿 DSCP 说法与实现相左 | 旧稿 §5.5「DSCP 默认 CS6」是死参数，从不达线 | `rip.go:502` 算出 `dscp` 但 `emitRIPPacket` 用 `spec` 直配；`layer_gen.go:156` 明写「不加默认」 | 本契约 §0 表 #6 已校正（已闭环）；旧稿留只读 |
+| **G-RIP-8** MD5 摘要占位是否需真 HMAC | 现网设备互操作未知 | 未达验证级 | 待确认：抓现网 RIP MD5 报文比对，或查 Cisco/Juniper 手册对应章节（三选一）；确认前不写死进实现 |
+| **G-RIP-9** 现网行为未达本批抓包级 | Cisco/Juniper 默认 30s 周期、水平分割默认开为旧基线继承 | 旧基线 §6 记载；本批未抓包 | 待确认：抓现网 RIP 报文（三选一）；不冒充第三源 |
+| **G-RIP-10** 离线 harness strip-layers | 顶层扁平违规例今日离线仍绿（绕过 CheckProtoFlat） | `test/protocol_pcap/layer_chain_suite_test.go:225-231` 剥离 `layers` 后把顶层扁平键直传 `core.MapToFlowSpec` | 框架级 P6 票（ledger 已登记，跨协议） |
 
 ## 15. 修订记录
 
-- v1.0.0（2026-09-28）：文档先行批次一 #96。旧稿 10-* 语义继承 + 8 项过期校正（§0）；存量 71 例机读审计（顶层残留形状、expect 形状、逐键计数）；§12.1/12.3/12.12 强制展开 + 12-P2；代码设计 as-built 定稿（§11）；缺口 G-RIP-1…G-RIP-9；三源 = RFC 四篇 + 落码 + tshark 26 字段实测。自审 3 轮，末轮干净（结论见 /tmp/pipe/doc-lanes/rip.md）。
+- v1.0.0（2026-09-28）：文档先行批次一 #96。旧稿 10-* 语义继承 + 8 项过期校正（§0）；存量 71 例机读审计（顶层残留形状、expect 形状、逐键计数）；§12.1/12.3/12.12 强制展开 + **§12-P3 三条探针证据原文**；代码设计 as-built 定稿（§11）；缺口 G-RIP-1…G-RIP-10（每条含现象/证据行号/归属阶段）；三源 = RFC 四篇 + 落码 + tshark 26 字段实测。
+  **主线程裁定（2026-09-28）**：cases/rip.json 不改写——层空壳实证（§12-P3）；缺口编号按主线程口径重排（G-RIP-1 层空壳 / G-RIP-2 translate 缺 case / G-RIP-3 CheckProtoFlat 无分支 / G-RIP-4 顶层旧键 178 处）。
+  自审 4 轮，末轮干净（结论见 /tmp/pipe/doc-lanes/rip.md）。
