@@ -4,7 +4,7 @@
 > 日期：2026-09-28
 > 配套设计：`docs/protocol-designs/98-pcep-design.md` v1.0.0（D-PCEP-1）
 > 旧基线：`docs/protocol-designs/42-pcep-testcase.md` v1.0.0（24 例；思路继承不搬码）
-> 机器契约：`trafficgen/test/protocol_pcap/cases/pcep.json`（24/24 ID 与本版 §2 一致、顺序一致，已机读实测；**合规判定 = 非负例顶层键 84 处残留 / 17 例全违规**，须代码阶段收敛，G-PCEP-1）
+> 机器契约：`trafficgen/test/protocol_pcap/cases/pcep.json`（24/24 ID 与本版 §2 一致、顺序一致，已机读实测；**合规判定 = 非负例顶层键 84 处残留 / 17 例全违规**；**存量 24 例今日 create 400 全红**，去五键即可用；G-PCEP-1）
 > 白话一句：**二十四条检查：十七条看正常对话（建会话、发保活、问路、回路径、报错、多请求、多会话、v6、扩展档案），七条看胡来能不能被拦下；每条只查一件事。**
 
 ## 1. 测试原则和形状基线
@@ -13,7 +13,16 @@
 
 **形状基线（2026-09-28 机读实测；合规判据 = 非负例顶层键必须为 0，白名单 = `layers`/`strategy_fc`/`ttl`/`flow_control`/`output`/`output_config`/`group_id`）**：24/24 例顶层键 = `{expect,id,notes,proto,spec_json,summary}`（无 `strategy_fc`）；`spec_json` 顶层键 = `{layers, src_ip, dst_ip, src_port, dst_port, pcep}` ×23 + 同形无 `src_port` ×1（#13 多会话，`src_port` 住 `sessions[]`）。
 
-**合规判定：❌ 无一条合规**——非负例（17 例）顶层越白名单键 = `src_ip`×17 + `dst_ip`×17 + `dst_port`×17 + `src_port`×16 + 顶层 `pcep` 子映射×17 = **84 处残留，17/17 例全违规**（全 24 例同口径 119 处，含 7 负例同样残留）。层形 `[tcp,pcep]` ×24 但**层内配置恒 `{}`（非空 0/24）= 空壳**：`registry.go:1391` 无 `Fields`，`translateTerminalConfig`（`chain_planner_translate.go:695`）**无 `case "pcep"`**（`:753-755` 只赋空 `&core.PCEPConfig{}`），故层内配置今日既进不去也不被解码。**顶层 `pcep` 子映射 + 顶层四元组与 `layers` 并存 = 判死形状**（CORE_MEMORY §1.4/§1.11/§1.13），且这是当前**唯一可用**形状——合规层链形**今日跑不通**，收敛须**代码阶段**先补 registry `Fields` + translate case + `mapToFlowSpec`（G-PCEP-1）；**文档阶段改不动**。17 正例 `expect` 均含 `packet_count`；7 负例 `expect` 键集合严格为 `{expect_error,error_contains}`（干净）。
+**合规判定：❌ 无一条合规**——非负例（17 例）顶层越白名单键 = `src_ip`×17 + `dst_ip`×17 + `dst_port`×17 + `src_port`×16 + 顶层 `pcep` 子映射×17 = **84 处残留，17/17 例全违规**（全 24 例同口径 119 处，含 7 负例同样残留）。层形 `[tcp,pcep]` ×24 但**层内配置恒 `{}`（非空 0/24）= 空壳**：`registry.go:1391` 无 `Fields`，`translateTerminalConfig`（`chain_planner_translate.go:695`）**无 `case "pcep"`**（`:753-755` 只赋空 `&core.PCEPConfig{}`），故层内配置今日既进不去也不被解码。**顶层 `pcep` 子映射 + 顶层四元组与 `layers` 并存 = 判死形状**（CORE_MEMORY §1.4/§1.11/§1.13），且**存量 24 例今日 create 400 全红**——`core.CheckProtoFlat`（`strategy_convert.go:8632` 五键循环）在 create 门（`schema/semantic.go:130`）无条件执行，pcep **无**顶层子映射分支。**"合规层链形今日跑不通"成立**（无 `Fields`），但**"顶层五键形是唯一可用"不成立**：去掉五键即可用。四形实测（实调 `schema.ValidateStrategy`，命令见 design §15）：
+
+| 形状 | create |
+|---|---|
+| 存量：`layers` 空壳 + 五键 + 顶层 `pcep` | ❌ **400 ×24/24** |
+| `layers` 空壳 + 顶层 `pcep`（**去五键**） | ✅ 24/24 可用 |
+| 仅顶层 `pcep`（无 `layers`） | ✅ 24/24 可用 |
+| 纯层链 `[ip,tcp,pcep]` 带 `events` | ❌ 0/24（`unknown field "events"`） |
+
+收敛两路并列：**①低成本先解封** = 只删五键（仍非合规形，门1 §1 仍红）；**②合规收敛** = 代码阶段补 registry `Fields` + `translateTerminalConfig` case + `mapToFlowSpec` 收敛（门1 转绿唯一路径）。**文档阶段两件都改不动**（不动代码、不动 JSON）。17 正例 `expect` 均含 `packet_count`；7 负例 `expect` 键集合严格为 `{expect_error,error_contains}`（干净）。
 
 **输出契约（pcap/NIC 双输出）**：两路径共用同一 cases JSON 与断言集（`tcp.dstport/srcport`、`pcep.*` 字段、offset 54 frames）；NIC 经 tcpdump 捕获（`nic_capture` 用例级开关）；不设仅单路径可用的断言。
 
@@ -30,18 +39,18 @@
 | # | ID | 类型 | 覆盖（设计 §） | application events | packet_count |
 |---:|---|---|---|---:|---:|
 | 1 | `pcep_open_keepalive` | 正 | §4.1：双向 Open（SID 7/8）、Keepalive、common length | 3 | 10 |
-| 2 | `pcep_open_bidirectional` | 正 | §4.1/§6：双向 Open/Keepalive、TCP direction | 4 | 11 |
+| 2 | `pcep_open_bidirectional` | 正 | §4.1/§4.4：双向 Open/Keepalive、TCP direction | 4 | 11 |
 | 3 | `pcep_keepalive_direction` | 正 | §4.1：两方向 Keepalive，禁止隐式补发 | 6 | 13 |
 | 4 | `pcep_pcreq_ipv4_ero_metric` | 正 | §4.2：IPv4 PCReq、RP/endpoint/ERO/Metric + PCErr | 4 | 11 |
 | 5 | `pcep_pcrep_ipv4_ero_rro` | 正 | §4.2：IPv4 PCRep、request ID/RRO/Metric | 4 | 11 |
 | 6 | `pcep_pcntf_and_pcerr` | 正 | §4.3：PCNtf、PCErr、Notification/Error | 6 | 13 |
-| 7 | `pcep_multi_request` | 正 | §6：多 request/response、request ID 隔离 | 7 | 14 |
-| 8 | `pcep_ipv6_address_family` | 正 | §6：IPv6 endpoint/ERO（外层仍 IPv4） | 4 | 11 |
+| 7 | `pcep_multi_request` | 正 | §4.4：多 request/response、request ID 隔离 | 7 | 14 |
+| 8 | `pcep_ipv6_address_family` | 正 | §4.4：IPv6 endpoint/ERO（外层仍 IPv4） | 4 | 11 |
 | 9 | `pcep_lsp_object_flags` | 正 | §5：RFC 8231 LSP/SRP、PLSP-ID | 4 | 11 |
 | 10 | `pcep_rro_ipv4_ipv6` | 正 | §4.2：IPv4 RRO subobject 的 L flag 与 flags | 4 | 11 |
 | 11 | `pcep_metric_flags` | 正 | §4.2：Metric Cost/Bound flags/value | 4 | 11 |
-| 12 | `pcep_tcp_direction` | 正 | §6：c2s PCReq/PCNtf、s2c PCRep、TCP 4189 方向 | 5 | 12 |
-| 13 | `pcep_multi_session` | 正 | §6：两个独立 TCP sessions、SID 隔离 | 8 | 22 |
+| 12 | `pcep_tcp_direction` | 正 | §4.4：c2s PCReq/PCNtf、s2c PCRep、TCP 4189 方向 | 5 | 12 |
+| 13 | `pcep_multi_session` | 正 | §4.4：两个独立 TCP sessions、SID 隔离 | 8 | 22 |
 | 14 | `pcep_stateful_rfc8231_profile` | 正 | §5：Open capability TLV 16/17、LSP/SRP | 3 | 10 |
 | 15 | `pcep_delegation_rfc8281_profile` | 正 | §5：delegation flags（delegate/remove/create 三条 pcreq） | **5** | **12** |
 | 16 | `pcep_common_header_length` | 正 | §3.1：version/type/message length（Open×2/PCReq/PCRep） | 4 | 11 |
@@ -60,7 +69,7 @@ T-编号对照：T-PCEP-S1…S17 ≡ #1…#17；T-PCEP-N1…N7 ≡ #18…#24（�
 
 ## 3. 正例逐项断言契约（最低断言集，实现期可增不可减）
 
-每例均含 `packet_count` + 载体与方向断言 + frames 断言。**frames 实测口径**（存量 24 例）：短消息固化 4 字节 common header（Open `20 01 00 0c`、Keepalive `20 02 00 04`），长对象消息只固化 2 字节（`20 06`/`20 07`/`20 04`/`20 03`）；**唯一例外** #13 `pcep_multi_session` 的 Open 只固化 2 字节（`20 01`，帧 4/15）。**全部 24 例 offset = 54**（含 #8 的 IPv6 语义例——外层仍 IPv4，见设计 §6）。
+每例均含 `packet_count` + 载体与方向断言 + frames 断言。**frames 实测口径**（存量 24 例）：短消息固化 4 字节 common header（Open `20 01 00 0c`、Keepalive `20 02 00 04`），长对象消息只固化 2 字节（`20 06`/`20 07`/`20 04`/`20 03`）；**唯一例外** #13 `pcep_multi_session` 的 Open 只固化 2 字节（`20 01`，帧 4/15）。**全部 24 例 offset = 54**（含 #8 的 IPv6 语义例——外层仍 IPv4，见设计 §4.4）。
 
 ### 3.1 `pcep_open_keepalive`（10）
 
@@ -96,7 +105,7 @@ c2s PCReq `request_id=2001`，s2c PCRep 带 END-POINT、ERO、RRO、Metric。fie
 
 ### 3.9 `pcep_ipv6_address_family`（11）
 
-`profile=pcep_rfc5440_ipv6`，外层载体仍 IPv4（`src_ip=192.0.2.10`）。fields：帧 6 `pcep.msg=6`、`pcep.obj.end_point.source_ipv6_address=2001:db8::10`、`.destination_ipv6_address=2001:db8::20`、`pcep.subobj.ipv6.ipv6=2001:db8:1::1`；帧 7 `pcep.msg=7`、`pcep.subobj.ipv6.l=1`。不出现 IPv4 subobject。**IPv6 是 PCEP endpoint/profile 语义，不是 IPv6 TCP 或另一端口**（设计 §6）。
+`profile=pcep_rfc5440_ipv6`，外层载体仍 IPv4（`src_ip=192.0.2.10`）。fields：帧 6 `pcep.msg=6`、`pcep.obj.end_point.source_ipv6_address=2001:db8::10`、`.destination_ipv6_address=2001:db8::20`、`pcep.subobj.ipv6.ipv6=2001:db8:1::1`；帧 7 `pcep.msg=7`、`pcep.subobj.ipv6.l=1`。不出现 IPv4 subobject。**IPv6 是 PCEP endpoint/profile 语义，不是 IPv6 TCP 或另一端口**（设计 §4.4）。
 
 ### 3.10 `pcep_rro_ipv4_ipv6`（11）
 
@@ -215,11 +224,12 @@ RFC 5440/8231/8281（§10）+ D-PCEP-1（设计 §11）+ tshark 通道实测（`
 
 ### 8.2 现状矛盾点（P4 前诚实登记）
 
-1. **存量跑的是违规过渡形，不是层链形（审计主结论）**：按"非负例顶层键必须为 0"判据，24/24 例**全部违规**——非负例 84 处残留（`src_ip`/`dst_ip`/`dst_port` 各 17、`src_port` 16、顶层 `pcep` 子映射 17），全 24 例 119 处。`layers=[{tcp:{}},{pcep:{}}]` 只是**空壳**（层内恒 `{}`，`translateTerminalConfig` 无 `case "pcep"` → 既不校验也不解码），真实配置住顶层 `pcep` 子映射 + 顶层四元组。旧 id 的 packet_count 断言**今日有效**，但顶层键今日是**判死形状**；合规化须代码阶段先补 registry `Fields` + translate case + `mapToFlowSpec` 收敛（G-PCEP-1），文档阶段改不动。
+1. **存量跑的是违规过渡形，且今日 400 全红（审计主结论）**：按"非负例顶层键必须为 0"判据，24/24 例**全部违规**——非负例 84 处残留（`src_ip`/`dst_ip`/`dst_port` 各 17、`src_port` 16、顶层 `pcep` 子映射 17），全 24 例 119 处。更关键：**存量 24 例今日 create 400 全红**（五键在即被 `CheckProtoFlat` `:8632` 拒），**无一条可创建、断言无一条"今日有效"**。`layers=[{tcp:{}},{pcep:{}}]` 只是**空壳**（层内恒 `{}`，`translateTerminalConfig` 无 `case "pcep"` → 既不校验也不解码），真实配置住顶层 `pcep` 子映射 + 顶层四元组。**去五键即可用**（四形实测表 §1 第 2/3 行），但那是"能跑"不是"合规"。合规化须代码阶段补 registry `Fields` + translate case + `mapToFlowSpec` 收敛（G-PCEP-1），文档阶段改不动。
 2. **#15 包数旧稿偏差**：旧稿 design §8 与 testcase §2 均写 3 events / 10 packets，实测 **5 / 12**（漏计两条 Open）。包数断言以实测为准，P4 不改包数。
 3. **#10 名不副实**：`pcep_rro_ipv4_ipv6` 实测为单 IPv4 profile 例，无 IPv6 半边（G-PCEP-7）。
 4. **#22 名不副实**：`pcep_neg_session_id` 实际注入 `sid:0` 而非 SID 漂移（G-PCEP-9）。
-5. **存量未覆盖精确边界**：`object_length` 边界相邻值 / 缺省端口 / RRO-in-IPv6 / 外层 IPv6 载体 / SID 上界 / 未知 object class **今日零用例**（A′ 补）。
+5. **结果文档过期（G-PCEP-11）**：`trafficgen/docs/protocol-pcap-test/pcep.md` 写 "24 — pass 24"，但末次提交 `e60f8de`（2026-08-30）早于判死提交 `0417be5`（2026-09-13）两周；`cases/pcep.json` 末改 `07a5472` 同日；`docs/protocol-pcap-test/pcep/` **0 个 pcap**。该 24/24 pass **是过期产物，不代表今日可跑**。
+6. **存量未覆盖精确边界**：`object_length` 边界相邻值 / 缺省端口 / RRO-in-IPv6 / 外层 IPv6 载体 / SID 上界 / 未知 object class **今日零用例**（A′ 补）。
 
 ### 8.3 逐条去向表（24 行）
 
@@ -265,7 +275,7 @@ RFC 5440/8231/8281（§10）+ D-PCEP-1（设计 §11）+ tshark 通道实测（`
 | G5 | 17 正例 `packet_count` = `3 + len(events) + 4`（多会话按会话求和） | 机读重算 | ✅ 17/17 |
 | G6 | 7 负例 `expect` 键集合严格 = `{expect_error, error_contains}` | 键集合比对 | ✅ 7/7 |
 | G7 | 7 负例 `error_contains` 非空且 ∈ 设计 §7 锚词集 | 锚词集合 ∈ {length,type,object,keepalive,session,address,stateful} | ✅ 7/7 |
-| G8 | 正例 fields 的 `pcep.*` 字段全部已注册 | `tshark -G fields` 前缀集合包含 | ✅ 36/36 |
+| G8 | 正例 fields 的 `pcep.*` 字段全部已注册 | `tshark -G fields` 前缀集合包含（`pcep.*` 注册 379；JSON 去重 39 + `tcp.*` 2） | ✅ **39/39** |
 | G9 | 正例 frames offset 全 = 54（外层 IPv4 载体） | offset 集合 = {54} | ✅ 24/24 |
 | G10 | `frames.hex` 的 Open 前缀 = `20 01 00 0c`（长度 12） | 前缀比对 | ✅（旧稿 `0x10` 已校正） |
 | G11 | 无 PCUpd/PCInitiate 正例（G-PCEP-6 未实现） | 正例中无 `kind` 映射到 type 10/12 | ✅ |
@@ -273,7 +283,7 @@ RFC 5440/8231/8281（§10）+ D-PCEP-1（设计 §11）+ tshark 通道实测（`
 | G13 | 业务字段动态对象零出现（G-PCEP-3） | `pcep` 层内无 `{"strategy": …}` 形值 | ✅ |
 | G14 | 多会话例 `sessions[].src_port` 非零且互异 | 机读 | ✅（40001/40002） |
 
-**门2 关系**：G1–G3 是门2①（顶层旧键零残留）的协议级细化；G5–G7 是门2②（全量绿 + 负例锚词）的静态前置；G8 是"断言可执行"（§7）的静态前置。**建议 G1/G2/G3 保持红并登记为已知缺口**（勿白名单豁免——CORE_MEMORY §1.12/§1.13）；转绿条件是代码阶段补齐 registry `Fields` + `translateTerminalConfig` case + `mapToFlowSpec` 收敛。
+**门2 关系**：G1–G3 是门2①（顶层旧键零残留）的协议级细化；G5–G7 是门2②（全量绿 + 负例锚词）的静态前置；G8 是"断言可执行"（§7）的静态前置。**建议 G1/G2/G3 保持红并登记为已知缺口**（勿白名单豁免——CORE_MEMORY §1.12/§1.13）；转绿条件是代码阶段补齐 registry `Fields` + `translateTerminalConfig` case + `mapToFlowSpec` 收敛。**另注意**：`docs/protocol-pcap-test/pcep.md` 的 24/24 pass 是过期产物（G-PCEP-11），不得作为"套件可跑"依据。
 
 ## 10. 修订记录
 

@@ -4,7 +4,7 @@
 > 日期：2026-09-28
 > 车道：文档轨（#98 pcep 续号审计）
 > 旧基线：`docs/protocol-designs/42-pcep-design.md` v1.0.0 + `42-pcep-testcase.md` v1.0.0（24 例 = 17 正 + 7 负；本 #98 为按当前层链架构标准的审计续号，思路继承、不搬码——旧稿"层尚未实现/未注册"状态已过时，见 §0）
-> 存量用例：`trafficgen/test/protocol_pcap/cases/pcep.json`（24/24 ID 与旧稿一致、顺序一致，已机读实测；**合规判定 = 非负例顶层键 84 处残留 / 17 例全违规**，须代码阶段（P4）收敛，G-PCEP-1）
+> 存量用例：`trafficgen/test/protocol_pcap/cases/pcep.json`（24/24 ID 与旧稿一致、顺序一致，已机读实测；**合规判定 = 非负例顶层键 84 处残留 / 17 例全违规**；**存量 24 例今日 create 400 全红**（五键在），去五键即可用；结果文档 `docs/protocol-pcap-test/pcep.md` 为过期产物——详见 §0）
 > 规范基线：① RFC 5440（PCEP，TCP 4189）；② RFC 8231（stateful PCE，有状态 PCE）；③ RFC 8281（PCE-initiated LSP/delegation，PCE 发起 LSP/委托）；④ 本仓库落码（`internal/protocol/pcep/` 三文件，§11.1，as-built 逆向定稿）；⑤ 本机 tshark 3.6.14 实测（`pcep.*` 已注册 379 字段）
 > 白话一句：**PCEP 是路由器之间"问路"的对话协议——一台机器问"到某目的地怎么走"，另一台算完把路径写回来；引擎里它是一层薄皮，只把配置好的每条消息按序翻译成 TCP 载荷，握手分段挥手全交给 TCP 层。**
 
@@ -17,7 +17,7 @@
 | 1 | "`pcep` 层尚未实现""不宣称 `pcep` 层已注册"（design 头注 / testcase 头注） | `registry.go:1391` 已注册 `LayerSchema{Name:"pcep", Category:CategoryTerminal, DependsOn:["tcp"]}`；`internal/protocol/pcep/` 三文件 2077 行（`builder.go` 792 / `planner.go` 151 / `pcep_test.go` 1134，`wc -l` 实测），50 个 `Test*` 函数（`grep -c` 实测）；`allowedProtocols["pcep"]=true`（`protocols.go:50`） | "尚未实现/未注册"已过时；本契约 §11 为 as-built 逆向定稿 |
 | 2 | 旧稿 design §2 推荐层链样例 = **顶层扁平形**（`layers` + 顶层 `src_ip`/`dst_ip`/`src_port`/`dst_port` + 顶层 `pcep` 子映射） | 存量 24/24 例 `spec_json` 顶层键 = `{layers, src_ip, dst_ip, src_port, dst_port, pcep}`（机读实测：`src_ip`×24 / `dst_ip`×24 / `dst_port`×24 / `src_port`×23 / `pcep`×24）；`layers` 内 `[{tcp:{}},{pcep:{}}]` 两键**恒空壳**（机读：非空层配置 0/24） | 旧样例形 = **过渡态违规形**（CORE_MEMORY §1.4/§1.11），代码阶段按 §12.1 收敛；本契约 §2 样例只给纯层链形 |
 | 3 | 旧稿 design §7 负例表把 7 类故障描述为"错误注入"，锚词 `length`/`type`/`object`/`keepalive`/`session`/`address`/`stateful` | 机读实测：7 例中 **6 例不含 `wire_fault`**，走自然非法配置（`kind:"unknown"` / `objects:[{class:"rp",object_length:3}]` / keepalive 带 objects / `sid:0` / IPv4 profile 携 IPv6 / base profile 携 lsp+srp）；仅 `pcep_neg_malformed_length` 用 `wire_fault:{kind:"length"}` | 锚词作为**子串** 7/7 命中真实文案（见 §7 表）；但"错误注入"定性只对 1/7 成立，其余 6 例是配置拒绝面——§7 表逐行改写 |
-| 4 | 旧稿 design §1 不变式 5："`session_id`… 若显式写在线上，必须在同一会话内一致" | `builder.go:687-690` 注释与代码明写 **SID 漂移不是错误**（"Both sides need not match (positive case uses 7/8), so drift alone is not an error — a zero SID is"）；RFC 5440 §7.3：SID 由发送方各自分配 | **旧稿不变式与实现/RFC 矛盾**，以 RFC + 实现为准（§4.1/§7）；旧稿 `pcep_neg_session_id` 描述"两个 Open SID 不一致"在实现下**不会红**，实际注入的是 `sid:0` |
+| 4 | 旧稿 design §1 不变式 5："`session_id`… 若显式写在线上，必须在同一会话内一致" | `builder.go:691-693` 注释与代码明写 **SID 漂移不是错误**（"Both sides need not match (positive case uses 7/8), so drift alone is not an error — a zero SID is"）；RFC 5440 §7.3：SID 由发送方各自分配 | **旧稿不变式与实现/RFC 矛盾**，以 RFC + 实现为准（§4.1/§7）；旧稿 `pcep_neg_session_id` 描述"两个 Open SID 不一致"在实现下**不会红**，实际注入的是 `sid:0` |
 | 5 | 旧稿 design §3.1 / testcase §1 钉 Open 固定样本 `20 01 00 10` | `builder.go:150-193` 无 capability 时 body 4B → object 8B → message length **12**；存量 JSON `frames` 实测 `20 01 00 0c`，`fields` 实测 `pcep.msg_length=12` | 旧稿常量 **0x10=16 错**（无 capability 的 Open 为 12）；本契约 §3.1 校正 |
 | 6 | 旧稿 design §8 表行 15 `pcep_delegation_rfc8281_profile` = 3 events / 10 packets | 存量 JSON 实测 = **5 events / 12 packets**（2 Open + delegate/remove/create 三条 pcreq）；旧稿 testcase §3.3（`:76` bullet）与 design §8 表行 15 均写"三种 flags 事件"，实现单测 `pcep_test.go:199` 同款 delegate/create/administrative | 旧稿表行 **漏计两条 Open**（"3"= 三个 flags 事件）；JSON 5/12 正确，本契约 §9 校正 |
 | 7 | 旧稿 testcase §3.2 `pcep_rro_ipv4_ipv6`："分别在 IPv4 与 IPv6 profile 的显式路径对象中使用对应 RRO subobject" | 存量 JSON 实测：单例、单 profile（`pcep_rfc5440_ipv4`），断言 `pcep.subobj.ipv4.ipv4`/`.l`/`pcep.obj.rro.type`/`pcep.subobj.flags.lpu`，**无 IPv6 半边** | 旧稿描述与用例不符；IPv6 RRO 属地址族对称缺口 G-PCEP-7 |
@@ -34,7 +34,20 @@
 | `layers` 内配置 | **恒空壳 0/24**（`[{tcp:{}},{pcep:{}}]` 两键皆 `{}`） |
 | 层内配置是否被解码 | **否**——`registry.go:1391` 无 `Fields`；`translateTerminalConfig`（`chain_planner_translate.go:695`）**无 `case "pcep"`**，`:753-755` 只做 `spec.PCEP = &core.PCEPConfig{}` 空结构体赋值 |
 
-**定性**：顶层 `pcep` 子映射 + 顶层四元组与 `layers` 并存 = **判死形状**（CORE_MEMORY §1.4/§1.11/§1.13），且不是"旧格式残留待清理"而是**当前唯一可用形状**——合规层链形**今日跑不通**。收敛须**代码阶段**先补三件事：① `registry.go` 补 `pcep` 的 `Fields`（`profile`/`events`/`sessions`）；② `translateTerminalConfig` 补 `case "pcep"` 层内严格解码；③ `mapToFlowSpec`（`strategy_convert.go:331`，pcep 分支 `:1738-1740`）从子配置搬运收敛为层链驱动。**文档阶段改不动这三处**，故 98 稿只如实登记形状与去向，不宣称合规。
+**定性（现状可用性，实调）**：顶层 `pcep` 子映射 + 顶层四元组与 `layers` 并存 = **判死形状**（CORE_MEMORY §1.4/§1.11/§1.13），且**存量 24 例今日全部不可创建**——`core.CheckProtoFlat`（`strategy_convert.go:8632` 五键循环）在 create 门（`schema/semantic.go:130`）无条件执行，pcep **无**顶层子映射分支，故五键在即 400。**"合规层链形今日跑不通"成立**（`registry.go:1391` 无 `Fields`），但**"顶层五键形是唯一可用"不成立**：去掉五键即可用（四形实测见下）。
+
+**四形实测表（本车道实调 `schema.ValidateStrategy`，命令见 §15 复算证据；禁止照抄）**：
+
+| 形状 | create | 说明 |
+|---|---|---|
+| 存量：`layers` 空壳 + 五键 + 顶层 `pcep` | ❌ **400 ×24/24** | `protocol pcep no longer accepts flat config field src_ip …`（`:8632`） |
+| `layers` 空壳 + 顶层 `pcep`（**去五键**） | ✅ 24/24 可用 | `spec.PCEP` 已填、可出包（引擎路径 `MapToFlowSpec` `ValidationErrors` 空） |
+| 仅顶层 `pcep`（无 `layers`） | ✅ 24/24 可用 | 同上 |
+| 纯层链 `[ip,tcp,pcep]` 带 `events` | ❌ 0/24 | `layers: layer "pcep": unknown field "events"`（`complete.go:291-293`） |
+
+**收敛路径（两条，取舍并列）**：①**低成本先解封**——存量 24 例**只删五键**（保留 `layers` 空壳 + 顶层 `pcep`），当日即可创建并跑出包；代价是仍非合规形（顶层 `pcep` 子映射残留），门1 §1 栏仍红。②**合规收敛**——代码阶段补三件事：`registry.go` 补 `pcep` 的 `Fields`（`profile`/`events`/`sessions`）；`translateTerminalConfig`（`chain_planner_translate.go:695`）补 `case "pcep"` 层内严格解码；`mapToFlowSpec`（`strategy_convert.go:331`，pcep 分支 `:1738-1740`）从子配置搬运收敛为层链驱动。**两条不互斥**：①可先恢复套件可跑性，②是门1 转绿的唯一路径。**文档阶段两件都改不动**（不动代码、不动 JSON），故 98 稿只如实登记。
+
+**产物过期登记（重要）**：`trafficgen/docs/protocol-pcap-test/pcep.md` 写 "Cases: 24 — pass 24"，但该文件末次提交 `e60f8de`（2026-08-30），**早于**判死提交 `0417be5`（2026-09-13）两周；`cases/pcep.json` 末改 `07a5472`（2026-08-30）同日；`docs/protocol-pcap-test/pcep/` 目录 **0 个 pcap 文件**。**该结果文档是过期产物，24/24 pass 不代表今日可跑**——读者不得据此判断套件可用。
 
 **依赖链判定纪律**：以上均为可判题，直接判定；不可判的（现网 PCE 实现的私有扩展行为）标"待确认"并写清确认方式（§14 G-PCEP-6）。
 
@@ -73,7 +86,7 @@ RFC 8231/RFC 8281 只作为显式 profile 边界；基础 `pcep_rfc5440_*` 不�
 
 端口：PCEP 监听口 **TCP 4189**（RFC 5440 §5.1；planner 缺省 4189 已落码 `planner.go:28-30`，层链缺省补齐 `chain_planner.go:1128`）。用例一律显式写端口并纳入断言（§1.4 纪律）。
 
-固定偏移：无 VLAN/IP options/TCP options 时，**每条消息首字节起点为 IPv4 offset 54（14+20+20）**。存量 24/24 例 `frames` 实测 offset 全为 **54**（含 `pcep_ipv6_address_family`——该例外层仍是 IPv4 载体，IPv6 只体现在 PCEP endpoint/subobject 语义，见 §6）。外层 IPv6 载体的 offset 74 今日零用例（§8 边界）。
+固定偏移：无 VLAN/IP options/TCP options 时，**每条消息首字节起点为 IPv4 offset 54（14+20+20）**。存量 24/24 例 `frames` 实测 offset 全为 **54**（含 `pcep_ipv6_address_family`——该例外层仍是 IPv4 载体，IPv6 只体现在 PCEP endpoint/subobject 语义，见 §4.4）。外层 IPv6 载体的 offset 74 今日零用例（§8 边界）。
 
 目标形状 spec_json 样例（严格层链形，顶层仅 `layers` + `flow_control`；**目标形状声明**：registry `pcep` 无 `Fields` 表，层内 `events`/`profile`/`sessions` 键今日无处可住，故此形**今天跑不通，需先补代码** G-PCEP-1，§1.9 口径）：
 
@@ -157,7 +170,7 @@ byte 1: Object-Type（高 4 bit，mask 0xF0）| P flag（bit 1，0x02）| I flag
 byte 2..3: Object-Length（大端，含 object header；body 按 4 字节对齐后重算）
 ```
 
-Object 类（`builder.go:36-47`）：`open=1`、`rp=2`、`endpoint=4`、`metric=6`、`ero=7`、`rro=8`、`lspa=9`、`notif=12`、`error=13`、`lsp=32`、`srp=33`。TLV 类型：`stateful_pce=16`、`sync=17`。
+Object 类（`builder.go:38-48`）：`open=1`、`rp=2`、`endpoint=4`、`metric=6`、`ero=7`、`rro=8`、`lspa=9`、`notif=12`、`error=13`、`lsp=32`、`srp=33`。TLV 类型：`stateful_pce=16`、`sync=17`。
 
 **`objects[].object_length` 语义（实读，重要）**：该键**只参与校验，不落线**。`builder.go:773` 对声明值做 `>= 4 且 4 字节对齐` 校验，随后 `buildObjectHeader` 一律按实际 body 长度重算 Object-Length 写入线上。故它是**负例注入面**而非线格式控制面（G-PCEP-5）。
 
@@ -195,9 +208,9 @@ PCEP 不在 RFC 5440 common header 中使用独立 checksum；TCP checksum 由 T
 
 ### 4.1 Open/Keepalive/session
 
-OPEN object 使用注册字段 `pcep.obj.open.pcep_version`、`pcep.obj.open.flags`、`pcep.obj.open.keepalive`、`pcep.obj.open.deadtime`、`pcep.obj.open.sid`。body 4 字节：`[0]=0x20`（Ver=1<<5 | Flags=0）、`[1]=keepalive`、`[2]=deadtime`、`[3]=sid`（`builder.go:150-156`）。`keepalive`/`deadtime` 为 0 时取缺省 30/120（`builder.go:456-464`）。Open 的 Keepalive/DeadTimer 是会话参数，不代表 planner 自动插入周期性 Keepalive。Keepalive message 不带 object，且必须是 common header 长度 4。
+OPEN object 使用注册字段 `pcep.obj.open.pcep_version`、`pcep.obj.open.flags`、`pcep.obj.open.keepalive`、`pcep.obj.open.deadtime`、`pcep.obj.open.sid`。body 4 字节：`[0]=0x20`（Ver=1<<5 | Flags=0）、`[1]=keepalive`、`[2]=deadtime`、`[3]=sid`（`builder.go:150-156`）。`keepalive`/`deadtime` 为 0 时取缺省 30/120（`builder.go:452-459`）。Open 的 Keepalive/DeadTimer 是会话参数，不代表 planner 自动插入周期性 Keepalive。Keepalive message 不带 object，且必须是 common header 长度 4。
 
-**SID 语义（校正旧稿）**：SID 为 uint8，由发送方各自分配，两方向允许不同（RFC 5440 §7.3；实现 `builder.go:687-690`）；`sid:0` 保留且非法，validator 拒绝（`builder.go:695-698`）。SID 不是从 TCP 端口推导的随机值。
+**SID 语义（校正旧稿）**：SID 为 uint8，由发送方各自分配，两方向允许不同（RFC 5440 §7.3；实现 `builder.go:691-693`）；`sid:0` 保留且非法，validator 拒绝（`builder.go:695-698`）。SID 不是从 TCP 端口推导的随机值。
 
 ### 4.2 PCReq/PCRep
 
@@ -213,11 +226,11 @@ PCNtf 用 Notification object，使用已注册的 `pcep.obj.notification.type` 
 
 ## 5. RFC 8231 stateful 与 RFC 8281 delegation profile
 
-`pcep_rfc8231_stateful` 是显式扩展 profile，基础 Open/Keepalive/PCReq/PCRep/PCErr 仍采用 RFC 5440 common header；LSP object 使用 `pcep.obj.lsp.plsp-id`、`pcep.obj.lsp.flags.*`，SRP object 使用 `pcep.obj.srp.id-number`、`.flags.*`。扩展能力 TLV 的注册字段（`pcep.stateful-pce-capability.*`、`pcep.sync-capability.*`）只有在配置声明 capability 时才出现；`include_db_version=true` 时**同时**发 TLV 16 与 TLV 17（`builder.go:170-178`）。此 profile 不自动维护数据库、同步所有 LSP 或生成 PCUpd/PCInitiate。
+`pcep_rfc8231_stateful` 是显式扩展 profile，基础 Open/Keepalive/PCReq/PCRep/PCErr 仍采用 RFC 5440 common header；LSP object 使用 `pcep.obj.lsp.plsp-id`、`pcep.obj.lsp.flags.*`，SRP object 使用 `pcep.obj.srp.id-number`、`.flags.*`。扩展能力 TLV 的注册字段（`pcep.stateful-pce-capability.*`、`pcep.sync-capability.*`）只有在配置声明 capability 时才出现；`include_db_version=true` 时**同时**发 TLV 16 与 TLV 17（`builder.go:173-180`）。此 profile 不自动维护数据库、同步所有 LSP 或生成 PCUpd/PCInitiate。
 
 `pcep_rfc8281_delegation` 必须声明 stateful capability；delegate/remove/create/administrative/operational flags 只表达显式 LSP/SRP 事件。RFC 8281 不改变 RFC 5440 的 Open/Keepalive 基本格式，也不允许在 base profile 中静默接受 delegate flag——实现对此有专属拒绝分支（`builder.go:757-759`：`lsp`/`srp` 对象在非 stateful profile 下报 `%s object requires stateful profile`）。任何未注册扩展对象仍走负例。
 
-## 6. IPv4/IPv6、multi-request 与 multi-session
+### 4.4 IPv4/IPv6、multi-request 与 multi-session
 
 IPv4 profile 使用 `pcep.obj.end_point.source_ipv4_address`/`destination_ipv4_address` 及 `pcep.subobj.ipv4.ipv4`；IPv6 profile 使用对应 IPv6 字段和 `pcep.subobj.ipv6.ipv6`。endpoint、ERO、RRO 的地址族必须一致；混用、缺失或将 IPv6 压入 IPv4 object 都是 address-family 错误（`builder.go:779-786` 双向分支）。
 
@@ -226,6 +239,50 @@ IPv4 profile 使用 `pcep.obj.end_point.source_ipv4_address`/`destination_ipv4_a
 `multi_request` 在同一 TCP session 中按显式事件发送多个 PCReq，再发送 request_id 对应的多个 PCRep；每一请求独立携带 endpoint/metric/ERO，不能复用前一个请求对象。`sessions` 是多个独立 TCP 4189 flows，每个 flow 有自己的 `src_port`、SID、Open 和 teardown；会话之间的 SID/request ID 不得串联（`planner.go:109-126` 多会话展开；`src_port` 缺省由 `builder.go:701` 拒绝）。每个 flow 的 packet count（包数）包括 3-way handshake、显式 application messages 和四包 TCP teardown。
 
 **包数公式（实读 `planner.go:66-83`，单流）**：`packet_count = 3（SYN/SYN-ACK/ACK） + N（显式事件数） + 4（FIN 四包）`。多会话（`sessions[]`）= 各会话包数之和（每会话独立 3+N_i+4）。存量 17 正例机读校验 17/17 符合（含 #13 = 2×11 = 22）。
+
+## 6. 性能设计与验收（CORE_MEMORY §6.1–6.8）
+
+### 6.1 目标与规模边界
+
+| 项（§6.2） | 本协议值 | 依据 |
+|---|---|---|
+| 目标吞吐 | **待 P4 基准**（不写承诺，§6.5） | 生成器级速率由框架 `flow_control.bps` 承载（需求 §10 口径一），本层不重复定义 |
+| 并发会话/流数 | 单策略 `sessions[]` 条数不限（每会话一条独立 TCP 连接）；`flows=N` 由框架复制 | `planner.go:112-126` 逐会话展开；多流由 `flow_control` 承载 |
+| 单流最大报文 | Open 无 capability = **12B**；带 capability = 12 + 8×TLV 数（每 TLV value 恒 4B）；Keepalive = 4B；多对象消息 = 4 + Σ(4 + pad4(body)) | §3.1 总长度公式（`builder.go` 实读） |
+| 内存上限 | O(单消息 PDU 长度)，无跨消息累积；`Plan` chan 缓冲 **32**（`planner.go:37`） | 逐事件流式 emit，无全量收集 |
+| 队列/缓冲上限 | 上条 chan 32；框架侧 bounded queue 由引擎统一（本层不新增队列） | `planner.go:37` |
+| CPU 并行度 | 无本层并发；多 worker 由框架 `PacketWorkers` 决定（本层无锁、builder 全纯函数） | §11.6 |
+
+### 6.2 性能依据（§6.4）
+
+- **流式处理**：`Plan` 在 goroutine 内逐事件 `emit` 到 chan（`planner.go:38-64`），`parsePCEPEvents` 逐事件产出 `([]byte, bool)`，**不聚合**；多会话路径逐会话 `emitSel`（`planner.go:112-126`）。
+- **每条流新增内存**：会话级仅 `payloads [][]byte` + `ups []bool`，大小 = 事件数 × 单消息长度（O(消息)）。
+- **共享状态/锁**：无跨流共享状态；`builder.go` 全为纯函数（无全局可变状态）；`PCEPGenerator` 无字段。
+- **限速与多 worker**：速率由框架 `SharedTokenBucket` 在 worker 层统一施加，本层不参与——故多 worker 不改变配置速率（§6.6 背压场景的验证依赖框架侧口径）。
+
+### 6.3 验收两路（§6.3）
+
+| 路径 | 断言集 | 落盘 |
+|---|---|---|
+| pcap | 与 NIC **共用同一 cases JSON 与断言集**（`pcep.*` 字段 + `tcp.dstport/srcport` + offset 54 frames + `packet_count`） | `/tmp/mcp-pcaps/pcep/` |
+| NIC | 同上，经 tcpdump 捕获（`nic_capture` 用例级开关） | 同上 |
+
+不设仅单路径可用的断言；断言实际字段值与 `frames` hex，**不只断言"任务没报错"**（§6.7）。
+
+### 6.4 六类场景落点（§6.6）
+
+| 场景 | 落点 | 现状 |
+|---|---|---|
+| 基线 | #1（3 事件 / 10 包） | 已覆 |
+| 目标规模 | #13（2 会话 / 22 包整块展开） | 已覆 |
+| 压力上限 | **跨 MSS 消息分段**（PCEP 消息无长度上界声明） | **缺口**（§8 边界；A′ 候选） |
+| 长时间运行 | #3（6 事件）/ #7（7 事件）同连接多轮 | 已覆（短序列，非长稳） |
+| 并发交错 | 多会话语义由 `sessions[]` 顺序整块展开承载；`concurrent` 为框架例外路径，本协议不启用 | 显式不适用 |
+| 资源耗尽/背压 | `packet_count` 精确计数守卫段数漂移；chan 32 缓冲 | 部分（无显式背压例） |
+
+### 6.5 不写承诺项（§6.5）
+
+目标吞吐（pkt/s、bit/s）**无代码路径或基准数据支撑**，一律标"待 P4 基准"，不写成承诺。
 
 ## 7. 负例与错误传播
 
@@ -262,18 +319,18 @@ IPv4 profile 使用 `pcep.obj.end_point.source_ipv4_address`/`destination_ipv4_a
 | # | ID | 类型 | 覆盖 | application events | packet_count |
 |---:|---|---|---|---:|---:|
 | 1 | `pcep_open_keepalive` | 正 | §4.1：双向 Open（SID 7/8）、Keepalive、common length | 3 | 10 |
-| 2 | `pcep_open_bidirectional` | 正 | §4.1/§6：双向 Open/Keepalive 与 TCP direction | 4 | 11 |
+| 2 | `pcep_open_bidirectional` | 正 | §4.1/§4.4：双向 Open/Keepalive 与 TCP direction | 4 | 11 |
 | 3 | `pcep_keepalive_direction` | 正 | §4.1：两方向 Keepalive 不自动补发 | 6 | 13 |
 | 4 | `pcep_pcreq_ipv4_ero_metric` | 正 | §4.2：IPv4 PCReq、RP/endpoint/ERO/metric + PCErr 关联 | 4 | 11 |
 | 5 | `pcep_pcrep_ipv4_ero_rro` | 正 | §4.2：IPv4 PCRep、RRO/metric/request ID | 4 | 11 |
 | 6 | `pcep_pcntf_and_pcerr` | 正 | §4.3：PCNtf、PCErr、notification/error | 6 | 13 |
-| 7 | `pcep_multi_request` | 正 | §6：多 request/response、request ID 隔离 | 7 | 14 |
-| 8 | `pcep_ipv6_address_family` | 正 | §6：IPv6 endpoint/ERO（外层仍 IPv4） | 4 | 11 |
+| 7 | `pcep_multi_request` | 正 | §4.4：多 request/response、request ID 隔离 | 7 | 14 |
+| 8 | `pcep_ipv6_address_family` | 正 | §4.4：IPv6 endpoint/ERO（外层仍 IPv4） | 4 | 11 |
 | 9 | `pcep_lsp_object_flags` | 正 | §5：RFC 8231 LSP/SRP、PLSP-ID | 4 | 11 |
 | 10 | `pcep_rro_ipv4_ipv6` | 正 | §4.2：IPv4 RRO subobject flags/L bit | 4 | 11 |
 | 11 | `pcep_metric_flags` | 正 | §4.2：Cost/Bound 与 metric value | 4 | 11 |
-| 12 | `pcep_tcp_direction` | 正 | §6：c2s PCReq/PCNtf、s2c PCRep、4189 端口方向 | 5 | 12 |
-| 13 | `pcep_multi_session` | 正 | §6：两个独立 TCP sessions/SID（7/8 与 22/23） | 8 | 22 |
+| 12 | `pcep_tcp_direction` | 正 | §4.4：c2s PCReq/PCNtf、s2c PCRep、4189 端口方向 | 5 | 12 |
+| 13 | `pcep_multi_session` | 正 | §4.4：两个独立 TCP sessions/SID（7/8 与 22/23） | 8 | 22 |
 | 14 | `pcep_stateful_rfc8231_profile` | 正 | §5：stateful capability TLV 16/17 profile 边界 | 3 | 10 |
 | 15 | `pcep_delegation_rfc8281_profile` | 正 | §5：delegation flags（delegate/remove/create 三条 pcreq） | **5** | **12** |
 | 16 | `pcep_common_header_length` | 正 | §3.1：version/type/message length（Open×2/PCReq/PCRep） | 4 | 11 |
@@ -300,8 +357,8 @@ IPv4 profile 使用 `pcep.obj.end_point.source_ipv4_address`/`destination_ipv4_a
 | 2 | 命令/消息表 | 8 类 message（1/2/3/4/6/7/10/12） | 场景①–⑧ | 6 类有事件分支（`builder.go:449-495`）；10/12 常量已定义无分支 | **G-PCEP-6**（10/12 未实现） |
 | 3 | 状态机 | 会话建立（Open 双向）—业务—释放 3 态；无 PCEP 层自有状态 | #1–#3 | tcp 层拥有握手/挥手；pcep 层纯事件驱动（`planner.go:66-83`） | 无 |
 | 4 | 字段表 | common header 3 字段 + object header 3 字段 + 11 对象类字段 | 数据场景层 | `PCEPConfig`/`PCEPEvent`/`pcepObject` 全量（`types.go:601-652`、`builder.go:59+`） | `Transport` 死键 **G-PCEP-4**；`object_length` 不落线 **G-PCEP-5** |
-| 5 | 错误处理 | 7 类负例（§7 表） | 负例 N-1…N-7 | `ValidateConfig`(`builder.go:673`)+`validatePCEPEvents`(`:716`)+`CheckFault`(`:661`) 共 18 个 `fmt.Errorf` 拒绝分支（`grep -c` 实测） | 锚词已钉死 7/7；未覆盖分支见 §10.2 |
-| 6 | 超时与活性 | Keepalive/DeadTimer 为会话参数（RFC 5440 §7.3），**不由 planner 自动插入周期消息** | #1/#3 显式 Keepalive | 无定时器；`keepalive`/`deadtime` 仅作 Open body 字段（`builder.go:456-464`） | **显式不适用**（生成器不回话），无缺口 |
+| 5 | 错误处理 | 7 类负例（§7 表） | 负例 N-1…N-7 | `builder.go` 共 18 个 `fmt.Errorf`：validator 16（`ValidateConfig` `:673` + `validatePCEPEvents` `:716`，其中后者 10）+ `CheckFault` 2（`:666/668`） | 锚词已钉死 7/7；未覆盖分支见 §10.2 |
+| 6 | 超时与活性 | Keepalive/DeadTimer 为会话参数（RFC 5440 §7.3），**不由 planner 自动插入周期消息** | #1/#3 显式 Keepalive | 无定时器；`keepalive`/`deadtime` 仅作 Open body 字段（`builder.go:452-459`） | **显式不适用**（生成器不回话），无缺口 |
 | 7 | NAT/代理/被动 | PCEP 无被动模式概念；PCC/PCE 角色由事件 `direction` 表达 | #12 方向面 | 无被动分支 | **显式不适用**；NAT 穿透为框架面 |
 | 8 | 版本/方言 | Version=1（`0x20`）；IPv4/IPv6 endpoint 方言；RFC 8231/8281 扩展 profile | #8/#14/#15 | 5 个 profile 白名单 + 空 profile（`builder.go:684`） | 外层 IPv6 载体零用例（§8） |
 
@@ -411,7 +468,7 @@ IPv4 profile 使用 `pcep.obj.end_point.source_ipv4_address`/`destination_ipv4_a
 
 - `Validate(spec core.FlowSpec) error`（`planner.go:17`）：`PCEP==nil` 拒 `pcep: config is required`；否则转 `ValidateConfig(spec.PCEP)`。
 - `ValidateConfig(cfg *core.PCEPConfig) error`（`builder.go:673`）：空 events+空 sessions 拒；profile 白名单（含 `""`）拒未知；逐事件走 `validatePCEPEvents`；Open SID=0 拒；`sessions[i].src_port==0` 拒。
-- `validatePCEPEvents(events, cfg, prefix) error`（`builder.go:716`）：kind 空/`unknown`/未知、direction 非 c2s|s2c、keepalive 带 objects、`wire_fault.kind` 未知、非 stateful profile 携 lsp/srp、`object_length` 越界、地址族混写——共 8 类分支，错误文案与 §7 锚词逐字一致。
+- `validatePCEPEvents(events, cfg, prefix) error`（`builder.go:716`）：kind 空/`unknown`/未知、direction 非 c2s|s2c、keepalive 带 objects、`wire_fault.kind` 未知、非 stateful profile 携 lsp/srp、`object_length` 越界、地址族混写——共 **10** 个 `return fmt.Errorf`（行号 `:720/723/726/729/732/745/758/773/781/786`，`awk` 实测），错误文案与 §7 锚词逐字一致。
 - `Plan(ctx, spec) (<-chan core.PacketConfig, error)`（`planner.go:24`）：先 Validate；`DstPort==0` 补 4189；`parsePCEPConfig` 出 `(payloads, ups)`；单会话 emit（SYN/SYN-ACK/ACK → 事件 → FIN 四包）。
 - 生成器：`Name() "pcep"`；`GenEvents()` 自返；`EmitEvent` 未接线显式错（防误调，`planner.go:97-99`）；`Generate` 按 `sessions[]` 或多事件逐条 `emitSel`（`planner.go:101-137`）。
 
@@ -421,15 +478,15 @@ IPv4 profile 使用 `pcep.obj.end_point.source_ipv4_address`/`destination_ipv4_a
 
 ### 11.4 主流程
 
-配置 → validator（profile 白名单 + 逐事件 8 类分支）→ planner/builder（事件展开为 PDU 字节，`parsePCEPEvents` switch 6 类 kind）→ worker（TCP 层按 MSS 分段、补握手/挥手）→ writer（PCAP/NIC）。多会话路径：`sessions[]` 每条 `MessageEvent.SrcPort` 驱动 TCP 生成器的连接边界（拆旧连 + 建新连，`planner.go:109-126`）。
+配置 → validator（profile 白名单 + 逐事件 10 类分支）→ planner/builder（事件展开为 PDU 字节，`parsePCEPEvents` switch 6 类 kind）→ worker（TCP 层按 MSS 分段、补握手/挥手）→ writer（PCAP/NIC）。多会话路径：`sessions[]` 每条 `MessageEvent.SrcPort` 驱动 TCP 生成器的连接边界（拆旧连 + 建新连，`planner.go:109-126`）。
 
 ### 11.5 错误分支
 
-18 个 validator 拒绝分支（§11.2；`grep -c 'return fmt.Errorf'` 实测）全部传 task error（零假成功——N 系列守卫）；`CheckFault` 是**拒绝面**（`builder.go:661-670`：kind 合法也返回 error，即"注入了故障就拒"），不产出畸形线包——故 N-1 是"注入被拒"而非"发出畸形包"（§0 行 3）。
+`builder.go` 共 18 个 `return fmt.Errorf`（`grep -c` 实测）——其中 **16 个属 validator**（`ValidateConfig` `:673` + `validatePCEPEvents` `:716`），**2 个属 `CheckFault`**（`:666/668`，拒绝面非 validator）；全部传 task error（零假成功——N 系列守卫）；`CheckFault` 是**拒绝面**（`builder.go:661-670`：kind 合法也返回 error，即"注入了故障就拒"），不产出畸形线包——故 N-1 是"注入被拒"而非"发出畸形包"（§0 行 3）。
 
 ### 11.6 性能边界
 
-见 §6：逐事件流式展开（`Plan` goroutine + chan 32 缓冲，`planner.go:37`）；每事件内存 = PDU 长度 + TCP 段开销（O(消息)）；无跨流共享状态、无锁（builder 全为纯函数）。吞吐数字待 P4 基准，**本版不写承诺**（§6.5）。
+见 §6（性能设计与验收）：逐事件流式展开（`Plan` goroutine + chan 32 缓冲，`planner.go:37`）；每事件内存 = PDU 长度 + TCP 段开销（O(消息)）；无跨流共享状态、无锁（builder 全为纯函数）。吞吐数字待 P4 基准，**本版不写承诺**（§6.5）。
 
 ### 11.7 与现有逻辑的冲突点
 
@@ -450,10 +507,10 @@ IPv4 profile 使用 `pcep.obj.end_point.source_ipv4_address`/`destination_ipv4_a
 |---|---|---|
 | §1 层链唯一真相 | **不合规，待代码阶段收敛**（非负例顶层键 = 84 处残留，17/17 例违规；判据=顶层键必须为 0）。见 §12.1 强制展开：顶层 `pcep` 子映射 + 顶层四元组与 `layers` 并存 = 判死形状（§1.4/§1.11/§1.13）；层内空壳 0/24 且 `translateTerminalConfig` 无 `case "pcep"` → 合规层链形**今日跑不通**，须代码阶段先补 registry `Fields` + translate case + `mapToFlowSpec` 收敛（G-PCEP-1）；目标形状见 §2 样例；presence 判死形状缺口 G-PCEP-2 | §0 审计主结论；§12.1；`cases/pcep.json` 机读实测 |
 | §2 策略/任务 | 策略 = 单 pcep 流量模板，自带 `flow_control`；任务 = 多策略合跑 + 总量封顶；框架语义未动 | 设计 §2 样例 |
-| §3 五件套 | 见 §12.3 强制展开：会话表/事务序列/关联（无派生流诚实声明）/插入位置（终结层）/时间线。有长连接，不豁免 | §12.3 + §6 |
+| §3 五件套 | 见 §12.3 强制展开：会话表/事务序列/关联（无派生流诚实声明）/插入位置（终结层）/时间线。有长连接，不豁免 | §12.3 + §4.4 |
 | §4 查规范 | RFC 5440/8231/8281 + 落码反推 + tshark 379 字段实测；八项矩阵 + 子表①②③ | §10 |
-| §5 依赖与错误 | `DependsOn ["tcp"]` 单值（`registry.go:1391`）；18 拒绝分支；失败传 task error | §5/§7/§11.5 |
-| §6 性能 | 见 §6（6.1–6.8 要素齐；吞吐数字标待 P4 基准，不写承诺） | §6 |
+| §5 依赖与错误 | `DependsOn ["tcp"]` 单值（`registry.go:1391`）；18 个 `return fmt.Errorf`（validator 16 + `CheckFault` 2）；失败传 task error | §5/§7/§11.5 |
+| §6 性能 | 见 §6「性能设计与验收（CORE_MEMORY §6.1–6.8）」：6.2 六项逐项给值或给基准方法、6.3 验收两路（pcap/NIC 共用断言集）、6.4 六类场景落点、6.5 不写承诺项 | §6 |
 | §7 三份文档 | `98-pcep-{design,testcase}.md` v1.0.0（草稿层）+ D-PCEP-1（§11，门1 获批 = 定稿）+ T-PCEP（testcase §2，24 ID）+ 旧稿 42-* 为历史层 | 修订记录 |
 | §8 设计先行 | P1–P3 先于 P4 缺口收敛；门1 获批 = D-PCEP-1 定稿 = 开工门 | 提交序 |
 | §9 测试三源 | 三源 = RFC 5440/8231/8281（§10）+ D-PCEP-1（§11）+ tshark 通道实测（`pcep.*` 379 字段 + 真实 pcap，替代"已确认现网行为"档，未做现网 PCE 抓包 → G-PCEP-6 待确认，不冒充第三源）；24 ID 逐项回指；存量 24 例审计去向 testcase §8 | `98-pcep-testcase.md` §2/§5/§8 |
@@ -511,7 +568,9 @@ IPv4 profile 使用 `pcep.obj.end_point.source_ipv4_address`/`destination_ipv4_a
 
 | 缺口 | 内容 | 去向 |
 |---|---|---|
-| G-PCEP-1 | registry `pcep` 无 `Fields` 表 + translate 只赋空 `&core.PCEPConfig{}`（不做层内严格解码）→ 顶层 `pcep`/四元组迁层内 + 24 例改写 + schemagen 重跑 | **代码阶段（P4）首动作**；收官「非负例顶层键=0」由 **84 处 → 0** |
+| G-PCEP-1 | registry `pcep` 无 `Fields` 表 + `translateTerminalConfig` 只赋空 `&core.PCEPConfig{}`（不做层内严格解码）→ 顶层 `pcep`/四元组迁层内 + 24 例改写 + schemagen 重跑 | **代码阶段（P4）首动作**；收官「非负例顶层键=0」由 **84 处 → 0** |
+| G-PCEP-1a | **低成本先解封路径**：存量 24 例**只删五键**（保留 `layers` 空壳 + 顶层 `pcep`）→ create 即 200、`spec.PCEP` 已填可出包（四形实测表 §0 第 2/3 行） | 与 G-PCEP-1 并列：可先恢复套件可跑性，但**非合规形**（顶层 `pcep` 子映射残留），门1 §1 栏仍红；两路不互斥，G-PCEP-1 才是转绿唯一路径 |
+| G-PCEP-11 | **结果文档过期**：`trafficgen/docs/protocol-pcap-test/pcep.md` 写 24/24 pass，末次提交 `e60f8de`（2026-08-30）早于判死提交 `0417be5`（2026-09-13）两周；`cases/pcep.json` 末改 `07a5472` 同日；`docs/protocol-pcap-test/pcep/` **0 个 pcap** | 代码阶段（P4）解封后**重生成**结果文档；在此之前读者不得据此判断套件可跑（§0 产物过期登记） |
 | G-PCEP-2 | `CheckProtoFlat` 无 pcep 分支 → presence 形今日不判死 | 代码阶段先实测再建例；**禁加单协议黑名单分支**（等框架级 unknown-key 白名单）；通用五键游离判死已生效可建例 |
 | G-PCEP-3 | 业务字段动态全关（allowlist 无 `pcep` 行） | A′ 候选，不冒充已覆盖（§9.36 口径） |
 | G-PCEP-4 | `PCEPConfig.Transport`（`types.go:603`）全仓零读取 = 死键 | 代码阶段删键裁定（删后层内再写即 `unknown field`） |
@@ -522,6 +581,77 @@ IPv4 profile 使用 `pcep.obj.end_point.source_ipv4_address`/`destination_ipv4_a
 | G-PCEP-9 | `pcep_neg_session_id` 名不副实（实际注入 `sid:0`，非 SID 漂移；旧稿描述在实现下不会红） | P4 改名 `pcep_neg_open_sid_zero`（ID 改名需同步 design/testcase/cases 三处） |
 | G-PCEP-10 | `parseObjects` 对 `class:"notification"`/`class:"error"` 静默跳过（`builder.go:576-581`） | 文档已写明（§4.3/§11.7）；用例不得依赖；如未来需支持对象级写法则立项 |
 
-## 15. 修订记录
+## 15. 复算证据（每个数字脚本生成或实调，禁手算）
 
+本节命令均可在 worktree 根 `trafficgen/` 下复跑；输出即文中数字来源。
+
+**① 顶层残留计数（84 / 119）**
+
+```bash
+python3 -c "
+import json
+d=json.load(open('test/protocol_pcap/cases/pcep.json'))
+WL={'layers','strategy_fc','ttl','flow_control','output','output_config','group_id'}
+pos=[c for c in d if 'expect_error' not in c['expect']]
+print('非负例残留', sum(len(set(c['spec_json'])-WL) for c in pos), '/ 例数', len(pos))
+print('全24例残留', sum(len(set(c['spec_json'])-WL) for c in d))
+"
+# → 非负例残留 84 / 例数 17 ; 全24例残留 119
+```
+
+**② 四形 create 实调（§0 表）**：临时探针（`internal/probe_pcep_tmp/main_test.go`，用后即删，`git status --porcelain` 归零）调 `schema.ValidateStrategy("synth","pcep",<spec>,nil)` 与 `core.CheckProtoFlat`：
+
+```go
+// A 存量 = layers空壳 + 五键 + 顶层 pcep
+schema.ValidateStrategy("synth","pcep",spec,nil)   // → reject 24/24
+core.CheckProtoFlat("pcep", spec)                  // → "protocol pcep no longer accepts flat config field src_ip (…)"
+// B layers空壳 + 顶层 pcep（去五键）  → accept 24/24
+// C 仅顶层 pcep（无 layers）          → accept 24/24
+// D 纯层链 [ip,tcp,pcep] 带 events    → reject 0/24 ; firstErr "layers: layer "pcep": unknown field "events""
+// 引擎路径 core.MapToFlowSpec(stock,"pcep").ValidationErrors → []（空），PCEP != nil = true
+```
+
+**③ G8 字段计数（39 / 379）**
+
+```bash
+tshark -G fields | awk -F'\t' '$3 ~ /^pcep\./ {print $3}' | sort -u | wc -l   # → 379
+python3 -c "
+import json
+d=json.load(open('test/protocol_pcap/cases/pcep.json'))
+s=set()
+for c in d:
+  for f in c['expect'].get('fields',[]): s.add(f['field'])
+print(len({f for f in s if f.startswith('pcep.')}), sorted(f for f in s if f.startswith('tcp.')))
+"
+# → 39 ['tcp.dstport', 'tcp.srcport']
+```
+
+**④ 行号引用核对（C4 四处）**
+
+```bash
+sed -n '691,693p' internal/protocol/pcep/builder.go   # SID 漂移注释
+sed -n '452,459p' internal/protocol/pcep/builder.go   # KA/DT 缺省 30/120
+sed -n '38,48p'   internal/protocol/pcep/builder.go   # object 类常量
+sed -n '173,180p' internal/protocol/pcep/builder.go   # TLV 16/17 同发
+```
+
+**⑤ 分支计数（10 / 16 / 2）**
+
+```bash
+awk 'NR>=716 && NR<=790 && /return fmt.Errorf/ {print NR}' internal/protocol/pcep/builder.go  # → 720 723 726 729 732 745 758 773 781 786 (10)
+awk 'NR>=661 && NR<=672 && /return fmt.Errorf/ {print NR}' internal/protocol/pcep/builder.go  # → 666 668 (CheckFault, 2)
+grep -c 'return fmt.Errorf' internal/protocol/pcep/builder.go                                  # → 18
+```
+
+**⑥ 产物过期（G-PCEP-11）**
+
+```bash
+git log -1 --format='%h %ad %s' --date=short -- trafficgen/docs/protocol-pcap-test/pcep.md  # → e60f8de 2026-08-30
+git log -1 --format='%h %ad %s' --date=short 0417be5                                       # → 2026-09-13
+ls trafficgen/docs/protocol-pcap-test/pcep/ | wc -l                                        # → 0
+```
+
+## 16. 修订记录
+
+- v1.0.1（2026-09-28，隔离审查打回后修轮）：C1 现状可用性定性纠错（存量 24 例今日 create 400 全红；去五键即可用；补四形实测表与产物过期登记）；C2/G8 计数 36→39；C3 补真 §6 性能节（原 §6 降 §4.4，§11.6 与门1 §6 行指向修正）；C4 行号 4 处 + 分支计数口径（10/16/2）；新增 §15 复算证据节、G-PCEP-1a/G-PCEP-11。
 - v1.0.0（2026-09-28）：P-PIPE #98 文档轨 P1–P3。续号审计：42→98 沿革与 8 项校正（§0，含 2 处与实现/RFC 矛盾：SID 一致性不变式、Open 长度常量 `0x10`→`0x0c`；1 处 doc/JSON 数值分歧 #15 3/10→5/12）；存量 24 例机读审计（顶层残留形状 5 键 24/24、层内空壳 0/24、expect 形状、ID 顺序一致、17 正例包数逐行对账）；§12.1/12.3/12.12 强制展开 + 12-P2；D-PCEP-1 as-built 定稿（§11）；缺口 G-PCEP-1…G-PCEP-10。P1 自审 2 轮 / P2 自审 2 轮 / P3 自审 2 轮，末轮干净（结论见 `/tmp/pipe/doc-lanes/pcep.md` §2）。
