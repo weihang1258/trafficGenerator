@@ -165,13 +165,38 @@
 | 75 | [`75-stratum-design.md`](75-stratum-design.md) / [`75-stratum-testcase.md`](75-stratum-testcase.md) | Stratum（矿池通信协议） | 20（契约） | 待审计 |
 | 76 | [`76-getwork-design.md`](76-getwork-design.md) / [`76-getwork-testcase.md`](76-getwork-testcase.md) | GetWork（比特币工作分配协议） | 20（契约） | 待审计 |
 | 77 | [`77-gbt-design.md`](77-gbt-design.md) / [`77-gbt-testcase.md`](77-gbt-testcase.md) | GBT（GetBlockTemplate，比特币区块模板） | 20（契约） | 待审计 |
+| 78 | [`78-isis-design.md`](78-isis-design.md) / [`78-isis-testcase.md`](78-isis-testcase.md) | ISIS（IS-IS 路由协议） | 28（13正+15负） | 待审计 |
+| 78 | [`78-probe_smb-design.md`](78-probe_smb-design.md) / [`78-probe_smb-testcase.md`](78-probe_smb-testcase.md) | ProbeSMB（SMB 探测） | 12（9正+3负） | 待审计 |
+| 79 | [`79-iec104-design.md`](79-iec104-design.md) / [`79-iec104-testcase.md`](79-iec104-testcase.md) | IEC 60870-5-104（电力远动） | 21（12正+9负） | 待审计 |
+| 80 | [`80-bgp-design.md`](80-bgp-design.md) / [`80-bgp-testcase.md`](80-bgp-testcase.md) | BGP（边界网关协议） | 43（20正+23负） | 待审计 |
+| 81 | [`81-dameng-design.md`](81-dameng-design.md) / [`81-dameng-testcase.md`](81-dameng-testcase.md) | Dameng（达梦数据库） | 34（13正+21负） | 待审计 |
+| 82 | [`82-postgresql-design.md`](82-postgresql-design.md) / [`82-postgresql-testcase.md`](82-postgresql-testcase.md) | PostgreSQL（数据库） | 71（51正+20负） | 待审计 |
+| 83 | [`83-ospf-design.md`](83-ospf-design.md) / [`83-ospf-testcase.md`](83-ospf-testcase.md) | OSPF（开放最短路径优先） | 24（12正+12负） | 待审计 |
+| 84 | [`84-drda-design.md`](84-drda-design.md) / [`84-drda-testcase.md`](84-drda-testcase.md) | DRDA（分布式关系数据库架构） | 13（9正+4负） | 待审计 |
+| 85 | [`85-s7-design.md`](85-s7-design.md) / [`85-s7-testcase.md`](85-s7-testcase.md) | S7（西门子工控） | 28（16正+12负） | 待审计 |
+| 87 | [`87-mongodb-design.md`](87-mongodb-design.md) / [`87-mongodb-testcase.md`](87-mongodb-testcase.md) | MongoDB（数据库） | 31（18正+13负） | 待审计 |
+| 88 | [`88-mms-design.md`](88-mms-design.md) / [`88-mms-testcase.md`](88-mms-testcase.md) | MMS（制造报文规范） | 19（11正+8负） | 待审计 |
+| 89 | [`89-stratum-design.md`](89-stratum-design.md) / [`89-stratum-testcase.md`](89-stratum-testcase.md) | Stratum（矿池通信） | 40（29正+11负） | 待审计 |
+| 90 | [`90-tns-design.md`](90-tns-design.md) / [`90-tns-testcase.md`](90-tns-testcase.md) | TNS（Oracle 透明网络底层） | 24（14正+10负） | 待审计 |
+| 91 | [`91-ethmining-design.md`](91-ethmining-design.md) / [`91-ethmining-testcase.md`](91-ethmining-testcase.md) | ETHMining（以太坊挖矿） | 37（22正+15负） | 待审计 |
+| 92 | [`92-moxa-design.md`](92-moxa-design.md) / [`92-moxa-testcase.md`](92-moxa-testcase.md) | MOXA（工控串口转网） | 23（11正+12负） | 待审计 |
+| 93 | [`93-a2a-design.md`](93-a2a-design.md) / [`93-a2a-testcase.md`](93-a2a-testcase.md) | A2A（Agent-to-Agent） | 185（153正+32负） | 待审计 |
+| 94 | [`94-modbus-design.md`](94-modbus-design.md) / [`94-modbus-testcase.md`](94-modbus-testcase.md) | Modbus TCP（工业控制） | 213（151正+62负） | 待审计 |
+| 95 | [`95-dnp3-design.md`](95-dnp3-design.md) / [`95-dnp3-testcase.md`](95-dnp3-testcase.md) | DNP3（电力规约） | 70（50正+20负） | 待审计 |
+| 96 | [`96-rip-design.md`](96-rip-design.md) / [`96-rip-testcase.md`](96-rip-testcase.md) | RIP/RIPng（路由信息协议） | 71（52正+19负） | 待审计 |
+| 97 | [`97-nvgre-design.md`](97-nvgre-design.md) / [`97-nvgre-testcase.md`](97-nvgre-testcase.md) | NVGRE（网络虚拟化 GRE） | 20（14正+6负） | 待审计 |
+| 98 | [`98-pcep-design.md`](98-pcep-design.md) / [`98-pcep-testcase.md`](98-pcep-testcase.md) | PCEP（路径计算通信） | 24（17正+7负） | 待审计 |
+| 99 | [`99-ldp-design.md`](99-ldp-design.md) / [`99-ldp-testcase.md`](99-ldp-testcase.md) | LDP（标签分发协议） | 25（14正+11负） | 待审计 |
+| 100 | [`100-someip-design.md`](100-someip-design.md) / [`100-someip-testcase.md`](100-someip-testcase.md) | SOME/IP（汽车 SOA） | 16（12正+4负） | 待审计 |
+| 101 | [`101-opcua-design.md`](101-opcua-design.md) / [`101-opcua-testcase.md`](101-opcua-testcase.md) | OPC UA（工控统一架构） | 12（10正+2负） | 待审计 |
+| 102 | [`102-thrift-design.md`](102-thrift-design.md) / [`102-thrift-testcase.md`](102-thrift-testcase.md) | Thrift（RPC 框架） | 13（7正+6负） | 待审计 |
 
 | 维度 | 数值 |
 |------|------|
-| 设计文档数 | 75 |
-| 用例文档数 | 59 |
-| 覆盖协议数 | 17 个既有归档协议 + 59 个新增设计协议 + 配置架构 1 |
-| 测试用例总数 | 2,617（`trafficgen/test/protocol_pcap/cases/*.json` 当前统计，含未注册协议占位） |
+| 设计文档数 | 75 + 25（78–102 号补录，86 号空缺）= 100 |
+| 用例文档数 | 59 + 25 = 84 |
+| 覆盖协议数 | 17 个既有归档协议 + 84 个新增设计协议（19–102 号，86 空缺）+ 配置架构 1 |
+| 测试用例总数 | 5,368（`trafficgen/test/protocol_pcap/cases/*.json` 2026-09-28 机读实数） |
 
 ---
 
@@ -302,11 +327,11 @@
 | 归档目录 | `/home/weihang/trafficGenerator/docs/protocol-designs/` |
 | 审计子目录 | `/home/weihang/trafficGenerator/docs/protocol-designs/audit/` |
 | 归档时间 | 2026-08-03 |
-| 索引更新时间 | 2026-08-21 |
+| 索引更新时间 | 2026-09-28（补录 78–102 号 25 协议；86 号空缺，78 号双协议 isis/probe_smb） |
 | 对照规范 | 9.4.1.38 协议扩展信息上报（32 个扩展协议表） |
 | 项目已实现 | 66 个协议 |
 | 本次新增 | 59 个协议（设计 + 用例）+ 1 个配置架构设计 |
-| 总文档数 | 229 份（1 清单 + 75 设计 + 59 用例 + 94 审计文件） |
+| 总文档数 | 279 份（1 清单 + 100 设计 + 84 用例 + 94 审计文件；78–102 号 25 协议 2026-09-28 补录） |
 | 总行数 | 以当前文件为准 |
 | 总测试用例数 | 2,617 条（`trafficgen/test/protocol_pcap/cases/*.json`） |
 | 审计发现问题 | 399 个（73 CRITICAL + 109 HIGH + 128 MEDIUM + 89 LOW） |

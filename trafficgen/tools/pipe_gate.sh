@@ -144,7 +144,7 @@ PYEOF
     # 豁免，其余顶层 postgresql 共存即红）。kingbase 无自键（协议身份已退役）。
     # D-IEC104-1：iec104 配置迁层（顶层 iec104 交 CheckProtoFlat 判死），
     # presence 红线切自键（mms 先例；presence 负例豁免，其余顶层 iec104 共存即红）。
-    dns|mqtt|smtp|pop3|imap|mcp|srv6|fins|goose|sv|icmpv6|h323|mpls|ngap|telnet|sip|radius|pppoe|ldap|rtmp|rtsp|pptp|vnc|xmpp|sctp|jt808|jt809|jtt905|arp|icmp|megaco|hl7|mmse|nfs|tftp|smb|enip|bgp|s7|cql|doip|dameng|gbt32960|cflow|igmp|rtmfp|drda|mms|isis|coap|stratum|pim|ospf|ethmining|moxa|tns|mongodb|iec104|postgresql)
+    dns|mqtt|smtp|pop3|imap|mcp|srv6|fins|goose|sv|icmpv6|h323|mpls|ngap|telnet|sip|radius|pppoe|ldap|rtmp|rtsp|pptp|vnc|xmpp|sctp|jt808|jt809|jtt905|arp|icmp|megaco|hl7|mmse|nfs|tftp|smb|enip|bgp|s7|cql|doip|dameng|gbt32960|cflow|igmp|rtmfp|drda|mms|isis|coap|stratum|pim|ospf|ethmining|moxa|tns|mongodb|iec104|postgresql|a2a|modbus|dnp3|rip|nvgre|pcep|ldp|someip|opcua|thrift)
       _pres_key="$PROTO"
       ;;
   esac

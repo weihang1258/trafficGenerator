@@ -953,7 +953,7 @@ def check_dcerpc(cases):
 
     # 1. 准入与接线。
     pg = (tg / "internal" / "core" / "protocols.go").read_text()
-    rows.append(("白名单收 dcerpc", '"dcerpc": true' in pg, "在列"))
+    rows.append(("白名单收 dcerpc", '"dcerpc"' in pg and 'true' in pg.split('"dcerpc"')[1][:12], "在列"))
     pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
     i_neg = pt.index("negativeOnly := []string{")
     rows.append(("negativeOnly 不含 dcerpc（已准入）", '"dcerpc"' not in pt[i_neg:i_neg + 400], "已摘除"))
@@ -1032,7 +1032,7 @@ def check_bacnet(cases):
 
     # 1. 准入与接线。
     pg = (tg / "internal" / "core" / "protocols.go").read_text()
-    rows.append(("白名单收 bacnet", '"bacnet": true' in pg, "在列"))
+    rows.append(("白名单收 bacnet", '"bacnet"' in pg and 'true' in pg.split('"bacnet"')[1][:12], "在列"))
     pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
     i_neg = pt.index("negativeOnly := []string{")
     rows.append(("negativeOnly 不含 bacnet（已准入）", '"bacnet"' not in pt[i_neg:i_neg + 400], "已摘除"))
@@ -2985,92 +2985,6 @@ def check_cflow(cases):
     return rows
 
 
-def check_sstp(cases):
-    """D-SSTP-1 P6 反查表。返回 [(检查名, 通过?, 证据)]。"""
-    rows = []
-    tg = Path(__file__).resolve().parent.parent
-
-    # 1. 准入与接线。
-    pg = (tg / "internal" / "core" / "protocols.go").read_text()
-    rows.append(("白名单收 sstp", '"sstp"' in pg and 'true' in pg.split('"sstp"')[1][:12], "在列"))
-    pt = (tg / "internal" / "core" / "protocols_test.go").read_text()
-    i_neg = pt.index("negativeOnly := []string{")
-    rows.append(("negativeOnly 不含 sstp（已准入）", '"sstp"' not in pt[i_neg:i_neg + 500], "已摘除"))
-    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
-    rows.append(("translate case sstp（严格解码）", 'case "sstp":' in tr and "DisallowUnknownFields" in tr, "在案"))
-    rows.append(("FlowMeta.SSTP 直传（静默基线根修）", re.search(r"SSTP:\s+spec\.SSTP\b", tr) is not None, "在案"))
-    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
-    rows.append(("FlowMeta.SSTP", re.search(r"SSTP\s+\*core\.SSTPConfig", gen) is not None, "在案"))
-    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
-    rows.append(("registry sstp 行 + tls 依赖 + 443 契约",
-                 'Name: "sstp"' in rg and 'DependsOn: []string{"tls"}' in rg and '"tcp.dst_port": "443"' in rg, "在案"))
-    vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
-    rows.append(("载体预检（缺 tls/udp/错端口/混合族）",
-                 "missing tls carrier" in vl and "udp carrier is not supported" in vl, "在案"))
-    mn = (tg / "cmd" / "server" / "main.go").read_text()
-    rows.append(("main.go ChainPlanner(sstp) 接线", 'NewChainPlanner("sstp")' in mn, "在案"))
-    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
-    rows.append(("strategy_convert case sstp + 443 缺省端口",
-                 'case "sstp":' in sc and "setDefaultDstPort(&spec, cfg, 443)" in sc, "在案"))
-    rows.append(("strategy_convert presence 判死顶层 sstp",
-                 "no longer accepts a top-level sstp sub-config" in sc, "在案"))
-
-    # 2. 行为面（header 原语/builder/planner 关键件）。
-    kb = (tg / "internal" / "core" / "sstp.go").read_text()
-    _i = kb.index("anchors := map[string]string{")
-    _seg = kb[_i:kb.index("\n\t}", _i)]
-    _n = len(re.findall(r"SSTPWireFault[A-Za-z0-9]+:", _seg))
-    rows.append(("wire_fault 闭环 6 值锚词表", _n == 6, f"{_n} 值"))
-    hd = (tg / "internal" / "protocol" / "sstp" / "header.go").read_text()
-    for prim, name in [
-        ("func encodeControlPacket", "控制包 8B 固定部 + 网络序 Length（覆盖整包）"),
-        ("func encodeDataPacket", "C=0 数据包：S+4 即 ff 03"),
-        ("func verifyControlPacket", "控制包双算复核（Length/Num↔实数）"),
-        ("func encodeAttribute", "属性头 4B：Reserved|ID|LengthPacket（含 4B 头）"),
-        ("func encodePPPFrame", "PPP 帧 ff 03 + Protocol"),
-        ("func cryptoBindingValue", "Crypto Binding 0x0068（SHA-256 profile）"),
-        ("func cryptoBindingRequestValue", "Crypto Binding Request 0x0028"),
-        ("func statusInfoValue", "Status Info Reserved1+AttribID+Status+AttribValue"),
-    ]:
-        rows.append((f"原语：{name}", prim in hd, "在案"))
-    bl = (tg / "internal" / "protocol" / "sstp" / "builder.go").read_text()
-    for prim, name in [
-        ("func walkSession", "会话状态单权威（校验与生成同路径）"),
-        ("func buildAttribute", "属性渲染 + 值域（0x0005/0x0006 冒充属性拒）"),
-        ("func buildControl", "C bit↔Message Type 一致性守卫"),
-        ("func buildPPP", "PPP protocol/ipv4-ipv6 地址族显式声明守卫"),
-        ("func (w *sstpWalker) step", "状态机：REQUEST→ACK→CONNECTED→PPP→ABORT"),
-        ("func synthIPv4Payload", "IPv4 合成载荷（checksum 实算）"),
-        ("func synthIPv6Payload", "IPv6 合成载荷"),
-        ("func (g *SSTPGenerator) Generate", "终结层事件流（经 tls 透传 application-data）"),
-    ]:
-        rows.append((f"关键件：{name}", prim in bl, "在案"))
-    pl = (tg / "internal" / "protocol" / "sstp" / "planner.go").read_text()
-    rows.append(("关键件：直接外层必须是 tls（生成面第二道防线）", "func resolveCarrier(chain" in pl, "在案"))
-    rows.append(("守卫：版本唯一 0x10", "version" in pl and "0x10" not in pl or "versionByte" in pl, "在案"))
-    rows.append(("守卫：sessions[] 与 events[] 双权威拒", "both sessions[] and events[]" in pl, "在案"))
-    rows.append(("守卫：会话 ID/TLS session 独立", "duplicates an earlier session" in pl, "在案"))
-    rows.append(("守卫：wire_fault 注入锚词出口", "negative-path injection rejected" in pl, "在案"))
-
-    # 3. 用例面（20 例）。
-    ids = {c.get("id", "") for c in cases}
-    for cid in [
-        "sstp_https_tls_handshake", "sstp_call_connect_request",
-        "sstp_call_connect_ack", "sstp_call_connected", "sstp_call_abort",
-        "sstp_attribute_protocol_id", "sstp_attribute_status_crypto",
-        "sstp_ppp_ipv4", "sstp_ppp_ipv6", "sstp_ppp_mppe_boundary",
-        "sstp_multi_connection", "sstp_session_ordering",
-        "sstp_length_record_segmentation", "sstp_pcap_nic_consistency",
-        "sstp_neg_header_length", "sstp_neg_attribute_length",
-        "sstp_neg_state_transition", "sstp_neg_transport_carrier",
-        "sstp_neg_ppp_framing", "sstp_neg_tls_boundary",
-    ]:
-        rows.append((f"用例在案：{cid}", cid in ids, "在案"))
-    rows.append(("用例总数 20（14 正+6 负）", len(cases) == 20, f"{len(cases)} 例"))
-    rows.append(("无 sstp_neg_unregistered 占位", "sstp_neg_unregistered" not in ids, "已移除"))
-    return rows
-
-
 def check_bgp(cases):
     """D-BGP-1 P4/P5 反查表（20 正 + 23 负 = 43 例）。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -4848,6 +4762,667 @@ def check_ocsp(cases):
     ]:
         rows.append((f"用例在案：{cid}", cid in ids, "在案"))
     rows.append(("用例总数 20（14 正+6 负）", len(cases) == 20, f"{len(cases)} 例"))
+    return rows
+
+
+
+def check_a2a(cases):
+    """D-A2A-1 反查表（185 = 153 正 + 32 负）。返回 [(检查名, 通过?, 证据)]。
+
+    形状基线（2026-09-28 机读）：非负例顶层键 914 处残留（185 例顶层 a2a
+    子映射 + 四元组/count），153 正例层内 a2a 为空壳（registry Fields 空）。
+    本表按代码阶段目标口径反查，今日红项如实标红，不得申报"今日已过"。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    # 1. 准入与接线（代码阶段落码面）。
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 a2a", '"a2a"' in pg and 'true' in pg.split('"a2a"')[1][:12], "在列"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case a2a（层 config → spec.A2A）", 'case "a2a":' in tr, "在案"))
+    rows.append(("FlowMeta.A2A 直传", re.search(r"A2A:\s+spec\.A2A\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.A2A 字段", re.search(r"A2A\s+\*core\.A2AConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.A2A 字段", re.search(r"A2A\s+\*A2AConfig", ty) is not None, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(a2a)",
+                 "internal/protocol/a2a" in mn and 'NewChainPlanner("a2a")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat 顶层 a2a 子映射 presence 判死",
+                 "no longer accepts a top-level a2a sub-config" in sc, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry a2a 行在册", 'Name: "a2a"' in rg, "在案"))
+
+    # 2. 用例形状（非负例顶层键 = 0，CORE_MEMORY §1.11/§1.13）。
+    WL = {"layers", "strategy_fc", "ttl", "flow_control", "output",
+          "output_config", "group_id"}
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    stray = [(c.get("id"), k) for c in pos for k in (c.get("spec_json") or {}) if k not in WL]
+    rows.append((f"非负例顶层键 ⊆ 白名单（{len(pos)} 例）", not stray,
+                 f"{len(stray)} 处残留" if stray else "零残留"))
+    top_sub = [c.get("id") for c in pos if isinstance((c.get("spec_json") or {}).get("a2a"), dict)]
+    rows.append(("非负例顶层 a2a 子映射 = 0", not top_sub,
+                 f"{len(top_sub)} 处" if top_sub else "零残留"))
+
+    # 3. 正例层链形状 [ip,tcp,a2a] 且 a2a 层非空。
+    bad_layer = []
+    for c in pos:
+        lays = (c.get("spec_json") or {}).get("layers") or []
+        names = [next(iter(l)) for l in lays if isinstance(l, dict) and l]
+        cfg = next((l.get("a2a") for l in lays
+                    if isinstance(l, dict) and isinstance(l.get("a2a"), dict)), None)
+        if names != ["ip", "tcp", "a2a"] or not cfg:
+            bad_layer.append(c.get("id"))
+    rows.append((f"正例层链 == [ip,tcp,a2a] 且层内非空（{len(pos)} 例）", not bad_layer,
+                 f"{len(bad_layer)} 例不合" if bad_layer else "全合规"))
+
+    # 4. 负例 expect 键纯净 + 锚词非空。
+    bad_neg = [c.get("id") for c in neg
+               if not set((c.get("expect") or {})) <= {"expect_error", "error_contains", "notes"}
+               or "packet_count" in (c.get("expect") or {})]
+    rows.append((f"{len(neg)} 负例 expect 键 ⊆ {{expect_error,error_contains,notes}} 且无 packet_count",
+                 not bad_neg, f"{len(bad_neg)} 例不合" if bad_neg else "全合规"))
+    no_anchor = [c.get("id") for c in neg if not (c.get("expect") or {}).get("error_contains")]
+    rows.append(("负例 error_contains 非空", not no_anchor,
+                 f"{len(no_anchor)} 例缺" if no_anchor else "全有"))
+
+    # 5. presence 判死负例 + IPv6 载体例。
+    has_pres = any("presence" in (c.get("id") or "") for c in neg)
+    rows.append(("presence 判死负例存在", has_pres, "在案" if has_pres else "待建（G-A2A-1④ 落码后）"))
+    has_v6 = "::" in json.dumps(cases, ensure_ascii=False)
+    rows.append(("存在 IPv6 载体用例", has_v6, "在案" if has_v6 else "零例（G-A2A-13）"))
+    return rows
+
+def check_modbus(cases):
+    """D-MODBUS-1 反查表（213 = 151 正 + 62 负）。返回 [(检查名, 通过?, 证据)]。
+
+    形状基线（2026-09-28 机读）：132 例带空壳 layers `[{"tcp":{}},{"modbus":{}}]`
+    + 81 例纯扁平；层内 modbus 恒 `{}`（registry Fields 空，G-MODBUS-1）；
+    62 负例中 11 例缺 error_contains、5 例混入成功断言（G-MODBUS-6）。
+    今日三种形状建策略全 400（G-MODBUS-2），本表按代码阶段目标口径反查。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 modbus", '"modbus"' in pg and 'true' in pg.split('"modbus"')[1][:12], "在列"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "modbus"')
+    reg_block = rg[i_reg:rg.index('Name: "', i_reg + len('Name: "modbus"'))]
+    rows.append(("registry modbus 行（DependsOn tcp）",
+                 re.search(r'DependsOn:\s+\[\]string\{"tcp"\}', reg_block) is not None, "在案"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case modbus（层 config → spec.MODBUS）",
+                 'case "modbus":' in tr and "modbus layer config decode" in tr, "在案"))
+    rows.append(("FlowMeta.MODBUS 直传", re.search(r"MODBUS:\s+spec\.MODBUS\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.MODBUS 字段", re.search(r"MODBUS\s+\*core\.MODBUSConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.MODBUS 字段", re.search(r"MODBUS\s+\*MODBUSConfig", ty) is not None, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(modbus)",
+                 "internal/protocol/modbus" in mn and 'NewChainPlanner("modbus")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat 顶层 modbus 子映射 presence 判死",
+                 "no longer accepts a top-level modbus sub-config" in sc, "在案"))
+    rows.append(("registry modbus FieldContract tcp.dst_port = 502",
+                 '"tcp.dst_port": "502"' in reg_block, "在案"))
+
+    WL = {"layers", "strategy_fc", "ttl", "flow_control", "output",
+          "output_config", "group_id"}
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    stray = [(c.get("id"), k) for c in pos for k in (c.get("spec_json") or {}) if k not in WL]
+    rows.append((f"非负例顶层键 ⊆ 白名单（{len(pos)} 例）", not stray,
+                 f"{len(stray)} 处残留" if stray else "零残留"))
+    top_sub = [c.get("id") for c in pos if isinstance((c.get("spec_json") or {}).get("modbus"), dict)]
+    rows.append(("非负例顶层 modbus 子映射 = 0", not top_sub,
+                 f"{len(top_sub)} 处" if top_sub else "零残留"))
+    bad_layer = []
+    for c in pos:
+        lays = (c.get("spec_json") or {}).get("layers") or []
+        names = [next(iter(l)) for l in lays if isinstance(l, dict) and l]
+        cfg = next((l.get("modbus") for l in lays
+                    if isinstance(l, dict) and isinstance(l.get("modbus"), dict)), None)
+        if names != ["tcp", "modbus"] or not cfg:
+            bad_layer.append(c.get("id"))
+    rows.append((f"正例层链 == [tcp,modbus] 且层内非空（{len(pos)} 例）", not bad_layer,
+                 f"{len(bad_layer)} 例不合" if bad_layer else "全合规"))
+    bad_neg = [c.get("id") for c in neg
+               if set((c.get("expect") or {})) != {"expect_error", "error_contains"}]
+    rows.append((f"{len(neg)} 负例 expect 键严格 == {{expect_error,error_contains}}", not bad_neg,
+                 f"{len(bad_neg)} 例不合（G-MODBUS-6）" if bad_neg else "全合规"))
+    no_anchor = [c.get("id") for c in neg if not (c.get("expect") or {}).get("error_contains")]
+    rows.append(("负例 error_contains 非空", not no_anchor,
+                 f"{len(no_anchor)} 例缺（G-MODBUS-6）" if no_anchor else "全有"))
+    return rows
+
+def check_dnp3(cases):
+    """D-DNP3-1 反查表（目标契约 72 ID；存量 70 = 50 正 + 20 负）。返回
+    [(检查名, 通过?, 证据)]。今日层空壳（G-DNP3-1），70 例建策略即 400、
+    可跑性为零，本表按代码阶段目标口径反查，红项如实标红。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 dnp3", '"dnp3"' in pg and 'true' in pg.split('"dnp3"')[1][:12], "在列"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case dnp3（层 config → spec.DNP3）", 'case "dnp3":' in tr, "在案"))
+    rows.append(("FlowMeta.DNP3 直传", re.search(r"DNP3:\s+spec\.DNP3\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.DNP3 字段", re.search(r"DNP3\s+\*core\.DNP3Config", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.DNP3 字段", re.search(r"DNP3\s+\*DNP3Config", ty) is not None, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(dnp3)",
+                 "internal/protocol/dnp3" in mn and 'NewChainPlanner("dnp3")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat 顶层 dnp3 子映射 presence 判死",
+                 "no longer accepts a top-level dnp3 sub-config" in sc, "在案"))
+
+    WL = {"layers", "strategy_fc", "ttl", "flow_control", "output",
+          "output_config", "group_id"}
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    ids = [c.get("id") for c in cases]
+    rows.append(("ID 全仓唯一", len(ids) == len(set(ids)), f"{len(ids)} 例"))
+    stray = [(c.get("id"), k) for c in pos for k in (c.get("spec_json") or {}) if k not in WL]
+    rows.append((f"非负例顶层旧键 == 0（{len(pos)} 例口径）", not stray,
+                 f"{len(stray)} 处残留（G-DNP3-10）" if stray else "零残留"))
+    top_sub = [c.get("id") for c in pos if isinstance((c.get("spec_json") or {}).get("dnp3"), dict)]
+    rows.append(("非负例顶层 dnp3 子映射 = 0", not top_sub,
+                 f"{len(top_sub)} 处" if top_sub else "零残留"))
+    bad_neg = [c.get("id") for c in neg
+               if set((c.get("expect") or {})) != {"expect_error", "error_contains"}]
+    rows.append((f"{len(neg)} 负例 expect 键严格 == {{expect_error,error_contains}}", not bad_neg,
+                 f"{len(bad_neg)} 例含 notes" if bad_neg else "全合规"))
+    no_anchor = [c.get("id") for c in neg if not (c.get("expect") or {}).get("error_contains")]
+    rows.append(("负例 error_contains 非空（T6/T8 待补）", not no_anchor,
+                 f"{len(no_anchor)} 例缺" if no_anchor else "全有"))
+    no_assert = [c.get("id") for c in pos
+                 if not ((c.get("expect") or {}).get("frames")
+                         or (c.get("expect") or {}).get("fields"))]
+    rows.append((f"正例含 frames 或 fields 断言", not no_assert,
+                 f"{len(no_assert)} 例仅 min_packets" if no_assert else "全有"))
+    has_pres = any("presence" in (c.get("id") or "") for c in neg)
+    rows.append(("dnp3_neg_presence 存在且锚词含 top-level dnp3", has_pres,
+                 "在案" if has_pres else "待建"))
+    has_stray = any("stray" in (c.get("id") or "") for c in neg)
+    rows.append(("dnp3_neg_stray_src_ip 存在且锚词含 flat config field src_ip", has_stray,
+                 "在案" if has_stray else "待建"))
+    return rows
+
+def check_rip(cases):
+    """D-RIP-1 反查表（71 = 52 正 + 19 负）。返回 [(检查名, 通过?, 证据)]。
+
+    形状基线（2026-09-28 机读）：非负例顶层键 178 处残留（count 52 / rip 52 /
+    src_port 52 / dst_ip 12 / src_ip 5 / dst_port 5）；registry rip `fields = {}`
+    （G-RIP-1）；switch 73 case 无 rip（G-RIP-2）；CheckProtoFlat 无 rip 分支
+    （G-RIP-3）；19 负例 expect 含 notes（G-RIP-4）。红项如实标红。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 rip", '"rip"' in pg and 'true' in pg.split('"rip"')[1][:12], "在列"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "rip"')
+    reg_block = rg[i_reg:rg.index('Name: "', i_reg + len('Name: "rip"'))]
+    rows.append(("registry rip 行（DependsOn udp + CategoryTerminal）",
+                 'DependsOn: []string{"udp"}' in reg_block and "CategoryTerminal" in reg_block, "在案"))
+    rows.append(("registry rip Fields 补全（G-RIP-1）", "Fields:" in reg_block, "在案"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case rip（G-RIP-2）", 'case "rip":' in tr and "rip layer config decode" in tr, "在案"))
+    rows.append(("FlowMeta.RIP 直传", re.search(r"RIP:\s+spec\.RIP\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.RIP 字段", re.search(r"RIP\s+\*core\.RIPConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.RIP 字段", re.search(r"RIP\s+\*RIPConfig", ty) is not None, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(rip)",
+                 "internal/protocol/rip" in mn and 'NewChainPlanner("rip")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat 顶层 rip presence 判死（G-RIP-3）",
+                 "no longer accepts a top-level rip sub-config" in sc, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain_planner rip 目的端口不静态默认化",
+                 'case "rip":' in cp and "spec.DstPort = 0" in cp, "在案"))
+    gendump = json.loads((tg / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
+    rows.append(("generated schema rip 条目 depends_on udp",
+                 gendump["layers"].get("rip", {}).get("depends_on") == ["udp"], "在案"))
+
+    WL = {"layers", "strategy_fc", "ttl", "flow_control", "output",
+          "output_config", "group_id"}
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    stray = [(c.get("id"), k) for c in pos for k in (c.get("spec_json") or {}) if k not in WL]
+    rows.append((f"非负例顶层键 ⊆ 白名单（{len(pos)} 例）", not stray,
+                 f"{len(stray)} 处残留（G-RIP-4）" if stray else "零残留"))
+    top_sub = [c.get("id") for c in pos if isinstance((c.get("spec_json") or {}).get("rip"), dict)]
+    rows.append(("非负例顶层 rip 子映射 = 0", not top_sub,
+                 f"{len(top_sub)} 处" if top_sub else "零残留"))
+    bad_neg = [c.get("id") for c in neg
+               if set((c.get("expect") or {})) != {"expect_error", "error_contains"}]
+    rows.append((f"{len(neg)} 负例 expect 键严格 == {{expect_error,error_contains}}", not bad_neg,
+                 f"{len(bad_neg)} 例含 notes" if bad_neg else "全合规"))
+    rows.append((f"{len(neg)} 负例 error_contains 非空",
+                 all((c.get("expect") or {}).get("error_contains") for c in neg), "全有"))
+    blob = json.dumps(cases, ensure_ascii=False)
+    rows.append(("RIPng 字段族分离（ng 例走 ripng.*）", "ripng." in blob,
+                 "在案" if "ripng." in blob else "无 ng 例"))
+    return rows
+
+def check_nvgre(cases):
+    """D-NVGRE-1 反查表（20 = 14 正 + 6 负）。返回 [(检查名, 通过?, 证据)]。
+
+    形状基线（2026-09-28 机读）：20/20 无 `layers` 键、各含 src_ip/dst_ip/count
+    + 顶层 nvgre（G-NVGRE-1）；今日 20/20 submit 一律被 CheckProtoFlat 拒
+    （实跑 RESULT: 0 pass, 6 fail, 14 error）——非负例与负例同等失效，
+    属存量全量失效（非"待迁移"）。红项如实标红。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 nvgre", '"nvgre"' in pg and 'true' in pg.split('"nvgre"')[1][:12], "在列"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    rows.append(("registry nvgre 行在册", 'Name: "nvgre"' in rg, "在案"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case nvgre（层 config → spec.NVGRE）", 'case "nvgre":' in tr, "在案"))
+    rows.append(("FlowMeta.NVGRE 直传", re.search(r"NVGRE:\s+spec\.NVGRE\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.NVGRE 字段", re.search(r"NVGRE\s+\*core\.NVGREConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.NVGRE 字段", re.search(r"NVGRE\s+\*NVGREConfig", ty) is not None, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(nvgre)",
+                 "internal/protocol/nvgre" in mn and 'NewChainPlanner("nvgre")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat 顶层 nvgre presence 判死（G-NVGRE-2）",
+                 "no longer accepts a top-level nvgre sub-config" in sc, "在案"))
+
+    WL = {"layers", "strategy_fc", "ttl", "flow_control", "output",
+          "output_config", "group_id"}
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    stray = [(c.get("id"), k) for c in pos for k in (c.get("spec_json") or {}) if k not in WL]
+    rows.append((f"非负例顶层键 ⊆ 白名单（{len(pos)} 例）", not stray,
+                 f"{len(stray)} 处残留" if stray else "零残留"))
+    no_layers = [c.get("id") for c in cases if "layers" not in (c.get("spec_json") or {})]
+    rows.append(("全例层链形状 == [ip,nvgre]", not no_layers,
+                 f"{len(no_layers)} 例无 layers" if no_layers else "全有"))
+    NVGRE_IDS = ["nvgre_basic_ipv4_inner_ipv4", "nvgre_outer_ipv6_inner_ipv4",
+                 "nvgre_outer_ipv4_inner_ipv6", "nvgre_basic_ipv6_inner_ipv6",
+                 "nvgre_vsid_zero_flow_zero", "nvgre_vsid_max_flow_max",
+                 "nvgre_multi_vsid", "nvgre_multi_flow_same_vsid",
+                 "nvgre_inner_vlan", "nvgre_inner_ethernet_boundary",
+                 "nvgre_outer_inner_family_matrix", "nvgre_mtu_reassembly",
+                 "nvgre_pcap_nic_consistency", "nvgre_key_endian_and_ttl",
+                 "nvgre_neg_gre_flags_protocol", "nvgre_neg_key_vsid_flow",
+                 "nvgre_neg_inner_ethernet_vlan", "nvgre_neg_address_family",
+                 "nvgre_neg_carrier_length", "nvgre_neg_vsid_flow_isolation"]
+    ids = [c.get("id") for c in cases]
+    rows.append(("20 个 ID 集合与顺序 = 契约 §2", ids == NVGRE_IDS,
+                 f"{len(ids)} 例" + ("" if ids == NVGRE_IDS else "（有出入）")))
+    has_udp = [c.get("id") for c in cases
+               if any(isinstance(l, dict) and "udp" in l
+                      for l in ((c.get("spec_json") or {}).get("layers") or []))]
+    rows.append(("无 udp 层（存量已合规）", not has_udp, "零残留"))
+    bad_neg = [c.get("id") for c in neg
+               if set((c.get("expect") or {})) != {"expect_error", "error_contains"}]
+    rows.append((f"{len(neg)} 负例 expect 键严格 == {{expect_error,error_contains}}", not bad_neg,
+                 f"{len(bad_neg)} 例不合" if bad_neg else "全合规"))
+    has_pres = any("presence" in (c.get("id") or "") for c in neg)
+    rows.append(("presence 负例存在且锚词含 top-level", has_pres,
+                 "在案" if has_pres else "待建（G-NVGRE-2）"))
+    return rows
+
+def check_pcep(cases):
+    """D-PCEP-1 反查表（24 = 17 正 + 7 负）。返回 [(检查名, 通过?, 证据)]。
+
+    形状基线（2026-09-28 机读）：非负例顶层键 84 处残留 / 17 例全违规（G1）；
+    pcep 层恒空壳（G2）；dst_port 住顶层（G3）。G1–G3 今日红，保持红并登记为
+    已知缺口（勿白名单豁免，CORE_MEMORY §1.12/§1.13）；转绿条件 = 代码阶段
+    补齐 registry Fields + translateTerminalConfig case + mapToFlowSpec 收敛。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 pcep", '"pcep"' in pg and 'true' in pg.split('"pcep"')[1][:12], "在列"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case pcep（层 config → spec.PCEP）", 'case "pcep":' in tr, "在案"))
+    rows.append(("FlowMeta.PCEP 直传", re.search(r"PCEP:\s+spec\.PCEP\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.PCEP 字段", re.search(r"PCEP\s+\*core\.PCEPConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.PCEP 字段", re.search(r"PCEP\s+\*PCEPConfig", ty) is not None, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(pcep)",
+                 "internal/protocol/pcep" in mn and 'NewChainPlanner("pcep")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat 顶层 pcep 子映射 presence 判死（G-PCEP-1a）",
+                 "no longer accepts a top-level pcep sub-config" in sc, "在案"))
+
+    WL = {"layers", "strategy_fc", "ttl", "flow_control", "output",
+          "output_config", "group_id"}
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    ids = [c.get("id") for c in cases]
+
+    # G1 非负例顶层键 = 0。
+    stray = [(c.get("id"), k) for c in pos for k in (c.get("spec_json") or {}) if k not in WL]
+    rows.append((f"G1 非负例顶层 spec_json 键 = 0（{len(pos)} 例）", not stray,
+                 f"{len(stray)} 处残留 / {len(set(i for i, _ in stray))} 例违规" if stray else "零残留"))
+    # G2 层链含 pcep 且层内非空。
+    empty = []
+    for c in pos:
+        lays = (c.get("spec_json") or {}).get("layers") or []
+        cfg = next((l.get("pcep") for l in lays
+                    if isinstance(l, dict) and isinstance(l.get("pcep"), dict)), None)
+        if not cfg:
+            empty.append(c.get("id"))
+    rows.append((f"G2 层链含 pcep 且层内非空（{len(pos)} 例）", not empty,
+                 f"{len(empty)} 例空壳" if empty else "全非空"))
+    # G3 dst_port 住 tcp 层。
+    top_dst = [c.get("id") for c in pos if "dst_port" in (c.get("spec_json") or {})]
+    rows.append(("G3 tcp.dst_port 住 tcp 层（非顶层）", not top_dst,
+                 f"{len(top_dst)} 例住顶层" if top_dst else "全合规"))
+    # G4 ID 顺序。
+    PCEP_IDS = ["pcep_open_keepalive", "pcep_open_bidirectional",
+                "pcep_keepalive_direction", "pcep_pcreq_ipv4_ero_metric",
+                "pcep_pcrep_ipv4_ero_rro", "pcep_pcntf_and_pcerr",
+                "pcep_multi_request", "pcep_ipv6_address_family",
+                "pcep_lsp_object_flags", "pcep_rro_ipv4_ipv6",
+                "pcep_metric_flags", "pcep_tcp_direction",
+                "pcep_multi_session", "pcep_stateful_rfc8231_profile",
+                "pcep_delegation_rfc8281_profile", "pcep_common_header_length",
+                "pcep_object_flags", "pcep_neg_malformed_length",
+                "pcep_neg_unknown_type", "pcep_neg_object_length",
+                "pcep_neg_keepalive", "pcep_neg_session_id",
+                "pcep_neg_address_family", "pcep_neg_stateful_without_profile"]
+    rows.append(("G4 ID 集合与顺序 = 契约 §2 表", ids == PCEP_IDS,
+                 f"{len(ids)} 例" + ("" if ids == PCEP_IDS else "（与契约表有出入）")))
+    # G6 负例 expect 键严格两键。
+    bad_neg = [c.get("id") for c in neg
+               if set((c.get("expect") or {})) != {"expect_error", "error_contains"}]
+    rows.append((f"G6 {len(neg)} 负例 expect 键严格 == {{expect_error,error_contains}}", not bad_neg,
+                 f"{len(bad_neg)} 例不合" if bad_neg else "全合规"))
+    # G7 锚词 ∈ 设计 §7 锚词集。
+    ANCH = {"length", "type", "object", "keepalive", "session", "address", "stateful"}
+    miss = [c.get("id") for c in neg
+            if not any(a in ((c.get("expect") or {}).get("error_contains") or "") for a in ANCH)]
+    rows.append((f"G7 {len(neg)} 负例锚词 ∈ 设计 §7 锚词集", not miss,
+                 f"{len(miss)} 例越集" if miss else "全在集"))
+    # G8 正例 fields 的 pcep.* 字段全部已注册（静态声明：JSON 去重 39）。
+    fld = set()
+    for c in pos:
+        for f in (c.get("expect") or {}).get("fields") or []:
+            if isinstance(f, dict) and str(f.get("field", "")).startswith("pcep."):
+                fld.add(f["field"])
+    rows.append(("G8 正例 pcep.* 字段数 == 39（JSON 去重）", len(fld) == 39, f"{len(fld)} 个"))
+    # G9 frames offset 全 = 54。
+    offs = {f.get("offset") for c in pos
+            for f in (c.get("expect") or {}).get("frames") or []}
+    rows.append(("G9 正例 frames offset 全 = 54", offs == {54}, f"offset 集 {sorted(o for o in offs if o is not None)}"))
+    # G10 Open 前缀 20 01 00 0c。
+    blob = json.dumps([ (c.get("expect") or {}).get("frames") for c in pos ], ensure_ascii=False)
+    rows.append(("G10 Open 前缀 = 20 01 00 0c（长度 12）",
+                 "2001000c" in blob.replace(" ", "").lower(), "在案"))
+    # G13 业务字段动态对象零出现。
+    dyn = []
+    for c in pos:
+        for l in (c.get("spec_json") or {}).get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("pcep"), dict):
+                if '"strategy"' in json.dumps(l["pcep"], ensure_ascii=False):
+                    dyn.append(c.get("id"))
+    rows.append(("G13 pcep 层内业务字段动态对象零出现", not dyn,
+                 f"{len(dyn)} 例含 strategy" if dyn else "零出现"))
+    return rows
+
+def check_ldp(cases):
+    """D-LDP-1 反查表（25 = 14 正 + 11 负）。返回 [(检查名, 通过?, 证据)]。
+
+    形状基线（2026-09-28 机读）：非负例顶层键 70 处残留（14 × 5）；
+    顶层 ldp presence 命中 14 例；registry ldp `fields = {}`（G-LDP-1）；
+    switch 无 ldp case（G-LDP-1）。红项如实标红。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 ldp", '"ldp"' in pg and 'true' in pg.split('"ldp"')[1][:12], "在列"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "ldp"')
+    reg_block = rg[i_reg:rg.index('Name: "', i_reg + len('Name: "ldp"'))]
+    rows.append(("registry ldp 行（DependsOn udp + TransportOn udp/tcp）",
+                 re.search(r'DependsOn:\s+\[\]string\{"udp"\}', reg_block) is not None
+                 and re.search(r'TransportOn:\s+\[\]string\{"udp", "tcp"\}', reg_block) is not None, "在案"))
+    rows.append(("registry ldp Fields 补全（G-LDP-1）", "Fields:" in reg_block, "在案"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case ldp 严格解码（G-LDP-1）",
+                 'case "ldp":' in tr and "ldp layer config decode" in tr, "在案"))
+    rows.append(("FlowMeta.LDP 直传", re.search(r"LDP:\s+spec\.LDP\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.LDP 字段", re.search(r"LDP\s+\*core\.LDPConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.LDP 字段", re.search(r"LDP\s+\*LDPConfig", ty) is not None, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(ldp)",
+                 "internal/protocol/ldp" in mn and 'NewChainPlanner("ldp")' in mn, "在案"))
+    cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
+    rows.append(("chain_planner ldp 目的端口缺省 646",
+                 'case "ldp":' in cp and "spec.DstPort = 646" in cp, "在案"))
+    gendump = json.loads((tg / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
+    ent = gendump["layers"].get("ldp", {})
+    rows.append(("generated schema ldp 条目同代",
+                 ent.get("depends_on") == ["udp"] and ent.get("transport_on") == ["udp", "tcp"], "在案"))
+
+    WL = {"layers", "strategy_fc", "ttl", "flow_control", "output",
+          "output_config", "group_id"}
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    stray = [(c.get("id"), k) for c in pos for k in (c.get("spec_json") or {}) if k not in WL]
+    rows.append((f"非负例顶层键 ⊆ 白名单（{len(pos)} 例）", not stray,
+                 f"{len(stray)} 处残留（G-LDP-4）" if stray else "零残留"))
+    top_sub = [c.get("id") for c in pos if isinstance((c.get("spec_json") or {}).get("ldp"), dict)]
+    rows.append(("非负例顶层 ldp 子映射 = 0", not top_sub,
+                 f"{len(top_sub)} 处" if top_sub else "零残留"))
+    bad_neg = [c.get("id") for c in neg
+               if set((c.get("expect") or {})) != {"expect_error", "error_contains"}]
+    rows.append((f"{len(neg)} 负例 expect 键严格 == {{expect_error,error_contains}}", not bad_neg,
+                 f"{len(bad_neg)} 例不合" if bad_neg else "全合规"))
+    rows.append((f"{len(neg)} 负例 error_contains 非空",
+                 all((c.get("expect") or {}).get("error_contains") for c in neg), "全有"))
+    blob = json.dumps(cases, ensure_ascii=False)
+    MSGS = ["0x0001", "0x0100", "0x0200", "0x0201", "0x0300", "0x0400", "0x0401", "0x0402", "0x0403"]
+    miss = [m for m in MSGS if m not in blob]
+    rows.append(("9 种消息类型全覆盖", not miss, f"缺 {miss}" if miss else "9/9"))
+    return rows
+
+def check_someip(cases):
+    """D-SOMEIP-1 反查表（16 = 12 正 + 4 负）。返回 [(检查名, 通过?, 证据)]。
+
+    形状基线（2026-09-28 机读）：16/16 为过渡态违规形（四元组 + 顶层 someip
+    子映射与 layers 并存）；层内 someip 恒 `{}` 空壳（registry Fields 空，
+    G-SOMEIP-1）；4 负例 expect 含 notes（G-SOMEIP-7）。红项如实标红。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 someip", '"someip"' in pg and 'true' in pg.split('"someip"')[1][:12], "在列"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "someip"')
+    reg_block = rg[i_reg:rg.index('Name: "', i_reg + len('Name: "someip"'))]
+    rows.append(("registry someip 行（DependsOn udp + TransportOn udp/tcp）",
+                 re.search(r'DependsOn:\s*\[\]string\{"udp"\}', reg_block) is not None
+                 and re.search(r'TransportOn:\s+\[\]string\{"udp", "tcp"\}', reg_block) is not None, "在案"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case someip（层 config → spec.SOMEIP）", 'case "someip":' in tr, "在案"))
+    rows.append(("FlowMeta.SOMEIP 直传", re.search(r"SOMEIP:\s+spec\.SOMEIP\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.SOMEIP 字段", re.search(r"SOMEIP\s+\*core\.SOMEIPConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.SOMEIP 字段", re.search(r"SOMEIP\s+\*SOMEIPConfig", ty) is not None, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(someip)",
+                 "internal/protocol/someip" in mn and 'NewChainPlanner("someip")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat 顶层 someip presence 判死",
+                 "no longer accepts a top-level someip sub-config" in sc, "在案"))
+
+    WL = {"layers", "strategy_fc", "ttl", "flow_control", "output",
+          "output_config", "group_id"}
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    ids = [c.get("id") for c in cases]
+    SOMEIP_IDS = ["someip_req_resp", "someip_req_empty", "someip_multi_session",
+                  "someip_no_return", "someip_error", "someip_sd_find_offer",
+                  "someip_sd_subscribe", "someip_multi_method_event",
+                  "someip_tp_segments", "someip_ipv6", "someip_sd_ipv6",
+                  "someip_tcp_swap", "someip_neg_service_id",
+                  "someip_neg_session", "someip_neg_type", "someip_neg_tp"]
+    rows.append(("16 个 ID 集合与顺序 = 契约 §2", ids == SOMEIP_IDS,
+                 f"{len(ids)} 例" + ("" if ids == SOMEIP_IDS else "（有出入）")))
+    stray = [(c.get("id"), k) for c in pos for k in (c.get("spec_json") or {}) if k not in WL]
+    rows.append((f"非负例顶层键 ⊆ 白名单（{len(pos)} 例）", not stray,
+                 f"{len(stray)} 处残留" if stray else "零残留"))
+    top_sub = [c.get("id") for c in pos if isinstance((c.get("spec_json") or {}).get("someip"), dict)]
+    rows.append(("非负例顶层 someip 子映射 = 0", not top_sub,
+                 f"{len(top_sub)} 处" if top_sub else "零残留"))
+    empty = []
+    for c in pos:
+        lays = (c.get("spec_json") or {}).get("layers") or []
+        cfg = next((l.get("someip") for l in lays
+                    if isinstance(l, dict) and isinstance(l.get("someip"), dict)), None)
+        if not cfg:
+            empty.append(c.get("id"))
+    rows.append((f"正例层链含 someip 且层内非空（{len(pos)} 例）", not empty,
+                 f"{len(empty)} 例空壳（G-SOMEIP-1）" if empty else "全非空"))
+    bad_neg = [c.get("id") for c in neg
+               if set((c.get("expect") or {})) != {"expect_error", "error_contains"}]
+    rows.append((f"{len(neg)} 负例 expect 键严格 == {{expect_error,error_contains}}", not bad_neg,
+                 f"{len(bad_neg)} 例含 notes（G-SOMEIP-7）" if bad_neg else "全合规"))
+    ANCH = ["someip: service_id must be nonzero", "someip: invalid session_id",
+            "someip: invalid message_type 5", "someip: tp segment_size must be > 0"]
+    bad = [c.get("id") for c in neg
+           if not any(((c.get("expect") or {}).get("error_contains") or "") in a for a in ANCH)]
+    rows.append((f"{len(neg)} 负例锚词 ⊆ planner 锚词集", not bad,
+                 f"{len(bad)} 例越集" if bad else "全在集"))
+    return rows
+
+def check_opcua(cases):
+    """D-OPCUA-1 反查表（12 = 10 正 + 2 负）。返回 [(检查名, 通过?, 证据)]。
+
+    形状基线（2026-09-28 机读）：**本批唯一已合规协议**——12/12 顶层键仅
+    `{layers}`（零游离键）；包数公式 `13 + 2×服务对数` 与实测 10/10 一致。
+    今日红项仅 M-1（TypeId 791/792 → 799/802）。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 opcua", '"opcua"' in pg and 'true' in pg.split('"opcua"')[1][:12], "在列"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case opcua（层 config → spec.OPCUA）", 'case "opcua":' in tr, "在案"))
+    rows.append(("FlowMeta.OPCUA 直传", re.search(r"OPCUA:\s+spec\.OPCUA\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.OPCUA 字段", re.search(r"OPCUA\s+\*core\.OPCUAConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.OPCUA 字段", re.search(r"OPCUA\s+\*OPCUAConfig", ty) is not None, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(opcua)",
+                 "internal/protocol/opcua" in mn and 'NewChainPlanner("opcua")' in mn, "在案"))
+
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    ids = [c.get("id") for c in cases]
+    OPCUA_IDS = ["opcua_hello_ack", "opcua_open_none", "opcua_open_sign",
+                 "opcua_write", "opcua_browse", "opcua_subscribe",
+                 "opcua_bad_node", "opcua_denied", "opcua_ipv6",
+                 "opcua_multi_session", "opcua_bad_size_neg",
+                 "opcua_no_channel_neg"]
+    rows.append(("12 个 ID 集合与顺序 = 契约 §2", ids == OPCUA_IDS,
+                 f"{len(ids)} 例" + ("" if ids == OPCUA_IDS else "（有出入）")))
+    WL = {"layers", "strategy_fc", "ttl", "flow_control", "output",
+          "output_config", "group_id"}
+    stray = [(c.get("id"), k) for c in cases for k in (c.get("spec_json") or {}) if k not in WL]
+    rows.append((f"全例顶层键 ⊆ 白名单（本协议零游离键）", not stray,
+                 f"{len(stray)} 处残留" if stray else "零残留"))
+    bad_neg = [c.get("id") for c in neg
+               if set((c.get("expect") or {})) != {"expect_error", "error_contains"}]
+    rows.append((f"{len(neg)} 负例 expect 键严格 == {{expect_error,error_contains}}", not bad_neg,
+                 f"{len(bad_neg)} 例含 notes" if bad_neg else "全合规"))
+    ANCH = ["MessageSize", "secureChannel", "String length", "security_mode", "sessions", "node id"]
+    bad = [c.get("id") for c in neg
+           if not any(((c.get("expect") or {}).get("error_contains") or "") in a for a in ANCH)]
+    rows.append((f"{len(neg)} 负例锚词 ⊆ 代码锚词集", not bad,
+                 f"{len(bad)} 例越集" if bad else "全在集"))
+    offs = {f.get("offset") for c in pos
+            for f in (c.get("expect") or {}).get("frames") or []}
+    rows.append(("正例 frames offset ∈ {54,62,66,74}", bool(offs) and offs <= {54, 62, 66, 74},
+                 f"offset 集 {sorted(o for o in offs if o is not None)}"))
+    blob = json.dumps([(c.get("expect") or {}).get("frames") for c in pos], ensure_ascii=False)
+    rows.append(("M-1 修复后 opcua_subscribe 帧 TypeId ∈ {799,802}",
+                 '"799"' in blob or "799" in blob, "在案"))
+    return rows
+
+def check_thrift(cases):
+    """D-THRIFT-1 反查表（13 = 7 正 + 6 负）。返回 [(检查名, 通过?, 证据)]。
+
+    形状基线（2026-09-28 机读）：**非符合态**——非负例顶层键 41 处残留，
+    今日建策略 400。registry thrift 行 2 键（transport/messages）；planner
+    目的端口缺省 9090。红项如实标红。"""
+    rows = []
+    tg = Path(__file__).resolve().parent.parent
+
+    pg = (tg / "internal" / "core" / "protocols.go").read_text()
+    rows.append(("白名单收 thrift", '"thrift"' in pg and 'true' in pg.split('"thrift"')[1][:12], "在列"))
+    tr = (tg / "internal" / "core" / "layers" / "chain_planner_translate.go").read_text()
+    rows.append(("translate case thrift（层 config → spec.Thrift）",
+                 'case "thrift":' in tr and "spec.Thrift" in tr, "在案"))
+    rows.append(("FlowMeta.Thrift 直传", re.search(r"Thrift:\s+spec\.Thrift\b", tr) is not None, "在案"))
+    gen = (tg / "internal" / "core" / "layers" / "generator.go").read_text()
+    rows.append(("FlowMeta.Thrift 字段", re.search(r"Thrift\s+\*core\.ThriftConfig", gen) is not None, "在案"))
+    ty = (tg / "internal" / "core" / "types.go").read_text()
+    rows.append(("FlowSpec.Thrift 字段", re.search(r"Thrift\s+\*ThriftConfig", ty) is not None, "在案"))
+    rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
+    i_reg = rg.index('Name: "thrift"')
+    reg_block = rg[i_reg:rg.index('Name: "', i_reg + len('Name: "thrift"'))]
+    rows.append(("registry thrift 行（DependsOn tcp + 9090 + transport/messages）",
+                 'DependsOn: []string{"tcp"}' in reg_block and '"tcp.dst_port": "9090"' in reg_block
+                 and '"transport"' in reg_block and '"messages"' in reg_block, "在案"))
+    mn = (tg / "cmd" / "server" / "main.go").read_text()
+    rows.append(("main.go 空白导入 + ChainPlanner(thrift)",
+                 "internal/protocol/thrift" in mn and 'NewChainPlanner("thrift")' in mn, "在案"))
+    sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
+    rows.append(("CheckProtoFlat 顶层 thrift presence 判死（G-THRIFT-2）",
+                 "no longer accepts a top-level thrift sub-config" in sc, "在案"))
+    rows.append(("strategy_convert thrift 目的端口缺省 9090",
+                 re.search(r'setDefaultDstPort\(&spec, cfg, 9090\)', sc) is not None, "在案"))
+    pl = (tg / "internal" / "protocol" / "thrift" / "planner.go").read_text()
+    rows.append(("planner 目的端口缺省 9090", "spec.DstPort = 9090" in pl, "在案"))
+    gendump = json.loads((tg / "schemas" / "v1" / "generated" / "layers.generated.json").read_text())
+    ent = gendump["layers"].get("thrift", {})
+    rows.append(("generated schema thrift 条目（depends_on tcp + 2 键）",
+                 ent.get("depends_on") == ["tcp"] and len(ent.get("fields", {})) == 2, "在案"))
+    ANCH = ["invalid message type", "unknown field type", "truncated", "negative length",
+            "negative container count", "at least one message required"]
+    miss = [a for a in ANCH if a not in pl]
+    rows.append((f"planner 六条锚词在案", not miss, f"缺 {miss}" if miss else "6/6"))
+    bl = (tg / "internal" / "protocol" / "thrift" / "builder.go").read_text()
+    rows.append(("BINARY 与 STRING 共用类型码", 'case "STRING", "BINARY":' in bl, "在案"))
+
+    WL = {"layers", "strategy_fc", "ttl", "flow_control", "output",
+          "output_config", "group_id"}
+    pos = [c for c in cases if not (c.get("expect") or {}).get("expect_error")]
+    neg = [c for c in cases if (c.get("expect") or {}).get("expect_error")]
+    stray = [(c.get("id"), k) for c in pos for k in (c.get("spec_json") or {}) if k not in WL]
+    rows.append((f"非负例顶层旧键零残留（{len(pos)} 例）", not stray,
+                 f"{len(stray)} 处残留" if stray else "零残留"))
+    top_sub = [c.get("id") for c in pos if isinstance((c.get("spec_json") or {}).get("thrift"), dict)]
+    rows.append(("非负例顶层 thrift 子映射 = 0", not top_sub,
+                 f"{len(top_sub)} 处" if top_sub else "零残留"))
+    bad_neg = [c.get("id") for c in neg
+               if set((c.get("expect") or {})) != {"expect_error", "error_contains"}]
+    rows.append((f"{len(neg)} 负例 expect 键严格 == {{expect_error,error_contains}}", not bad_neg,
+                 f"{len(bad_neg)} 例不合" if bad_neg else "全合规"))
     return rows
 
 
@@ -9691,7 +10266,17 @@ CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "hds": check_hds, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "isis": check_isis, "coap": check_coap, "stratum": check_stratum, "pim": check_pim, "ospf": check_ospf, "ethmining": check_ethmining, "moxa": check_moxa, "tns": check_tns, "mongodb": check_mongodb, "iec104": check_iec104, "postgresql": check_postgresql}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp, "sctp": check_sctp, "jt808": check_jt808, "jt809": check_jt809, "jtt905": check_jtt905, "arp": check_arp, "icmp": check_icmp, "cwmp": check_cwmp, "hds": check_hds, "kingbase": check_kingbase, "megaco": check_megaco, "hl7": check_hl7, "mmse": check_mmse, "edp": check_edp, "xmrmining": check_xmrmining, "bacnet": check_bacnet, "dcerpc": check_dcerpc, "dtls": check_dtls, "kerberos": check_kerberos, "ntlm": check_ntlm, "sstp": check_sstp, "ocsp": check_ocsp, "tds": check_tds, "spnego": check_spnego, "smb": check_smb, "amqp": check_amqp, "tftp": check_tftp, "nfs": check_nfs, "enip": check_enip, "bgp": check_bgp, "s7": check_s7, "cql": check_cql, "doip": check_doip, "dameng": check_dameng, "gbt32960": check_gbt32960, "cflow": check_cflow, "igmp": check_igmp, "rtmfp": check_rtmfp, "drda": check_drda, "mms": check_mms, "isis": check_isis, "coap": check_coap, "stratum": check_stratum, "pim": check_pim, "ospf": check_ospf, "ethmining": check_ethmining, "moxa": check_moxa, "tns": check_tns, "mongodb": check_mongodb, "iec104": check_iec104, "postgresql": check_postgresql,
+          "a2a": check_a2a,
+          "modbus": check_modbus,
+          "dnp3": check_dnp3,
+          "rip": check_rip,
+          "nvgre": check_nvgre,
+          "pcep": check_pcep,
+          "ldp": check_ldp,
+          "someip": check_someip,
+          "opcua": check_opcua,
+          "thrift": check_thrift}
 
 
 def main(argv):
