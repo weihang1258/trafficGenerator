@@ -397,7 +397,7 @@ keepalive before init                   -> ldp: event 0: keepalive before initia
 
 | 文件 | 职责 | 行数 |
 |---|---|---:|
-| `trafficgen/internal/core/types.go`（`:544-590` + `:1725`） | `LDPConfig/LDPSession/LDPAdjacency/LDPEvent` 配置类型 + `FlowSpec.LDP` 槽位 | —（共享文件） |
+| `trafficgen/internal/core/types.go`（`:544-599` + `:1725`） | `LDPConfig/LDPSession/LDPAdjacency/LDPEvent` 配置类型 + `FlowSpec.LDP` 槽位 | —（共享文件） |
 | `trafficgen/internal/protocol/ldp/planner.go` | `Validate`（载体/端口/profile 拒绝）+ `Plan`（事件展开） | 145 |
 | `trafficgen/internal/protocol/ldp/builder.go` | PDU 编码（`BuildPDU`/`buildMessage`/9 种事件分支/`CheckFault`/`ValidateConfig`） | 537 |
 | `trafficgen/internal/protocol/ldp/layer_gen.go` | 终结层生成器（`RegisterLayerGenerator("ldp")` + validator 注册，`init()`） | 213 |
