@@ -69,7 +69,18 @@ func loadCaseFile(t *testing.T, rel string) []caseFile {
 func driveCase(t *testing.T, c caseFile) (error, int) {
 	t.Helper()
 	pkts, err := driveCasePackets(t, c)
-	return err, len(pkts)
+	if err != nil {
+		return err, 0
+	}
+	// C1 回归：ChainPlanner.Plan 只产**单流**（flows 的复制语义住
+	// worker.go:279，不在 planner）——故端到端包数 = 单流包数 × flows。
+	// 原实现直接返回 len(pkts)，multi_flow_dynamic 的 packet_count=33
+	// 因此恒报 11。
+	flows := 1
+	if c.StrategyFC != nil && c.StrategyFC.Type == "flows" && c.StrategyFC.Value > 0 {
+		flows = int(c.StrategyFC.Value)
+	}
+	return nil, len(pkts) * flows
 }
 
 // driveCasePackets drives the case config and returns the collected packets.

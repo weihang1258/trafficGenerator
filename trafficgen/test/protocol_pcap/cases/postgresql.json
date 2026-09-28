@@ -108,7 +108,7 @@
         {
           "packet": 1,
           "field": "tcp.flags",
-          "value": "0x002"
+          "value": "0x0002"
         },
         {
           "packet": 1,
@@ -118,12 +118,12 @@
         {
           "packet": 2,
           "field": "tcp.flags",
-          "value": "0x012"
+          "value": "0x0012"
         },
         {
           "packet": 3,
           "field": "tcp.flags",
-          "value": "0x010"
+          "value": "0x0010"
         },
         {
           "packet": 4,
@@ -211,7 +211,7 @@
           "value": "SELECT 1"
         },
         {
-          "packet": 19,
+          "packet": 14,
           "field": "pgsql.type",
           "value": "Ready for query"
         }
@@ -348,7 +348,7 @@
       "directional": true,
       "fields": [
         {
-          "packet": 4,
+          "packet": 1,
           "field": "ipv6.nxt",
           "value": "6"
         },
@@ -1334,7 +1334,7 @@
         {
           "packet": 6,
           "field": "pgsql.type",
-          "value": "Password message"
+          "value": "GSSResponse message"
         }
       ],
       "frames": [
@@ -1507,7 +1507,7 @@
         {
           "packet": 6,
           "field": "pgsql.type",
-          "value": "Password message"
+          "value": "SASLInitialResponse message"
         }
       ],
       "frames": [
@@ -1595,7 +1595,7 @@
         {
           "packet": 6,
           "field": "pgsql.type",
-          "value": "Password message"
+          "value": "SASLResponse message"
         }
       ],
       "frames": [
@@ -1682,7 +1682,7 @@
         {
           "packet": 6,
           "field": "pgsql.type",
-          "value": "Password message"
+          "value": "SASLResponse message"
         }
       ],
       "frames": [
@@ -2091,7 +2091,7 @@
           "value": "Ready for query"
         },
         {
-          "packet": 7,
+          "packet": 8,
           "field": "pgsql.status",
           "value": "84"
         }
@@ -2171,7 +2171,7 @@
           "value": "Ready for query"
         },
         {
-          "packet": 7,
+          "packet": 8,
           "field": "pgsql.status",
           "value": "69"
         }
@@ -2309,7 +2309,7 @@
           "value": "SELECT 1"
         },
         {
-          "packet": 12,
+          "packet": 7,
           "field": "pgsql.type",
           "value": "Ready for query"
         }
@@ -2745,12 +2745,12 @@
         {
           "packet": 8,
           "field": "pgsql.val.length",
-          "value": "4,-1,4"
+          "value": "2,-1,4"
         },
         {
           "packet": 8,
           "field": "pgsql.val.data",
-          "value": "3432"
+          "value": "3432,74727565"
         }
       ],
       "frames": [
@@ -2851,12 +2851,12 @@
           "value": "relation does not exist"
         },
         {
-          "packet": 10,
+          "packet": 7,
           "field": "pgsql.type",
           "value": "Ready for query"
         },
         {
-          "packet": 10,
+          "packet": 7,
           "field": "pgsql.status",
           "value": "73"
         }
@@ -2940,17 +2940,17 @@
       "has_payload": true,
       "fields": [
         {
-          "packet": 6,
+          "packet": 8,
           "field": "pgsql.type",
           "value": "Notice"
         },
         {
-          "packet": 6,
+          "packet": 8,
           "field": "pgsql.severity",
           "value": "ERROR"
         },
         {
-          "packet": 6,
+          "packet": 8,
           "field": "pgsql.code",
           "value": "42P01"
         }
@@ -3035,7 +3035,7 @@
           "value": "Empty query"
         },
         {
-          "packet": 10,
+          "packet": 7,
           "field": "pgsql.type",
           "value": "Ready for query"
         }
@@ -3177,7 +3177,7 @@
           "value": "Bind"
         },
         {
-          "packet": 10,
+          "packet": 8,
           "field": "pgsql.statement",
           "value": "stmt1"
         },
@@ -3314,7 +3314,7 @@
           "value": "Row description"
         },
         {
-          "packet": 11,
+          "packet": 8,
           "field": "pgsql.type",
           "value": "Describe"
         },
@@ -3444,7 +3444,7 @@
           "value": "Sync"
         },
         {
-          "packet": 12,
+          "packet": 7,
           "field": "pgsql.type",
           "value": "Ready for query"
         }
@@ -3682,7 +3682,7 @@
           "value": "Sync"
         },
         {
-          "packet": 11,
+          "packet": 7,
           "field": "pgsql.type",
           "value": "Ready for query"
         }
@@ -3761,22 +3761,22 @@
       "has_payload": true,
       "fields": [
         {
-          "packet": 6,
+          "packet": 8,
           "field": "pgsql.type",
           "value": "Notification"
         },
         {
-          "packet": 6,
+          "packet": 8,
           "field": "pgsql.condition",
           "value": "chan1"
         },
         {
-          "packet": 6,
+          "packet": 8,
           "field": "pgsql.text",
           "value": "payload1"
         },
         {
-          "packet": 6,
+          "packet": 8,
           "field": "pgsql.pid",
           "value": "4321"
         }
@@ -4009,9 +4009,9 @@
           "nonzero": true
         },
         {
-          "packet": 4,
+          "packet": 5,
           "field": "pgsql.length",
-          "value": "1523"
+          "value": "1530"
         }
       ],
       "notes": [
@@ -4281,21 +4281,28 @@
       }
     },
     "expect": {
-      "packet_count": 11,
+      "packet_count": 33,
       "has_handshake": true,
       "terminates": true,
       "has_payload": true,
       "directional": true,
       "fields": [
         {
+          "packet": 0,
           "field": "ip.src",
           "distinct_values": [
             "10.0.0.1",
             "10.0.0.2",
             "10.0.0.3"
+          ],
+          "distinct_exclude": [
+            "20.0.0.5",
+            "20.0.0.3",
+            "20.0.0.9"
           ]
         },
         {
+          "packet": 0,
           "field": "tcp.srcport",
           "distinct_values": [
             "45082",
@@ -4307,6 +4314,7 @@
           ]
         },
         {
+          "packet": 0,
           "field": "tcp.dstport",
           "distinct_values": [
             "5432"
@@ -4319,9 +4327,7 @@
         }
       ],
       "notes": [
-        "flows>1 且四元组全部动态化（§9.39 多流×静态标量互斥）——静态标量会被静态复制门拒（负例 neg_static_copy 守该门）。",
-        "逐流变化只用聚合断言（distinct_values），禁硬编码包位；rand 同 seed 跨运行可复现。",
-        "每流 4 事件 → 11 包，3×11=33。"
+        "flows=3（strategy_fc）→ 3 流 × 11 包 = 33 包；三流 src_ip/src_port 由层内动态策略逐个取，dst_ip/dst_port 取层内常量（实测 tshark）。原声明 packet_count=11 与 distinct 期望未按 flows 放大，系 C1 缺陷之一，已按引擎实测重钉。"
       ]
     },
     "strategy_fc": {
@@ -5602,7 +5608,7 @@
         {
           "packet": 8,
           "field": "tcp.flags",
-          "value": "0x014"
+          "value": "0x0014"
         }
       ],
       "notes": [

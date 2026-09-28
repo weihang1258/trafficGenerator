@@ -7421,11 +7421,14 @@ def check_postgresql(cases):
     ValidateLayers V9（本文件 #59 负例覆盖），事件内键不受 registry 约束。
     本协议的 64-ID 主形用例全部不写这两个死键。
 
-    注记（packet_count 权威）：testcase §2 表的「约定 packet_count」列与
-    其自身 §3 逐例散文（`N 事件 + 7`）不一致，33/47 行散文算得的值 ≠ 表列
-    值。本表按 §1 包数公式（单会话 N+7、多会话逐会话求和）以引擎实测为准，
-    由 postgresql_casefile_test.go 的 TestPostgresqlCaseFile_PacketCounts
-    逐例钉死（§9.31/§14.20 先跑后钉）。表列值属文档缺陷，不在本文件改。
+    注记（packet_count 权威）：testcase §2 表的「约定 packet_count」列与其自身
+    §3 逐例散文**互相一致但均与实测不符**（三源对账：表列==实测 14/47、散文
+    ==实测 13/46、表列 vs 散文仅 2 处分歧）——**权威 = 引擎实测（用例文件）**，
+    文档（表 + 散文）待文档轨另开单修正。原注记把方向写反（称"表列值属文档
+    缺陷"、暗指散文对），gen-review C2 已证伪并更正。本表按 §1 包数公式
+    （单会话 N+7、多会话逐会话求和）以引擎实测为准，由
+    postgresql_casefile_test.go 的 TestPostgresqlCaseFile_PacketCounts 逐例
+    钉死（§9.31/§14.20 先跑后钉）。
     """
     rows = []
     tg = Path(__file__).resolve().parent.parent
