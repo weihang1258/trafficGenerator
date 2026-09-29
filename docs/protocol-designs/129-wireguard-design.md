@@ -65,7 +65,7 @@
 | keys | `psk/static×32B` | 3 | 190/134/75 | **与 default 字节级全同**——三把密钥零消费（G-WIREGUARD-7） |
 | eph | `local_ephemeral_pub_key=32B` | 3 | 190/134/75 | 首包字节改变（**此键真实消费**） |
 
-**帧长公式（实测闭合）**：帧长 = 42 + 消息长（IPv4）/ 62 + 消息长（IPv6）；消息长：Initiation 148、Response 92、CookieReply 64、Transport `32+N`（N=0 即 keepalive）。校验：190=42+148 ✓、134=42+92 ✓、106=42+64 ✓、75=42+33（N=1）✓、74=42+32 ✓、79=42+37（N=5）✓、1514=42+1472（N=1440）✓、105=42+63（N=31=20+8+3）✓、210/154/95=62+{148,92,33} ✓。**14/14 组全闭合。**
+**帧长公式（实测闭合）**：帧长 = 42 + 消息长（IPv4）/ 62 + 消息长（IPv6）；消息长：Initiation 148、Response 92、CookieReply 64、Transport `32+N`（N=0 即 keepalive）。校验：190=42+148 ✓、134=42+92 ✓、106=42+64 ✓、75=42+33（N=1）✓、74=42+32 ✓、79=42+37（N=5）✓、1514=42+1472（N=1440）✓、105=42+63（N=31=20+8+3）✓、210/154/95=62+{148,92,33} ✓。**15 组实测中的 14/14 个公式检查全闭合。**
 
 **tshark 进制纪律（实测）**：`wg.type` 十进制串（"1"/"2"/"4"）；`wg.sender`/`wg.receiver` **0x 八位十六进制**（`0x00000001`）；`wg.counter` 十进制串；`wg.reserved` 无前缀十六进制（`000000`）；`wg.mac1`/`wg.mac2` 小写十六进制；`wg.ephemeral` base64。tshark **无** `udp.port==51820,wireguard` 静态绑定（`-d` 报 `Unknown protocol -- "wireguard"`，合法名是 `wg`），解码走**启发式**——格式正确的消息任意端口可解（引擎 pcap 实测），畸形长度消息不解（构造 144B 假 Initiation 实测被拒）；存量用例未用 `decode_as`，非 51820 端口正例依赖启发式成功，纳入断言风险注记（§8）。
 
@@ -331,7 +331,7 @@ wireguard 层无自有状态机：UDP 无连接，wireguard 层是"按配置顺�
 | W14 | `wg_dir_up` | 正 | §5.3 全 up | 待 A′ | 3 |
 | W15 | `wg_dir_down` | 正 | §5.3 载荷全 down | 待 A′ | 3 |
 | W16 | `wg_dir_both` | 正 | §5.3 交替 | 待 A′ | 4 |
-| W17 | `wg_data_struct` | 正 | §3.5 Transport 结构 + counter@50 | 层链形可跑 | 3 |
+| W17 | `wg_data_struct` | 正 | §3.5 Transport 结构 + counter@0 | 层链形可跑 | 3 |
 | W18 | `wg_data_multi` | 正 | §3.5 多载荷 counter 0/1/2 | 待 A′ | 5 |
 | W19 | `wg_counter_start100` | 正 | §3.5 InitialCounter=100 | 待 A′ | 3 |
 | W20 | `wg_keepalive` | 正 | §3.5/§5.3 keepalive 32B（帧 74） | 待 A′ | 4 |
@@ -471,7 +471,7 @@ wireguard 层无自有状态机：UDP 无连接，wireguard 层是"按配置顺�
 
 | 文件 | 职责 | 行数 |
 |---|---|---:|
-| `trafficgen/internal/core/types.go`（`:8481-8582`） | `WireGuardConfig`（16 键）+ `WireGuardInnerIP`（8 键）+ `FlowSpec.WireGuard` 槽位（`:1875`） | —（共享文件） |
+| `trafficgen/internal/core/types.go`（`:8481-8582`） | `WireGuardConfig`（18 键）+ `WireGuardInnerIP`（8 键）+ `FlowSpec.WireGuard` 槽位（`:1875`） | —（共享文件） |
 | `trafficgen/internal/protocol/wireguard/planner.go` | 常量 + Validate（14 分支）+ Plan（剧本）+ build* 四函数 + fillDeterministic + resolveDirection + 内层 IP 族（validate/build/checksum 8 函数） | 973 |
 | `trafficgen/internal/protocol/wireguard/layer_gen.go` | `WireGuardGenerator`（replay 模式：复用 `Planner.Plan` 逐 PacketConfig → MessageEvent；`L4PortOverride=true` 因 emit 已按方向换端口，`:21-23` 注释）+ init 注册 generator/validator | 104 |
 | 测试 3 文件 | planner_test 959（30 Test）/ testpoints 3214（199 Test）/ innerip 566（24 Test） | 4739 |
@@ -487,7 +487,7 @@ wireguard 层无自有状态机：UDP 无连接，wireguard 层是"按配置顺�
 
 ### 11.3 数据结构
 
-`WireGuardConfig{Role, LocalStaticPubKey, PeerStaticPubKey, LocalEphemeralPubKey, SenderIndex, PSK, Cookie, InitialCounter, RekeyAfter, RekeyAfterTime, KeepaliveInterval, CookieReplyThreshold, TransportPayloads, FileSource, Direction, Handshake, Response, InnerIP}`（`types.go:8484-8549`——**17 键**：Handshake/Response 为 `*bool` 三态）；`WireGuardInnerIP{SrcIP, DstIP, Proto, SrcPort, DstPort, TTL, Payload, DataFrames}`（`:8557-8582`）。
+`WireGuardConfig{Role, LocalStaticPubKey, PeerStaticPubKey, LocalEphemeralPubKey, SenderIndex, PSK, Cookie, InitialCounter, RekeyAfter, RekeyAfterTime, KeepaliveInterval, CookieReplyThreshold, TransportPayloads, FileSource, Direction, Handshake, Response, InnerIP}`（`types.go:8484-8549`——**18 键**：Handshake/Response 为 `*bool` 三态）；`WireGuardInnerIP{SrcIP, DstIP, Proto, SrcPort, DstPort, TTL, Payload, DataFrames}`（`:8557-8582`）。
 
 ### 11.4 主流程
 

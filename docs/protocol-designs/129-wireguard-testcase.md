@@ -57,12 +57,12 @@
 | W23 | `wg_rekey_reset` | 正 | §5.1 counter 归零、旧 receiver 注记 | 待 A′ | 8 |
 | W24 | `wg_payload_verbatim` | 正 | §0.1 payload 明文直写边界 | 待 A′ | 3 |
 | W25 | `wg_tag16` | 正 | §3.5 固定 16B tag/长度 | 可跑（默认流内） | 3 |
-| W26 | `wg_inner_udp4` | 正 | §3.6 IPv4/UDP，UDP v4 checksum=0 | 待 A′ | 4 |
-| W27 | `wg_inner_tcp4` | 正 | §3.6 IPv4/TCP checksum | 待 A′ | 4 |
-| W28 | `wg_inner_icmp4` | 正 | §3.6 IPv4/ICMP echo | 待 A′ | 4 |
-| W29 | `wg_inner_udp6` | 正 | §3.6 IPv6/UDP 必算 checksum | 待 A′ | 4 |
-| W30 | `wg_inner_frames2` | 正 | §3.6 DataFrames=2，IPID=1/2 | 待 A′ | 5 |
-| W31 | `wg_inner_df` | 正 | §3.6 IPv4 DF=0x4000 | 待 A′ | 4 |
+| W26 | `wg_inner_udp4` | 正 | §3.6 IPv4/UDP，UDP v4 checksum=0 | 待 A′ | 3 |
+| W27 | `wg_inner_tcp4` | 正 | §3.6 IPv4/TCP checksum | 待 A′ | 3 |
+| W28 | `wg_inner_icmp4` | 正 | §3.6 IPv4/ICMP echo | 待 A′ | 3 |
+| W29 | `wg_inner_udp6` | 正 | §3.6 IPv6/UDP 必算 checksum | 待 A′ | 3 |
+| W30 | `wg_inner_frames2` | 正 | §3.6 DataFrames=2，IPID=1/2 | 待 A′ | 4 |
+| W31 | `wg_inner_df` | 正 | §3.6 IPv4 DF=0x4000 | 待 A′ | 3 |
 | W32 | `wg_deterministic` | 正 | §0.1 两次生成字节相同 | 可跑（离线） | 3 |
 | W33 | `wg_filesource` | 正 | §5.2 FileSource 优先级 | C 类，需 PayloadCache | 3 |
 | W34 | `wg_dyn_udp_port` | 正 | §12 动态源端口，flows=3 | 可建 | 9 |
@@ -137,7 +137,7 @@ N01–N15 今日层内业务字段会先命中 unknown field，故均标待 A′
 ### 5.2 两行对账
 
 - **要求逻辑点总数 = 54 个原子目标 ID + 26 个设计变体行 + 12 个消息终态格 + 14 个 validator 锚词组 + 5 个动态字段面 = 111 点。**
-- **当前落地覆盖 = 1 个 JSON 历史形状 ID + 15 个今日合规可达目标点；开放/待 A′ = 95 点（含 36 待 A′、16 负例待 A′、2 形状不可建、1 C 类、26 变体/12 终态/5 动态的映射债务、以及重复引用的锚词不另计实现点）。**
+- **当前落地覆盖 = 1 个 JSON 历史形状 ID + 15 个今日合规可达目标点；开放/待 A′ = 95 点（按 111 个唯一逻辑点扣除 16 个当前落地点计算；设计变体、终态、动态面与 ID 交叉引用不重复计数）。**
 
 粒度声明：ID/变体/终态/动态按行或格计；同一 ID 对多个设计行只在所属表计一次，交叉引用不重复计数；“当前落地”不等于 MCP 通过，存量 1 例因 flat 判死明确不算今日行为绿。
 
