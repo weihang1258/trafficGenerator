@@ -4,8 +4,17 @@
     "proto": "ike",
     "summary": "冒烟：IKEv2 空配置 → standard_v2（IKE_SA_INIT + IKE_AUTH 各一对）。显式 src_port=12345（客户端临时端口，planner 禁止 500 作源端口），dst 默认 500，共 4 包",
     "spec_json": {
-      "src_port": 12345,
-      "ike": {}
+      "ike": {},
+      "layers": [
+        {
+          "udp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "ike": {}
+        }
+      ]
     },
     "expect": {
       "packet_count": 4,
