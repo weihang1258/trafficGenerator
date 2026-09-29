@@ -6,16 +6,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -83,16 +82,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -197,16 +195,21 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "2001:db8::10",
+            "dst": "2001:db8::20"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "2001:db8::10",
-      "dst_ip": "2001:db8::20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -307,16 +310,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -421,16 +423,15 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "tcp": {
+            "src_port": 41000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 41000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -495,7 +496,10 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "tcp": {
+            "src_port": 42000,
+            "dst_port": 5349
+          }
         },
         {
           "tls": {}
@@ -504,10 +508,6 @@
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 42000,
-      "dst_port": 5349,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -551,16 +551,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -638,16 +637,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -732,16 +730,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -815,16 +812,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -907,16 +903,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -1020,16 +1015,15 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "tcp": {
+            "src_port": 43000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 43000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -1140,16 +1134,21 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "2001:db8::10",
+            "dst": "2001:db8::20"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "2001:db8::10",
-      "dst_ip": "2001:db8::20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -1256,16 +1255,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc8489_binding",
         "method": "binding",
@@ -1330,16 +1328,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -1451,16 +1448,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -1488,16 +1484,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -1525,16 +1520,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -1562,16 +1556,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -1599,16 +1592,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -1636,16 +1628,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -1673,16 +1664,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -1710,16 +1700,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
@@ -1748,16 +1737,15 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
         },
         {
           "stun": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
       "stun": {
         "profile": "rfc5389_binding",
         "method": "binding",
