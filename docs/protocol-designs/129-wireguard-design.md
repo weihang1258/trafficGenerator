@@ -504,7 +504,7 @@ wireguard 层无自有状态机：UDP 无连接，wireguard 层是"按配置顺�
 ### 11.7 与现有逻辑的冲突点
 
 - `CheckProtoFlat` **无 wireguard presence 分支**（`grep -c 'protocol == "wireguard"'` 于 `CheckProtoFlat` 函数体 = 0 实测）：顶层 `wireguard` 子映射 presence 不判死——五键判死通用循环虽打中存量例的 `src_ip`，但**业务子映射本身**处于"既违规（1.11）又无门（可跑）"状态 → G-WIREGUARD-1/G-WIREGUARD-4（禁加单协议黑名单分支，等框架级 unknown-key 白名单；kingbase 记忆裁定）。
-- **层内化欠账双缺**：registry Fields 空 + translate 无 case（§0 #2/#4）→ 层链形状下业务配置零可达 → G-WIREGUARD-2（P4 必做：登记 Fields 17+8 键 + translate case，`ParseWireGuardConfigFromMap` 导出复用 tftp/imap 单一真相先例）。
+- **层内化欠账双缺**：registry Fields 空 + translate 无 case（§0 #2/#4）→ 层链形状下业务配置零可达 → G-WIREGUARD-2（P4 必做：登记 Fields 18+8 键 + translate case，`ParseWireGuardConfigFromMap` 导出复用 tftp/imap 单一真相先例）。
 - 动态 allowlist：`wireguard` **零命中**（`internal/core/layer_dyn.go` grep 实测）→ 业务字段动态对象即拒；四元组 `ip`/`udp`/`tcp` 全开（探针实测 `udp.dst_port`/`ip.ttl` 动态形状过检）。见 §12.12。
 - `parseWireGuardConfig` **缺 `handshake`/`response` 键解析**（`types.go:8533/8537` 声明、`:6091-6117` 不读）→ JSON 无法关闭握手/响应（静默忽略，G-WIREGUARD-6）。
 - 离线层链套件 `chainSuiteProtos` 无 wireguard → 层链用例无离线回归通道（G-WIREGUARD-7 附注）。
@@ -566,7 +566,7 @@ wireguard 层无自有状态机：UDP 无连接，wireguard 层是"按配置顺�
 
 四元组 `ip.src/dst/ttl`、`udp.src_port/dst_port` 五策略全开（allowlist `layer_dyn.go` 头部实测：`ip`/`tcp`/`udp`/`eth` 行存在；探针实测 `udp.dst_port`/`ip.ttl` 动态对象过检）；保底自增 `DefaultSrcPort+i`（`strategy_convert.go:49` + worker 注入）；dst 动态与 51820 缺省和平共处（显式/动态值非零即不触发补齐）。
 
-**业务字段 17+8 项全关**（allowlist 无 `wireguard` 行，grep 零命中实测；对象即 `does not support dynamic`——探针实测 `transport_payloads`）：`role`/`direction`（结构选择器，逐流变破坏角色剧本语义）/ 密钥四把（隧道身份，逐流变无意义）/ `sender_index`/`initial_counter`（会话身份，逐流变破坏索引配对）/ `psk`/`cookie`（加密材料，模板字节逐流变无意义）/ `keepalive_interval`/`cookie_reply_threshold`/`rekey_after`/`rekey_after_time`（行为开关，标量语义）/ `transport_payloads`（列表无动态形状）/ `file_source`（文件源逐流变需框架面）/ `handshake`/`response`（布尔开关，且 JSON 不可达 G-WIREGUARD-6）/ `inner_ip` 全 8 键（嵌套对象，无动态形状）——逐流变体需求列 A′ 候选（testcase §6.2；今日按 §9.36 口径不冒充覆盖）。
+**业务字段 18+8 项全关**（allowlist 无 `wireguard` 行，grep 零命中实测；对象即 `does not support dynamic`——探针实测 `transport_payloads`）：`role`/`direction`（结构选择器，逐流变破坏角色剧本语义）/ 密钥四把（隧道身份，逐流变无意义）/ `sender_index`/`initial_counter`（会话身份，逐流变破坏索引配对）/ `psk`/`cookie`（加密材料，模板字节逐流变无意义）/ `keepalive_interval`/`cookie_reply_threshold`/`rekey_after`/`rekey_after_time`（行为开关，标量语义）/ `transport_payloads`（列表无动态形状）/ `file_source`（文件源逐流变需框架面）/ `handshake`/`response`（布尔开关，且 JSON 不可达 G-WIREGUARD-6）/ `inner_ip` 全 8 键（嵌套对象，无动态形状）——逐流变体需求列 A′ 候选（testcase §6.2；今日按 §9.36 口径不冒充覆盖）。
 
 序号算法实读：`parseLayerDyn`（`layer_dyn.go:78`）/ 保底自增（`strategy_convert.go:49` + worker 注入）/ allowlist 白名单（`layer_dyn.go` 头部）——**`wireguard` 无块**。**协议自身序号算法**（非动态体系）：sender_index 派生 `planner.go:269-273`、counter 递增/归零 `:466/:450`、内层 IPID=i+1 `:780`、外层 ipID++ `:348`。
 
@@ -579,10 +579,10 @@ wireguard 层无自有状态机：UDP 无连接，wireguard 层是"按配置顺�
 | 缺口 | 内容 | 去向 |
 |---|---|---|
 | G-WIREGUARD-1 | **顶层 `wireguard` 子映射 = 业务配置唯一 JSON 可达路径**（层内 Fields 空 + translate 无 case），违反 1.11 顶层白名单；`CheckProtoFlat` 无 presence 分支，违规形状今日可跑 | P4 层内化（G-WIREGUARD-2 落地）后由框架级 unknown-key 白名单收口；**禁加单协议黑名单分支**（kingbase 记忆裁定）；过渡期混合形如实标注"违规但可跑"，不登记豁免 |
-| G-WIREGUARD-2 | **层内化双缺（P4 必做）**：①registry Fields 空（`registry.go:498-501`）→ 层内任何键 `unknown field` 拒（探针实测）；②`translateTerminalConfig` 无 `case "wireguard"` → 层 config 不进 `spec.WireGuard`（全仓赋值点实测 2 处皆 flat 侧） | P4：Fields 登记 17 键 + `ParseWireGuardConfigFromMap` 导出（tftp/imap 单一真相先例）+ translate case（JSON 往返陷阱：`transport_payloads`/`psk`/`cookie`/`local_*_pub_key` 是 `[]byte`——**数字数组语义**，getByteSlice 双面承接，srv6 inner_payload 同陷阱注记）→ 解锁 §9.2 待 A′ 40 例 → 存量例改写迁移 |
+| G-WIREGUARD-2 | **层内化双缺（P4 必做）**：①registry Fields 空（`registry.go:498-501`）→ 层内任何键 `unknown field` 拒（探针实测）；②`translateTerminalConfig` 无 `case "wireguard"` → 层 config 不进 `spec.WireGuard`（全仓赋值点实测 2 处皆 flat 侧） | P4：Fields 登记 18 键 + `ParseWireGuardConfigFromMap` 导出（tftp/imap 单一真相先例）+ translate case（JSON 往返陷阱：`transport_payloads`/`psk`/`cookie`/`local_*_pub_key` 是 `[]byte`——**数字数组语义**，getByteSlice 双面承接，srv6 inner_payload 同陷阱注记）→ 解锁 §9.2 待 A′ 40 例 → 存量例改写迁移 |
 | G-WIREGUARD-3 | **存量 1 例扁平形今日判死**：`wireguard_smoke_01` 顶层 `src_ip/dst_ip/count` 命中 CheckProtoFlat（**逐字 spec 探针实测**返回 `no longer accepts flat config field src_ip`）→ strategy create 400，MCP 套件该例必 error；断言内容与实现一致（§0 #7）不是可跑证明 | P4：改写为层链形（§12.1 去向表）；改写前该例**不得计入任何"今日已绿"口径**；离线套件同不可拾取（`chainSuiteProtos` 无 wireguard） |
 | G-WIREGUARD-4 | presence/游离键通用门缺失：`{"layers":[…],"wireguard":{}}` 通过（探针实测）→ X01/X02 **不可建**（建了真绿=假通过）；「非负例顶层键=0」自查今日不成立（1/1 例含顶层子映射） | 等框架级 unknown-key 白名单（G-WIREGUARD-1 同门）；P4 不单独立项 |
-| G-WIREGUARD-5 | **动态业务字段全关**：allowlist 无 `wireguard` 行（grep 零命中），17+8 键对象即拒（探针实测）；四元组已开 | A′ 候选（逐流变业务字段需求确认后开）；今日不得声称覆盖（§9.36 口径） |
+| G-WIREGUARD-5 | **动态业务字段全关**：allowlist 无 `wireguard` 行（grep 零命中），18+8 键对象即拒（探针实测）；四元组已开 | A′ 候选（逐流变业务字段需求确认后开）；今日不得声称覆盖（§9.36 口径） |
 | G-WIREGUARD-6 | **`handshake`/`response` 键 JSON 不可达**：`*bool` 声明于 `types.go:8533/8537`，`parseWireGuardConfig`（`:6091-6117`）不解析 → 静默忽略（`{"handshake":false}` 无效果）；且 `Response=false` 仅 responder 分支生效（initiator Response 关不掉，`:370-381` 无判） | P4：①parse 补 `getBoolPtr` 两键；②`Response` 语义裁定（initiator 是否尊重）→ 补例 W 组 handshake=false 面 |
 | G-WIREGUARD-7 | **配置静默不消费 3 项**：`PSK`/`LocalStaticPubKey`/`PeerStaticPubKey` 仅长度校验零参与字节构造（**字节级实测全同** default 组）；`RekeyAfterTime` 显式忽略（`:283`）；keepalive 单包非周期（§5.5④）；离线套件未纳 wireguard（`chainSuiteProtos` 缺） | P4 裁定：①三键要么消费（入 mac/密钥派生模板）要么登记"明确不解决"并从文档字段表降级；②`RekeyAfterTime` 时间维度明确不解决；③离线套件扩名单（同 G-WIREGUARD-2 批次） |
 | G-WIREGUARD-8 | **as-built 保真度偏差 2 处（confirmed）**：①responder 角色无 Initiation 直接发 Response（真实协议 Response 必答于 Init）；②rekey 后 Transport `receiver_index` 仍指旧 responderIndex（`:457` 用未更新变量；实测第 8 包 receiver=0x00000002 旧值） | P4 裁定：修实现（对齐真实协议）或登记"角色剧本式生成、非对答模拟"边界并收窄 W12/W23 断言口径；**修则先写失败用例**（9.7） |
