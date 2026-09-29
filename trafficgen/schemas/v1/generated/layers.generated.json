@@ -4485,6 +4485,9 @@
         "transport": {
           "type": "string",
           "default": ""
+        },
+        "wire_fault": {
+          "type": "object"
         }
       }
     },

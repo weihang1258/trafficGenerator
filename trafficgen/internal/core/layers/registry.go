@@ -780,8 +780,9 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "thrift", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "9090"},
 		Fields: map[string]FieldSchema{
-			"transport": {Type: "string", Default: ""},
-			"messages":  {Type: "list", Default: []interface{}{}},
+			"transport":  {Type: "string", Default: ""},
+			"messages":   {Type: "list", Default: []interface{}{}},
+			"wire_fault": {Type: "object"},
 		}})
 	r.Register(LayerSchema{Name: "tns", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "1521"},

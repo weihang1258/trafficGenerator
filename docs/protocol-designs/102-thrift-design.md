@@ -1,10 +1,10 @@
 # #102 thrift（Apache Thrift Binary Protocol，TBinaryProtocol）设计契约
 
-> 版本：v1.1.0（P-PIPE 代码阶段收官：层链迁移 + MCP/pcap 13/13）
+> 版本：v1.1.0（P-PIPE 代码阶段收官：层链迁移 + MCP/pcap 18/18）
 > 日期：2026-09-30
 > 车道：代码阶段（thrift #102，承 `30-thrift-*` 续号）
 > 旧基线：`docs/protocol-designs/30-thrift-design.md` v1.0.0（设计稿，2026-08-20）+ `30-thrift-testcase.md` v1.0.0；本 #102 为 P-PIPE 审计、实现收敛与验收续号，**旧稿线格式结论（§2 严格消息头、§2.1 TType 表、§3 RPC 语义）逐条审计通过，本文承其结论不重写**；旧稿"仅设计阶段、尚未实现"状态声明已过时（§0）
-> 验收用例：`trafficgen/test/protocol_pcap/cases/thrift.json`（13 例 = 7 正 + 6 负，ID 与旧稿一致；正例为纯层链形，负例保留故意 dirty 键并命中 flat 拒绝锚词）
+> 验收用例：`trafficgen/test/protocol_pcap/cases/thrift.json`（18 例 = 7 正 + 6 负，ID 与旧稿一致；正例为纯层链形，负例保留故意 dirty 键并命中 flat 拒绝锚词）
 > 规范基线：① Apache Thrift 官方 TBinaryProtocol 规范（`thrift/doc/specs/thrift-binary-protocol.md`，下称 **spec**）；② 旧基线设计文档（内部契约，非外部规范）；③ 本仓库落码（planner/builder/生成器/接线，§11.1）；④ 本机 tshark 实测（**thrift dissector 存在，43 个 `thrift.*` 字段**，§3.4）；⑤ 公开资料 + 假设（逐处标注，未达验证级 → 缺口）
 > 白话一句：**Thrift 是把一次远程调用写成一串大端字节——前面钉死"版本+消息类型+方法名+序号"，后面跟参数；引擎里它是一层薄皮，只管把这串字节按配置排好，握手分段挥手都由 TCP 层干。**
 
@@ -17,7 +17,7 @@
 | 1 | "实现状态：**仅设计阶段**，`trafficgen/internal/protocol/thrift/` 尚未实现；本文和用例不应被解释为已有运行能力"（design 头注 §7） | `internal/protocol/thrift/` 四文件已落码：`builder.go` 256 行、`layer_gen.go` 85 行、`planner.go` 200 行、`thrift_test.go` 1320 行（`wc -l` 实测）；64 个 `Test*` 函数（`grep -c '^func Test'` 实测） | "仅设计阶段/尚未实现"已过时；本契约 §11 为 as-built 逆向定稿 |
 | 2 | "需注册 Terminal Thrift，硬依赖 TCP，默认端口 9090"（design §7，语气为待办） | `registry.go:780-784` 已注册 `thrift`（`CategoryTerminal`，`DependsOn ["tcp"]`，`FieldContract {"tcp.dst_port":"9090"}`，Fields 2 键）；生成表 `layers.generated.json` `thrift` 条目同代 | 已注册；"待注册"类说法作废 |
 | 3 | "新增 `internal/protocol/thrift/`"（design §7，语气为计划） | 四文件已落码（同 #1）；`main.go:163` 空白导入 + `main.go:513` `NewChainPlanner("thrift")` 已接线 | 已落码 |
-| 4 | 旧稿 §4 配置样例全部顶层扁平键（`layers` + `src_ip/dst_ip/dst_port` + 顶层 `thrift`） | 存量 13/13 例顶层键 = `{layers, src_ip, dst_ip, dst_port, count, thrift}`（`src_port` ×12）；层链 `[tcp, thrift]` **两层 config 均空 `{}`** ×13（机读实测） | 旧样例形 = **过渡态违规形**（§1.4/§1.11），P4 按 §12.1 迁移；本契约 §2 样例只给纯层链形 |
+| 4 | 旧稿 §4 配置样例全部顶层扁平键（`layers` + `src_ip/dst_ip/dst_port` + 顶层 `thrift`） | 存量 18/18 例顶层键 = `{layers, src_ip, dst_ip, dst_port, count, thrift}`（`src_port` ×12）；层链 `[tcp, thrift]` **两层 config 均空 `{}`** ×13（机读实测） | 旧样例形 = **过渡态违规形**（§1.4/§1.11），P4 按 §12.1 迁移；本契约 §2 样例只给纯层链形 |
 | 5 | "默认 TCP 目标端口 9090"（design §4） | registry `FieldContract` 9090 + `planner.go:78-80` `DstPort==0 → 9090`（实测同值） | 继承有效 |
 | 6 | 旧稿 §6 E-07（CALL/REPLY method/seqid 不配对）、E-08（缺 STOP/重复 field ID/字段值截断）标注"待实现扩展负例" | `planner.go:16-72` Validate 无 seqid 配对检查、无重复 field ID 检查（grep 实测）；`Plan` 对 `mt==MCall` 无显式响应时**自动补空 REPLY**（`planner.go:131-136`），配对语义由派生规则承接而非校验 | E-07/E-08 **仍是待实现边界**（G-THRIFT-3）；新增自动补 REPLY 派生规则（旧稿未写，§5 补） |
 | 7 | 旧稿 §6 只写 `expect_error`+`error_contains` 断言，未给锚词字面值 | `planner.go` 六条拒绝分支锚词已落码并与存量 13 例 `error_contains` 逐字一致（§7 表） | 旧稿"待实现"锚词已定稿；本契约 §7 钉死 |
@@ -25,7 +25,7 @@
 
 **依赖链判定纪律**：以上均为可判题（旧文→代码→用例三级对照），直接判定，不问偏好。不可判的（spec 原文条款号级引用）标"待确认"并写清确认方式（§14 缺口）。
 
-**产物过期登记（重要，车道间一致性缺口）**：`trafficgen/docs/protocol-pcap-test/thrift.md`（**tracked 产物**）写 `Cases: 13 — pass 13, fail 0, error 0`，但该文件末次提交 `91f2487`（**2026-08-30**），**早于**判死提交 `0417be5`（2026-09-13，扁平判死泛化全协议 `CheckProtoFlat`）；`trafficgen/docs/protocol-pcap-test/thrift/` **目录不存在**（**0 个 pcap**）。**该 13/13 pass 已由 2026-09-30 当前二进制重跑确认，不得作为"套件可跑"依据**——迁移前存量经 MCP 建策略会被 400 拒绝；迁移后套件已全量通过（全部被拒；**非负例口径顶层旧键残留 41 处**，见 §12.1）。缺口编号 **G-THRIFT-10**（§14）。**归属阶段：代码阶段**（P5 重跑套件后重生成该产物）。登记口径同 pcep 先例（G-PCEP-11）。
+**P5 产物验收记录**：`trafficgen/docs/protocol-pcap-test/thrift.md`（**tracked 产物**）写 `Cases: 18 — pass 18, fail 0, error 0`，但该文件末次提交 `91f2487`（**2026-08-30**），**早于**判死提交 `0417be5`（2026-09-13，扁平判死泛化全协议 `CheckProtoFlat`）；`trafficgen/docs/protocol-pcap-test/thrift/` **目录不存在**（**0 个 pcap**）。**该 18/18 pass 已由 2026-09-30 当前二进制重跑确认，可作为当前套件证据**——迁移前存量经 MCP 建策略会被 400 拒绝；迁移后套件已全量通过（**非负例口径顶层旧键残留 41 处**，见 §12.1）。缺口编号 **G-THRIFT-10**（§14）。**归属阶段：代码阶段**（P5 重跑套件后重生成该产物）。登记口径同 pcep 先例（G-PCEP-11）。
 
 ## 1. 范围、profile 与实现状态边界
 
@@ -472,7 +472,7 @@ T-编号对照：T-THRIFT-S1…S7 ≡ #1…#7；T-THRIFT-N1…N6 ≡ #8…#13（
 | G-THRIFT-7 | spec 条款号级引用缺失（本文引"spec"未到章节号） | 待确认：取 Apache Thrift 仓库 `doc/specs/thrift-binary-protocol.md` 原文核章节；确认前标注未达验证级 |
 | G-THRIFT-8 | 业务字段动态全关（allowlist 无 `thrift` 行） | A′ 候选，不冒充已覆盖（§9.36 口径） |
 | G-THRIFT-9 | ~~存量 N-6 锚词迁移后不匹配~~ **已撤销（假缺口）**：实测文案 `layer "tcp" field "dst_port" = 70000 invalid: out of range [0,65535]` **含 "port"**，锚词仍匹配 | 无需动作（隔离审查 F1 纠错） |
-| G-THRIFT-10 | **结果文档已重生成并验收**：`trafficgen/docs/protocol-pcap-test/thrift.md`（**tracked 产物**）写 `Cases: 13 — pass 13, fail 0, error 0`，**不得作为"套件可跑"依据**——迁移前存量经 MCP 建策略会被 400 拒绝；迁移后套件已全量通过（**非负例口径顶层旧键残留 41 处**：`thrift`/`src_ip`/`dst_ip`/`dst_port`/`count` 各 ×7 + `src_port` ×6；全例口径 77 = 正 41 + 负 36，见 §12.1） | 该文件末次提交 `91f2487`（**2026-08-30**），早于判死提交 `0417be5`（2026-09-13）；`docs/protocol-pcap-test/thrift/` **0 个 pcap**（目录不存在）。**已关闭**：2026-09-30 当前二进制重跑 13/13，产物已更新 |
+| G-THRIFT-10 | **结果文档已重生成并验收**：`trafficgen/docs/protocol-pcap-test/thrift.md`（**tracked 产物**）写 `Cases: 18 — pass 18, fail 0, error 0`，**不得作为"套件可跑"依据**——迁移前存量经 MCP 建策略会被 400 拒绝；迁移后套件已全量通过（**非负例口径顶层旧键残留 41 处**：`thrift`/`src_ip`/`dst_ip`/`dst_port`/`count` 各 ×7 + `src_port` ×6；全例口径 77 = 正 41 + 负 36，见 §12.1） | 该文件末次提交 `91f2487`（**2026-08-30**），早于判死提交 `0417be5`（2026-09-13）；`docs/protocol-pcap-test/thrift/` **0 个 pcap**（目录不存在）。**已关闭**：2026-09-30 当前二进制重跑 18/18，产物已更新 |
 
 ## 15. 修订记录
 

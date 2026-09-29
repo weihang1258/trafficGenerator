@@ -41,8 +41,19 @@ func TestBuildLayersPlanner_ThriftLayerConfigFlowsIntoSpec(t *testing.T) {
 		t.Fatalf("thrift chain produced %d packets, want 9", len(pkts))
 	}
 	var payload string
+	var data core.PacketConfig
 	for _, pkt := range pkts {
+		if pkt.Direction == "up" && len(pkt.Payload) > 0 {
+			data = pkt
+		}
 		payload += string(pkt.Payload)
+	}
+	if data.Direction != "up" || data.L4.DstPort != 9090 {
+		t.Fatalf("request packet = %+v, want upstream port 9090", data)
+	}
+	want := "\x80\x01\x00\x01\x00\x00\x00\x03add\x00\x00\x00\x01\x08\x00\x01\x00\x00\x00\x01\x08\x00\x02\x00\x00\x00\x02\x00"
+	if string(data.Payload) != want {
+		t.Errorf("request payload = %q, want exact Thrift CALL wire bytes", data.Payload)
 	}
 	if !strings.Contains(payload, "add") {
 		t.Fatalf("payload %q does not contain translated method add", payload)

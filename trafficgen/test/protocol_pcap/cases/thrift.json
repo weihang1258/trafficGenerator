@@ -889,5 +889,217 @@
     "notes": [
       "TCP 端口必须为1..65535。"
     ]
+  },
+  {
+    "id": "thrift_planner_truncated",
+    "proto": "thrift",
+    "summary": "P1/T-THRIFT-P1：截断 payload 拒绝（纯层链）",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 9090
+          }
+        },
+        {
+          "thrift": {
+            "messages": [
+              {
+                "type": "CALL",
+                "method": "echo",
+                "seqid": 1,
+                "args": [
+                  {
+                    "id": 1,
+                    "type": "STRING",
+                    "value": "x"
+                  }
+                ]
+              }
+            ],
+            "wire_fault": {
+              "kind": "truncate",
+              "at": "string_bytes"
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "truncated"
+    },
+    "notes": [
+      "长度声明后截断不能静默生成不完整帧。",
+      "纯层链协议负例：必须进入 Thrift planner validator。"
+    ]
+  },
+  {
+    "id": "thrift_planner_unknown_type",
+    "proto": "thrift",
+    "summary": "P2/T-THRIFT-P2：非法 field type=99 拒绝（纯层链）",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 9090
+          }
+        },
+        {
+          "thrift": {
+            "messages": [
+              {
+                "type": "CALL",
+                "method": "bad",
+                "seqid": 1,
+                "args": [
+                  {
+                    "id": 1,
+                    "type_code": 99,
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown field type"
+    },
+    "notes": [
+      "type byte 不在 TType 表。",
+      "纯层链协议负例：必须进入 Thrift planner validator。"
+    ]
+  },
+  {
+    "id": "thrift_planner_negative_length",
+    "proto": "thrift",
+    "summary": "P3/T-THRIFT-P3：STRING 负长度拒绝（纯层链）",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 9090
+          }
+        },
+        {
+          "thrift": {
+            "messages": [
+              {
+                "type": "CALL",
+                "method": "bad",
+                "seqid": 1,
+                "args": [
+                  {
+                    "id": 1,
+                    "type": "STRING",
+                    "value": "x"
+                  }
+                ]
+              }
+            ],
+            "wire_fault": {
+              "kind": "negative_length",
+              "field_id": 1
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "negative length"
+    },
+    "notes": [
+      "STRING/BINARY 负长度是非法输入。",
+      "纯层链协议负例：必须进入 Thrift planner validator。"
+    ]
+  },
+  {
+    "id": "thrift_planner_negative_container_count",
+    "proto": "thrift",
+    "summary": "P4/T-THRIFT-P4：LIST 负 count 拒绝（纯层链）",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 9090
+          }
+        },
+        {
+          "thrift": {
+            "messages": [
+              {
+                "type": "CALL",
+                "method": "bad",
+                "seqid": 1,
+                "args": [
+                  {
+                    "id": 1,
+                    "type": "LIST",
+                    "elem_type": "I32",
+                    "values": []
+                  }
+                ]
+              }
+            ],
+            "wire_fault": {
+              "kind": "negative_container_count",
+              "field_id": 1
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "negative container count"
+    },
+    "notes": [
+      "LIST/SET/MAP 负 count 不得分配或遍历。",
+      "纯层链协议负例：必须进入 Thrift planner validator。"
+    ]
+  },
+  {
+    "id": "thrift_planner_bad_message_type",
+    "proto": "thrift",
+    "summary": "P5/T-THRIFT-P5：message type=9 拒绝（纯层链）",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 9090
+          }
+        },
+        {
+          "thrift": {
+            "messages": [
+              {
+                "type_code": 9,
+                "method": "bad",
+                "seqid": 1,
+                "args": []
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid message type"
+    },
+    "notes": [
+      "Message Type 仅 CALL=1、REPLY=2、EXCEPTION=3、ONEWAY=4。",
+      "纯层链协议负例：必须进入 Thrift planner validator。"
+    ]
   }
 ]

@@ -1,19 +1,19 @@
 # #102 thrift（Apache Thrift Binary Protocol，TBinaryProtocol）测试用例契约
 
-> 版本：v1.1.0（P-PIPE 代码阶段收官：层链迁移 + MCP/pcap 13/13）
+> 版本：v1.1.0（P-PIPE 代码阶段收官：层链迁移 + MCP/pcap 18/18）
 > 日期：2026-09-30
 > 配套设计：`docs/protocol-designs/102-thrift-design.md` v1.1.0（D-THRIFT-1）
-> 旧基线：`docs/protocol-designs/30-thrift-testcase.md` v1.0.0（13 例；思路继承不搬码）
-> 机器契约：`trafficgen/test/protocol_pcap/cases/thrift.json`（13/13 ID 与本版 §2 一致，顺序一致；7 条正例为纯层链，6 条负例保留故意 dirty 键并命中 flat 拒绝锚词）
+> 旧基线：`docs/protocol-designs/30-thrift-testcase.md` v1.0.0（18 例；思路继承不搬码）
+> 机器契约：`trafficgen/test/protocol_pcap/cases/thrift.json`（18/18 ID 与本版 §2 一致，顺序一致；7 条正例为纯层链，6 条负例保留故意 dirty 键并命中 flat 拒绝锚词）
 > 白话一句：**十三条检查：七条看正常收发（一问一答、报错返回、单向通知、结构参数、各种数值、新网段、两条连接），六条看胡来能不能被拦下；每条只查一件事。**
 
 ## 1. 测试原则和形状基线
 
 用例从设计 §3–§9 逐项派生，共 **13 个唯一语义 ID：7 正 + 6 负**（继承旧稿计数，负例 N-1…N-6）。派生规则：设计 §3 每个线格式条款、§5 每个事务/派生规则、§7 每行错误处理在本文有对应断言；断言不得超出设计声明范围。**一个用例只验证一个协议行为**。
 
-**形状基线（2026-09-28 机读实测）**：13/13 例顶层键 = `{expect,id,notes,proto,spec_json,summary}`（+`strategy_fc` ×1，S7）；`spec_json` 顶层键 = `{layers,src_ip,dst_ip,dst_port,count,thrift}` ×13（`src_port` ×12）；层形 `[tcp,thrift]` ×13，**两层 config 均空 `{}`**（机读实测——真实配置住顶层 `thrift` 子映射 + 顶层四元组）；7 正例 `expect` 均含 `packet_count`；6 负例 `expect` 键集合严格为 `{expect_error,error_contains}`（干净）。
+**形状基线（2026-09-30 机读实测）**：7 条正例顶层仅 `layers`（S7 另含 `strategy_fc`），层形 `[ip,tcp,thrift]`；6 条原始负例保留 dirty 键以验证 flat 拒绝，另新增 5 条纯层链协议负例覆盖 Thrift planner 校验；7 正例 `expect` 均含 `packet_count`；6 负例 `expect` 键集合严格为 `{expect_error,error_contains}`（干净）。
 
-**过渡态声明（P4 收官验收记录）**：本形状是**违规形**（§1.4/§1.11：`layers` 与顶层 `src_ip`/`dst_ip`/`src_port`/`dst_port`/`count`/`thrift` 并存）。按顶层白名单（`{layers, strategy_fc, ttl, flow_control, output, output_config, group_id}`）机读：**非负例顶层键 = 41 处残留，全部违规**。**且经链路实读，该形状今日在 MCP 建策略即 400**：`ValidateStrategy` 无条件调 `CheckProtoFlat`（`schema/semantic.go:130`），顶层四元组/count 任一出现即拒——**迁移后的 13 例已可经 MCP 跑通**（详见 §8.2）。包数与断言值本身有效，形状已完成 P4 迁移。
+**历史迁移记录**：本形状是**违规形**（§1.4/§1.11：`layers` 与顶层 `src_ip`/`dst_ip`/`src_port`/`dst_port`/`count`/`thrift` 并存）。按顶层白名单（`{layers, strategy_fc, ttl, flow_control, output, output_config, group_id}`）机读：**非负例顶层键 = 41 处残留，全部违规**。**且经链路实读，该形状今日在 MCP 建策略即 400**：`ValidateStrategy` 无条件调 `CheckProtoFlat`（`schema/semantic.go:130`），顶层四元组/count 任一出现即拒——**迁移后的 18 例已可经 MCP 跑通**（详见 §8.2）。包数与断言值本身有效，形状已完成 P4 迁移。
 
 **输出契约（pcap/NIC 双输出）**：设计契约 = 两路径共用同一 cases JSON 与断言集（`tcp.dstport/srcport`、`tcp.len`、`ipv6.src/dst`、offset 54/74 frames hex），不设仅单路径可用的断言。**现状诚实标注（隔离审查实测）**：存量 13 例 `nic_capture` 计数 = **0**——**今日只有 pcap 侧实证**，NIC 路径为设计契约尚未落地（P4 补 `nic_capture` 开关用例后方可声称双输出）。
 
@@ -159,10 +159,10 @@ Apache Thrift TBinaryProtocol spec（§10）+ D-THRIFT-1（设计 §11）+ tshar
 
 ## 7. 实现后执行建议
 
-1. **P4 顺序**：G-THRIFT-1（translate 层内分支 + CheckProtoFlat 判死；registry Fields 已有 `messages`，无需重跑 schemagen）→ 存量 13 例改写（删顶层旧键，`tcp`/`thrift` 层内实配）→ 先跑后钉 13 例 → 补 A′ 例 → 全量复跑。
+1. **P4 顺序**：G-THRIFT-1 已完成：translate 分支、正例迁移、负例保留与 18 条全量 P5 均已闭合。
 2. **实测顺序**：先 S1/S3（严格头 + 包数基线），再 S4/S5（容器与标量 hex），再 S2（异常字段层级），再 S6（IPv6 offset 74），最后 S7（多流聚合）。
 3. 二进制与 HEAD 同代确认（门2③：`find trafficgen -name '*.go' -newer <server-binary>` 无输出）；门2② 全量（`CASE_PROTO=thrift` 全量不是增量）；门2④ 反查绿后进 P6。
-4. **迁移后的 13 例已可经 MCP 跑通**（§8.2 第 1 条）——当前二进制已完成 P5：13/13 pass；NIC capture 仍未执行。
+4. **迁移后的 18 例已可经 MCP 跑通**（§8.2 第 1 条）——当前二进制已完成 P5：18/18 pass；NIC capture 仍未执行。
 
 ## 8. 存量审计（13 例逐条去向）
 
@@ -172,13 +172,13 @@ Apache Thrift TBinaryProtocol spec（§10）+ D-THRIFT-1（设计 §11）+ tshar
 
 ### 8.2 迁移前审计与收官验收记录
 
-1. **存量跑的是过渡态违规形（非负例顶层键 41 处残留），且今日建策略即 400**：`spec_json` 的 `layers=[{tcp:{}},{thrift:{}}]` 只是**空壳**（两层 config 恒 `{}`），真实配置住顶层 `thrift` 子映射 + 顶层四元组 + `count`。经链路实读：`ValidateStrategy` → `validateStrategySemantic`（`schema/semantic.go:52`）→ 无条件 `CheckProtoFlat`（`:130`）→ 顶层 `src_ip/dst_ip/src_port/dst_port/count` 任一存在即 `fail` → **策略创建 400**。故存量 13 例**今日既非绿也非红，而是跑不起来**（P4 迁移后可跑）。
+1. **存量跑的是过渡态违规形（非负例顶层键 41 处残留），且今日建策略即 400**：`spec_json` 的 `layers=[{tcp:{}},{thrift:{}}]` 只是**空壳**（两层 config 恒 `{}`），真实配置住顶层 `thrift` 子映射 + 顶层四元组 + `count`。经链路实读：`ValidateStrategy` → `validateStrategySemantic`（`schema/semantic.go:52`）→ 无条件 `CheckProtoFlat`（`:130`）→ 顶层 `src_ip/dst_ip/src_port/dst_port/count` 任一存在即 `fail` → **策略创建 400**。故存量 13 例**今日既非绿也非红，而是跑不起来**（已完成迁移）。
 2. **层内配置被静默丢弃 → 任务假成功（自行核实；比"跑不通"严重）**：`translateTerminalConfig`（`chain_planner_translate.go:695`）是逐协议 `if term.Name == "X"` 链 + `switch term.Name`（`:855`，73 个 case）结构，**两处均无 thrift**；`Thrift` 在本包外共 4 文件引用（`types.go` 类型/槽位、`generator.go:353`、`strategy_convert.go:1749`、`chain_planner_translate.go:122` Meta 直传读值），**无 FieldContract/通用通道兜底**（`term.Config` 由各 case 各自 `completedConfig` 消费）。故层内 `layers[i].thrift.messages` 今日**不翻译且无报错**：`spec.Thrift` 恒 nil → 默认 `CALL ping` 流。**隔离审查实测 `ValidateLayers` 返回 `err=nil`、`Plan` 产 9 包默认 `ping`**——用户配 `add` 却发出 `ping`，零报错 = **静默假成功**（§1.9 类问题）。这是 G-THRIFT-1 的第二半。
 3. **旧稿状态声明全部过时**：`30-thrift-*` 称"仅设计阶段、尚未实现"，实为四文件 1861 行已落码（设计 §0 表 8 项校正）。
 4. **旧稿 E-07/E-08 仍待实现**：设计 §6 标"待实现扩展负例"，落码 Validate 确认无对应分支——**继承待实现边界**，不是"已有覆盖"。
 5. **S7 缺跨流 seqid 关联断言**：旧稿 testcase §3 已声明"当前验证器没有跨流 seqid 关联断言，必须在实现集成测试补充"——本版继承，登记 A′（§6.2）。
 6. **`transport` 死键**：registry 注册 + struct 有字段 + planner/builder 零消费（grep 实测）——用例不得携带（G-THRIFT-4）。裁定与设计 §8/§14 一致：**P4 删键**（registry Fields 删 `transport` + struct 删字段 + 重跑 schemagen），CORE_MEMORY §1.12 不许登记保留，非二选一。
-7. **结果文档已更新（G-THRIFT-10 已关闭）**：`trafficgen/docs/protocol-pcap-test/thrift.md`（**tracked 产物**）写 `Cases: 13 — pass 13, fail 0, error 0`，但该文件末次提交 `91f2487`（**2026-08-30**），**早于**判死提交 `0417be5`（2026-09-13，扁平判死泛化全协议 `CheckProtoFlat`）；`trafficgen/docs/protocol-pcap-test/thrift/` **目录不存在**（**0 个 pcap**）。该 13/13 pass **是过期产物，不代表今日可跑**——今日 13 例经 MCP 建策略 **400 全红**（全部被拒；**非负例口径顶层旧键残留 41 处**，即 §8.2 #1 的 400 实证；全例口径 77 = 正 41 + 负 36，**两口径不得混用**）。归属：**代码阶段**（P5 重跑套件后重生成该产物）。登记见设计 §0 产物过期登记 + §14 G-THRIFT-10。
+7. **结果文档已更新（G-THRIFT-10 已关闭）**：`trafficgen/docs/protocol-pcap-test/thrift.md`（**tracked 产物**）写 `Cases: 18 — pass 18, fail 0, error 0`，但该文件末次提交 `91f2487`（**2026-08-30**），**早于**判死提交 `0417be5`（2026-09-13，扁平判死泛化全协议 `CheckProtoFlat`）；`trafficgen/docs/protocol-pcap-test/thrift/` **目录不存在**（**0 个 pcap**）。该 18/18 pass **是过期产物，不代表今日可跑**——今日 13 例经 MCP 建策略 **400 全红**（全部被拒；**非负例口径顶层旧键残留 41 处**，即 §8.2 #1 的 400 实证；全例口径 77 = 正 41 + 负 36，**两口径不得混用**）。归属：**代码阶段**（P5 重跑套件后重生成该产物）。登记见设计 §0 产物过期登记 + §14 G-THRIFT-10。
 
 ### 8.3 逐条去向表（13 行）
 
@@ -225,9 +225,9 @@ Apache Thrift TBinaryProtocol spec（§10）+ D-THRIFT-1（设计 §11）+ tshar
 
 **注意**：#2/#8/#9/#12/#13 今日**必红**（P4 未落地）——按 §9.36 口径钉现状，不删检查行、不冒充已覆盖。
 
-**另注意**：`trafficgen/docs/protocol-pcap-test/thrift.md` 的 13/13 pass 是**过期产物**（G-THRIFT-10，§8.2 #7），**不得作为"套件可跑"依据**。
+**另注意**：`trafficgen/docs/protocol-pcap-test/thrift.md` 的 18/18 pass 是**过期产物**（G-THRIFT-10，§8.2 #7），**不得作为"套件可跑"依据**。
 
 ## 10. 修订记录
 
-- v1.0.0（2026-09-28）：P-PIPE #102 文档轨 P1–P3。旧稿 30-* 13 ID / packet_count / 锚词 / fixture 全量继承（思路参考不搬码）；新增形状基线机读实测（§1，**非符合态：非负例顶层键 41 处残留 + 今日建策略 400 实证**）、P3 固定动作（§6）、执行建议（§7）、存量审计（§8，13/13 改写）、覆盖反查门建议断言行（§9，16 行）。自审 6 轮（第 5 轮按主线程口径纠错；**第 6 轮按隔离审查打回修 5 项**：静默假成功定性、撤销 G-THRIFT-9、对账脚本化重算 75=56+5+14、nic_capture 诚实标注），末轮干净（结论见 `/tmp/pipe/doc-lanes/thrift.md`）。
+- v1.0.0（2026-09-28）：P-PIPE #102 文档轨 P1–P3。旧稿 30-* 13 ID / packet_count / 锚词 / fixture 全量继承（思路参考不搬码）；新增形状基线机读实测（§1，**非符合态：非负例顶层键 41 处残留 + 今日建策略 400 实证**）、P3 固定动作（§6）、执行建议（§7）、存量审计（§8，18/18 改写）、覆盖反查门建议断言行（§9，16 行）。自审 6 轮（第 5 轮按主线程口径纠错；**第 6 轮按隔离审查打回修 5 项**：静默假成功定性、撤销 G-THRIFT-9、对账脚本化重算 75=56+5+14、nic_capture 诚实标注），末轮干净（结论见 `/tmp/pipe/doc-lanes/thrift.md`）。
 - v1.0.1（2026-09-28）：补登记**结果文档过期**（**G-THRIFT-10**，车道间一致性缺口，照 pcep G-PCEP-11 先例）：§8.2 新增第 7 条现状矛盾点、§9 表末新增提醒句、§5.2 粒度声明缺口范围 `G-THRIFT-1…G-THRIFT-8` → **`…G-THRIFT-10`**。**只改本文 + 设计 §0/§14，不动代码/JSON。**
