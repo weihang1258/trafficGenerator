@@ -4,12 +4,23 @@
     "proto": "socks5",
     "summary": "SOCKS5 (端口 1080) 冒烟：完整 TCP 握手 + 方法协商 → CONNECT 请求/响应 + 终止",
     "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 1080,
-      "count": 1,
-      "socks": {}
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 1080
+          }
+        },
+        {
+          "socks5": {}
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -120,7 +131,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 1080
+          }
         },
         {
           "tls": {}
@@ -134,11 +154,7 @@
             "dst_port": 8080
           }
         }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 13000,
-      "dst_port": 1080
+      ]
     },
     "expect": {
       "has_handshake": true,
