@@ -62,7 +62,7 @@
 }
 ```
 
-多包样例（`messages` 每条目一数据报，`count` 被忽略；或无 `messages` 时 `count`=N 复制单消息）：
+多包样例（`messages` 每条目一数据报；仅 `len(messages)>1` 时 `count` 被忽略；`len(messages)==1` 时按 `count` 复制；无 `messages` 时同样按 `count` 复制）：
 
 ```json
 {
@@ -163,7 +163,7 @@ RFC 形状：`... STRUCTURED-DATA SP MSG`，且 UTF-8 编码的 MSG **MUST 以 B
 
 syslog 层**无自有状态机**：UDP 载体每消息独立数据报、无序号无确认；TCP 载体的握手/挥手/分段属 tcp 层（链不可达，§1 边界①）。生成器是"按配置序把消息翻译成事件"的纯函数驱动。
 
-**事件序（`SyslogGenerator.Generate`，`layer_gen.go:29-112`；与 legacy `emitUDP` 逐字节同源）**：`messages` 非空 → 逐条 `buildPerMessageCfg`（`planner.go:483-527`，零值字段继承父级；`msg_has_bom` 仅当条目任一字段被显式设置时才覆盖，`hasAnyMessageField` `:533-537`）编码后**每条一事件**（`count` 忽略）；否则单消息 ×`count`（缺省 1）复制。方向恒 `up`；每事件 Metadata 携带 `syslog_priority = facility*8+severity`（int）与 `syslog_transport = "udp"`（`layer_gen.go:82-86`），udp 层合并进数据报 Metadata（`generator.go` Inner 模式）。
+**事件序（`SyslogGenerator.Generate`，`layer_gen.go:29-112`；与 legacy `emitUDP` 逐字节同源）**：`len(messages)>1` → 逐条 `buildPerMessageCfg`（`planner.go:483-527`，零值字段继承父级；`msg_has_bom` 仅当条目任一字段被显式设置时才覆盖，`hasAnyMessageField` `:533-537`）编码后**每条一事件**，忽略 `count`；`len(messages)==1` 或无 `messages` → 单消息 ×`count`（缺省 1）复制，因此单条 message 配合 `count=100` 生成 100 个事件。方向恒 `up`；每事件 Metadata 携带 `syslog_priority = facility*8+severity`（int）与 `syslog_transport = "udp"`（`layer_gen.go:82-86`），udp 层合并进数据报 Metadata（`generator.go` Inner 模式）。
 
 **确定性**：同一输入必同一输出——除两处显式非确定：① bsd 格式 timestamp 空时取 `time.Now().UTC()`（`:802-805`，用例必须显式钉 timestamp）；② IPv4 ID/校验和逐次随机（pcap 断言不触 18-19/24-25 字节）。`structured_data` 结构形参数按键名字典序输出（`strategy_convert.go:6713-6716` 注释钉死）。
 
