@@ -4,8 +4,15 @@
     "proto": "rdp",
     "summary": "smoke: RDP over TCP 3389; X.224 connection request/confirm + MCS Connect Initial (27 frames incl. handshake and FIN); LBMSRS heuristic dissector claims frame 9-10 -> decode_as echo forces data",
     "spec_json": {
-      "count": 1,
-      "rdp": {}
+      "rdp": {},
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "rdp": {}
+        }
+      ]
     },
     "decode_as": [
       "tcp.port==3389,echo"
