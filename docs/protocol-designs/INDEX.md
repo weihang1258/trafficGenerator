@@ -190,12 +190,58 @@
 | 100 | [`100-someip-design.md`](100-someip-design.md) / [`100-someip-testcase.md`](100-someip-testcase.md) | SOME/IP（汽车 SOA） | 16（12正+4负） | 待审计 |
 | 101 | [`101-opcua-design.md`](101-opcua-design.md) / [`101-opcua-testcase.md`](101-opcua-testcase.md) | OPC UA（工控统一架构） | 12（10正+2负） | 待审计 |
 | 102 | [`102-thrift-design.md`](102-thrift-design.md) / [`102-thrift-testcase.md`](102-thrift-testcase.md) | Thrift（RPC 框架） | 13（7正+6负） | 待审计 |
+| 103 | [`103-ftp-design.md`](103-ftp-design.md) / [`103-ftp-testcase.md`](103-ftp-testcase.md) | FTP（文件传输协议） | 141（136正+5负） | 待审计 |
+| 104 | [`104-sip-design.md`](104-sip-design.md) / [`104-sip-testcase.md`](104-sip-testcase.md) | SIP（会话发起协议） | 96（87正+9负） | 待审计 |
+| 105 | [`105-imap-design.md`](105-imap-design.md) / [`105-imap-testcase.md`](105-imap-testcase.md) | IMAP（邮件访问协议） | 84（65正+19负） | 待审计 |
+| 106 | [`106-pop3-design.md`](106-pop3-design.md) / [`106-pop3-testcase.md`](106-pop3-testcase.md) | POP3（邮局协议） | 50（35正+15负） | 待审计 |
+| 107 | [`107-smtp-design.md`](107-smtp-design.md) / [`107-smtp-testcase.md`](107-smtp-testcase.md) | SMTP（邮件传输协议） | 43（37正+6负） | 待审计 |
+| 108 | [`108-dns-design.md`](108-dns-design.md) / [`108-dns-testcase.md`](108-dns-testcase.md) | DNS（域名解析） | 29（23正+6负） | 待审计 |
+| 109 | [`109-radius-design.md`](109-radius-design.md) / [`109-radius-testcase.md`](109-radius-testcase.md) | RADIUS（认证计费） | 25（14正+11负） | 待审计 |
+| 110 | [`110-pppoe-design.md`](110-pppoe-design.md) / [`110-pppoe-testcase.md`](110-pppoe-testcase.md) | PPPoE（以太网点对点） | 24（18正+6负） | 待审计 |
+| 111 | [`111-ldap-design.md`](111-ldap-design.md) / [`111-ldap-testcase.md`](111-ldap-testcase.md) | LDAP（轻量目录访问） | 22（16正+6负） | 待审计 |
+| 112 | [`112-vnc-design.md`](112-vnc-design.md) / [`112-vnc-testcase.md`](112-vnc-testcase.md) | VNC（远程桌面） | 21（17正+4负） | 待审计 |
+| 113 | [`113-gre-design.md`](113-gre-design.md) / [`113-gre-testcase.md`](113-gre-testcase.md) | GRE（通用路由封装） | 21（14正+7负） | 待审计 |
+| 114 | [`114-pptp-design.md`](114-pptp-design.md) / [`114-pptp-testcase.md`](114-pptp-testcase.md) | PPTP（点对点隧道） | 20（13正+7负） | 待审计 |
+| 115 | [`115-telnet-design.md`](115-telnet-design.md) / [`115-telnet-testcase.md`](115-telnet-testcase.md) | Telnet（远程登录） | 17（14正+3负） | 待审计 |
+| 116 | [`116-ngap-design.md`](116-ngap-design.md) / [`116-ngap-testcase.md`](116-ngap-testcase.md) | NGAP（5G N2 接口） | 17（12正+5负） | 待审计 |
+| 117 | [`117-h323-design.md`](117-h323-design.md) / [`117-h323-testcase.md`](117-h323-testcase.md) | H.323（多媒体通信） | 17（11正+6负） | 待审计 |
+| 118 | [`118-rtmp-design.md`](118-rtmp-design.md) / [`118-rtmp-testcase.md`](118-rtmp-testcase.md) | RTMP（实时消息） | 16（13正+3负） | 待审计 |
+| 119 | [`119-tls-design.md`](119-tls-design.md) / [`119-tls-testcase.md`](119-tls-testcase.md) | TLS（传输层安全） | 15（9正+6负） | 待审计 |
+| 120 | [`120-http_flv-design.md`](120-http_flv-design.md) / [`120-http_flv-testcase.md`](120-http_flv-testcase.md) | HTTP-FLV（流媒体） | 15（12正+3负） | 待审计 |
+| 121 | [`121-mpls-design.md`](121-mpls-design.md) / [`121-mpls-testcase.md`](121-mpls-testcase.md) | MPLS（多协议标签交换） | 14（7正+7负） | 待审计 |
+| 122 | [`122-rtsp-design.md`](122-rtsp-design.md) / [`122-rtsp-testcase.md`](122-rtsp-testcase.md) | RTSP（实时流协议） | 12（11正+1负） | 待审计 |
+| 123 | [`123-arp-design.md`](123-arp-design.md) / [`123-arp-testcase.md`](123-arp-testcase.md) | ARP（地址解析协议） | 12（4正+8负） | 待审计 |
+| 124 | [`124-xmpp-design.md`](124-xmpp-design.md) / [`124-xmpp-testcase.md`](124-xmpp-testcase.md) | XMPP（可扩展消息协议） | 11（9正+2负） | 待审计 |
+| 125 | [`125-sctp-design.md`](125-sctp-design.md) / [`125-sctp-testcase.md`](125-sctp-testcase.md) | SCTP（流控制传输） | 11（8正+3负） | 待审计 |
+| 126 | [`126-icmpv6-design.md`](126-icmpv6-design.md) / [`126-icmpv6-testcase.md`](126-icmpv6-testcase.md) | ICMPv6（IPv6 控制） | 11（5正+6负） | 待审计 |
+| 127 | [`127-icmp-design.md`](127-icmp-design.md) / [`127-icmp-testcase.md`](127-icmp-testcase.md) | ICMP（互联网控制） | 8（4正+4负） | 待审计 |
+| 128 | [`128-socks5-design.md`](128-socks5-design.md) / [`128-socks5-testcase.md`](128-socks5-testcase.md) | SOCKS5（代理协议） | 2（2正+0负） | 待审计 |
+| 129 | [`129-wireguard-design.md`](129-wireguard-design.md) / [`129-wireguard-testcase.md`](129-wireguard-testcase.md) | WireGuard（VPN 隧道） | 1（1正+0负） | 待审计 |
+| 130 | [`130-vmess-design.md`](130-vmess-design.md) / [`130-vmess-testcase.md`](130-vmess-testcase.md) | VMESS（V2Ray 代理） | 1（1正+0负） | 待审计 |
+| 131 | [`131-syslog-design.md`](131-syslog-design.md) / [`131-syslog-testcase.md`](131-syslog-testcase.md) | Syslog（系统日志） | 1（1正+0负） | 待审计 |
+| 132 | [`132-ssh-design.md`](132-ssh-design.md) / [`132-ssh-testcase.md`](132-ssh-testcase.md) | SSH（安全外壳） | 1（1正+0负） | 待审计 |
+| 133 | [`133-ssdp-design.md`](133-ssdp-design.md) / [`133-ssdp-testcase.md`](133-ssdp-testcase.md) | SSDP（简单服务发现） | 1（1正+0负） | 待审计 |
+| 134 | [`134-shadowsocks-design.md`](134-shadowsocks-design.md) / [`134-shadowsocks-testcase.md`](134-shadowsocks-testcase.md) | Shadowsocks（代理协议） | 1（1正+0负） | 待审计 |
+| 135 | [`135-redis-design.md`](135-redis-design.md) / [`135-redis-testcase.md`](135-redis-testcase.md) | Redis（内存数据库） | 1（1正+0负） | 待审计 |
+| 136 | [`136-rdp-design.md`](136-rdp-design.md) / [`136-rdp-testcase.md`](136-rdp-testcase.md) | RDP（远程桌面） | 1（1正+0负） | 待审计 |
+| 137 | [`137-openvpn-design.md`](137-openvpn-design.md) / [`137-openvpn-testcase.md`](137-openvpn-testcase.md) | OpenVPN（VPN 隧道） | 1（1正+0负） | 待审计 |
+| 138 | [`138-ntp-design.md`](138-ntp-design.md) / [`138-ntp-testcase.md`](138-ntp-testcase.md) | NTP（网络时间） | 1（1正+0负） | 待审计 |
+| 139 | [`139-mysql-design.md`](139-mysql-design.md) / [`139-mysql-testcase.md`](139-mysql-testcase.md) | MySQL（数据库协议） | 1（1正+0负） | 待审计 |
+| 140 | [`140-mdns-design.md`](140-mdns-design.md) / [`140-mdns-testcase.md`](140-mdns-testcase.md) | mDNS（多播 DNS） | 1（1正+0负） | 待审计 |
+| 141 | [`141-l2tp-design.md`](141-l2tp-design.md) / [`141-l2tp-testcase.md`](141-l2tp-testcase.md) | L2TP（二层隧道） | 1（1正+0负） | 待审计 |
+| 142 | [`142-ike_nat_t-design.md`](142-ike_nat_t-design.md) / [`142-ike_nat_t-testcase.md`](142-ike_nat_t-testcase.md) | IKE-NAT-T（NAT 穿越 IKE） | 1（1正+0负） | 待审计 |
+| 143 | [`143-ike-design.md`](143-ike-design.md) / [`143-ike-testcase.md`](143-ike-testcase.md) | IKE（互联网密钥交换） | 1（1正+0负） | 待审计 |
+| 144 | [`144-gtp-design.md`](144-gtp-design.md) / [`144-gtp-testcase.md`](144-gtp-testcase.md) | GTP（GPRS 隧道） | 1（1正+0负） | 待审计 |
+| 145 | [`145-grpc-design.md`](145-grpc-design.md) / [`145-grpc-testcase.md`](145-grpc-testcase.md) | gRPC（RPC 框架） | 1（1正+0负） | 待审计 |
+| 146 | [`146-snmp-design.md`](146-snmp-design.md) / [`146-snmp-testcase.md`](146-snmp-testcase.md) | SNMP（网络管理） | 1（1正+0负） | 待审计 |
+| 147 | [`147-dhcpv6-design.md`](147-dhcpv6-design.md) / [`147-dhcpv6-testcase.md`](147-dhcpv6-testcase.md) | DHCPv6（IPv6 地址配置） | 1（1正+0负） | 待审计 |
+| 148 | [`148-dhcp-design.md`](148-dhcp-design.md) / [`148-dhcp-testcase.md`](148-dhcp-testcase.md) | DHCP（动态主机配置） | 1（1正+0负） | 待审计 |
 
 | 维度 | 数值 |
 |------|------|
-| 设计文档数 | 75 + 25（78–102 号补录，86 号空缺）= 100 |
-| 用例文档数 | 59 + 25 = 84 |
-| 覆盖协议数 | 17 个既有归档协议 + 84 个新增设计协议（19–102 号，86 空缺）+ 配置架构 1 |
+| 设计文档数 | 75 + 25（78–102 号补录，86 号空缺）+ 46（103–148 号 as-built 补录）= 147（机读 2026-09-29） |
+| 用例文档数 | 59 + 25 + 46 = 137（机读 2026-09-29；103–148 号全部含配对 testcase） |
+| 覆盖协议数 | 17 个既有归档协议 + 130 个新增设计协议（19–148 号，86 空缺）+ 配置架构 1 |
 | 测试用例总数 | 5,368（`trafficgen/test/protocol_pcap/cases/*.json` 2026-09-28 机读实数） |
 
 ---
@@ -327,13 +373,13 @@
 | 归档目录 | `/home/weihang/trafficGenerator/docs/protocol-designs/` |
 | 审计子目录 | `/home/weihang/trafficGenerator/docs/protocol-designs/audit/` |
 | 归档时间 | 2026-08-03 |
-| 索引更新时间 | 2026-09-28（补录 78–102 号 25 协议；86 号空缺，78 号双协议 isis/probe_smb） |
+| 索引更新时间 | 2026-09-29（补录 103–148 号 46 协议 as-built 契约；142=ike_nat_t、143=ike、146=snmp、147=dhcpv6、148=dhcp） |
 | 对照规范 | 9.4.1.38 协议扩展信息上报（32 个扩展协议表） |
 | 项目已实现 | 66 个协议 |
-| 本次新增 | 59 个协议（设计 + 用例）+ 1 个配置架构设计 |
-| 总文档数 | 279 份（1 清单 + 100 设计 + 84 用例 + 94 审计文件；78–102 号 25 协议 2026-09-28 补录） |
+| 本次新增 | 105 个协议（设计 + 用例）+ 1 个配置架构设计 |
+| 总文档数 | 384 份（1 清单 + 147 设计 + 137 用例 + 99 历史审计；103–148 号 46 协议 2026-09-29 补录；老号新文档双轨并存为既定惯例，如 42/98 pcep） |
 | 总行数 | 以当前文件为准 |
-| 总测试用例数 | 2,617 条（`trafficgen/test/protocol_pcap/cases/*.json`） |
+| 总测试用例数 | 5,368 条（`trafficgen/test/protocol_pcap/cases/*.json`，2026-09-29 机读） |
 | 审计发现问题 | 399 个（73 CRITICAL + 109 HIGH + 128 MEDIUM + 89 LOW） |
 
 ---
