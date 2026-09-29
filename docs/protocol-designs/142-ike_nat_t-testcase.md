@@ -1,7 +1,7 @@
 # IKE-NAT-T 测试用例契约
 
 > 版本：v1.0.1（as-built，批次二门1补齐）；日期：2026-09-29；权威 JSON：`trafficgen/test/protocol_pcap/cases/ike_nat_t.json`；实现仅对现有 case 负责。
-> 配套设计：`144-ike_nat_t-design.md` v1.0.1。
+> 配套设计：`142-ike_nat_t-design.md` v1.0.1。
 > 白话一句：**现网只有一条检查：UDP 500 上的 IKEv2 SA_INIT 空载荷头；它不触发 4500 marker，所以 NAT 穿透扩展本身还没有测试证据。**
 
 ## 1. 测试原则和形状基线

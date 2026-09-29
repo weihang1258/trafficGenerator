@@ -55,7 +55,7 @@ validator 在 `planner.go:172-275` 执行边界检查：缺失 IKE、非法 IP�
 
 ## 8. 边界与不适用项
 
-IKE over TCP（RFC 8229）、NAT-T 4500、真实加密、证书验证、服务端状态机和实际 ESP 解密不属于 `ike` 当前实现；NAT-T 另见 `104-ike_nat_t-*`。IPv6 outer、VLAN、fragmented_auth、IKEv1 等虽有 planner 分支，但无本权威 case 证据，不能申报覆盖。
+IKE over TCP（RFC 8229）、NAT-T 4500、真实加密、证书验证、服务端状态机和实际 ESP 解密不属于 `ike` 当前实现；NAT-T 另见 `142-ike_nat_t-*`。IPv6 outer、VLAN、fragmented_auth、IKEv1 等虽有 planner 分支，但无本权威 case 证据，不能申报覆盖。
 
 ## 9. 原子 ID 与完成定义
 

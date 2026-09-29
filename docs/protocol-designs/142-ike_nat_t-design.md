@@ -81,7 +81,7 @@ IKE header 为 `SPIi(8)|SPIr(8)|NextPayload(1)|Version(1)|ExchangeType(1)|Flags(
 | §4 查规范 | RFC 7296 §3.1/§2.23 + RFC 3948/3947 + RFC 4303 + RFC 7296 §2.2 | §8 |
 | §5 依赖与错误 | `DependsOn ["udp"]`（registry:540）；非法 IP/缺 config/坏 dialog、NAT-D 长度、重传参数均 validator 拒绝并传 task error | §6/§10 |
 | §6 性能 | Plan buffered channel 逐消息，marker/ESP/keepalive/重传边界写明；pcap/NIC 共用 cases 断言 | §6/testcase §1 |
-| §7 三份文档 | `144-ike_nat_t-{design,testcase}.md` + `cases/ike_nat_t.json`；现有 1 ID/包下限/字段/frame 一致 | testcase §2/§5 |
+| §7 三份文档 | `142-ike_nat_t-{design,testcase}.md` + `cases/ike_nat_t.json`；现有 1 ID/包下限/字段/frame 一致 | testcase §2/§5 |
 | §8 设计先行 | 本文 as-built 逆向定稿，未覆盖分支明确列缺口 | 修订记录 |
 | §9 测试三源 | RFC + 本设计 + tshark `isakmp.*`/frame hex；唯一 ID 逐项回指 testcase §2/§3 | testcase §5 |
 | §10 评审闭环 | 自审与机读形状核对；独立对抗复审由主线程另行派发 | 修订记录 |
