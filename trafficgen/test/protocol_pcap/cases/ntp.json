@@ -11,8 +11,7 @@
         {
           "ntp": {}
         }
-      ],
-      "ntp": {}
+      ]
     },
     "expect": {
       "packet_count": 1,
