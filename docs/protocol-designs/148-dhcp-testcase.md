@@ -39,7 +39,7 @@ cases JSON 是机器权威。当前只有一个集成冒烟用例；它验证完
 | G-DHCP-3 | IPv6/relay/server/非默认端口无 case（IPv6 由 validator 拒绝，属合法不适用生成面） | `planner.go:100-115,649-747` | 用例覆盖 |
 | G-DHCP-4 | validator/planner 负分支与 option 边界、截断、超 MTU 无 `expect_error` case | `planner.go:100-387`（锚词清单见设计 §8），JSON 无 `expect_error` | 用例覆盖 |
 | G-DHCP-5 | tracked 结果产物过期：末次提交 `a674fe96`（2026-09-05）早于 `0417be5`（2026-09-13），pcap 留档目录不存在 | `git log -1 -- trafficgen/docs/protocol-pcap-test/dhcp.md`；`dhcp/` 目录缺失 | 产物阶段（P5 重跑后重生成） |
-| G-DHCP-6 | executable case 仍把 `dhcp` 放在 `layers` 外，不能证明严格层链唯一真相 | `cases/dhcp.json:6-19`；目标形见设计 §1 | 配置迁移阶段（迁移后重跑） |
+| G-DHCP-6 | executable case 仍将 `dhcp` 及 eth/ip/udp 承载字段放在层链外或依赖 flow metadata，不能证明完整 eth→ip→udp→dhcp 层链唯一真相 | `cases/dhcp.json:6-19`；目标形见设计 §1 | 配置迁移阶段（迁移后重跑） |
 | G-DHCP-7 | scenario validator 只预检合成消息首条，后续消息 options 超限要到 builder 才可能失败 | `planner.go:349-371,819-823`；设计 §8 | validator/用例阶段（逐消息预检并补负例） |
 
 ## 6. 覆盖反查门建议断言
@@ -47,7 +47,7 @@ cases JSON 是机器权威。当前只有一个集成冒烟用例；它验证完
 以下行供 `coverage_gate.py` 登记，当前均不得申报已过（除标明已有项）。其中 scenario options 的上限检查只覆盖合成消息首条；后续消息逐条预检仍是 G-DHCP-7，不能把 builder 期失败写成 validator 已通过。
 
 1. `dhcp_smoke_01` 存在且 `packet_count==4`（已具备）。
-2. layers 精确为 `[udp,dhcp]`（目标形已具备；executable case 仍有层链外顶层 `dhcp`，缺口 G-DHCP-6）。
+2. layers 精确为 `[eth,ip,udp,dhcp]`（严格目标形见设计 §1；executable case 与当前承载路径仍有层链外字段/flow metadata，缺口 G-DHCP-6）。
 3. packet 1..4 option53 为 `1,2,3,5`（已具备）。
 4. packet 2/3/4 xid 与 packet 1 相等（已具备）。
 5. p1 UDP dst 67 与 MAC 四包一致（已具备；显式 src port 12345 口径写入 notes）。

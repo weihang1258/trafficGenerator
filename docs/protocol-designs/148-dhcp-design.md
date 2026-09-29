@@ -2,13 +2,13 @@
 
 ## 1. 范围、规范与目标形状
 
-实现是 DHCPv4（RFC 2131；BOOTP wire format 由 RFC 2131 §2/§4.1 定义）终结层，承载于 UDP。配置唯一真相是层链；完整当前目标形状为：
+实现是 DHCPv4（RFC 2131；BOOTP wire format 由 RFC 2131 §2/§4.1 定义）终结层，承载于 UDP。配置唯一真相是层链；完整严格目标形状必须把链路、网络、传输和业务字段分别放入对应层：
 
 ```json
-{"layers":[{"udp":{}},{"dhcp":{"scenario":"dora","default_your_ip":"192.168.1.100","default_server_identifier":"192.168.1.1"}}]}
+{"layers":[{"eth":{"src_mac":"02:00:00:00:00:01","dst_mac":"ff:ff:ff:ff:ff:ff"}},{"ip":{"src":"0.0.0.0","dst":"255.255.255.255","ttl":64}},{"udp":{"src_port":68,"dst_port":67}},{"dhcp":{"scenario":"dora","default_your_ip":"192.168.1.100","default_server_identifier":"192.168.1.1"}}]}
 ```
 
-门1 §1 旧形逐键去向：`role`、`xid`、`scenario`、`messages`、`client_mac`、`h_type`、`h_len`、`broadcast_flag`、`secs`、`sname`、`file`、全部 `default_*` 及 message 内 `type/direction/client_ip/your_ip/server_ip/relay_agent_ip/hops/server_identifier/lease_time/t1/t2/subnet_mask/routers/dns/domain_name/hostname/domain_search/client_id/requested_ip/param_request_list/vendor_class/relay_agent_info/extra_options/broadcast` 均由 `strategy_convert.go:2586-2694` 解析进 `spec.DHCP`，目标位置是层链 `layers[].dhcp`（或同一 `DHCPConfig` 的 `messages[]`）。`src_ip/dst_ip/src_port/dst_port/src_mac/dst_mac/ttl` 不属于 DHCP 业务键，保留为 flow 元数据供 `resolvePorts/resolveIPs/resolveMACs` 和承载层使用；`count/bps/duration` 由 flow control 处理。不存在可继续保留的游离 DHCP 顶层键。
+门1 §1 旧形逐键去向：`src_mac/dst_mac` 进入 `eth`，`src_ip/dst_ip/ttl` 进入 `ip`，`src_port/dst_port` 进入 `udp`；`role`、`xid`、`scenario`、`messages`、`client_mac`、`h_type`、`h_len`、`broadcast_flag`、`secs`、`sname`、`file`、全部 `default_*` 及 message 内 `type/direction/client_ip/your_ip/server_ip/relay_agent_ip/hops/server_identifier/lease_time/t1/t2/subnet_mask/routers/dns/domain_name/hostname/domain_search/client_id/requested_ip/param_request_list/vendor_class/relay_agent_info/extra_options/broadcast` 均由 `strategy_convert.go:2586-2694` 解析进 `spec.DHCP`，目标位置是层链 `layers[].dhcp`（或同一 `DHCPConfig` 的 `messages[]`）。`count/bps/duration` 由 flow control 处理。当前实现/可执行 case 尚未完成上述 eth→ip→udp→dhcp 全链迁移；不得把 flow metadata 当作合规层链字段或声称 Gate 1 §1 已通过。
 
 `dhcp` 缺省时生成一个 DISCOVER。`scenario` 可为 `dora|nak|release|inform|renew|rebind`，非 scenario 使用 `messages[]` 原样逐条发包。
 
@@ -63,7 +63,7 @@ JSON `strategy_convert.go:2586-2694` 解析 `DHCPConfig`、`DHCPMessage` 和 ext
 | G-DHCP-3 | IPv6、非默认端口、relay、多会话/并发未覆盖 | validator 明确拒 IPv6；单 flow event loop | 用例覆盖阶段 |
 | G-DHCP-4 | options/长度/截断/非法 type 负例未进入 cases | 当前 JSON 无 `expect_error` | 用例覆盖阶段 |
 | G-DHCP-5 | tracked 结果产物过期：末次提交 `a674fe96`（2026-09-05）早于 `0417be5`（2026-09-13），pcap 留档目录不存在 | `git log -1 -- trafficgen/docs/protocol-pcap-test/dhcp.md`；目录 `ls` 无 | 产物阶段（P5 重跑后重生成） |
-| G-DHCP-6 | executable case 仍把 `dhcp` 放在 `layers` 外，未满足层链唯一真相/顶层白名单 | `trafficgen/test/protocol_pcap/cases/dhcp.json:6-19`；目标形见本稿 §1 | 配置迁移阶段（迁移后重跑） |
+| G-DHCP-6 | executable case 仍将 `dhcp` 及 eth/ip/udp 承载字段放在层链外或依赖 flow metadata，未满足完整 eth→ip→udp→dhcp 层链唯一真相/顶层白名单 | `trafficgen/test/protocol_pcap/cases/dhcp.json:6-19`；目标形见本稿 §1；现状承载路径见 §5–§6 | 配置迁移阶段（迁移后重跑） |
 | G-DHCP-7 | scenario validator 只预检 `synthesized[0]`，后续消息 options 超限要到 builder 才失败 | `planner.go:349-371,819-823`；本稿 §8；testcase §6 | validator/用例阶段（逐消息预检并补负例） |
 
 ## 11. 门1 §1–§14 对照表
@@ -72,7 +72,7 @@ JSON `strategy_convert.go:2586-2694` 解析 `DHCPConfig`、`DHCPMessage` 和 ext
 
 | 门 | 本协议满足方式与精确证据 | 状态 |
 |---|---|---|
-| §1 层链唯一真相与旧键退出 | 目标形与逐键去向见 §1；但 executable case 的层链外顶层 `dhcp` 仍在 `cases/dhcp.json:6-19`（G-DHCP-6）。 | 缺口 |
+| §1 层链唯一真相与旧键退出 | 严格目标形为 `eth→ip→udp→dhcp`，字段去向见 §1；但 executable case 与当前承载路径仍依赖层链外 DHCP/flow metadata（G-DHCP-6）。 | 缺口 |
 | §2 策略/任务分工与封包 | DHCP 作为单策略单 flow，数量/速率由 flow control 处理见 §1、§2；未有任务级多策略/封顶用例。 | 部分，缺口 |
 | §3 多会话/事务/多流关联 | 单流协议豁免多流；会话表、DORA/其他序列、关联、插入位置、时间线见 §2。多会话/并发与异常编排未覆盖（G-DHCP-3）。 | 部分，缺口 |
 | §4 规范先行与三路对照 | RFC 2131 §2/§3.1/§4.1/§4.3 依据见 §1–§5；商业行为与可靠开源实现的逐条对照及候选方案表未提供。 | 缺口 |
