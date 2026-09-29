@@ -30,16 +30,15 @@ cases JSON 是机器权威。当前只有一个集成冒烟用例；它验证完
 
 没有其他 DHCP ID 可审计；未来 scenario 与边界不可伪装写入现有 JSON 集合。
 
-## 5. 缺口登记
+## 5. 缺口登记（与设计 §10 同号同义）
 
 | ID | 现象 | 证据 | 归属阶段 |
 |---|---|---|---|
-| G-DHCP-1 | 六种 scenario 中仅 dora 有 case | `cases/dhcp.json` 仅 1 ID；`scenario.go:200-296` | 用例覆盖 |
-| G-DHCP-2 | validator/planner 负分支无 expect_error case | `planner.go:100-387`，JSON 无 `expect_error` | 用例覆盖 |
-| G-DHCP-3 | option 边界、截断、超 MTU 无 case | `planner.go:213-370`，JSON 无对应 ID | 用例覆盖 |
-| G-DHCP-4 | 动态字段策略/多流序号未实现及未测 | `layer_gen.go:83-85,117-217` | 生成器/用例覆盖 |
-| G-DHCP-5 | IPv6/relay/server/非默认端口无 case | `planner.go:100-115,649-747` | 用例覆盖 |
-| G-DHCP-6 | tracked stale artifact `trafficgen/docs/protocol-pcap-test/dhcp.md` 需核验是否早于 `0417be5` | git tracked file，提交时间待 gate 核验 | 产物 |
+| G-DHCP-1 | 六种 scenario 中仅 dora 有 case；manual 8 message types 无逐 type 正例 | `cases/dhcp.json` 仅 1 ID；`scenario.go:200-296` | 用例覆盖 |
+| G-DHCP-2 | 动态字段策略/多流序号未实现及未测 | `layer_gen.go:83-85,117-217` | 生成器/用例覆盖 |
+| G-DHCP-3 | IPv6/relay/server/非默认端口无 case（IPv6 由 validator 拒绝，属合法不适用生成面） | `planner.go:100-115,649-747` | 用例覆盖 |
+| G-DHCP-4 | validator/planner 负分支与 option 边界、截断、超 MTU 无 `expect_error` case | `planner.go:100-387`（锚词清单见设计 §8），JSON 无 `expect_error` | 用例覆盖 |
+| G-DHCP-5 | tracked 结果产物过期：末次提交 `a674fe96`（2026-09-05）早于 `0417be5`（2026-09-13），pcap 留档目录不存在 | `git log -1 -- trafficgen/docs/protocol-pcap-test/dhcp.md`；`dhcp/` 目录缺失 | 产物阶段（P5 重跑后重生成） |
 
 ## 6. 覆盖反查门建议断言
 
@@ -51,17 +50,17 @@ cases JSON 是机器权威。当前只有一个集成冒烟用例；它验证完
 4. packet 2/3/4 xid 与 packet 1 相等（已具备）。
 5. p1 UDP dst 67 与 MAC 四包一致（已具备；显式 src port 12345 口径写入 notes）。
 6. 六种其它 scenario 各自 packet sequence/option presence（缺口 G-DHCP-1）。
-7. IPv4-only validator 拒绝 IPv6 且任务返回失败（缺口 G-DHCP-5）。
-8. invalid role/type/direction、HType/HLen、MAC/IP、保留 options 的 error_contains（缺口 G-DHCP-2）。
-9. 255/256 字节字段与 options 1232/1233 边界（缺口 G-DHCP-3）。
-10. manual mode 每个 message type 1..8 可观察 op/option53（缺口 G-DHCP-1）。
-11. default/inc/rand/list/pattern 动态值与回绕/可复现（缺口 G-DHCP-4）。
+7. manual mode 每个 message type 1..8 可观察 op/option53（缺口 G-DHCP-1）。
+8. IPv4-only validator 拒绝 IPv6 且任务返回失败（缺口 G-DHCP-3）。
+9. invalid role/type/direction、HType/HLen、MAC/IP、保留 options 的 error_contains（缺口 G-DHCP-4）。
+10. 255/256 字节字段与 options 1232/1233 边界（缺口 G-DHCP-4）。
+11. default/inc/rand/list/pattern 动态值与回绕/可复现（缺口 G-DHCP-2）。
 12. pcap 与 NIC 输出对同一 `[udp,dhcp]` 契约（NIC 待主线程执行）。
 
 ## 7. 产物过期核验
 
-`trafficgen/docs/protocol-pcap-test/dhcp.md` 已被 git 跟踪。按照任务书，需由主线程比较其最后提交是否早于 `0417be5`（2026-09-13 扁平判死基线）；若早于该提交，登记为 stale artifact，不把它当作当前 cases 契约。
+`trafficgen/docs/protocol-pcap-test/dhcp.md` 已被 git 跟踪，末次提交 `a674fe96`（2026-09-05）**早于** `0417be5`（2026-09-13 扁平判死基线），且其链接的 `dhcp/` pcap 留档目录不存在；按 pcep G-PCEP-11 同口径登记为过期产物（缺口 G-DHCP-5，与设计 §10/§14 一致），不把它当作当前 cases 契约，也不得据此声称套件已复跑。
 
 ## 8. 复核记录
 
-自审 2 轮，末轮干净：已逐条复核 ID、场景、包数、21 个 field 条目（脚本机读）、依据链、五层覆盖、缺口三要素与建议断言。当前 JSON 只有 1 个 ID，未虚报缺口为已通过。
+自审 3 轮，末轮干净：脚本机读 cases ID、`packet_count=4`、21 条 field 条目（含 3 条 same_as_packet xid 关联）逐条对照本稿 §2；五层覆盖、缺口三要素、建议断言行与设计 §9 一致性复核；当前 JSON 只有 1 个 ID，未虚报缺口为已通过。

@@ -2,7 +2,13 @@
 
 ## 1. 范围、规范与目标形状
 
-实现是 DHCPv4（RFC 2131；BOOTP wire format 由 RFC 2131 §2/§4.1 定义）终结层，承载于 UDP。配置唯一真相是层链：`{"layers":[{"udp":{}},{"dhcp":{}}],"dhcp":{"scenario":"dora","default_your_ip":"192.168.1.100","default_server_identifier":"192.168.1.1"}}`。旧顶层 flow 地址/端口仍作为 flow 元数据输入，由 `resolvePorts/resolveIPs/resolveMACs` 读取；DHCP 业务字段不再游离到顶层。
+实现是 DHCPv4（RFC 2131；BOOTP wire format 由 RFC 2131 §2/§4.1 定义）终结层，承载于 UDP。配置唯一真相是层链；完整当前目标形状为：
+
+```json
+{"layers":[{"udp":{}},{"dhcp":{}}],"dhcp":{"scenario":"dora","default_your_ip":"192.168.1.100","default_server_identifier":"192.168.1.1"}}
+```
+
+门1 §1 旧形逐键去向：`role`、`xid`、`scenario`、`messages`、`client_mac`、`h_type`、`h_len`、`broadcast_flag`、`secs`、`sname`、`file`、全部 `default_*` 及 message 内 `type/direction/client_ip/your_ip/server_ip/relay_agent_ip/hops/server_identifier/lease_time/t1/t2/subnet_mask/routers/dns/domain_name/hostname/domain_search/client_id/requested_ip/param_request_list/vendor_class/relay_agent_info/extra_options/broadcast` 均由 `strategy_convert.go:2586-2694` 解析进 `spec.DHCP`，目标位置是层链 `layers[].dhcp`（或同一 `DHCPConfig` 的 `messages[]`）。`src_ip/dst_ip/src_port/dst_port/src_mac/dst_mac/ttl` 不属于 DHCP 业务键，保留为 flow 元数据供 `resolvePorts/resolveIPs/resolveMACs` 和承载层使用；`count/bps/duration` 由 flow control 处理。不存在可继续保留的游离 DHCP 顶层键。
 
 `dhcp` 缺省时生成一个 DISCOVER。`scenario` 可为 `dora|nak|release|inform|renew|rebind`，非 scenario 使用 `messages[]` 原样逐条发包。
 
@@ -56,31 +62,37 @@ JSON `strategy_convert.go:2586-2694` 解析 `DHCPConfig`、`DHCPMessage` 和 ext
 | G-DHCP-2 | 动态策略字段与按流序号算法未接入 | `layer_gen.go:83-85` 仅随机 xid | 生成器阶段 |
 | G-DHCP-3 | IPv6、非默认端口、relay、多会话/并发未覆盖 | validator 明确拒 IPv6；单 flow event loop | 用例覆盖阶段 |
 | G-DHCP-4 | options/长度/截断/非法 type 负例未进入 cases | 当前 JSON 无 `expect_error` | 用例覆盖阶段 |
-| G-DHCP-5 | tracked `trafficgen/docs/protocol-pcap-test/dhcp.md` 为旧产物，早于扁平判死基线时应重生成 | git tracked artifact，需主线程核验提交时间 | 文档/产物阶段 |
+| G-DHCP-5 | tracked 结果产物过期：末次提交 `a674fe96`（2026-09-05）早于 `0417be5`（2026-09-13），pcap 留档目录不存在 | `git log -1 -- trafficgen/docs/protocol-pcap-test/dhcp.md`；目录 `ls` 无 | 产物阶段（P5 重跑后重生成） |
 
 ## 11. 门1 §1–§14 对照表
 
 | 门 | 满足方式与证据 |
 |---|---|
-| §1 | 顶层旧键去向与完整层链目标形见 §1；解析见 strategy_convert:2586 |
-| §2 | RFC 2131 DHCPv4/BOOTP+UDP，见 §1/§3 |
-| §3 | 会话表、事务序列、关联、插入位置、时间线完整见 §2 |
-| §4 | 消息类型 1..8、scenario 六种、手工 messages 见 §4 |
-| §5 | 固定头、cookie、TLV、offset/端序/长度公式见 §3 |
-| §6 | validator、planner、builder、layer generator 路径见 §6 |
-| §7 | 五层覆盖分别见 testcase §4；不适用 IPv6 生成见 §5，业务多流见 §2 |
-| §8 | 端口/IP/MAC/广播/relay 见 §5 |
-| §9 | 性能边界与 options 上限见 §8；反查建议见 §9 |
-| §10 | 错误锚词与失败传播见 §8 |
-| §11 | 规范依据 RFC 2131 §2、§3.1、§4.1、§4.3，见 §1/§4 |
-| §12 | 动态字段四元组（src/dst IP/port）及业务字段 xid/MAC/message fields、随机算法与 packet index 见 §7 |
-| §13 | pcap 与 NIC 共用同一 layer/event 契约；NIC 输出需主线程实测，见 §5/§9 |
-| §14 | 缺口与待实现边界集中登记于 §10，不计入已覆盖行为 |
+| §1 顶层旧键 | 逐键去向见 §1（DHCP 业务键全部入 `spec.DHCP` 层内；flow 地址/端口保留元数据语义）；目标形状完整 spec_json 样例见 §1 |
+| §2 规范基线 | RFC 2131 DHCPv4/BOOTP+UDP，见 §1/§3 |
+| §3 五件套 | 会话表/事务序列/关联关系/插入位置/时间线完整见 §2 |
+| §4 消息与状态机 | 消息类型 1..8、scenario 六种、manual messages 见 §4 |
+| §5 线格式 | 固定头、cookie、TLV、offset/端序/长度公式见 §3 |
+| §6 代码路径 | validator、planner、builder、layer generator 路径见 §6 |
+| §7 五层覆盖 | 五层覆盖矩阵与缺口见 testcase §3；IPv6 生成不适用理由见 §5，业务多流见 §2 |
+| §8 地址与流 | 端口/IP/MAC/广播/relay 见 §5 |
+| §9 性能 | 性能边界与 options 上限见 §8；反查建议见 §9 |
+| §10 错误处理 | 错误锚词与失败传播见 §8 |
+| §11 规范依据 | RFC 2131 §2、§3.1、§4.1、§4.3，见 §1/§4 |
+| §12 动态字段 | 四元组与业务字段清单、xid 随机与 packet index 算法、待实现边界见 §7 |
+| §13 双输出 | pcap 与 NIC 共用同一 layer/event 契约；NIC 输出需主线程实测，见 §5/§9 |
+| §14 缺口登记 | 缺口与待实现边界集中登记于 §10，不计入已覆盖行为 |
 
 ## 12. 复核记录
 
-自审 2 轮，末轮干净：已回对目标形状、cases ID/包数/断言、实现行号、字段 offset/端序、门1 十四行与缺口三要素。
+自审 3 轮，末轮干净：机读复核 cases ID/包数/21 条 field 断言、门1 十四行、缺口三要素、过期产物提交号与目录缺失；人工复核线格式 offset/端序与代码行号引用。
 
 ## 13. 术语与参考
 
 xid=DHCP transaction ID；chaddr=client hardware address；yiaddr=your IP；ciaddr=client IP；giaddr=relay agent IP；DORA=Discover/Offer/Request/ACK。规范：RFC 2131；实现：`trafficgen/internal/protocol/dhcp/{planner.go,scenario.go,layer_gen.go}`。
+
+## 14. 过期产物与修订记录
+
+`trafficgen/docs/protocol-pcap-test/dhcp.md` 是 tracked 结果产物，末次提交 `a674fe96`（2026-09-05）早于扁平判死基线 `0417be5`（2026-09-13），且其链接的 `trafficgen/docs/protocol-pcap-test/dhcp/` 目录当前不存在；登记为过期产物，不作为当前复跑证据。归属代码/产物阶段：重跑套件后重生成。
+
+本稿为 as-built 文档；未改代码、cases 或 gate。
