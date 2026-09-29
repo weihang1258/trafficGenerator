@@ -5,7 +5,7 @@
 实现是 DHCPv4（RFC 2131；BOOTP wire format 由 RFC 2131 §2/§4.1 定义）终结层，承载于 UDP。配置唯一真相是层链；完整当前目标形状为：
 
 ```json
-{"layers":[{"udp":{}},{"dhcp":{}}],"dhcp":{"scenario":"dora","default_your_ip":"192.168.1.100","default_server_identifier":"192.168.1.1"}}
+{"layers":[{"udp":{}},{"dhcp":{"scenario":"dora","default_your_ip":"192.168.1.100","default_server_identifier":"192.168.1.1"}}]}
 ```
 
 门1 §1 旧形逐键去向：`role`、`xid`、`scenario`、`messages`、`client_mac`、`h_type`、`h_len`、`broadcast_flag`、`secs`、`sname`、`file`、全部 `default_*` 及 message 内 `type/direction/client_ip/your_ip/server_ip/relay_agent_ip/hops/server_identifier/lease_time/t1/t2/subnet_mask/routers/dns/domain_name/hostname/domain_search/client_id/requested_ip/param_request_list/vendor_class/relay_agent_info/extra_options/broadcast` 均由 `strategy_convert.go:2586-2694` 解析进 `spec.DHCP`，目标位置是层链 `layers[].dhcp`（或同一 `DHCPConfig` 的 `messages[]`）。`src_ip/dst_ip/src_port/dst_port/src_mac/dst_mac/ttl` 不属于 DHCP 业务键，保留为 flow 元数据供 `resolvePorts/resolveIPs/resolveMACs` 和承载层使用；`count/bps/duration` 由 flow control 处理。不存在可继续保留的游离 DHCP 顶层键。
@@ -63,25 +63,29 @@ JSON `strategy_convert.go:2586-2694` 解析 `DHCPConfig`、`DHCPMessage` 和 ext
 | G-DHCP-3 | IPv6、非默认端口、relay、多会话/并发未覆盖 | validator 明确拒 IPv6；单 flow event loop | 用例覆盖阶段 |
 | G-DHCP-4 | options/长度/截断/非法 type 负例未进入 cases | 当前 JSON 无 `expect_error` | 用例覆盖阶段 |
 | G-DHCP-5 | tracked 结果产物过期：末次提交 `a674fe96`（2026-09-05）早于 `0417be5`（2026-09-13），pcap 留档目录不存在 | `git log -1 -- trafficgen/docs/protocol-pcap-test/dhcp.md`；目录 `ls` 无 | 产物阶段（P5 重跑后重生成） |
+| G-DHCP-6 | executable case 仍把 `dhcp` 放在 `layers` 外，未满足层链唯一真相/顶层白名单 | `trafficgen/test/protocol_pcap/cases/dhcp.json:6-19`；目标形见本稿 §1 | 配置迁移阶段（迁移后重跑） |
+| G-DHCP-7 | scenario validator 只预检 `synthesized[0]`，后续消息 options 超限要到 builder 才失败 | `planner.go:349-371,819-823`；本稿 §8；testcase §6 | validator/用例阶段（逐消息预检并补负例） |
 
 ## 11. 门1 §1–§14 对照表
 
-| 门 | 满足方式与证据 |
-|---|---|
-| §1 顶层旧键 | 逐键去向见 §1（DHCP 业务键全部入 `spec.DHCP` 层内；flow 地址/端口保留元数据语义）；目标形状完整 spec_json 样例见 §1 |
-| §2 规范基线 | RFC 2131 DHCPv4/BOOTP+UDP，见 §1/§3 |
-| §3 五件套 | 会话表/事务序列/关联关系/插入位置/时间线完整见 §2 |
-| §4 消息与状态机 | 消息类型 1..8、scenario 六种、manual messages 见 §4 |
-| §5 线格式 | 固定头、cookie、TLV、offset/端序/长度公式见 §3 |
-| §6 代码路径 | validator、planner、builder、layer generator 路径见 §6 |
-| §7 五层覆盖 | 五层覆盖矩阵与缺口见 testcase §3；IPv6 生成不适用理由见 §5，业务多流见 §2 |
-| §8 地址与流 | 端口/IP/MAC/广播/relay 见 §5 |
-| §9 性能 | 性能边界与 options 上限见 §8；反查建议见 §9 |
-| §10 错误处理 | 错误锚词与失败传播见 §8 |
-| §11 规范依据 | RFC 2131 §2、§3.1、§4.1、§4.3，见 §1/§4 |
-| §12 动态字段 | 四元组与业务字段清单、xid 随机与 packet index 算法、待实现边界见 §7 |
-| §13 双输出 | pcap 与 NIC 共用同一 layer/event 契约；NIC 输出需主线程实测，见 §5/§9 |
-| §14 缺口登记 | 缺口与待实现边界集中登记于 §10，不计入已覆盖行为 |
+证据编号严格对应 `docs/CORE_MEMORY.md` 与 `protocol-doc-requirements` 的 §1–§14；“缺口”表示不能作为已满足证据。
+
+| 门 | 本协议满足方式与精确证据 | 状态 |
+|---|---|---|
+| §1 层链唯一真相与旧键退出 | 目标形与逐键去向见 §1；但 executable case 的层链外顶层 `dhcp` 仍在 `cases/dhcp.json:6-19`（G-DHCP-6）。 | 缺口 |
+| §2 策略/任务分工与封包 | DHCP 作为单策略单 flow，数量/速率由 flow control 处理见 §1、§2；未有任务级多策略/封顶用例。 | 部分，缺口 |
+| §3 多会话/事务/多流关联 | 单流协议豁免多流；会话表、DORA/其他序列、关联、插入位置、时间线见 §2。多会话/并发与异常编排未覆盖（G-DHCP-3）。 | 部分，缺口 |
+| §4 规范先行与三路对照 | RFC 2131 §2/§3.1/§4.1/§4.3 依据见 §1–§5；商业行为与可靠开源实现的逐条对照及候选方案表未提供。 | 缺口 |
+| §5 有依据设计与错误处理 | 依赖、错误锚词、失败传播见 §6、§8；options 后续消息预检缺口见 G-DHCP-7，负例未进入 cases（G-DHCP-4）。 | 部分，缺口 |
+| §6 性能设计与双路验收 | payload/options 上限与 builder 路径见 §8；pcap/NIC 验收要求见 §9，但吞吐、并发、内存、队列、CPU 目标及实测缺失。 | 缺口 |
+| §7 三份权威文档关系 | 本稿与 testcase 回指 cases 机器来源，见 testcase §1–§2；`docs/CODE_DESIGN.md`/`docs/TEST_CASES.md` 的统一登记映射未提供。 | 缺口 |
+| §8 设计先行八要素 | 接口/数据/流程/错误/边界见 §2–§8；明确改文件、冲突点与回滚方式未形成八要素清单。 | 缺口 |
+| §9 三源测试与颗粒度 | testcase §2–§6 列出现有 DORA 与缺口；规范逐字段/错误码全表、动态整格、复杂业务矩阵尚未形成可执行用例（G-DHCP-1/2/4）。 | 部分，缺口 |
+| §10 改后评审闭环 | 本稿 §12 记录自审；真实流程全量、负例、`-race` 等闭环证据未提供。 | 缺口 |
+| §11 白话表达 | 术语表见 §13；本门仅记文档证据，未替代功能/测试证据。 | 已具备文档证据 |
+| §12 动态字段与序号算法 | 字段清单、xid 随机及 packet index 算法见 §7；fixed/inc/rand/list/pattern 与按流确定性算法未接入（G-DHCP-2）。 | 部分，缺口 |
+| §13 schema 单一机器契约 | 目标层链见 §1；DHCP 专属 schema/统一校验入口与生成同步证据未提供，且 case 仍为旧形（G-DHCP-6）。 | 缺口 |
+| §14 MCP 真实流程验收 | testcase 记录 machine case 来源与字段断言；MCP 建任务→真实生成→tshark、负例和全量重跑证据未提供，旧产物过期（G-DHCP-5）。 | 缺口 |
 
 ## 12. 复核记录
 
