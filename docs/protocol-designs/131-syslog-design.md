@@ -16,7 +16,7 @@
 |---|---|---|---|
 | 1 | `planner.go` 注释引用 `design_syslog.md`（§1.8.4/§6.1/§8）、`testcases_syslog.md`（§3.3.2/§3.4.2/§1.2.2）、`validate_conventions.md`（§7/§1.1/§1.3） | 三文件**仓内不存在、本机磁盘不存在**（`find / -name` 实测零命中） | **死引用**（与 opcua #17 同类）：注释中的章节号不可追溯，本版不复制任何来自死文档的规格，全部按落码 + RFC 原文重钉（G-SYSLOG-9） |
 | 2 | 代码注释/错误文案引 "RFC 5424 §6.2.8"（SD-ELEMENT）、"§6.4.4"（BOM） | RFC 5424 原文目录：§6.2 到 **6.2.7 为止**（无 6.2.8）；§6.4 无子节；SD-ELEMENT 实为 **§6.3.1**、BOM 实为 **§6.4** | **章节引用漂移**（锚词字面不受影响，负例 `error_contains` 按代码文案原样匹配即可）；本版一律引正确章节（G-SYSLOG-10） |
-| 3 | `trafficgen/docs/protocol-pcap-test/syslog.md`（tracked）写 "Cases: 1 — pass 1, fail 0, error 0" | 末次提交 `e7e7d1c`（**2026-08-27**），早于判死提交 `0417be5`（2026-09-13）；`trafficgen/docs/protocol-pcap-test/syslog/` 目录**不存在（0 个 pcap）** | **产物过期**（同 pcep G-PCEP-11 口径）：该 "1/1 pass" **未经今日复跑证实**。本车道对该例 pcap（`/tmp/mcp-pcaps/syslog/syslog_smoke_01.pcap`，2026-09-27，判死提交后）做了 tshark 字段与帧字节复核（§9 一致），但**套件复跑仍属代码阶段**，本文档不以任何形式引用该产物作为"今日已复跑"依据（G-SYSLOG-8） |
+| 3 | `trafficgen/docs/protocol-pcap-test/syslog.md`（tracked，仓根相对路径）写 "Cases: 1 — pass 1, fail 0, error 0" | 末次提交 `e7e7d1c`（**2026-08-27**），早于判死提交 `0417be5`（2026-09-13）；`trafficgen/docs/protocol-pcap-test/syslog/` 目录**不存在（0 个 pcap）** | **产物过期**（同 pcep G-PCEP-11 口径）：该 "1/1 pass" **未经今日复跑证实**。本车道对该例 pcap（`/tmp/mcp-pcaps/syslog/syslog_smoke_01.pcap`，2026-09-27，判死提交后）做了 tshark 字段与帧字节复核（§9 一致），但**套件复跑仍属代码阶段**，本文档不以任何形式引用该产物作为"今日已复跑"依据（G-SYSLOG-8） |
 
 **依赖链判定纪律**：以上与全文各裁定均为可判题（代码/pcap/RFC 原文三级对照），直接判对错，不问偏好。
 
@@ -154,7 +154,7 @@ RFC 形状：`... STRUCTURED-DATA SP MSG`，且 UTF-8 编码的 MSG **MUST 以 B
 
 **五层覆盖逐层结论**（覆盖分两层如实声明：**单测面** = 222 个 `Test*`；**pcap 契约面** = 1 例冒烟）：
 - **功能层**：RFC 5424 默认流正例 1 例（#1）；显式字段集/SD/BOM/BSD/messages/count/IPv6 正例、22 类 validator 拒绝负例**今日 pcap 契约面全缺**（单测面已覆编码/校验行为）→ A′ 全量立项（G-SYSLOG-7）。
-- **性能层**：最小报文 17B（最小帧 60B padding）；UDP 上界守卫 65507 近似检查（`:249-259`）；无 MSS/分段（UDP 一包一消息）；TCP MSS 分段存在但链不可达（§1 边界①）；480/2048（RFC 5424 §6.1）/1024（RFC 3164 §4.1）无强制 → G-SYSLOG-4。
+- **性能层**：最小报文 17B（最小帧 60B padding）；UDP 上界守卫是基于 `256 + len(cfg.Msg) +` 顶层 StructuredData 的**固定近似预检**（`:249-259`），不是编码后精确长度检查，且未覆盖 `messages[]` 各条目的最终编码长度；因此 oversized messages 可能绕过该预检，不能声称已覆盖通用 UDP 65507 上界拒绝；无 MSS/分段（UDP 一包一消息）；TCP MSS 分段存在但链不可达（§1 边界①）；480/2048（RFC 5424 §6.1）/1024（RFC 3164 §4.1）无强制 → G-SYSLOG-4。
 - **数据场景层**：PRI 值域边界（min 0/max 191）、facility/severity 逐值、字段长度上界 255/48/128/32/32、SD 双形+转义+BOM+UTF-8——单测面已覆（`planner_testpoints_test.go` 99 个 TestPoint），pcap 契约面 A′。
 - **地址与流层**：**IPv4/IPv6 双栈必须**——`EtherTypeFor(srcIP)` 动态选 EtherType（`planner.go:557/633`），v4/v6 单测已覆（`:828/:839`），pcap 契约面仅 IPv4；**单流基线**已覆（#1）；**流关联不适用**：UDP fire-and-forget 无控制流/数据流派生（显式声明，不硬凑）。
 - **业务层**：多会话不适用（UDP 无连接概念，无 `sessions[]` 形态）；多事务不适用（单 datagram 即终）；"多条日志"以 `messages`/`count` 承载（④），A′ 立项。
@@ -171,10 +171,10 @@ syslog 层**无自有状态机**：UDP 载体每消息独立数据报、无序�
 
 ## 6. 性能设计与验收
 
-- **目标与边界**：UDP 单流 = `max(count, len(messages))` 个数据报；单数据报报文长 = §3.1 公式，无帧长上限强制（§1 边界③）；每帧内存 = 该报文长度（最小 17B）。吞吐数字由生成器级速率配置承载，协议层不重复定义。
+- **目标与边界**：UDP 单流 = `len(messages)>0 ? len(messages) : count` 个数据报（`count` 缺省 1；`messages` 非空时实现忽略 `count`）；单数据报报文长 = §3.1 公式，无帧长上限强制（§1 边界③）；每帧内存 = 该报文长度（最小 17B）。吞吐数字由生成器级速率配置承载，协议层不重复定义。
 - **依据**：事件流式产出（生成器逐事件 `EmitMsg`，无全量聚合）；无跨流共享状态；无锁（编码为纯函数）。
 - **验收两路**：pcap（`/tmp/mcp-pcaps/syslog/`）与 NIC（`enp135s0f0np0`，`nic_capture` 开关）共用同一断言集；断言实际 `syslog.*` 字段、帧原始 hex 与 `packet_count`，不只断言"任务没报错"。
-- **六类场景落点**：基线（#1，1 帧）/ 目标规模（messages 多包，A′）/ 压力上限（UDP 上界守卫，A′ 负例）/ 长时间运行（count 复制承载语义）/ 并发交错（多流 `flow_control`，A′）/ 背压（`packet_count` 精确计数守卫）。
+- **六类场景落点**：基线（#1，1 帧）/ 目标规模（messages 多包，A′）/ 压力上限（UDP 顶层近似预检拒绝，A′ 负例）/ 长时间运行（count 复制承载语义）/ 并发交错（多流 `flow_control`，A′）/ 背压（`packet_count` 精确计数守卫）。
 
 ## 7. 错误处理（负例锚词表；**今日 0 负例**，全部 A′ 立项）
 
@@ -194,7 +194,7 @@ syslog 层**无自有状态机**：UDP 载体每消息独立数据报、无序�
 | 10 | `MSG cannot contain LF in non-transparent framing` | :171 | 顶层 Msg 含 LF（non_transparent） |
 | 11 | `Messages[%d].Msg cannot contain LF` | :175 | 逐消息 Msg 含 LF（non_transparent） |
 | 12 | `%s %q not a valid RFC 3339 timestamp` | :204 | 顶层/逐消息 Timestamp 非法 |
-| 13 | `encoded message exceeds UDP payload limit %d` | :257 | UDP 近似长度 >65507 |
+| 13 | `encoded message exceeds UDP payload limit %d` | :257 | UDP 近似长度 >65507。**覆盖边界（as-built）**：validator 只做 `approx := 256 + len(cfg.Msg)` 加顶层 StructuredData 的固定近似预检（`:249-258`），**不遍历 `messages[]`、不调用编码器**——超限 `messages` 条目可通过本检查并生成超大 UDP 数据报；且固定 `256` 近似可能**误拒合法输入**（如空 SD + 最小头 + `Msg` 长 65252 时 `65508>65507` 拒，实际线长约 65270 < 65507）。错误文案中 `(RFC 5426 §6)` 为代码历史字面（负例锚词按文案原样匹配），非本版规范引用；本版规范引用 = §3.2 |
 | 14 | `%s %q must not contain SP` | :271 | HOSTNAME/APP-NAME/PROCID/MSGID 含 SP |
 | 15 | `%s exceeds %d bytes` | :274 | 同上四字段超长（255/48/128/32） |
 | 16 | `StructuredData[%d] empty` | :291 | 空 SD 元素 |
@@ -286,7 +286,7 @@ syslog 层**无自有状态机**：UDP 载体每消息独立数据报、无序�
 | 20 | TCP octet_counting / non_transparent 分帧 | ✓（TCP_x ×3，legacy 面） | **待实现边界**（G-SYSLOG-3） |
 | 21 | IPv4/IPv6 EtherType | ✓（IPv4/IPv6_EtherType） | A′ |
 | 22 | Metadata syslog_priority/syslog_transport | ✓（Metadata_PriorityTransport + chain） | A′ |
-| 23 | UDP 上界 >65507 拒绝 | 分支在案（:249-259），**单测亦无** | A′ 负例 |
+| 23 | UDP 上界：顶层单消息近似预检 >65507 | 分支在案（`:249-259`），**仅估算 `cfg.Msg` 与顶层 StructuredData，未检查 `messages[]` 各条目或最终编码长度；单测亦无** | A′ 负例（需分别覆盖顶层近似拒绝与 `messages[]` 漏检边界；当前不得称为完整上界覆盖） |
 
 23 行：pcap 已覆 **1**（行 1）/ 单测已覆待收编 pcap **20**（行 2-22，**行 23 除外——该分支单测亦无**）/ 待实现边界 **1**（行 20）/ 分支在案 **1**（行 23）。1+20+1+1=23 ✓
 
@@ -435,11 +435,11 @@ syslog 层**无自有状态机**：UDP 载体每消息独立数据报、无序�
 | G-SYSLOG-1 | **层空壳 + 顶层子映射承载配置**：registry syslog 无 Fields（`layers.generated.json:4178`）、translate 无层内 case（配置经 FlowMeta 直传）→ 层内任意键 400；配置唯一入口 = 顶层 `syslog` 子映射 = **非负例顶层键 1/1（红，违反 1.11-1.13 白名单验收口径）**；且 `CheckProtoFlat` 无 syslog 分支 → presence 不判死，presence 负例今日**不建**（假绿） | P4/B′ 框架面：等框架级 unknown-key 白名单 + registry Fields 裁定（登记 17 键或顶层键白名单化）；**禁加单协议黑名单分支**（kingbase 裁定）；收敛前 A′ 例沿用 as-built 形 |
 | G-SYSLOG-2 | **facility/severity 缺省断层**：1/6 缺省只住扁平解析（`strategy_convert.go:1501-1502`）；空层链（`spec.Syslog=nil` 或无顶层键）→ 生成器无兜底 → **PRI=0**（`<0>1 - - - - - -`），与存量 `<14>` 两副面孔；`DefaultFacility/DefaultSeverity` 声明未用（`planner.go:74-75`）+ `:368-374` 空 if 死分支 | P4：生成器/链缺省补 1/6 或删死常量二选一（failing-test-first：先钉 `<0>` vs `<14>` 分歧例）；修后存量 #1 断言不受影响（仍带顶层键） |
 | G-SYSLOG-3 | **TCP/TLS 载体链不可达**：层校验器拒 tcp/tls（`layer_gen.go:133-135`）；legacy `emitTCP`（RFC 6587 分帧 + MSS 分段 + 握手挥手）未注册生产路径；单测已覆分帧面（TCP_x ×3）但 pcap 契约零例 | 待实现边界：A′ 接线（链放行 + 分帧正负例）或**明确不解决**；接线时同步处理 tshark 514→rsh 绑定（G-SYSLOG-12） |
-| G-SYSLOG-4 | **长度上界无强制**：RFC 5424 §6.1（480 最低支持/2048 SHOULD）、RFC 5426 §3.2（v4 480/v6 1180/2048）、RFC 3164 §4.1（≤1024）均无检查；仅 UDP 65507 近似守卫（`planner.go:249-259`） | A′ 补 >65507 负例（守卫已在）；480/2048 属 SHOULD/接收方要求 → **明确不解决**（生成器不裁剪用户报文），文档钉死口径 |
+| G-SYSLOG-4 | **长度上界无完整强制**：RFC 5424 §6.1（480 最低支持/2048 SHOULD）、RFC 5426 §3.2（v4 480/v6 1180/2048）、RFC 3164 §4.1（≤1024）均无检查；仅有 UDP 65507 的**固定近似预检**（`planner.go:249-259`，只读 `cfg.Msg` 与顶层 `cfg.StructuredData`，未遍历/编码 `Messages`） | A′ 分别补顶层近似拒绝与 `messages[]` 超限/临界值边界；在精确编码检查落码前，不得声称已覆盖通用 UDP 上界；480/2048 属 SHOULD/接收方要求 → **明确不解决**（生成器不裁剪用户报文），文档钉死口径 |
 | G-SYSLOG-5 | **BOM 线形偏离**：实现 BOM 替换 SP（`planner.go:752-759`，线形 `SD BOM MSG`）；RFC 5424 §6.4 ABNF 为 `[SP MSG]` 且 MSG-UTF8 以 BOM 开头（线形 `SD SP BOM MSG`）——实现少一个 SP；单测按现状钉死（Msg_ASCII_WithBOM） | P4 裁定：改线形补 SP（重钉单测+新 pcap 例）或**明确不解决**并钉现状；两路均须在文档/用例口径去"RFC 合规 BOM"表述 |
 | G-SYSLOG-6 | **sign_blocks 非 RFC 5848**：实现 `[sign@32473 signature="…"]`（`:736-740`）；RFC 5848 §4.2 SD-ID 恒 `ssign`、参数 VER/RSID/SG/SPRI/GBC/FMN/CNT/HB/SIGN（无 `signature`） | **明确不解决**（定性 = 通用 SD-ELEMENT 便捷写法，不声称 syslog-sign 合规）；用例/文档不得引 5848 章节作为该键依据 |
 | G-SYSLOG-7 | **pcap 契约覆盖 = 1/1 冒烟**：22 拒绝分支 0 负例；显式字段/SD/BOM/BSD/messages/count/IPv6/Metadata 断言全缺（单测 188 Test 已覆编码行为）；业务字段动态全关（allowlist 无 syslog 行） | A′ 全量立项（§13 最小闭环集 13 例起步）；动态字段逐流变体（hostname/msg 模拟多主机）列候选，不冒充已覆盖 |
-| G-SYSLOG-8 | **结果文档过期**：`trafficgen/docs/protocol-pcap-test/syslog.md`（tracked）"Cases: 1 — pass 1" 末次提交 `e7e7d1c`（2026-08-27）早于判死提交 `0417be5`（2026-09-13）；`docs/protocol-pcap-test/syslog/` **0 个 pcap**。本车道对 `/tmp/mcp-pcaps/syslog/syslog_smoke_01.pcap`（2026-09-27）复核 4+1 断言全命中，但**不得冒充套件今日复跑** | 代码阶段（P5 重跑套件后重生成产物）；本版不删不改 tracked 产物，读者不得据此判断已复跑（口径 = pcep G-PCEP-11） |
+| G-SYSLOG-8 | **结果文档过期**：`trafficgen/docs/protocol-pcap-test/syslog.md`（tracked，仓根相对路径）"Cases: 1 — pass 1" 末次提交 `e7e7d1c`（2026-08-27）早于判死提交 `0417be5`（2026-09-13）；`trafficgen/docs/protocol-pcap-test/syslog/` **0 个 pcap**。本车道对 `/tmp/mcp-pcaps/syslog/syslog_smoke_01.pcap`（2026-09-27）复核 4+1 断言全命中，但**不得冒充套件今日复跑** | 代码阶段（P5 重跑套件后重生成产物）；本版不删不改 tracked 产物，读者不得据此判断已复跑（口径 = pcep G-PCEP-11） |
 | G-SYSLOG-9 | **死引用**：`planner.go` 注释引 `design_syslog.md`/`testcases_syslog.md`/`validate_conventions.md`——仓内与本机均不存在 | 文档面已按落码+RFC 重钉（本版）；注释清理归代码阶段顺手项，不独立立项 |
 | G-SYSLOG-10 | **RFC 章节引用漂移**：代码注释/错误文案引 §6.2.8（实为 §6.3.x）、§6.4.4（不存在，BOM 实为 §6.4）、§6.2（字段上界实为 §6.2.4-6.2.7）；锚词字面不受影响（负例按文案子串匹配） | 代码阶段顺手修（错误文案含 § 号者改动即动锚词，须与负例同步）；本版文档一律引正确章节 |
 | G-SYSLOG-11 | **存量 notes 文案错误**：①"msg 尾部含 0x00 终止符"——实为 `pad_min_frame` 默认 ON 的 60B 最小帧填充（帧 59→60，UDP payload 恰 17B 无 NUL；证据：pcap hexdump + `mcp/padding_inspect_test.go` "default ON -> padded to 60"）；②"仅做帧前缀断言"——实为**全 payload 断言**（17B 恰等）；③summary "facility=1(2)" 的 "(2)" 无对应语义（疑笔误） | P4 改写 `expect.notes`（同 opcua G-OPCUA-7 P4 动作；断言本体全对，仅文案修正） |

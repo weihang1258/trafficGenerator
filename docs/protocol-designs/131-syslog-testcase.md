@@ -21,7 +21,7 @@
 
 **动态字段禁止硬编码**：IPv4 ID/校验和逐次随机——frames 断言锚点（offset 42 起）不触 18-19/24-25 字节；bsd 格式空 timestamp 取当前时刻——新例必须显式钉 timestamp（设计 §5 确定性两条）。
 
-**包数约定**：单流 UDP = `messages` 非空 ? `len(messages)` : `count`（缺省 1）。
+**包数约定**：单流 UDP = `len(messages)>0 ? len(messages) : count`（`count` 缺省 1；`messages` 非空时实现忽略 `count`）。因此 `count=100,messages=[一项]` 实际仍为 1 个数据报，不是 `max(count,len(messages))`。
 
 **保活/重试/RST 口径**：UDP fire-and-forget，无 keepalive/重试/RST 概念（协议无此机制，设计 §10.1 行 6/7 显式不适用）；TCP 载体的 FIN/RST 待 G-SYSLOG-3 接线后另立。
 
@@ -48,7 +48,7 @@
 
 ## 4. 负例契约
 
-**今日 0 负例**。设计 §7 的 22 个 validator/planner 拒绝分支 + 3 个链级门（tcp/tls、unknown field、flat 五键）**全部未建 pcap 负例**——锚词表与代码行号见设计 §7（逐字 22 行，不在此重复）；每分支一例、`expect` 严格只有 `expect_error`+`error_contains`、锚词 = 代码文案子串。**优先补的 9 条**（覆盖高频误配 + 全部锚词形态）：facility>23（:119）/ severity>7（:122）/ format 非法（:131）/ version=0+rfc5424（:140）/ transport=tcp（**链级锚词** `not supported by the layer chain yet`，非 :153）/ timestamp 非 RFC3339（:204）/ 字段超长（:274）/ SD 未闭合（:297）/ UDP 超 65507（:257）。
+**今日 0 负例**。设计 §7 的 22 个 validator/planner 拒绝分支 + 3 个链级门（tcp/tls、unknown field、flat 五键）**全部未建 pcap 负例**——锚词表与代码行号见设计 §7（逐字 22 行，不在此重复）；其中 UDP 上界分支（`:257`）只是**顶层单消息固定近似预检**：只估算 `cfg.Msg` 与顶层 StructuredData，未检查 `messages[]` 各条目或最终编码长度，且固定近似存在合法输入误拒可能，不能作为完整 UDP 65507 覆盖。每分支一例、`expect` 严格只有 `expect_error`+`error_contains`、锚词 = 代码文案子串。**优先补的 9 条**（覆盖高频误配 + 全部锚词形态）：facility>23（:119）/ severity>7（:122）/ format 非法（:131）/ version=0+rfc5424（:140）/ transport=tcp（**链级锚词** `not supported by the layer chain yet`，非 :153）/ timestamp 非 RFC3339（:204）/ 字段超长（:274）/ SD 未闭合（:297）/ UDP 顶层近似预检触发（:257）；另需补 `messages[]` 超限/临界值边界以证明当前漏检缺口，不能将其写成已覆盖。
 
 **负例纪律**：`expect_error=true` 用例不得混入成功包结构断言；锚词与 validator 错误字面值一一对应（设计 §7 表为唯一出处）；presence 形状负例（`{"layers":[…],"syslog":{}}` 判死）**今日不建**——`CheckProtoFlat` 无 syslog 分支，建了会真绿 = 假通过（G-SYSLOG-1，与 12-P2 裁定一致）。
 
@@ -62,7 +62,7 @@ RFC 5424/3164/5426/6587/5425 原文（设计 §10）+ D-SYSLOG-1（设计 §11�
 
 ### 5.2 对账两行 + 清单出处声明
 
-- **清单出处声明**：本清单来源 = **RFC 原文（2026-09-29 核对）+ 仓库落码反推 + tshark 3.6.14 字段与 pcap 实测**，非纯规范反推（真实收集器/rsyslog 线字节未取到，归 G-SYSLOG-8 批次补证）。
+- **清单出处声明**：本清单来源 = **RFC 原文（2026-09-29 核对）+ 仓库落码反推 + tshark 3.6.14 字段与 pcap 实测**，非纯规范反推（真实收集器/rsyslog 线字节未取到，归 G-SYSLOG-8 批次补证）。RFC 5426 尺寸规范引用统一为 **§3.2**；错误文案中的 `(RFC 5426 §6)` 是代码历史字面，按原文匹配但不作为规范锚点。
 - **对账两行**：**要求逻辑点总数 = 60**（八项 8 行 + 矩阵 21 格 + 变体 23 行 + 商业映射 8 行）；**用例覆盖数 = 4**（八项 1 + 矩阵 1 + 变体 1 + 商业 1——同为 `#1` 一例的四向计数）；**不适用/明确不解决 = 12**（八项 2〔行 6/7〕+ 矩阵 8 + 变体 0 + 商业 2）；**开放立项 = 44**（八项 5 + 矩阵 12〔A′ 10 + 待实现边界 2〕+ 变体 22〔A′ 20 + 待实现 1 + 分支在案 1〕+ 商业 5〔A′ 4 + 待实现 1〕）。4+12+44=60 ✓
   **粒度声明**：行/格粒度每点 1 计；矩阵 21 格与变体 23 行的 A′ 存在语义重叠（如 SD 形态两表各计 1），**两表各自内部加和自洽即为口径**，跨表不求和不重复。**反查全绿 ≠ 覆盖全**（§9.52 原文）。逐表重数见设计 §10.1（8 = 覆 1 + 立项 5 + 不适用 2）/§10.2（21 = 覆 1 + A′ 10 + 待实现 2 + 不适用 8）/§10.3（23 = 覆 1 + 单测待收编 20 + 待实现 1 + 分支在案 1）/§10.4（8 = 覆 1 + A′ 4 + 不解决 2 + 待实现 1）。
 - **门3 抽查候选**：唯一用例 = #1（1 帧最小报文：字段序/PRI 公式/NILVALUE/空 MSG 四维一体）。建议门3 抽 #1 + A′ 首例（多包或 BSD，接线后）。
@@ -95,7 +95,7 @@ RFC 5424/3164/5426/6587/5425 原文（设计 §10）+ D-SYSLOG-1（设计 §11�
 | 格式面 | `syslog_bsd_format`（预格式时间钉死，防 now() 非确定） | G-SYSLOG-7 |
 | 地址面 | `syslog_ipv6`（offset 62 = 14+40+8，EtherType 86DD） | G-SYSLOG-7 |
 | Metadata 面 | `syslog_priority`/`syslog_transport` 断言收编（若 runner 支持 metadata 断言） | G-SYSLOG-7 |
-| 上界面 | UDP >65507 拒绝负例 | G-SYSLOG-4/7 |
+| 上界面 | UDP 顶层近似预检拒绝 + `messages[]` 漏检/临界值边界 | G-SYSLOG-4/7 |
 | 缺省面 | G-SYSLOG-2 修复后补 `syslog_empty_chain_default`（纯层链无顶层键 → 断言 PRI 与修复裁定一致） | G-SYSLOG-2 |
 
 **B′（框架面，进设计 §14「明确不解决 + 迁入计划」）**：`CheckProtoFlat` syslog presence 分支 + 游离顶层键通用门（G-SYSLOG-1，等框架级 unknown-key 白名单，禁单协议黑名单分支）/ registry Fields 登记或顶层键白名单化（G-SYSLOG-1）/ 业务字段动态（G-SYSLOG-7，allowlist 无 `syslog` 行）/ BOM 线形回正裁定（G-SYSLOG-5）/ sign 语义（G-SYSLOG-6，明确不解决）/ 存量 notes 文案修正（G-SYSLOG-11）。
@@ -106,7 +106,7 @@ RFC 5424/3164/5426/6587/5425 原文（设计 §10）+ D-SYSLOG-1（设计 §11�
 
 ## 7. 实现后执行建议
 
-1. **P4 顺序**：①先裁 G-SYSLOG-2（缺省断层——影响一切"空配置"类新例的 PRI 断言）与 G-SYSLOG-5（BOM 线形——影响 BOM 例断言口径）；②按 §6.2 A′ 表补例（负例优先）；③G-SYSLOG-11 notes 文案修正随批；④全量复跑后重生成 `docs/protocol-pcap-test/syslog.md`（G-SYSLOG-8）。
+1. **P4 顺序**：①先裁 G-SYSLOG-2（缺省断层——影响一切"空配置"类新例的 PRI 断言）与 G-SYSLOG-5（BOM 线形——影响 BOM 例断言口径）；②按 §6.2 A′ 表补例（负例优先）；③G-SYSLOG-11 notes 文案修正随批；④全量复跑后重生成 `trafficgen/docs/protocol-pcap-test/syslog.md`（G-SYSLOG-8）。
 2. **实测顺序**：#1（已有，复跑钉）→ `syslog_full_fields`（字段面基线）→ `syslog_multi_message`（包数公式）→ `syslog_bsd_format`（第二格式）→ 负例批（锚词逐一）→ `syslog_ipv6`（offset 62）。
 3. 二进制与 HEAD 同代确认（门2③）；门2② 全量（`CASE_PROTO=syslog` 全量）；门2④ 反查绿后进 P6。
 4. TCP 载体（G-SYSLOG-3）接线前，本协议**不建**任何 TCP 断言例；接线时同步 `decode_as` 口径（G-SYSLOG-12）。
@@ -121,9 +121,9 @@ RFC 5424/3164/5426/6587/5425 原文（设计 §10）+ D-SYSLOG-1（设计 §11�
 
 1. **顶层 `syslog` 空子映射并存**（非负例顶层键=1）：as-built 合规形（配置唯一入口）但违反 1.11-1.13 零残留验收口径；且该键**承载缺省值**（G-SYSLOG-1/2，删键即断言变 `<0>`）——P4 收敛前不得删。
 2. **notes 文案 2 处误诊**（断言本体全对）：①"msg 尾部含 0x00 终止符"实为 `pad_min_frame` 60B 最小帧填充；②"仅做帧前缀断言"实为全 payload 断言（17B 恰等）。另 summary "facility=1(2)" 的 "(2)" 无语义。→ G-SYSLOG-11，P4 改写 notes。
-3. **RFC 章节引用漂移**（notes 引"RFC 5424 §6"尚可，代码注释引 §6.2.8/§6.4.4 已漂）→ G-SYSLOG-10。
+3. **RFC 章节引用漂移**（notes 引"RFC 5424 §6"尚可，代码注释引 §6.2.8/§6.4.4 已漂；UDP 尺寸规范依据统一为 RFC 5426 §3.2，代码错误文案中的 `(RFC 5426 §6)` 保留为历史字面，不宣称规范引用）→ G-SYSLOG-10。
 4. **存量未覆盖**：22 拒绝分支、显式字段面、SD 面、BOM 面、BSD 面、多包面、IPv6、动态字段——今日零 pcap 例（A′ 补，G-SYSLOG-7）。
-5. **结果文档过期**：tracked `docs/protocol-pcap-test/syslog.md` "pass 1"（`e7e7d1c` 2026-08-27 < 判死 `0417be5` 2026-09-13）、0 pcap 留档 → G-SYSLOG-8；本车道对 2026-09-27 pcap 复核命中，但不冒充套件复跑。
+5. **结果文档过期**：tracked `trafficgen/docs/protocol-pcap-test/syslog.md`（仓根相对路径）"pass 1"（`e7e7d1c` 2026-08-27 < 判死 `0417be5` 2026-09-13）、`trafficgen/docs/protocol-pcap-test/syslog/` 0 pcap 留档 → G-SYSLOG-8；本车道对 2026-09-27 pcap 复核命中，但不冒充套件复跑。
 
 ### 8.3 逐条去向表（1 行）
 
@@ -150,7 +150,7 @@ RFC 5424/3164/5426/6587/5425 原文（设计 §10）+ D-SYSLOG-1（设计 §11�
 | 9 | 生成表 `layers.generated.json` syslog 条目 `fields == {}` 与 registry 同代 | JSON 机读 | 绿 |
 | 10 | `layer_dyn` allowlist 无 `syslog` 行（业务字段动态全关钉死；开启须先改本契约 §6.2） | `layer_dyn.go` 文本机读 | 绿 |
 
-**另注意**：`docs/protocol-pcap-test/syslog.md` 的 "pass 1" 是**过期产物**（G-SYSLOG-8，末次提交 2026-08-27 早于判死提交 2026-09-13；`docs/protocol-pcap-test/syslog/` 0 pcap），**不得作为"今日已复跑"依据**（口径 = pcep G-PCEP-11）。本车道对 2026-09-27 pcap 的断言复核（§3.1）是**证据复核**，非套件复跑。
+**另注意**：`trafficgen/docs/protocol-pcap-test/syslog.md`（仓根相对路径）的 "pass 1" 是**过期产物**（G-SYSLOG-8，末次提交 2026-08-27 早于判死提交 2026-09-13；`trafficgen/docs/protocol-pcap-test/syslog/` 0 pcap），**不得作为"今日已复跑"依据**（口径 = pcep G-PCEP-11）。本车道对 2026-09-27 pcap 的断言复核（§3.1）是**证据复核**，非套件复跑。
 
 ## 10. 修订记录
 
