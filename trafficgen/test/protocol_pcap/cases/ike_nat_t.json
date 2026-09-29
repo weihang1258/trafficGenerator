@@ -4,8 +4,6 @@
     "proto": "ike_nat_t",
     "summary": "smoke: IKEv2 SA_INIT initiator header-only message (no payloads) over UDP 500; tshark auto-parses isakmp; no Non-ESP marker since dst != 4500",
     "spec_json": {
-      "count": 1,
-      "dst_port": 500,
       "ike_nat_t": {
         "dialog": [
           {
@@ -13,7 +11,17 @@
             "exchange_type": 34
           }
         ]
-      }
+      },
+      "layers": [
+        {
+          "udp": {
+            "dst_port": 500
+          }
+        },
+        {
+          "ike_nat_t": {}
+        }
+      ]
     },
     "expect": {
       "min_packets": 1,
