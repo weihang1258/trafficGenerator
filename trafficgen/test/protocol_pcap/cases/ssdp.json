@@ -6,13 +6,14 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "udp": {
+            "src_port": 0
+          }
         },
         {
           "ssdp": {}
         }
       ],
-      "src_port": 0,
       "ssdp": {
         "message_type": "msearch",
         "search_target": "ssdp:all"
