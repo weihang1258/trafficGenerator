@@ -4,10 +4,20 @@
     "proto": "wireguard",
     "summary": "冒烟：WireGuard 握手（空配置）。顶层不设端口 → dst 默认 51820（IANA）、src 保持 flow 默认 12345；initiator→responder→transport（type 1/2/4），共 3 包",
     "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "count": 1,
-      "wireguard": {}
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {}
+        },
+        {
+          "wireguard": {}
+        }
+      ]
     },
     "expect": {
       "packet_count": 3,
