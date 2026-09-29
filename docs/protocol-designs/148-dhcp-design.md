@@ -52,7 +52,7 @@ JSON `strategy_convert.go:2586-2694` 解析 `DHCPConfig`、`DHCPMessage` 和 ext
 
 ## 9. 覆盖反查建议
 
-建议 coverage gate 静态检查：链顺序 `[udp,dhcp]`；scenario=dora 产 4 包；四包 xid 同值；option 53 值 1/2/3/5；yiaddr/server-id/MAC 与 spec；默认端口与广播；validator 负例锚词；固定头 offset 0/4/10/12/16/28；options 长度上限；缺省空 dhcp 产 DISCOVER。当前 cases 仅证明 DORA，不应申报其余建议项已过。
+建议 coverage gate 静态检查：严格目标链顺序 `[eth,ip,udp,dhcp]`；当前 legacy case 若仍为 `[udp,dhcp]` 或依赖层链外承载字段，只能登记为 G-DHCP-6 缺口，不得作为通过证据；scenario=dora 产 4 包；四包 xid 同值；option 53 值 1/2/3/5；yiaddr/server-id/MAC 与 spec；默认端口与广播；validator 负例锚词；固定头 offset 0/4/10/12/16/28；options 长度上限；缺省空 dhcp 产 DISCOVER。当前 cases 仅证明 DORA，不应申报其余建议项已过。
 
 ## 10. 缺口登记
 

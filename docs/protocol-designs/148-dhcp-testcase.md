@@ -57,7 +57,7 @@ cases JSON 是机器权威。当前只有一个集成冒烟用例；它验证完
 9. invalid role/type/direction、HType/HLen、MAC/IP、保留 options 的 error_contains（缺口 G-DHCP-4）。
 10. 255/256 字节字段与 options 1232/1233 边界（缺口 G-DHCP-4）。
 11. default/inc/rand/list/pattern 动态值与回绕/可复现（缺口 G-DHCP-2）。
-12. pcap 与 NIC 输出对同一 `[udp,dhcp]` 契约（NIC 待主线程执行）。
+12. pcap 与 NIC 输出对同一严格 `[eth,ip,udp,dhcp]` 契约（legacy `[udp,dhcp]` 或层链外承载字段不得作为通过证据；NIC 待主线程执行）。
 
 ## 7. 产物过期核验
 
