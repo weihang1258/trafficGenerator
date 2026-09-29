@@ -59,20 +59,20 @@ registry `dhcpv6` 为 `CategoryTerminal`、依赖 `udp`（`internal/core/layers/
 
 | § | 满足方式与证据 |
 |---|---|
-| 1 | 目标为 layers 链；存量 1 例仍有四个顶层旧键，去向见 §7，G-DHCPV6-1；`cases/dhcpv6.json` |
-| 2 | 策略承载单协议模板，任务负责流量总量；strategy_convert:1170 |
-| 3 | 五件套见 §3；UDP 单流无保活/FIN/RST，流关联不适用 |
-| 4 | RFC 8415 §§6–7,11,15–21；线格式见 §3 |
-| 5 | 依赖 UDP；Validate 错误传播见 `planner.go:141-267` |
-| 6 | option 1452、DUID 128、hop 32、每消息一 datagram；pcap/NIC 共用 testcase |
-| 7 | design + testcase + `cases/dhcpv6.json` 三件套；现有 ID 一致但旧形状缺口 |
-| 8 | 本文为实现已落码后的 as-built 契约，未实现项明确为缺口 |
-| 9 | RFC/代码/cases/pcap 字段断言四方对照；当前只一条 JSON case |
-| 10 | 自审后待独立隔离复审；缺口不得以删除断言消除 |
-| 11 | DHCPv6 是 IPv6 上的地址配置消息，client/server 以 XID 配对、relay 以 option 9 包装 |
-| 12 | 四元组动态见 §5；业务对象未开放动态 |
-| 13 | registry dhcpv6 终结层 + udp 依赖；不新增 schema |
-| 14 | pcap/NIC 使用同一 JSON expect；NIC 需 tcpdump 真实捕获，当前未宣称复跑 |
+| §1 | 目标为 layers 链；存量 1 例仍有四个顶层旧键，去向见 §7，G-DHCPV6-1；`cases/dhcpv6.json` |
+| §2 | 策略承载单协议模板，任务负责流量总量；strategy_convert:1170 |
+| §3 | 五件套见 §3；UDP 单流无保活/FIN/RST，流关联不适用 |
+| §4 | RFC 8415 §§6–7,11,15–21；线格式见 §3 |
+| §5 | 依赖 UDP；Validate 错误传播见 `planner.go:141-267` |
+| §6 | option 1452、DUID 128、hop 32、每消息一 datagram；pcap/NIC 共用 testcase |
+| §7 | design + testcase + `cases/dhcpv6.json` 三件套；现有 ID 一致但旧形状缺口 |
+| §8 | 本文为实现已落码后的 as-built 契约，未实现项明确为缺口 |
+| §9 | RFC/代码/cases/pcap 字段断言四方对照；当前只一条 JSON case |
+| §10 | 自审后待独立隔离复审；缺口不得以删除断言消除 |
+| §11 | DHCPv6 是 IPv6 上的地址配置消息，client/server 以 XID 配对、relay 以 option 9 包装 |
+| §12 | 四元组动态见 §5；业务对象未开放动态 |
+| §13 | registry dhcpv6 终结层 + udp 依赖；不新增 schema |
+| §14 | pcap/NIC 使用同一 JSON expect；NIC 需 tcpdump 真实捕获，当前未宣称复跑 |
 
 ### §1 旧键逐键去向
 
