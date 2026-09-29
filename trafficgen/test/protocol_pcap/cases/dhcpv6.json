@@ -6,15 +6,23 @@
     "spec_json": {
       "layers": [
         {
+          "eth": {
+            "src_mac": "aa:bb:cc:dd:ee:ff"
+          }
+        },
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
           "udp": {}
         },
         {
           "dhcpv6": {}
         }
       ],
-      "src_ip": "2001:db8::1",
-      "dst_ip": "2001:db8::2",
-      "src_mac": "aa:bb:cc:dd:ee:ff",
       "dhcpv6": {
         "scenario": "sarr",
         "default_leased_addr": "2001:db8::100"
