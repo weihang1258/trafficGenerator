@@ -70,20 +70,20 @@ UDP event count in the default case is `2 + 2*DataPacketCount` (two reset packet
 
 | § | As-built satisfaction | Evidence |
 |---|---|---|
-| 1 | Layer chain is target shape; current case has legacy top-level keys | §1; `cases/openvpn.json` |
-| 2 | strategy converts openvpn map; task combines flows and caps totals | `strategy_convert.go:1265`; framework |
-| 3 | One outer session, reset→data timeline, no derived child flow; UDP terminal insertion | §3 |
-| 4 | OpenVPN source + Wireshark dissector + RFC 768/791/8200 | §0/§2 |
-| 5 | Depends on UDP; validator errors propagate | registry:516; planner:118-326 |
-| 6 | Count/payload/fragment limits and bounded event stream | §6 |
-| 7 | Design + testcase + cases (case currently legacy shape) | §1; testcase §2 |
-| 8 | Design precedes implementation documentation | revision record |
-| 9 | Source/code/case/pcap three-way checks required | testcase §5 |
-| 10 | Review loop and explicit gaps recorded | §10 |
-| 11 | Plain-language framing in §0 and §4 | §0 |
-| 12 | Four-tuple dynamic list and business-field denial list | §7 |
-| 13 | Registry schema already generated for openvpn; no new layer | registry:516 |
-| 14 | Real pcap/NIC run must use same case contract | §6; testcase §7 |
+| §1 | Layer chain is target shape; current case has legacy top-level keys | §1; `cases/openvpn.json` |
+| §2 | Strategy converts the OpenVPN map; task combines flows and caps totals | `strategy_convert.go:1265`; framework |
+| §3 | One outer session, reset→data timeline, no derived child flow; UDP terminal insertion | §3 |
+| §4 | OpenVPN source + Wireshark dissector + RFC 768/791/8200 | §0/§2 |
+| §5 | Depends on UDP; validator errors propagate | `registry.go:516`; `planner.go:118-326` |
+| §6 | Count/payload/fragment limits and bounded event stream | §6 |
+| §7 | Design + testcase + cases (case currently legacy shape) | §1; testcase §2 |
+| §8 | Design precedes implementation documentation | revision record |
+| §9 | Source/code/case/pcap three-way checks required | testcase §5 |
+| §10 | Review loop and explicit gaps recorded | §10 |
+| §11 | Plain-language framing in §0 and §4 | §0 |
+| §12 | Four-tuple dynamic list and business-field denial list | §7 |
+| §13 | Registry schema already generated for OpenVPN; no new layer | `registry.go:516` |
+| §14 | Real pcap/NIC run must use same case contract | §6; testcase §7 |
 
 ### 8.1 §1 legacy key migration
 
