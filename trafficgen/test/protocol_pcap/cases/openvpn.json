@@ -4,8 +4,15 @@
     "proto": "openvpn",
     "summary": "smoke: OpenVPN UDP 1194: P_CONTROL_HARD_RESET_CLIENT_V2 (frame 1) + SERVER_V2 (frame 2) + 10 P_DATA_V2 (frames 3-12); sessionid persists across the dialog",
     "spec_json": {
-      "count": 1,
-      "openvpn": {}
+      "openvpn": {},
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "openvpn": {}
+        }
+      ]
     },
     "expect": {
       "min_packets": 12,
