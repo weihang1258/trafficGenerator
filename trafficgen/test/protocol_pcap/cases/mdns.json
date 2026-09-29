@@ -6,16 +6,20 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 5353
+          }
         },
         {
           "mdns": {}
         }
       ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 5353,
-      "count": 1,
       "mdns": {
         "questions": [
           {
