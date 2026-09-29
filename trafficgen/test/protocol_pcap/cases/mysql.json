@@ -4,12 +4,23 @@
     "proto": "mysql",
     "summary": "MySQL (端口 3306) 冒烟：完整 TCP 握手 + 服务器问候 (8.0.36) + 登录请求 + OK 响应 + 终止",
     "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 3306,
-      "count": 1,
-      "mysql": {}
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 3306
+          }
+        },
+        {
+          "mysql": {}
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -18,22 +29,78 @@
       "has_payload": true,
       "min_packets": 9,
       "fields": [
-        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
-        {"packet": 1, "field": "tcp.dstport", "value": "3306"},
-        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
-        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
-        {"packet": 4, "field": "mysql.packet_length", "value": "74"},
-        {"packet": 4, "field": "mysql.packet_number", "value": "0"},
-        {"packet": 5, "field": "mysql.packet_length", "value": "80"},
-        {"packet": 5, "field": "mysql.packet_number", "value": "1"},
-        {"packet": 6, "field": "mysql.packet_length", "value": "7"},
-        {"packet": 6, "field": "mysql.packet_number", "value": "2"}
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x002"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "3306"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.flags",
+          "value": "0x012"
+        },
+        {
+          "packet": 3,
+          "field": "tcp.flags",
+          "value": "0x010"
+        },
+        {
+          "packet": 4,
+          "field": "mysql.packet_length",
+          "value": "74"
+        },
+        {
+          "packet": 4,
+          "field": "mysql.packet_number",
+          "value": "0"
+        },
+        {
+          "packet": 5,
+          "field": "mysql.packet_length",
+          "value": "80"
+        },
+        {
+          "packet": 5,
+          "field": "mysql.packet_number",
+          "value": "1"
+        },
+        {
+          "packet": 6,
+          "field": "mysql.packet_length",
+          "value": "7"
+        },
+        {
+          "packet": 6,
+          "field": "mysql.packet_number",
+          "value": "2"
+        }
       ],
       "frames": [
-        {"packet": 4, "offset": 54, "hex": "4a 00 00 00 0a 38 2e 30 2e 33 36"},
-        {"packet": 5, "offset": 54, "hex": "50 00 00 01 05 a0 08 00 00 00"},
-        {"packet": 5, "offset": 90, "hex": "72 6f 6f 74"},
-        {"packet": 6, "offset": 54, "hex": "07 00 00 02 00 00 00 02 00 00 00"}
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "4a 00 00 00 0a 38 2e 30 2e 33 36"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "50 00 00 01 05 a0 08 00 00 00"
+        },
+        {
+          "packet": 5,
+          "offset": 90,
+          "hex": "72 6f 6f 74"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "07 00 00 02 00 00 00 02 00 00 00"
+        }
       ],
       "notes": [
         "MySQL 包: 3B 包长 + 1B 序号 + 负载；f4 问候包负载首字节 0x0a=protocol 10, '8.0.36' 版本, thread_id=1, salt, 0x6d...=mysql_native_password",
