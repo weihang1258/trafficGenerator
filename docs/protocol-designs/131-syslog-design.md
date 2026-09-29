@@ -30,7 +30,7 @@
 | `syslog_bsd_v1` | 同上 | RFC 3164 布局（`format:"bsd"`，§3.5） | 从 RFC 5424 字段推导 BSD 字段（两格式字段面独立声明） |
 | `syslog_tcp/tls` | TCP 514 / TLS 6514 | **链级拒绝**（`layer_gen.go:133-135`）；legacy `emitTCP` 存在但生产未注册 | —（待实现边界，G-SYSLOG-3） |
 
-显式边界（"不实现、不声称、不许静默转换"）：① **TCP/TLS 载体链级不可达**——层校验器直接拒绝 `transport tcp/tls`（锚词 `syslog: %s transport not supported by the layer chain yet (udp only; tcp/tls deferred)`，`layer_gen.go:133-135`）；legacy planner 的 `emitTCP`（握手→分帧→挥手，`planner.go:595-688`）**未注册生产路径**（`main.go:547` 只注册 `NewChainPlanner("syslog")`），仅 Go API 直调可达；② `sign_blocks` 是**通用 SD-ELEMENT**（`[sign@32473 signature="..."]`），**不声称 RFC 5848 合规**（RFC 5848 §4.2 的 SD-ID 恒为 `ssign`、参数为 VER/RSID/SG/SPRI/GBC/FMN/CNT/HB/SIGN，G-SYSLOG-6）；③ **无 480/2048 长度上界强制**——仅有 UDP 65507 近似守卫（§6，G-SYSLOG-4）；④ BOM 语义与 RFC 5424 §6.4 ABNF 有线形偏离（G-SYSLOG-5）；⑤ IPv6 双栈（`EtherTypeFor(srcIP)` 动态选 EtherType）已实现于 planner/生成器，pcap 契约面无用例（A′）。
+显式边界（"不实现、不声称、不许静默转换"）：① **TCP/TLS 载体链级不可达**——层校验器直接拒绝 `transport tcp/tls`（锚词 `syslog: %s transport not supported by the layer chain yet (udp only; tcp/tls deferred)`，`layer_gen.go:133-135`）；legacy planner 的 `emitTCP`（握手→分帧→挥手，`planner.go:595-688`）**未注册生产路径**（`main.go:547` 只注册 `NewChainPlanner("syslog")`），仅 Go API 直调可达；② `sign_blocks` 是**通用 SD-ELEMENT**（`[sign@32473 signature="..."]`），**不声称 RFC 5848 合规**（RFC 5848 §4.2 的 SD-ID 恒为 `ssign`、参数为 VER/RSID/SG/SPRI/GBC/FMN/CNT/HB/SIGN，G-SYSLOG-6）；③ **无 480/2048 长度上界强制**——仅有 UDP 65507 近似守卫（RFC 5426 §3.2；本设计 §6，G-SYSLOG-4）；④ BOM 语义与 RFC 5424 §6.4 ABNF 有线形偏离（G-SYSLOG-5）；⑤ IPv6 双栈（`EtherTypeFor(srcIP)` 动态选 EtherType）已实现于 planner/生成器，pcap 契约面无用例（A′）。
 
 **实现状态（2026-09-29 实测）**：`syslog` 层已注册（`registry.go:167-169`，`CategoryTerminal`，`DependsOn ["udp"]`，**Fields 空 map**）；生成器/校验器经 `layer_gen.go:124-138` init 反向注册；`protocols.go:57` 准入；缺省目的端口 514（`chain_planner.go:1046-1053`）；`main.go:162` 空白导入 + `main.go:547` ChainPlanner 注册；1 例冒烟已落 `cases/syslog.json` 且 pcap 复核在案。单测 222 个 `Test*`（syslog 包 188 + chain 6 + convert 28，`grep -c` 实测），`go test ./internal/protocol/syslog/ ./internal/core/layers/ -run Syslog` 全绿（2026-09-29 实跑）。
 
@@ -171,7 +171,7 @@ syslog 层**无自有状态机**：UDP 载体每消息独立数据报、无序�
 
 ## 6. 性能设计与验收
 
-- **目标与边界**：UDP 单流 = `len(messages)>0 ? len(messages) : count` 个数据报（`count` 缺省 1；`messages` 非空时实现忽略 `count`）；单数据报报文长 = §3.1 公式，无帧长上限强制（§1 边界③）；每帧内存 = 该报文长度（最小 17B）。吞吐数字由生成器级速率配置承载，协议层不重复定义。
+- **目标与边界**：UDP 单流 = `len(messages)>1 ? len(messages) : count` 个数据报（`count` 缺省 1；仅 `len(messages)>1` 时实现忽略 `count`；`len(messages)==1,count=100` 生成 100 个数据报）；单数据报报文长 = §3.1 公式，无帧长上限强制（§1 边界③）；每帧内存 = 该报文长度（最小 17B）。吞吐数字由生成器级速率配置承载，协议层不重复定义。
 - **依据**：事件流式产出（生成器逐事件 `EmitMsg`，无全量聚合）；无跨流共享状态；无锁（编码为纯函数）。
 - **验收两路**：pcap（`/tmp/mcp-pcaps/syslog/`）与 NIC（`enp135s0f0np0`，`nic_capture` 开关）共用同一断言集；断言实际 `syslog.*` 字段、帧原始 hex 与 `packet_count`，不只断言"任务没报错"。
 - **六类场景落点**：基线（#1，1 帧）/ 目标规模（messages 多包，A′）/ 压力上限（UDP 顶层近似预检拒绝，A′ 负例）/ 长时间运行（count 复制承载语义）/ 并发交错（多流 `flow_control`，A′）/ 背压（`packet_count` 精确计数守卫）。
@@ -211,7 +211,7 @@ syslog 层**无自有状态机**：UDP 载体每消息独立数据报、无序�
 
 ## 8. 边界
 
-- **帧长**：最小 RFC 5424 报文 17B（`<14>1 - - - - - -`）；无上界强制（§6，G-SYSLOG-4）；最小以太帧 60B 填充（pad_min_frame 默认 ON）。
+- **帧长**：最小 RFC 5424 报文 17B（`<14>1 - - - - - -`）；无上界强制（RFC 5426 §3.2 的 UDP 尺寸依据；本设计 §6，G-SYSLOG-4）；最小以太帧 60B 填充（pad_min_frame 默认 ON）。
 - **PRI**：0-191 全值域合法；>191 不可表达（Facility/Severity 分字段校验挡住）。
 - **字段长度**：255/48/128/32/32（RFC 5424 §6.2.4-6.2.7/§6.3.2）。
 - **载体**：UDP 514 唯一链级可达载体；tcp/tls 链级拒绝（G-SYSLOG-3）。
@@ -225,7 +225,7 @@ syslog 层**无自有状态机**：UDP 载体每消息独立数据报、无序�
 |---:|---|---|---|---:|
 | 1 | `syslog_smoke_01` | 正 | §3.1：RFC 5424 空配置默认流（`<14>1 - - - - - -`） | 1 |
 
-**包数公式**：单流 UDP = `messages` 非空 ? `len(messages)` : `count`（缺省 1）。校验：#1 无 messages/count 缺省 → 1 ✓。
+**包数公式**：`len(messages)>1` 时为 `len(messages)`（忽略 `count`）；否则为 `count`（缺省 1）。因此 `len(messages)==1,count=100` 生成 100 个数据报；仅多消息（`len(messages)>1`）形状忽略 `count`。校验：#1 无 messages/count 缺省 → 1 ✓。
 
 **实测复核（2026-09-29，tshark 3.6.14 对 `/tmp/mcp-pcaps/syslog/syslog_smoke_01.pcap`）**：1 帧 60B（59 实发 +1 填充）；UDP 12345→514；payload 17B = `3c 31 34 3e 31 20 2d 20 2d 20 2d 20 2d 20 2d 20 2d`（`<14>1 - - - - - -`，offset 42 起，与用例 frames 断言逐字节一致）；`syslog.facility=1`、`syslog.level=6`、`syslog.version=1`、`syslog.msg="1 - - - - - -"`（tshark 3.6.14 的 `syslog.msg` 值域 = VERSION 起的剩余报文，非纯 MSG 部分——本例 MSG 为空，断言值与实测一致）；hostname/appname/procid 均为 `-`。4 条 fields 断言 + 1 条 frames 断言全命中。
 

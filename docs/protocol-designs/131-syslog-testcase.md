@@ -21,7 +21,7 @@
 
 **动态字段禁止硬编码**：IPv4 ID/校验和逐次随机——frames 断言锚点（offset 42 起）不触 18-19/24-25 字节；bsd 格式空 timestamp 取当前时刻——新例必须显式钉 timestamp（设计 §5 确定性两条）。
 
-**包数约定**：单流 UDP = `len(messages)>0 ? len(messages) : count`（`count` 缺省 1；`messages` 非空时实现忽略 `count`）。因此 `count=100,messages=[一项]` 实际仍为 1 个数据报，不是 `max(count,len(messages))`。
+**包数约定**：`len(messages)>1` 时为 `len(messages)`（实现忽略 `count`）；否则为 `count`（缺省 1）。因此 `len(messages)==1,count=100` 实际生成 100 个数据报；只有多消息（`len(messages)>1`）时才忽略 `count`，不是 `max(count,len(messages))`。
 
 **保活/重试/RST 口径**：UDP fire-and-forget，无 keepalive/重试/RST 概念（协议无此机制，设计 §10.1 行 6/7 显式不适用）；TCP 载体的 FIN/RST 待 G-SYSLOG-3 接线后另立。
 
