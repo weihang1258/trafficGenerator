@@ -6,7 +6,15 @@
     "spec_json": {
       "l2tp": {
         "scenario": "tunnel_with_data"
-      }
+      },
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "l2tp": {}
+        }
+      ]
     },
     "expect": {
       "packet_count": 8,
