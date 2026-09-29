@@ -127,20 +127,20 @@ USM auth：实现 RFC 3414 风格 password/engineID 派生后 HMAC，MD5/SHA-1 �
 
 |§|本协议怎么满足|证据|
 |---|---|---|
-|1 层链唯一真相|存量使用 `[udp,snmp]`，复杂配置仍顶层 `snmp`，无游离 `src_ip/dst_ip/count`|§0；cases JSON|
-|2 策略/任务|策略配置映射为 FlowSpec；任务级数量/流控由框架承载，SNMP repeat 在协议配置内|`strategy_convert.go:1397`；§2|
-|3 五件套|会话表=无（UDP 单报）；事务=每 datagram 请求/可选响应；关联=request-id；插入=UDP 终结层；时间线=up→down→interval|§1/§4；`layer_gen.go:65-85`|
-|4 查规范|RFC 1157/3411–3417/3414 与 X.690；BER 取值逐项列于 §3|§3|
-|5 依赖与错误|依赖 UDP；validator 锚词及传播边界列于 §2；生成器 EmitMsg nil 显式报错|registry:164；`layer_gen.go:38-42`|
-|6 性能|BER 长度公式、UDP 上界、payload 起点和无分段边界|§4；§5|
-|7 三份文档|design/testcase/cases 三方唯一 ID `snmp_smoke_01`，1 包和字段一致|§0；testcase §2|
-|8 设计先行|本版按落码反推，未承诺未实现类型|全文边界|
-|9 测试三源|RFC + 代码 + 唯一 cases/pcap 结果（结果文件过期登记）|§7；testcase §5|
-|10 评审闭环|本文自审并标注待独立审查；缺口不冒充覆盖|§7/§8|
-|11 白话|首部白话句定义 UDP BER 管理报文|标题注记|
-|12 动态字段|四元组由 ip/udp 框架策略承载；SNMP 业务字段无动态 allowlist；request-id=0 随机起点|§2/§4；`layer_gen.go:48-71`|
-|13 schema 派生|snmp registry terminal、DependsOn udp、Fields 空；无需新增 schema|`registry.go:164`|
-|14 真实流程|配置→converter→ChainPlanner/FlowMeta→validator→Generate→UDP→pcap/NIC|§0；`chain_planner_translate.go:53-60`|
+| §1 | 层链唯一真相：存量使用 `[udp,snmp]`，复杂配置仍顶层 `snmp`，无游离 `src_ip/dst_ip/count`|§0；cases JSON|
+| §2 | 策略/任务：策略配置映射为 FlowSpec；任务级数量/流控由框架承载，SNMP repeat 在协议配置内|`strategy_convert.go:1397`；§2|
+| §3 | 五件套：会话表=无（UDP 单报）；事务=每 datagram 请求/可选响应；关联=request-id；插入=UDP 终结层；时间线=up→down→interval|§1/§4；`layer_gen.go:65-85`|
+| §4 | 查规范：RFC 1157/3411–3417/3414 与 X.690；BER 取值逐项列于 §3|§3|
+| §5 | 依赖与错误：依赖 UDP；validator 锚词及传播边界列于 §2；生成器 EmitMsg nil 显式报错|registry:164；`layer_gen.go:38-42`|
+| §6 | 性能：BER 长度公式、UDP 上界、payload 起点和无分段边界|§4；§5|
+| §7 | 三份文档：design/testcase/cases 三方唯一 ID `snmp_smoke_01`，1 包和字段一致|§0；testcase §2|
+| §8 | 设计先行：本版按落码反推，未承诺未实现类型|全文边界|
+| §9 | 测试三源：RFC + 代码 + 唯一 cases/pcap 结果（结果文件过期登记）|§7；testcase §5|
+| §10 | 评审闭环：本文自审并标注待独立审查；缺口不冒充覆盖|§7/§8|
+| §11 | 白话：首部白话句定义 UDP BER 管理报文|标题注记|
+| §12 | 动态字段：四元组由 ip/udp 框架策略承载；SNMP 业务字段无动态 allowlist；request-id=0 随机起点|§2/§4；`layer_gen.go:48-71`|
+| §13 | schema 派生：snmp registry terminal、DependsOn udp、Fields 空；无需新增 schema|`registry.go:164`|
+| §14 | 真实流程：配置→converter→ChainPlanner/FlowMeta→validator→Generate→UDP→pcap/NIC|§0；`chain_planner_translate.go:53-60`|
 
 ### 6.1 §1 旧键去向与目标形
 
