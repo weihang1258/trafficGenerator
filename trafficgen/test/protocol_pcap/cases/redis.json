@@ -4,7 +4,6 @@
     "proto": "redis",
     "summary": "smoke: RESP inline PING with auto_reply pong over TCP 6379; default SelectDB=0 emits SELECT 0 +OK first, then PING +PONG (handshake + 4 data frames + FIN)",
     "spec_json": {
-      "count": 1,
       "redis": {
         "commands": [
           {
@@ -14,7 +13,15 @@
             "auto_reply": "pong"
           }
         ]
-      }
+      },
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "redis": {}
+        }
+      ]
     },
     "expect": {
       "min_packets": 8,
