@@ -4,12 +4,24 @@
     "proto": "gtp",
     "summary": "冒烟：GTP-U T-PDU（空配置默认数据面，mode=u）。顶层不设端口 → 内外层均默认 2152（IANA），GTP 头 v1/TEID=0，共 1 包",
     "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 2152,
-      "dst_port": 2152,
-      "count": 1,
-      "gtp": {}
+      "gtp": {},
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 2152,
+            "dst_port": 2152
+          }
+        },
+        {
+          "gtp": {}
+        }
+      ]
     },
     "decode_as": [
       "udp.port==2152,gtp"
