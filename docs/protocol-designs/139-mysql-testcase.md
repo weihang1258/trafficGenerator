@@ -11,7 +11,7 @@
 
 包数口径：`min_packets=9` 是机器契约下限；case notes 自述实际生成 10 帧（3 握手 + 3 数据 + 4 FIN）。testcase 与 design 均按“≥9、实测 10”表述，不修改 JSON。
 
-当前 `mysql-basic-session` 的 `spec_json` 是旧 flat 形（顶层 src_ip/dst_ip/src_port/dst_port/count/mysql）。本文按 cases 现状如实记录，不把它改写为层链形；迁移缺口记 G-MYSQL-3（design §11）。pcap 与 `port_group`/NIC 输出共用本文件与 JSON 的同一契约。
+当前 `mysql-basic-session` 的 `spec_json` 已是层链形：`layers[ip,tcp,mysql]`，无顶层旧键。本文按 cases 现状记录；原迁移缺口 G-MYSQL-3 已关闭。pcap 与 `port_group`/NIC 输出共用本文件与 JSON 的同一契约。
 
 ## 2. 逐 ID 索引（与 cases JSON 逐条一致）
 
@@ -59,7 +59,7 @@
 
 ## 5. 缺口登记（与 design §11 同集）
 
-G-MYSQL-1 负例与扩展正例缺失；G-MYSQL-2 动态五策略未接线；G-MYSQL-3 flat spec_json 未迁移层链；G-MYSQL-4 RSA/TLS/multi-result 待实现边界；G-MYSQL-5 过期产物 `trafficgen/docs/protocol-pcap-test/mysql.md`（e7e7d1c，2026-08-27）。
+G-MYSQL-1 负例与扩展正例缺失；G-MYSQL-2 动态五策略未接线；G-MYSQL-4 RSA/TLS/multi-result 待实现边界；G-MYSQL-5 过期产物 `trafficgen/docs/protocol-pcap-test/mysql.md`（e7e7d1c，2026-08-27）。
 
 ## 6. 覆盖反查门建议（同 design §12，机读可判定）
 
@@ -67,4 +67,4 @@ G-MYSQL-1 负例与扩展正例缺失；G-MYSQL-2 动态五策略未接线；G-M
 
 ## 7. 自审结论
 
-自审 3 轮，末轮干净。机读复核：§2 表 ID/顺序与 JSON 完全一致；fields=10、frames=4、min_packets=9 逐值核对通过；缺口 5 条与 design §11 一致；负例与五层覆盖描述未把缺口伪报为已覆盖。
+自审 3 轮，末轮干净。机读复核：§2 表 ID/顺序与 JSON 完全一致；fields=10、frames=4、min_packets=9 逐值核对通过；当前缺口 4 条与 design §11 一致；负例与五层覆盖描述未把缺口伪报为已覆盖。
