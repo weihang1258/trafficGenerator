@@ -17,9 +17,51 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/pop3"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/socks5"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tcp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/thrift"
 )
 
-// TestBuildLayersPlanner_SingleLayerChainGeneratesPackets: P2c 的 CRITICAL-1
+func TestBuildLayersPlanner_ThriftLayerConfigFlowsIntoSpec(t *testing.T) {
+	p, err := layers.BuildLayersPlanner("thrift", json.RawMessage(`[{"thrift":{"messages":[{"type":"CALL","method":"add","seqid":1,"args":[{"id":1,"type":"I32","value":1},{"id":2,"type":"I32","value":2}]},{"type":"REPLY","method":"add","seqid":1,"result":[{"id":0,"type":"I32","value":3}]}]}}]`))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 40000}
+	if err := p.Validate(spec); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var pkts []core.PacketConfig
+	for c := range ch {
+		pkts = append(pkts, c)
+	}
+	if len(pkts) != 9 {
+		t.Fatalf("thrift chain produced %d packets, want 9", len(pkts))
+	}
+	var payload string
+	for _, pkt := range pkts {
+		payload += string(pkt.Payload)
+	}
+	if !strings.Contains(payload, "add") {
+		t.Fatalf("payload %q does not contain translated method add", payload)
+	}
+	if strings.Contains(payload, "ping") {
+		t.Fatalf("payload %q contains default ping after layer translation", payload)
+	}
+}
+
+func TestBuildLayersPlanner_ThriftLayerConfigDecodeError(t *testing.T) {
+	p, err := layers.BuildLayersPlanner("thrift", json.RawMessage(`[{"thrift":{"messages":[{"type":"CALL","method":"add","unknown":true}]}}]`))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	if err := p.Validate(core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 40000}); err == nil || !strings.Contains(err.Error(), "thrift layer config decode") {
+		t.Fatalf("Validate error = %v, want thrift layer config decode", err)
+	}
+}
+
 // 回归——单层豁免链 [{"tcp":{}}] 经 BuildLayersPlanner 必须补全成
 // [ip, tcp] 并实际产包。旧实现把未补全的用户链直传 ChainPlanner，Plan 的
 // drive 找不到 ip 层报 "no ip layer"，错误被驱动 goroutine 吞掉 → 任务
