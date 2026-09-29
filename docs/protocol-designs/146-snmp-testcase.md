@@ -1,7 +1,7 @@
-# #134 snmp（SNMPv1/v2c/v3）测试用例契约
+# #146 snmp（SNMPv1/v2c/v3）测试用例契约
 
 > 版本：v1.0.0（P-PIPE 批次二，as-built）
-> 日期：2026-09-29；配套设计：`docs/protocol-designs/134-snmp-design.md`
+> 日期：2026-09-29；配套设计：`docs/protocol-designs/146-snmp-design.md`
 > 机器契约：`trafficgen/test/protocol_pcap/cases/snmp.json`（**1/1 ID，顺序与本版一致**）
 > 白话一句：**现有唯一检查验证最小 SNMPv1 GET：默认 161、public、一个 OID、无错误。**
 

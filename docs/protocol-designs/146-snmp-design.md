@@ -1,7 +1,7 @@
-# #134 snmp（SNMPv1/v2c/v3 · BER/UDP）设计契约
+# #146 snmp（SNMPv1/v2c/v3 · BER/UDP）设计契约
 
 > 版本：v1.0.0（P-PIPE 批次二，as-built 逆向定稿）
-> 日期：2026-09-29；车道：文档轨（#134 snmp）
+> 日期：2026-09-29；车道：文档轨（#146 snmp，初编 #134 后改号）
 > 存量用例：`trafficgen/test/protocol_pcap/cases/snmp.json`（**1 例**，唯一权威；`snmp_smoke_01`）
 > 规范基线：RFC 1157（v1）、RFC 3416（v2 PDU）、RFC 3417（传输）、RFC 3414（USM）、RFC 3411/3412/3413（体系/消息处理）、ASN.1 BER X.690；实现：`trafficgen/internal/protocol/snmp/` 与公共 UDP 层。
 > 白话一句：**管理器把一个 BER 编码的请求（版本、社区/USM、PDU、OID）装进 UDP 161；陷阱和 Inform 发往 162。**
