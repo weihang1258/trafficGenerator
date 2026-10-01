@@ -84,9 +84,33 @@
         "tcp.dst_port": "61616"
       },
       "fields": {
+        "auth_method": {
+          "type": "string"
+        },
+        "client_name": {
+          "type": "string"
+        },
+        "connections": {
+          "type": "list"
+        },
+        "credential_ref": {
+          "type": "string"
+        },
+        "frame_max": {
+          "type": "uint32"
+        },
+        "heartbeat": {
+          "type": "uint16"
+        },
         "profile": {
           "type": "string",
           "default": "ams_management_v1"
+        },
+        "session_limit": {
+          "type": "uint16"
+        },
+        "wire_fault": {
+          "type": "string"
         }
       }
     },

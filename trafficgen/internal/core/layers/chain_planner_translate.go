@@ -2558,6 +2558,24 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.OCSP = &ocfg
+	case "ams":
+		if spec.AMS != nil {
+			return
+		}
+		cfgAMS := completedConfig(s, term.Config)
+		rawAMS, err := json.Marshal(cfgAMS)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("ams layer config encode: %v", err))
+			return
+		}
+		var acfg core.AMSConfig
+		decAMS := json.NewDecoder(bytes.NewReader(rawAMS))
+		decAMS.DisallowUnknownFields()
+		if err := decAMS.Decode(&acfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("ams layer config decode: %v", err))
+			return
+		}
+		spec.AMS = &acfg
 	case "amqp":
 		if spec.AMQP != nil {
 			return // flat 权威；二者并存时 flat 优先（ocsp 同款——扁平入口

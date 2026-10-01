@@ -8635,6 +8635,11 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 				" (use a layers chain: ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports, flow_control for the flow count)"
 		}
 	}
+	if protocol == "ams" {
+		if v, ok := cfg["ams"]; ok && v != nil {
+			return "protocol ams no longer accepts a top-level ams sub-config (move it into the ams layer of an [ip,tcp,ams] layers chain)"
+		}
+	}
 	if protocol == "a2a" {
 		if v, ok := cfg["a2a"]; ok && v != nil {
 			return "protocol a2a no longer accepts a top-level a2a sub-config (move it into the a2a layer of an [ip,tcp,a2a] layers chain)"

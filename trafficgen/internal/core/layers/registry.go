@@ -1776,7 +1776,15 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "61616"},
 		Fields: map[string]FieldSchema{
-			"profile": {Type: "string", Default: "ams_management_v1"},
+			"profile":        {Type: "string", Default: "ams_management_v1"},
+			"frame_max":      {Type: "uint32"},
+			"heartbeat":      {Type: "uint16"},
+			"client_name":    {Type: "string"},
+			"auth_method":    {Type: "string"},
+			"credential_ref": {Type: "string"},
+			"session_limit":  {Type: "uint16"},
+			"connections":    {Type: "list"},
+			"wire_fault":     {Type: "string"},
 		},
 	})
 

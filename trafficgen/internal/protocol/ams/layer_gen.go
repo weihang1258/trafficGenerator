@@ -88,8 +88,9 @@ func eventDirection(e *core.AMSEvent) (string, error) {
 // 事件（握手，SessionID=0）先行，然后各 session 依序展开；每个事件携带
 // 其连接的客户端源端口（TCPGenerator 会话边界）。
 func (g *AMSGenerator) generateEvents(ctx context.Context, emit func(layers.MessageEvent) error, cfg *core.AMSConfig) error {
-	for i := range effectiveConns(cfg) {
-		conn := &cfg.Connections[i]
+	conns := effectiveConns(cfg)
+	for i := range conns {
+		conn := &conns[i]
 		for j := range conn.Events {
 			if err := emitEventFrame(ctx, emit, cfg, &conn.Events[j], 0, conn.SrcPort, i, "conn", j); err != nil {
 				return err
