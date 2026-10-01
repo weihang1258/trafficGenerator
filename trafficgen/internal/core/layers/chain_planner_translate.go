@@ -1080,6 +1080,25 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			spec.ARP = ac
 		}
 		return
+	case "dhcp":
+		if spec.DHCP != nil {
+			return
+		}
+		cfgDHCP := completedConfig(s, term.Config)
+		rawDHCP, err := json.Marshal(cfgDHCP)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("dhcp layer config encode: %v", err))
+			return
+		}
+		var dcfg core.DHCPConfig
+		decDHCP := json.NewDecoder(bytes.NewReader(rawDHCP))
+		decDHCP.DisallowUnknownFields()
+		if err := decDHCP.Decode(&dcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("dhcp layer config decode: %v", err))
+			return
+		}
+		spec.DHCP = &dcfg
+		return
 	case "icmpv6":
 		// D-ICMPV6-1：层 config 手工逐键映射进 spec.ICMPv6（parse 未导出
 		// 不可跨包）。缺省镜像 parse（strategy_convert.go:732，决策 D1）：

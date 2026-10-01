@@ -542,7 +542,98 @@
       "depends_on": [
         "udp"
       ],
-      "fields": {}
+      "fields": {
+        "broadcast_flag": {
+          "type": "bool"
+        },
+        "client_mac": {
+          "type": "string"
+        },
+        "default_client_id": {
+          "type": "list"
+        },
+        "default_client_ip": {
+          "type": "string"
+        },
+        "default_dns": {
+          "type": "list"
+        },
+        "default_domain_name": {
+          "type": "string"
+        },
+        "default_domain_search": {
+          "type": "list"
+        },
+        "default_hostname": {
+          "type": "string"
+        },
+        "default_lease_time": {
+          "type": "uint32"
+        },
+        "default_param_request_list": {
+          "type": "list"
+        },
+        "default_relay_agent_info": {
+          "type": "list"
+        },
+        "default_relay_agent_ip": {
+          "type": "string"
+        },
+        "default_requested_ip": {
+          "type": "string"
+        },
+        "default_routers": {
+          "type": "list"
+        },
+        "default_server_identifier": {
+          "type": "string"
+        },
+        "default_server_ip": {
+          "type": "string"
+        },
+        "default_subnet_mask": {
+          "type": "string"
+        },
+        "default_t1": {
+          "type": "uint32"
+        },
+        "default_t2": {
+          "type": "uint32"
+        },
+        "default_vendor_class": {
+          "type": "string"
+        },
+        "default_your_ip": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "h_len": {
+          "type": "uint8"
+        },
+        "h_type": {
+          "type": "uint8"
+        },
+        "messages": {
+          "type": "list"
+        },
+        "role": {
+          "type": "string"
+        },
+        "scenario": {
+          "type": "string"
+        },
+        "secs": {
+          "type": "uint16"
+        },
+        "sname": {
+          "type": "string"
+        },
+        "xid": {
+          "type": "uint32"
+        }
+      }
     },
     "dhcpv6": {
       "category": "terminal",

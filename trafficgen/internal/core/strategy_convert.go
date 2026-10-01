@@ -8737,6 +8737,11 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	}
 	// D-EDP-1：edp 顶层 edp 子映射 presence 判死（mmse 先例；空 map 也
 	// 死——B6 扁平注入形退役，配置迁 edp 层三键）。层链形状不触发。
+	if protocol == "dhcp" {
+		if v, ok := cfg["dhcp"]; ok && v != nil {
+			return "protocol dhcp no longer accepts a top-level dhcp sub-config (move it into the dhcp layer of an [ip,udp,dhcp] layers chain)"
+		}
+	}
 	if protocol == "edp" {
 		if v, ok := cfg["edp"]; ok && v != nil {
 			return "protocol edp no longer accepts a top-level edp sub-config (move it into the edp layer of an [ip,tcp,edp] layers chain; OneNET EDP framing lives in the edp layer)"

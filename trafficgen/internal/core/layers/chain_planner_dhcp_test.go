@@ -5,6 +5,7 @@ package layers_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"testing"
 
@@ -27,8 +28,38 @@ func dhcpSpec(cfg *core.DHCPConfig) core.FlowSpec {
 	}
 }
 
-// assertDHCPIdentical builds both packets and compares wire bytes after
-// masking the volatile IPID/checksum fields. DHCP 载荷确定性（固定 xid）。
+func TestChainPlanner_DHCP_LayerConfigTranslates(t *testing.T) {
+	p := layers.NewChainPlannerFromChain("dhcp", []layers.Layer{
+		{Name: "ip", Config: map[string]interface{}{"src": "0.0.0.0", "dst": "255.255.255.255"}},
+		{Name: "udp", Config: map[string]interface{}{}},
+		{Name: "dhcp", Config: map[string]interface{}{
+			"role": "client", "xid": uint32(0x12345678),
+			"messages": []interface{}{map[string]interface{}{"type": float64(dhcp.MsgTypeDiscover)}},
+		}},
+	})
+	spec, err := p.ValidateSpec(core.FlowSpec{SrcIP: "0.0.0.0", DstIP: "255.255.255.255", SrcMAC: "aa:bb:cc:dd:ee:ff"})
+	if err != nil {
+		t.Fatalf("ValidateSpec: %v", err)
+	}
+	if spec.DHCP == nil || spec.DHCP.Xid != 0x12345678 || len(spec.DHCP.Messages) != 1 {
+		t.Fatalf("layer config was not translated: %+v", spec.DHCP)
+	}
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	count := 0
+	for pkt := range ch {
+		count++
+		if len(pkt.Payload) == 0 || pkt.L4.Protocol != "udp" {
+			t.Fatalf("unexpected DHCP packet: %+v", pkt)
+		}
+	}
+	if count != 1 {
+		t.Fatalf("packets=%d, want 1", count)
+	}
+}
+
 func assertDHCPIdentical(t *testing.T, chain, legacy core.PacketConfig, idx int) {
 	t.Helper()
 	b := core.NewBuilder()
