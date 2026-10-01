@@ -244,6 +244,17 @@ func buildDefaultRegistry() {
 	// 经 spec.Payload（A2AConfig JSON）携带、FlowMeta.Payload 直传生成器。
 	r.Register(LayerSchema{Name: "a2a", Category: CategoryTerminal,
 		DependsOn: []string{"tcp"},
+		Fields: map[string]FieldSchema{
+			"baseUrl":       {Type: "string"},
+			"agentCardPath": {Type: "string"},
+			"discover":      {Type: "bool"},
+			"agentCard":     {Type: "object"},
+			"tasks":         {Type: "list", Required: true},
+			"auth":          {Type: "object"},
+			"http":          {Type: "object"},
+			"tcp":           {Type: "object"},
+			"flowControl":   {Type: "object"},
+		},
 	})
 	// ---- P4a：dnp3（tcp 终结层。IEEE 1815-2012——scenario 展开为链路层
 	// 帧序列，TCP 语义（握手/seq-ack/挥手）交给 tcp 层生成器；配置
@@ -268,8 +279,8 @@ func buildDefaultRegistry() {
 	// enip :44818 同款）。顶层 `doip` 子映射由 CheckProtoFlat presence
 	// 判死，层链是唯一配置真相。
 	r.Register(LayerSchema{Name: "doip", Category: CategoryTerminal,
-		DependsOn:   []string{"tcp"},
-		TransportOn: []string{"tcp"},
+		DependsOn:     []string{"tcp"},
+		TransportOn:   []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "13400"},
 		Fields: map[string]FieldSchema{
 			"protocol_version": {Type: "uint8", Min: 0, Max: 255},

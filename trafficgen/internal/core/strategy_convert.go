@@ -8635,6 +8635,11 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 				" (use a layers chain: ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports, flow_control for the flow count)"
 		}
 	}
+	if protocol == "a2a" {
+		if v, ok := cfg["a2a"]; ok && v != nil {
+			return "protocol a2a no longer accepts a top-level a2a sub-config (move it into the a2a layer of an [ip,tcp,a2a] layers chain)"
+		}
+	}
 	// D-HTTP-1 重走步骤 3：http 族 9 协议顶层 http 子映射 presence 判死
 	// （ftp 范本同构；空 map 也判死——presence 语义与 ParseHTTPConfigFromMap
 	// 一致：{"http":{}} 即显式走默认）。非 http 族协议的顶层 http 沿旧口径

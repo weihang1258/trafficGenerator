@@ -849,6 +849,17 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			}
 		}
 	}
+	if term.Name == "a2a" {
+		if len(spec.Payload) == 0 {
+			rawA2A, err := json.Marshal(term.Config)
+			if err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("a2a layer config encode: %v", err))
+			} else {
+				spec.Payload = rawA2A
+			}
+		}
+		return
+	}
 	if len(s.Fields) == 0 {
 		return
 	}

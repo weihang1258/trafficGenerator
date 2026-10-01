@@ -6,7 +6,36 @@
       "depends_on": [
         "tcp"
       ],
-      "fields": {}
+      "fields": {
+        "agentCard": {
+          "type": "object"
+        },
+        "agentCardPath": {
+          "type": "string"
+        },
+        "auth": {
+          "type": "object"
+        },
+        "baseUrl": {
+          "type": "string"
+        },
+        "discover": {
+          "type": "bool"
+        },
+        "flowControl": {
+          "type": "object"
+        },
+        "http": {
+          "type": "object"
+        },
+        "tasks": {
+          "type": "list",
+          "required": true
+        },
+        "tcp": {
+          "type": "object"
+        }
+      }
     },
     "amqp": {
       "category": "terminal",
