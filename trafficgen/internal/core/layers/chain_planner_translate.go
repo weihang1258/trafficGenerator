@@ -2576,6 +2576,24 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.AMS = &acfg
+	case "bgp":
+		if spec.BGP != nil {
+			return
+		}
+		cfgBGP := completedConfig(s, term.Config)
+		rawBGP, err := json.Marshal(cfgBGP)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("bgp layer config encode: %v", err))
+			return
+		}
+		var bcfg core.BGPConfig
+		decBGP := json.NewDecoder(bytes.NewReader(rawBGP))
+		decBGP.DisallowUnknownFields()
+		if err := decBGP.Decode(&bcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("bgp layer config decode: %v", err))
+			return
+		}
+		spec.BGP = &bcfg
 	case "amqp":
 		if spec.AMQP != nil {
 			return // flat 权威；二者并存时 flat 优先（ocsp 同款——扁平入口
