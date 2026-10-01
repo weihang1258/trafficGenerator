@@ -315,7 +315,7 @@ frame.len = 14 + 40 + 20 + L   (IPv6)  = 74 + L
 ```
 scenario == "data_only" → 仅 RTP（需 media.enabled），return
 scenario == "ras_only"  → 仅 RAS（需 ras.enabled），return
-scenario == "full"      → 握手 → Q.931 十条（含 FACILITY×4）→ [RTP] → 挥手
+scenario == "full"      → 握手 → Q.931 九条（含 FACILITY×3）→ [RTP] → 挥手
 scenario == "tunnel_only" → 握手 → Q.931 六条（无 FACILITY）→ 挥手
 ```
 
@@ -401,7 +401,7 @@ IDLE
 - **关联手段 = `flowID` 后缀**：主控流 `flowID = "{srcIP}-{dstIP}-{srcPort}-{dstPort}"`（`h323.go:211`），RTP 为 `flowID + ":rtp"`（`:452`），RAS 为 `flowID + ":ras"`（`:539`）；
 - **缺口**：**无显式关联字段**（CORE_MEMORY §3.8 要求 `driven_by{session,transaction,field}`）——派生流的端口**不随控制流推导**（RTP 端口来自 `media.src_port/dst_port` 独立配置，非 OLC 通告端口；RAS 端口来自 `ras.port`）；
 - **子流独立四元组**：✓（各自独立 src/dst IP+port）；**独立握手/挥手**：✓（UDP 面无握手）；
-- **顺序/交错**：`full` 场景下 RTP **插在 CONNECT 之后、RELCOMP 之前**（`h323.go:328-334`，实测 `h323_media_full`：帧 11=CONNECT、12–13=RTP、14–15=RELCOMP）；`data_only`/`ras_only` 是**独立单面**，与控制流不同时存在。
+- **顺序/交错**：`full` 场景下 RTP **插在 CONNECT 之后、RELCOMP 之前**（`h323.go:328-334`，实测 `h323_media_full`：帧 10=CONNECT、11–12=RTP、13–14=RELCOMP）；`data_only`/`ras_only` 是**独立单面**，与控制流不同时存在。
 
 **④ 插入位置**：**终结层**（`[ip, h323]`，raw-IP 自驱）。链内**无中间层**，故无"插入到哪一层之间"的问题；h323 自己产出 L4（TCP/UDP）头。
 
@@ -439,8 +439,8 @@ IDLE
 ### 6.2 并发流下的行为
 
 - **多流**：`flow_control {"flows": N}` → worker 逐流解析动态端口（`resolveLayerTuple`，`layer_dyn.go:770`），每流独立四元组、独立握手/挥手；
-- **包数线性**：`N` 流 × 16 包/呼叫 × `calls` 次 = 总包数（`h323_port_dyn` 实测 2 流 × 16 = 32 ✓）；
-- **调度**：单 worker FIFO → 逐流成对序（流 1 = 包 1–16，流 2 = 包 17–32，用例实测断言）。
+- **包数线性**：`N` 流 × 15 包/呼叫 × `calls` 次 = 总包数（`h323_port_dyn` 实测 2 流 × 15 = 30 ✓）；
+- **调度**：单 worker FIFO → 逐流成对序（流 1 = 包 1–15，流 2 = 包 16–30，用例实测断言）。
 
 ### 6.3 流式与内存
 
@@ -506,7 +506,7 @@ IDLE
 
 | # | ID | scenario / 关键配置 | 包数 | 覆盖 |
 |---:|---|---|---:|---|
-| 1 | `h323_smoke_01` | full（显式 `src_port=12345`） | **16**（`min_packets: 15`） | §3.2 十条 Q.931 + §3.4 握手/挥手 |
+| 1 | `h323_smoke_01` | full（显式 `src_port=12345`） | **15** | §3.2 九条 Q.931 + §3.4 握手/挥手 |
 | 8 | `h323_scenario_tunnel` | `tunnel_only` | **12** | §3.2 六条（无 FACILITY） |
 | 9 | `h323_scenario_ras` | `ras_only` + `ras.enabled` | **8** | §3.5 四对 RAS |
 | 10 | `h323_scenario_data` | `data_only` + `media.enabled` | **10** | §3.6 RTP 缺省 10 帧 |
@@ -523,11 +523,11 @@ IDLE
 **包数公式（实测钉死，机读复核）**：
 
 ```
-full         = 3 + 10 + 3 = 16  (+ frames if media.enabled)
+full         = 3 + 9 + 3 = 15  (+ frames if media.enabled)
 tunnel_only  = 3 +  6 + 3 = 12
 ras_only     = 8                (无 TCP)
 data_only    = frames (缺省 10)  (无 TCP)
-calls=N      = N × 16           (full 默认)
+calls=N      = N × 15           (full 默认)
 flows=M      = M × (每流包数)
 ```
 
@@ -590,7 +590,7 @@ flows=M      = M × (每流包数)
 | 2 | 被叫方先回 CALL PROCEEDING 再 ALERTING（振铃与接通分离） | 同上（帧 5/8） | `h323_smoke_01` 帧 5/7 | **已覆** |
 | 3 | H.245 能力协商隧道在 Q.931 FACILITY 内（多轮 FACILITY 往返） | 同上（帧 6/9/10/11，**共 4 条 FACILITY**） | `h323_smoke_01` 帧 6（断言 0x62） | **结构已覆，载荷未覆**（G-H323-1） |
 | 4 | 网守路由部署：呼叫前 RAS 注册 + 准入 | H.225.0 §7（**无参考 pcap**） | `h323_scenario_ras`（仅端口断言） | **弱覆**（G-H323-4） |
-| 5 | 媒体面 RTP 在 CONNECT 后开始 | 同上（参考 pcap **无 RTP**——媒体在另一 pcap） | `h323_media_full` 帧 11–15 | **已覆** |
+| 5 | 媒体面 RTP 在 CONNECT 后开始 | 同上（参考 pcap **无 RTP**——媒体在另一 pcap） | `h323_media_full` 帧 10–14 | **已覆** |
 | 6 | 多呼叫复用同一 TCP 连接（CRV 递增区分） | 参考 pcap 单呼叫；多呼叫语义由 Q.931 §4.3 推导 | `h323_calls_multi`（帧 4/20） | **已覆** |
 | 7 | 媒体端口由 OLC 通告（fastStart / H.245 OLC）而非硬编码 | H.245 §7.3 | — | **A′ 立项**（G-H323-7） |
 | 8 | NAT 穿越（H.460） | ITU-T H.460.x | — | **不适用**（真实 NAT 穿越非本生成器范围） |
@@ -800,7 +800,7 @@ Generate(req)                                  // layer_gen.go:34
 
 ### 12.3 §3 强制展开：五件套
 
-**会话表**：`s1` 呼叫 1（TCP 1720，16 包 = 3+10+3；`tunnel_only` 12 包 = 3+6+3）/ `s2` 呼叫 2..N（`calls=N`，**同四元组复用**，整块顺序，第 2 会话包号起点 = 前会话总包数+1；`h323_calls_multi` N=2 实测包 17 起）/ `sR` RAS 面（UDP 1719，8 包，无握手挥手；`h323_scenario_ras`）/ `sM` 媒体面（UDP 5062→5063，`frames` 包，无握手挥手；`h323_scenario_data`/`h323_media_full`）。
+**会话表**：`s1` 呼叫 1（TCP 1720，15 包 = 3+9+3；`tunnel_only` 12 包 = 3+6+3）/ `s2` 呼叫 2..N（`calls=N`，**同四元组复用**，整块顺序，第 2 会话包号起点 = 前会话总包数+1；`h323_calls_multi` N=2 实测包 16 起）/ `sR` RAS 面（UDP 1719，8 包，无握手挥手；`h323_scenario_ras`）/ `sM` 媒体面（UDP 5062→5063，`frames` 包，无握手挥手；`h323_scenario_data`/`h323_media_full`）。
 
 **事务序列**：`t1` TCP 建连（SYN/SYN-ACK/ACK）/ `t2` Q.931 呼叫建立（SETUP→CP→[FACILITY]→ALERTING→[FACILITY×2]→CONNECT）/ `t3` 媒体（可选 RTP）/ `t4` 释放（RELCOMP×2）/ `t5` TCP 拆线（FIN/FIN/ACK）；RAS 面另有 `t1'`–`t4'`（GRQ/RRQ/ARQ/DRQ 四对）。**每事务四件事**（前置/触发/成功/失败）见 §5.2 表——**失败分支全为空**（G-H323-16）。
 
@@ -808,7 +808,7 @@ Generate(req)                                  // layer_gen.go:34
 
 **插入位置**：**终结层**（`[ip, h323]`，raw-IP 自驱；`isRawIPChain`，`chain_planner_util.go:40-60`）。链内无中间层，h323 自产 L4 头。
 
-**时间线**：单呼叫内**严格顺序**（无并发、无交错）；多呼叫 = **整块顺序回放**；**不启用 `concurrent`**；`full` 场景 RTP 插在 CONNECT 后 RELCOMP 前（实测帧 11=CONNECT、12–13=RTP、14–15=RELCOMP）。
+**时间线**：单呼叫内**严格顺序**（无并发、无交错）；多呼叫 = **整块顺序回放**；**不启用 `concurrent`**；`full` 场景 RTP 插在 CONNECT 后 RELCOMP 前（实测帧 10=CONNECT、11–12=RTP、13–14=RELCOMP）。
 
 ### 12.12 §12 强制展开：动态字段清单与序号算法
 

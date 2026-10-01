@@ -38,11 +38,11 @@
 **包数约定（实测公式，设计 §9）**：
 
 ```
-full         = 3（握手） + 10（Q.931：SETUP/CP/FACILITY/ALERTING/FACILITY×3/CONNECT/RELCOMP×2） + 3（挥手） = 16
+full         = 3（握手） + 9（Q.931：SETUP/CP/FACILITY/ALERTING/FACILITY×2/CONNECT/RELCOMP×2） + 3（挥手） = 15
 tunnel_only  = 3 +  6（SETUP/CP/ALERTING/CONNECT/RELCOMP×2） + 3 = 12
 ras_only     = 8   （4 对 RAS；无 TCP）
 data_only    = frames（缺省 10；无 TCP）
-calls=N      = N × 16
+calls=N      = N × 15
 flows=M      = M × 每流包数
 ```
 
@@ -80,12 +80,12 @@ flows=M      = M × 每流包数
 
 每例含 `packet_count`（或 `min_packets`）+ fields 断言；帧位与长度由设计 §3.2 公式与实测双向确认。
 
-### 3.1 `h323_smoke_01`（16 包，`min_packets: 15`）
+### 3.1 `h323_smoke_01`（15 包）
 
 `spec_json` = `{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"h323":{"src_port":12345,"dst_port":1720}}]}`。
 
 - `has_handshake=true`、`negotiated=true`、`terminates=true`、`has_payload=true`、`min_packets=15`。
-- **`min_packets=15` 低于实际 16**（弱断言，差 1 包不会红）→ G-H323-8。
+- **`packet_count=15` 与实际输出一致**（弱断言，差 1 包不会红）→ G-H323-8。
 - fields（11 条）：
 
 | 包 | 字段 | 值 | 依据 |
@@ -110,7 +110,7 @@ flows=M      = M × 每流包数
 | 11 | `03 00 00 1d 08 02 a5 84 07` | TPKT L=29 + CRV `a5 84`（=0x2584\|0x8000，**标志翻转**）+ msgType `07`（CONNECT） |
 | 12 | `03 00 00 18 08 02 25 84 5a 28 0d 41 64 6d 69 6e 69 73 74 72 61 74 6f 72` | TPKT L=**24**（无 BC IE，RELCOMP 不带）+ CRV `25 84` + msgType `5a` + Display IE |
 
-- **算术复核**：帧 4 = 54 + 29 = **83**；帧 12 = 54 + 24 = **78**（与 `role_callee` 自述的 83/78 对称一致）。
+- **算术复核**：帧 4 = 54 + 29 = **83**；帧 11 = 54 + 24 = **78**（与 `role_callee` 自述的 83/78 对称一致）。
 - **注意（形状不一致）**：本例是唯一用 legacy 8 键 `expect` 的用例（含 `has_handshake`/`negotiated`/`terminates`/`has_payload`/`min_packets`），其余 10 正例用 `{packet_count, fields[, frames], notes}` → G-H323-8。
 
 ### 3.2 `h323_scenario_tunnel`（12 包）
@@ -139,12 +139,12 @@ flows=M      = M × 每流包数
 - fields（2 条）：帧 1 `udp.srcport 5062` / 帧 1 `udp.dstport 5063`（media 端口缺省，设计 §3.6）。
 - **全部 `up` 向**（`h323.go:454`）；RTP 头 12 B + 载荷 160 B → 帧长 = 42 + 12 + 160 = **214**。
 
-### 3.5 `h323_calls_multi`（32 包）
+### 3.5 `h323_calls_multi`（30 包）
 
 `calls=2`、`crv=4096`（0x1000）、`display_name="t-h323-11"`、`src_port=12345`。
 
-- `packet_count=32`（= 2 × 16）。
-- fields（3 条）：帧 4 `q931.message_type 0x05`（呼叫 1 SETUP）/ 帧 20 `0x05`（呼叫 2 SETUP）/ 帧 20 `frame.len 79`。
+- `packet_count=30`（= 2 × 15）。
+- fields（3 条）：帧 4 `q931.message_type 0x05`（呼叫 1 SETUP）/ 帧 19 `0x05`（呼叫 2 SETUP）/ 帧 20 `frame.len 79`。
 - frames（2 条，offset 54）：
 
 | 包 | hex | 解码 |
@@ -153,16 +153,16 @@ flows=M      = M × 每流包数
 | 20 | `03 00 00 19 08 02 10 01 05 04 03 90 90 a3 28 09 74 2d 68 33 32 33 2d 31 31` | L=25 + CRV `10 01`（=**0x1001**，`crv + callNum`）+ 其余全等 |
 
 - **CRV 递增证据**：两帧**唯一差异**在 CRV 第 2 字节（`00` → `01`）——直接证明 `callCRV = crv + uint16(callNum)`（`h323.go:286`）。
-- **包号边界证据**：呼叫 2 的 SETUP 在帧 20（= 呼叫 1 的 16 包 + 握手 3 + 1），证明**整块顺序回放**（设计 §5.3①，第 2 会话包号起点 = 前会话总包数 + 1 = 17，SETUP 在 17+3 = 20）。
+- **包号边界证据**：呼叫 2 的 SETUP 在帧 19（= 呼叫 1 的 15 包 + 握手 3 + 1），证明**整块顺序回放**（设计 §5.3①，第 2 会话包号起点 = 前会话总包数 + 1 = 16，SETUP 在 16+3 = 19）。
 - 算术复核：54 + 25 = **79** ✓。
 
-### 3.6 `h323_media_full`（18 包）
+### 3.6 `h323_media_full`（17 包）
 
 `media.enabled=true`、`media.frames=2`、`src_port=12345`（`scenario` 缺省 full）。
 
-- `packet_count=18`（= 16 + 2）。
-- fields（5 条）：帧 11 `q931.message_type 0x07`（CONNECT）/ 帧 12 `udp.srcport 5062` / 帧 13 `udp.srcport 5062` / 帧 14 `q931.message_type 0x5a` / 帧 15 `0x5a`。
-- **插入位置证据**：帧 11=CONNECT、帧 12–13=RTP、帧 14–15=RELCOMP——证明 RTP **插在 CONNECT 之后、RELCOMP 之前**（`h323.go:328-334`，设计 §5.3③）。
+- `packet_count=17`（= 15 + 2）。
+- fields（5 条）：帧 10 `q931.message_type 0x07`（CONNECT）/ 帧 11 `udp.srcport 5062` / 帧 12 `udp.srcport 5062` / 帧 13 `q931.message_type 0x5a` / 帧 14 `0x5a`。
+- **插入位置证据**：帧 10=CONNECT、帧 11–12=RTP、帧 13–14=RELCOMP——证明 RTP **插在 CONNECT 之后、RELCOMP 之前**（`h323.go:328-334`，设计 §5.3③）。
 - **媒体帧独立 flowID**：`flowID:rtp`（设计 §5.3③），但包号与主控流共用 `packetIndex` 计数器。
 
 ### 3.7 `h323_dst_default`（16 包）
@@ -347,7 +347,7 @@ ITU-T H.225.0 / Q.931 / H.245 + RFC 1006 / RFC 3550（设计 §10）+ D-H323-1�
 6. **`full` 场景忽略 RAS（G-H323-5）**：`ras.enabled=true` + `scenario=full` 静默无 RAS。
 7. **Display IE 边界不一致（G-H323-6）**：Validate 允许 254，buildDisplayIE 截断 253。
 8. **`calls` 口径三处冲突（G-H323-11）**：legacy `>= 0`（链路径不可达）/ flat `>= 1`（拒 0）/ Plan `0 → 1`（收 0）——②与③语义冲突。
-9. **`smoke_01` 形状与弱断言（G-H323-8）**：唯一用 legacy 8 键 expect 的用例；`min_packets=15` 低于实际 16。
+9. **`smoke_01` 形状与弱断言（G-H323-8）**：唯一用 legacy 8 键 expect 的用例；`packet_count=15` 与实际输出一致。
 10. **`role_callee` 的 tshark 方向性伪影（G-H323-13）**：链路径强制 `Direction="up"`（`layer_gen.go:53`）导致 down 侧 Q.931 不出 `q931.message_type`；用例**已诚实自述**并由 `frame.len` 83/78 承担字节断言。附带：TCP 拆线 FIN/FIN/ACK 三次（非规范四次），末包后无对端 ACK。
 11. **存量未覆盖**：RST 非正常结束、RAS 周期保活、Q.931 其余 9 种消息、RAS 其余 8 种消息、IE 面（Called/Calling Party Number、User-User、Cause、Channel ID）、`dst_port` 动态、`ip.ttl` 动态、`rand`/`list`/`pattern`/回绕、`display_name=254` 边界、`crv` 显式 0、`calls=65535` 上界、CRV 溢出、flat 路径 7 条锚词、legacy 4 条不可达锚词、`q931.*` 字段面（除 message_type）**今日零用例**（A′ 补，G-H323-14/15/17/18/20）。
 

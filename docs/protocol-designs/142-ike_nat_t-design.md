@@ -1,27 +1,27 @@
 # IKE-NAT-T（IKEv2 NAT Traversal）设计契约
 
-> 版本：v1.0.0（as-built）；日期：2026-09-29；协议名：`ike_nat_t`；权威用例：`trafficgen/test/protocol_pcap/cases/ike_nat_t.json`。
-> 本文只描述当前实现与唯一现存 case，不把未覆盖的 NAT-T 扩展写成已验收能力。
+> 版本：v1.1.0（as-built，层链静态闭环）；日期：2026-10-01；协议名：`ike_nat_t`；权威用例：`trafficgen/test/protocol_pcap/cases/ike_nat_t.json`。
+> 本文只描述当前实现与唯一现存 case，不把未覆盖的 NAT-T 扩展写成已验收能力；本车道只改三件套，不运行 suite。
 
 ## 1. 范围、配置真相与旧键审计
 
 IKE-NAT-T 是 UDP 终结层的 IKEv2 NAT 穿越变体：可在端口 500/4500 间浮动，在 4500 的 IKE 消息前加入 4-byte Non-ESP Marker；实现还包含 NAT-D、UDP-ESP、keepalive、重传和 Child SA 分支。入口为 `trafficgen/internal/protocol/ike_nat_t/{planner.go,layer_gen.go}`，配置类型为 `IKENATTConfig`（`internal/core/types.go:4526-4566`）。
 
-**存量形状机读基线**：`cases/ike_nat_t.json` 唯一例 `spec_json` 顶层键 = `{count,dst_port,ike_nat_t}`，无 `layers`，属扁平残留（G-NATT-3），不能把目标层链形当成现状。
+**存量形状机读基线**：`cases/ike_nat_t.json` 唯一例 `spec_json` 顶层键 = `{layers}`，链序为 `ip → udp → ike_nat_t`；无旧扁平键（G-NATT-3 已闭环）。
 
 旧/扁平键逐键去向：
 
 | 旧键 | 存量出现 | 去向 |
 |---|---:|---|
-| `count` | 1/1 | 公共任务计数；目标形由 `flow_control` 承载 |
-| `dst_port` | 1/1 | 公共 UDP transport；目标形迁 `layers[0].udp.dst_port` |
-| `ike_nat_t` | 1/1 | `spec.IKENATT`；目标形迁 `layers[1].ike_nat_t` |
+| `count` | 0/1 | 不在 spec_json 顶层；流数由任务/策略 `flow_control` 承载 |
+| `dst_port` | 1/1 | 公共 UDP transport，已落在 `layers[1].udp.dst_port` |
+| `ike_nat_t` | 1/1 | 终结层配置，已落在 `layers[2].ike_nat_t` |
 | `src_ip`/`dst_ip`/`src_port` | 0 | 公共地址/端口缺省，不在此 case 显式声明 |
 
-目标形状（**迁移目标，非存量事实**）：
+目标形状（存量已采用的层链形状）：
 
 ```json
-{"layers":[{"udp":{"dst_port":500}},{"ike_nat_t":{"dialog":[{"direction":"up","exchange_type":34}]}}],"flow_control":{"flows":1}}
+{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"udp":{"dst_port":500}},{"ike_nat_t":{"dialog":[{"direction":"up","exchange_type":34}]}}]}
 ```
 
 Registry 将其注册为 UDP terminal、依赖 udp、默认目的端口 4500（`internal/core/layers/registry.go:536-543`）。
@@ -75,7 +75,7 @@ IKE header 为 `SPIi(8)|SPIr(8)|NextPayload(1)|Version(1)|ExchangeType(1)|Flags(
 
 | § | 本协议满足方式 | 证据 |
 |---|---|---|
-| §1 层链唯一真相 | 存量唯一例顶层 `{count,dst_port,ike_nat_t}`，无 `layers`，G-NATT-3；旧键逐键去向与完整目标形见 §1 | §1；`cases/ike_nat_t.json` |
+| §1 层链唯一真相 | 存量唯一例顶层仅 `{layers}`，链序 `[ip,udp,ike_nat_t]`，旧键零残留；逐键去向见 §1 | §1；`cases/ike_nat_t.json` |
 | §2 策略/任务 | 策略 = 单 header/dialog 模板；任务 = flow count 扩展与总量封顶；存量 `count` 为旧形公共任务键 | §1/§3 |
 | §3 五件套 | 会话表 = 单 IKE SA；事务 = header-only SA_INIT；关联 = SPIi/SPIr + MessageID；插入 = UDP payload（4500 marker 在 IKE 前）；时间线 = `dialog` 顺序；单消息例不虚报完整状态机 | §3/§5 |
 | §4 查规范 | RFC 7296 §3.1/§2.23 + RFC 3948/3947 + RFC 4303 + RFC 7296 §2.2 | §8 |
@@ -100,7 +100,7 @@ IKE header 为 `SPIi(8)|SPIr(8)|NextPayload(1)|Version(1)|ExchangeType(1)|Flags(
 |---|---|---|---|
 |G-NATT-1|NAT-D、4500 marker、ESP、keepalive、重传和负例均无现存 JSON 用例|JSON 只有 header-only dst 500；实现分支见 §8|P3/P4 用例扩展|
 |G-NATT-2|tracked 结果产物过期且无 pcap 留档，历史 pass 数未经今日复跑证实|`git log`：`e7e7d1c` 2026-08-27 < `0417be5` 2026-09-13；`protocol-pcap-test/ike_nat_t/` 不存在|P5 重跑并重生成产物|
-|G-NATT-3|存量唯一 case 顶层键 `{count,dst_port,ike_nat_t}`，无 `layers`，层链门不通过|机读 `cases/ike_nat_t.json`|P4 cases 迁移|
+|G-NATT-3|已闭环：存量唯一 case 顶层仅 `{layers}`，链序 `[ip,udp,ike_nat_t]`，旧扁平键零残留|机读 `cases/ike_nat_t.json`|已收敛；不再列为待迁移缺口|
 |G-NATT-4|`CheckProtoFlat` 未登记 ike_nat_t presence，presence 负例会假绿|`strategy_convert.go` 对 `protocol == "ike_nat_t"` 无分支|P6 框架面|
 |G-NATT-5|dynamic allowlist 无 ike_nat_t 业务字段，动态字段对象不可用|`layer_dyn.go` 头部无 ike_nat_t 行|P6 框架面|
 
@@ -113,12 +113,30 @@ IKE header 为 `SPIi(8)|SPIr(8)|NextPayload(1)|Version(1)|ExchangeType(1)|Flags(
 |3|dstport=500，SPIi nonzero，SPIr exact zero|绿|
 |4|version=0x20、exchange=34、flags=0x08、length=28|绿|
 |5|frame offset=58，hex 精确为 `00 20 22 08 00 00 00 00 00 00 00 1c`|绿|
-|6|层链迁移后顶层键 ⊆ `{layers}`|**红：今日为 `{count,dst_port,ike_nat_t}`，G-NATT-3**|
+|6|层链迁移后顶层键 ⊆ `{layers}`|绿：今日为 `{layers}`，G-NATT-3 已闭环|
 |7|负例锚词集合非空且 validator 每类错误至少一例|**红：0 负例，G-NATT-1**|
 
 pcap/NIC 两路必须复用同一断言集，不能用过期结果产物代替复跑。
 
-## 13. 修订记录
+## 12. 层链静态闭环审计（D1-D8，2026-10-01）
 
-- v1.0.1（2026-09-29）：批次二门1补齐 §1 逐键去向/目标形状、§1–§14 十四行表、五层与五件套、存量扁平 G-NATT-3、产物过期 G-NATT-2、框架缺口 G-NATT-4/5、反查红项；**自审 2 轮，末轮干净**。
+| ID | 结论 | 证据/去向 |
+|---|---|---|
+| D1 | 地址只住 `layers[].ip`；端口只住 `layers[].udp`；数量不进 `spec_json`，由任务/策略 `flow_control` 承载 | `ike_nat_t.json` 机读：唯一正例顶层仅 `layers`；`ip` 与 `udp.dst_port` 分层 |
+| D2 | 链固定为 `[ip,udp,ike_nat_t]`；`ike_nat_t` 是依赖 UDP 的终结层 | case 三层顺序；registry `ike_nat_t` 依赖 `udp` |
+| D3 | 业务字段只住 `layers[].ike_nat_t`；当前字段为 `dialog`，不伪造 Fields/动态字段能力 | case `ike_nat_t.dialog`；设计 §3/§10；G-NATT-5 |
+| D4 | 单消息 dialog 仅验证 header-only SA_INIT；NAT-D/4500/ESP/keepalive/重传是未覆盖分支，不从单例推导 | case 1 ID；§8 矩阵与 G-NATT-1 |
+| D5 | 顶层 `ike_nat_t` presence 不是正例入口；本 case 已移除该游离键。若需 presence 负例，必须以真实框架错误锚词新增，不在本车道虚造 | 真实错误锚词为 `unknown layer`（`chain_planner_chain.go`）；G-NATT-4 |
+| D6 | `flow_control` 属任务/策略驱动，不混入 `spec_json`；当前 JSON 不写数量键 | CORE_MEMORY §1.1–1.3；case 顶层白名单仅 `layers` |
+| D7 | 正例保留真实 UDP/IKE 断言与稳定 frame hex；无负例不伪造错误期望 | testcase §3/§4；G-NATT-1 |
+| D8 | NAT-T 扩展、负例、产物复跑、Fields/translate 接线均登记缺口；不改 Go、不运行 suite、不宣称 pcap/NIC 绿 | G-NATT-1…G-NATT-5；本车道约束 |
+
+**presence 形状裁定**：`spec_json` 顶层 `ike_nat_t` 与 `layers` 并存是违规混用形状，不是可接受的保留键；本次正例采用纯层链。由于现有框架对该游离键没有协议专属检查，不能机械新增负例并声称可拦截，登记 G-NATT-4。
+
+## 13. 自审结论与修订记录
+
+两轮自审：第 1 轮逐项核对 `layers` 顺序、顶层白名单、端口/地址归属、唯一 ID、正例字段/frame 锚点与 G 缺口；第 2 轮复核设计与 testcase/cases 三方一致及真实错误锚词。末轮干净。
+
+- v1.1.0（2026-10-01）：静态层链闭环；补 D1-D8，明确顶层 `ike_nat_t`+`layers` 混用判违规，登记 Fields/translate/presence 缺口；未运行 suite，**自审 2 轮，末轮干净**。
+- v1.0.1（2026-09-29）：批次二门1补齐 §1 逐键去向/目标形状、§1–§14 十四行表、五层与五件套、存量扁平 G-NATT-3、产物过期 G-NATT-2、框架缺口 G-NATT-4/5、反查红项；自审 2 轮，末轮干净。
 - v1.0.0（2026-09-29）：按现有实现与 `ike_nat_t.json` 建立 as-built 文档。

@@ -4,7 +4,7 @@
 > 日期：2026-09-29
 > 配套设计：`docs/protocol-designs/108-dns-design.md` v1.0.0（D-DNS-1）
 > 前序基线：**本协议无旧编号用例文档**（`docs/protocol-designs/` 无 `NN-dns-*`）；编号体系承 `docs/CODE_DESIGN.md` D-DNS-1 补遗的 **T-DNS-1…T-DNS-29**
-> 机器契约：`trafficgen/test/protocol_pcap/cases/dns.json`（**29/29 ID 与本版 §2 一致，顺序一致，已机读实测**；**非负例顶层键零残留**，见 §1）
+> 机器契约：`trafficgen/test/protocol_pcap/cases/dns.json`（**29/29 ID 与本版 §2 一致，顺序一致，已机读实测**；**非负例 `spec_json` 顶层键零残留**，见 §1）
 > 白话一句：**二十九条检查：二十三条看正常收发（一次问答、各种记录类型、别名链、否定应答、大响应协商、批量扫描、新网段），六条看胡来能不能被拦下；每条只查一件事。**
 
 ## 1. 测试原则和形状基线
@@ -385,7 +385,7 @@ RFC 1035/6891/4033/4034/3596/2782/3401/7766（设计 §10）+ D-DNS-1（设计 �
 6. **`dns_edns0` 之外的 EDNS0 面零覆盖**：DO 位（`dnssec_ok`）、`udp_payload_size` 非 0、扩展 RCODE、OPT 选项数据——**全部零用例**（A′）。
 7. **DS/DNSKEY 只断言 4 条**：#27 断言 `key_id`（未断言 `algorithm`/`digest_type`/digest 内容）；#28 断言 `protocol`（未断言 `key_flags`/`algorithm`/public_key 内容）——**编码变体（hex/base64）的"内容正确性"未直接断言**（A′ 增强面）。
 8. **SRV/NAPTR 字段断言不全**：#25 断言 9 条（service/proto/name/port/target 全，**priority/weight 未断言**）；#29 只断言 `order`（**preference/flags/service/replacement 未断言**）——A′ 增强面。
-9. **`dns_neg_flat` 的形状是"故意违规"**：`spec_json` = `{layers, dns:{}}`（`layers` 与顶层空 `dns` **并存**）——**这是 presence 负例的标准形状，不是残留**（设计 §12.1 已点名此形状）。收官自查「非负例顶层键 = 0」不受其影响。
+9. **`dns_neg_flat` 的形状是"故意违规"**：`spec_json` = `{layers, dns:{}}`（`layers` 与顶层空 `dns` **并存**）——**这是 presence 负例的标准形状，不是残留**（设计 §12.1 已点名此形状）。收官自查「非负例 `spec_json` 顶层键 = 0」不受其影响。
 10. **结果文档 pcap 链接全死（G-DNS-9）**：tracked 产物 `trafficgen/docs/protocol-pcap-test/dns.md` 的 23/23 正例 `[pcap](dns/<id>.pcap)` 链接**指向不存在的目录**（`docs/protocol-pcap-test/dns/` 0 个 pcap）。**注意本协议不适用 pcep G-PCEP-11 的"末次提交早于判死提交"口径**（`793dfee` 2026-09-19 **晚于** `0417be5` 2026-09-13）——本缺口是"**tracked 产物内容与仓库状态不符**"，不是"过期未复跑"。归属**代码阶段**（P5 重跑后重生成）。
 
 ### 8.3 逐条去向表（29 行）
@@ -431,11 +431,11 @@ RFC 1035/6891/4033/4034/3596/2782/3401/7766（设计 §10）+ D-DNS-1（设计 �
 | # | 建议断言 | 依据 |
 |---:|---|---|
 | 1 | `len(cases['dns']) == 29` 且 ID 集合 = §2 二十九项，顺序一致 | 本契约 §2 |
-| 2 | 23 正例 `spec_json` 顶层键 ⊆ `{layers}`（**本协议非负例零游离键**）；3 例追加 `strategy_fc` | 本契约 §1；设计 §12.1 |
+| 2 | 23 正例 `spec_json` 顶层键 = `{layers}`（**本协议非负例零游离键**）；3 例在 case 顶层追加 `strategy_fc` | 本契约 §1；设计 §12.1 |
 | 3 | 23 正例 `packet_count`/`min_packets` == `1 + (is_response ? 1 : 0)`（`is_response` 由层内 spec 推出） | 设计 §9 公式 |
 | 4 | 6 负例 `expect` 键集合 == `{expect_error, error_contains}`（**今日即成立**） | 本契约 §4 |
 | 5 | 负例 `error_contains` ∈ 代码锚词集 `{"no longer accepts a top-level dns sub-config", "static four-tuple", "tcp transport not supported", "out of range [0,15]", "query_name (domain) is required", "exceeds max 63 octets"}` | 设计 §7 |
-| 6 | 非负例顶层键计数 == 0（**今日已成立**） | 设计 §12.1 |
+| 6 | 非负例 `spec_json` 顶层游离键计数 == 0（**今日已成立**） | 设计 §12.1 |
 | 7 | 每正例至少一条 `dns.*` 字段断言（**23/23 成立**） | 本契约 §3 |
 | 8 | 层形恒 `[ip,udp,dns]`（29/29，含 2 个 v6 例地址住 `layers[0].ip`） | 本契约 §1 |
 | 9 | **M-1 修复后**：`dns_edns0` 的 `expect.fields` 含 `{"field":"dns.count.add_rr","value":"1"}` | 设计 §9.2 |
