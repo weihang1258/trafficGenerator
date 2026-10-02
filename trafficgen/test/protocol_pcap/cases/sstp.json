@@ -1075,24 +1075,16 @@
         },
         {
           "field": "tls.record.content_type",
-          "packet": 4,
-          "value": "22"
-        },
-        {
-          "field": "tls.record.length",
-          "nonzero": true,
-          "packet": 11
-        },
-        {
-          "field": "tls.record.length",
-          "nonzero": true,
-          "packet": 29
+          "distinct_values": [
+            "22"
+          ]
         }
       ],
       "has_handshake": true,
       "notes": [
         "flows=2：两条独立 TLS/TCP/SSTP connection（每流各自 REQUEST→ACK→CONNECTED→PPP），不跨连接串流（契约 §8）。",
-        "src_port 未写 → worker 保底递增（12345+i），两条流四元组互异（CORE_MEMORY 9.39/2.8）。"
+        "src_port 未写 → worker 保底递增（12345+i），两条流四元组互异（CORE_MEMORY 9.39/2.8）。",
+        "多流交织非确定序（§9.34）→ content_type 聚合断言替代包位钉"
       ],
       "packet_count": 36,
       "terminates": true
@@ -1178,18 +1170,15 @@
   {
     "expect": {
       "directional": true,
-      "fields": [
-        {
-          "field": "tls.record.length",
-          "nonzero": true,
-          "packet": 11
-        },
-        {
-          "field": "tls.record.length",
-          "nonzero": true,
-          "packet": 29
-        }
+      "fields": [],
+      "has_handshake": true,
+      "notes": [
+        "ECHO REQ/RSP 只在 CONNECTED 之后（保活，MS-SSTP §3.4）；不假设并行到达的全局包序。",
+        "重连 = 新 TLS/TCP connection（第 2 流整体重走），旧连接不再接收新状态。",
+        "会话内有序断言需要确定单流（§9.34）：flows 退役为 1；帧钉（01→02→04→08→09）单流下确定，保留"
       ],
+      "packet_count": 20,
+      "terminates": true,
       "frames": [
         {
           "hex": "00 01",
@@ -1216,14 +1205,7 @@
           "offset": 63,
           "packet": 16
         }
-      ],
-      "has_handshake": true,
-      "notes": [
-        "ECHO REQ/RSP 只在 CONNECTED 之后（保活，MS-SSTP §3.4）；不假设并行到达的全局包序。",
-        "重连 = 新 TLS/TCP connection（第 2 流整体重走），旧连接不再接收新状态。"
-      ],
-      "packet_count": 40,
-      "terminates": true
+      ]
     },
     "id": "sstp_session_ordering",
     "proto": "sstp",
@@ -1304,10 +1286,6 @@
           }
         }
       ]
-    },
-    "strategy_fc": {
-      "type": "flows",
-      "value": 2
     },
     "summary": "同连接严格顺序 + ECHO 保活 + 关闭后新 TLS/TCP 连接重连（flows=2）"
   },

@@ -1,13 +1,13 @@
 # tns Pcap Test Results
 
-Cases: 24 — pass 23, fail 1, error 0
+Cases: 24 — pass 24, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
 | tns_body_constants | CONNECT/ACCEPT/REFUSE/REDIRECT body 四态同链（双会话：CONNECT→REFUSE 终态 + CONNECT→ACCEPT→DATA）（pending-suite：suite 实测复钉） | pass | 19 | [pcap](tns/tns_body_constants.pcap) |
 | tns_connect_accept | S1/T-TNS-S1: CONNECT→ACCEPT→TTC data; TCP 1521 (层链形 D-TNS-1) | pass | 11 | [pcap](tns/tns_connect_accept.pcap) |
 | tns_data_flags_zero | DATA×2 flags=0：事件包 tns.data_flag=0x0000 + 包数 11（pending-suite：断言沿 testcase 设计值，suite 实测复钉） | pass | 11 | [pcap](tns/tns_data_flags_zero.pcap) |
-| tns_dyn_srcport | tcp.src_port inc 动态（flows=2，每流独立）（pending-suite：断言/包数沿 testcase 设计值，suite 实测复钉） | fail | 18 | `tns/tns_dyn_srcport.pcap` |
+| tns_dyn_srcport | tcp.src_port inc 动态（flows=2，每流独立）（pending-suite：断言/包数沿 testcase 设计值，suite 实测复钉） | pass | 18 | [pcap](tns/tns_dyn_srcport.pcap) |
 | tns_header_fields | S7/T-TNS-S7: complete public header fields and DATA flags (层链形 D-TNS-1) | pass | 11 | [pcap](tns/tns_header_fields.pcap) |
 | tns_ipv4_baseline | IPv4 CONNECT→ACCEPT 裸形（与 #6 地址族对称）（pending-suite：断言/包数沿 testcase 设计值，suite 实测复钉） | pass | 9 | [pcap](tns/tns_ipv4_baseline.pcap) |
 | tns_ipv6_connect | S5/T-TNS-S5: IPv6 CONNECT→ACCEPT (层链形 D-TNS-1) | pass | 9 | [pcap](tns/tns_ipv6_connect.pcap) |
@@ -28,10 +28,3 @@ Cases: 24 — pass 23, fail 1, error 0
 | tns_refuse_session | sessions 内 REFUSE（跨 sessions[1..n] 面，G-TNS-3 实测载体）（pending-suite：断言/包数沿 testcase 设计值，suite 实测复钉） | pass | 18 | [pcap](tns/tns_refuse_session.pcap) |
 | tns_session_null_default | S11/T-TNS-S11: 空层配置默认化产一条 DATA（P0b-2，设计 §4.3 派生表） | pass | 8 | [pcap](tns/tns_session_null_default.pcap) |
 | tns_ttc_sqlnet_session | S4/T-TNS-S4: TTC and SQL*Net data sequence, flags zero (层链形 D-TNS-1) | pass | 13 | [pcap](tns/tns_ttc_sqlnet_session.pcap) |
-
-## Failures
-
-### tns_dyn_srcport — tcp.src_port inc 动态（flows=2，每流独立）（pending-suite：断言/包数沿 testcase 设计值，suite 实测复钉）
-
-verify: field tcp.srcport: distinct values mismatch (want [12345 12346]; missing []; unexpected [1521(x8)])
-
