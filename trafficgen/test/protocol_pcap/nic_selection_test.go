@@ -148,3 +148,33 @@ func TestNicSelection_MaxCapsJobs(t *testing.T) {
 		}
 	}
 }
+
+// TestNicSelection_SkipWindow 验证 NIC_SKIP 窗口推进：skip 在字典序
+// 排序后、NIC_MAX 截断前生效（skip+max 构成批次窗口）；越界报空不
+// 静默全量重跑（越界重跑会让批次脚本把同一批当新批再跑一遍）。
+func TestNicSelection_SkipWindow(t *testing.T) {
+	oldSkip, oldMax := nicSkip, nicMax
+	defer func() { nicSkip, nicMax = oldSkip, oldMax }()
+	cases := loadCases(t)
+	full := nicSelection(t, cases)
+	if len(full) < 4 {
+		t.Fatalf("need >=4 protos for window test, got %d", len(full))
+	}
+	// skip=2：窗口从 full[2] 起。
+	nicSkip = 2
+	got := nicSelection(t, cases)
+	if len(got) != len(full)-2 || got[0].proto != full[2].proto {
+		t.Errorf("skip=2: want start %s, got len=%d start=%v", full[2].proto, len(got), got[0].proto)
+	}
+	// skip=1 + max=2：恰好 full[1..2]（窗口推进 + 截断组合）。
+	nicSkip, nicMax = 1, 2
+	got = nicSelection(t, cases)
+	if len(got) != 2 || got[0].proto != full[1].proto || got[1].proto != full[2].proto {
+		t.Errorf("skip=1,max=2: want [%s %s], got %v", full[1].proto, full[2].proto, got)
+	}
+	// skip 越界：空结果（调用方 no cases selected 即失败），绝不静默全量。
+	nicSkip, nicMax = len(full)+5, 0
+	if got := nicSelection(t, cases); len(got) != 0 {
+		t.Errorf("skip beyond end: want 0 jobs, got %d (silent full rerun)", len(got))
+	}
+}
