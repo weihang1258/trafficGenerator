@@ -4125,7 +4125,20 @@
       "depends_on": [
         "tcp"
       ],
-      "fields": {}
+      "fields": {
+        "events": {
+          "type": "list"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "sessions": {
+          "type": "list"
+        },
+        "transport": {
+          "type": "string"
+        }
+      }
     },
     "pim": {
       "category": "terminal",

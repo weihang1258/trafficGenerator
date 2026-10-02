@@ -1753,7 +1753,14 @@ func buildDefaultRegistry() {
 	// PCNtf/PCErr 逐报文事件，wire 字节由 build* 纯函数产出），TCP 语义
 	// （握手/seq-ack/挥手/MSS 分段）交给 tcp 层生成器；配置经 spec.PCEP
 	// flat 键携带、FlowMeta 直传生成器；目的端口默认 4189。
-	r.Register(LayerSchema{Name: "pcep", Category: CategoryTerminal, DependsOn: []string{"tcp"}})
+	r.Register(LayerSchema{Name: "pcep", Category: CategoryTerminal, DependsOn: []string{"tcp"},
+		Fields: map[string]FieldSchema{
+			"transport": {Type: "string"},
+			"profile":   {Type: "string"},
+			"events":    {Type: "list"},
+			"sessions":  {Type: "list"},
+		},
+	})
 	// ---- B3：cflow（udp 终结层。RFC 3954 NetFlow v9 与 RFC 7011 IPFIX——
 	// Export Packet/Message 含 header、Template/Data/Options Set、IPv4/IPv6
 	// flow record 与 enterprise IE，wire 字节由 build* 纯函数产出），UDP

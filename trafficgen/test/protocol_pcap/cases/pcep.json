@@ -6,39 +6,43 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "keepalive",
-            "direction": "c2s"
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
           }
-        ]
-      }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
+              {
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
+              },
+              {
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
+              },
+              {
+                "kind": "keepalive",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 10,
@@ -131,7 +135,9 @@
         }
       ]
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_open_bidirectional",
@@ -140,43 +146,47 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "keepalive",
-            "direction": "c2s"
-          },
-          {
-            "kind": "keepalive",
-            "direction": "s2c"
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
           }
-        ]
-      }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
+              {
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
+              },
+              {
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
+              },
+              {
+                "kind": "keepalive",
+                "direction": "c2s"
+              },
+              {
+                "kind": "keepalive",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -249,7 +259,9 @@
         }
       ]
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_keepalive_direction",
@@ -258,51 +270,55 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "keepalive",
-            "direction": "c2s"
-          },
-          {
-            "kind": "keepalive",
-            "direction": "s2c"
-          },
-          {
-            "kind": "keepalive",
-            "direction": "c2s"
-          },
-          {
-            "kind": "keepalive",
-            "direction": "s2c"
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
           }
-        ]
-      }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
+              {
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
+              },
+              {
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
+              },
+              {
+                "kind": "keepalive",
+                "direction": "c2s"
+              },
+              {
+                "kind": "keepalive",
+                "direction": "s2c"
+              },
+              {
+                "kind": "keepalive",
+                "direction": "c2s"
+              },
+              {
+                "kind": "keepalive",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 13,
@@ -365,7 +381,9 @@
         }
       ]
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_pcreq_ipv4_ero_metric",
@@ -374,93 +392,97 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 1001,
-            "endpoint": {
-              "source_ipv4": "192.0.2.10",
-              "destination_ipv4": "192.0.2.20"
-            },
-            "objects": [
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
+          }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
               {
-                "class": "rp",
-                "requested_id_number": 1001,
-                "flags": {
-                  "p": true
-                }
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
               },
               {
-                "class": "endpoint",
-                "source_ipv4": "192.0.2.10",
-                "destination_ipv4": "192.0.2.20"
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
               },
               {
-                "class": "ero",
-                "subobjects": [
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 1001,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.10",
+                  "destination_ipv4": "192.0.2.20"
+                },
+                "objects": [
                   {
-                    "type": "ipv4",
-                    "address": "198.51.100.1",
-                    "prefix_length": 32,
-                    "l": true
+                    "class": "rp",
+                    "requested_id_number": 1001,
+                    "flags": {
+                      "p": true
+                    }
+                  },
+                  {
+                    "class": "endpoint",
+                    "source_ipv4": "192.0.2.10",
+                    "destination_ipv4": "192.0.2.20"
+                  },
+                  {
+                    "class": "ero",
+                    "subobjects": [
+                      {
+                        "type": "ipv4",
+                        "address": "198.51.100.1",
+                        "prefix_length": 32,
+                        "l": true
+                      }
+                    ]
+                  },
+                  {
+                    "class": "metric",
+                    "type": 1,
+                    "flags": {
+                      "c": true
+                    },
+                    "value": 12.5
                   }
                 ]
               },
               {
-                "class": "metric",
-                "type": 1,
-                "flags": {
-                  "c": true
+                "kind": "pcerr",
+                "direction": "s2c",
+                "request_id": 1001,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.20",
+                  "destination_ipv4": "192.0.2.10"
                 },
-                "value": 12.5
-              }
-            ]
-          },
-          {
-            "kind": "pcerr",
-            "direction": "s2c",
-            "request_id": 1001,
-            "endpoint": {
-              "source_ipv4": "192.0.2.20",
-              "destination_ipv4": "192.0.2.10"
-            },
-            "objects": [
-              {
-                "class": "error",
-                "type": 1,
-                "value": 2
+                "objects": [
+                  {
+                    "class": "error",
+                    "type": 1,
+                    "value": 2
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -533,7 +555,9 @@
         }
       ]
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_pcrep_ipv4_ero_rro",
@@ -542,107 +566,111 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 2001,
-            "endpoint": {
-              "source_ipv4": "192.0.2.10",
-              "destination_ipv4": "192.0.2.20"
-            },
-            "objects": [
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
+          }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
               {
-                "class": "rp",
-                "requested_id_number": 2001,
-                "flags": {
-                  "p": true
-                }
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
               },
               {
-                "class": "endpoint",
-                "source_ipv4": "192.0.2.10",
-                "destination_ipv4": "192.0.2.20"
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
               },
               {
-                "class": "ero",
-                "subobjects": [
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 2001,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.10",
+                  "destination_ipv4": "192.0.2.20"
+                },
+                "objects": [
                   {
-                    "type": "ipv4",
-                    "address": "198.51.100.1",
-                    "prefix_length": 32,
-                    "l": true
+                    "class": "rp",
+                    "requested_id_number": 2001,
+                    "flags": {
+                      "p": true
+                    }
+                  },
+                  {
+                    "class": "endpoint",
+                    "source_ipv4": "192.0.2.10",
+                    "destination_ipv4": "192.0.2.20"
+                  },
+                  {
+                    "class": "ero",
+                    "subobjects": [
+                      {
+                        "type": "ipv4",
+                        "address": "198.51.100.1",
+                        "prefix_length": 32,
+                        "l": true
+                      }
+                    ]
+                  },
+                  {
+                    "class": "metric",
+                    "type": 1,
+                    "flags": {
+                      "c": true
+                    },
+                    "value": 12.5
                   }
                 ]
               },
               {
-                "class": "metric",
-                "type": 1,
-                "flags": {
-                  "c": true
+                "kind": "pcrep",
+                "direction": "s2c",
+                "request_id": 2001,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.20",
+                  "destination_ipv4": "192.0.2.10"
                 },
-                "value": 12.5
-              }
-            ]
-          },
-          {
-            "kind": "pcrep",
-            "direction": "s2c",
-            "request_id": 2001,
-            "endpoint": {
-              "source_ipv4": "192.0.2.20",
-              "destination_ipv4": "192.0.2.10"
-            },
-            "objects": [
-              {
-                "class": "rro",
-                "subobjects": [
+                "objects": [
                   {
-                    "type": "ipv4",
-                    "address": "198.51.100.1",
-                    "prefix_length": 32,
-                    "l": false
+                    "class": "rro",
+                    "subobjects": [
+                      {
+                        "type": "ipv4",
+                        "address": "198.51.100.1",
+                        "prefix_length": 32,
+                        "l": false
+                      }
+                    ]
+                  },
+                  {
+                    "class": "metric",
+                    "type": 2,
+                    "flags": {
+                      "b": true
+                    },
+                    "value": 20.0
                   }
                 ]
-              },
-              {
-                "class": "metric",
-                "type": 2,
-                "flags": {
-                  "b": true
-                },
-                "value": 20.0
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -706,7 +734,9 @@
         }
       ]
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_pcntf_and_pcerr",
@@ -715,105 +745,109 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 2100,
-            "endpoint": {
-              "source_ipv4": "192.0.2.10",
-              "destination_ipv4": "192.0.2.20"
-            },
-            "objects": [
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
+          }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
               {
-                "class": "rp",
-                "requested_id_number": 1001,
-                "flags": {
-                  "p": true
-                }
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
               },
               {
-                "class": "endpoint",
-                "source_ipv4": "192.0.2.10",
-                "destination_ipv4": "192.0.2.20"
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
               },
               {
-                "class": "ero",
-                "subobjects": [
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 2100,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.10",
+                  "destination_ipv4": "192.0.2.20"
+                },
+                "objects": [
                   {
-                    "type": "ipv4",
-                    "address": "198.51.100.1",
-                    "prefix_length": 32,
-                    "l": true
+                    "class": "rp",
+                    "requested_id_number": 1001,
+                    "flags": {
+                      "p": true
+                    }
+                  },
+                  {
+                    "class": "endpoint",
+                    "source_ipv4": "192.0.2.10",
+                    "destination_ipv4": "192.0.2.20"
+                  },
+                  {
+                    "class": "ero",
+                    "subobjects": [
+                      {
+                        "type": "ipv4",
+                        "address": "198.51.100.1",
+                        "prefix_length": 32,
+                        "l": true
+                      }
+                    ]
+                  },
+                  {
+                    "class": "metric",
+                    "type": 1,
+                    "flags": {
+                      "c": true
+                    },
+                    "value": 12.5
                   }
                 ]
               },
               {
-                "class": "metric",
-                "type": 1,
-                "flags": {
-                  "c": true
-                },
-                "value": 12.5
-              }
-            ]
-          },
-          {
-            "kind": "pcntf",
-            "direction": "s2c",
-            "request_id": 2100,
-            "objects": [
+                "kind": "pcntf",
+                "direction": "s2c",
+                "request_id": 2100,
+                "objects": [
+                  {
+                    "class": "notification",
+                    "type": 1,
+                    "value": 1
+                  }
+                ]
+              },
               {
-                "class": "notification",
-                "type": 1,
-                "value": 1
-              }
-            ]
-          },
-          {
-            "kind": "pcerr",
-            "direction": "s2c",
-            "request_id": 2100,
-            "objects": [
+                "kind": "pcerr",
+                "direction": "s2c",
+                "request_id": 2100,
+                "objects": [
+                  {
+                    "class": "error",
+                    "type": 2,
+                    "value": 3
+                  }
+                ]
+              },
               {
-                "class": "error",
-                "type": 2,
-                "value": 3
+                "kind": "keepalive",
+                "direction": "c2s"
               }
             ]
-          },
-          {
-            "kind": "keepalive",
-            "direction": "c2s"
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 13,
@@ -876,7 +910,9 @@
         }
       ]
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_multi_request",
@@ -885,183 +921,187 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 3001,
-            "endpoint": {
-              "source_ipv4": "192.0.2.10",
-              "destination_ipv4": "192.0.2.20"
-            },
-            "objects": [
-              {
-                "class": "rp",
-                "requested_id_number": 3001,
-                "flags": {
-                  "p": true
-                }
-              },
-              {
-                "class": "endpoint",
-                "source_ipv4": "192.0.2.10",
-                "destination_ipv4": "192.0.2.20"
-              },
-              {
-                "class": "ero",
-                "subobjects": [
-                  {
-                    "type": "ipv4",
-                    "address": "198.51.100.1",
-                    "prefix_length": 32,
-                    "l": true
-                  }
-                ]
-              },
-              {
-                "class": "metric",
-                "type": 1,
-                "flags": {
-                  "c": true
-                },
-                "value": 12.5
-              }
-            ]
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 3002,
-            "endpoint": {
-              "source_ipv4": "192.0.2.10",
-              "destination_ipv4": "192.0.2.20"
-            },
-            "objects": [
-              {
-                "class": "rp",
-                "requested_id_number": 3002,
-                "flags": {
-                  "p": true
-                }
-              },
-              {
-                "class": "endpoint",
-                "source_ipv4": "192.0.2.10",
-                "destination_ipv4": "192.0.2.20"
-              },
-              {
-                "class": "ero",
-                "subobjects": [
-                  {
-                    "type": "ipv4",
-                    "address": "198.51.100.1",
-                    "prefix_length": 32,
-                    "l": true
-                  }
-                ]
-              },
-              {
-                "class": "metric",
-                "type": 1,
-                "flags": {
-                  "c": true
-                },
-                "value": 12.5
-              }
-            ]
-          },
-          {
-            "kind": "pcrep",
-            "direction": "s2c",
-            "request_id": 3001,
-            "endpoint": {
-              "source_ipv4": "192.0.2.20",
-              "destination_ipv4": "192.0.2.10"
-            },
-            "objects": [
-              {
-                "class": "rro",
-                "subobjects": [
-                  {
-                    "type": "ipv4",
-                    "address": "198.51.100.1",
-                    "prefix_length": 32,
-                    "l": false
-                  }
-                ]
-              },
-              {
-                "class": "metric",
-                "type": 2,
-                "flags": {
-                  "b": true
-                },
-                "value": 20.0
-              }
-            ]
-          },
-          {
-            "kind": "pcrep",
-            "direction": "s2c",
-            "request_id": 3002,
-            "endpoint": {
-              "source_ipv4": "192.0.2.20",
-              "destination_ipv4": "192.0.2.10"
-            },
-            "objects": [
-              {
-                "class": "rro",
-                "subobjects": [
-                  {
-                    "type": "ipv4",
-                    "address": "198.51.100.1",
-                    "prefix_length": 32,
-                    "l": false
-                  }
-                ]
-              },
-              {
-                "class": "metric",
-                "type": 2,
-                "flags": {
-                  "b": true
-                },
-                "value": 20.0
-              }
-            ]
-          },
-          {
-            "kind": "keepalive",
-            "direction": "c2s"
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
           }
-        ]
-      }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
+              {
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
+              },
+              {
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
+              },
+              {
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 3001,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.10",
+                  "destination_ipv4": "192.0.2.20"
+                },
+                "objects": [
+                  {
+                    "class": "rp",
+                    "requested_id_number": 3001,
+                    "flags": {
+                      "p": true
+                    }
+                  },
+                  {
+                    "class": "endpoint",
+                    "source_ipv4": "192.0.2.10",
+                    "destination_ipv4": "192.0.2.20"
+                  },
+                  {
+                    "class": "ero",
+                    "subobjects": [
+                      {
+                        "type": "ipv4",
+                        "address": "198.51.100.1",
+                        "prefix_length": 32,
+                        "l": true
+                      }
+                    ]
+                  },
+                  {
+                    "class": "metric",
+                    "type": 1,
+                    "flags": {
+                      "c": true
+                    },
+                    "value": 12.5
+                  }
+                ]
+              },
+              {
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 3002,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.10",
+                  "destination_ipv4": "192.0.2.20"
+                },
+                "objects": [
+                  {
+                    "class": "rp",
+                    "requested_id_number": 3002,
+                    "flags": {
+                      "p": true
+                    }
+                  },
+                  {
+                    "class": "endpoint",
+                    "source_ipv4": "192.0.2.10",
+                    "destination_ipv4": "192.0.2.20"
+                  },
+                  {
+                    "class": "ero",
+                    "subobjects": [
+                      {
+                        "type": "ipv4",
+                        "address": "198.51.100.1",
+                        "prefix_length": 32,
+                        "l": true
+                      }
+                    ]
+                  },
+                  {
+                    "class": "metric",
+                    "type": 1,
+                    "flags": {
+                      "c": true
+                    },
+                    "value": 12.5
+                  }
+                ]
+              },
+              {
+                "kind": "pcrep",
+                "direction": "s2c",
+                "request_id": 3001,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.20",
+                  "destination_ipv4": "192.0.2.10"
+                },
+                "objects": [
+                  {
+                    "class": "rro",
+                    "subobjects": [
+                      {
+                        "type": "ipv4",
+                        "address": "198.51.100.1",
+                        "prefix_length": 32,
+                        "l": false
+                      }
+                    ]
+                  },
+                  {
+                    "class": "metric",
+                    "type": 2,
+                    "flags": {
+                      "b": true
+                    },
+                    "value": 20.0
+                  }
+                ]
+              },
+              {
+                "kind": "pcrep",
+                "direction": "s2c",
+                "request_id": 3002,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.20",
+                  "destination_ipv4": "192.0.2.10"
+                },
+                "objects": [
+                  {
+                    "class": "rro",
+                    "subobjects": [
+                      {
+                        "type": "ipv4",
+                        "address": "198.51.100.1",
+                        "prefix_length": 32,
+                        "l": false
+                      }
+                    ]
+                  },
+                  {
+                    "class": "metric",
+                    "type": 2,
+                    "flags": {
+                      "b": true
+                    },
+                    "value": 20.0
+                  }
+                ]
+              },
+              {
+                "kind": "keepalive",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 14,
@@ -1124,7 +1164,9 @@
         }
       ]
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_ipv6_address_family",
@@ -1133,89 +1175,93 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv6",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 4001,
-            "endpoint": {
-              "source_ipv6": "2001:db8::10",
-              "destination_ipv6": "2001:db8::20"
-            },
-            "objects": [
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
+          }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv6",
+            "events": [
               {
-                "class": "endpoint",
-                "source_ipv6": "2001:db8::10",
-                "destination_ipv6": "2001:db8::20"
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
               },
               {
-                "class": "ero",
-                "subobjects": [
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
+              },
+              {
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 4001,
+                "endpoint": {
+                  "source_ipv6": "2001:db8::10",
+                  "destination_ipv6": "2001:db8::20"
+                },
+                "objects": [
                   {
-                    "type": "ipv6",
-                    "address": "2001:db8:1::1",
-                    "prefix_length": 128,
-                    "l": true
+                    "class": "endpoint",
+                    "source_ipv6": "2001:db8::10",
+                    "destination_ipv6": "2001:db8::20"
+                  },
+                  {
+                    "class": "ero",
+                    "subobjects": [
+                      {
+                        "type": "ipv6",
+                        "address": "2001:db8:1::1",
+                        "prefix_length": 128,
+                        "l": true
+                      }
+                    ]
                   }
                 ]
-              }
-            ]
-          },
-          {
-            "kind": "pcrep",
-            "direction": "s2c",
-            "request_id": 4001,
-            "endpoint": {
-              "source_ipv6": "2001:db8::20",
-              "destination_ipv6": "2001:db8::10"
-            },
-            "objects": [
-              {
-                "class": "endpoint",
-                "source_ipv6": "2001:db8::10",
-                "destination_ipv6": "2001:db8::20"
               },
               {
-                "class": "ero",
-                "subobjects": [
+                "kind": "pcrep",
+                "direction": "s2c",
+                "request_id": 4001,
+                "endpoint": {
+                  "source_ipv6": "2001:db8::20",
+                  "destination_ipv6": "2001:db8::10"
+                },
+                "objects": [
                   {
-                    "type": "ipv6",
-                    "address": "2001:db8:1::1",
-                    "prefix_length": 128,
-                    "l": true
+                    "class": "endpoint",
+                    "source_ipv6": "2001:db8::10",
+                    "destination_ipv6": "2001:db8::20"
+                  },
+                  {
+                    "class": "ero",
+                    "subobjects": [
+                      {
+                        "type": "ipv6",
+                        "address": "2001:db8:1::1",
+                        "prefix_length": 128,
+                        "l": true
+                      }
+                    ]
                   }
                 ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -1268,7 +1314,9 @@
         }
       ]
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_lsp_object_flags",
@@ -1277,89 +1325,93 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc8231_stateful",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 5001,
-            "endpoint": {
-              "source_ipv4": "192.0.2.10",
-              "destination_ipv4": "192.0.2.20"
-            },
-            "objects": [
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
+          }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc8231_stateful",
+            "events": [
               {
-                "class": "lsp",
-                "plsp_id": 77,
-                "flags": {
-                  "delegate": true,
-                  "create": true,
-                  "administrative": true
-                }
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
               },
               {
-                "class": "srp",
-                "id_number": 9001,
-                "flags": {
-                  "remove": false
-                }
-              }
-            ]
-          },
-          {
-            "kind": "pcrep",
-            "direction": "s2c",
-            "request_id": 5001,
-            "endpoint": {
-              "source_ipv4": "192.0.2.20",
-              "destination_ipv4": "192.0.2.10"
-            },
-            "objects": [
-              {
-                "class": "lsp",
-                "plsp_id": 77,
-                "flags": {
-                  "delegate": true,
-                  "create": true,
-                  "administrative": true
-                }
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
               },
               {
-                "class": "srp",
-                "id_number": 9001,
-                "flags": {
-                  "remove": false
-                }
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 5001,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.10",
+                  "destination_ipv4": "192.0.2.20"
+                },
+                "objects": [
+                  {
+                    "class": "lsp",
+                    "plsp_id": 77,
+                    "flags": {
+                      "delegate": true,
+                      "create": true,
+                      "administrative": true
+                    }
+                  },
+                  {
+                    "class": "srp",
+                    "id_number": 9001,
+                    "flags": {
+                      "remove": false
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "pcrep",
+                "direction": "s2c",
+                "request_id": 5001,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.20",
+                  "destination_ipv4": "192.0.2.10"
+                },
+                "objects": [
+                  {
+                    "class": "lsp",
+                    "plsp_id": 77,
+                    "flags": {
+                      "delegate": true,
+                      "create": true,
+                      "administrative": true
+                    }
+                  },
+                  {
+                    "class": "srp",
+                    "id_number": 9001,
+                    "flags": {
+                      "remove": false
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -1413,7 +1465,9 @@
         }
       ]
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_rro_ipv4_ipv6",
@@ -1422,107 +1476,111 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 6001,
-            "endpoint": {
-              "source_ipv4": "192.0.2.10",
-              "destination_ipv4": "192.0.2.20"
-            },
-            "objects": [
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
+          }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
               {
-                "class": "rp",
-                "requested_id_number": 6001,
-                "flags": {
-                  "p": true
-                }
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
               },
               {
-                "class": "endpoint",
-                "source_ipv4": "192.0.2.10",
-                "destination_ipv4": "192.0.2.20"
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
               },
               {
-                "class": "ero",
-                "subobjects": [
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 6001,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.10",
+                  "destination_ipv4": "192.0.2.20"
+                },
+                "objects": [
                   {
-                    "type": "ipv4",
-                    "address": "198.51.100.1",
-                    "prefix_length": 32,
-                    "l": true
+                    "class": "rp",
+                    "requested_id_number": 6001,
+                    "flags": {
+                      "p": true
+                    }
+                  },
+                  {
+                    "class": "endpoint",
+                    "source_ipv4": "192.0.2.10",
+                    "destination_ipv4": "192.0.2.20"
+                  },
+                  {
+                    "class": "ero",
+                    "subobjects": [
+                      {
+                        "type": "ipv4",
+                        "address": "198.51.100.1",
+                        "prefix_length": 32,
+                        "l": true
+                      }
+                    ]
+                  },
+                  {
+                    "class": "metric",
+                    "type": 1,
+                    "flags": {
+                      "c": true
+                    },
+                    "value": 12.5
                   }
                 ]
               },
               {
-                "class": "metric",
-                "type": 1,
-                "flags": {
-                  "c": true
+                "kind": "pcrep",
+                "direction": "s2c",
+                "request_id": 6001,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.20",
+                  "destination_ipv4": "192.0.2.10"
                 },
-                "value": 12.5
-              }
-            ]
-          },
-          {
-            "kind": "pcrep",
-            "direction": "s2c",
-            "request_id": 6001,
-            "endpoint": {
-              "source_ipv4": "192.0.2.20",
-              "destination_ipv4": "192.0.2.10"
-            },
-            "objects": [
-              {
-                "class": "rro",
-                "subobjects": [
+                "objects": [
                   {
-                    "type": "ipv4",
-                    "address": "198.51.100.1",
-                    "prefix_length": 32,
-                    "l": false
+                    "class": "rro",
+                    "subobjects": [
+                      {
+                        "type": "ipv4",
+                        "address": "198.51.100.1",
+                        "prefix_length": 32,
+                        "l": false
+                      }
+                    ]
+                  },
+                  {
+                    "class": "metric",
+                    "type": 2,
+                    "flags": {
+                      "b": true
+                    },
+                    "value": 20.0
                   }
                 ]
-              },
-              {
-                "class": "metric",
-                "type": 2,
-                "flags": {
-                  "b": true
-                },
-                "value": 20.0
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -1565,7 +1623,9 @@
         }
       ]
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_metric_flags",
@@ -1574,73 +1634,77 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 7001,
-            "endpoint": {
-              "source_ipv4": "192.0.2.10",
-              "destination_ipv4": "192.0.2.20"
-            },
-            "objects": [
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
+          }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
               {
-                "class": "metric",
-                "type": 1,
-                "flags": {
-                  "c": true
-                },
-                "value": 12.5
-              }
-            ]
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 7002,
-            "endpoint": {
-              "source_ipv4": "192.0.2.10",
-              "destination_ipv4": "192.0.2.20"
-            },
-            "objects": [
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
+              },
               {
-                "class": "metric",
-                "type": 2,
-                "flags": {
-                  "b": true
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
+              },
+              {
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 7001,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.10",
+                  "destination_ipv4": "192.0.2.20"
                 },
-                "value": 20.0
+                "objects": [
+                  {
+                    "class": "metric",
+                    "type": 1,
+                    "flags": {
+                      "c": true
+                    },
+                    "value": 12.5
+                  }
+                ]
+              },
+              {
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 7002,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.10",
+                  "destination_ipv4": "192.0.2.20"
+                },
+                "objects": [
+                  {
+                    "class": "metric",
+                    "type": 2,
+                    "flags": {
+                      "b": true
+                    },
+                    "value": 20.0
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -1693,7 +1757,9 @@
         }
       ]
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_tcp_direction",
@@ -1702,118 +1768,122 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 8001,
-            "endpoint": {
-              "source_ipv4": "192.0.2.10",
-              "destination_ipv4": "192.0.2.20"
-            },
-            "objects": [
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
+          }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
               {
-                "class": "rp",
-                "requested_id_number": 1001,
-                "flags": {
-                  "p": true
-                }
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
               },
               {
-                "class": "endpoint",
-                "source_ipv4": "192.0.2.10",
-                "destination_ipv4": "192.0.2.20"
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
               },
               {
-                "class": "ero",
-                "subobjects": [
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 8001,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.10",
+                  "destination_ipv4": "192.0.2.20"
+                },
+                "objects": [
                   {
-                    "type": "ipv4",
-                    "address": "198.51.100.1",
-                    "prefix_length": 32,
-                    "l": true
+                    "class": "rp",
+                    "requested_id_number": 1001,
+                    "flags": {
+                      "p": true
+                    }
+                  },
+                  {
+                    "class": "endpoint",
+                    "source_ipv4": "192.0.2.10",
+                    "destination_ipv4": "192.0.2.20"
+                  },
+                  {
+                    "class": "ero",
+                    "subobjects": [
+                      {
+                        "type": "ipv4",
+                        "address": "198.51.100.1",
+                        "prefix_length": 32,
+                        "l": true
+                      }
+                    ]
+                  },
+                  {
+                    "class": "metric",
+                    "type": 1,
+                    "flags": {
+                      "c": true
+                    },
+                    "value": 12.5
                   }
                 ]
               },
               {
-                "class": "metric",
-                "type": 1,
-                "flags": {
-                  "c": true
+                "kind": "pcrep",
+                "direction": "s2c",
+                "request_id": 8001,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.20",
+                  "destination_ipv4": "192.0.2.10"
                 },
-                "value": 12.5
-              }
-            ]
-          },
-          {
-            "kind": "pcrep",
-            "direction": "s2c",
-            "request_id": 8001,
-            "endpoint": {
-              "source_ipv4": "192.0.2.20",
-              "destination_ipv4": "192.0.2.10"
-            },
-            "objects": [
-              {
-                "class": "rro",
-                "subobjects": [
+                "objects": [
                   {
-                    "type": "ipv4",
-                    "address": "198.51.100.1",
-                    "prefix_length": 32,
-                    "l": false
+                    "class": "rro",
+                    "subobjects": [
+                      {
+                        "type": "ipv4",
+                        "address": "198.51.100.1",
+                        "prefix_length": 32,
+                        "l": false
+                      }
+                    ]
+                  },
+                  {
+                    "class": "metric",
+                    "type": 2,
+                    "flags": {
+                      "b": true
+                    },
+                    "value": 20.0
                   }
                 ]
               },
               {
-                "class": "metric",
-                "type": 2,
-                "flags": {
-                  "b": true
-                },
-                "value": 20.0
-              }
-            ]
-          },
-          {
-            "kind": "pcntf",
-            "direction": "c2s",
-            "objects": [
-              {
-                "class": "notification",
-                "type": 1,
-                "value": 1
+                "kind": "pcntf",
+                "direction": "c2s",
+                "objects": [
+                  {
+                    "class": "notification",
+                    "type": 1,
+                    "value": 1
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 12,
@@ -1866,7 +1936,9 @@
         }
       ]
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_multi_session",
@@ -1875,202 +1947,206 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "sessions": [
-          {
-            "src_port": 40001,
-            "events": [
+          "tcp": {
+            "dst_port": 4189
+          }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "sessions": [
               {
-                "kind": "open",
-                "direction": "c2s",
-                "keepalive": 30,
-                "deadtime": 120,
-                "sid": 7
-              },
-              {
-                "kind": "open",
-                "direction": "s2c",
-                "keepalive": 30,
-                "deadtime": 120,
-                "sid": 8
-              },
-              {
-                "kind": "pcreq",
-                "direction": "c2s",
-                "request_id": 8101,
-                "endpoint": {
-                  "source_ipv4": "192.0.2.10",
-                  "destination_ipv4": "192.0.2.20"
-                },
-                "objects": [
+                "src_port": 40001,
+                "events": [
                   {
-                    "class": "rp",
-                    "requested_id_number": 8101,
-                    "flags": {
-                      "p": true
-                    }
+                    "kind": "open",
+                    "direction": "c2s",
+                    "keepalive": 30,
+                    "deadtime": 120,
+                    "sid": 7
                   },
                   {
-                    "class": "endpoint",
-                    "source_ipv4": "192.0.2.10",
-                    "destination_ipv4": "192.0.2.20"
+                    "kind": "open",
+                    "direction": "s2c",
+                    "keepalive": 30,
+                    "deadtime": 120,
+                    "sid": 8
                   },
                   {
-                    "class": "ero",
-                    "subobjects": [
+                    "kind": "pcreq",
+                    "direction": "c2s",
+                    "request_id": 8101,
+                    "endpoint": {
+                      "source_ipv4": "192.0.2.10",
+                      "destination_ipv4": "192.0.2.20"
+                    },
+                    "objects": [
                       {
-                        "type": "ipv4",
-                        "address": "198.51.100.1",
-                        "prefix_length": 32,
-                        "l": true
+                        "class": "rp",
+                        "requested_id_number": 8101,
+                        "flags": {
+                          "p": true
+                        }
+                      },
+                      {
+                        "class": "endpoint",
+                        "source_ipv4": "192.0.2.10",
+                        "destination_ipv4": "192.0.2.20"
+                      },
+                      {
+                        "class": "ero",
+                        "subobjects": [
+                          {
+                            "type": "ipv4",
+                            "address": "198.51.100.1",
+                            "prefix_length": 32,
+                            "l": true
+                          }
+                        ]
+                      },
+                      {
+                        "class": "metric",
+                        "type": 1,
+                        "flags": {
+                          "c": true
+                        },
+                        "value": 12.5
                       }
                     ]
                   },
                   {
-                    "class": "metric",
-                    "type": 1,
-                    "flags": {
-                      "c": true
+                    "kind": "pcrep",
+                    "direction": "s2c",
+                    "request_id": 8101,
+                    "endpoint": {
+                      "source_ipv4": "192.0.2.20",
+                      "destination_ipv4": "192.0.2.10"
                     },
-                    "value": 12.5
+                    "objects": [
+                      {
+                        "class": "rro",
+                        "subobjects": [
+                          {
+                            "type": "ipv4",
+                            "address": "198.51.100.1",
+                            "prefix_length": 32,
+                            "l": false
+                          }
+                        ]
+                      },
+                      {
+                        "class": "metric",
+                        "type": 2,
+                        "flags": {
+                          "b": true
+                        },
+                        "value": 20.0
+                      }
+                    ]
                   }
                 ]
               },
               {
-                "kind": "pcrep",
-                "direction": "s2c",
-                "request_id": 8101,
-                "endpoint": {
-                  "source_ipv4": "192.0.2.20",
-                  "destination_ipv4": "192.0.2.10"
-                },
-                "objects": [
+                "src_port": 40002,
+                "events": [
                   {
-                    "class": "rro",
-                    "subobjects": [
+                    "kind": "open",
+                    "direction": "c2s",
+                    "keepalive": 20,
+                    "deadtime": 80,
+                    "sid": 22
+                  },
+                  {
+                    "kind": "open",
+                    "direction": "s2c",
+                    "keepalive": 20,
+                    "deadtime": 80,
+                    "sid": 23
+                  },
+                  {
+                    "kind": "pcreq",
+                    "direction": "c2s",
+                    "request_id": 8102,
+                    "endpoint": {
+                      "source_ipv4": "192.0.2.10",
+                      "destination_ipv4": "192.0.2.20"
+                    },
+                    "objects": [
                       {
-                        "type": "ipv4",
-                        "address": "198.51.100.1",
-                        "prefix_length": 32,
-                        "l": false
+                        "class": "rp",
+                        "requested_id_number": 8102,
+                        "flags": {
+                          "p": true
+                        }
+                      },
+                      {
+                        "class": "endpoint",
+                        "source_ipv4": "192.0.2.10",
+                        "destination_ipv4": "192.0.2.20"
+                      },
+                      {
+                        "class": "ero",
+                        "subobjects": [
+                          {
+                            "type": "ipv4",
+                            "address": "198.51.100.1",
+                            "prefix_length": 32,
+                            "l": true
+                          }
+                        ]
+                      },
+                      {
+                        "class": "metric",
+                        "type": 1,
+                        "flags": {
+                          "c": true
+                        },
+                        "value": 12.5
                       }
                     ]
                   },
                   {
-                    "class": "metric",
-                    "type": 2,
-                    "flags": {
-                      "b": true
+                    "kind": "pcrep",
+                    "direction": "s2c",
+                    "request_id": 8102,
+                    "endpoint": {
+                      "source_ipv4": "192.0.2.20",
+                      "destination_ipv4": "192.0.2.10"
                     },
-                    "value": 20.0
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "src_port": 40002,
-            "events": [
-              {
-                "kind": "open",
-                "direction": "c2s",
-                "keepalive": 20,
-                "deadtime": 80,
-                "sid": 22
-              },
-              {
-                "kind": "open",
-                "direction": "s2c",
-                "keepalive": 20,
-                "deadtime": 80,
-                "sid": 23
-              },
-              {
-                "kind": "pcreq",
-                "direction": "c2s",
-                "request_id": 8102,
-                "endpoint": {
-                  "source_ipv4": "192.0.2.10",
-                  "destination_ipv4": "192.0.2.20"
-                },
-                "objects": [
-                  {
-                    "class": "rp",
-                    "requested_id_number": 8102,
-                    "flags": {
-                      "p": true
-                    }
-                  },
-                  {
-                    "class": "endpoint",
-                    "source_ipv4": "192.0.2.10",
-                    "destination_ipv4": "192.0.2.20"
-                  },
-                  {
-                    "class": "ero",
-                    "subobjects": [
+                    "objects": [
                       {
-                        "type": "ipv4",
-                        "address": "198.51.100.1",
-                        "prefix_length": 32,
-                        "l": true
+                        "class": "rro",
+                        "subobjects": [
+                          {
+                            "type": "ipv4",
+                            "address": "198.51.100.1",
+                            "prefix_length": 32,
+                            "l": false
+                          }
+                        ]
+                      },
+                      {
+                        "class": "metric",
+                        "type": 2,
+                        "flags": {
+                          "b": true
+                        },
+                        "value": 20.0
                       }
                     ]
-                  },
-                  {
-                    "class": "metric",
-                    "type": 1,
-                    "flags": {
-                      "c": true
-                    },
-                    "value": 12.5
-                  }
-                ]
-              },
-              {
-                "kind": "pcrep",
-                "direction": "s2c",
-                "request_id": 8102,
-                "endpoint": {
-                  "source_ipv4": "192.0.2.20",
-                  "destination_ipv4": "192.0.2.10"
-                },
-                "objects": [
-                  {
-                    "class": "rro",
-                    "subobjects": [
-                      {
-                        "type": "ipv4",
-                        "address": "198.51.100.1",
-                        "prefix_length": 32,
-                        "l": false
-                      }
-                    ]
-                  },
-                  {
-                    "class": "metric",
-                    "type": 2,
-                    "flags": {
-                      "b": true
-                    },
-                    "value": 20.0
                   }
                 ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 22,
@@ -2113,7 +2189,9 @@
         }
       ]
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_stateful_rfc8231_profile",
@@ -2122,71 +2200,75 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc8231_stateful",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7,
-            "capabilities": [
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
+          }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc8231_stateful",
+            "events": [
               {
-                "kind": "stateful_pce",
-                "lsp_update": true,
-                "include_db_version": true
-              }
-            ]
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8,
-            "capabilities": [
-              {
-                "kind": "stateful_pce",
-                "lsp_update": true,
-                "include_db_version": true
-              }
-            ]
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 8201,
-            "endpoint": {
-              "source_ipv4": "192.0.2.10",
-              "destination_ipv4": "192.0.2.20"
-            },
-            "objects": [
-              {
-                "class": "lsp",
-                "plsp_id": 88,
-                "flags": {
-                  "sync": true
-                }
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7,
+                "capabilities": [
+                  {
+                    "kind": "stateful_pce",
+                    "lsp_update": true,
+                    "include_db_version": true
+                  }
+                ]
               },
               {
-                "class": "srp",
-                "id_number": 9100
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8,
+                "capabilities": [
+                  {
+                    "kind": "stateful_pce",
+                    "lsp_update": true,
+                    "include_db_version": true
+                  }
+                ]
+              },
+              {
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 8201,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.10",
+                  "destination_ipv4": "192.0.2.20"
+                },
+                "objects": [
+                  {
+                    "class": "lsp",
+                    "plsp_id": 88,
+                    "flags": {
+                      "sync": true
+                    }
+                  },
+                  {
+                    "class": "srp",
+                    "id_number": 9100
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 10,
@@ -2229,7 +2311,9 @@
         }
       ]
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_delegation_rfc8281_profile",
@@ -2238,101 +2322,105 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc8281_delegation",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 8301,
-            "endpoint": {
-              "source_ipv4": "192.0.2.10",
-              "destination_ipv4": "192.0.2.20"
-            },
-            "objects": [
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
+          }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc8281_delegation",
+            "events": [
               {
-                "class": "lsp",
-                "plsp_id": 99,
-                "flags": {
-                  "delegate": true
-                }
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
               },
               {
-                "class": "srp",
-                "id_number": 9200
-              }
-            ]
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 8302,
-            "endpoint": {
-              "source_ipv4": "192.0.2.10",
-              "destination_ipv4": "192.0.2.20"
-            },
-            "objects": [
-              {
-                "class": "lsp",
-                "plsp_id": 99,
-                "flags": {
-                  "remove": true
-                }
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
               },
               {
-                "class": "srp",
-                "id_number": 9201
-              }
-            ]
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 8303,
-            "endpoint": {
-              "source_ipv4": "192.0.2.10",
-              "destination_ipv4": "192.0.2.20"
-            },
-            "objects": [
-              {
-                "class": "lsp",
-                "plsp_id": 99,
-                "flags": {
-                  "create": true
-                }
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 8301,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.10",
+                  "destination_ipv4": "192.0.2.20"
+                },
+                "objects": [
+                  {
+                    "class": "lsp",
+                    "plsp_id": 99,
+                    "flags": {
+                      "delegate": true
+                    }
+                  },
+                  {
+                    "class": "srp",
+                    "id_number": 9200
+                  }
+                ]
               },
               {
-                "class": "srp",
-                "id_number": 9202
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 8302,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.10",
+                  "destination_ipv4": "192.0.2.20"
+                },
+                "objects": [
+                  {
+                    "class": "lsp",
+                    "plsp_id": 99,
+                    "flags": {
+                      "remove": true
+                    }
+                  },
+                  {
+                    "class": "srp",
+                    "id_number": 9201
+                  }
+                ]
+              },
+              {
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 8303,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.10",
+                  "destination_ipv4": "192.0.2.20"
+                },
+                "objects": [
+                  {
+                    "class": "lsp",
+                    "plsp_id": 99,
+                    "flags": {
+                      "create": true
+                    }
+                  },
+                  {
+                    "class": "srp",
+                    "id_number": 9202
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 12,
@@ -2380,7 +2468,9 @@
         }
       ]
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_common_header_length",
@@ -2389,107 +2479,111 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 8401,
-            "endpoint": {
-              "source_ipv4": "192.0.2.10",
-              "destination_ipv4": "192.0.2.20"
-            },
-            "objects": [
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
+          }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
               {
-                "class": "rp",
-                "requested_id_number": 1001,
-                "flags": {
-                  "p": true
-                }
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
               },
               {
-                "class": "endpoint",
-                "source_ipv4": "192.0.2.10",
-                "destination_ipv4": "192.0.2.20"
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
               },
               {
-                "class": "ero",
-                "subobjects": [
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 8401,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.10",
+                  "destination_ipv4": "192.0.2.20"
+                },
+                "objects": [
                   {
-                    "type": "ipv4",
-                    "address": "198.51.100.1",
-                    "prefix_length": 32,
-                    "l": true
+                    "class": "rp",
+                    "requested_id_number": 1001,
+                    "flags": {
+                      "p": true
+                    }
+                  },
+                  {
+                    "class": "endpoint",
+                    "source_ipv4": "192.0.2.10",
+                    "destination_ipv4": "192.0.2.20"
+                  },
+                  {
+                    "class": "ero",
+                    "subobjects": [
+                      {
+                        "type": "ipv4",
+                        "address": "198.51.100.1",
+                        "prefix_length": 32,
+                        "l": true
+                      }
+                    ]
+                  },
+                  {
+                    "class": "metric",
+                    "type": 1,
+                    "flags": {
+                      "c": true
+                    },
+                    "value": 12.5
                   }
                 ]
               },
               {
-                "class": "metric",
-                "type": 1,
-                "flags": {
-                  "c": true
+                "kind": "pcrep",
+                "direction": "s2c",
+                "request_id": 8401,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.20",
+                  "destination_ipv4": "192.0.2.10"
                 },
-                "value": 12.5
-              }
-            ]
-          },
-          {
-            "kind": "pcrep",
-            "direction": "s2c",
-            "request_id": 8401,
-            "endpoint": {
-              "source_ipv4": "192.0.2.20",
-              "destination_ipv4": "192.0.2.10"
-            },
-            "objects": [
-              {
-                "class": "rro",
-                "subobjects": [
+                "objects": [
                   {
-                    "type": "ipv4",
-                    "address": "198.51.100.1",
-                    "prefix_length": 32,
-                    "l": false
+                    "class": "rro",
+                    "subobjects": [
+                      {
+                        "type": "ipv4",
+                        "address": "198.51.100.1",
+                        "prefix_length": 32,
+                        "l": false
+                      }
+                    ]
+                  },
+                  {
+                    "class": "metric",
+                    "type": 2,
+                    "flags": {
+                      "b": true
+                    },
+                    "value": 20.0
                   }
                 ]
-              },
-              {
-                "class": "metric",
-                "type": 2,
-                "flags": {
-                  "b": true
-                },
-                "value": 20.0
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -2547,7 +2641,9 @@
         }
       ]
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_object_flags",
@@ -2556,62 +2652,66 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 8501,
-            "endpoint": {
-              "source_ipv4": "192.0.2.10",
-              "destination_ipv4": "192.0.2.20"
-            },
-            "objects": [
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
+          }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
               {
-                "class": "rp",
-                "flags": {
-                  "p": true,
-                  "i": true
-                },
-                "requested_id_number": 8501
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
               },
               {
-                "class": "lspa",
-                "flags": {
-                  "l": true
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
+              },
+              {
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 8501,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.10",
+                  "destination_ipv4": "192.0.2.20"
                 },
-                "setup_priority": 3,
-                "holding_priority": 4
+                "objects": [
+                  {
+                    "class": "rp",
+                    "flags": {
+                      "p": true,
+                      "i": true
+                    },
+                    "requested_id_number": 8501
+                  },
+                  {
+                    "class": "lspa",
+                    "flags": {
+                      "l": true
+                    },
+                    "setup_priority": 3,
+                    "holding_priority": 4
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 10,
@@ -2654,7 +2754,9 @@
         }
       ]
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_neg_malformed_length",
@@ -2663,49 +2765,55 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "wire_fault": {
-              "kind": "length",
-              "declared": 2
-            }
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
           }
-        ]
-      }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
+              {
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
+              },
+              {
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
+              },
+              {
+                "kind": "pcreq",
+                "direction": "c2s",
+                "wire_fault": {
+                  "kind": "length",
+                  "declared": 2
+                }
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "length"
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_neg_unknown_type",
@@ -2714,46 +2822,52 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "unknown",
-            "direction": "c2s",
-            "message_type": 99
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
           }
-        ]
-      }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
+              {
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
+              },
+              {
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
+              },
+              {
+                "kind": "unknown",
+                "direction": "c2s",
+                "message_type": 99
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "type"
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_neg_object_length",
@@ -2762,51 +2876,57 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "objects": [
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
+          }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
               {
-                "class": "rp",
-                "object_length": 3
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
+              },
+              {
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
+              },
+              {
+                "kind": "pcreq",
+                "direction": "c2s",
+                "objects": [
+                  {
+                    "class": "rp",
+                    "object_length": 3
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "object"
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_neg_keepalive",
@@ -2815,50 +2935,56 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "keepalive",
-            "direction": "c2s",
-            "objects": [
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
+          }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
               {
-                "class": "rp"
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
+              },
+              {
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
+              },
+              {
+                "kind": "keepalive",
+                "direction": "c2s",
+                "objects": [
+                  {
+                    "class": "rp"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "keepalive"
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_neg_session_id",
@@ -2867,41 +2993,47 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 0
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
           }
-        ]
-      }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
+              {
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
+              },
+              {
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 0
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "session"
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_neg_address_family",
@@ -2910,68 +3042,74 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 8601,
-            "endpoint": {
-              "source_ipv6": "2001:db8::10",
-              "destination_ipv6": "2001:db8::20"
-            },
-            "objects": [
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
+          }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
               {
-                "class": "endpoint",
-                "source_ipv6": "2001:db8::10",
-                "destination_ipv6": "2001:db8::20"
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
               },
               {
-                "class": "ero",
-                "subobjects": [
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
+              },
+              {
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 8601,
+                "endpoint": {
+                  "source_ipv6": "2001:db8::10",
+                  "destination_ipv6": "2001:db8::20"
+                },
+                "objects": [
                   {
-                    "type": "ipv6",
-                    "address": "2001:db8:1::1",
-                    "prefix_length": 128,
-                    "l": true
+                    "class": "endpoint",
+                    "source_ipv6": "2001:db8::10",
+                    "destination_ipv6": "2001:db8::20"
+                  },
+                  {
+                    "class": "ero",
+                    "subobjects": [
+                      {
+                        "type": "ipv6",
+                        "address": "2001:db8:1::1",
+                        "prefix_length": 128,
+                        "l": true
+                      }
+                    ]
                   }
                 ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "address"
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   },
   {
     "id": "pcep_neg_stateful_without_profile",
@@ -2980,67 +3118,73 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "192.0.2.20"
+          }
         },
         {
-          "pcep": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "192.0.2.20",
-      "src_port": 40000,
-      "dst_port": 4189,
-      "pcep": {
-        "profile": "pcep_rfc5440_ipv4",
-        "events": [
-          {
-            "kind": "open",
-            "direction": "c2s",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 7
-          },
-          {
-            "kind": "open",
-            "direction": "s2c",
-            "keepalive": 30,
-            "deadtime": 120,
-            "sid": 8
-          },
-          {
-            "kind": "pcreq",
-            "direction": "c2s",
-            "request_id": 8701,
-            "endpoint": {
-              "source_ipv4": "192.0.2.10",
-              "destination_ipv4": "192.0.2.20"
-            },
-            "objects": [
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 4189
+          }
+        },
+        {
+          "pcep": {
+            "profile": "pcep_rfc5440_ipv4",
+            "events": [
               {
-                "class": "lsp",
-                "plsp_id": 77,
-                "flags": {
-                  "delegate": true,
-                  "create": true,
-                  "administrative": true
-                }
+                "kind": "open",
+                "direction": "c2s",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 7
               },
               {
-                "class": "srp",
-                "id_number": 9001,
-                "flags": {
-                  "remove": false
-                }
+                "kind": "open",
+                "direction": "s2c",
+                "keepalive": 30,
+                "deadtime": 120,
+                "sid": 8
+              },
+              {
+                "kind": "pcreq",
+                "direction": "c2s",
+                "request_id": 8701,
+                "endpoint": {
+                  "source_ipv4": "192.0.2.10",
+                  "destination_ipv4": "192.0.2.20"
+                },
+                "objects": [
+                  {
+                    "class": "lsp",
+                    "plsp_id": 77,
+                    "flags": {
+                      "delegate": true,
+                      "create": true,
+                      "administrative": true
+                    }
+                  },
+                  {
+                    "class": "srp",
+                    "id_number": 9001,
+                    "flags": {
+                      "remove": false
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "stateful"
     },
-    "notes": []
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 pcep 子映射迁入 layers[].pcep"
+    ]
   }
 ]

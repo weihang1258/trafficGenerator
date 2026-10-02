@@ -751,7 +751,29 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		}
 	}
 	if term.Name == "pcep" && spec.PCEP == nil {
-		spec.PCEP = &core.PCEPConfig{}
+		// pcep 层 config 严格往返解码进 spec.PCEP（snmp 同款）。空层 {} 保持
+		// 既有空壳实例化（生成器对 nil 报 "config is required"，无默认流——
+		// 空层给零配置由 validator/生成器按 profile 缺省裁决）。
+		if len(term.Config) == 0 {
+			spec.PCEP = &core.PCEPConfig{}
+			return
+		}
+		cfgPCEP := completedConfig(s, term.Config)
+		rawPCEP, err := json.Marshal(cfgPCEP)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("pcep layer config encode: %v", err))
+			return
+		}
+		var pcfg2 core.PCEPConfig
+		decPCEP := json.NewDecoder(bytes.NewReader(rawPCEP))
+		decPCEP.DisallowUnknownFields()
+		if err := decPCEP.Decode(&pcfg2); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("pcep layer config decode: %v", err))
+			return
+		}
+		spec.PCEP = &pcfg2
 	}
 	if term.Name == "ldp" && spec.LDP == nil {
 		spec.LDP = &core.LDPConfig{}
