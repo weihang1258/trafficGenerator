@@ -1,6 +1,6 @@
 # ethmining Pcap Test Results
 
-Cases: 32 — pass 32, fail 0, error 0
+Cases: 37 — pass 37, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -17,7 +17,10 @@ Cases: 32 — pass 32, fail 0, error 0
 | ethmining_mining_lifecycle | Mining lifecycle: subscribe->authorize->diff->notify+submit(A)->notify+submit(B) on one TCP stream | pass | 18 | [pcap](ethmining/ethmining_mining_lifecycle.pcap) |
 | ethmining_mss_large_jobid | MSS large job_id: 1500 hex chars (1691B notify crosses MSS 1460 into 2 segments) | pass | 14 | [pcap](ethmining/ethmining_mss_large_jobid.pcap) |
 | ethmining_multi_session | Multi-session: two miners on distinct src_ports, distinct en/username/job | pass | 30 | [pcap](ethmining/ethmining_multi_session.pcap) |
-| ethmining_neg_carrier | Negative: carrier mismatch (missing tcp / UDP / port mismatch), rejected | pass | 0 | [pcap]() |
+| ethmining_neg_carrier | §7 行 31 载体错（wire_fault 注入通道）：合法 [ip,tcp,ethmining] 链 + carrier 注入 | pass | 0 | [pcap]() |
+| ethmining_neg_carrier_missing_tcp | M5③ 载体拒绝（真链形）：缺 tcp 载体判拒（DependsOn 补全前拦，锚词 carrier） | pass | 0 | [pcap]() |
+| ethmining_neg_carrier_mixed_family | M5③ 载体拒绝（真链形）：ip 层 src/dst 混合地址族判拒（设计 §7 行 31 候选集；锚词 version 走通用 same-version 门，task-time） | pass | 0 | [pcap]() |
+| ethmining_neg_carrier_udp | M5③ 载体拒绝（真链形）：UDP 载体判拒（tcp-only 族，BuildLayersPlanner 预检） | pass | 0 | [pcap]() |
 | ethmining_neg_error_propagation | Negative: validator error swallowed / completed/0 packets, rejected | pass | 0 | [pcap]() |
 | ethmining_neg_framing | Negative: missing LF / CRLF / length prefix framing, rejected | pass | 0 | [pcap]() |
 | ethmining_neg_hex | Negative: invalid hex (odd length / 0x prefix mixing / extranonce>3B / complement mismatch / non-hex char), rejected | pass | 0 | [pcap]() |
@@ -26,7 +29,9 @@ Cases: 32 — pass 32, fail 0, error 0
 | ethmining_neg_json | Negative: invalid JSON (truncated/malformed), rejected at validator | pass | 0 | [pcap]() |
 | ethmining_neg_method | Negative: unknown method or direction violation, rejected | pass | 0 | [pcap]() |
 | ethmining_neg_params | Negative: wrong params count/types (subscribe 1-elem, clean_jobs non-bool, set_ext 2-elem), rejected | pass | 0 | [pcap]() |
+| ethmining_neg_presence | M5① 判死形状（非残留）：层链 + 顶层空 ethmining 子映射并存即拒（CheckProtoFlat presence 分支，空 map 也死） | pass | 0 | [pcap]() |
 | ethmining_neg_state | Negative: state machine violation (submit before subscribe, close then submit), rejected | pass | 0 | [pcap]() |
+| ethmining_neg_stray_src_ip | M5② 白名单外游离顶层键判死：layers + 顶层 src_ip（层链是唯一配置真相） | pass | 0 | [pcap]() |
 | ethmining_notify_clean_jobs | Notify clean_jobs=true variant | pass | 13 | [pcap](ethmining/ethmining_notify_clean_jobs.pcap) |
 | ethmining_notify_job | Notify job: set_difficulty + notify clean=false (4-element full line) | pass | 13 | [pcap](ethmining/ethmining_notify_job.pcap) |
 | ethmining_set_difficulty | Set difficulty 0.5 (minimum response line 36B via authorize, 60B notify) | pass | 13 | [pcap](ethmining/ethmining_set_difficulty.pcap) |
