@@ -2790,6 +2790,132 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if err := json.Unmarshal(raw, &sc); err == nil {
 			spec.SMTP = &sc
 		}
+	case "ssdp":
+		if spec.SSDP != nil || len(term.Config) == 0 {
+			return
+		}
+		// SSDP 层 config 严格往返解码进 spec.SSDP（snmp 同款）。空层 {} 保持
+		// spec.SSDP=nil：生成器对 nil 走 P0b-2 默认流（alive NOTIFY）。
+		cfgSSDP := completedConfig(s, term.Config)
+		rawSSDP, err := json.Marshal(cfgSSDP)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("ssdp layer config encode: %v", err))
+			return
+		}
+		var scfg2 core.SSDPConfig
+		decSSDP := json.NewDecoder(bytes.NewReader(rawSSDP))
+		decSSDP.DisallowUnknownFields()
+		if err := decSSDP.Decode(&scfg2); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("ssdp layer config decode: %v", err))
+			return
+		}
+		spec.SSDP = &scfg2
+	case "syslog":
+		if spec.Syslog != nil {
+			return
+		}
+		// Syslog 层 config 严格往返解码进 spec.Syslog（snmp 同款）。空层 {}
+		// 也翻译出非 nil config + 缺省键默认——与 flat 空子映射语义一致
+		// （旧路径空子映射恒产 facility=1/severity=6/version=1；生成器
+		// 零配置默认流是 facility=0，两者不同，flat 为准）。
+		cfgSL := completedConfig(s, term.Config)
+		rawSL, err := json.Marshal(cfgSL)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("syslog layer config encode: %v", err))
+			return
+		}
+		var lcfg core.SyslogConfig
+		decSL := json.NewDecoder(bytes.NewReader(rawSL))
+		decSL.DisallowUnknownFields()
+		if err := decSL.Decode(&lcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("syslog layer config decode: %v", err))
+			return
+		}
+		// 缺省键补平 flat 遗留语义（JSON 往返区分不了「缺键」和 0）：facility
+		// 缺 → 1、severity 缺 → 6、version 缺 → 1（flat getIntDefault 同款）。
+		// 显式 0 由生成器按 kern facility/v1 荣誉（planner.go:368-378）。
+		if _, ok := term.Config["facility"]; !ok {
+			lcfg.Facility = 1
+		}
+		if _, ok := term.Config["severity"]; !ok {
+			lcfg.Severity = 6
+		}
+		if _, ok := term.Config["version"]; !ok {
+			lcfg.Version = 1
+		}
+		spec.Syslog = &lcfg
+	case "ssh":
+		if spec.SSH != nil || len(term.Config) == 0 {
+			return
+		}
+		// SSH 层 config 严格往返解码进 spec.SSH（snmp 同款）。空层 {} 保持
+		// spec.SSH=nil：生成器对 nil 走 legacy 默认握手流。
+		cfgSSH := completedConfig(s, term.Config)
+		rawSSH, err := json.Marshal(cfgSSH)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("ssh layer config encode: %v", err))
+			return
+		}
+		var hcfg core.SSHConfig
+		decSSH := json.NewDecoder(bytes.NewReader(rawSSH))
+		decSSH.DisallowUnknownFields()
+		if err := decSSH.Decode(&hcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("ssh layer config decode: %v", err))
+			return
+		}
+		spec.SSH = &hcfg
+	case "vmess":
+		if spec.Vmess != nil || len(term.Config) == 0 {
+			return
+		}
+		// VMess 层 config 严格往返解码进 spec.Vmess（snmp 同款）。空层 {}
+		// 保持 spec.Vmess=nil：生成器对 nil 报 "no config"（无默认流），
+		// 空 uuid 等 required 语义由 validator 裁决。
+		cfgVM := completedConfig(s, term.Config)
+		rawVM, err := json.Marshal(cfgVM)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("vmess layer config encode: %v", err))
+			return
+		}
+		var vcfg core.VmessConfig
+		decVM := json.NewDecoder(bytes.NewReader(rawVM))
+		decVM.DisallowUnknownFields()
+		if err := decVM.Decode(&vcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("vmess layer config decode: %v", err))
+			return
+		}
+		spec.Vmess = &vcfg
+	case "wireguard":
+		if spec.WireGuard != nil || len(term.Config) == 0 {
+			return
+		}
+		// WireGuard 层 config 严格往返解码进 spec.WireGuard（snmp 同款）。
+		// 空层 {} 保持 spec.WireGuard=nil：生成器对 nil 走默认握手流
+		// （initiator→responder→transport）。
+		cfgWG := completedConfig(s, term.Config)
+		rawWG, err := json.Marshal(cfgWG)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("wireguard layer config encode: %v", err))
+			return
+		}
+		var wcfg core.WireGuardConfig
+		decWG := json.NewDecoder(bytes.NewReader(rawWG))
+		decWG.DisallowUnknownFields()
+		if err := decWG.Decode(&wcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("wireguard layer config decode: %v", err))
+			return
+		}
+		spec.WireGuard = &wcfg
 	case "rip":
 		if spec.RIP != nil || len(term.Config) == 0 {
 			return

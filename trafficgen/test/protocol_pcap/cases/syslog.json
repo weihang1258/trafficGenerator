@@ -11,8 +11,7 @@
         {
           "syslog": {}
         }
-      ],
-      "syslog": {}
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -51,6 +50,9 @@
         "tshark 探针实测：facility=1、level=6、msg='1 - - - - - -'、帧偏移 42 处 '<14>1 - - - - - -'；msg 尾部含 0x00 终止符故仅做帧前缀断言",
         "layers chain style: [udp,syslog]"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：顶层 syslog 子映射迁入 layers[].syslog"
+    ]
   }
 ]

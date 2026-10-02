@@ -8722,6 +8722,26 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 		if v, ok := cfg["rip"]; ok && v != nil {
 			return "protocol rip no longer accepts a top-level rip sub-config (move it into the rip layer of an [ip,udp,rip] layers chain)"
 		}
+	case "ssdp":
+		if v, ok := cfg["ssdp"]; ok && v != nil {
+			return "protocol ssdp no longer accepts a top-level ssdp sub-config (move it into the ssdp layer of an [ip,udp,ssdp] layers chain)"
+		}
+	case "syslog":
+		if v, ok := cfg["syslog"]; ok && v != nil {
+			return "protocol syslog no longer accepts a top-level syslog sub-config (move it into the syslog layer of an [ip,udp,syslog] layers chain)"
+		}
+	case "ssh":
+		if v, ok := cfg["ssh"]; ok && v != nil {
+			return "protocol ssh no longer accepts a top-level ssh sub-config (move it into the ssh layer of an [ip,tcp,ssh] layers chain)"
+		}
+	case "vmess":
+		if v, ok := cfg["vmess"]; ok && v != nil {
+			return "protocol vmess no longer accepts a top-level vmess sub-config (move it into the vmess layer of an [ip,tcp,vmess] layers chain)"
+		}
+	case "wireguard":
+		if v, ok := cfg["wireguard"]; ok && v != nil {
+			return "protocol wireguard no longer accepts a top-level wireguard sub-config (move it into the wireguard layer of an [ip,udp,wireguard] layers chain)"
+		}
 	}
 	// D-CWMP-1：cwmp 顶层 cwmp 子映射 presence 判死（mqtt 先例；空 map 也
 	// 死——B6 注入形退役，配置迁 cwmp 层六键）。层链形状不触发。

@@ -1,140 +1,157 @@
 [
- {
-  "id": "ssh-basic-session",
-  "proto": "ssh",
-  "summary": "SSH (端口 22) 冒烟：完整 TCP 握手 + 密钥交换 KEXINIT → 服务请求 → 认证 → 会话通道 → 终止",
-  "spec_json": {
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 22,
-   "count": 1,
-   "ssh": {}
-  },
-  "expect": {
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "min_packets": 20,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "tcp.flags",
-     "value": "0x002"
+  {
+    "id": "ssh-basic-session",
+    "proto": "ssh",
+    "summary": "SSH (端口 22) 冒烟：完整 TCP 握手 + 密钥交换 KEXINIT → 服务请求 → 认证 → 会话通道 → 终止",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 22
+          }
+        },
+        {
+          "ssh": {}
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
     },
-    {
-     "packet": 1,
-     "field": "tcp.dstport",
-     "value": "22"
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "min_packets": 20,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x002"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "22"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.flags",
+          "value": "0x012"
+        },
+        {
+          "packet": 3,
+          "field": "tcp.flags",
+          "value": "0x010"
+        },
+        {
+          "packet": 4,
+          "field": "ssh.packet_length_encrypted",
+          "value": "0000037c"
+        },
+        {
+          "packet": 6,
+          "field": "ssh.packet_length_encrypted",
+          "value": "0000002c"
+        },
+        {
+          "packet": 8,
+          "field": "ssh.packet_length_encrypted",
+          "value": "0000000c"
+        },
+        {
+          "packet": 10,
+          "field": "ssh.packet_length_encrypted",
+          "value": "0000001c"
+        },
+        {
+          "packet": 12,
+          "field": "ssh.packet_length_encrypted",
+          "value": "0000003c"
+        },
+        {
+          "packet": 13,
+          "field": "ssh.packet_length_encrypted",
+          "value": "0000000c"
+        },
+        {
+          "packet": 14,
+          "field": "ssh.packet_length_encrypted",
+          "value": "0000002c"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "00 00 00 2c 06 1e 00 00 00 20"
+        },
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "00 00 00 0c 0a 15"
+        },
+        {
+          "packet": 10,
+          "offset": 54,
+          "hex": "00 00 00 1c 0a 05 00 00 00 0c 73 73 68 2d 75 73 65 72 61 75 74 68"
+        },
+        {
+          "packet": 12,
+          "offset": 54,
+          "hex": "00 00 00 3c 08 32 00 00 00 05 61 6c 69 63 65"
+        },
+        {
+          "packet": 13,
+          "offset": 54,
+          "hex": "00 00 00 0c 0a 34"
+        },
+        {
+          "packet": 14,
+          "offset": 54,
+          "hex": "00 00 00 2c 13 5a 00 00 00 07 73 65 73 73 69 6f 6e"
+        },
+        {
+          "packet": 15,
+          "offset": 54,
+          "hex": "00 00 00 1c 0a 5b"
+        },
+        {
+          "packet": 16,
+          "offset": 54,
+          "hex": "00 00 00 1c 0c 5e 00 00 00 00 00 00 00 06 65 78 69 74 0d 0a"
+        },
+        {
+          "packet": 17,
+          "offset": 54,
+          "hex": "00 00 00 0c 06 60 00 00 00 00"
+        },
+        {
+          "packet": 18,
+          "offset": 54,
+          "hex": "00 00 00 0c 06 61 00 00 00 00"
+        },
+        {
+          "packet": 19,
+          "offset": 54,
+          "hex": "00 00 00 0c 06 61"
+        }
+      ],
+      "notes": [
+        "SSH 协议报文类型字节 (payload 第 7 字节)：f4/f5=0x14 KEXINIT (cookie 确定)；f6=0x1e KEXDH_INIT；f7=0x1f KEXDH_REPLY；f8/f9=0x15 NEWKEYS；f10=0x05 SERVICE_REQUEST；f11=0x06 SERVICE_ACCEPT；f13=0x34 USERAUTH_SUCCESS；f16=0x5e CHANNEL_DATA (exit 负载)；f17=0x60 EOF；f18/f19=0x61 CLOSE",
+        "SSH version banner 在 f3 (SSH-2.0-OpenSSH_7.4)；帧断言逐字节钉死 f4/f6/f7 头部"
+      ]
     },
-    {
-     "packet": 2,
-     "field": "tcp.flags",
-     "value": "0x012"
-    },
-    {
-     "packet": 3,
-     "field": "tcp.flags",
-     "value": "0x010"
-    },
-    {
-     "packet": 4,
-     "field": "ssh.packet_length_encrypted",
-     "value": "0000037c"
-    },
-    {
-     "packet": 6,
-     "field": "ssh.packet_length_encrypted",
-     "value": "0000002c"
-    },
-    {
-     "packet": 8,
-     "field": "ssh.packet_length_encrypted",
-     "value": "0000000c"
-    },
-    {
-     "packet": 10,
-     "field": "ssh.packet_length_encrypted",
-     "value": "0000001c"
-    },
-    {
-     "packet": 12,
-     "field": "ssh.packet_length_encrypted",
-     "value": "0000003c"
-    },
-    {
-     "packet": 13,
-     "field": "ssh.packet_length_encrypted",
-     "value": "0000000c"
-    },
-    {
-     "packet": 14,
-     "field": "ssh.packet_length_encrypted",
-     "value": "0000002c"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "00 00 00 2c 06 1e 00 00 00 20"
-    },
-    {
-     "packet": 8,
-     "offset": 54,
-     "hex": "00 00 00 0c 0a 15"
-    },
-    {
-     "packet": 10,
-     "offset": 54,
-     "hex": "00 00 00 1c 0a 05 00 00 00 0c 73 73 68 2d 75 73 65 72 61 75 74 68"
-    },
-    {
-     "packet": 12,
-     "offset": 54,
-     "hex": "00 00 00 3c 08 32 00 00 00 05 61 6c 69 63 65"
-    },
-    {
-     "packet": 13,
-     "offset": 54,
-     "hex": "00 00 00 0c 0a 34"
-    },
-    {
-     "packet": 14,
-     "offset": 54,
-     "hex": "00 00 00 2c 13 5a 00 00 00 07 73 65 73 73 69 6f 6e"
-    },
-    {
-     "packet": 15,
-     "offset": 54,
-     "hex": "00 00 00 1c 0a 5b"
-    },
-    {
-     "packet": 16,
-     "offset": 54,
-     "hex": "00 00 00 1c 0c 5e 00 00 00 00 00 00 00 06 65 78 69 74 0d 0a"
-    },
-    {
-     "packet": 17,
-     "offset": 54,
-     "hex": "00 00 00 0c 06 60 00 00 00 00"
-    },
-    {
-     "packet": 18,
-     "offset": 54,
-     "hex": "00 00 00 0c 06 61 00 00 00 00"
-    },
-    {
-     "packet": 19,
-     "offset": 54,
-     "hex": "00 00 00 0c 06 61"
-    }
-   ],
-   "notes": [
-    "SSH 协议报文类型字节 (payload 第 7 字节)：f4/f5=0x14 KEXINIT (cookie 确定)；f6=0x1e KEXDH_INIT；f7=0x1f KEXDH_REPLY；f8/f9=0x15 NEWKEYS；f10=0x05 SERVICE_REQUEST；f11=0x06 SERVICE_ACCEPT；f13=0x34 USERAUTH_SUCCESS；f16=0x5e CHANNEL_DATA (exit 负载)；f17=0x60 EOF；f18/f19=0x61 CLOSE",
-    "SSH version banner 在 f3 (SSH-2.0-OpenSSH_7.4)；帧断言逐字节钉死 f4/f6/f7 头部"
-   ]
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ssh 子映射迁入 layers[].ssh，count 删除"
+    ]
   }
- }
 ]

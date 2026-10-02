@@ -4,14 +4,28 @@
     "proto": "vmess",
     "summary": "Vmess (端口 443) 冒烟：完整 TCP 握手 + VMess 协议头（版本 1, AES-GCM 加密负载）+ 终止",
     "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 443,
-      "count": 1,
-      "vmess": {
-        "uuid": "12345678-1234-1234-1234-123456789012",
-        "port": 443
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 443
+          }
+        },
+        {
+          "vmess": {
+            "uuid": "12345678-1234-1234-1234-123456789012",
+            "port": 443
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -21,23 +35,62 @@
       "has_payload": true,
       "packet_count": 11,
       "fields": [
-        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
-        {"packet": 1, "field": "tcp.dstport", "value": "443"},
-        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
-        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
-        {"packet": 4, "field": "tcp.len", "value": "61"},
-        {"packet": 5, "field": "tcp.len", "value": "18"},
-        {"packet": 6, "field": "tcp.len", "value": "54"},
-        {"packet": 7, "field": "tcp.len", "value": "18"}
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x002"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "443"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.flags",
+          "value": "0x012"
+        },
+        {
+          "packet": 3,
+          "field": "tcp.flags",
+          "value": "0x010"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.len",
+          "value": "61"
+        },
+        {
+          "packet": 5,
+          "field": "tcp.len",
+          "value": "18"
+        },
+        {
+          "packet": 6,
+          "field": "tcp.len",
+          "value": "54"
+        },
+        {
+          "packet": 7,
+          "field": "tcp.len",
+          "value": "18"
+        }
       ],
       "frames": [
-        {"packet": 4, "offset": 54, "hex": "01"}
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "01"
+        }
       ],
       "notes": [
         "VMess 头首字节 = 版本 (0x01)，其后为 AES-128-GCM 加密的请求头 + 负载（含随机 nonce 与密钥派生，字节不可预测）——只断言版本字节 01 与各帧确定性长度；帧 5/6/7 密文每次生成不同，不做帧字节断言",
         "f4 负载 61B (1B 版本 + 16B nonce + 16B tag + 28B 加密头)；f5/f7 为服务器响应段 (18B 随机)；f6 54B 响应段；f8-11 终止",
         "vmess 设计无默认 dst_port，必须显式 443；11 帧 = 3 握手 + 4 数据 + 4 终止"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 vmess 子映射迁入 layers[].vmess，count 删除"
+    ]
   }
 ]

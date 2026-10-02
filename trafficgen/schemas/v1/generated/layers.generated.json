@@ -5493,7 +5493,71 @@
       "depends_on": [
         "udp"
       ],
-      "fields": {}
+      "fields": {
+        "body": {
+          "type": "string"
+        },
+        "boot_id": {
+          "type": "int"
+        },
+        "config_id": {
+          "type": "int"
+        },
+        "date": {
+          "type": "bool"
+        },
+        "emit_content_length": {
+          "type": "bool"
+        },
+        "location": {
+          "type": "string"
+        },
+        "max_age": {
+          "type": "int"
+        },
+        "message_type": {
+          "type": "string"
+        },
+        "multicast_group": {
+          "type": "string"
+        },
+        "mx": {
+          "type": "int"
+        },
+        "next_boot_id": {
+          "type": "int"
+        },
+        "omit_ext": {
+          "type": "bool"
+        },
+        "repeat_count": {
+          "type": "int"
+        },
+        "repeat_interval_ms": {
+          "type": "int"
+        },
+        "response_count": {
+          "type": "int"
+        },
+        "response_delay_max_ms": {
+          "type": "int"
+        },
+        "response_delay_min_ms": {
+          "type": "int"
+        },
+        "search_port": {
+          "type": "uint16"
+        },
+        "search_target": {
+          "type": "string"
+        },
+        "server": {
+          "type": "string"
+        },
+        "usn": {
+          "type": "string"
+        }
+      }
     },
     "ssh": {
       "category": "terminal",
@@ -5503,7 +5567,59 @@
       "field_contract": {
         "tcp.dst_port": "22"
       },
-      "fields": {}
+      "fields": {
+        "auth_methods": {
+          "type": "list"
+        },
+        "channels": {
+          "type": "list"
+        },
+        "client_version": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "compression_algorithms": {
+          "type": "string"
+        },
+        "disconnect_on_close": {
+          "type": "bool"
+        },
+        "encryption_algorithms": {
+          "type": "string"
+        },
+        "ext_info": {
+          "type": "bool"
+        },
+        "host_key_algorithms": {
+          "type": "string"
+        },
+        "kex": {
+          "type": "string"
+        },
+        "kex_algorithms": {
+          "type": "string"
+        },
+        "mac_algorithms": {
+          "type": "string"
+        },
+        "rekey_after": {
+          "type": "uint32"
+        },
+        "scenario": {
+          "type": "string"
+        },
+        "server_version": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "list"
+        },
+        "stdout": {
+          "type": "list"
+        }
+      }
     },
     "sstp": {
       "category": "terminal",
@@ -5660,7 +5776,59 @@
       "depends_on": [
         "udp"
       ],
-      "fields": {}
+      "fields": {
+        "app_name": {
+          "type": "string"
+        },
+        "count": {
+          "type": "uint32"
+        },
+        "facility": {
+          "type": "uint8"
+        },
+        "format": {
+          "type": "string"
+        },
+        "hostname": {
+          "type": "string"
+        },
+        "messages": {
+          "type": "list"
+        },
+        "msg": {
+          "type": "string"
+        },
+        "msg_has_bom": {
+          "type": "bool"
+        },
+        "msg_id": {
+          "type": "string"
+        },
+        "proc_id": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "uint8"
+        },
+        "sign_blocks": {
+          "type": "list"
+        },
+        "structured_data": {
+          "type": "list"
+        },
+        "tcp_framing": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "transport": {
+          "type": "string"
+        },
+        "version": {
+          "type": "uint8"
+        }
+      }
     },
     "tcp": {
       "category": "transport",
@@ -6069,7 +6237,50 @@
       "field_contract": {
         "tcp.dst_port": "443"
       },
-      "fields": {}
+      "fields": {
+        "address": {
+          "type": "string"
+        },
+        "address_type": {
+          "type": "uint8"
+        },
+        "alter_id": {
+          "type": "uint16"
+        },
+        "command": {
+          "type": "uint8"
+        },
+        "encryption": {
+          "type": "string"
+        },
+        "file_source": {
+          "type": "object"
+        },
+        "header_pad_len": {
+          "type": "uint8"
+        },
+        "heartbeat": {
+          "type": "bool"
+        },
+        "heartbeat_count": {
+          "type": "int"
+        },
+        "mux_streams": {
+          "type": "list"
+        },
+        "payload": {
+          "type": "list"
+        },
+        "port": {
+          "type": "uint16"
+        },
+        "response_payload": {
+          "type": "list"
+        },
+        "uuid": {
+          "type": "string"
+        }
+      }
     },
     "vnc": {
       "category": "terminal",
@@ -6187,7 +6398,62 @@
       "field_contract": {
         "udp.dst_port": "51820"
       },
-      "fields": {}
+      "fields": {
+        "cookie": {
+          "type": "list"
+        },
+        "cookie_reply_threshold": {
+          "type": "int"
+        },
+        "direction": {
+          "type": "string"
+        },
+        "file_source": {
+          "type": "object"
+        },
+        "handshake": {
+          "type": "bool"
+        },
+        "initial_counter": {
+          "type": "uint64"
+        },
+        "inner_ip": {
+          "type": "object"
+        },
+        "keepalive_interval": {
+          "type": "int"
+        },
+        "local_ephemeral_pub_key": {
+          "type": "list"
+        },
+        "local_static_pub_key": {
+          "type": "list"
+        },
+        "peer_static_pub_key": {
+          "type": "list"
+        },
+        "psk": {
+          "type": "list"
+        },
+        "rekey_after": {
+          "type": "uint64"
+        },
+        "rekey_after_time": {
+          "type": "int"
+        },
+        "response": {
+          "type": "bool"
+        },
+        "role": {
+          "type": "string"
+        },
+        "sender_index": {
+          "type": "uint32"
+        },
+        "transport_payloads": {
+          "type": "list"
+        }
+      }
     },
     "xmpp": {
       "category": "terminal",

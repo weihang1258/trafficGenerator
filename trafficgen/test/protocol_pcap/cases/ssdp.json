@@ -9,14 +9,12 @@
           "udp": {}
         },
         {
-          "ssdp": {}
+          "ssdp": {
+            "message_type": "msearch",
+            "search_target": "ssdp:all"
+          }
         }
-      ],
-      "src_port": 0,
-      "ssdp": {
-        "message_type": "msearch",
-        "search_target": "ssdp:all"
-      }
+      ]
     },
     "expect": {
       "packet_count": 2,
@@ -88,6 +86,9 @@
         "ip.dst 不断言：planner 不改 L3 目标（探针实测 20.0.0.1），HOST 头才是 SSDP 语义多播目标",
         "layers chain style: [udp,ssdp]; src_port moved to top-level"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：顶层 src_port/ssdp 子映射退役（src_port 0 不落层），配置迁 layers[].ssdp"
+    ]
   }
 ]

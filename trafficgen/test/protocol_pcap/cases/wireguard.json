@@ -4,10 +4,23 @@
     "proto": "wireguard",
     "summary": "冒烟：WireGuard 握手（空配置）。顶层不设端口 → dst 默认 51820（IANA）、src 保持 flow 默认 12345；initiator→responder→transport（type 1/2/4），共 3 包",
     "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "count": 1,
-      "wireguard": {}
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {}
+        },
+        {
+          "wireguard": {}
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
     },
     "expect": {
       "packet_count": 3,
@@ -63,6 +76,9 @@
         "顶层未设端口：dst 默认 51820（strategy_convert 覆盖）、src 保持 flow 默认 12345；wg 索引/随机数不断言",
         "tshark 探针实测：type/sender/receiver/counter 与上表一致（probe 同为 12345→51820）"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 wireguard 子映射迁入 layers[].wireguard，count 删除"
+    ]
   }
 ]
