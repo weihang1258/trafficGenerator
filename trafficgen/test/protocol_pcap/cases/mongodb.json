@@ -87,7 +87,10 @@
           "hex": "30 00 00 00 65 00 00 00 64 00 00 00 01 00 00 00"
         }
       ]
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_write_ops",
@@ -212,7 +215,10 @@
           "hex": "20 00 00 00 96 00 00 00 00 00 00 00 d7 07 00 00"
         }
       ]
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_bson_types",
@@ -279,7 +285,10 @@
           "hex": "65 00 00 00 01 64 00 00 00 00 00 00"
         }
       ]
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_empty_boundary",
@@ -343,7 +352,10 @@
           "hex": "05 00 00 00 00"
         }
       ]
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_ipv6",
@@ -428,7 +440,10 @@
           "hex": "30 00 00 00 b5 00 00 00 b4 00 00 00 01 00 00 00"
         }
       ]
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_multi_session",
@@ -548,7 +563,10 @@
           ]
         }
       ]
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_message_header",
@@ -612,7 +630,10 @@
           "hex": "3b 00 00 00 be 00 00 00 00 00 00 00 d2 07 00 00"
         }
       ]
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_neg_truncated_header",
@@ -658,7 +679,10 @@
     "expect": {
       "expect_error": true,
       "error_contains": "truncated"
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_neg_short_length",
@@ -704,7 +728,10 @@
     "expect": {
       "expect_error": true,
       "error_contains": "length"
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_neg_oversize",
@@ -750,7 +777,10 @@
     "expect": {
       "expect_error": true,
       "error_contains": "limit"
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_neg_bad_opcode",
@@ -796,7 +826,10 @@
     "expect": {
       "expect_error": true,
       "error_contains": "opcode"
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_neg_bson_length",
@@ -842,7 +875,10 @@
     "expect": {
       "expect_error": true,
       "error_contains": "bson"
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_neg_udp_carrier",
@@ -885,7 +921,10 @@
     "expect": {
       "expect_error": true,
       "error_contains": "tcp"
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_neg_presence_top_level_mongodb",
@@ -928,7 +967,10 @@
     "expect": {
       "expect_error": true,
       "error_contains": "no longer accepts a top-level mongodb sub-config"
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_neg_flat_keys",
@@ -971,7 +1013,10 @@
     "expect": {
       "expect_error": true,
       "error_contains": "no longer accepts flat config field src_ip"
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_neg_flat_count",
@@ -1014,7 +1059,10 @@
     "expect": {
       "expect_error": true,
       "error_contains": "no longer accepts flat config field count"
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_neg_unknown_layer_field",
@@ -1057,7 +1105,10 @@
     "expect": {
       "expect_error": true,
       "error_contains": "unknown field"
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_neg_opcode_rejected",
@@ -1096,7 +1147,10 @@
     "expect": {
       "expect_error": true,
       "error_contains": "unknown opcode"
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_neg_orphan_reply",
@@ -1140,7 +1194,10 @@
     "expect": {
       "expect_error": true,
       "error_contains": "responseTo"
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_neg_empty_layer",
@@ -1167,7 +1224,10 @@
     "expect": {
       "expect_error": true,
       "error_contains": "at least one message or session required"
-    }
+    },
+    "decode_as": [
+      "tcp.port==27017,mongo"
+    ]
   },
   {
     "id": "mongodb_multi_flow_dynamic",
@@ -1243,15 +1303,18 @@
       "fields": [
         {
           "field": "tcp.srcport",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
           "field": "ip.src",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         },
         {
           "field": "ip.dst",
-          "nonzero": true
+          "nonzero": true,
+          "packet": 1
         }
       ],
       "notes": [
@@ -1262,6 +1325,9 @@
     },
     "notes": [
       "多流形按契约 §3.18 写：flows=N + ip/tcp 层动态对象；包数 8×N 与逐流值标 pending-suite（先跑后钉）"
+    ],
+    "decode_as": [
+      "tcp.port==27017,mongo"
     ]
   },
   {
@@ -1334,6 +1400,9 @@
     },
     "notes": [
       "pending-suite：断言沿 testcase §3 设计值（P4 未跑 suite），帧字节/suite 实测后按先跑后钉复钉。"
+    ],
+    "decode_as": [
+      "tcp.port==27017,mongo"
     ]
   },
   {
@@ -1398,6 +1467,9 @@
     },
     "notes": [
       "pending-suite：断言沿 testcase §3 设计值（P4 未跑 suite），帧字节/suite 实测后按先跑后钉复钉。"
+    ],
+    "decode_as": [
+      "tcp.port==27017,mongo"
     ]
   },
   {
@@ -1461,6 +1533,9 @@
     },
     "notes": [
       "pending-suite：断言沿 testcase §3 设计值（P4 未跑 suite），帧字节/suite 实测后按先跑后钉复钉。"
+    ],
+    "decode_as": [
+      "tcp.port==27017,mongo"
     ]
   },
   {
@@ -1527,6 +1602,9 @@
     },
     "notes": [
       "pending-suite：断言沿 testcase §3 设计值（P4 未跑 suite），帧字节/suite 实测后按先跑后钉复钉。"
+    ],
+    "decode_as": [
+      "tcp.port==27017,mongo"
     ]
   },
   {
@@ -1593,6 +1671,9 @@
     },
     "notes": [
       "pending-suite：断言沿 testcase §3 设计值（P4 未跑 suite），帧字节/suite 实测后按先跑后钉复钉。"
+    ],
+    "decode_as": [
+      "tcp.port==27017,mongo"
     ]
   },
   {
@@ -1655,6 +1736,9 @@
     },
     "notes": [
       "#10 现状声明：`MongoDBMessage` struct 今日无 returnFieldsSelector 键（types.go 实测），故只钉 OP_QUERY 基本形（query + return_count），selector 扩展面待 G-MONGO-4 收口后补字段——不断言不存在的键（testcase §3 第 10 条）。"
+    ],
+    "decode_as": [
+      "tcp.port==27017,mongo"
     ]
   },
   {
@@ -1762,6 +1846,9 @@
       "5 条单键消息（空串/false/int32 MAX/int32 MIN/null）→ 5 + 7 = 12 包（先跑后钉）。",
       "空 binary 面未落：bsonElement（builder.go:149）无 []byte 分支，结构化通道表达不出空 binary，留 G-MONGO-4/后续结构补键，不伪造。",
       "实测：5 条单键消息 → 12 包，与 min_packets 一致。"
+    ],
+    "decode_as": [
+      "tcp.port==27017,mongo"
     ]
   },
   {
@@ -1857,7 +1944,7 @@
           "packet": 0,
           "field": "mongo.opcode",
           "distinct_values": [
-            "2001",
+            "1",
             "2002",
             "2004",
             "2005",
@@ -1867,13 +1954,17 @@
         {
           "packet": 5,
           "field": "mongo.response_to",
-          "value": "300"
+          "value": "0x0000012c"
         }
       ],
       "packet_count": 12
     },
     "notes": [
-      "实测：链上 Plan 出 12 包（5 消息 + 7）。契约 §3 第 15 条写「4+7=11」与其自身 opcode 链列 5 条消息口径不一致，以引擎实测 12 为准（§14.20 先跑后钉）。"
+      "实测：链上 Plan 出 12 包（5 消息 + 7）。契约 §3 第 15 条写「4+7=11」与其自身 opcode 链列 5 条消息口径不一致，以引擎实测 12 为准（§14.20 先跑后钉）。",
+      "先跑后钉：OP_REPLY=1 进 distinct 集；response_to tshark 以十六进制 0x0000012c（=300）呈现"
+    ],
+    "decode_as": [
+      "tcp.port==27017,mongo"
     ]
   },
   {
@@ -1939,7 +2030,7 @@
         {
           "packet": 5,
           "field": "mongo.opcode",
-          "value": "2001"
+          "value": "1"
         },
         {
           "packet": 5,
@@ -1949,7 +2040,11 @@
       ]
     },
     "notes": [
-      "QueryFailure(bit1) + `$err` 文档档待 G-MONGO-4（REPLY 结构缺口）收口后补，本档只落 AwaitCapable(bit3)——不断言不存在的键。"
+      "QueryFailure(bit1) + `$err` 文档档待 G-MONGO-4（REPLY 结构缺口）收口后补，本档只落 AwaitCapable(bit3)——不断言不存在的键。",
+      "先跑后钉：OP_REPLY opcode=1（十进制），原断言 2001 误写成请求侧 OP_UPDATE 码；tshark 输出十进制 1"
+    ],
+    "decode_as": [
+      "tcp.port==27017,mongo"
     ]
   },
   {
@@ -2007,6 +2102,9 @@
     },
     "notes": [
       "实测：~1.5KB 载荷跨 MSS 1460 分 3 段 → 3 + 7 = 10 包（先跑后钉）。"
+    ],
+    "decode_as": [
+      "tcp.port==27017,mongo"
     ]
   }
 ]

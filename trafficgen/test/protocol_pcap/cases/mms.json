@@ -1175,22 +1175,12 @@
         {
           "packet": 1,
           "field": "tcp.srcport",
-          "value": "12345"
-        },
-        {
-          "packet": 8,
-          "field": "tcp.srcport",
-          "value": "12346"
+          "nonzero": true
         },
         {
           "packet": 1,
           "field": "ip.src",
-          "value": "10.0.1.1"
-        },
-        {
-          "packet": 8,
-          "field": "ip.src",
-          "value": "10.0.1.2"
+          "nonzero": true
         },
         {
           "packet": 1,
@@ -1198,29 +1188,34 @@
           "value": "102"
         },
         {
-          "packet": 4,
-          "field": "cotp.type",
-          "value": "0x0e"
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "12345",
+            "12346",
+            "102"
+          ]
         },
         {
-          "packet": 11,
-          "field": "cotp.type",
-          "value": "0x0e"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "030000140fe00000000100c0010cc20101c10102"
+          "field": "ip.src",
+          "distinct_values": [
+            "10.0.1.1",
+            "10.0.1.2",
+            "10.0.0.2"
+          ]
         },
         {
-          "packet": 11,
-          "offset": 54,
-          "hex": "030000140fe00000000100c0010cc20101c10102"
+          "field": "cotp.type",
+          "distinct_values": [
+            "0x0d",
+            "0x0e",
+            "0x0f"
+          ]
         }
       ]
-    }
+    },
+    "notes": [
+      "先跑后钉（§9.34/§9.35）：多流调度器非确定性交织，包位断言两跑两样（packet 8 两跑分别命中流 A/B），改 nonzero+distinct 聚合断言；COTP CR/CC/DT 帧字节由单流 mms 用例按包位钉住，此处不重复"
+    ]
   },
   {
     "id": "mms_neg_multisession_override",
