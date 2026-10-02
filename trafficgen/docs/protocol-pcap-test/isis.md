@@ -1,6 +1,6 @@
 # isis Pcap Test Results
 
-Cases: 25 — pass 25, fail 0, error 0
+Cases: 28 — pass 28, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -25,7 +25,10 @@ Cases: 25 — pass 25, fail 0, error 0
 | isis_neg_length | Reject PDU/TLV length mismatch | pass | 0 | [pcap]() |
 | isis_neg_level_type | Reject level/type mismatch | pass | 0 | [pcap]() |
 | isis_neg_mixed_carrier | Reject mixed LLC and EtherType | pass | 0 | [pcap]() |
+| isis_neg_presence_top_level_isis | presence 判死：层链 + 顶层空 isis 子映射并存（M5①） | pass | 0 | [pcap]() |
 | isis_neg_profile | Reject unknown wire profile | pass | 0 | [pcap]() |
 | isis_neg_state | Reject event outside adjacency state | pass | 0 | [pcap]() |
+| isis_neg_stray_src_ip | 白名单外游离键判死：layers + 顶层 src_ip（M5②，1.11–1.13） | pass | 0 | [pcap]() |
+| isis_neg_tcp_carrier | 载体判死（V7b Transport 分支）：[eth,tcp,isis] 夹传输层（M5③；#19 覆 Network 分支） | pass | 0 | [pcap]() |
 | isis_neg_vendor_tlv | Reject unregistered vendor TLV | pass | 0 | [pcap]() |
 | isis_neighbor_up_sequence | Explicit neighbor up sequence | pass | 4 | [pcap](isis/isis_neighbor_up_sequence.pcap) |

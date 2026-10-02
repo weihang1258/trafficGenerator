@@ -1,6 +1,6 @@
 # cflow Pcap Test Results
 
-Cases: 22 — pass 22, fail 0, error 0
+Cases: 27 — pass 27, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -13,11 +13,16 @@ Cases: 22 — pass 22, fail 0, error 0
 | cflow_ipfix_timeout_options_template | IPFIX Options Template with timeout fields | pass | 1 | [pcap](cflow/cflow_ipfix_timeout_options_template.pcap) |
 | cflow_ipfix_variable_length_ie | IPFIX variable-length enterprise IE boundary | pass | 1 | [pcap](cflow/cflow_ipfix_variable_length_ie.pcap) |
 | cflow_neg_address_family | IPv4 template filled by IPv6 record | pass | 0 | [pcap]() |
+| cflow_neg_carrier_no_udp | D-CFLOW-1 G-CFLOW-4: [ip,cflow] missing udp carrier rejected (own-protocol carrier block) | pass | 0 | [pcap]() |
+| cflow_neg_carrier_tcp | D-CFLOW-1 G-CFLOW-4: [ip,tcp,cflow] tcp carrier rejected (own-protocol carrier block) | pass | 0 | [pcap]() |
 | cflow_neg_checksum | request nonexistent cflow application checksum | pass | 0 | [pcap]() |
 | cflow_neg_field_count | template field count differs from descriptors | pass | 0 | [pcap]() |
+| cflow_neg_flat_count | top-level count rejected (1.11-1.13 whitelist; flow_control family owns quantity) | pass | 0 | [pcap]() |
 | cflow_neg_length | declared message or set length outside body | pass | 0 | [pcap]() |
+| cflow_neg_presence_top_level_cflow | D-CFLOW-1 presence: layers + top-level cflow {} coexist = reject | pass | 0 | [pcap]() |
 | cflow_neg_template | data set without template | pass | 0 | [pcap]() |
 | cflow_neg_udp_port | profile uses wrong UDP port | pass | 0 | [pcap]() |
+| cflow_neg_unknown_layer_field | unknown cflow layer field rejected (ValidateLayers unknown-field gate) | pass | 0 | [pcap]() |
 | cflow_neg_version | profile version mismatch | pass | 0 | [pcap]() |
 | cflow_v9_header_sequence_source | NetFlow v9 header sequence and source identity | pass | 1 | [pcap](cflow/cflow_v9_header_sequence_source.pcap) |
 | cflow_v9_ipv6_record | NetFlow v9 IPv6 address record | pass | 1 | [pcap](cflow/cflow_v9_ipv6_record.pcap) |

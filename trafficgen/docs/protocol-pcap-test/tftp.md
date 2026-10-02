@@ -1,6 +1,6 @@
 # tftp Pcap Test Results
 
-Cases: 226 — pass 226, fail 0, error 0
+Cases: 224 — pass 224, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -54,6 +54,8 @@ Cases: 226 — pass 226, fail 0, error 0
 | tftp-multiflow-same-filename | T-175: 3 流同 filename=x.bin → 3 独立会话 | pass | 15 | [pcap](tftp/tftp-multiflow-same-filename.pcap) |
 | tftp-multiflow-srcip-skip | T-109: 多流不同 src_ip（策略层不支持，跳过注明） | pass | 3 | [pcap](tftp/tftp-multiflow-srcip-skip.pcap) |
 | tftp-multiflow-tidchange-flow | T-124: 3 流含 TID 变更流（server_tid_change）→ 18 包 | pass | 0 | [pcap]() |
+| tftp-neg-presence-top-tftp | presence: layers + 顶层空 tftp 子映射并存判死 | pass | 0 | [pcap]() |
+| tftp-neg-stray-src-ip | 游离键: layers + 顶层 src_ip 并存判死 | pass | 0 | [pcap]() |
 | tftp-oack-blksize-15b | T-128: OACK 字节精确（blksize=1428 单选项，15B） | pass | 5 | [pcap](tftp/tftp-oack-blksize-15b.pcap) |
 | tftp-oack-multiopt-35b | T-137: 多选项 OACK 字节精确 `00 06 blksize\0 512\0 timeout\0 5\0 tsize\0 1024\0`（35B：2+12+10+11），7 包 | pass | 7 | [pcap](tftp/tftp-oack-multiopt-35b.pcap) |
 | tftp-oack-timeout-13b | T-129: OACK 字节精确（timeout=10 单选项，13B） | pass | 5 | [pcap](tftp/tftp-oack-timeout-13b.pcap) |
@@ -172,6 +174,7 @@ Cases: 226 — pass 226, fail 0, error 0
 | tftp-tid-deterministic | T-015: ServerTID 确定性生成（FNV-1a(FlowID)，端口 49152-65535 且 ≠69） | pass | 5 | [pcap](tftp/tftp-tid-deterministic.pcap) |
 | tftp-tidchange-errorcode0 | T-239/M3: ServerTIDChange + error_code=0 合法（不触发互斥） | pass | 12 | [pcap](tftp/tftp-tidchange-errorcode0.pcap) |
 | tftp-udp-length-accounting | T-139: UDP 数据报长度核算 RRQ=8+14=22 / DATA=8+516=524，3 包 | pass | 3 | [pcap](tftp/tftp-udp-length-accounting.pcap) |
+| tftp-v6-basic | A': [ipv6,udp,tftp] RRQ 单块（fd00::1→fd00::2，ipv6.nxt=17 + udp.dstport=69 + tftp.opcode） | pass | 3 | [pcap](tftp/tftp-v6-basic.pcap) |
 | tftp-validate-t050-append-push-65536 | T-050: 自动追加推至 65536 未开 wrap → Validate 拒绝 | pass | 0 | [pcap]() |
 | tftp-validate-t071-empty-filename | T-071: filename 空字符串 → Validate 拒绝 | pass | 0 | [pcap]() |
 | tftp-validate-t072-filename-nul | T-072: filename 含 NUL 字节 → Validate 拒绝 | pass | 0 | [pcap]() |
@@ -184,7 +187,6 @@ Cases: 226 — pass 226, fail 0, error 0
 | tftp-validate-t079-timeout-256 | T-079: timeout=256（>RFC 2348 上限 255）→ Validate 拒绝 | pass | 0 | [pcap]() |
 | tftp-validate-t080-windowsize-0-valid | T-080: windowsize=0 合法（0=不发送选项，impl V6 + tftp_test.go） | pass | 5 | [pcap](tftp/tftp-validate-t080-windowsize-0-valid.pcap) |
 | tftp-validate-t081-windowsize-65536 | T-081: windowsize=65536（>RFC 7440 上限 65535）→ Validate 拒绝 | pass | 0 | [pcap]() |
-| tftp-validate-t082-server-tid-80 | T-082: server_tid=80（知名端口 <1024）→ Validate 拒绝 | pass | 0 | [pcap]() |
 | tftp-validate-t082-server-tid-wellknown | T-082: server_tid=80 知名端口 → Validate 拒绝 | pass | 0 | [pcap]() |
 | tftp-validate-t083-server-tid-1024 | T-083: server_tid=1024 合法边界（registered 端口下界） | pass | 5 | [pcap](tftp/tftp-validate-t083-server-tid-1024.pcap) |
 | tftp-validate-t084-eab-exceeds | T-084: error_after_block=5 > blocks_count=2 → Validate 拒绝 | pass | 0 | [pcap]() |
@@ -193,20 +195,14 @@ Cases: 226 — pass 226, fail 0, error 0
 | tftp-validate-t087-retransmit-out-of-range | T-087: retransmit_blocks=[99] 越界 → Validate 拒绝 | pass | 0 | [pcap]() |
 | tftp-validate-t088-retransmit-zero | T-088: retransmit_blocks=[0]（块号最小 1）→ Validate 拒绝 | pass | 0 | [pcap]() |
 | tftp-validate-t089-tidchange-errorcode-mutex | T-089: server_tid_change + error_code>0 互斥 → Validate 拒绝 | pass | 0 | [pcap]() |
-| tftp-validate-t090-tidchange-retransmit | T-090: server_tid_change + retransmit_blocks 互斥 → Validate 拒绝 | pass | 0 | [pcap]() |
 | tftp-validate-t090-tidchange-retransmit-mutex | T-090: server_tid_change + retransmit_blocks 互斥 → Validate 拒绝 | pass | 0 | [pcap]() |
 | tftp-validate-t092-tidchange-atblock-0 | T-092: server_tid_change_at_block=0 → Validate 拒绝 | pass | 0 | [pcap]() |
-| tftp-validate-t093-tidchange-atblock-99 | T-093: server_tid_change_at_block=99 > blocks_count=4 → Validate 拒绝 | pass | 0 | [pcap]() |
 | tftp-validate-t093-tidchange-atblock-exceed | T-093: server_tid_change_at_block > blocks_count → Validate 拒绝 | pass | 0 | [pcap]() |
-| tftp-validate-t094-server-tid-new-80 | T-094: server_tid_new=80（知名端口 <1024）→ Validate 拒绝 | pass | 0 | [pcap]() |
 | tftp-validate-t094-tidnew-wellknown | T-094: server_tid_new=80 知名端口 → Validate 拒绝 | pass | 0 | [pcap]() |
-| tftp-validate-t095-tid-new-equals-tid | T-095: server_tid_new == server_tid（迁移无意义）→ Validate 拒绝 | pass | 0 | [pcap]() |
 | tftp-validate-t095-tidnew-equals-tid | T-095: server_tid_new == server_tid → Validate 拒绝 | pass | 0 | [pcap]() |
-| tftp-validate-t096-blocks-65536-no-wrap | T-096: blocks_count=65536 未开 wrap → Validate 拒绝（uint32 解析无溢出） | pass | 0 | [pcap]() |
 | tftp-validate-t097-blocks-0-no-payload | T-097: blocks_count=0 且无 payload 源 → Validate 拒绝 | pass | 0 | [pcap]() |
 | tftp-validate-t099-finalzero-no-blocks | T-099: final_block_zero=true 但 blocks_count=0 → Validate 拒绝 | pass | 0 | [pcap]() |
 | tftp-validate-t100-autoappend-no-payload | T-100: auto_append=true + blocks_count=0 + 无 payload 源 → Validate 拒绝 | pass | 0 | [pcap]() |
-| tftp-validate-t101-tcp-mutex | T-101: TFTP 与 TCP 子配置共存 → Validate 拒绝（V20 UDP-only） | pass | 0 | [pcap]() |
 | tftp-validate-t104-error-afterblock-retransmit | T-104: error_after_block 与 retransmit_blocks 重叠（同块 3）→ 通过（组合合法） | pass | 8 | [pcap](tftp/tftp-validate-t104-error-afterblock-retransmit.pcap) |
 | tftp-validate-t223-blocks-65536-nowrap | T-223/C1: blocks_count=65536 未开 wrap → Validate 拒绝 | pass | 0 | [pcap]() |
 | tftp-wrq-14bytes | T-127/T-133: WRQ 14B 字节精确 `00 02 a.bin\0 octet\0` + ACK#0 4B，4 包 | pass | 4 | [pcap](tftp/tftp-wrq-14bytes.pcap) |
@@ -222,7 +218,9 @@ Cases: 226 — pass 226, fail 0, error 0
 | tftp-wrq-multiblock-append | T-045: WRQ 自动追加（client_tsize=1024 判定 TSize, blocks_count=2）→ WRQ+OACK → DATA/ACK×2 → DATA#3(0B)/ACK#3，8 包 | pass | 8 | [pcap](tftp/tftp-wrq-multiblock-append.pcap) |
 | tftp-wrq-multiopt-47b | T-138: 多选项 WRQ 字节精确 `00 02 a.bin\0 octet\0 blksize\0 512\0 timeout\0 5\0 tsize\0 1024\0`（47B），6 包 | pass | 6 | [pcap](tftp/tftp-wrq-multiopt-47b.pcap) |
 | tftp-wrq-oack-error6 | T-039: WRQ+OACK 后 ERROR(6)（无 ACK#0），3 包 | pass | 3 | [pcap](tftp/tftp-wrq-oack-error6.pcap) |
+| tftp-wrq-retransmit | A': WRQ 方向 retransmit_blocks=[1]（2 块上传，重传 DATA#1 只出现一次） | pass | 8 | [pcap](tftp/tftp-wrq-retransmit.pcap) |
 | tftp-wrq-short-noappend | T-070/S15b: WRQ 完整上传 3 满块 + 自动追加（末块满块），8 包 | pass | 8 | [pcap](tftp/tftp-wrq-short-noappend.pcap) |
+| tftp-wrq-tidchange | A': WRQ + server_tid_change（at_block=1，传输继续） | pass | 9 | [pcap](tftp/tftp-wrq-tidchange.pcap) |
 | tftp-wrq-timeout-only | T-185: 单选项 timeout（WRQ）→ OACK(1) → DATA#1（无 ACK#0）→ 自动追加，6 包 | pass | 6 | [pcap](tftp/tftp-wrq-timeout-only.pcap) |
 | tftp-wrq-tsize-client-2048 | T-008/S5b: WRQ tsize=2048（ClientTSize）→ OACK（无 ACK#0）→ 4 满块 → 自动追加，12 包 | pass | 12 | [pcap](tftp/tftp-wrq-tsize-client-2048.pcap) |
 | tftp-wrq-tsize-only | T-186: 单选项 tsize（WRQ）→ OACK(1) → DATA#1（无 ACK#0）→ 自动追加，6 包 | pass | 6 | [pcap](tftp/tftp-wrq-tsize-only.pcap) |
