@@ -8737,26 +8737,9 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	}
 	// D-EDP-1：edp 顶层 edp 子映射 presence 判死（mmse 先例；空 map 也
 	// 死——B6 扁平注入形退役，配置迁 edp 层三键）。层链形状不触发。
-	if protocol == "dhcp" {
-		if v, ok := cfg["dhcp"]; ok && v != nil {
-			return "protocol dhcp no longer accepts a top-level dhcp sub-config (move it into the dhcp layer of an [ip,udp,dhcp] layers chain)"
-		}
-	}
-	if protocol == "dhcpv6" {
-		if v, ok := cfg["dhcpv6"]; ok && v != nil {
-			return "protocol dhcpv6 no longer accepts a top-level dhcpv6 sub-config (move it into the dhcpv6 layer of an [ip,udp,dhcpv6] layers chain)"
-		}
-	}
-	if protocol == "dnp3" {
-		if v, ok := cfg["dnp3"]; ok && v != nil {
-			return "protocol dnp3 no longer accepts a top-level dnp3 sub-config (move it into the dnp3 layer of an [ip,tcp,dnp3] layers chain)"
-		}
-	}
-	if protocol == "doh" {
-		if v, ok := cfg["doh"]; ok && v != nil {
-			return "protocol doh no longer accepts a top-level doh sub-config (move it into the doh layer of an [ip,tcp,http,doh] layers chain)"
-		}
-	}
+	// dhcp/dhcpv6/dnp3/doh 的顶层子映射门暂缓：cases 仍有 flat 正例
+	// （dhcp 1/dhcpv6 1/dnp3 50/doh 84），门随各协议 cases 层链改写同轮
+	// 落地（bgp/coap 先例：翻译先落码，cases 改写后此门才有执法对象）。
 	if protocol == "edp" {
 		if v, ok := cfg["edp"]; ok && v != nil {
 			return "protocol edp no longer accepts a top-level edp sub-config (move it into the edp layer of an [ip,tcp,edp] layers chain; OneNET EDP framing lives in the edp layer)"

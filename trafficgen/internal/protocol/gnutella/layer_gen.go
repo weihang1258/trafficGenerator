@@ -12,7 +12,7 @@ import (
 // GnutellaGenerator 事件模式（ams/openwire 同款）：握手帧与业务消息各一个
 // MessageEvent，TCP 层负责握手/MSS 分段/挥手；连接级 SrcPort 边界触发
 // TCPGenerator 的会话切换。连接声明显式 src_ip/dst_ip 时走自驱完整包分支
-//（双栈用例，B5 自驱分支同构）。
+// （双栈用例，B5 自驱分支同构）。
 type GnutellaGenerator struct{}
 
 func (g *GnutellaGenerator) Name() string                     { return "gnutella" }
@@ -96,8 +96,9 @@ func buildEventFrame(e *core.GnutellaEvent, cfg *core.GnutellaConfig) ([]byte, e
 
 // generateEvents emits one MessageEvent per frame in config order。
 func (g *GnutellaGenerator) generateEvents(ctx context.Context, emit func(layers.MessageEvent) error, cfg *core.GnutellaConfig) error {
-	for i := range effectiveConns(cfg) {
-		conn := &cfg.Connections[i]
+	conns := effectiveConns(cfg)
+	for i := range conns {
+		conn := &conns[i]
 		for j := range conn.Events {
 			e := &conn.Events[j]
 			dir, err := eventDirection(e)
@@ -166,8 +167,9 @@ func emitSegment(emit func(core.PacketConfig) error, st *tcpFlowState, up bool, 
 // 四次挥手，方向交换在生成器内完成。
 func (g *GnutellaGenerator) generatePackets(ctx context.Context, emit func(core.PacketConfig) error, cfg *core.GnutellaConfig, meta layers.FlowMeta) error {
 	index := uint64(0)
-	for i := range cfg.Connections {
-		conn := &cfg.Connections[i]
+	conns := effectiveConns(cfg)
+	for i := range conns {
+		conn := &conns[i]
 		st := &tcpFlowState{
 			srcIP:   conn.SrcIP,
 			dstIP:   conn.DstIP,

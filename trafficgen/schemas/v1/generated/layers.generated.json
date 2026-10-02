@@ -1266,7 +1266,17 @@
       "field_contract": {
         "tcp.dst_port": "8332"
       },
-      "fields": {}
+      "fields": {
+        "concurrent": {
+          "type": "bool"
+        },
+        "sessions": {
+          "type": "list"
+        },
+        "wire_fault": {
+          "type": "object"
+        }
+      }
     },
     "gbt32960": {
       "category": "terminal",
@@ -1371,7 +1381,35 @@
       "field_contract": {
         "udp.dst_port": "6081"
       },
-      "fields": {}
+      "fields": {
+        "critical": {
+          "type": "bool"
+        },
+        "datagrams": {
+          "type": "list"
+        },
+        "inner": {
+          "type": "object"
+        },
+        "oam": {
+          "type": "bool"
+        },
+        "options": {
+          "type": "list"
+        },
+        "protocol_type": {
+          "type": "uint16"
+        },
+        "version": {
+          "type": "uint8"
+        },
+        "vni": {
+          "type": "uint32"
+        },
+        "wire_fault": {
+          "type": "object"
+        }
+      }
     },
     "getwork": {
       "category": "terminal",
@@ -1381,7 +1419,17 @@
       "field_contract": {
         "tcp.dst_port": "8332"
       },
-      "fields": {}
+      "fields": {
+        "concurrent": {
+          "type": "bool"
+        },
+        "sessions": {
+          "type": "list"
+        },
+        "wire_fault": {
+          "type": "object"
+        }
+      }
     },
     "gnutella": {
       "category": "terminal",
@@ -1392,9 +1440,24 @@
         "tcp.dst_port": "6346"
       },
       "fields": {
+        "client_headers": {
+          "type": "object"
+        },
+        "connections": {
+          "type": "list"
+        },
+        "frame_max": {
+          "type": "uint32"
+        },
         "profile": {
           "type": "string",
           "default": "gnutella_v060"
+        },
+        "server_headers": {
+          "type": "object"
+        },
+        "wire_fault": {
+          "type": "string"
         }
       }
     },
@@ -1502,14 +1565,142 @@
       "field_contract": {
         "tcp.dst_port": "8604"
       },
-      "fields": {}
+      "fields": {
+        "accept_encoding": {
+          "type": "string"
+        },
+        "authority": {
+          "type": "string"
+        },
+        "call_type": {
+          "type": "string"
+        },
+        "encoding": {
+          "type": "string"
+        },
+        "header_table_size": {
+          "type": "uint32"
+        },
+        "initial_window": {
+          "type": "uint32"
+        },
+        "max_concurrent_streams": {
+          "type": "uint32"
+        },
+        "max_frame_size": {
+          "type": "uint32"
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "method": {
+          "type": "string"
+        },
+        "pings": {
+          "type": "int"
+        },
+        "request_messages": {
+          "type": "list"
+        },
+        "request_messages_b64": {
+          "type": "list"
+        },
+        "response_message": {
+          "type": "string"
+        },
+        "response_messages": {
+          "type": "list"
+        },
+        "response_messages_b64": {
+          "type": "list"
+        },
+        "response_status": {
+          "type": "int"
+        },
+        "scheme": {
+          "type": "string"
+        },
+        "service": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": "string"
+        },
+        "user_agent": {
+          "type": "string"
+        }
+      }
     },
     "gtp": {
       "category": "terminal",
       "depends_on": [
         "udp"
       ],
-      "fields": {}
+      "fields": {
+        "direction": {
+          "type": "string"
+        },
+        "extension_data": {
+          "type": "list"
+        },
+        "extension_present": {
+          "type": "bool"
+        },
+        "extension_type": {
+          "type": "uint8"
+        },
+        "frames": {
+          "type": "list"
+        },
+        "inner_dst_ip": {
+          "type": "string"
+        },
+        "inner_ipid": {
+          "type": "uint16"
+        },
+        "inner_payload": {
+          "type": "string"
+        },
+        "inner_proto": {
+          "type": "string"
+        },
+        "inner_src_ip": {
+          "type": "string"
+        },
+        "inner_ttl": {
+          "type": "uint8"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "npdu_present": {
+          "type": "bool"
+        },
+        "npdu_value": {
+          "type": "uint8"
+        },
+        "pt": {
+          "type": "uint8"
+        },
+        "scenarios": {
+          "type": "list"
+        },
+        "sequence": {
+          "type": "uint16"
+        },
+        "sequence_present": {
+          "type": "bool"
+        },
+        "tcp_options": {
+          "type": "object"
+        },
+        "teid": {
+          "type": "uint32"
+        },
+        "version": {
+          "type": "uint8"
+        }
+      }
     },
     "h323": {
       "category": "terminal",
@@ -1998,7 +2189,77 @@
       "field_contract": {
         "udp.dst_port": "500"
       },
-      "fields": {}
+      "fields": {
+        "allow_null_auth": {
+          "type": "bool"
+        },
+        "child_sas": {
+          "type": "list"
+        },
+        "default_auth_method": {
+          "type": "string"
+        },
+        "default_dh_group": {
+          "type": "uint16"
+        },
+        "default_nonce_size": {
+          "type": "int"
+        },
+        "default_proposal": {
+          "type": "object"
+        },
+        "dpd_count": {
+          "type": "int"
+        },
+        "eap_only": {
+          "type": "bool"
+        },
+        "encrypt_mode": {
+          "type": "string"
+        },
+        "fault_injection": {
+          "type": "object"
+        },
+        "fragment_threshold": {
+          "type": "int"
+        },
+        "fragmentation_supported": {
+          "type": "bool"
+        },
+        "initiator_spi": {
+          "type": "list"
+        },
+        "messages": {
+          "type": "list"
+        },
+        "opaque_key_seed": {
+          "type": "string"
+        },
+        "responder_spi": {
+          "type": "list"
+        },
+        "retransmit_count": {
+          "type": "int"
+        },
+        "role": {
+          "type": "string"
+        },
+        "scenario": {
+          "type": "string"
+        },
+        "start_message_id": {
+          "type": "uint32"
+        },
+        "strict": {
+          "type": "bool"
+        },
+        "version_major": {
+          "type": "uint8"
+        },
+        "version_minor": {
+          "type": "uint8"
+        }
+      }
     },
     "ike_nat_t": {
       "category": "terminal",
@@ -2008,7 +2269,59 @@
       "field_contract": {
         "udp.dst_port": "4500"
       },
-      "fields": {}
+      "fields": {
+        "backoff": {
+          "type": "int"
+        },
+        "child_sa": {
+          "type": "object"
+        },
+        "count": {
+          "type": "int"
+        },
+        "dialog": {
+          "type": "list"
+        },
+        "direction": {
+          "type": "string"
+        },
+        "initiator_spi": {
+          "type": "list"
+        },
+        "interval": {
+          "type": "int"
+        },
+        "keepalive": {
+          "type": "bool"
+        },
+        "max_retransmits": {
+          "type": "int"
+        },
+        "nat_detected_on_dest": {
+          "type": "bool"
+        },
+        "nat_detected_on_source": {
+          "type": "bool"
+        },
+        "nat_detection": {
+          "type": "string"
+        },
+        "port_float": {
+          "type": "bool"
+        },
+        "responder_spi": {
+          "type": "list"
+        },
+        "retransmit": {
+          "type": "bool"
+        },
+        "timeout": {
+          "type": "int"
+        },
+        "udp_encap_esp": {
+          "type": "object"
+        }
+      }
     },
     "imap": {
       "category": "terminal",

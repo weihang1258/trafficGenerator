@@ -629,6 +629,29 @@ func buildDefaultRegistry() {
 	// （u=2152/c=2123，Plan 内 resolve，无固定 FieldContract）。
 	r.Register(LayerSchema{Name: "gtp", Category: CategoryTerminal,
 		DependsOn: []string{"udp"},
+		Fields: map[string]FieldSchema{
+			"mode":              {Type: "string"},
+			"version":           {Type: "uint8"},
+			"pt":                {Type: "uint8"},
+			"teid":              {Type: "uint32"},
+			"sequence_present":  {Type: "bool"},
+			"npdu_present":      {Type: "bool"},
+			"extension_present": {Type: "bool"},
+			"extension_type":    {Type: "uint8"},
+			"extension_data":    {Type: "list"},
+			"sequence":          {Type: "uint16"},
+			"npdu_value":        {Type: "uint8"},
+			"inner_proto":       {Type: "string"},
+			"inner_src_ip":      {Type: "string"},
+			"inner_dst_ip":      {Type: "string"},
+			"inner_ttl":         {Type: "uint8"},
+			"inner_ipid":        {Type: "uint16"},
+			"inner_payload":     {Type: "string"},
+			"tcp_options":       {Type: "object"},
+			"frames":            {Type: "list"},
+			"scenarios":         {Type: "list"},
+			"direction":         {Type: "string"},
+		},
 	})
 	// ---- ike（udp 终结层。IKEv1/v2——UDP 承载的密钥交换协议：IKE 消息序列
 	// + 可选 ESP 数据面，wire 字节由 buildIKEMessageBytes 纯函数产出）。UDP
@@ -637,6 +660,31 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "ike", Category: CategoryTerminal,
 		DependsOn:     []string{"udp"},
 		FieldContract: map[string]string{"udp.dst_port": "500"}, // RFC 7296 默认 500；用户显式非标准端口须为 0/500（ike Validate 强制），不强制覆盖
+		Fields: map[string]FieldSchema{
+			"version_major":           {Type: "uint8"},
+			"version_minor":           {Type: "uint8"},
+			"role":                    {Type: "string"},
+			"scenario":                {Type: "string"},
+			"initiator_spi":           {Type: "list"},
+			"responder_spi":           {Type: "list"},
+			"messages":                {Type: "list"},
+			"child_sas":               {Type: "list"},
+			"default_auth_method":     {Type: "string"},
+			"default_dh_group":        {Type: "uint16"},
+			"default_nonce_size":      {Type: "int"},
+			"default_proposal":        {Type: "object"},
+			"dpd_count":               {Type: "int"},
+			"eap_only":                {Type: "bool"},
+			"encrypt_mode":            {Type: "string"},
+			"fault_injection":         {Type: "object"},
+			"fragmentation_supported": {Type: "bool"},
+			"fragment_threshold":      {Type: "int"},
+			"opaque_key_seed":         {Type: "string"},
+			"retransmit_count":        {Type: "int"},
+			"start_message_id":        {Type: "uint32"},
+			"strict":                  {Type: "bool"},
+			"allow_null_auth":         {Type: "bool"},
+		},
 	})
 	// ---- ike_nat_t（udp 终结层。IKEv2 NAT-T——端口浮动 + Non-ESP Marker 的
 	// NAT 穿透变体，wire 字节由 buildIKENATTMessage 纯函数产出）。UDP 语义
@@ -645,6 +693,25 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "ike_nat_t", Category: CategoryTerminal,
 		DependsOn:     []string{"udp"},
 		FieldContract: map[string]string{"udp.dst_port": "4500"}, // RFC 3948 默认 4500；用户显式非标准端口优先，不强制
+		Fields: map[string]FieldSchema{
+			"dialog":                 {Type: "list"},
+			"count":                  {Type: "int"},
+			"direction":              {Type: "string"},
+			"initiator_spi":          {Type: "list"},
+			"responder_spi":          {Type: "list"},
+			"keepalive":              {Type: "bool"},
+			"interval":               {Type: "int"},
+			"timeout":                {Type: "int"},
+			"backoff":                {Type: "int"},
+			"max_retransmits":        {Type: "int"},
+			"retransmit":             {Type: "bool"},
+			"nat_detected_on_source": {Type: "bool"},
+			"nat_detected_on_dest":   {Type: "bool"},
+			"nat_detection":          {Type: "string"},
+			"port_float":             {Type: "bool"},
+			"udp_encap_esp":          {Type: "object"},
+			"child_sa":               {Type: "object"},
+		},
 	})
 	// ---- amqp（tcp 终结层。AMQP 0-9-1——高级消息队列协议，TCP 承载的
 	// 消息队列 wire 协议，8-byte protocol header → METHOD/HEADER/BODY/
@@ -721,6 +788,11 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "gbt", Category: CategoryTerminal,
 		DependsOn:     []string{"http"},
 		FieldContract: map[string]string{"tcp.dst_port": "8332"},
+		Fields: map[string]FieldSchema{
+			"concurrent": {Type: "bool"},
+			"sessions":   {Type: "list"},
+			"wire_fault": {Type: "object"},
+		},
 	})
 	// cwmp（TR-069 CPE WAN Management Protocol，64-cwmp v2.2.2）：终结层
 	// 事件已含完整 HTTP 帧（SOAP 1.1 envelope、HTTP 头序、digest 认证），
@@ -802,6 +874,11 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "getwork", Category: CategoryTerminal,
 		DependsOn:     []string{"http"},
 		FieldContract: map[string]string{"tcp.dst_port": "8332"},
+		Fields: map[string]FieldSchema{
+			"concurrent": {Type: "bool"},
+			"sessions":   {Type: "list"},
+			"wire_fault": {Type: "object"},
+		},
 	})
 	// doh（DNS over HTTPS / RFC 8484，66-doh v2.2.1）：终结层事件已含完整
 	// HTTP 帧（POST body / GET base64url 查询参数两种映射 + 2xx/非 2xx 响应
@@ -1723,6 +1800,29 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "grpc", Category: CategoryTerminal,
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "8604"}, // gRPC telemetry_8604 惯例；用户显式非标准端口优先，不强制（gRPC 本身不强制端口）
+		Fields: map[string]FieldSchema{
+			"service":                {Type: "string"},
+			"method":                 {Type: "string"},
+			"authority":              {Type: "string"},
+			"scheme":                 {Type: "string"},
+			"call_type":              {Type: "string"},
+			"request_messages":       {Type: "list"},
+			"request_messages_b64":   {Type: "list"},
+			"response_messages":      {Type: "list"},
+			"response_messages_b64":  {Type: "list"},
+			"response_status":        {Type: "int"},
+			"response_message":       {Type: "string"},
+			"timeout":                {Type: "string"},
+			"metadata":               {Type: "object"},
+			"pings":                  {Type: "int"},
+			"encoding":               {Type: "string"},
+			"accept_encoding":        {Type: "string"},
+			"user_agent":             {Type: "string"},
+			"header_table_size":      {Type: "uint32"},
+			"initial_window":         {Type: "uint32"},
+			"max_concurrent_streams": {Type: "uint32"},
+			"max_frame_size":         {Type: "uint32"},
+		},
 	})
 	r.Register(LayerSchema{Name: "ssh", Category: CategoryTerminal,
 		DependsOn:     []string{"tcp"},
@@ -1782,6 +1882,9 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"ip"},                         // 外层 ip 自动补
 		FieldContract: map[string]string{"ip.protocol": "47"}, // GRE IPPROTO=47
 		InnerRequired: []string{"ip"},                         // 内层必须从 ip 开始，缺了自动补内层 ip
+		// 生成器直接读层 config 三键（layer_gen.go greConfigUint32/Bool），
+		// 不走 spec.GRE 翻译（flat spec.GRE 不作用于链路径）；KeyPresent
+		// 由 key!=0 派生（RFC 2890 Key 域语义）。
 		Fields: map[string]FieldSchema{
 			"key":      {Type: "uint32", Default: uint32(0)},
 			"checksum": {Type: "bool", Default: false},
@@ -1847,6 +1950,17 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "geneve", Category: CategoryTerminal,
 		DependsOn:     []string{"udp"},
 		FieldContract: map[string]string{"udp.dst_port": "6081"},
+		Fields: map[string]FieldSchema{
+			"vni":           {Type: "uint32"},
+			"version":       {Type: "uint8"},
+			"oam":           {Type: "bool"},
+			"critical":      {Type: "bool"},
+			"protocol_type": {Type: "uint16"},
+			"options":       {Type: "list"},
+			"inner":         {Type: "object"},
+			"datagrams":     {Type: "list"},
+			"wire_fault":    {Type: "object"},
+		},
 	})
 
 	// ---- B5 消息中间件（openwire）----
@@ -1918,7 +2032,12 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "6346"},
 		Fields: map[string]FieldSchema{
-			"profile": {Type: "string", Default: "gnutella_v060"},
+			"profile":        {Type: "string", Default: "gnutella_v060"},
+			"frame_max":      {Type: "uint32"},
+			"client_headers": {Type: "object"},
+			"server_headers": {Type: "object"},
+			"connections":    {Type: "list"},
+			"wire_fault":     {Type: "string"},
 		},
 	})
 

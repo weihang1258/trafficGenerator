@@ -3282,6 +3282,150 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.DOH = &hcfg
+	case "gbt":
+		if spec.GBT != nil {
+			return
+		}
+		cfgGBT := completedConfig(s, term.Config)
+		rawGBT, err := json.Marshal(cfgGBT)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("gbt layer config encode: %v", err))
+			return
+		}
+		var gcfg core.GBTConfig
+		decGBT := json.NewDecoder(bytes.NewReader(rawGBT))
+		decGBT.DisallowUnknownFields()
+		if err := decGBT.Decode(&gcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("gbt layer config decode: %v", err))
+			return
+		}
+		spec.GBT = &gcfg
+	case "getwork":
+		if spec.GetWork != nil {
+			return
+		}
+		cfgGW := completedConfig(s, term.Config)
+		rawGW, err := json.Marshal(cfgGW)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("getwork layer config encode: %v", err))
+			return
+		}
+		var wcfg core.GetWorkConfig
+		decGW := json.NewDecoder(bytes.NewReader(rawGW))
+		decGW.DisallowUnknownFields()
+		if err := decGW.Decode(&wcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("getwork layer config decode: %v", err))
+			return
+		}
+		spec.GetWork = &wcfg
+	case "gnutella":
+		if spec.Gnutella != nil {
+			return
+		}
+		cfgGN := completedConfig(s, term.Config)
+		rawGN, err := json.Marshal(cfgGN)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("gnutella layer config encode: %v", err))
+			return
+		}
+		var ncfg core.GnutellaConfig
+		decGN := json.NewDecoder(bytes.NewReader(rawGN))
+		decGN.DisallowUnknownFields()
+		if err := decGN.Decode(&ncfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("gnutella layer config decode: %v", err))
+			return
+		}
+		spec.Gnutella = &ncfg
+	case "grpc":
+		if spec.GRPC != nil {
+			return
+		}
+		cfgGRPC := completedConfig(s, term.Config)
+		rawGRPC, err := json.Marshal(cfgGRPC)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("grpc layer config encode: %v", err))
+			return
+		}
+		var rcfg core.GRPCConfig
+		decGRPC := json.NewDecoder(bytes.NewReader(rawGRPC))
+		decGRPC.DisallowUnknownFields()
+		if err := decGRPC.Decode(&rcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("grpc layer config decode: %v", err))
+			return
+		}
+		spec.GRPC = &rcfg
+	case "gtp":
+		if spec.GTP != nil {
+			return
+		}
+		cfgGTP := completedConfig(s, term.Config)
+		rawGTP, err := json.Marshal(cfgGTP)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("gtp layer config encode: %v", err))
+			return
+		}
+		var tcfg core.GTPConfig
+		decGTP := json.NewDecoder(bytes.NewReader(rawGTP))
+		decGTP.DisallowUnknownFields()
+		if err := decGTP.Decode(&tcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("gtp layer config decode: %v", err))
+			return
+		}
+		spec.GTP = &tcfg
+	case "ike":
+		if spec.IKE != nil {
+			return
+		}
+		cfgIKE := completedConfig(s, term.Config)
+		rawIKE, err := json.Marshal(cfgIKE)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("ike layer config encode: %v", err))
+			return
+		}
+		var kcfg core.IKEConfig
+		decIKE := json.NewDecoder(bytes.NewReader(rawIKE))
+		decIKE.DisallowUnknownFields()
+		if err := decIKE.Decode(&kcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("ike layer config decode: %v", err))
+			return
+		}
+		spec.IKE = &kcfg
+	case "ike_nat_t":
+		if spec.IKENATT != nil {
+			return
+		}
+		cfgNATT := completedConfig(s, term.Config)
+		rawNATT, err := json.Marshal(cfgNATT)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("ike_nat_t layer config encode: %v", err))
+			return
+		}
+		var ntcfg core.IKENATTConfig
+		decNATT := json.NewDecoder(bytes.NewReader(rawNATT))
+		decNATT.DisallowUnknownFields()
+		if err := decNATT.Decode(&ntcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("ike_nat_t layer config decode: %v", err))
+			return
+		}
+		spec.IKENATT = &ntcfg
+	case "geneve":
+		if spec.Geneve != nil {
+			return
+		}
+		cfgGEN := completedConfig(s, term.Config)
+		rawGEN, err := json.Marshal(cfgGEN)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("geneve layer config encode: %v", err))
+			return
+		}
+		var gencfg core.GeneveConfig
+		decGEN := json.NewDecoder(bytes.NewReader(rawGEN))
+		decGEN.DisallowUnknownFields()
+		if err := decGEN.Decode(&gencfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("geneve layer config decode: %v", err))
+			return
+		}
+		spec.Geneve = &gencfg
 	case "mongodb":
 		// D-MONGODB-1（#87）G-MONGO-1：层 config（messages/sessions/wire_fault）
 		// 经 JSON 往返解码为 core.MongoDBConfig（dameng/cql 严格解码同款——
