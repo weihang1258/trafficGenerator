@@ -171,30 +171,56 @@ func hasL2Override(c Case) bool {
 	return len(overrideMACs(c)) > 0
 }
 
-// overrideMACs 返回用例 spec 顶层覆盖引擎默认值的 src_mac/dst_mac
-// （去重、跳过空串与默认值）。doip 的 direction=down 会把覆盖后的
-// dst_mac 当作帧源 MAC（MAC 交换），故两者都需纳入抓包过滤器。
+// overrideMACs 返回用例 spec 覆盖引擎默认值的 src_mac/dst_mac（去重、
+// 跳过空串与默认值）。扫描两处：
+//   - spec 顶层（hds/iec104/ospf 等）；doip 的 direction=down 会把覆盖后
+//     的 dst_mac 当作帧源 MAC，故两者都需纳入抓包过滤器。
+//   - eth 层配置（arp/dhcpv6/goose/isis/srv6/sv 等 L2 族把 MAC 写在
+//     {"eth":{"src_mac":...}} 里）；应答帧同样把层 dst_mac 当帧源
+//     （arp_t1 帧2 src=层 dst_mac），两者都纳入。
 func overrideMACs(c Case) []string {
 	var spec map[string]any
 	if err := json.Unmarshal(c.SpecJSON, &spec); err != nil {
 		return nil
 	}
-	var out []string
-	for _, f := range []struct{ key, def string }{
-		{"src_mac", "02:00:00:00:00:01"},
-		{"dst_mac", "02:00:00:00:00:02"},
-	} {
-		if v, ok := spec[f.key].(string); ok && v != "" && v != f.def {
-			dup := false
-			for _, e := range out {
-				if e == v {
-					dup = true
-					break
+	def := map[string]string{"src_mac": "02:00:00:00:00:01", "dst_mac": "02:00:00:00:00:02"}
+	var cands []string
+	for _, k := range []string{"src_mac", "dst_mac"} {
+		if v, ok := spec[k].(string); ok && v != "" {
+			cands = append(cands, v)
+		}
+	}
+	if layers, ok := spec["layers"].([]any); ok {
+		for _, l := range layers {
+			lm, ok := l.(map[string]any)
+			if !ok {
+				continue
+			}
+			cfg, ok := lm["eth"].(map[string]any)
+			if !ok {
+				continue
+			}
+			for _, k := range []string{"src_mac", "dst_mac"} {
+				if v, ok := cfg[k].(string); ok && v != "" {
+					cands = append(cands, v)
 				}
 			}
-			if !dup {
-				out = append(out, v)
+		}
+	}
+	var out []string
+	for _, v := range cands {
+		if v == def["src_mac"] || v == def["dst_mac"] {
+			continue
+		}
+		dup := false
+		for _, e := range out {
+			if e == v {
+				dup = true
+				break
 			}
+		}
+		if !dup {
+			out = append(out, v)
 		}
 	}
 	return out

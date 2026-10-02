@@ -48,6 +48,14 @@ func TestOverrideMACs(t *testing.T) {
 			[]string{"00:11:22:33:44:55"}},
 		{"empty ignored", `{"src_mac":"","dst_mac":"00:11:22:33:44:55"}`, []string{"00:11:22:33:44:55"}},
 		{"malformed empty", `not-json{`, nil},
+		// eth 层配置覆盖（arp/goose/sv 等 L2 族）：src/dst 都纳入（应答帧
+		// 把层 dst_mac 当帧源）。
+		{"eth layer src+dst", `{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{}}]}`,
+			[]string{"aa:bb:cc:dd:ee:01", "aa:bb:cc:dd:ee:02"}},
+		{"eth layer defaults skipped", `{"layers":[{"eth":{"src_mac":"02:00:00:00:00:01"}},{"arp":{}}]}`, nil},
+		{"non-eth layer ignored", `{"layers":[{"vlan":{"src_mac":"aa:bb:cc:dd:ee:01"}},{"arp":{}}]}`, nil},
+		{"top+layer deduped", `{"src_mac":"aa:bb:cc:dd:ee:01","layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01"}}]}`,
+			[]string{"aa:bb:cc:dd:ee:01"}},
 	}
 	for _, tc := range cases {
 		c := Case{SpecJSON: json.RawMessage(tc.spec)}
@@ -65,16 +73,18 @@ func TestOverrideMACs(t *testing.T) {
 	}
 }
 
-// TestNicSelection_ForcesL2OverrideCase 用真实 doip 用例验证：L2 覆盖
-// 用例（doip_eid_from_dstmac）虽不在等距采样点（idx 49, step 21），
-// 仍被强制纳入。
+// TestNicSelection_ForcesL2OverrideCase 用真实 arp 用例验证：eth 层 MAC
+// 覆盖用例（arp_t1_baseline_pair，{"eth":{"src_mac":"aa:..."} }）虽不在
+// 等距采样点，仍被强制纳入（漏抓守卫路径可达）。历史注记：旧守卫钉
+// doip_eid_from_dstmac（顶层 dst_mac），D-DOIP-1 115→80 重写后该用例
+// 退役，L2 覆盖代表转到 arp 的 eth 层形状。
 func TestNicSelection_ForcesL2OverrideCase(t *testing.T) {
 	cases := loadCases(t)
-	doip, ok := cases["doip"]
+	arp, ok := cases["arp"]
 	if !ok {
-		t.Fatal("no doip cases")
+		t.Fatal("no arp cases")
 	}
-	jobs := nicSelection(t, map[string][]Case{"doip": doip})
+	jobs := nicSelection(t, map[string][]Case{"arp": arp})
 	if len(jobs) != 1 {
 		t.Fatalf("want 1 job, got %d", len(jobs))
 	}
@@ -83,8 +93,8 @@ func TestNicSelection_ForcesL2OverrideCase(t *testing.T) {
 		ids = append(ids, c.ID)
 	}
 	joined := strings.Join(ids, ",")
-	if !strings.Contains(joined, "doip_eid_from_dstmac") {
-		t.Errorf("L2-override case not forced into selection; got %v", ids)
+	if !strings.Contains(joined, "arp_t1_baseline_pair") {
+		t.Errorf("eth-layer L2-override case not forced into selection; got %v", ids)
 	}
 }
 
