@@ -4,7 +4,7 @@
 // 正例帧断言取自全链真实回放（BuildLayersPlanner→Plan——单权威，无重复编码）
 // + tshark 字段名（design §10.4 ③ OID 名库 + §10.7 M-shape-5 通道分流）：
 // HTTP carrier 走 `spnego.*`/`http.*` 字段，裸 TCP carrier 走 frames hex
-//（-V 无 OID 行 + decode_as 全禁，v1.2.0 勘正）。
+// （-V 无 OID 行 + decode_as 全禁，v1.2.0 勘正）。
 //
 // 先跑后钉口径（P5 实测计数 vs 设计 §2/§9 约定计数）；包数以落盘 pcap 实测
 // 校准，不照抄契约约定值：
@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -279,7 +280,7 @@ func TestSPNEGOCasegenOnce(t *testing.T) {
 			id: "spnego_neg_token_resp_selection", summary: "negTokenResp：negResult + supportedMech(∈列表) + responseToken；accept_incomplete(1)→completed",
 			spec: sLayers(cli, tcp80, httpL, map[string]interface{}{
 				"profile": "http", "negotiation": "init_resp",
-				"mech_types": []interface{}{krb, mskrb},
+				"mech_types":     []interface{}{krb, mskrb},
 				"supported_mech": mskrb, "neg_result": 1,
 				"mech_token":     map[string]interface{}{"opaque": true},
 				"response_token": map[string]interface{}{"opaque": true},
@@ -294,7 +295,7 @@ func TestSPNEGOCasegenOnce(t *testing.T) {
 			id: "spnego_neg_token_targ_legacy", summary: "旧式 negTokenTarg：显式 init_targ 声明 + [0]negResult/[1]supportedMech/[2]responseToken 字段序",
 			spec: sLayers(cli, tcp445, nil, map[string]interface{}{
 				"profile": "tcp", "negotiation": "init_targ", "neg_result": 0,
-				"mech_types": []interface{}{krb, mskrb},
+				"mech_types":     []interface{}{krb, mskrb},
 				"supported_mech": mskrb,
 				"sessions": []interface{}{map[string]interface{}{"id": "s1", "events": []interface{}{
 					sEv("init"), sEv("targ"),
@@ -306,7 +307,7 @@ func TestSPNEGOCasegenOnce(t *testing.T) {
 			id: "spnego_mech_oid_variants", summary: "三机制 OID 变体：Kerberos/msKrb5/NTLM 逐字节 DER + supportedMech 列表绑定",
 			spec: sLayers(cli, tcp445, nil, map[string]interface{}{
 				"profile": "tcp", "negotiation": "init_resp",
-				"mech_types": []interface{}{krb, mskrb, ntlmOID},
+				"mech_types":     []interface{}{krb, mskrb, ntlmOID},
 				"supported_mech": ntlmOID,
 				"mech_token":     map[string]interface{}{"opaque": true},
 				"sessions": []interface{}{map[string]interface{}{"id": "s1", "events": []interface{}{
@@ -319,8 +320,8 @@ func TestSPNEGOCasegenOnce(t *testing.T) {
 			id: "spnego_mech_token_opaque", summary: "不透明 token：零长占位 + 非零负载 + OCTET STRING length/nonzero（内层不解析）",
 			spec: sLayers(cli, tcp445, nil, map[string]interface{}{
 				"profile": "tcp", "negotiation": "init_resp",
-				"mech_types": []interface{}{krb},
-				"mech_token": map[string]interface{}{"opaque": true, "len": 0},
+				"mech_types":     []interface{}{krb},
+				"mech_token":     map[string]interface{}{"opaque": true, "len": 0},
 				"response_token": map[string]interface{}{"opaque": true},
 				"sessions": []interface{}{map[string]interface{}{"id": "s1", "events": []interface{}{
 					sEv("init"), sEv("resp"),
@@ -332,7 +333,7 @@ func TestSPNEGOCasegenOnce(t *testing.T) {
 			id: "spnego_mechlist_mic", summary: "mechListMIC：request-mic(3)→补 MIC；验证输入=原始 DER mechTypes；线位 RFC [3]",
 			spec: sLayers(cli, tcp445, nil, map[string]interface{}{
 				"profile": "tcp", "negotiation": "init_resp",
-				"mech_types": []interface{}{krb, mskrb},
+				"mech_types":     []interface{}{krb, mskrb},
 				"supported_mech": mskrb, "neg_result": 3,
 				"mech_token":    map[string]interface{}{"opaque": true},
 				"mech_list_mic": map[string]interface{}{"layout": "rfc4178", "opaque": true},
@@ -450,8 +451,9 @@ func TestSPNEGOCasegenOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	// 落盘到 test/protocol_pcap/cases/spnego.json（相对本文件三级上跳）。
-	dst := "spnego.json.staged"
+	// 默认落盘临时目录（go test ./... 不再向仓库目录丢 staged 残留）；
+	// SPNEGO_CASEGEN_OUT 显式指定时写到该路径（人工对照用）。
+	dst := filepath.Join(t.TempDir(), "spnego.json.staged")
 	if v := os.Getenv("SPNEGO_CASEGEN_OUT"); v != "" {
 		dst = v
 	}
@@ -561,21 +563,21 @@ func nailExpect(t *testing.T, i int, c *scase, pkts []core.PacketConfig) ([]sfld
 			return sWirePin(pkts, i)
 		}
 		return []sfld{
-			{1, "tcp.dstport", "445", false, 0, nil, nil},
-			{1, "tcp.srcport", "45061", false, 0, nil, nil},
-			{12, "tcp.srcport", "45062", false, 0, nil, nil},
-			{1, "ip.proto", "6", false, 0, nil, nil},
-			// 全捕获恰两条客户端流（四元组隔离）：distinct 语义=恰好这些值，
-			// 服务端方向 srcport 445 排除。
-			{0, "tcp.srcport", "", false, 0, []string{"45061", "45062"}, []string{"445"}},
-		}, []sfr{
-			{4, 54, up(4)},   // 流 1 s1 init（krb+mskrb 双候选）
-			{5, 54, up(5)},   // 流 1 s1 resp（accept_completed 0 + supportedMech=krb）
-			{6, 54, up(6)},   // 流 1 s2 init（NTLM 单候选——候选列表不串用）
-			{7, 54, up(7)},   // 流 1 s2 resp（reject 2——异常终止分支）
-			{15, 54, up(15)}, // 流 2 s1 init（同字节、独立四元组）
-			{18, 54, up(18)}, // 流 2 s2 resp（reject——两流状态一致且各流独立）
-		}
+				{1, "tcp.dstport", "445", false, 0, nil, nil},
+				{1, "tcp.srcport", "45061", false, 0, nil, nil},
+				{12, "tcp.srcport", "45062", false, 0, nil, nil},
+				{1, "ip.proto", "6", false, 0, nil, nil},
+				// 全捕获恰两条客户端流（四元组隔离）：distinct 语义=恰好这些值，
+				// 服务端方向 srcport 445 排除。
+				{0, "tcp.srcport", "", false, 0, []string{"45061", "45062"}, []string{"445"}},
+			}, []sfr{
+				{4, 54, up(4)},   // 流 1 s1 init（krb+mskrb 双候选）
+				{5, 54, up(5)},   // 流 1 s1 resp（accept_completed 0 + supportedMech=krb）
+				{6, 54, up(6)},   // 流 1 s2 init（NTLM 单候选——候选列表不串用）
+				{7, 54, up(7)},   // 流 1 s2 resp（reject 2——异常终止分支）
+				{15, 54, up(15)}, // 流 2 s1 init（同字节、独立四元组）
+				{18, 54, up(18)}, // 流 2 s2 resp（reject——两流状态一致且各流独立）
+			}
 	case "spnego_pcap_nic_consistency":
 		return []sfld{
 			{1, "tcp.dstport", "80", false, 0, nil, nil},
@@ -590,7 +592,7 @@ func nailExpect(t *testing.T, i int, c *scase, pkts []core.PacketConfig) ([]sfld
 
 // sWirePin 取第 n 包（1-based）transport payload 的完整大写 hex（ntlm
 // nWirePin 同款——frames 断言走全帧 offset 处的前缀匹配，hex 内容权威=
-/// 全链回放的真实字节）。
+// / 全链回放的真实字节）。
 func sWirePin(pkts []core.PacketConfig, n int) string {
 	if n < 1 || n > len(pkts) || len(pkts[n-1].Payload) == 0 {
 		return ""
