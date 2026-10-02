@@ -947,7 +947,10 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 	}
 	completed, err := r.CompleteChain(chain)
 	if err != nil {
-		exempt := len(chain) == 1 && outerCategory(r, chain[0]) != CategoryTunnel
+		// 豁免谓词与 ValidateLayers 同款（独立传输流协议 protocol
+		// "tcp"/"udp" 的 [ip, tcp] 链末层即协议层本身，V4 例外）。
+		exempt := (len(chain) == 1 && outerCategory(r, chain[0]) != CategoryTunnel) ||
+			(chain[len(chain)-1].Name == effective && outerCategory(r, chain[len(chain)-1]) == CategoryTransport)
 		if !(exempt && isTerminalEndError(err)) {
 			return nil, err
 		}
@@ -1304,12 +1307,20 @@ func ValidateLayers(layersJSON json.RawMessage, protocol string) (string, error)
 	// 末层就是协议层本身，传输层当末层合法。隧道层（tls/gre）不豁免——
 	// 隧道必须包内层（V6）。豁免路径改用手动补全（depends_on 只向外插，
 	// 末层保持用户层），跳过 V4 继续走其余规则。
-	exempt := len(chain) == 1 && outerCategory(r, chain[0]) != CategoryTunnel
+	// 独立传输流协议（protocol "tcp"/"udp"，cases 迁移补）：用户链
+	// [ip, tcp] 末层即协议层本身，与单层 [tcp] 同语义，V4 同豁免
+	// （completeSynthesized 从 tcp 依 depends_on 向外补全，结果同为
+	// [ip, tcp]）。
+	exempt := (len(chain) == 1 && outerCategory(r, chain[0]) != CategoryTunnel) ||
+		(chain[len(chain)-1].Name == protocol && outerCategory(r, chain[len(chain)-1]) == CategoryTransport)
 	if err != nil {
 		if !(exempt && isTerminalEndError(err)) {
 			return "", err
 		}
-		completed = completeSynthesized(r, chain[0].Name)
+		// 从末层（协议层本身）向外补全：单层链 chain[0]==末层；独立传输流
+		// 链 [ip, tcp] 的 chain[0] 是 ip——从 ip 向外只会补出 [ip]，丢掉
+		// 协议层，V10 随即误报 "protocol tcp does not match outermost ip"。
+		completed = completeSynthesized(r, chain[len(chain)-1].Name)
 	}
 	if err := r.ValidateChain(completed); err != nil {
 		// 同上豁免：手动补全后的链末层仍是用户层（tcp），V4 仍会拒绝，
@@ -1366,6 +1377,14 @@ func ValidateLayers(layersJSON json.RawMessage, protocol string) (string, error)
 	outermost := outermostProtocol(completed)
 	if protocol != "" {
 		if outermost != protocol {
+			// 独立传输流豁免：protocol "tcp"/"udp" 的链 [..., tcp/udp] 末层
+			// 就是协议层本身（V4 豁免同语义），而 outermostProtocol 把传输
+			// 层当脚手架跳过，恒不匹配。仅当末层确为该传输层时放行。
+			if last := completed[len(completed)-1]; last.Name == protocol {
+				if schema, ok := r.Get(protocol); ok && schema.Category == CategoryTransport {
+					return protocol, nil
+				}
+			}
 			// 隧道层特例：protocol 显式指定为隧道层（如 "tls"）时，最外层是
 			// 内层协议（如 "http"），因为隧道层在 outermostProtocol 中被跳过
 			// （tls 承载骨架、非用户协议意图）。仅当 protocol 是隧道层且确实

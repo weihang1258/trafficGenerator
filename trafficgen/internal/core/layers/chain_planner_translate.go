@@ -2790,6 +2790,117 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if err := json.Unmarshal(raw, &sc); err == nil {
 			spec.SMTP = &sc
 		}
+	case "stun":
+		if spec.STUN != nil || len(term.Config) == 0 {
+			return
+		}
+		// STUN 层 config 严格往返解码进 spec.STUN（snmp 同款）。空层 {} 保持
+		// spec.STUN=nil：生成器对 nil 走 P0b-2 默认流（BindingRequest c2s）。
+		cfgSTUN := completedConfig(s, term.Config)
+		rawSTUN, err := json.Marshal(cfgSTUN)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("stun layer config encode: %v", err))
+			return
+		}
+		var tcfg core.STUNConfig
+		decSTUN := json.NewDecoder(bytes.NewReader(rawSTUN))
+		decSTUN.DisallowUnknownFields()
+		if err := decSTUN.Decode(&tcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("stun layer config decode: %v", err))
+			return
+		}
+		spec.STUN = &tcfg
+	case "swarm":
+		if spec.Swarm != nil || len(term.Config) == 0 {
+			return
+		}
+		// Swarm 层 config 严格往返解码进 spec.Swarm（snmp 同款）。空层 {}
+		// 保持 spec.Swarm=nil：生成器对 nil 走默认流（B5 收官面）。
+		cfgSWM := completedConfig(s, term.Config)
+		rawSWM, err := json.Marshal(cfgSWM)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("swarm layer config encode: %v", err))
+			return
+		}
+		var mcfg core.SwarmConfig
+		decSWM := json.NewDecoder(bytes.NewReader(rawSWM))
+		decSWM.DisallowUnknownFields()
+		if err := decSWM.Decode(&mcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("swarm layer config decode: %v", err))
+			return
+		}
+		spec.Swarm = &mcfg
+	case "someip":
+		if spec.SOMEIP != nil || len(term.Config) == 0 {
+			return
+		}
+		// SOME/IP 层 config 严格往返解码进 spec.SOMEIP（snmp 同款）。空层
+		// {} 保持 spec.SOMEIP=nil：生成器对 nil 走 P0b-2 默认流。
+		cfgSIP := completedConfig(s, term.Config)
+		rawSIP, err := json.Marshal(cfgSIP)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("someip layer config encode: %v", err))
+			return
+		}
+		var icfg core.SOMEIPConfig
+		decSIP := json.NewDecoder(bytes.NewReader(rawSIP))
+		decSIP.DisallowUnknownFields()
+		if err := decSIP.Decode(&icfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("someip layer config decode: %v", err))
+			return
+		}
+		spec.SOMEIP = &icfg
+	case "thrift":
+		if spec.Thrift != nil || len(term.Config) == 0 {
+			return
+		}
+		// Thrift 层 config 严格往返解码进 spec.Thrift（snmp 同款）。空层 {}
+		// 保持 spec.Thrift=nil：生成器对 nil 走零配置默认。
+		cfgTF := completedConfig(s, term.Config)
+		rawTF, err := json.Marshal(cfgTF)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("thrift layer config encode: %v", err))
+			return
+		}
+		var fcfg core.ThriftConfig
+		decTF := json.NewDecoder(bytes.NewReader(rawTF))
+		decTF.DisallowUnknownFields()
+		if err := decTF.Decode(&fcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("thrift layer config decode: %v", err))
+			return
+		}
+		spec.Thrift = &fcfg
+	case "vxlan":
+		if spec.VXLAN != nil {
+			return
+		}
+		// VXLAN 层 config 严格往返解码进 spec.VXLAN（snmp 同款）。空层 {}
+		// 也翻译出非 nil 零配置：VXLAN 无默认流语义（inner fixture 必填，
+		// validator 对零配置报 inner 缺失锚词——与 flat 空子映射同判）。
+		cfgVX := completedConfig(s, term.Config)
+		rawVX, err := json.Marshal(cfgVX)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("vxlan layer config encode: %v", err))
+			return
+		}
+		var xcfg core.VXLANConfig
+		decVX := json.NewDecoder(bytes.NewReader(rawVX))
+		decVX.DisallowUnknownFields()
+		if err := decVX.Decode(&xcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("vxlan layer config decode: %v", err))
+			return
+		}
+		spec.VXLAN = &xcfg
 	case "ssdp":
 		if spec.SSDP != nil || len(term.Config) == 0 {
 			return

@@ -1,857 +1,922 @@
 [
- {
-  "id": "thrift_call_reply",
-  "proto": "thrift",
-  "summary": "S1/T-THRIFT-S1-01：add CALL→REPLY，9 包，大端 i32 与 seqid=1",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
+  {
+    "id": "thrift_call_reply",
+    "proto": "thrift",
+    "summary": "S1/T-THRIFT-S1-01：add CALL→REPLY，9 包，大端 i32 与 seqid=1",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 9090
+          }
+        },
+        {
+          "thrift": {
+            "messages": [
+              {
+                "type": "CALL",
+                "method": "add",
+                "seqid": 1,
+                "args": [
+                  {
+                    "id": 1,
+                    "type": "I32",
+                    "value": 1
+                  },
+                  {
+                    "id": 2,
+                    "type": "I32",
+                    "value": 2
+                  }
+                ]
+              },
+              {
+                "type": "REPLY",
+                "method": "add",
+                "seqid": 1,
+                "result": [
+                  {
+                    "id": 0,
+                    "type": "I32",
+                    "value": 3
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
     },
-    {
-     "thrift": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 9090,
-   "count": 1,
-   "thrift": {
-    "messages": [
-     {
-      "type": "CALL",
-      "method": "add",
-      "seqid": 1,
-      "args": [
-       {
-        "id": 1,
-        "type": "I32",
-        "value": 1
-       },
-       {
-        "id": 2,
-        "type": "I32",
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "9090"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.len",
+          "value": "30"
+        },
+        {
+          "packet": 5,
+          "field": "tcp.len",
+          "value": "23"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "80 01 00 01 00 00 00 03 61 64 64 00 00 00 01 08 00 01 00 00 00 01 08 00 02 00 00 00 02 00"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "80 01 00 02 00 00 00 03 61 64 64 00 00 00 01 08 00 00 00 00 00 03 00"
+        }
+      ]
+    },
+    "notes": [
+      "3 握手 + request + response + 4 挥手；偏移=14+20+20。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 thrift 子映射迁入 layers[].thrift"
+    ]
+  },
+  {
+    "id": "thrift_exception_reply",
+    "proto": "thrift",
+    "summary": "S2/T-THRIFT-S2-01：divide CALL→EXCEPTION，9 包",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 9090
+          }
+        },
+        {
+          "thrift": {
+            "messages": [
+              {
+                "type": "CALL",
+                "method": "divide",
+                "seqid": 7,
+                "args": [
+                  {
+                    "id": 1,
+                    "type": "I32",
+                    "value": 1
+                  },
+                  {
+                    "id": 2,
+                    "type": "I32",
+                    "value": 0
+                  }
+                ]
+              },
+              {
+                "type": "EXCEPTION",
+                "method": "divide",
+                "seqid": 7,
+                "exception": {
+                  "message": "division by zero",
+                  "type": 6
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "9090"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.len",
+          "value": "33"
+        },
+        {
+          "packet": 5,
+          "field": "tcp.len",
+          "value": "49"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "80 01 00 01 00 00 00 06 64 69 76 69 64 65 00 00 00 07"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "80 01 00 03 00 00 00 06 64 69 76 69 64 65 00 00 00 07 0b 00 01 00 00 00 10"
+        }
+      ]
+    },
+    "notes": [
+      "EXCEPTION type=3；异常 struct 字段 id=1 STRING、id=2 I32。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 thrift 子映射迁入 layers[].thrift"
+    ]
+  },
+  {
+    "id": "thrift_oneway_call",
+    "proto": "thrift",
+    "summary": "S3/T-THRIFT-S3-01：ONEWAY notify 单向调用，无响应，8 包",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 9090
+          }
+        },
+        {
+          "thrift": {
+            "messages": [
+              {
+                "type": "ONEWAY",
+                "method": "notify",
+                "seqid": 4,
+                "args": [
+                  {
+                    "id": 1,
+                    "type": "STRING",
+                    "value": "x"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "9090"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.len",
+          "value": "27"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "80 01 00 04 00 00 00 06 6e 6f 74 69 66 79 00 00 00 04 0b 00 01 00 00 00 01 78 00"
+        }
+      ]
+    },
+    "notes": [
+      "ONEWAY type=4；只有 request 数据帧，不生成 reply。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 thrift 子映射迁入 layers[].thrift"
+    ]
+  },
+  {
+    "id": "thrift_containers",
+    "proto": "thrift",
+    "summary": "S4/T-THRIFT-S4-01：LIST/SET/MAP 容器，9 包",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 9090
+          }
+        },
+        {
+          "thrift": {
+            "messages": [
+              {
+                "type": "CALL",
+                "method": "describe",
+                "seqid": 1,
+                "args": [
+                  {
+                    "id": 1,
+                    "type": "LIST",
+                    "elem_type": "I16",
+                    "values": [
+                      1,
+                      -2
+                    ]
+                  },
+                  {
+                    "id": 2,
+                    "type": "MAP",
+                    "key_type": "STRING",
+                    "value_type": "I32",
+                    "entries": [
+                      {
+                        "key": "a",
+                        "value": 7
+                      }
+                    ]
+                  },
+                  {
+                    "id": 3,
+                    "type": "SET",
+                    "elem_type": "STRING",
+                    "values": [
+                      "x",
+                      "y"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "9090"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.len",
+          "value": "69"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "80 01 00 01 00 00 00 08 64 65 73 63 72 69 62 65 00 00 00 01 0f 00 01 06 00 00 00 02 00 01 ff fe 0d 00 02 0b 08 00 00 00 01 00 00 00 01 61 00 00 00 07 0e 00 03 0b 00 00 00 02 00 00 00 01 78 00 00 00 01 79 00"
+        }
+      ]
+    },
+    "notes": [
+      "LIST elem type+i32 count；MAP key/value type+i32 count；SET elem type+i32 count；count 为有符号大端 i32。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 thrift 子映射迁入 layers[].thrift"
+    ]
+  },
+  {
+    "id": "thrift_scalar_types",
+    "proto": "thrift",
+    "summary": "S5/T-THRIFT-S5-01：BOOL/BYTE/DOUBLE/I16/I32/I64/STRING/BINARY 全字段，9 包",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 9090
+          }
+        },
+        {
+          "thrift": {
+            "messages": [
+              {
+                "type": "CALL",
+                "method": "scalars",
+                "seqid": 1,
+                "args": [
+                  {
+                    "id": 1,
+                    "type": "BOOL",
+                    "value": true
+                  },
+                  {
+                    "id": 2,
+                    "type": "BYTE",
+                    "value": -1
+                  },
+                  {
+                    "id": 3,
+                    "type": "DOUBLE",
+                    "value": 3.5
+                  },
+                  {
+                    "id": 4,
+                    "type": "I16",
+                    "value": -2
+                  },
+                  {
+                    "id": 5,
+                    "type": "I32",
+                    "value": -3
+                  },
+                  {
+                    "id": 6,
+                    "type": "I64",
+                    "value": -4
+                  },
+                  {
+                    "id": 7,
+                    "type": "STRING",
+                    "value": "x"
+                  },
+                  {
+                    "id": 8,
+                    "type": "BINARY",
+                    "value_b64": "AP8="
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "9090"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.len",
+          "value": "79"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "80 01 00 01 00 00 00 07 73 63 61 6c 61 72 73 00 00 00 01 02 00 01 01 03 00 02 ff 04 00 03 40 0c 00 00 00 00 00 00 06 00 04 ff fe 08 00 05 ff ff ff fd 0a 00 06 ff ff ff ff ff ff ff fc 0b 00 07 00 00 00 01 78 0b 00 08 00 00 00 02 00 ff 00"
+        }
+      ]
+    },
+    "notes": [
+      "STRING/BINARY 为 i32 长度+原始字节；DOUBLE 为 IEEE-754 binary64 大端。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 thrift 子映射迁入 layers[].thrift"
+    ]
+  },
+  {
+    "id": "thrift_ipv6_echo",
+    "proto": "thrift",
+    "summary": "S6/T-THRIFT-S6-01：IPv6 TCP 9090 echo CALL→REPLY，偏移74，9包",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 9090
+          }
+        },
+        {
+          "thrift": {
+            "messages": [
+              {
+                "type": "CALL",
+                "method": "echo",
+                "seqid": 9,
+                "args": [
+                  {
+                    "id": 1,
+                    "type": "STRING",
+                    "value": "hello"
+                  }
+                ]
+              },
+              {
+                "type": "REPLY",
+                "method": "echo",
+                "seqid": 9,
+                "result": [
+                  {
+                    "id": 0,
+                    "type": "STRING",
+                    "value": "hello"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "ipv6.src",
+          "value": "2001:db8::1"
+        },
+        {
+          "packet": 4,
+          "field": "ipv6.dst",
+          "value": "2001:db8::2"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "9090"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 74,
+          "hex": "80 01 00 01 00 00 00 04 65 63 68 6f 00 00 00 09 0b 00 01 00 00 00 05 68 65 6c 6c 6f 00"
+        }
+      ]
+    },
+    "notes": [
+      "IPv6 头40B，数据起点=14+40+20=74。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 thrift 子映射迁入 layers[].thrift"
+    ]
+  },
+  {
+    "id": "thrift_multi_sessions",
+    "proto": "thrift",
+    "summary": "S7/T-THRIFT-S7-01：策略级两条独立 TCP 会话，各9包，seqid各自从1",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 9090,
+            "src_port": {
+              "strategy": "inc",
+              "range": [
+                12345,
+                12346
+              ],
+              "step": 1
+            }
+          }
+        },
+        {
+          "thrift": {
+            "messages": [
+              {
+                "type": "CALL",
+                "method": "ping",
+                "seqid": 1,
+                "args": []
+              },
+              {
+                "type": "REPLY",
+                "method": "ping",
+                "seqid": 1,
+                "result": []
+              }
+            ]
+          }
+        }
+      ],
+      "strategy_fc": {
+        "type": "flows",
         "value": 2
-       }
-      ]
-     },
-     {
-      "type": "REPLY",
-      "method": "add",
-      "seqid": 1,
-      "result": [
-       {
-        "id": 0,
-        "type": "I32",
-        "value": 3
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 9,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "9090"
-    },
-    {
-     "packet": 4,
-     "field": "tcp.len",
-     "value": "30"
-    },
-    {
-     "packet": 5,
-     "field": "tcp.len",
-     "value": "23"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "80 01 00 01 00 00 00 03 61 64 64 00 00 00 01 08 00 01 00 00 00 01 08 00 02 00 00 00 02 00"
-    },
-    {
-     "packet": 5,
-     "offset": 54,
-     "hex": "80 01 00 02 00 00 00 03 61 64 64 00 00 00 01 08 00 00 00 00 00 03 00"
-    }
-   ]
-  },
-  "notes": [
-   "3 握手 + request + response + 4 挥手；偏移=14+20+20。"
-  ]
- },
- {
-  "id": "thrift_exception_reply",
-  "proto": "thrift",
-  "summary": "S2/T-THRIFT-S2-01：divide CALL→EXCEPTION，9 包",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "thrift": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 9090,
-   "count": 1,
-   "thrift": {
-    "messages": [
-     {
-      "type": "CALL",
-      "method": "divide",
-      "seqid": 7,
-      "args": [
-       {
-        "id": 1,
-        "type": "I32",
-        "value": 1
-       },
-       {
-        "id": 2,
-        "type": "I32",
-        "value": 0
-       }
-      ]
-     },
-     {
-      "type": "EXCEPTION",
-      "method": "divide",
-      "seqid": 7,
-      "exception": {
-       "message": "division by zero",
-       "type": 6
       }
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 9,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "9090"
     },
-    {
-     "packet": 4,
-     "field": "tcp.len",
-     "value": "33"
-    },
-    {
-     "packet": 5,
-     "field": "tcp.len",
-     "value": "49"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "80 01 00 01 00 00 00 06 64 69 76 69 64 65 00 00 00 07"
-    },
-    {
-     "packet": 5,
-     "offset": 54,
-     "hex": "80 01 00 03 00 00 00 06 64 69 76 69 64 65 00 00 00 07 0b 00 01 00 00 00 10"
-    }
-   ]
-  },
-  "notes": [
-   "EXCEPTION type=3；异常 struct 字段 id=1 STRING、id=2 I32。"
-  ]
- },
- {
-  "id": "thrift_oneway_call",
-  "proto": "thrift",
-  "summary": "S3/T-THRIFT-S3-01：ONEWAY notify 单向调用，无响应，8 包",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "thrift": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 9090,
-   "count": 1,
-   "thrift": {
-    "messages": [
-     {
-      "type": "ONEWAY",
-      "method": "notify",
-      "seqid": 4,
-      "args": [
-       {
-        "id": 1,
-        "type": "STRING",
-        "value": "x"
-       }
+    "expect": {
+      "packet_count": 18,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "12345",
+            "12346"
+          ],
+          "distinct_exclude": [
+            "9090"
+          ]
+        },
+        {
+          "field": "tcp.dstport",
+          "distinct_values": [
+            "9090"
+          ],
+          "distinct_exclude": [
+            "12345",
+            "12346"
+          ]
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "80 01 00 01 00 00 00 04 70 69 6e 67 00 00 00 01 00"
+        }
       ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 8,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "9090"
     },
-    {
-     "packet": 4,
-     "field": "tcp.len",
-     "value": "27"
+    "notes": [
+      "strategy_fc flows=2；每会话 seqid/状态隔离。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 thrift 子映射迁入 layers[].thrift",
+      "先跑后钉（§12.9）：两条独立会话语义 = flows=2 + 逐流动态 src_port（worker 12345/12346 递增与 expect distinct 一致）；原 count:1 与 18 包/distinct 断言矛盾，以断言为准"
+    ],
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
     }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "80 01 00 04 00 00 00 06 6e 6f 74 69 66 79 00 00 00 04 0b 00 01 00 00 00 01 78 00"
-    }
-   ]
   },
-  "notes": [
-   "ONEWAY type=4；只有 request 数据帧，不生成 reply。"
-  ]
- },
- {
-  "id": "thrift_containers",
-  "proto": "thrift",
-  "summary": "S4/T-THRIFT-S4-01：LIST/SET/MAP 容器，9 包",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "thrift": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 9090,
-   "count": 1,
-   "thrift": {
-    "messages": [
-     {
-      "type": "CALL",
-      "method": "describe",
-      "seqid": 1,
-      "args": [
-       {
-        "id": 1,
-        "type": "LIST",
-        "elem_type": "I16",
-        "values": [
-         1,
-         -2
-        ]
-       },
-       {
-        "id": 2,
-        "type": "MAP",
-        "key_type": "STRING",
-        "value_type": "I32",
-        "entries": [
-         {
-          "key": "a",
-          "value": 7
-         }
-        ]
-       },
-       {
-        "id": 3,
-        "type": "SET",
-        "elem_type": "STRING",
-        "values": [
-         "x",
-         "y"
-        ]
-       }
+  {
+    "id": "thrift_neg_truncated",
+    "proto": "thrift",
+    "summary": "N1/T-THRIFT-N1：截断 payload 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 9090
+          }
+        },
+        {
+          "thrift": {
+            "messages": [
+              {
+                "type": "CALL",
+                "method": "echo",
+                "seqid": 1,
+                "args": [
+                  {
+                    "id": 1,
+                    "type": "STRING",
+                    "value": "x"
+                  }
+                ]
+              }
+            ],
+            "wire_fault": {
+              "kind": "truncate",
+              "at": "string_bytes"
+            }
+          }
+        }
       ]
-     }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "truncated"
+    },
+    "notes": [
+      "长度声明后截断不能静默生成不完整帧。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 thrift 子映射迁入 layers[].thrift"
     ]
-   }
   },
-  "expect": {
-   "packet_count": 9,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "9090"
-    },
-    {
-     "packet": 4,
-     "field": "tcp.len",
-     "value": "69"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "80 01 00 01 00 00 00 08 64 65 73 63 72 69 62 65 00 00 00 01 0f 00 01 06 00 00 00 02 00 01 ff fe 0d 00 02 0b 08 00 00 00 01 00 00 00 01 61 00 00 00 07 0e 00 03 0b 00 00 00 02 00 00 00 01 78 00 00 00 01 79 00"
-    }
-   ]
-  },
-  "notes": [
-   "LIST elem type+i32 count；MAP key/value type+i32 count；SET elem type+i32 count；count 为有符号大端 i32。"
-  ]
- },
- {
-  "id": "thrift_scalar_types",
-  "proto": "thrift",
-  "summary": "S5/T-THRIFT-S5-01：BOOL/BYTE/DOUBLE/I16/I32/I64/STRING/BINARY 全字段，9 包",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "thrift": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 9090,
-   "count": 1,
-   "thrift": {
-    "messages": [
-     {
-      "type": "CALL",
-      "method": "scalars",
-      "seqid": 1,
-      "args": [
-       {
-        "id": 1,
-        "type": "BOOL",
-        "value": true
-       },
-       {
-        "id": 2,
-        "type": "BYTE",
-        "value": -1
-       },
-       {
-        "id": 3,
-        "type": "DOUBLE",
-        "value": 3.5
-       },
-       {
-        "id": 4,
-        "type": "I16",
-        "value": -2
-       },
-       {
-        "id": 5,
-        "type": "I32",
-        "value": -3
-       },
-       {
-        "id": 6,
-        "type": "I64",
-        "value": -4
-       },
-       {
-        "id": 7,
-        "type": "STRING",
-        "value": "x"
-       },
-       {
-        "id": 8,
-        "type": "BINARY",
-        "value_b64": "AP8="
-       }
+  {
+    "id": "thrift_neg_unknown_type",
+    "proto": "thrift",
+    "summary": "N2/T-THRIFT-N2：非法 field type=99 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 9090
+          }
+        },
+        {
+          "thrift": {
+            "messages": [
+              {
+                "type": "CALL",
+                "method": "bad",
+                "seqid": 1,
+                "args": [
+                  {
+                    "id": 1,
+                    "type_code": 99,
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          }
+        }
       ]
-     }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown field type"
+    },
+    "notes": [
+      "type byte 不在 TType 表。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 thrift 子映射迁入 layers[].thrift"
     ]
-   }
   },
-  "expect": {
-   "packet_count": 9,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "9090"
-    },
-    {
-     "packet": 4,
-     "field": "tcp.len",
-     "value": "79"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "80 01 00 01 00 00 00 07 73 63 61 6c 61 72 73 00 00 00 01 02 00 01 01 03 00 02 ff 04 00 03 40 0c 00 00 00 00 00 00 06 00 04 ff fe 08 00 05 ff ff ff fd 0a 00 06 ff ff ff ff ff ff ff fc 0b 00 07 00 00 00 01 78 0b 00 08 00 00 00 02 00 ff 00"
-    }
-   ]
-  },
-  "notes": [
-   "STRING/BINARY 为 i32 长度+原始字节；DOUBLE 为 IEEE-754 binary64 大端。"
-  ]
- },
- {
-  "id": "thrift_ipv6_echo",
-  "proto": "thrift",
-  "summary": "S6/T-THRIFT-S6-01：IPv6 TCP 9090 echo CALL→REPLY，偏移74，9包",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "thrift": {}
-    }
-   ],
-   "src_ip": "2001:db8::1",
-   "dst_ip": "2001:db8::2",
-   "src_port": 12345,
-   "dst_port": 9090,
-   "count": 1,
-   "thrift": {
-    "messages": [
-     {
-      "type": "CALL",
-      "method": "echo",
-      "seqid": 9,
-      "args": [
-       {
-        "id": 1,
-        "type": "STRING",
-        "value": "hello"
-       }
+  {
+    "id": "thrift_neg_negative_length",
+    "proto": "thrift",
+    "summary": "N3/T-THRIFT-N3：STRING 负长度拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 9090
+          }
+        },
+        {
+          "thrift": {
+            "messages": [
+              {
+                "type": "CALL",
+                "method": "bad",
+                "seqid": 1,
+                "args": [
+                  {
+                    "id": 1,
+                    "type": "STRING",
+                    "value": "x"
+                  }
+                ]
+              }
+            ],
+            "wire_fault": {
+              "kind": "negative_length",
+              "field_id": 1
+            }
+          }
+        }
       ]
-     },
-     {
-      "type": "REPLY",
-      "method": "echo",
-      "seqid": 9,
-      "result": [
-       {
-        "id": 0,
-        "type": "STRING",
-        "value": "hello"
-       }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "negative length"
+    },
+    "notes": [
+      "STRING/BINARY 负长度是非法输入。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 thrift 子映射迁入 layers[].thrift"
+    ]
+  },
+  {
+    "id": "thrift_neg_negative_container_count",
+    "proto": "thrift",
+    "summary": "N4/T-THRIFT-N4：LIST 负 count 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 9090
+          }
+        },
+        {
+          "thrift": {
+            "messages": [
+              {
+                "type": "CALL",
+                "method": "bad",
+                "seqid": 1,
+                "args": [
+                  {
+                    "id": 1,
+                    "type": "LIST",
+                    "elem_type": "I32",
+                    "values": []
+                  }
+                ]
+              }
+            ],
+            "wire_fault": {
+              "kind": "negative_container_count",
+              "field_id": 1
+            }
+          }
+        }
       ]
-     }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "negative container count"
+    },
+    "notes": [
+      "LIST/SET/MAP 负 count 不得分配或遍历。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 thrift 子映射迁入 layers[].thrift"
     ]
-   }
   },
-  "expect": {
-   "packet_count": 9,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "ipv6.src",
-     "value": "2001:db8::1"
+  {
+    "id": "thrift_neg_bad_message_type",
+    "proto": "thrift",
+    "summary": "N5/T-THRIFT-N5：message type=9 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 9090
+          }
+        },
+        {
+          "thrift": {
+            "messages": [
+              {
+                "type_code": 9,
+                "method": "bad",
+                "seqid": 1,
+                "args": []
+              }
+            ]
+          }
+        }
+      ]
     },
-    {
-     "packet": 4,
-     "field": "ipv6.dst",
-     "value": "2001:db8::2"
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid message type"
     },
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "9090"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 74,
-     "hex": "80 01 00 01 00 00 00 04 65 63 68 6f 00 00 00 09 0b 00 01 00 00 00 05 68 65 6c 6c 6f 00"
-    }
-   ]
-  },
-  "notes": [
-   "IPv6 头40B，数据起点=14+40+20=74。"
-  ]
- },
- {
-  "id": "thrift_multi_sessions",
-  "proto": "thrift",
-  "summary": "S7/T-THRIFT-S7-01：策略级两条独立 TCP 会话，各9包，seqid各自从1",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "thrift": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "dst_port": 9090,
-   "count": 1,
-   "thrift": {
-    "messages": [
-     {
-      "type": "CALL",
-      "method": "ping",
-      "seqid": 1,
-      "args": []
-     },
-     {
-      "type": "REPLY",
-      "method": "ping",
-      "seqid": 1,
-      "result": []
-     }
+    "notes": [
+      "Message Type 仅 CALL=1、REPLY=2、EXCEPTION=3、ONEWAY=4。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 thrift 子映射迁入 layers[].thrift"
     ]
-   }
   },
-  "expect": {
-   "packet_count": 18,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "field": "tcp.srcport",
-     "distinct_values": [
-      "12345",
-      "12346"
-     ],
-     "distinct_exclude": [
-      "9090"
-     ]
+  {
+    "id": "thrift_neg_bad_port",
+    "proto": "thrift",
+    "summary": "N6/T-THRIFT-N6：TCP 目标端口越界拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 70000
+          }
+        },
+        {
+          "thrift": {
+            "messages": [
+              {
+                "type": "CALL",
+                "method": "ping",
+                "seqid": 1,
+                "args": []
+              }
+            ]
+          }
+        }
+      ]
     },
-    {
-     "field": "tcp.dstport",
-     "distinct_values": [
-      "9090"
-     ],
-     "distinct_exclude": [
-      "12345",
-      "12346"
-     ]
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "80 01 00 01 00 00 00 04 70 69 6e 67 00 00 00 01 00"
-    }
-   ]
-  },
-  "notes": [
-   "strategy_fc flows=2；每会话 seqid/状态隔离。"
-  ],
-  "strategy_fc": {
-   "type": "flows",
-   "value": 2
+    "expect": {
+      "expect_error": true,
+      "error_contains": "port"
+    },
+    "notes": [
+      "TCP 端口必须为1..65535。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 thrift 子映射迁入 layers[].thrift"
+    ]
   }
- },
- {
-  "id": "thrift_neg_truncated",
-  "proto": "thrift",
-  "summary": "N1/T-THRIFT-N1：截断 payload 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "thrift": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 9090,
-   "count": 1,
-   "thrift": {
-    "messages": [
-     {
-      "type": "CALL",
-      "method": "echo",
-      "seqid": 1,
-      "args": [
-       {
-        "id": 1,
-        "type": "STRING",
-        "value": "x"
-       }
-      ]
-     }
-    ],
-    "wire_fault": {
-     "kind": "truncate",
-     "at": "string_bytes"
-    }
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "truncated"
-  },
-  "notes": [
-   "长度声明后截断不能静默生成不完整帧。"
-  ]
- },
- {
-  "id": "thrift_neg_unknown_type",
-  "proto": "thrift",
-  "summary": "N2/T-THRIFT-N2：非法 field type=99 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "thrift": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 9090,
-   "count": 1,
-   "thrift": {
-    "messages": [
-     {
-      "type": "CALL",
-      "method": "bad",
-      "seqid": 1,
-      "args": [
-       {
-        "id": 1,
-        "type_code": 99,
-        "value": 0
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "unknown field type"
-  },
-  "notes": [
-   "type byte 不在 TType 表。"
-  ]
- },
- {
-  "id": "thrift_neg_negative_length",
-  "proto": "thrift",
-  "summary": "N3/T-THRIFT-N3：STRING 负长度拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "thrift": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 9090,
-   "count": 1,
-   "thrift": {
-    "messages": [
-     {
-      "type": "CALL",
-      "method": "bad",
-      "seqid": 1,
-      "args": [
-       {
-        "id": 1,
-        "type": "STRING",
-        "value": "x"
-       }
-      ]
-     }
-    ],
-    "wire_fault": {
-     "kind": "negative_length",
-     "field_id": 1
-    }
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "negative length"
-  },
-  "notes": [
-   "STRING/BINARY 负长度是非法输入。"
-  ]
- },
- {
-  "id": "thrift_neg_negative_container_count",
-  "proto": "thrift",
-  "summary": "N4/T-THRIFT-N4：LIST 负 count 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "thrift": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 9090,
-   "count": 1,
-   "thrift": {
-    "messages": [
-     {
-      "type": "CALL",
-      "method": "bad",
-      "seqid": 1,
-      "args": [
-       {
-        "id": 1,
-        "type": "LIST",
-        "elem_type": "I32",
-        "values": []
-       }
-      ]
-     }
-    ],
-    "wire_fault": {
-     "kind": "negative_container_count",
-     "field_id": 1
-    }
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "negative container count"
-  },
-  "notes": [
-   "LIST/SET/MAP 负 count 不得分配或遍历。"
-  ]
- },
- {
-  "id": "thrift_neg_bad_message_type",
-  "proto": "thrift",
-  "summary": "N5/T-THRIFT-N5：message type=9 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "thrift": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 9090,
-   "count": 1,
-   "thrift": {
-    "messages": [
-     {
-      "type_code": 9,
-      "method": "bad",
-      "seqid": 1,
-      "args": []
-     }
-    ]
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "invalid message type"
-  },
-  "notes": [
-   "Message Type 仅 CALL=1、REPLY=2、EXCEPTION=3、ONEWAY=4。"
-  ]
- },
- {
-  "id": "thrift_neg_bad_port",
-  "proto": "thrift",
-  "summary": "N6/T-THRIFT-N6：TCP 目标端口越界拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "thrift": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 70000,
-   "count": 1,
-   "thrift": {
-    "messages": [
-     {
-      "type": "CALL",
-      "method": "ping",
-      "seqid": 1,
-      "args": []
-     }
-    ]
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "port"
-  },
-  "notes": [
-   "TCP 端口必须为1..65535。"
-  ]
- }
 ]

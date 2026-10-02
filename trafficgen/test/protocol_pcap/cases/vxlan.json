@@ -6,31 +6,32 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.10"
+          }
         },
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40010,
+            "dst_port": 4789
+          }
         },
         {
-          "vxlan": {}
+          "vxlan": {
+            "vni": 5000,
+            "i_flag": true,
+            "inner": {
+              "src_mac": "02:00:00:00:11:01",
+              "dst_mac": "02:00:00:00:11:02",
+              "ether_type": "ipv4",
+              "src_ip": "10.10.0.1",
+              "dst_ip": "10.10.0.2",
+              "payload_b64": "dnhsYW4taW5uZXItMDE="
+            }
+          }
         }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.10",
-      "src_port": 40010,
-      "dst_port": 4789,
-      "vxlan": {
-        "vni": 5000,
-        "i_flag": true,
-        "inner": {
-          "src_mac": "02:00:00:00:11:01",
-          "dst_mac": "02:00:00:00:11:02",
-          "ether_type": "ipv4",
-          "src_ip": "10.10.0.1",
-          "dst_ip": "10.10.0.2",
-          "payload_b64": "dnhsYW4taW5uZXItMDE="
-        }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -84,7 +85,10 @@
         "inner Ethernet 起点 50：dst MAC 50、src MAC 56、EtherType 62",
         "外层 MAC 02:00:00:00:00:01/02 由链层 l2For 默认"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_ipv4_outer_ipv6_inner",
@@ -93,30 +97,31 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "src": "192.0.2.20",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40020,
+            "dst_port": 4789
+          }
         },
         {
-          "vxlan": {}
+          "vxlan": {
+            "vni": 5001,
+            "inner": {
+              "src_mac": "02:00:00:00:12:01",
+              "dst_mac": "02:00:00:00:12:02",
+              "ether_type": "ipv6",
+              "src_ip": "fd00:10::1",
+              "dst_ip": "fd00:10::2",
+              "payload_b64": "dng2"
+            }
+          }
         }
-      ],
-      "src_ip": "192.0.2.20",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40020,
-      "dst_port": 4789,
-      "vxlan": {
-        "vni": 5001,
-        "inner": {
-          "src_mac": "02:00:00:00:12:01",
-          "dst_mac": "02:00:00:00:12:02",
-          "ether_type": "ipv6",
-          "src_ip": "fd00:10::1",
-          "dst_ip": "fd00:10::2",
-          "payload_b64": "dng2"
-        }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -159,7 +164,10 @@
         "outer IPv4 不改写 inner IPv6 fixture：inner EtherType 0x86dd 在 62",
         "内层 IPv6 Next Header 59（No Next Header），tshark 不再深解析"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_ipv6_outer_ipv4_inner",
@@ -168,30 +176,31 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "src": "2001:db8::10",
+            "dst": "2001:db8::20"
+          }
         },
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40030,
+            "dst_port": 4789
+          }
         },
         {
-          "vxlan": {}
+          "vxlan": {
+            "vni": 5002,
+            "inner": {
+              "src_mac": "02:00:00:00:13:01",
+              "dst_mac": "02:00:00:00:13:02",
+              "ether_type": "ipv4",
+              "src_ip": "10.30.0.1",
+              "dst_ip": "10.30.0.2",
+              "payload_b64": "dnhsYW4tdjYtMDM="
+            }
+          }
         }
-      ],
-      "src_ip": "2001:db8::10",
-      "dst_ip": "2001:db8::20",
-      "src_port": 40030,
-      "dst_port": 4789,
-      "vxlan": {
-        "vni": 5002,
-        "inner": {
-          "src_mac": "02:00:00:00:13:01",
-          "dst_mac": "02:00:00:00:13:02",
-          "ether_type": "ipv4",
-          "src_ip": "10.30.0.1",
-          "dst_ip": "10.30.0.2",
-          "payload_b64": "dnhsYW4tdjYtMDM="
-        }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -234,7 +243,10 @@
         "IPv6 外层（Eth14+IPv6 40+UDP 8）：VXLAN 头在 62、inner Ethernet 在 70",
         "IPv6 UDP checksum 必须非零且正确（RFC 768/8200）"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_ipv6_outer_ipv6_inner",
@@ -243,30 +255,31 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "src": "2001:db8::30",
+            "dst": "2001:db8::40"
+          }
         },
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40040,
+            "dst_port": 4789
+          }
         },
         {
-          "vxlan": {}
+          "vxlan": {
+            "vni": 5003,
+            "inner": {
+              "src_mac": "02:00:00:00:14:01",
+              "dst_mac": "02:00:00:00:14:02",
+              "ether_type": "ipv6",
+              "src_ip": "fd00:40::1",
+              "dst_ip": "fd00:40::2",
+              "payload_b64": "dng2LTA0"
+            }
+          }
         }
-      ],
-      "src_ip": "2001:db8::30",
-      "dst_ip": "2001:db8::40",
-      "src_port": 40040,
-      "dst_port": 4789,
-      "vxlan": {
-        "vni": 5003,
-        "inner": {
-          "src_mac": "02:00:00:00:14:01",
-          "dst_mac": "02:00:00:00:14:02",
-          "ether_type": "ipv6",
-          "src_ip": "fd00:40::1",
-          "dst_ip": "fd00:40::2",
-          "payload_b64": "dng2LTA0"
-        }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -303,7 +316,10 @@
       "notes": [
         "outer/inner 两层地址不混淆：外层 2001:db8::、内层 fd00:40::"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_vni_boundary",
@@ -312,45 +328,46 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
-        },
-        {
-          "udp": {}
-        },
-        {
-          "vxlan": {}
-        }
-      ],
-      "src_ip": "192.0.2.50",
-      "dst_ip": "198.51.100.50",
-      "src_port": 40050,
-      "dst_port": 4789,
-      "vxlan": {
-        "datagrams": [
-          {
-            "vni": 0,
-            "inner": {
-              "src_mac": "02:00:00:00:15:01",
-              "dst_mac": "02:00:00:00:15:02",
-              "ether_type": "ipv4",
-              "src_ip": "10.50.0.1",
-              "dst_ip": "10.50.0.2",
-              "payload_b64": "YQ=="
-            }
-          },
-          {
-            "vni": 16777215,
-            "inner": {
-              "src_mac": "02:00:00:00:15:03",
-              "dst_mac": "02:00:00:00:15:04",
-              "ether_type": "ipv4",
-              "src_ip": "10.50.0.3",
-              "dst_ip": "10.50.0.4",
-              "payload_b64": "Yg=="
-            }
+          "ip": {
+            "src": "192.0.2.50",
+            "dst": "198.51.100.50"
           }
-        ]
-      }
+        },
+        {
+          "udp": {
+            "src_port": 40050,
+            "dst_port": 4789
+          }
+        },
+        {
+          "vxlan": {
+            "datagrams": [
+              {
+                "vni": 0,
+                "inner": {
+                  "src_mac": "02:00:00:00:15:01",
+                  "dst_mac": "02:00:00:00:15:02",
+                  "ether_type": "ipv4",
+                  "src_ip": "10.50.0.1",
+                  "dst_ip": "10.50.0.2",
+                  "payload_b64": "YQ=="
+                }
+              },
+              {
+                "vni": 16777215,
+                "inner": {
+                  "src_mac": "02:00:00:00:15:03",
+                  "dst_mac": "02:00:00:00:15:04",
+                  "ether_type": "ipv4",
+                  "src_ip": "10.50.0.3",
+                  "dst_ip": "10.50.0.4",
+                  "payload_b64": "Yg=="
+                }
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 2,
@@ -379,7 +396,10 @@
         "VNI=0 与 VNI=0xffffff 均为合法 24-bit 边界值（RFC 7348 §4）",
         "包 1 为第一个 datagram（VNI=0 前缀 08 00 00 00 00 00 00 00）；包顺序按发射序"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_i_flag_reserved",
@@ -388,31 +408,32 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "src": "192.0.2.60",
+            "dst": "198.51.100.60"
+          }
         },
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40060,
+            "dst_port": 4789
+          }
         },
         {
-          "vxlan": {}
+          "vxlan": {
+            "vni": 1,
+            "i_flag": true,
+            "inner": {
+              "src_mac": "02:00:00:00:16:01",
+              "dst_mac": "02:00:00:00:16:02",
+              "ether_type": "ipv4",
+              "src_ip": "10.60.0.1",
+              "dst_ip": "10.60.0.2",
+              "payload_b64": "Yw=="
+            }
+          }
         }
-      ],
-      "src_ip": "192.0.2.60",
-      "dst_ip": "198.51.100.60",
-      "src_port": 40060,
-      "dst_port": 4789,
-      "vxlan": {
-        "vni": 1,
-        "i_flag": true,
-        "inner": {
-          "src_mac": "02:00:00:00:16:01",
-          "dst_mac": "02:00:00:00:16:02",
-          "ether_type": "ipv4",
-          "src_ip": "10.60.0.1",
-          "dst_ip": "10.60.0.2",
-          "payload_b64": "Yw=="
-        }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -444,7 +465,10 @@
         "flags 0x08（仅 I bit）、三个前置保留字节与尾部保留字节全零",
         "不得出现 0x80/0x01 等伪 I flag 位型"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_inner_vlan_ethernet",
@@ -453,32 +477,33 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
+          }
         },
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40070,
+            "dst_port": 4789
+          }
         },
         {
-          "vxlan": {}
+          "vxlan": {
+            "vni": 5004,
+            "inner": {
+              "src_mac": "02:00:00:00:17:01",
+              "dst_mac": "02:00:00:00:17:02",
+              "ether_type": "vlan_ipv4",
+              "vlan_id": 100,
+              "vlan_priority": 3,
+              "src_ip": "10.70.0.1",
+              "dst_ip": "10.70.0.2",
+              "payload_b64": "ZA=="
+            }
+          }
         }
-      ],
-      "src_ip": "192.0.2.70",
-      "dst_ip": "198.51.100.70",
-      "src_port": 40070,
-      "dst_port": 4789,
-      "vxlan": {
-        "vni": 5004,
-        "inner": {
-          "src_mac": "02:00:00:00:17:01",
-          "dst_mac": "02:00:00:00:17:02",
-          "ether_type": "vlan_ipv4",
-          "vlan_id": 100,
-          "vlan_priority": 3,
-          "src_ip": "10.70.0.1",
-          "dst_ip": "10.70.0.2",
-          "payload_b64": "ZA=="
-        }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -525,7 +550,10 @@
         "VLAN tag 属于 inner frame：TPID 0x8100 + TCI 0x6064（PCP3<<13|VID100）在 inner 起点 50+12=62",
         "VLAN 只增加 inner offset，不移动 VXLAN 头（42 起 8B 不变）"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_multi_vni",
@@ -534,31 +562,19 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "src": "192.0.2.80",
+            "dst": "198.51.100.80"
+          }
         },
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40080,
+            "dst_port": 4789
+          }
         },
         {
-          "vxlan": {}
-        }
-      ],
-      "src_ip": "192.0.2.80",
-      "dst_ip": "198.51.100.80",
-      "src_port": 40080,
-      "dst_port": 4789,
-      "vxlan": {
-        "inner": {
-          "src_mac": "02:00:00:00:18:01",
-          "dst_mac": "02:00:00:00:18:02",
-          "ether_type": "ipv4",
-          "src_ip": "10.80.0.1",
-          "dst_ip": "10.80.0.2",
-          "payload_b64": "bXVsdGktMDA="
-        },
-        "datagrams": [
-          {
-            "vni": 100,
+          "vxlan": {
             "inner": {
               "src_mac": "02:00:00:00:18:01",
               "dst_mac": "02:00:00:00:18:02",
@@ -566,43 +582,56 @@
               "src_ip": "10.80.0.1",
               "dst_ip": "10.80.0.2",
               "payload_b64": "bXVsdGktMDA="
-            }
-          },
-          {
-            "vni": 200,
-            "inner": {
-              "src_mac": "02:00:00:00:18:03",
-              "dst_mac": "02:00:00:00:18:04",
-              "ether_type": "ipv4",
-              "src_ip": "10.80.0.3",
-              "dst_ip": "10.80.0.4",
-              "payload_b64": "bXVsdGktMDE="
-            }
-          },
-          {
-            "vni": 300,
-            "inner": {
-              "src_mac": "02:00:00:00:18:05",
-              "dst_mac": "02:00:00:00:18:06",
-              "ether_type": "ipv4",
-              "src_ip": "10.80.0.5",
-              "dst_ip": "10.80.0.6",
-              "payload_b64": "bXVsdGktMDI="
-            }
-          },
-          {
-            "vni": 400,
-            "inner": {
-              "src_mac": "02:00:00:00:18:07",
-              "dst_mac": "02:00:00:00:18:08",
-              "ether_type": "ipv4",
-              "src_ip": "10.80.0.7",
-              "dst_ip": "10.80.0.8",
-              "payload_b64": "bXVsdGktMDM="
-            }
+            },
+            "datagrams": [
+              {
+                "vni": 100,
+                "inner": {
+                  "src_mac": "02:00:00:00:18:01",
+                  "dst_mac": "02:00:00:00:18:02",
+                  "ether_type": "ipv4",
+                  "src_ip": "10.80.0.1",
+                  "dst_ip": "10.80.0.2",
+                  "payload_b64": "bXVsdGktMDA="
+                }
+              },
+              {
+                "vni": 200,
+                "inner": {
+                  "src_mac": "02:00:00:00:18:03",
+                  "dst_mac": "02:00:00:00:18:04",
+                  "ether_type": "ipv4",
+                  "src_ip": "10.80.0.3",
+                  "dst_ip": "10.80.0.4",
+                  "payload_b64": "bXVsdGktMDE="
+                }
+              },
+              {
+                "vni": 300,
+                "inner": {
+                  "src_mac": "02:00:00:00:18:05",
+                  "dst_mac": "02:00:00:00:18:06",
+                  "ether_type": "ipv4",
+                  "src_ip": "10.80.0.5",
+                  "dst_ip": "10.80.0.6",
+                  "payload_b64": "bXVsdGktMDI="
+                }
+              },
+              {
+                "vni": 400,
+                "inner": {
+                  "src_mac": "02:00:00:00:18:07",
+                  "dst_mac": "02:00:00:00:18:08",
+                  "ether_type": "ipv4",
+                  "src_ip": "10.80.0.7",
+                  "dst_ip": "10.80.0.8",
+                  "payload_b64": "bXVsdGktMDM="
+                }
+              }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 4,
@@ -630,7 +659,10 @@
         "同一 outer 四元组承载 4 个 VNI；每个 VNI 与 inner MAC/IPv4 fixture 成对不串用",
         "多包顺序不做全局假设——用 distinct 聚合断言"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_multi_flow",
@@ -639,98 +671,99 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
-        },
-        {
-          "udp": {}
-        },
-        {
-          "vxlan": {}
-        }
-      ],
-      "src_ip": "192.0.2.90",
-      "dst_ip": "198.51.100.90",
-      "src_port": 40090,
-      "dst_port": 4789,
-      "vxlan": {
-        "datagrams": [
-          {
-            "vni": 100,
-            "src_port": 40001,
-            "inner": {
-              "src_mac": "02:00:00:00:19:01",
-              "dst_mac": "02:00:00:00:19:02",
-              "ether_type": "ipv4",
-              "src_ip": "10.90.0.1",
-              "dst_ip": "10.90.0.2",
-              "payload_b64": "Zmxvdy0xLXVw"
-            }
-          },
-          {
-            "vni": 100,
-            "src_port": 40001,
-            "up": false,
-            "inner": {
-              "src_mac": "02:00:00:00:19:01",
-              "dst_mac": "02:00:00:00:19:02",
-              "ether_type": "ipv4",
-              "src_ip": "10.90.0.1",
-              "dst_ip": "10.90.0.2",
-              "payload_b64": "Zmxvdy0xLWRu"
-            }
-          },
-          {
-            "vni": 200,
-            "src_port": 40002,
-            "inner": {
-              "src_mac": "02:00:00:00:19:03",
-              "dst_mac": "02:00:00:00:19:04",
-              "ether_type": "ipv4",
-              "src_ip": "10.90.0.3",
-              "dst_ip": "10.90.0.4",
-              "payload_b64": "Zmxvdy0yLXVw"
-            }
-          },
-          {
-            "vni": 200,
-            "src_port": 40002,
-            "up": false,
-            "inner": {
-              "src_mac": "02:00:00:00:19:03",
-              "dst_mac": "02:00:00:00:19:04",
-              "ether_type": "ipv4",
-              "src_ip": "10.90.0.3",
-              "dst_ip": "10.90.0.4",
-              "payload_b64": "Zmxvdy0yLWRu"
-            }
-          },
-          {
-            "vni": 300,
-            "src_port": 40003,
-            "inner": {
-              "src_mac": "02:00:00:00:19:05",
-              "dst_mac": "02:00:00:00:19:06",
-              "ether_type": "ipv4",
-              "src_ip": "10.90.0.5",
-              "dst_ip": "10.90.0.6",
-              "payload_b64": "Zmxvdy0zLXVw"
-            }
-          },
-          {
-            "vni": 300,
-            "src_port": 40003,
-            "up": false,
-            "inner": {
-              "src_mac": "02:00:00:00:19:05",
-              "dst_mac": "02:00:00:00:19:06",
-              "ether_type": "ipv4",
-              "src_ip": "10.90.0.5",
-              "dst_ip": "10.90.0.6",
-              "payload_b64": "Zmxvdy0zLWRu"
-            }
+          "ip": {
+            "src": "192.0.2.90",
+            "dst": "198.51.100.90"
           }
-        ]
-      }
+        },
+        {
+          "udp": {
+            "src_port": 40090,
+            "dst_port": 4789
+          }
+        },
+        {
+          "vxlan": {
+            "datagrams": [
+              {
+                "vni": 100,
+                "src_port": 40001,
+                "inner": {
+                  "src_mac": "02:00:00:00:19:01",
+                  "dst_mac": "02:00:00:00:19:02",
+                  "ether_type": "ipv4",
+                  "src_ip": "10.90.0.1",
+                  "dst_ip": "10.90.0.2",
+                  "payload_b64": "Zmxvdy0xLXVw"
+                }
+              },
+              {
+                "vni": 100,
+                "src_port": 40001,
+                "up": false,
+                "inner": {
+                  "src_mac": "02:00:00:00:19:01",
+                  "dst_mac": "02:00:00:00:19:02",
+                  "ether_type": "ipv4",
+                  "src_ip": "10.90.0.1",
+                  "dst_ip": "10.90.0.2",
+                  "payload_b64": "Zmxvdy0xLWRu"
+                }
+              },
+              {
+                "vni": 200,
+                "src_port": 40002,
+                "inner": {
+                  "src_mac": "02:00:00:00:19:03",
+                  "dst_mac": "02:00:00:00:19:04",
+                  "ether_type": "ipv4",
+                  "src_ip": "10.90.0.3",
+                  "dst_ip": "10.90.0.4",
+                  "payload_b64": "Zmxvdy0yLXVw"
+                }
+              },
+              {
+                "vni": 200,
+                "src_port": 40002,
+                "up": false,
+                "inner": {
+                  "src_mac": "02:00:00:00:19:03",
+                  "dst_mac": "02:00:00:00:19:04",
+                  "ether_type": "ipv4",
+                  "src_ip": "10.90.0.3",
+                  "dst_ip": "10.90.0.4",
+                  "payload_b64": "Zmxvdy0yLWRu"
+                }
+              },
+              {
+                "vni": 300,
+                "src_port": 40003,
+                "inner": {
+                  "src_mac": "02:00:00:00:19:05",
+                  "dst_mac": "02:00:00:00:19:06",
+                  "ether_type": "ipv4",
+                  "src_ip": "10.90.0.5",
+                  "dst_ip": "10.90.0.6",
+                  "payload_b64": "Zmxvdy0zLXVw"
+                }
+              },
+              {
+                "vni": 300,
+                "src_port": 40003,
+                "up": false,
+                "inner": {
+                  "src_mac": "02:00:00:00:19:05",
+                  "dst_mac": "02:00:00:00:19:06",
+                  "ether_type": "ipv4",
+                  "src_ip": "10.90.0.5",
+                  "dst_ip": "10.90.0.6",
+                  "payload_b64": "Zmxvdy0zLWRu"
+                }
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 6,
@@ -778,7 +811,10 @@
         "down 数据报绝对端口：L4.SrcPort=4789、L4.DstPort=客户端端口（L4PortOverride 跳过交换）",
         "不假设跨 flow 全局到达顺序——distinct 聚合断言"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_mss_not_applicable",
@@ -787,30 +823,31 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "src": "192.0.2.100",
+            "dst": "198.51.100.100"
+          }
         },
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40100,
+            "dst_port": 4789
+          }
         },
         {
-          "vxlan": {}
+          "vxlan": {
+            "vni": 5005,
+            "inner": {
+              "src_mac": "02:00:00:00:20:01",
+              "dst_mac": "02:00:00:00:20:02",
+              "ether_type": "ipv4",
+              "src_ip": "10.100.0.1",
+              "dst_ip": "10.100.0.2",
+              "payload_b64": "bWQ="
+            }
+          }
         }
-      ],
-      "src_ip": "192.0.2.100",
-      "dst_ip": "198.51.100.100",
-      "src_port": 40100,
-      "dst_port": 4789,
-      "vxlan": {
-        "vni": 5005,
-        "inner": {
-          "src_mac": "02:00:00:00:20:01",
-          "dst_mac": "02:00:00:00:20:02",
-          "ether_type": "ipv4",
-          "src_ip": "10.100.0.1",
-          "dst_ip": "10.100.0.2",
-          "payload_b64": "bWQ="
-        }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -842,7 +879,10 @@
         "VXLAN 外层是 UDP，不存在 MSS 协商/TCP 握手/termination：包数=1、ip.proto=17 即证据",
         "显式 MSS 输入不属于本层配置（schema 无该字段，写入即 unknown field 拒绝）"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_empty_inner_payload",
@@ -851,30 +891,31 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "src": "192.0.2.110",
+            "dst": "198.51.100.110"
+          }
         },
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40110,
+            "dst_port": 4789
+          }
         },
         {
-          "vxlan": {}
+          "vxlan": {
+            "vni": 5006,
+            "inner": {
+              "src_mac": "02:00:00:00:21:01",
+              "dst_mac": "02:00:00:00:21:02",
+              "ether_type": "ipv4",
+              "src_ip": "10.110.0.1",
+              "dst_ip": "10.110.0.2",
+              "payload_b64": ""
+            }
+          }
         }
-      ],
-      "src_ip": "192.0.2.110",
-      "dst_ip": "198.51.100.110",
-      "src_port": 40110,
-      "dst_port": 4789,
-      "vxlan": {
-        "vni": 5006,
-        "inner": {
-          "src_mac": "02:00:00:00:21:01",
-          "dst_mac": "02:00:00:00:21:02",
-          "ether_type": "ipv4",
-          "src_ip": "10.110.0.1",
-          "dst_ip": "10.110.0.2",
-          "payload_b64": ""
-        }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -906,7 +947,10 @@
         "零 payload 不是零长度 inner frame：14B Ethernet + 20B inner IPv4 = 34B",
         "udp.length = 8 (UDP 头) + 8 (VXLAN) + 34 (inner) = 50"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_outer_inner_independent",
@@ -915,45 +959,46 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
-        },
-        {
-          "udp": {}
-        },
-        {
-          "vxlan": {}
-        }
-      ],
-      "src_ip": "192.0.2.120",
-      "dst_ip": "198.51.100.120",
-      "src_port": 40120,
-      "dst_port": 4789,
-      "vxlan": {
-        "datagrams": [
-          {
-            "vni": 600,
-            "inner": {
-              "src_mac": "02:00:00:00:22:01",
-              "dst_mac": "02:00:00:00:22:02",
-              "ether_type": "ipv6",
-              "src_ip": "fd00:22::1",
-              "dst_ip": "fd00:22::2",
-              "payload_b64": "dg=="
-            }
-          },
-          {
-            "vni": 700,
-            "inner": {
-              "src_mac": "02:00:00:00:22:03",
-              "dst_mac": "02:00:00:00:22:04",
-              "ether_type": "ipv4",
-              "src_ip": "10.122.0.1",
-              "dst_ip": "10.122.0.2",
-              "payload_b64": "dg=="
-            }
+          "ip": {
+            "src": "192.0.2.120",
+            "dst": "198.51.100.120"
           }
-        ]
-      }
+        },
+        {
+          "udp": {
+            "src_port": 40120,
+            "dst_port": 4789
+          }
+        },
+        {
+          "vxlan": {
+            "datagrams": [
+              {
+                "vni": 600,
+                "inner": {
+                  "src_mac": "02:00:00:00:22:01",
+                  "dst_mac": "02:00:00:00:22:02",
+                  "ether_type": "ipv6",
+                  "src_ip": "fd00:22::1",
+                  "dst_ip": "fd00:22::2",
+                  "payload_b64": "dg=="
+                }
+              },
+              {
+                "vni": 700,
+                "inner": {
+                  "src_mac": "02:00:00:00:22:03",
+                  "dst_mac": "02:00:00:00:22:04",
+                  "ether_type": "ipv4",
+                  "src_ip": "10.122.0.1",
+                  "dst_ip": "10.122.0.2",
+                  "payload_b64": "dg=="
+                }
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 2,
@@ -976,7 +1021,10 @@
         "outer/inner 地址族独立：inner EtherType 由 fixture 决定，不被 outer IPv4 改写",
         "与设计 §9 #12 的偏差：outer 地址族是 flow 级属性（spec src_ip/dst_ip），无法在同一 strategy 内逐 datagram 切换 v4/v6 外层；outer v6 行由用例 3/4 覆盖"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_pcap_nic_capture",
@@ -985,47 +1033,48 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
-        },
-        {
-          "udp": {}
-        },
-        {
-          "vxlan": {}
-        }
-      ],
-      "src_ip": "192.0.2.130",
-      "dst_ip": "198.51.100.130",
-      "src_port": 40130,
-      "dst_port": 4789,
-      "vxlan": {
-        "vni": 5007,
-        "datagrams": [
-          {
-            "vni": 5007,
-            "inner": {
-              "src_mac": "02:00:00:00:23:01",
-              "dst_mac": "02:00:00:00:23:02",
-              "ether_type": "ipv4",
-              "src_ip": "10.130.0.1",
-              "dst_ip": "10.130.0.2",
-              "payload_b64": "cGMtdXA="
-            }
-          },
-          {
-            "vni": 5007,
-            "up": false,
-            "inner": {
-              "src_mac": "02:00:00:00:23:01",
-              "dst_mac": "02:00:00:00:23:02",
-              "ether_type": "ipv4",
-              "src_ip": "10.130.0.1",
-              "dst_ip": "10.130.0.2",
-              "payload_b64": "cGMtZG93bg=="
-            }
+          "ip": {
+            "src": "192.0.2.130",
+            "dst": "198.51.100.130"
           }
-        ]
-      }
+        },
+        {
+          "udp": {
+            "src_port": 40130,
+            "dst_port": 4789
+          }
+        },
+        {
+          "vxlan": {
+            "vni": 5007,
+            "datagrams": [
+              {
+                "vni": 5007,
+                "inner": {
+                  "src_mac": "02:00:00:00:23:01",
+                  "dst_mac": "02:00:00:00:23:02",
+                  "ether_type": "ipv4",
+                  "src_ip": "10.130.0.1",
+                  "dst_ip": "10.130.0.2",
+                  "payload_b64": "cGMtdXA="
+                }
+              },
+              {
+                "vni": 5007,
+                "up": false,
+                "inner": {
+                  "src_mac": "02:00:00:00:23:01",
+                  "dst_mac": "02:00:00:00:23:02",
+                  "ether_type": "ipv4",
+                  "src_ip": "10.130.0.1",
+                  "dst_ip": "10.130.0.2",
+                  "payload_b64": "cGMtZG93bg=="
+                }
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 2,
@@ -1061,7 +1110,10 @@
         "两条方向明确的 UDP/4789 datagram 均带 VXLAN flags/VNI 与 inner MAC/EtherType",
         "NIC 侧（接口 enp135s0f0np0、过滤器 udp port 4789）由外部编排独立驱动后比对同一 fixture"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_udp_checksum_profiles",
@@ -1070,46 +1122,47 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
-        },
-        {
-          "udp": {}
-        },
-        {
-          "vxlan": {}
-        }
-      ],
-      "src_ip": "192.0.2.140",
-      "dst_ip": "198.51.100.140",
-      "src_port": 40140,
-      "dst_port": 4789,
-      "vxlan": {
-        "datagrams": [
-          {
-            "vni": 800,
-            "inner": {
-              "src_mac": "02:00:00:00:24:01",
-              "dst_mac": "02:00:00:00:24:02",
-              "ether_type": "ipv4",
-              "src_ip": "10.140.0.1",
-              "dst_ip": "10.140.0.2",
-              "payload_b64": "Y2sx"
-            }
-          },
-          {
-            "vni": 801,
-            "udp_checksum_zero": true,
-            "inner": {
-              "src_mac": "02:00:00:00:24:03",
-              "dst_mac": "02:00:00:00:24:04",
-              "ether_type": "ipv4",
-              "src_ip": "10.140.0.3",
-              "dst_ip": "10.140.0.4",
-              "payload_b64": "Y2sy"
-            }
+          "ip": {
+            "src": "192.0.2.140",
+            "dst": "198.51.100.140"
           }
-        ]
-      }
+        },
+        {
+          "udp": {
+            "src_port": 40140,
+            "dst_port": 4789
+          }
+        },
+        {
+          "vxlan": {
+            "datagrams": [
+              {
+                "vni": 800,
+                "inner": {
+                  "src_mac": "02:00:00:00:24:01",
+                  "dst_mac": "02:00:00:00:24:02",
+                  "ether_type": "ipv4",
+                  "src_ip": "10.140.0.1",
+                  "dst_ip": "10.140.0.2",
+                  "payload_b64": "Y2sx"
+                }
+              },
+              {
+                "vni": 801,
+                "udp_checksum_zero": true,
+                "inner": {
+                  "src_mac": "02:00:00:00:24:03",
+                  "dst_mac": "02:00:00:00:24:04",
+                  "ether_type": "ipv4",
+                  "src_ip": "10.140.0.3",
+                  "dst_ip": "10.140.0.4",
+                  "payload_b64": "Y2sy"
+                }
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 2,
@@ -1137,7 +1190,10 @@
         "IPv6 outer 非零要求由用例 3（udp.checksum nonzero）覆盖",
         "事件级 udp_disable_checksum 元数据 → builder 写 0x0000"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_neg_header_truncated",
@@ -1146,38 +1202,42 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "src": "192.0.2.150",
+            "dst": "198.51.100.150"
+          }
         },
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40150,
+            "dst_port": 4789
+          }
         },
         {
-          "vxlan": {}
+          "vxlan": {
+            "vni": 1,
+            "inner": {
+              "src_mac": "02:00:00:00:25:01",
+              "dst_mac": "02:00:00:00:25:02",
+              "ether_type": "ipv4",
+              "src_ip": "10.150.0.1",
+              "dst_ip": "10.150.0.2",
+              "payload_b64": "bg=="
+            },
+            "wire_fault": {
+              "kind": "header_truncated"
+            }
+          }
         }
-      ],
-      "src_ip": "192.0.2.150",
-      "dst_ip": "198.51.100.150",
-      "src_port": 40150,
-      "dst_port": 4789,
-      "vxlan": {
-        "vni": 1,
-        "inner": {
-          "src_mac": "02:00:00:00:25:01",
-          "dst_mac": "02:00:00:00:25:02",
-          "ether_type": "ipv4",
-          "src_ip": "10.150.0.1",
-          "dst_ip": "10.150.0.2",
-          "payload_b64": "bg=="
-        },
-        "wire_fault": {
-          "kind": "header_truncated"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "header"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_neg_reserved_flags",
@@ -1186,36 +1246,40 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "src": "192.0.2.160",
+            "dst": "198.51.100.160"
+          }
         },
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40160,
+            "dst_port": 4789
+          }
         },
         {
-          "vxlan": {}
+          "vxlan": {
+            "vni": 1,
+            "i_flag": false,
+            "inner": {
+              "src_mac": "02:00:00:00:26:01",
+              "dst_mac": "02:00:00:00:26:02",
+              "ether_type": "ipv4",
+              "src_ip": "10.160.0.1",
+              "dst_ip": "10.160.0.2",
+              "payload_b64": "bg=="
+            }
+          }
         }
-      ],
-      "src_ip": "192.0.2.160",
-      "dst_ip": "198.51.100.160",
-      "src_port": 40160,
-      "dst_port": 4789,
-      "vxlan": {
-        "vni": 1,
-        "i_flag": false,
-        "inner": {
-          "src_mac": "02:00:00:00:26:01",
-          "dst_mac": "02:00:00:00:26:02",
-          "ether_type": "ipv4",
-          "src_ip": "10.160.0.1",
-          "dst_ip": "10.160.0.2",
-          "payload_b64": "bg=="
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "flag"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_neg_vni_overflow",
@@ -1224,35 +1288,39 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "src": "192.0.2.170",
+            "dst": "198.51.100.170"
+          }
         },
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40170,
+            "dst_port": 4789
+          }
         },
         {
-          "vxlan": {}
+          "vxlan": {
+            "vni": 16777216,
+            "inner": {
+              "src_mac": "02:00:00:00:27:01",
+              "dst_mac": "02:00:00:00:27:02",
+              "ether_type": "ipv4",
+              "src_ip": "10.170.0.1",
+              "dst_ip": "10.170.0.2",
+              "payload_b64": "bg=="
+            }
+          }
         }
-      ],
-      "src_ip": "192.0.2.170",
-      "dst_ip": "198.51.100.170",
-      "src_port": 40170,
-      "dst_port": 4789,
-      "vxlan": {
-        "vni": 16777216,
-        "inner": {
-          "src_mac": "02:00:00:00:27:01",
-          "dst_mac": "02:00:00:00:27:02",
-          "ether_type": "ipv4",
-          "src_ip": "10.170.0.1",
-          "dst_ip": "10.170.0.2",
-          "payload_b64": "bg=="
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "vni"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_neg_udp_carrier",
@@ -1261,35 +1329,39 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "src": "192.0.2.180",
+            "dst": "198.51.100.180"
+          }
         },
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40180,
+            "dst_port": 4788
+          }
         },
         {
-          "vxlan": {}
+          "vxlan": {
+            "vni": 1,
+            "inner": {
+              "src_mac": "02:00:00:00:28:01",
+              "dst_mac": "02:00:00:00:28:02",
+              "ether_type": "ipv4",
+              "src_ip": "10.180.0.1",
+              "dst_ip": "10.180.0.2",
+              "payload_b64": "bg=="
+            }
+          }
         }
-      ],
-      "src_ip": "192.0.2.180",
-      "dst_ip": "198.51.100.180",
-      "src_port": 40180,
-      "dst_port": 4788,
-      "vxlan": {
-        "vni": 1,
-        "inner": {
-          "src_mac": "02:00:00:00:28:01",
-          "dst_mac": "02:00:00:00:28:02",
-          "ether_type": "ipv4",
-          "src_ip": "10.180.0.1",
-          "dst_ip": "10.180.0.2",
-          "payload_b64": "bg=="
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "port"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_neg_inner_frame",
@@ -1298,35 +1370,39 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "src": "192.0.2.190",
+            "dst": "198.51.100.190"
+          }
         },
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40190,
+            "dst_port": 4789
+          }
         },
         {
-          "vxlan": {}
+          "vxlan": {
+            "vni": 1,
+            "inner": {
+              "src_mac": "not-a-mac",
+              "dst_mac": "02:00:00:00:29:02",
+              "ether_type": "ipv4",
+              "src_ip": "10.190.0.1",
+              "dst_ip": "10.190.0.2",
+              "payload_b64": "bg=="
+            }
+          }
         }
-      ],
-      "src_ip": "192.0.2.190",
-      "dst_ip": "198.51.100.190",
-      "src_port": 40190,
-      "dst_port": 4789,
-      "vxlan": {
-        "vni": 1,
-        "inner": {
-          "src_mac": "not-a-mac",
-          "dst_mac": "02:00:00:00:29:02",
-          "ether_type": "ipv4",
-          "src_ip": "10.190.0.1",
-          "dst_ip": "10.190.0.2",
-          "payload_b64": "bg=="
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "inner"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   },
   {
     "id": "vxlan_neg_checksum",
@@ -1335,37 +1411,41 @@
     "spec_json": {
       "layers": [
         {
-          "ip": {}
+          "ip": {
+            "src": "192.0.2.200",
+            "dst": "198.51.100.200"
+          }
         },
         {
-          "udp": {}
+          "udp": {
+            "src_port": 40200,
+            "dst_port": 4789
+          }
         },
         {
-          "vxlan": {}
+          "vxlan": {
+            "vni": 1,
+            "inner": {
+              "src_mac": "02:00:00:00:30:01",
+              "dst_mac": "02:00:00:00:30:02",
+              "ether_type": "ipv4",
+              "src_ip": "10.200.0.1",
+              "dst_ip": "10.200.0.2",
+              "payload_b64": "bg=="
+            },
+            "wire_fault": {
+              "kind": "checksum"
+            }
+          }
         }
-      ],
-      "src_ip": "192.0.2.200",
-      "dst_ip": "198.51.100.200",
-      "src_port": 40200,
-      "dst_port": 4789,
-      "vxlan": {
-        "vni": 1,
-        "inner": {
-          "src_mac": "02:00:00:00:30:01",
-          "dst_mac": "02:00:00:00:30:02",
-          "ether_type": "ipv4",
-          "src_ip": "10.200.0.1",
-          "dst_ip": "10.200.0.2",
-          "payload_b64": "bg=="
-        },
-        "wire_fault": {
-          "kind": "checksum"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "checksum"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 vxlan 子映射迁入 layers[].vxlan"
+    ]
   }
 ]

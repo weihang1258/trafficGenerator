@@ -6,26 +6,30 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s"
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
           }
-        ]
-      }
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
+              {
+                "kind": "request",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -74,7 +78,10 @@
           "hex": "00 01 00 00 21 12 a4 42"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_binding_udp_success_ipv4",
@@ -83,38 +90,42 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s"
-          },
-          {
-            "kind": "success",
-            "direction": "s2c",
-            "attributes": [
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
               {
-                "type": "xor-mapped-address",
-                "family": "ipv4",
-                "address": "203.0.113.7",
-                "port": 50000
+                "kind": "request",
+                "direction": "c2s"
+              },
+              {
+                "kind": "success",
+                "direction": "s2c",
+                "attributes": [
+                  {
+                    "type": "xor-mapped-address",
+                    "family": "ipv4",
+                    "address": "203.0.113.7",
+                    "port": 50000
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 2,
@@ -188,7 +199,10 @@
           "hex": "00 20 00 08 00 01"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_binding_udp_success_ipv6",
@@ -197,38 +211,42 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "2001:db8::10",
+            "dst": "2001:db8::20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "2001:db8::10",
-      "dst_ip": "2001:db8::20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s"
-          },
-          {
-            "kind": "success",
-            "direction": "s2c",
-            "attributes": [
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
               {
-                "type": "xor-mapped-address",
-                "family": "ipv6",
-                "address": "2001:db8::77",
-                "port": 50001
+                "kind": "request",
+                "direction": "c2s"
+              },
+              {
+                "kind": "success",
+                "direction": "s2c",
+                "attributes": [
+                  {
+                    "type": "xor-mapped-address",
+                    "family": "ipv6",
+                    "address": "2001:db8::77",
+                    "port": 50001
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 2,
@@ -298,7 +316,10 @@
           "hex": "00 20 00 14 00 02"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_binding_udp_error",
@@ -307,37 +328,41 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s"
-          },
-          {
-            "kind": "error",
-            "direction": "s2c",
-            "attributes": [
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
               {
-                "type": "error-code",
-                "code": 401,
-                "reason": "Unauthorized"
+                "kind": "request",
+                "direction": "c2s"
+              },
+              {
+                "kind": "error",
+                "direction": "s2c",
+                "attributes": [
+                  {
+                    "type": "error-code",
+                    "code": 401,
+                    "reason": "Unauthorized"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 2,
@@ -412,7 +437,10 @@
           "hex": "00 09 00 10 00 00 04 01"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_binding_tcp_request",
@@ -421,26 +449,30 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 41000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s"
+          "tcp": {
+            "src_port": 41000,
+            "dst_port": 3478
           }
-        ]
-      }
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
+              {
+                "kind": "request",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 8,
@@ -486,7 +518,10 @@
       ],
       "has_handshake": true,
       "terminates": true
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_binding_tls_session",
@@ -495,29 +530,33 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42000,
+            "dst_port": 5349
+          }
         },
         {
           "tls": {}
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 42000,
-      "dst_port": 5349,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s"
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
+              {
+                "kind": "request",
+                "direction": "c2s"
+              }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 15,
@@ -542,7 +581,10 @@
       ],
       "has_handshake": true,
       "terminates": true
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_auth_attributes",
@@ -551,40 +593,44 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s",
-            "attributes": [
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
               {
-                "type": "username",
-                "value": "alice"
-              },
-              {
-                "type": "realm",
-                "value": "example.org"
-              },
-              {
-                "type": "nonce",
-                "value": "server-nonce"
+                "kind": "request",
+                "direction": "c2s",
+                "attributes": [
+                  {
+                    "type": "username",
+                    "value": "alice"
+                  },
+                  {
+                    "type": "realm",
+                    "value": "example.org"
+                  },
+                  {
+                    "type": "nonce",
+                    "value": "server-nonce"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -629,7 +675,10 @@
           "hex": "00 06 00 05 61 6c 69 63 65"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_integrity_fingerprint",
@@ -638,47 +687,51 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s",
-            "attributes": [
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
               {
-                "type": "username",
-                "value": "alice"
-              },
-              {
-                "type": "realm",
-                "value": "example.org"
-              },
-              {
-                "type": "nonce",
-                "value": "server-nonce"
-              },
-              {
-                "type": "message-integrity",
-                "key": "password"
-              },
-              {
-                "type": "fingerprint"
+                "kind": "request",
+                "direction": "c2s",
+                "attributes": [
+                  {
+                    "type": "username",
+                    "value": "alice"
+                  },
+                  {
+                    "type": "realm",
+                    "value": "example.org"
+                  },
+                  {
+                    "type": "nonce",
+                    "value": "server-nonce"
+                  },
+                  {
+                    "type": "message-integrity",
+                    "key": "password"
+                  },
+                  {
+                    "type": "fingerprint"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -723,7 +776,10 @@
           "hex": "00 06 00 05 61 6c 69 63 65"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_attribute_padding",
@@ -732,32 +788,36 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s",
-            "attributes": [
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
               {
-                "type": "username",
-                "value": "bob"
+                "kind": "request",
+                "direction": "c2s",
+                "attributes": [
+                  {
+                    "type": "username",
+                    "value": "bob"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -806,7 +866,10 @@
           "hex": "00 06 00 03 62 6f 62 00"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_retransmission",
@@ -815,36 +878,40 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s",
-            "retransmit": false
-          },
-          {
-            "kind": "request",
-            "direction": "c2s",
-            "retransmit": true
-          },
-          {
-            "kind": "success",
-            "direction": "s2c"
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
           }
-        ]
-      }
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
+              {
+                "kind": "request",
+                "direction": "c2s",
+                "retransmit": false
+              },
+              {
+                "kind": "request",
+                "direction": "c2s",
+                "retransmit": true
+              },
+              {
+                "kind": "success",
+                "direction": "s2c"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 3,
@@ -898,7 +965,10 @@
           "hex": "01 01 00 00 21 12 a4 42"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_multi_transaction_udp",
@@ -907,42 +977,46 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s",
-            "transaction_group": "tx1"
-          },
-          {
-            "kind": "request",
-            "direction": "c2s",
-            "transaction_group": "tx1"
-          },
-          {
-            "kind": "success",
-            "direction": "s2c",
-            "transaction_group": "tx2"
-          },
-          {
-            "kind": "error",
-            "direction": "s2c",
-            "transaction_group": "tx2"
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
           }
-        ]
-      }
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
+              {
+                "kind": "request",
+                "direction": "c2s",
+                "transaction_group": "tx1"
+              },
+              {
+                "kind": "request",
+                "direction": "c2s",
+                "transaction_group": "tx1"
+              },
+              {
+                "kind": "success",
+                "direction": "s2c",
+                "transaction_group": "tx2"
+              },
+              {
+                "kind": "error",
+                "direction": "s2c",
+                "transaction_group": "tx2"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 4,
@@ -1011,7 +1085,10 @@
           "hex": "01 11 00 00 21 12 a4 42"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_multi_transaction_tcp",
@@ -1020,42 +1097,46 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 43000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s",
-            "transaction_group": "tx1"
-          },
-          {
-            "kind": "success",
-            "direction": "s2c",
-            "transaction_group": "tx1"
-          },
-          {
-            "kind": "request",
-            "direction": "c2s",
-            "transaction_group": "tx2"
-          },
-          {
-            "kind": "error",
-            "direction": "s2c",
-            "transaction_group": "tx2"
+          "tcp": {
+            "src_port": 43000,
+            "dst_port": 3478
           }
-        ]
-      }
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
+              {
+                "kind": "request",
+                "direction": "c2s",
+                "transaction_group": "tx1"
+              },
+              {
+                "kind": "success",
+                "direction": "s2c",
+                "transaction_group": "tx1"
+              },
+              {
+                "kind": "request",
+                "direction": "c2s",
+                "transaction_group": "tx2"
+              },
+              {
+                "kind": "error",
+                "direction": "s2c",
+                "transaction_group": "tx2"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -1131,7 +1212,10 @@
       ],
       "has_handshake": true,
       "terminates": true
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_ipv6_address_attributes",
@@ -1140,44 +1224,48 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "2001:db8::10",
+            "dst": "2001:db8::20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "2001:db8::10",
-      "dst_ip": "2001:db8::20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s"
-          },
-          {
-            "kind": "success",
-            "direction": "s2c",
-            "attributes": [
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
               {
-                "type": "mapped-address",
-                "family": "ipv4",
-                "address": "192.0.2.55",
-                "port": 50002
+                "kind": "request",
+                "direction": "c2s"
               },
               {
-                "type": "xor-mapped-address",
-                "family": "ipv6",
-                "address": "2001:db8::55",
-                "port": 50002
+                "kind": "success",
+                "direction": "s2c",
+                "attributes": [
+                  {
+                    "type": "mapped-address",
+                    "family": "ipv4",
+                    "address": "192.0.2.55",
+                    "port": 50002
+                  },
+                  {
+                    "type": "xor-mapped-address",
+                    "family": "ipv6",
+                    "address": "2001:db8::55",
+                    "port": 50002
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 2,
@@ -1247,7 +1335,10 @@
           "hex": "00 20 00 14 00 02"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_rfc8489_profile",
@@ -1256,32 +1347,36 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc8489_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s",
-            "attributes": [
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
+        },
+        {
+          "stun": {
+            "profile": "rfc8489_binding",
+            "method": "binding",
+            "events": [
               {
-                "type": "username",
-                "value": "u@example.org"
+                "kind": "request",
+                "direction": "c2s",
+                "attributes": [
+                  {
+                    "type": "username",
+                    "value": "u@example.org"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -1321,7 +1416,10 @@
           "hex": "00 01 00 14 21 12 a4 42"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_binding_mapped_both",
@@ -1330,44 +1428,48 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s"
-          },
-          {
-            "kind": "success",
-            "direction": "s2c",
-            "attributes": [
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
+          }
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
               {
-                "type": "mapped-address",
-                "family": "ipv4",
-                "address": "192.0.2.99",
-                "port": 50003
+                "kind": "request",
+                "direction": "c2s"
               },
               {
-                "type": "xor-mapped-address",
-                "family": "ipv4",
-                "address": "192.0.2.99",
-                "port": 50003
+                "kind": "success",
+                "direction": "s2c",
+                "attributes": [
+                  {
+                    "type": "mapped-address",
+                    "family": "ipv4",
+                    "address": "192.0.2.99",
+                    "port": 50003
+                  },
+                  {
+                    "type": "xor-mapped-address",
+                    "family": "ipv4",
+                    "address": "192.0.2.99",
+                    "port": 50003
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 2,
@@ -1442,7 +1544,10 @@
           "hex": "00 20 00 08 00 01"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_neg_header_short",
@@ -1451,35 +1556,42 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s"
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
           }
-        ],
-        "wire_fault": {
-          "kind": "header_short",
-          "declared_bytes": 19
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
+              {
+                "kind": "request",
+                "direction": "c2s"
+              }
+            ],
+            "wire_fault": {
+              "kind": "header_short",
+              "declared_bytes": 19
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "header"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_neg_type_reserved_bits",
@@ -1488,35 +1600,42 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s"
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
           }
-        ],
-        "wire_fault": {
-          "kind": "type_reserved_bits",
-          "type": 3
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
+              {
+                "kind": "request",
+                "direction": "c2s"
+              }
+            ],
+            "wire_fault": {
+              "kind": "type_reserved_bits",
+              "type": 3
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "type"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_neg_length_alignment",
@@ -1525,35 +1644,42 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s"
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
           }
-        ],
-        "wire_fault": {
-          "kind": "length_alignment",
-          "declared_length": 3
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
+              {
+                "kind": "request",
+                "direction": "c2s"
+              }
+            ],
+            "wire_fault": {
+              "kind": "length_alignment",
+              "declared_length": 3
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "length"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_neg_length_overrun",
@@ -1562,35 +1688,42 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s"
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
           }
-        ],
-        "wire_fault": {
-          "kind": "length_overrun",
-          "declared_length": 64
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
+              {
+                "kind": "request",
+                "direction": "c2s"
+              }
+            ],
+            "wire_fault": {
+              "kind": "length_overrun",
+              "declared_length": 64
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "length"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_neg_bad_cookie",
@@ -1599,35 +1732,42 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s"
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
           }
-        ],
-        "wire_fault": {
-          "kind": "cookie",
-          "cookie": "0x00000000"
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
+              {
+                "kind": "request",
+                "direction": "c2s"
+              }
+            ],
+            "wire_fault": {
+              "kind": "cookie",
+              "cookie": "0x00000000"
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "cookie"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_neg_attribute_length",
@@ -1636,35 +1776,42 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s"
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
           }
-        ],
-        "wire_fault": {
-          "kind": "attribute_length",
-          "declared_length": 5
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
+              {
+                "kind": "request",
+                "direction": "c2s"
+              }
+            ],
+            "wire_fault": {
+              "kind": "attribute_length",
+              "declared_length": 5
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "attribute"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_neg_bad_integrity",
@@ -1673,35 +1820,42 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s"
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
           }
-        ],
-        "wire_fault": {
-          "kind": "integrity",
-          "key": "wrong-password"
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
+              {
+                "kind": "request",
+                "direction": "c2s"
+              }
+            ],
+            "wire_fault": {
+              "kind": "integrity",
+              "key": "wrong-password"
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "integrity"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_neg_transport_mismatch",
@@ -1710,36 +1864,43 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s"
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
           }
-        ],
-        "wire_fault": {
-          "kind": "transport",
-          "carrier": "udp",
-          "framing": "tcp"
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
+              {
+                "kind": "request",
+                "direction": "c2s"
+              }
+            ],
+            "wire_fault": {
+              "kind": "transport",
+              "carrier": "udp",
+              "framing": "tcp"
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "transport"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   },
   {
     "id": "stun_neg_turn_boundary",
@@ -1748,34 +1909,41 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
         {
-          "stun": {}
-        }
-      ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 3478,
-      "stun": {
-        "profile": "rfc5389_binding",
-        "method": "binding",
-        "events": [
-          {
-            "kind": "request",
-            "direction": "c2s"
+          "udp": {
+            "src_port": 40000,
+            "dst_port": 3478
           }
-        ],
-        "wire_fault": {
-          "kind": "turn_boundary",
-          "method": "allocate"
+        },
+        {
+          "stun": {
+            "profile": "rfc5389_binding",
+            "method": "binding",
+            "events": [
+              {
+                "kind": "request",
+                "direction": "c2s"
+              }
+            ],
+            "wire_fault": {
+              "kind": "turn_boundary",
+              "method": "allocate"
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "turn"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 stun 子映射迁入 layers[].stun"
+    ]
   }
 ]

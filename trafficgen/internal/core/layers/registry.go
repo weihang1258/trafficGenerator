@@ -711,6 +711,12 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "stun", Category: CategoryTerminal,
 		DependsOn:   []string{"udp"},
 		TransportOn: []string{"udp", "tcp"},
+		Fields: map[string]FieldSchema{
+			"profile":    {Type: "string"},
+			"method":     {Type: "string"},
+			"events":     {Type: "list"},
+			"wire_fault": {Type: "object"},
+		},
 	})
 	// ---- P4a：rtmfp（udp 终结层。Adobe RTMFP——Real-Time Media Flow
 	// Protocol，UDP 承载的实时音视频/数据流协议，握手 → cookie/session →
@@ -1185,7 +1191,24 @@ func buildDefaultRegistry() {
 			"stream":   {Type: "list"},
 			"sessions": {Type: "int", Min: 0, Max: 0},
 		}})
-	r.Register(LayerSchema{Name: "someip", Category: CategoryTerminal, DependsOn: []string{"udp"}, TransportOn: []string{"udp", "tcp"}})
+	r.Register(LayerSchema{Name: "someip", Category: CategoryTerminal, DependsOn: []string{"udp"}, TransportOn: []string{"udp", "tcp"},
+		Fields: map[string]FieldSchema{
+			"service_id":        {Type: "uint16"},
+			"method_id":         {Type: "uint16"},
+			"client_id":         {Type: "uint16"},
+			"session_start":     {Type: "uint16"},
+			"session_inc":       {Type: "uint16"},
+			"protocol_version":  {Type: "uint8"},
+			"interface_version": {Type: "uint8"},
+			"message_type":      {Type: "string"},
+			"return_code":       {Type: "uint8"},
+			"auto_response":     {Type: "bool"},
+			"direction":         {Type: "string"},
+			"payload":           {Type: "list"},
+			"sd":                {Type: "object"},
+			"tp":                {Type: "object"},
+			"events":            {Type: "list"},
+		}})
 	r.Register(LayerSchema{Name: "drda", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "446"},
 		Fields: map[string]FieldSchema{
@@ -1205,8 +1228,9 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "thrift", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "9090"},
 		Fields: map[string]FieldSchema{
-			"transport": {Type: "string", Default: ""},
-			"messages":  {Type: "list", Default: []interface{}{}},
+			"transport":  {Type: "string", Default: ""},
+			"messages":   {Type: "list", Default: []interface{}{}},
+			"wire_fault": {Type: "object"},
 		}})
 	r.Register(LayerSchema{Name: "tns", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "1521"},
@@ -2288,6 +2312,13 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "vxlan", Category: CategoryTerminal,
 		DependsOn:     []string{"udp"},
 		FieldContract: map[string]string{"udp.dst_port": "4789"},
+		Fields: map[string]FieldSchema{
+			"vni":        {Type: "uint32"},
+			"i_flag":     {Type: "bool"},
+			"inner":      {Type: "object"},
+			"datagrams":  {Type: "list"},
+			"wire_fault": {Type: "object"},
+		},
 	})
 	// nvgre（raw-IP 终结层。RFC 7637——生成器自产完整包：外层 IP proto 47 +
 	// GRE 头（K=1、ProtocolType 0x6558 TEB、Key=VSID<<8|FlowID，经
@@ -2416,7 +2447,16 @@ func buildDefaultRegistry() {
 		TransportOn:   []string{"udp", "tcp"},
 		FieldContract: map[string]string{"udp.dst_port": "1634", "tcp.dst_port": "1634"},
 		Fields: map[string]FieldSchema{
-			"profile": {Type: "string", Default: "swarm_storage_v1"},
+			"profile":       {Type: "string"},
+			"discovery":     {Type: "object"},
+			"frame_max":     {Type: "uint32"},
+			"heartbeat":     {Type: "uint16"},
+			"node_id_hex":   {Type: "string"},
+			"capability":    {Type: "string"},
+			"session_limit": {Type: "uint16"},
+			"max_frame":     {Type: "uint32"},
+			"connections":   {Type: "list"},
+			"wire_fault":    {Type: "string"},
 		},
 	})
 

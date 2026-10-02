@@ -5362,7 +5362,53 @@
         "udp",
         "tcp"
       ],
-      "fields": {}
+      "fields": {
+        "auto_response": {
+          "type": "bool"
+        },
+        "client_id": {
+          "type": "uint16"
+        },
+        "direction": {
+          "type": "string"
+        },
+        "events": {
+          "type": "list"
+        },
+        "interface_version": {
+          "type": "uint8"
+        },
+        "message_type": {
+          "type": "string"
+        },
+        "method_id": {
+          "type": "uint16"
+        },
+        "payload": {
+          "type": "list"
+        },
+        "protocol_version": {
+          "type": "uint8"
+        },
+        "return_code": {
+          "type": "uint8"
+        },
+        "sd": {
+          "type": "object"
+        },
+        "service_id": {
+          "type": "uint16"
+        },
+        "session_inc": {
+          "type": "uint16"
+        },
+        "session_start": {
+          "type": "uint16"
+        },
+        "tp": {
+          "type": "object"
+        }
+      }
     },
     "spnego": {
       "category": "terminal",
@@ -5687,7 +5733,20 @@
         "udp",
         "tcp"
       ],
-      "fields": {}
+      "fields": {
+        "events": {
+          "type": "list"
+        },
+        "method": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "wire_fault": {
+          "type": "object"
+        }
+      }
     },
     "sv": {
       "category": "terminal",
@@ -5765,9 +5824,35 @@
         "udp.dst_port": "1634"
       },
       "fields": {
+        "capability": {
+          "type": "string"
+        },
+        "connections": {
+          "type": "list"
+        },
+        "discovery": {
+          "type": "object"
+        },
+        "frame_max": {
+          "type": "uint32"
+        },
+        "heartbeat": {
+          "type": "uint16"
+        },
+        "max_frame": {
+          "type": "uint32"
+        },
+        "node_id_hex": {
+          "type": "string"
+        },
         "profile": {
-          "type": "string",
-          "default": "swarm_storage_v1"
+          "type": "string"
+        },
+        "session_limit": {
+          "type": "uint16"
+        },
+        "wire_fault": {
+          "type": "string"
         }
       }
     },
@@ -6133,6 +6218,9 @@
         "transport": {
           "type": "string",
           "default": ""
+        },
+        "wire_fault": {
+          "type": "object"
         }
       }
     },
@@ -6388,7 +6476,23 @@
       "field_contract": {
         "udp.dst_port": "4789"
       },
-      "fields": {}
+      "fields": {
+        "datagrams": {
+          "type": "list"
+        },
+        "i_flag": {
+          "type": "bool"
+        },
+        "inner": {
+          "type": "object"
+        },
+        "vni": {
+          "type": "uint32"
+        },
+        "wire_fault": {
+          "type": "object"
+        }
+      }
     },
     "wireguard": {
       "category": "terminal",

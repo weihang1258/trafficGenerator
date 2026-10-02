@@ -8742,6 +8742,26 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 		if v, ok := cfg["wireguard"]; ok && v != nil {
 			return "protocol wireguard no longer accepts a top-level wireguard sub-config (move it into the wireguard layer of an [ip,udp,wireguard] layers chain)"
 		}
+	case "stun":
+		if v, ok := cfg["stun"]; ok && v != nil {
+			return "protocol stun no longer accepts a top-level stun sub-config (move it into the stun layer of an [ip,udp,stun] layers chain)"
+		}
+	case "swarm":
+		if v, ok := cfg["swarm"]; ok && v != nil {
+			return "protocol swarm no longer accepts a top-level swarm sub-config (move it into the swarm layer of an [ip,udp,swarm] layers chain)"
+		}
+	case "vxlan":
+		if v, ok := cfg["vxlan"]; ok && v != nil {
+			return "protocol vxlan no longer accepts a top-level vxlan sub-config (move it into the vxlan layer of an [ip,udp,vxlan] layers chain)"
+		}
+	case "someip":
+		if v, ok := cfg["someip"]; ok && v != nil {
+			return "protocol someip no longer accepts a top-level someip sub-config (move it into the someip layer of an [ip,udp,someip] layers chain)"
+		}
+	case "thrift":
+		if v, ok := cfg["thrift"]; ok && v != nil {
+			return "protocol thrift no longer accepts a top-level thrift sub-config (move it into the thrift layer of an [ip,tcp,thrift] layers chain)"
+		}
 	}
 	// D-CWMP-1：cwmp 顶层 cwmp 子映射 presence 判死（mqtt 先例；空 map 也
 	// 死——B6 注入形退役，配置迁 cwmp 层六键）。层链形状不触发。

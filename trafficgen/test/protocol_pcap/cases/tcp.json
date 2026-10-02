@@ -1,448 +1,499 @@
 [
- {
-  "id": "tcp-handshake-basic",
-  "proto": "tcp",
-  "summary": "TCP 完整握手 + 数据 + 终止（默认配置，MSS 1460）",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 80,
-   "count": 1
+  {
+    "id": "tcp-handshake-basic",
+    "proto": "tcp",
+    "summary": "TCP 完整握手 + 数据 + 终止（默认配置，MSS 1460）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 80
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "min_packets": 6,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x002"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "80"
+        },
+        {
+          "packet": 1,
+          "field": "ip.src",
+          "value": "10.0.0.1"
+        },
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "20.0.0.1"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "value": "12345"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.flags",
+          "value": "0x012"
+        },
+        {
+          "packet": 3,
+          "field": "tcp.flags",
+          "value": "0x010"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.flags",
+          "value": "0x011"
+        },
+        {
+          "packet": 6,
+          "field": "tcp.flags",
+          "value": "0x011"
+        }
+      ],
+      "notes": [
+        "无 payload 时握手完成后 f4 即 FIN(0x011)+f5 ACK、f6 FIN+f7 ACK 双方向终止；MSS 1460 选项默认 (02 04 05 b4)"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 tcp 子映射（握手/挥手开关等）并入 layers[].tcp"
+    ]
   },
-  "expect": {
-   "has_handshake": true,
-   "negotiated": true,
-   "min_packets": 6,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "tcp.flags",
-     "value": "0x002"
+  {
+    "id": "tcp-data-segments",
+    "proto": "tcp",
+    "summary": "TCP 大载荷按 MSS 分片（6000 字节 body → 5 段 PSH-ACK）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 8080,
+            "handshake": true,
+            "termination": true
+          }
+        }
+      ],
+      "payload": "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"
     },
-    {
-     "packet": 1,
-     "field": "tcp.dstport",
-     "value": "80"
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "min_packets": 9,
+      "notes": [
+        "52B payload (26 字母×2) 在 f4 单段 PSH-ACK 内发完 (MSS 1460 未触发分段)——分段逻辑由 tcp 层 MSS 分段用例覆盖，此处验证单段数据+长度",
+        "f4 tcp.len=52 + PSH+ACK (0x018)；tcp.payload 全量 104 hex 字符钉死内容；f5 纯 ACK；f6/f8 双 FIN 终止"
+      ],
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.flags",
+          "value": "0x018"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.len",
+          "value": "52"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.payload",
+          "value": "6162636465666768696a6b6c6d6e6f707172737475767778797a6162636465666768696a6b6c6d6e6f707172737475767778797a"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "61 62 63 64 65 66 67 68 69 6a"
+        }
+      ]
     },
-    {
-     "packet": 1,
-     "field": "ip.src",
-     "value": "10.0.0.1"
-    },
-    {
-     "packet": 1,
-     "field": "ip.dst",
-     "value": "20.0.0.1"
-    },
-    {
-     "packet": 1,
-     "field": "tcp.srcport",
-     "value": "12345"
-    },
-    {
-     "packet": 2,
-     "field": "tcp.flags",
-     "value": "0x012"
-    },
-    {
-     "packet": 3,
-     "field": "tcp.flags",
-     "value": "0x010"
-    },
-    {
-     "packet": 4,
-     "field": "tcp.flags",
-     "value": "0x011"
-    },
-    {
-     "packet": 6,
-     "field": "tcp.flags",
-     "value": "0x011"
-    }
-   ],
-   "notes": [
-    "无 payload 时握手完成后 f4 即 FIN(0x011)+f5 ACK、f6 FIN+f7 ACK 双方向终止；MSS 1460 选项默认 (02 04 05 b4)"
-   ]
-  }
- },
- {
-  "id": "tcp-data-segments",
-  "proto": "tcp",
-  "summary": "TCP 大载荷按 MSS 分片（6000 字节 body → 5 段 PSH-ACK）",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 8080,
-   "count": 1,
-   "payload": "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz",
-   "tcp": {
-    "handshake": true,
-    "termination": true
-   }
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 tcp 子映射（握手/挥手开关等）并入 layers[].tcp"
+    ]
   },
-  "expect": {
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "min_packets": 9,
-   "notes": [
-    "52B payload (26 字母×2) 在 f4 单段 PSH-ACK 内发完 (MSS 1460 未触发分段)——分段逻辑由 tcp 层 MSS 分段用例覆盖，此处验证单段数据+长度",
-    "f4 tcp.len=52 + PSH+ACK (0x018)；tcp.payload 全量 104 hex 字符钉死内容；f5 纯 ACK；f6/f8 双 FIN 终止"
-   ],
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.flags",
-     "value": "0x018"
+  {
+    "id": "tcp-zero-window-custom-mss",
+    "proto": "tcp",
+    "summary": "TCP 自定义 MSS 536 与窗口",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 20000,
+            "dst_port": 81,
+            "mss": 536,
+            "window_size": 4096
+          }
+        }
+      ]
     },
-    {
-     "packet": 4,
-     "field": "tcp.len",
-     "value": "52"
+    "expect": {
+      "has_handshake": true,
+      "min_packets": 6,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.window_size",
+          "value": "4096"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.window_size",
+          "value": "4096"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.options.mss_val",
+          "value": "536"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.options.mss_val",
+          "value": "536"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 54,
+          "hex": "02 04 02 18"
+        }
+      ],
+      "notes": [
+        "自定义 MSS 536 (选项字节 02 04 02 18，f1/f2 协商一致) + 窗口 4096 (f1/f2 双向断言)；f3 起为默认窗口 524288",
+        "MSS/窗口协商是双向的：SYN 与 SYN-ACK 必须携带相同值"
+      ]
     },
-    {
-     "packet": 4,
-     "field": "tcp.payload",
-     "value": "6162636465666768696a6b6c6d6e6f707172737475767778797a6162636465666768696a6b6c6d6e6f707172737475767778797a"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "61 62 63 64 65 66 67 68 69 6a"
-    }
-   ]
-  }
- },
- {
-  "id": "tcp-zero-window-custom-mss",
-  "proto": "tcp",
-  "summary": "TCP 自定义 MSS 536 与窗口",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 20000,
-   "dst_port": 81,
-   "count": 1,
-   "tcp": {
-    "mss": 536,
-    "window_size": 4096
-   }
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 tcp 子映射（握手/挥手开关等）并入 layers[].tcp"
+    ]
   },
-  "expect": {
-   "has_handshake": true,
-   "min_packets": 6,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "tcp.window_size",
-     "value": "4096"
+  {
+    "id": "tcp-validate-mss-too-small",
+    "proto": "tcp",
+    "summary": "Validate-negative：MSS 500 < 536（RFC 879 下限）必须被拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 80,
+            "mss": 500
+          }
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
     },
-    {
-     "packet": 2,
-     "field": "tcp.window_size",
-     "value": "4096"
+    "expect": {
+      "expect_error": true,
+      "error_contains": "out of range"
     },
-    {
-     "packet": 1,
-     "field": "tcp.options.mss_val",
-     "value": "536"
-    },
-    {
-     "packet": 2,
-     "field": "tcp.options.mss_val",
-     "value": "536"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 1,
-     "offset": 54,
-     "hex": "02 04 02 18"
-    }
-   ],
-   "notes": [
-    "自定义 MSS 536 (选项字节 02 04 02 18，f1/f2 协商一致) + 窗口 4096 (f1/f2 双向断言)；f3 起为默认窗口 524288",
-    "MSS/窗口协商是双向的：SYN 与 SYN-ACK 必须携带相同值"
-   ]
-  }
- },
- {
-  "id": "tcp-validate-mss-too-small",
-  "proto": "tcp",
-  "summary": "Validate-negative：MSS 500 < 536（RFC 879 下限）必须被拒绝",
-  "spec_json": {
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 80,
-   "count": 1,
-   "tcp": {
-    "mss": 500
-   }
+    "notes": [
+      "层链改造：纯扁平负例迁层链，MSS 500 经 layers[].tcp 下发，锚词 too small 不变",
+      "先跑后钉：迁层后 MSS 下限由 tcp 层 schema 范围执法（out of range [536,65535]），语义不变（MSS 500 拒绝）；原锚词 too small 是 legacy planner 措辞"
+    ]
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "too small"
-  }
- },
- {
-  "id": "tcp-window-size-applies",
-  "proto": "tcp",
-  "summary": "TCP 自定义窗口大小 4096 应用于握手双向（SYN 与 SYN-ACK 均填 winSize，非默认 65535）",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 30000,
-   "dst_port": 82,
-   "count": 1,
-   "tcp": {
-    "window_size": 4096
-   }
+  {
+    "id": "tcp-window-size-applies",
+    "proto": "tcp",
+    "summary": "TCP 自定义窗口大小 4096 应用于握手双向（SYN 与 SYN-ACK 均填 winSize，非默认 65535）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 30000,
+            "dst_port": 82,
+            "window_size": 4096
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "packet_count": 7,
+      "notes": [
+        "无 payload：3 握手 + 4 终止 = 7 包；SYN/SYN-ACK 未协商 window scale 时 tshark 显示原始窗口值 4096（后续包乘 128 = 524288）"
+      ],
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x002"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.flags",
+          "value": "0x012"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.window_size",
+          "value": "4096"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.window_size",
+          "value": "4096"
+        }
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 tcp 子映射（握手/挥手开关等）并入 layers[].tcp"
+    ]
   },
-  "expect": {
-   "has_handshake": true,
-   "packet_count": 7,
-   "notes": [
-    "无 payload：3 握手 + 4 终止 = 7 包；SYN/SYN-ACK 未协商 window scale 时 tshark 显示原始窗口值 4096（后续包乘 128 = 524288）"
-   ],
-   "fields": [
-    {
-     "packet": 1,
-     "field": "tcp.flags",
-     "value": "0x002"
+  {
+    "id": "tcp-no-handshake-direct-data",
+    "proto": "tcp",
+    "summary": "TCP 无握手直发数据：handshake=false 跳过 SYN 握手，数据段 PSH-ACK 直发 + 对端 ACK",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 22222,
+            "dst_port": 82,
+            "handshake": false,
+            "termination": false
+          }
+        }
+      ],
+      "payload": "hello-direct-data"
     },
-    {
-     "packet": 2,
-     "field": "tcp.flags",
-     "value": "0x012"
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x018"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.payload",
+          "value": "68656c6c6f2d6469726563742d64617461"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.flags",
+          "value": "0x010"
+        }
+      ]
     },
-    {
-     "packet": 1,
-     "field": "tcp.window_size",
-     "value": "4096"
-    },
-    {
-     "packet": 2,
-     "field": "tcp.window_size",
-     "value": "4096"
-    }
-   ]
-  }
- },
- {
-  "id": "tcp-no-handshake-direct-data",
-  "proto": "tcp",
-  "summary": "TCP 无握手直发数据：handshake=false 跳过 SYN 握手，数据段 PSH-ACK 直发 + 对端 ACK",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 22222,
-   "dst_port": 82,
-   "count": 1,
-   "payload": "hello-direct-data",
-   "tcp": {
-    "handshake": false,
-    "termination": false
-   }
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 tcp 子映射（握手/挥手开关等）并入 layers[].tcp"
+    ]
   },
-  "expect": {
-   "packet_count": 2,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "tcp.flags",
-     "value": "0x018"
+  {
+    "id": "tcp-initial-seq-deterministic",
+    "proto": "tcp",
+    "summary": "TCP 显式 initial_seq=1000：SYN seq 1000、SYN-ACK ack 1001（确定性 ISN，无 payload）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 80,
+            "initial_seq": 1000
+          }
+        }
+      ]
     },
-    {
-     "packet": 1,
-     "field": "tcp.payload",
-     "value": "68656c6c6f2d6469726563742d64617461"
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "packet_count": 7,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.seq",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.ack",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.ack",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.seq_raw",
+          "value": "1000"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.ack_raw",
+          "value": "1001"
+        }
+      ],
+      "notes": [
+        "tshark 默认 relative seq：ISN 1000 → 相对 0；seq_raw 保留绝对 1000，断言确定性"
+      ]
     },
-    {
-     "packet": 2,
-     "field": "tcp.flags",
-     "value": "0x010"
-    }
-   ]
-  }
- },
- {
-  "id": "tcp-initial-seq-deterministic",
-  "proto": "tcp",
-  "summary": "TCP 显式 initial_seq=1000：SYN seq 1000、SYN-ACK ack 1001（确定性 ISN，无 payload）",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 80,
-   "count": 1,
-   "tcp": {
-    "initial_seq": 1000
-   }
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 tcp 子映射（握手/挥手开关等）并入 layers[].tcp"
+    ]
   },
-  "expect": {
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "packet_count": 7,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "tcp.seq",
-     "value": "0"
+  {
+    "id": "tcp-rst-replaces-fin",
+    "proto": "tcp",
+    "summary": "TCP RST 替换 FIN 终止（rst:true 时无 FIN 挥手，RFC 9293 §3.5）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 31000,
+            "dst_port": 82,
+            "rst": true
+          }
+        }
+      ],
+      "payload": "rst-replaces-fin-payload-0123"
     },
-    {
-     "packet": 1,
-     "field": "tcp.ack",
-     "value": "0"
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "packet_count": 6,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.flags",
+          "value": "0x018"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "82"
+        },
+        {
+          "packet": 5,
+          "field": "tcp.flags",
+          "value": "0x010"
+        },
+        {
+          "packet": 6,
+          "field": "tcp.flags",
+          "value": "0x014"
+        },
+        {
+          "packet": 6,
+          "field": "tcp.flags.fin",
+          "value": "0"
+        }
+      ],
+      "notes": [
+        "rst:true 时 planner 用单个 RST-ACK 替换 4 包 FIN 挥手（tcp.go L331 条件 !RST）；6 包 = 3 握手 + 2 数据（PSH-ACK + ACK）+ 1 RST-ACK；terminates 门禁由最后包 RST 满足"
+      ]
     },
-    {
-     "packet": 2,
-     "field": "tcp.ack",
-     "value": "1"
-    },
-    {
-     "packet": 1,
-     "field": "tcp.seq_raw",
-     "value": "1000"
-    },
-    {
-     "packet": 2,
-     "field": "tcp.ack_raw",
-     "value": "1001"
-    }
-   ],
-   "notes": [
-    "tshark 默认 relative seq：ISN 1000 → 相对 0；seq_raw 保留绝对 1000，断言确定性"
-   ]
-  }
- },
- {
-  "id": "tcp-rst-replaces-fin",
-  "proto": "tcp",
-  "summary": "TCP RST 替换 FIN 终止（rst:true 时无 FIN 挥手，RFC 9293 §3.5）",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 31000,
-   "dst_port": 82,
-   "count": 1,
-   "payload": "rst-replaces-fin-payload-0123",
-   "tcp": {
-    "rst": true
-   }
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 tcp 子映射（握手/挥手开关等）并入 layers[].tcp"
+    ]
   },
-  "expect": {
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "packet_count": 6,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.flags",
-     "value": "0x018"
+  {
+    "id": "tcp-validate-initial-seq-negative",
+    "proto": "tcp",
+    "summary": "Validate-negative：tcp.initial_seq=-1 必须被拒绝（否则 getUint32 截断回绕为 4294967295）",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 80,
+      "count": 1,
+      "tcp": {
+        "initial_seq": -1
+      }
     },
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "82"
-    },
-    {
-     "packet": 5,
-     "field": "tcp.flags",
-     "value": "0x010"
-    },
-    {
-     "packet": 6,
-     "field": "tcp.flags",
-     "value": "0x014"
-    },
-    {
-     "packet": 6,
-     "field": "tcp.flags.fin",
-     "value": "0"
+    "expect": {
+      "expect_error": true,
+      "error_contains": "initial_seq"
     }
-   ],
-   "notes": [
-    "rst:true 时 planner 用单个 RST-ACK 替换 4 包 FIN 挥手（tcp.go L331 条件 !RST）；6 包 = 3 握手 + 2 数据（PSH-ACK + ACK）+ 1 RST-ACK；terminates 门禁由最后包 RST 满足"
-   ]
-  }
- },
- {
-  "id": "tcp-validate-initial-seq-negative",
-  "proto": "tcp",
-  "summary": "Validate-negative：tcp.initial_seq=-1 必须被拒绝（否则 getUint32 截断回绕为 4294967295）",
-  "spec_json": {
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 80,
-   "count": 1,
-   "tcp": {
-    "initial_seq": -1
-   }
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "initial_seq"
+  {
+    "id": "tcp-validate-dst-port-out-of-range-reject",
+    "proto": "tcp",
+    "summary": "Validate-negative：dst_port=65536 超出 16 位范围必须被拒绝（否则 getUint16 截断回绕为 0）",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 65536,
+      "count": 1
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "dst_port 65536 invalid"
+    }
   }
- },
- {
-  "id": "tcp-validate-dst-port-out-of-range-reject",
-  "proto": "tcp",
-  "summary": "Validate-negative：dst_port=65536 超出 16 位范围必须被拒绝（否则 getUint16 截断回绕为 0）",
-  "spec_json": {
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 65536,
-   "count": 1
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "dst_port 65536 invalid"
-  }
- }
 ]
