@@ -47,13 +47,27 @@ func maskSNMPVolatile(pkt []byte) []byte {
 		out[24], out[25] = 0, 0 // IP header checksum
 		out[40], out[41] = 0, 0 // UDP checksum
 	}
-	// First INTEGER (02 04 xx xx xx xx) after the SNMP header start (42).
-	for i := 42; i+5 < len(out); i++ {
-		if out[i] == 0x02 && out[i+1] == 0x04 {
-			for j := 2; j < 6; j++ {
-				out[i+j] = 0
+	// SNMP message at 42: SEQUENCE > version INTEGER > community OCTET
+	// STRING > PDU (context tag) > request-id INTEGER. DER minimally encodes
+	// the random request-id (1-4 bytes), so the mask walks the TLV chain
+	// instead of matching a fixed 02 04 pattern (3-byte IDs slipped through
+	// and flaked the byte-compare).
+	p := 42
+	if p+1 >= len(out) || out[p] != 0x30 {
+		return out
+	}
+	p += 2 // SEQUENCE header (short form)
+	p += 3 // version INTEGER 02 01 xx
+	if p+1 < len(out) && out[p] == 0x04 {
+		p += 2 + int(out[p+1]) // community OCTET STRING
+	}
+	if p+2 < len(out) && out[p]&0xA0 == 0xA0 { // PDU context tag a0/a1/a2/a3
+		p += 2
+		if p+1 < len(out) && out[p] == 0x02 { // request-id INTEGER
+			idLen := int(out[p+1])
+			for j := 0; j < idLen && p+2+j < len(out); j++ {
+				out[p+2+j] = 0
 			}
-			break
 		}
 	}
 	return out

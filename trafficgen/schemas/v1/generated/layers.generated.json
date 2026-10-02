@@ -784,6 +784,9 @@
         "link_fcb": {
           "type": "uint8"
         },
+        "link_fcv": {
+          "type": "uint8"
+        },
         "link_type": {
           "type": "string"
         },
@@ -822,6 +825,9 @@
         },
         "unknown_object": {
           "type": "bool"
+        },
+        "user_data_size": {
+          "type": "uint16"
         }
       }
     },
@@ -5988,6 +5994,9 @@
           "default": 1460,
           "min": 536,
           "max": 65535
+        },
+        "payload": {
+          "type": "string"
         },
         "retransmit": {
           "type": "bool",
