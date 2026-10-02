@@ -18,7 +18,9 @@ import (
 
 // planDOH runs the full factory path for an [tcp→http→doh] chain and returns
 // the emitted packet configs. cfg 经 JSON round-trip 归一（数字 → float64）。
-func planDOH(t *testing.T, cfg map[string]interface{}) []core.PacketConfig {
+// withDohLayer=false 构造 protocol=http 的 [tcp→http] 链（无 doh 层，http
+// 自身终结）。
+func planDOH(t *testing.T, cfg map[string]interface{}, withDohLayer bool) []core.PacketConfig {
 	t.Helper()
 	b, err := json.Marshal(cfg)
 	if err != nil {
@@ -28,13 +30,19 @@ func planDOH(t *testing.T, cfg map[string]interface{}) []core.PacketConfig {
 		t.Fatalf("unmarshal cfg: %v", err)
 	}
 	spec := core.MapToFlowSpec(cfg, "doh")
-	rawLayers, err := json.Marshal([]map[string]map[string]interface{}{
-		{"tcp": {}}, {"http": {}}, {"doh": {}},
-	})
+	proto := "http"
+	chain := []map[string]map[string]interface{}{
+		{"tcp": {}}, {"http": {}},
+	}
+	if withDohLayer {
+		proto = "doh"
+		chain = append(chain, map[string]map[string]interface{}{"doh": {}})
+	}
+	rawLayers, err := json.Marshal(chain)
 	if err != nil {
 		t.Fatalf("marshal layers: %v", err)
 	}
-	pl, err := layers.BuildLayersPlanner("doh", rawLayers)
+	pl, err := layers.BuildLayersPlanner(proto, rawLayers)
 	if err != nil {
 		t.Fatalf("BuildLayersPlanner: %v", err)
 	}
@@ -69,7 +77,7 @@ func dohBase(withDohKey bool) map[string]interface{} {
 // （GET /，与 gbt/cwmp/getwork 同款家族行为），不是 doh 默认——同测断言防混淆。
 func TestDOHChainEmptyConfigDefault(t *testing.T) {
 	// 带 "doh": {} → doh 基线。
-	pkts := planDOH(t, dohBase(true))
+	pkts := planDOH(t, dohBase(true), true)
 	if len(pkts) != 9 {
 		t.Fatalf("empty doh config = %d packets, want 9 (3+2+4)", len(pkts))
 	}
@@ -93,7 +101,7 @@ func TestDOHChainEmptyConfigDefault(t *testing.T) {
 	}
 
 	// 不带 "doh" 键 → http 层自身默认（GET /），非 doh 基线。
-	pkts = planDOH(t, dohBase(false))
+	pkts = planDOH(t, dohBase(false), false)
 	if len(pkts) != 9 {
 		t.Fatalf("no doh key = %d packets, want 9 (http-layer default)", len(pkts))
 	}

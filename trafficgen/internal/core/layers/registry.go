@@ -813,6 +813,14 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "doh", Category: CategoryTerminal,
 		DependsOn:     []string{"http"},
 		FieldContract: map[string]string{"tcp.dst_port": "80"},
+		Fields: map[string]FieldSchema{
+			"profile":    {Type: "string"},
+			"method":     {Type: "string"},
+			"uri":        {Type: "string"},
+			"concurrent": {Type: "bool"},
+			"sessions":   {Type: "list"},
+			"wire_fault": {Type: "string"},
+		},
 	})
 	// onvif（ONVIF Core Spec Ver. 26.06，67-onvif v2.1.1）：终结层事件已含
 	// 完整 HTTP 帧（SOAP 1.2 POST + 2xx/4xx/5xx 响应），http 层以透传变换

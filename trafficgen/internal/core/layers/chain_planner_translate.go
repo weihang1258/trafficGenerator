@@ -3264,6 +3264,24 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.CFlow = &ccfg
+	case "doh":
+		if spec.DOH != nil {
+			return
+		}
+		cfgDOH := completedConfig(s, term.Config)
+		rawDOH, err := json.Marshal(cfgDOH)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("doh layer config encode: %v", err))
+			return
+		}
+		var hcfg core.DOHConfig
+		decDOH := json.NewDecoder(bytes.NewReader(rawDOH))
+		decDOH.DisallowUnknownFields()
+		if err := decDOH.Decode(&hcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("doh layer config decode: %v", err))
+			return
+		}
+		spec.DOH = &hcfg
 	case "mongodb":
 		// D-MONGODB-1（#87）G-MONGO-1：层 config（messages/sessions/wire_fault）
 		// 经 JSON 往返解码为 core.MongoDBConfig（dameng/cql 严格解码同款——

@@ -8752,6 +8752,11 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 			return "protocol dnp3 no longer accepts a top-level dnp3 sub-config (move it into the dnp3 layer of an [ip,tcp,dnp3] layers chain)"
 		}
 	}
+	if protocol == "doh" {
+		if v, ok := cfg["doh"]; ok && v != nil {
+			return "protocol doh no longer accepts a top-level doh sub-config (move it into the doh layer of an [ip,tcp,http,doh] layers chain)"
+		}
+	}
 	if protocol == "edp" {
 		if v, ok := cfg["edp"]; ok && v != nil {
 			return "protocol edp no longer accepts a top-level edp sub-config (move it into the edp layer of an [ip,tcp,edp] layers chain; OneNET EDP framing lives in the edp layer)"

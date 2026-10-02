@@ -906,7 +906,26 @@
       "field_contract": {
         "tcp.dst_port": "80"
       },
-      "fields": {}
+      "fields": {
+        "concurrent": {
+          "type": "bool"
+        },
+        "method": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "sessions": {
+          "type": "list"
+        },
+        "uri": {
+          "type": "string"
+        },
+        "wire_fault": {
+          "type": "string"
+        }
+      }
     },
     "doip": {
       "category": "terminal",
