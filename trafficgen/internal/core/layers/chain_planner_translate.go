@@ -3987,6 +3987,15 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("ntp layer config decode: %v", err))
 			return
 		}
+		// 缺省键补平 flat 遗留语义（JSON 往返区分不了「缺键」和 0）：version
+		// 缺 → 4、mode 缺 → 3（RFC 5905 §7.3，flat getIntDefault 同款；零值
+		// Version 0 会被生成器 validator 判死）。
+		if _, ok := term.Config["version"]; !ok {
+			ntpcfg.Version = 4
+		}
+		if _, ok := term.Config["mode"]; !ok {
+			ntpcfg.Mode = 3
+		}
 		spec.NTP = &ntpcfg
 	case "nvgre":
 		if spec.NVGRE != nil {

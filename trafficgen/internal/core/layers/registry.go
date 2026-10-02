@@ -988,6 +988,7 @@ func buildDefaultRegistry() {
 		Fields: map[string]FieldSchema{
 			"profile":    {Type: "string", Default: "rfc8216_v7"},
 			"wire_fault": {Type: "string", Default: ""},
+			"sessions":   {Type: "list"},
 		},
 		FieldContract: map[string]string{"tcp.dst_port": "80"},
 	})

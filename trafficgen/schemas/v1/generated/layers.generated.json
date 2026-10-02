@@ -1833,6 +1833,9 @@
           "type": "string",
           "default": "rfc8216_v7"
         },
+        "sessions": {
+          "type": "list"
+        },
         "wire_fault": {
           "type": "string",
           "default": ""

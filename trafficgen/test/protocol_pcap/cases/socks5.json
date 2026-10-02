@@ -16,6 +16,9 @@
             "src_port": 12345,
             "dst_port": 1080
           }
+        },
+        {
+          "socks5": {}
         }
       ]
     },
@@ -122,7 +125,8 @@
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 socks5 子映射迁入 layers[].socks5",
-      "层链改造：顶层 socks 子映射迁入 layers[].socks5"
+      "层链改造：顶层 socks 子映射迁入 layers[].socks5",
+      "层链改造：链尾补空 socks5 终结层声明（原顶层 socks 子映射为空，层链唯一真相）"
     ]
   },
   {
