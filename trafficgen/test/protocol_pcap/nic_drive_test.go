@@ -39,7 +39,9 @@ import (
 
 const (
 	nicTXIf = "enp135s0f0np0" // 发包接口（端口组内；抓包也在本接口进行）
-	nicPGID = "9c007853-8908-4e7c-9a6a-d26ccd2a6a44"
+	// nicPGIDDefault 是既有端口组 ID；NIC_PG 环境变量可指向新建端口组
+	// （服务器重建后 UUID 会变，测试不应绑死一个实例）。
+	nicPGIDDefault = "9c007853-8908-4e7c-9a6a-d26ccd2a6a44"
 	// 引擎帧默认 src MAC（线上字节原样）：c2s=01，s2c=02。
 	// 双向帧都在发包口可见（pcap 注入 + 驱动出口双路径），过滤必须
 	// 同时匹配两个方向，否则漏掉应答帧、破坏按方向断言。
@@ -52,7 +54,18 @@ var (
 	nicProto = os.Getenv("NIC_PROTO")
 	nicMax   = atoiEnv("NIC_MAX")
 	nicProbe = os.Getenv("NIC_CASE") // 单用例 ID 调试（NIC_CASE=xxx 即启用）
+	nicPGID  = envOr("NIC_PG", nicPGIDDefault)
+	// nicSkip 跳过字典序前 N 个 job：NIC_MAX 截窗口 + NIC_SKIP 推进窗口，
+	// 全量 125 协议分批跑（单次 go test 的 ctx 有上限）。
+	nicSkip = atoiEnv("NIC_SKIP")
 )
+
+func envOr(k, def string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
+	}
+	return def
+}
 
 func atoiEnv(k string) int {
 	v := os.Getenv(k)
@@ -138,6 +151,13 @@ func nicSelection(t *testing.T, cases map[string][]Case) []job2 {
 	// 协议按字典序排序：Go map 迭代序随机，NIC_MAX 截断取前 N 个 job
 	// 必须确定（否则冒烟每次跑不同协议子集、无法复现）。
 	sort.Slice(jobs, func(i, j int) bool { return jobs[i].proto < jobs[j].proto })
+	if nicSkip > 0 {
+		if nicSkip >= len(jobs) {
+			jobs = nil // 越界=本批无任务：报 no cases selected，不得静默全量重跑
+		} else {
+			jobs = jobs[nicSkip:]
+		}
+	}
 	if nicMax > 0 && len(jobs) > nicMax {
 		jobs = jobs[:nicMax]
 	}
@@ -213,7 +233,7 @@ func captureStart(path string, c Case) (*exec.Cmd, error) {
 	for _, m := range macs[1:] {
 		expr += " or ether src " + m
 	}
-	cmd := exec.Command("tcpdump", "-i", nicTXIf, "-w", path, "-U", "-s", "0",
+	cmd := exec.Command("/usr/sbin/tcpdump", "-i", nicTXIf, "-w", path, "-U", "-s", "0",
 		"-Z", "root", expr)
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
