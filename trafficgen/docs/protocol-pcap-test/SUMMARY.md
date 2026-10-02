@@ -1,8 +1,8 @@
 # Protocol Pcap Test Results
 
-Run at 2026-09-27 12:07:18 — 20 total cases, 20 pass, 0 fail, 0 error
+Run at 2026-10-02 17:56:32 — 213 total cases, 213 pass, 0 fail, 0 error
 
 | Protocol | Cases | Pass | Fail | Error |
 |----------|-------|------|------|-------|
-| spnego | 20 | 20 | 0 | 0 |
+| modbus | 213 | 213 | 0 | 0 |
 

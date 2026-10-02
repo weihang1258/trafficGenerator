@@ -831,10 +831,14 @@ func buildWriteSingleRegisterRequest(op *core.MODBUSOperation) []byte {
 
 func buildDiagnosticRequest(op *core.MODBUSOperation) []byte {
 	// FC + SubFunction(2) + Values
-	pdu := make([]byte, 3+len(op.Values))
+	data := op.Values
+	if len(op.Data) > 0 {
+		data = op.Data
+	}
+	pdu := make([]byte, 3+len(data))
 	pdu[0] = op.FunctionCode
 	binary.BigEndian.PutUint16(pdu[1:3], op.SubFunction)
-	copy(pdu[3:], op.Values)
+	copy(pdu[3:], data)
 	return pdu
 }
 
@@ -918,7 +922,14 @@ func buildMEIRequest(op *core.MODBUSOperation) []byte {
 	// tshark marks the frame Malformed (deep audit 2026-08).
 	data := op.Values
 	if len(data) == 0 {
-		data = []byte{0x01, 0x00}
+		// Default Read Device ID Code = ConformityLevel (absent → 0x01
+		// Basic); Object ID = StartingAddress (T-204/mei-read-device-id
+		// pins: read code + object id are request-side selectable).
+		readCode := op.ConformityLevel
+		if readCode == 0 {
+			readCode = 0x01
+		}
+		data = []byte{readCode, uint8(op.StartingAddress)}
 	}
 	pdu := make([]byte, 2+len(data))
 	pdu[0] = op.FunctionCode
@@ -1081,6 +1092,21 @@ func buildMEIResponse(op *core.MODBUSOperation) []byte {
 		pdu := make([]byte, 1+len(op.ResponseValues))
 		pdu[0] = op.FunctionCode
 		copy(pdu[1:], op.ResponseValues)
+		return pdu
+	}
+	if len(op.MEIObjects) > 0 {
+		// §3.3.17: configured objects override the empty default template.
+		conformity := op.ConformityLevel
+		if conformity == 0 {
+			conformity = 0x01
+		}
+		objects := make([]MEIObject, len(op.MEIObjects))
+		for i, o := range op.MEIObjects {
+			objects[i] = MEIObject{ID: o.ObjectID, Value: []byte(o.ObjectValue)}
+		}
+		pdu := make([]byte, 0, 1+6+len(op.MEIObjects)*2)
+		pdu = append(pdu, op.FunctionCode)
+		pdu = append(pdu, BuildMEIReadDeviceIDResponse(0x01, conformity, 0x00, 0x00, objects)...)
 		return pdu
 	}
 	// §3.3.17 default: MEI Type=0x0E, Read Device ID Code=0x01,

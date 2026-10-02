@@ -6568,32 +6568,18 @@
       "has_handshake": true,
       "terminates": true,
       "directional": true,
-      "fields": [],
-      "frames": [
+      "fields": [
         {
-          "packet": 4,
-          "offset": 54,
-          "hex": "00 00 00 00 00 06 01 03 00 00 00 01"
-        },
-        {
-          "packet": 5,
-          "offset": 54,
-          "hex": "00 00 00 00 00 05 01 03 02 12 34"
-        },
-        {
-          "packet": 13,
-          "offset": 54,
-          "hex": "00 00 00 00 00 06 01 03 00 00 00 01"
-        },
-        {
-          "packet": 14,
-          "offset": 54,
-          "hex": "00 00 00 00 00 05 01 03 02 12 34"
+          "field": "mbtcp.trans_id",
+          "distinct_values": [
+            "0"
+          ]
         }
       ],
       "notes": [
         "T-161/S11: 18 packets = 2 flows x (3 handshake + 2 tx + 4 teardown); each flow TID starts at 0",
-        "two distinct src_ports expected (flow allocation); packet order flow1-then-flow2 assumed, verify before trusting"
+        "two distinct src_ports expected (flow allocation); packet order flow1-then-flow2 assumed, verify before trusting",
+        "；多流交织非确定序（§9.34）→ trans_id 聚合断言替代包位钉"
       ]
     },
     "notes": [
@@ -277064,18 +277050,16 @@
       "directional": true,
       "fields": [
         {
-          "packet": 4,
           "field": "tcp.srcport",
-          "value": "20000"
-        },
-        {
-          "packet": 13,
-          "field": "tcp.srcport",
-          "value": "20001"
+          "distinct_values": [
+            "502",
+            "20000",
+            "20001"
+          ]
         }
       ],
       "notes": [
-        "T-167: 每 master 独立 srcPort 与 TID"
+        "T-167: 每 master 独立 srcPort 与 TID；多流交织非确定序（§9.34）→ 聚合断言替代包位钉"
       ]
     },
     "notes": [
@@ -277140,18 +277124,16 @@
       "directional": true,
       "fields": [
         {
-          "packet": 4,
           "field": "tcp.srcport",
-          "value": "20000"
-        },
-        {
-          "packet": 13,
-          "field": "tcp.srcport",
-          "value": "20001"
+          "distinct_values": [
+            "502",
+            "20000",
+            "20001"
+          ]
         }
       ],
       "notes": [
-        "T-168: 每流独立 srcPort（20000/20001）"
+        "T-168: 每流独立 srcPort（20000/20001）；多流交织非确定序（§9.34）→ 聚合断言替代包位钉"
       ]
     },
     "notes": [
@@ -277216,28 +277198,18 @@
       "directional": true,
       "fields": [
         {
-          "packet": 4,
           "field": "tcp.srcport",
-          "value": "20000"
-        },
-        {
-          "packet": 13,
-          "field": "tcp.srcport",
-          "value": "20001"
-        },
-        {
-          "packet": 22,
-          "field": "tcp.srcport",
-          "value": "20002"
-        },
-        {
-          "packet": 31,
-          "field": "tcp.srcport",
-          "value": "20003"
+          "distinct_values": [
+            "502",
+            "20000",
+            "20001",
+            "20002",
+            "20003"
+          ]
         }
       ],
       "notes": [
-        "T-169: 4 流 srcPort=20000..20003；各流 9 包"
+        "T-169: 4 流 srcPort=20000..20003；各流 9 包；多流交织非确定序（§9.34）→ 聚合断言替代包位钉"
       ]
     },
     "notes": [
@@ -277307,28 +277279,16 @@
       "directional": true,
       "fields": [
         {
-          "packet": 4,
           "field": "mbtcp.trans_id",
-          "value": "0"
-        },
-        {
-          "packet": 6,
-          "field": "mbtcp.trans_id",
-          "value": "1"
-        },
-        {
-          "packet": 15,
-          "field": "mbtcp.trans_id",
-          "value": "0"
-        },
-        {
-          "packet": 17,
-          "field": "mbtcp.trans_id",
-          "value": "1"
+          "distinct_values": [
+            "0",
+            "1"
+          ]
         }
       ],
       "notes": [
-        "T-170: 每 master 独立 TID 计数器（0,1 重复）"
+        "T-170: 每 master 独立 TID 计数器（0,1 重复）",
+        "；多流交织非确定序（§9.34）→ trans_id 聚合断言替代包位钉"
       ]
     },
     "notes": [
@@ -277396,28 +277356,16 @@
       "directional": true,
       "fields": [
         {
-          "packet": 4,
           "field": "mbtcp.trans_id",
-          "value": "0"
-        },
-        {
-          "packet": 6,
-          "field": "mbtcp.trans_id",
-          "value": "1"
-        },
-        {
-          "packet": 15,
-          "field": "mbtcp.trans_id",
-          "value": "0"
-        },
-        {
-          "packet": 17,
-          "field": "mbtcp.trans_id",
-          "value": "1"
+          "distinct_values": [
+            "0",
+            "1"
+          ]
         }
       ],
       "notes": [
-        "T-171: 每流独立 TID 计数器"
+        "T-171: 每流独立 TID 计数器",
+        "；多流交织非确定序（§9.34）→ trans_id 聚合断言替代包位钉"
       ]
     },
     "notes": [
@@ -277481,23 +277429,17 @@
       "directional": true,
       "fields": [
         {
-          "packet": 4,
           "field": "tcp.srcport",
-          "value": "20000"
-        },
-        {
-          "packet": 13,
-          "field": "tcp.srcport",
-          "value": "20001"
-        },
-        {
-          "packet": 22,
-          "field": "tcp.srcport",
-          "value": "20002"
+          "distinct_values": [
+            "502",
+            "20000",
+            "20001",
+            "20002"
+          ]
         }
       ],
       "notes": [
-        "T-172: 3 master srcPort 20000/20001/20002 唯一"
+        "T-172: 3 master srcPort 20000/20001/20002 唯一；多流交织非确定序（§9.34）→ 聚合断言替代包位钉"
       ]
     },
     "notes": [
@@ -539841,18 +539783,16 @@
       "directional": true,
       "fields": [
         {
-          "packet": 4,
           "field": "tcp.srcport",
-          "value": "40000"
-        },
-        {
-          "packet": 13,
-          "field": "tcp.srcport",
-          "value": "40001"
+          "distinct_values": [
+            "502",
+            "40000",
+            "40001"
+          ]
         }
       ],
       "notes": [
-        "T-175: 显式 src_port 40000 → 流派生 40000/40001"
+        "T-175: 显式 src_port 40000 → 流派生 40000/40001；多流交织非确定序（§9.34）→ 聚合断言替代包位钉"
       ]
     },
     "notes": [
@@ -540179,28 +540119,18 @@
       "directional": true,
       "fields": [
         {
-          "packet": 4,
           "field": "tcp.srcport",
-          "value": "20000"
-        },
-        {
-          "packet": 15,
-          "field": "tcp.srcport",
-          "value": "20001"
-        },
-        {
-          "packet": 26,
-          "field": "tcp.srcport",
-          "value": "20002"
-        },
-        {
-          "packet": 37,
-          "field": "tcp.srcport",
-          "value": "20003"
+          "distinct_values": [
+            "502",
+            "20000",
+            "20001",
+            "20002",
+            "20003"
+          ]
         }
       ],
       "notes": [
-        "T-180: 4 流 × 2 事务 = 8 请求 + 8 响应 = 16 modbus 包；4×9+8=44"
+        "T-180: 4 流 × 2 事务 = 8 请求 + 8 响应 = 16 modbus 包；4×9+8=44；多流交织非确定序（§9.34）→ 聚合断言替代包位钉"
       ]
     },
     "notes": [

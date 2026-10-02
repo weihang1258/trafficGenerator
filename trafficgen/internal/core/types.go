@@ -9535,6 +9535,17 @@ type MODBUSOperation struct {
 	// FC 0x2B: low byte is MEI Type (must be 0x0E), high byte must be 0.
 	SubFunction uint16 `json:"sub_function,omitempty"`
 
+	// Data (FC 0x08 诊断数据域): DataField bytes after SubFunction.
+	// Sub-function 0x0000 response echoes these bytes (§3.3.6).
+	Data []byte `json:"data,omitempty"`
+
+	// MEIObjects (FC 0x2B Read Device Identification 响应对象).
+	MEIObjects []MODBUSMEIObject `json:"mei_objects,omitempty"`
+
+	// ConformityLevel (FC 0x2B 一致性等级): 0x01 basic / 0x02 regular /
+	// 0x03 extended. Absent → 0x01.
+	ConformityLevel uint8 `json:"conformity_level,omitempty"`
+
 	// MaskAnd/MaskOr (掩码): FC 0x16 specific.
 	MaskAnd uint16 `json:"mask_and,omitempty"`
 	MaskOr  uint16 `json:"mask_or,omitempty"`
@@ -9545,6 +9556,13 @@ type MODBUSOperation struct {
 
 	// Direction is DEPRECATED; planner ignores it.
 	Direction string `json:"direction,omitempty"`
+}
+
+// MODBUSMEIObject is one object in an FC 0x2B Read Device Identification
+// response: Object ID + ASCII value.
+type MODBUSMEIObject struct {
+	ObjectID    uint8  `json:"object_id"`
+	ObjectValue string `json:"object_value"`
 }
 
 // RIPConfig holds RIP (Routing Information Protocol) configuration.
