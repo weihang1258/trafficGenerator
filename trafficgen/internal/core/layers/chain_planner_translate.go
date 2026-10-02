@@ -3595,6 +3595,22 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if err := json.Unmarshal(raw, &sc); err == nil {
 			spec.Socks = &sc
 		}
+	case "tcp":
+		// tcp 载体 payload 住 tcp 层 config（CORE_MEMORY 1.11 层链唯一配置
+		// 真相）：层内显式声明 → spec.Payload（生成器 tcp.go 读 spec.Payload
+		// 驱动数据段）。层优先：层内声明覆盖 legacy 顶层 spec.Payload；层内
+		// 缺省保留原值（flat 直调路径权威保留，tds 同款）。
+		if len(term.Config) == 0 {
+			return
+		}
+		if v, ok := term.Config["payload"]; ok && v != nil {
+			if str, ok2 := configString(v); ok2 {
+				spec.Payload = []byte(str)
+			} else {
+				spec.ValidationErrors = append(spec.ValidationErrors,
+					fmt.Sprintf("tcp layer payload must be a string, got %T", v))
+			}
+		}
 	case "tds":
 		// D-TDS-1：层条目 layers[].tds 经 JSON 搬进 spec.Payload（生成器经
 		// FlowMeta.Payload 消费，drive :48 直传——无 Payload 字面量漏传位）。

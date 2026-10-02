@@ -95,11 +95,11 @@
             "src_port": 12345,
             "dst_port": 8080,
             "handshake": true,
-            "termination": true
+            "termination": true,
+            "payload": "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"
           }
         }
-      ],
-      "payload": "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -307,11 +307,11 @@
             "src_port": 22222,
             "dst_port": 82,
             "handshake": false,
-            "termination": false
+            "termination": false,
+            "payload": "hello-direct-data"
           }
         }
-      ],
-      "payload": "hello-direct-data"
+      ]
     },
     "expect": {
       "packet_count": 2,
@@ -414,11 +414,11 @@
           "tcp": {
             "src_port": 31000,
             "dst_port": 82,
-            "rst": true
+            "rst": true,
+            "payload": "rst-replaces-fin-payload-0123"
           }
         }
-      ],
-      "payload": "rst-replaces-fin-payload-0123"
+      ]
     },
     "expect": {
       "has_handshake": true,

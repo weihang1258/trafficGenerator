@@ -78,6 +78,10 @@ func buildDefaultRegistry() {
 			// 阶段结束后对未确认段（FlightSize>0）补发重传段（dup PSH-ACK），
 			// 模拟丢包恢复。false = 关闭（默认，字节流与 legacy 一致）。
 			"retransmit": {Type: "bool", Default: false},
+			// payload: tcp 载体数据段（独立传输流协议 "tcp" 的应用数据，
+			// 生成器经 spec.Payload 消费）。层链唯一配置真相（CORE_MEMORY
+			// 1.11）：层内声明覆盖 legacy 顶层 payload。
+			"payload": {Type: "string"},
 		},
 	})
 	r.Register(LayerSchema{Name: "udp", Category: CategoryTransport,
