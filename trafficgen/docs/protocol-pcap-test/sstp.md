@@ -25,4 +25,4 @@ Cases: 22 — pass 22, fail 0, error 0
 | sstp_ppp_ipv4 | C=0 PPP IPv4：ff 03 00 21 + IPv4 头（version/length/checksum 实算） | pass | 18 | [pcap](sstp/sstp_ppp_ipv4.pcap) |
 | sstp_ppp_ipv6 | C=0 PPP IPv6：ff 03 00 57 + IPv6 头（version/payload length/Next Header 59） | pass | 18 | [pcap](sstp/sstp_ppp_ipv6.pcap) |
 | sstp_ppp_mppe_boundary | MPPE 边界：information 恰好 16B（block 对齐）与 20B（跨 boundary），密文 opaque | pass | 19 | [pcap](sstp/sstp_ppp_mppe_boundary.pcap) |
-| sstp_session_ordering | 同连接严格顺序 + ECHO 保活 + 关闭后新 TLS/TCP 连接重连（flows=2） | pass | 20 | [pcap](sstp/sstp_session_ordering.pcap) |
+| sstp_session_ordering | 同连接严格顺序 + ECHO 保活（单流确定序；重连四元组新鲜度由 multi_connection 覆盖） | pass | 20 | [pcap](sstp/sstp_session_ordering.pcap) |
