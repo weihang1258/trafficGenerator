@@ -1,6 +1,6 @@
 # nmea Pcap Test Results
 
-Cases: 80 — pass 76, fail 4, error 0
+Cases: 80 — pass 80, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -33,10 +33,10 @@ Cases: 80 — pass 76, fail 4, error 0
 | nmea_tcp_multicast | TCP multicast destination GGA+RMC stream | pass | 9 | [pcap](nmea/nmea_tcp_multicast.pcap) |
 | nmea_tcp_nondefault_port | TCP nondefault port 4001 | pass | 9 | [pcap](nmea/nmea_tcp_nondefault_port.pcap) |
 | nmea_tcp_rmc_gq_talker | TCP GQ talker RMC stream (QZSS) | pass | 8 | [pcap](nmea/nmea_tcp_rmc_gq_talker.pcap) |
-| nmea_tcp_rst | TCP RST termination after GGA | fail | 8 | `nmea/nmea_tcp_rst.pcap` |
-| nmea_tcp_rst_multi | TCP RST termination after GGA+RMC | fail | 9 | `nmea/nmea_tcp_rst_multi.pcap` |
-| nmea_tcp_udp_coexist | TCP GGA + UDP RMC coexisting sessions | fail | 9 | `nmea/nmea_tcp_udp_coexist.pcap` |
-| nmea_tcp_udp_coexist_reversed | UDP GGA + TCP RMC coexisting sessions (reversed order) | fail | 9 | `nmea/nmea_tcp_udp_coexist_reversed.pcap` |
+| nmea_tcp_rst | TCP RST termination after GGA | pass | 5 | [pcap](nmea/nmea_tcp_rst.pcap) |
+| nmea_tcp_rst_multi | TCP RST termination after GGA+RMC | pass | 6 | [pcap](nmea/nmea_tcp_rst_multi.pcap) |
+| nmea_tcp_udp_coexist | TCP GGA + UDP RMC coexisting sessions | pass | 10 | [pcap](nmea/nmea_tcp_udp_coexist.pcap) |
+| nmea_tcp_udp_coexist_reversed | UDP GGA + TCP RMC coexisting sessions (reversed order) | pass | 10 | [pcap](nmea/nmea_tcp_udp_coexist_reversed.pcap) |
 | nmea_tcp_wf_address_family_mismatch | TCP wire fault: address family mismatch (IPv6 in IPv4 flow) | pass | 0 | [pcap]() |
 | nmea_tcp_wf_carrier_conflict | TCP wire fault: carrier conflict (both TCP and UDP) | pass | 0 | [pcap]() |
 | nmea_tcp_wf_carrier_layer_missing | TCP wire fault: carrier layer missing (GRE without IP) | pass | 0 | [pcap]() |
@@ -84,22 +84,3 @@ Cases: 80 — pass 76, fail 4, error 0
 | nmea_udp_wf_udp_cross_datagram | UDP wire fault: multiple sentences in one datagram | pass | 0 | [pcap]() |
 | nmea_udp_wf_udp_truncated | UDP wire fault: truncated datagram | pass | 0 | [pcap]() |
 | nmea_udp_zda | UDP ZDA datagram | pass | 1 | [pcap](nmea/nmea_udp_zda.pcap) |
-
-## Failures
-
-### nmea_tcp_rst — TCP RST termination after GGA
-
-verify: count: got 8 packets, want 5
-
-### nmea_tcp_rst_multi — TCP RST termination after GGA+RMC
-
-verify: count: got 9 packets, want 6
-
-### nmea_tcp_udp_coexist — TCP GGA + UDP RMC coexisting sessions
-
-verify: count: got 9 packets, want 10
-
-### nmea_tcp_udp_coexist_reversed — UDP GGA + TCP RMC coexisting sessions (reversed order)
-
-verify: count: got 9 packets, want 10
-

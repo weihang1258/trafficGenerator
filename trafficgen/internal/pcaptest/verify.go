@@ -778,13 +778,21 @@ func HasTCPFlag(s string, bit uint16) bool {
 	return err == nil && n&bit != 0
 }
 
-// ExpectFirstFlag 检查首 TCP 包是否置位给定 flag。
+// ExpectFirstFlag 检查首 TCP 包是否置位给定 flag。混合载体 pcap（如
+// nmea udp+tcp 共存、udp 会话在前）中非 TCP 包的 tcp.flags 为空值，跳过。
 func ExpectFirstFlag(path, flag string, decodeAs []string) error {
 	flags, err := FieldValues(path, "tcp.flags", decodeAs)
 	if err != nil {
 		return fmt.Errorf("handshake: %v", err)
 	}
-	if len(flags) == 0 {
+	first := ""
+	for _, f := range flags {
+		if f != "" {
+			first = f
+			break
+		}
+	}
+	if first == "" {
 		return fmt.Errorf("handshake: no TCP packets at all")
 	}
 	var bit uint16
@@ -798,8 +806,8 @@ func ExpectFirstFlag(path, flag string, decodeAs []string) error {
 	default:
 		return fmt.Errorf("handshake: unknown flag %q", flag)
 	}
-	if !HasTCPFlag(flags[0], bit) {
-		return fmt.Errorf("handshake: first packet flags %q, want %s", flags[0], flag)
+	if !HasTCPFlag(first, bit) {
+		return fmt.Errorf("handshake: first packet flags %q, want %s", first, flag)
 	}
 	return nil
 }
