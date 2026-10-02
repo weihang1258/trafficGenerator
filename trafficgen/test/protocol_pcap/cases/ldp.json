@@ -12,13 +12,10 @@
           }
         },
         {
-          "udp": {
+          "tcp": {
             "src_port": 50000,
             "dst_port": 646
           }
-        },
-        {
-          "tcp": {}
         },
         {
           "ldp": {
@@ -136,7 +133,8 @@
       ]
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ldp 子映射迁入 layers[].ldp；tcp 载体用例剔除残留 udp 层"
     ]
   },
   {
@@ -152,13 +150,10 @@
           }
         },
         {
-          "udp": {
+          "tcp": {
             "src_port": 50000,
             "dst_port": 646
           }
-        },
-        {
-          "tcp": {}
         },
         {
           "ldp": {
@@ -246,7 +241,8 @@
       ]
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ldp 子映射迁入 layers[].ldp；tcp 载体用例剔除残留 udp 层"
     ]
   },
   {
@@ -262,13 +258,10 @@
           }
         },
         {
-          "udp": {
+          "tcp": {
             "src_port": 50000,
             "dst_port": 646
           }
-        },
-        {
-          "tcp": {}
         },
         {
           "ldp": {
@@ -344,7 +337,8 @@
       ]
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ldp 子映射迁入 layers[].ldp；tcp 载体用例剔除残留 udp 层"
     ]
   },
   {
@@ -360,13 +354,10 @@
           }
         },
         {
-          "udp": {
+          "tcp": {
             "src_port": 50000,
             "dst_port": 646
           }
-        },
-        {
-          "tcp": {}
         },
         {
           "ldp": {
@@ -453,7 +444,8 @@
       ]
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ldp 子映射迁入 layers[].ldp；tcp 载体用例剔除残留 udp 层"
     ]
   },
   {
@@ -469,13 +461,10 @@
           }
         },
         {
-          "udp": {
+          "tcp": {
             "src_port": 50000,
             "dst_port": 646
           }
-        },
-        {
-          "tcp": {}
         },
         {
           "ldp": {
@@ -549,7 +538,8 @@
       ]
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ldp 子映射迁入 layers[].ldp；tcp 载体用例剔除残留 udp 层"
     ]
   },
   {
@@ -565,13 +555,10 @@
           }
         },
         {
-          "udp": {
+          "tcp": {
             "src_port": 50000,
             "dst_port": 646
           }
-        },
-        {
-          "tcp": {}
         },
         {
           "ldp": {
@@ -668,7 +655,8 @@
       ]
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ldp 子映射迁入 layers[].ldp；tcp 载体用例剔除残留 udp 层"
     ]
   },
   {
@@ -684,13 +672,10 @@
           }
         },
         {
-          "udp": {
+          "tcp": {
             "src_port": 50000,
             "dst_port": 646
           }
-        },
-        {
-          "tcp": {}
         },
         {
           "ldp": {
@@ -787,7 +772,8 @@
       ]
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ldp 子映射迁入 layers[].ldp；tcp 载体用例剔除残留 udp 层"
     ]
   },
   {
@@ -803,13 +789,10 @@
           }
         },
         {
-          "udp": {
+          "tcp": {
             "src_port": 50000,
             "dst_port": 646
           }
-        },
-        {
-          "tcp": {}
         },
         {
           "ldp": {
@@ -894,7 +877,8 @@
       ]
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ldp 子映射迁入 layers[].ldp；tcp 载体用例剔除残留 udp 层"
     ]
   },
   {
@@ -1088,13 +1072,10 @@
           }
         },
         {
-          "udp": {
+          "tcp": {
             "src_port": 50000,
             "dst_port": 646
           }
-        },
-        {
-          "tcp": {}
         },
         {
           "ldp": {
@@ -1163,7 +1144,8 @@
       ]
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ldp 子映射迁入 layers[].ldp；tcp 载体用例剔除残留 udp 层"
     ]
   },
   {
@@ -1179,13 +1161,10 @@
           }
         },
         {
-          "udp": {
+          "tcp": {
             "src_port": 50000,
             "dst_port": 646
           }
-        },
-        {
-          "tcp": {}
         },
         {
           "ldp": {
@@ -1263,7 +1242,8 @@
       ]
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ldp 子映射迁入 layers[].ldp；tcp 载体用例剔除残留 udp 层"
     ]
   },
   {
@@ -1279,13 +1259,10 @@
           }
         },
         {
-          "udp": {
+          "tcp": {
             "src_port": 50000,
             "dst_port": 646
           }
-        },
-        {
-          "tcp": {}
         },
         {
           "ldp": {
@@ -1406,7 +1383,8 @@
       ]
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ldp 子映射迁入 layers[].ldp；tcp 载体用例剔除残留 udp 层"
     ]
   },
   {
@@ -1620,13 +1598,10 @@
           }
         },
         {
-          "udp": {
+          "tcp": {
             "src_port": 50000,
             "dst_port": 646
           }
-        },
-        {
-          "tcp": {}
         },
         {
           "ldp": {
@@ -1651,7 +1626,8 @@
       "error_contains": "profile"
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ldp 子映射迁入 layers[].ldp；tcp 载体用例剔除残留 udp 层"
     ]
   },
   {
@@ -1708,13 +1684,10 @@
           }
         },
         {
-          "udp": {
+          "tcp": {
             "src_port": 50000,
             "dst_port": 646
           }
-        },
-        {
-          "tcp": {}
         },
         {
           "ldp": {
@@ -1739,7 +1712,8 @@
       "error_contains": "message"
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ldp 子映射迁入 layers[].ldp；tcp 载体用例剔除残留 udp 层"
     ]
   },
   {
@@ -1755,13 +1729,10 @@
           }
         },
         {
-          "udp": {
+          "tcp": {
             "src_port": 50000,
             "dst_port": 646
           }
-        },
-        {
-          "tcp": {}
         },
         {
           "ldp": {
@@ -1786,7 +1757,8 @@
       "error_contains": "tlv"
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ldp 子映射迁入 layers[].ldp；tcp 载体用例剔除残留 udp 层"
     ]
   },
   {
@@ -1802,13 +1774,10 @@
           }
         },
         {
-          "udp": {
+          "tcp": {
             "src_port": 50000,
             "dst_port": 646
           }
-        },
-        {
-          "tcp": {}
         },
         {
           "ldp": {
@@ -1845,7 +1814,8 @@
       "error_contains": "unknown"
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ldp 子映射迁入 layers[].ldp；tcp 载体用例剔除残留 udp 层"
     ]
   },
   {
@@ -1861,13 +1831,10 @@
           }
         },
         {
-          "udp": {
+          "tcp": {
             "src_port": 50000,
             "dst_port": 646
           }
-        },
-        {
-          "tcp": {}
         },
         {
           "ldp": {
@@ -1905,7 +1872,8 @@
       "error_contains": "label"
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ldp 子映射迁入 layers[].ldp；tcp 载体用例剔除残留 udp 层"
     ]
   },
   {
@@ -1921,13 +1889,10 @@
           }
         },
         {
-          "udp": {
+          "tcp": {
             "src_port": 50000,
             "dst_port": 646
           }
-        },
-        {
-          "tcp": {}
         },
         {
           "ldp": {
@@ -1964,7 +1929,8 @@
       "error_contains": "prefix"
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ldp 子映射迁入 layers[].ldp；tcp 载体用例剔除残留 udp 层"
     ]
   },
   {
@@ -1980,13 +1946,10 @@
           }
         },
         {
-          "udp": {
+          "tcp": {
             "src_port": 50000,
             "dst_port": 646
           }
-        },
-        {
-          "tcp": {}
         },
         {
           "ldp": {
@@ -2008,7 +1971,8 @@
       "error_contains": "state"
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 ldp 子映射迁入 layers[].ldp；tcp 载体用例剔除残留 udp 层"
     ]
   },
   {

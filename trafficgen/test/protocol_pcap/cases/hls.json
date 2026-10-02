@@ -305,16 +305,14 @@
                     "byte_range": {
                       "length": 1000,
                       "offset": 0
-                    },
-                    "resource_length": 1800
+                    }
                   },
                   {
                     "uri": "/media.mp4",
                     "duration": 5.0,
                     "byte_range": {
                       "length": 800
-                    },
-                    "resource_length": 1800
+                    }
                   }
                 ]
               },
@@ -405,8 +403,7 @@
                 "session_id": "live",
                 "uri": "/seg/1.ts",
                 "response_status_code": 200,
-                "response_body_b64": "AQIDBAUGBwgJCAsMDQ4PEA",
-                "key_ref": "/keys/live.key"
+                "response_body_b64": "AQIDBAUGBwgJCAsMDQ4PEA"
               },
               {
                 "kind": "key",
@@ -714,8 +711,7 @@
                   "byte_range": {
                     "length": 720,
                     "offset": 0
-                  },
-                  "resource_length": 720
+                  }
                 },
                 "independent_segments": true,
                 "segments": [
@@ -726,31 +722,6 @@
                   {
                     "uri": "/seg/2.m4s",
                     "duration": 5.0
-                  }
-                ],
-                "resource_responses": [
-                  {
-                    "kind": "map",
-                    "uri": "/init.mp4",
-                    "response_status_code": 200,
-                    "response_content_type": "video/mp4",
-                    "resource_length": 720,
-                    "byte_range": {
-                      "length": 720,
-                      "offset": 0
-                    }
-                  },
-                  {
-                    "kind": "segment",
-                    "uri": "/seg/1.m4s",
-                    "response_status_code": 200,
-                    "response_content_type": "video/mp4"
-                  },
-                  {
-                    "kind": "segment",
-                    "uri": "/seg/2.m4s",
-                    "response_status_code": 200,
-                    "response_content_type": "video/mp4"
                   }
                 ]
               }
@@ -1026,7 +997,6 @@
               {
                 "kind": "master",
                 "session_id": "a",
-                "src_port": 40014,
                 "uri": "/a/master.m3u8",
                 "variants": [
                   {
@@ -1038,7 +1008,6 @@
               {
                 "kind": "master",
                 "session_id": "b",
-                "src_port": 40015,
                 "uri": "/b/master.m3u8",
                 "variants": [
                   {
@@ -1050,7 +1019,6 @@
               {
                 "kind": "master",
                 "session_id": "a",
-                "src_port": 40016,
                 "uri": "/a/reconnect.m3u8",
                 "variants": [
                   {
@@ -1080,7 +1048,8 @@
       ]
     },
     "notes": [
-      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls",
+      "层链改造（one flow per chain 裁定）：会话级 src_port 端口切换语义退役（HLSSession 无该字段，跨流端口属任务级语义按 D-MQTT-1 另立项）；会话共享流端口，包数/方法断言不变"
     ]
   },
   {

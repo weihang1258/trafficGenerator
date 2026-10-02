@@ -809,7 +809,26 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		spec.CFlow = &core.CFlowConfig{}
 	}
 	if term.Name == "http_flv" && spec.HTTPFLV == nil {
-		spec.HTTPFLV = &core.HTTPFLVConfig{}
+		// http_flv 层 config 严格往返解码进 spec.HTTPFLV（bgp :705 同款）。
+		// 旧代码只置零值结构体，层内 flags/tags/rounds/wire_fault 静默丢弃
+		// → validator 看到零配置恒过（三个负例假通过实证），tag 边界/保活
+		// 用例的 tags/rounds 也全部落空。空层 {} 走零配置默认模板（下块）。
+		cfgFLV := completedConfig(s, term.Config)
+		rawFLV, err := json.Marshal(cfgFLV)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("http_flv layer config encode: %v", err))
+		} else {
+			var flvCfg core.HTTPFLVConfig
+			decFLV := json.NewDecoder(bytes.NewReader(rawFLV))
+			decFLV.DisallowUnknownFields()
+			if err := decFLV.Decode(&flvCfg); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors,
+					fmt.Sprintf("http_flv layer config decode: %v", err))
+			} else {
+				spec.HTTPFLV = &flvCfg
+			}
+		}
 	}
 	if term.Name == "http_flv" && spec.HTTPFLV != nil {
 		// 默认模板：空 Flags → 0x05 (audio+video)，空 Tags → onMetaData + AAC + AVC
@@ -828,7 +847,27 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		}
 	}
 	if term.Name == "hls" && spec.HLS == nil {
-		spec.HLS = &core.HLSConfig{}
+		// hls 层 config 严格往返解码进 spec.HLS（bgp :705 同款——
+		// completedConfig + DisallowUnknownFields）。旧代码只置零值结构体，
+		// 层内 sessions/live/ll_hls/wire_fault 全部静默丢弃 → http 变换器
+		// 只能看到空会话表（cases 实证：请求对数恒 1）。空层 {} 走零配置
+		// 默认（profile rfc8216_v7）。
+		cfgHLS := completedConfig(s, term.Config)
+		rawHLS2, err := json.Marshal(cfgHLS)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("hls layer config encode: %v", err))
+		} else {
+			var hlsCfg core.HLSConfig
+			decHLS := json.NewDecoder(bytes.NewReader(rawHLS2))
+			decHLS.DisallowUnknownFields()
+			if err := decHLS.Decode(&hlsCfg); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors,
+					fmt.Sprintf("hls layer config decode: %v", err))
+			} else {
+				spec.HLS = &hlsCfg
+			}
+		}
 	}
 	if term.Name == "hls" && spec.HLS != nil {
 		for i, s := range spec.HLS.Sessions {

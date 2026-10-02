@@ -1829,12 +1829,51 @@
         "tcp.dst_port": "80"
       },
       "fields": {
+        "bad_bandwidth": {
+          "type": "bool"
+        },
+        "bad_tag": {
+          "type": "string"
+        },
+        "cross_session_ref": {
+          "type": "bool"
+        },
+        "discontinuity_incr": {
+          "type": "int"
+        },
+        "empty_body": {
+          "type": "bool"
+        },
+        "invalid_uri": {
+          "type": "bool"
+        },
+        "key_mismatch": {
+          "type": "bool"
+        },
+        "live": {
+          "type": "object"
+        },
+        "ll_hls": {
+          "type": "object"
+        },
+        "ll_without_profile": {
+          "type": "bool"
+        },
+        "missing_extm3u": {
+          "type": "bool"
+        },
         "profile": {
           "type": "string",
           "default": "rfc8216_v7"
         },
+        "sequence_regress": {
+          "type": "int"
+        },
         "sessions": {
           "type": "list"
+        },
+        "truncate_body": {
+          "type": "int"
         },
         "wire_fault": {
           "type": "string",
