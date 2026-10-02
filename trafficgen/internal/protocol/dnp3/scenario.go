@@ -19,8 +19,16 @@ func scenarioFrames(c *core.DNP3Config) ([]plannedFrame, error) {
 	// 也是 tr(1)+app_ctl(1)+func(1)+≥1B = 5B 数据区（Length=6），故 app 数据
 	// 不足 4B 时补 0x00 至 4B。
 	padApp := func(app []byte) []byte {
-		if len(app) >= 4 { return app }
-		out := make([]byte, 4)
+		min := 4
+		if c.UserDataSize != nil {
+			if s := int(*c.UserDataSize); s > min {
+				min = s
+			}
+		}
+		if len(app) >= min {
+			return app
+		}
+		out := make([]byte, min)
 		copy(out, app)
 		return out
 	}
@@ -43,7 +51,8 @@ func scenarioFrames(c *core.DNP3Config) ([]plannedFrame, error) {
 	ack:=func(direction string)error{return add(&frames,direction,BuildControl(direction=="up",false,false,false,LinkReset),resetPad)}
 	request:=func(fc,seq uint8,objects []core.DNP3Object,con bool)error{
 		app,err:=BuildAppFrame(BuildAppControl(true,true,con,seq),fc,0,objects);if err!=nil{return err}
-		return add(&frames,"up",BuildControl(true,true,fcbToggle(),true,linkFC(LinkUserConfirm)),app)
+		fcv:=true; if c.LinkFCV!=nil { fcv = *c.LinkFCV == 1 }
+		return add(&frames,"up",BuildControl(true,true,fcbToggle(),fcv,linkFC(LinkUserConfirm)),app)
 	}
 	respond:=func(seq uint8,objects []core.DNP3Object)error{
 		iin:=effectiveIIN(c);app,err:=BuildAppFrame(BuildAppControl(true,true,false,seq),AppRespond,iin,objects);if err!=nil{return err}

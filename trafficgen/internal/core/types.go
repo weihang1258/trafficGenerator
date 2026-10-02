@@ -3461,6 +3461,8 @@ type DNP3Config struct {
 	SrcAddr                uint16               `json:"src_addr,omitempty"`
 	DstAddr                uint16               `json:"dst_addr,omitempty"`
 	LinkFCB                uint8                `json:"link_fcb,omitempty"`
+	LinkFCV                *uint8               `json:"link_fcv,omitempty"`
+	UserDataSize           *uint16              `json:"user_data_size,omitempty"`
 	LinkFC                 uint8                `json:"link_fc,omitempty"`
 	AppSeq                 uint8                `json:"app_seq,omitempty"`
 	AppFunc                string               `json:"app_func,omitempty"`

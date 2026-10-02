@@ -571,9 +571,11 @@
         }
       ],
       "notes": [
-        "§2.9/T27: UDP 载荷前置 LTH(len|0x80)+SEQ, 帧头仍 05 64; offset 42 = Eth14+IPv4 20+UDP 8",
-        "LTH=0x8A(10B 数据|0x80) SEQ 0/1; 无 TCP 握手与挥手"
-      ]
+        "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3",
+        "设计 95-dnp3 N-21：层链显式拒绝 udp 传输（转负例）"
+      ],
+      "expect_error": true,
+      "error_contains": "transport=udp is not supported on the layer chain"
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
@@ -1387,10 +1389,11 @@
         }
       ],
       "notes": [
-        "T31: MultiOutstation Count=3, 每个外设独立 4-tuple: src_port 20001/20002/20003, dst 10.0.0.2/3/4, DstAddr 1025/1026/1027",
-        "第一个外设(DstAddr=0x0401=1025 LE) ResetLink 帧 8B 头: 05 64 00 c0 01 04 01 00",
-        "每流 = 3握手 + ResetLink + ACK + FIN + 3挥手 = 9 包 × 3 = 27 包"
-      ]
+        "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3",
+        "设计 95-dnp3 N-22：层链显式拒绝 multi_outstation（转负例）"
+      ],
+      "expect_error": true,
+      "error_contains": "multi_outstation is not supported on the layer chain"
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
@@ -2314,7 +2317,7 @@
       "expect_error": true,
       "error_contains": "outstation_count",
       "notes": [
-        "T9: OutstationCount=0 非法 → Validate 拒绝, 任务以 validation failed 失败"
+        "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
       ]
     },
     "notes": [
@@ -2358,7 +2361,7 @@
       "expect_error": true,
       "error_contains": "outstation_ip_list",
       "notes": [
-        "T10: IPList 长度 1 != OutstationCount 2 → Validate 拒绝"
+        "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
       ]
     },
     "notes": [
@@ -2451,10 +2454,11 @@
         }
       ],
       "notes": [
-        "T56: 无 IPList, OutstationIPStart=10.0.0.10 → RTU0=10.0.0.10, RTU1=10.0.0.11, RTU2=10.0.0.12 (连续递增)",
-        "每流 9 包 = 3握手 + ResetLink + ACK + FIN + 3挥手; 3 流顺序写入 pcap (流0=包1-9, 流1=包10-18, 流2=包19-27)",
-        "链路帧 DstAddr: RTU0=1025(0x0401) / RTU1=1026(0x0402) / RTU2=1027(0x0403), LE 字节序"
-      ]
+        "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3",
+        "设计 95-dnp3 N-22：层链显式拒绝 multi_outstation（转负例）"
+      ],
+      "expect_error": true,
+      "error_contains": "multi_outstation is not supported on the layer chain"
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
@@ -2493,7 +2497,7 @@
       "expect_error": true,
       "error_contains": "outstation_ip",
       "notes": [
-        "T57: Count>1 且既无 IPList 也无 IPStart → Validate 拒绝 outstation_ip required"
+        "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
       ]
     },
     "notes": [
@@ -2538,7 +2542,7 @@
       "expect_error": true,
       "error_contains": "src_port_start",
       "notes": [
-        "T58: IPList 合法(长度=Count) 但 SrcPortStart=0 → Validate 拒绝 src_port_start must be set"
+        "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
       ]
     },
     "notes": [
@@ -2591,7 +2595,7 @@
       "expect_error": true,
       "error_contains": "exceeds 65535",
       "notes": [
-        "T59: 65530 + 10 - 1 = 65539 > 65535 → Validate 拒绝 src_port_start + outstation_count exceeds 65535"
+        "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
       ]
     },
     "notes": [
@@ -2673,9 +2677,11 @@
         }
       ],
       "notes": [
-        "T60: IPStart=10.0.0.10 但 IPList 非空 → IPList 覆盖 IPStart: RTU0=10.0.0.20, RTU1=10.0.0.30",
-        "2 流 × 9 包 = 18 包; 链路帧 DstAddr RTU0=1025 / RTU1=1026"
-      ]
+        "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3",
+        "设计 95-dnp3 N-22：层链显式拒绝 multi_outstation（转负例）"
+      ],
+      "expect_error": true,
+      "error_contains": "multi_outstation is not supported on the layer chain"
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
@@ -3223,10 +3229,11 @@
         }
       ],
       "notes": [
-        "T84: 10 外设 × 9 包/流 = 90 包; 流顺序写入 pcap",
-        "DstAddr: RTU0=1025(0x0401) ... RTU9=1034(0x040A LE=0a 04)",
-        "注: 跨外设包序不保证 (不同 PacketWorker 调度), 但单外设 4-tuple 唯一且内部 ResetLink→ACK→FIN 顺序由 exchange 保持"
-      ]
+        "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3",
+        "设计 95-dnp3 N-22：层链显式拒绝 multi_outstation（转负例）"
+      ],
+      "expect_error": true,
+      "error_contains": "multi_outstation is not supported on the layer chain"
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
@@ -3392,10 +3399,11 @@
         }
       ],
       "notes": [
-        "T32: 每流 GroupID = flowid (含 RTU-N 后缀) → 3 个流路由到不同 PacketWorker; pcap 无法直接断言 GroupID, 用每流起始帧块位置 + 4-tuple + DstAddr 间接断言",
-        "每流 9 包 (3握手+ResetLink+ACK+4挥手): flow0 p1-9, flow1 p10-18, flow2 p19-27",
-        "DstAddr 小端: RTU0=0x0401, RTU1=0x0402, RTU2=0x0403"
-      ]
+        "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3",
+        "设计 95-dnp3 N-22：层链显式拒绝 multi_outstation（转负例）"
+      ],
+      "expect_error": true,
+      "error_contains": "multi_outstation is not supported on the layer chain"
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
@@ -3480,11 +3488,11 @@
         }
       ],
       "notes": [
-        "T33: read_class0 每流 13 包 (3握手+reset+ack+req+ack+resp+ack+4挥手): flow0 p1-13, flow1 p14-26, flow2 p27-39",
-        "每流内序: Reset Link(p4) → ACK(p5) → read 请求(p6) → ACK(p7) → respond(p8) → ACK(p9) → FIN 挥手",
-        "flow1/flow2 的 read 请求在 p17/p30, DstAddr 各为 0x0402/0x0403 (由 srcport 断言覆盖)",
-        "flow1 read 请求在 p19 (flow1 从 p14 起: 14+5=19), flow2 在 p32 (27+5=32)"
-      ]
+        "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3",
+        "设计 95-dnp3 N-22：层链显式拒绝 multi_outstation（转负例）"
+      ],
+      "expect_error": true,
+      "error_contains": "multi_outstation is not supported on the layer chain"
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
@@ -4059,11 +4067,11 @@
         }
       ],
       "notes": [
-        "T81: MCP generate_traffic = strategy_convert 全路径 (strategy_handler → parseDNP3Config → mapToFlowSpec → Plan)",
-        "iin=18464=0x4820 → 响应帧 IIN 字节 48 20 (Class1=0x40 + NeedTime=0x08, ObjectUnknown=0x20)",
-        "multi_outstation=2 → 2 流: RTU0 (DstAddr=0x0401, srcport 20001) p1-8, RTU1 (0x0402, 20002) p9-16; 每流 3握手+respond+4挥手=8 包",
-        "下行响应帧: dst=主站1024(00 04), src=RTU 1025/1026 (01 04 / 02 04)"
-      ]
+        "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3",
+        "设计 95-dnp3 N-22：层链显式拒绝 multi_outstation（转负例）"
+      ],
+      "expect_error": true,
+      "error_contains": "multi_outstation is not supported on the layer chain"
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
@@ -4160,10 +4168,11 @@
         }
       ],
       "notes": [
-        "T85: 20 外设 × 9 包/流 (reset_link) = 180 包; 全流产出无 4-tuple 冲突",
-        "RTU0=1025(0x0401) srcport 20001 dst 10.0.0.2; RTU19=1044(0x0414 LE=14 04) srcport 20020 dst 10.0.0.21",
-        "设计 T85 为 100 RTU (900 包); 此处按任务执行 20 RTU 压力验证 (100 可后续扩展)"
-      ]
+        "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3",
+        "设计 95-dnp3 N-22：层链显式拒绝 multi_outstation（转负例）"
+      ],
+      "expect_error": true,
+      "error_contains": "multi_outstation is not supported on the layer chain"
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"

@@ -96,6 +96,17 @@ func init() {
 		if err := (&Planner{}).Validate(*spec); err != nil {
 			return err
 		}
+		// 设计 95-dnp3 §7 N-21/N-22：能力拒绝必须在 validator 期报锚词——
+		// 只放生成器期会被 0-packet 错误掩蔽（suite 实证）。置于 shape
+		// 校验之后：形状负例（t9/t10/t57-t59）锚词保持语义分层。
+		if c := spec.DNP3; c != nil {
+			if c.Transport == "udp" {
+				return fmt.Errorf("dnp3 generator: transport=udp is not supported on the layer chain (tcp only)")
+			}
+			if c.MultiOutstation != nil {
+				return fmt.Errorf("dnp3 generator: multi_outstation is not supported on the layer chain (one flow per outstation)")
+			}
+		}
 		// cfg.Handshake/Termination 校准进 spec.TCP（legacy dnp3.go:120 同款：
 		// nil→true，显式 false→false；spec.TCP 零值 false 必须写默认值，否则
 		// tcp 层生成器跳过握手/挥手）。legacy MSS 常量未用，不校准。

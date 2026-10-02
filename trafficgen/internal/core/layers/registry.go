@@ -462,6 +462,8 @@ func buildDefaultRegistry() {
 			"src_addr":                  {Type: "uint16"},
 			"dst_addr":                  {Type: "uint16"},
 			"link_fcb":                  {Type: "uint8"},
+			"link_fcv":                  {Type: "uint8"},
+			"user_data_size":            {Type: "uint16"},
 			"link_fc":                   {Type: "uint8"},
 			"app_seq":                   {Type: "uint8"},
 			"app_func":                  {Type: "string"},
