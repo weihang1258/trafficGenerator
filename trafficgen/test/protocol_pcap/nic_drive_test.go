@@ -30,6 +30,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -171,24 +172,77 @@ func hasL2Override(c Case) bool {
 	return len(overrideMACs(c)) > 0
 }
 
-// overrideMACs 返回用例 spec 覆盖引擎默认值的 src_mac/dst_mac（去重、
-// 跳过空串与默认值）。扫描两处：
-//   - spec 顶层（hds/iec104/ospf 等）；doip 的 direction=down 会把覆盖后
-//     的 dst_mac 当作帧源 MAC，故两者都需纳入抓包过滤器。
-//   - eth 层配置（arp/dhcpv6/goose/isis/srv6/sv 等 L2 族把 MAC 写在
-//     {"eth":{"src_mac":...}} 里）；应答帧同样把层 dst_mac 当帧源
-//     （arp_t1 帧2 src=层 dst_mac），两者都纳入。
+// overrideMACs 返回用例 spec 覆盖引擎默认 MAC 的抓包过滤词（"ether src X"
+// / "ether[6] = 0xXX"）。过滤词扫描三处：
+//   - spec 顶层 src_mac/dst_mac（hds/iec104/ospf 等）；doip 的 direction=down
+//     会把覆盖后的 dst_mac 当作帧源 MAC，故两者都纳入。
+//   - 任意层配置的 src_mac/dst_mac（arp/dhcpv6/goose/isis/srv6/sv 等 L2 族
+//     写在 {"eth":{"src_mac":...}} 里）；应答帧同样把层 dst_mac 当帧源
+//     （arp_t1 帧2 src=层 dst_mac）。
+//   - 任意层配置的其它 *_mac 键（arp 显式 sender_mac/target_mac 时帧
+//     eth.src 直接取该 MAC——RFC 826 帧/ARP 发送方一致，layer_gen.go
+//     firstNonEmpty 链）。
+//
+// 动态对象（fixed/inc/rand/list）的候选在 range/list 数组或 value 标量里，
+// 逐个出精确词；inc/rand 另加首字节 BPF 测试——genMAC（layer_dyn.go）输出
+// =range 首字节 + 低 3 字节推进（中间两字节清零），首字节测试即全覆盖，
+// 与 span 大小无关。
 func overrideMACs(c Case) []string {
 	var spec map[string]any
 	if err := json.Unmarshal(c.SpecJSON, &spec); err != nil {
 		return nil
 	}
-	def := map[string]string{"src_mac": "02:00:00:00:00:01", "dst_mac": "02:00:00:00:00:02"}
-	var cands []string
-	for _, k := range []string{"src_mac", "dst_mac"} {
-		if v, ok := spec[k].(string); ok && v != "" {
-			cands = append(cands, v)
+	def := map[string]bool{"02:00:00:00:00:01": true, "02:00:00:00:00:02": true}
+	var terms []string
+	addMAC := func(v string) {
+		if v == "" || def[v] {
+			return
 		}
+		term := "ether src " + v
+		for _, e := range terms {
+			if e == term {
+				return
+			}
+		}
+		terms = append(terms, term)
+	}
+	// macTerms 展开一个 MAC 字段值（静态 string 或动态对象）为过滤词。
+	macTerms := func(v any) {
+		switch t := v.(type) {
+		case string:
+			addMAC(t)
+		case map[string]any:
+			var cands []string
+			for _, key := range []string{"range", "list"} {
+				arr, ok := t[key].([]any)
+				if !ok {
+					continue
+				}
+				for _, e := range arr {
+					if s, ok := e.(string); ok && s != "" {
+						cands = append(cands, s)
+					}
+				}
+			}
+			if s, ok := t["value"].(string); ok && s != "" {
+				cands = append(cands, s)
+			}
+			for _, s := range cands {
+				addMAC(s)
+			}
+			// inc/rand：range[0] 首字节固定（genMAC 掩码 0xFF0000000000），
+			// 低 3 字节 span 可能巨大——一个首字节 BPF 测试全覆盖。
+			if t["strategy"] == "inc" || t["strategy"] == "rand" {
+				if len(cands) > 0 && len(cands[0]) == 17 {
+					if b, err := strconv.ParseUint(cands[0][0:2], 16, 8); err == nil {
+						terms = append(terms, fmt.Sprintf("ether[6] = 0x%02x", b))
+					}
+				}
+			}
+		}
+	}
+	for _, k := range []string{"src_mac", "dst_mac"} {
+		macTerms(spec[k])
 	}
 	if layers, ok := spec["layers"].([]any); ok {
 		for _, l := range layers {
@@ -196,34 +250,22 @@ func overrideMACs(c Case) []string {
 			if !ok {
 				continue
 			}
-			cfg, ok := lm["eth"].(map[string]any)
-			if !ok {
-				continue
-			}
-			for _, k := range []string{"src_mac", "dst_mac"} {
-				if v, ok := cfg[k].(string); ok && v != "" {
-					cands = append(cands, v)
+			for _, cfgAny := range lm {
+				cfg, ok := cfgAny.(map[string]any)
+				if !ok {
+					continue
+				}
+				for k, v := range cfg {
+					if strings.HasSuffix(k, "_mac") {
+						macTerms(v)
+					}
 				}
 			}
 		}
 	}
-	var out []string
-	for _, v := range cands {
-		if v == def["src_mac"] || v == def["dst_mac"] {
-			continue
-		}
-		dup := false
-		for _, e := range out {
-			if e == v {
-				dup = true
-				break
-			}
-		}
-		if !dup {
-			out = append(out, v)
-		}
-	}
-	return out
+	// 层内 map 迭代序随机：排序保证过滤器表达式确定可复现。
+	sort.Strings(terms)
+	return terms
 }
 
 func min1(a, b int) int {
@@ -248,17 +290,13 @@ type job2 struct {
 // 透传到 os.Stderr（exec.Cmd 同一 writer 不能同时接 StderrPipe 和
 // Stderr）。
 //
-// 过滤 = 默认 c2s/s2c 源 MAC + 用例覆盖 MAC（见 overrideMACs）。L2
-// 覆盖用例（如 doip_eid_from_dstmac）帧源 MAC 为覆盖值，不加进过滤
-// 会整包漏抓、空 pcap 误判 fail（此前为「显式 fail、可诊断」，
-// 现可真实抓到并核对 eth.src）。
+// 过滤 = 默认 c2s/s2c 源 MAC + 用例覆盖过滤词（见 overrideMACs：精确
+// "ether src X" 与动态 MAC 首字节 "ether[6] = 0xXX" 混排）。L2 覆盖
+// 用例帧源 MAC 为覆盖值，不加进过滤会整包漏抓、空 pcap 误判 fail。
 func captureStart(path string, c Case) (*exec.Cmd, error) {
-	macs := []string{frameMAC, frameMAC2}
-	macs = append(macs, overrideMACs(c)...)
-	expr := "ether src " + macs[0]
-	for _, m := range macs[1:] {
-		expr += " or ether src " + m
-	}
+	terms := []string{"ether src " + frameMAC, "ether src " + frameMAC2}
+	terms = append(terms, overrideMACs(c)...)
+	expr := strings.Join(terms, " or ")
 	cmd := exec.Command("/usr/sbin/tcpdump", "-i", nicTXIf, "-w", path, "-U", "-s", "0",
 		"-Z", "root", expr)
 	stderr, err := cmd.StderrPipe()

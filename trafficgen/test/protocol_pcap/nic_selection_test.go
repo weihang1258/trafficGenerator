@@ -31,8 +31,10 @@ func TestHasL2Override(t *testing.T) {
 	}
 }
 
-// TestOverrideMACs 验证抓包过滤器扩展列表：覆盖 MAC 应全部纳入（抓包
-// 才能捕获 L2 覆盖用例的帧），默认值/空串忽略，重复值去重。
+// TestOverrideMACs 验证抓包过滤词列表：覆盖 MAC 应全部纳入（抓包
+// 才能捕获 L2 覆盖用例的帧），默认值/空串忽略，重复去重；动态 MAC
+// 展开 range/list/value 候选 + inc/rand 首字节 BPF 测试（genMAC 输出
+// =首字节+低 3 字节，中间两字节清零）。
 func TestOverrideMACs(t *testing.T) {
 	cases := []struct {
 		name string
@@ -40,22 +42,37 @@ func TestOverrideMACs(t *testing.T) {
 		want []string
 	}{
 		{"defaults only", `{"src_mac":"02:00:00:00:00:01","dst_mac":"02:00:00:00:00:02"}`, nil},
-		{"dst override", `{"dst_mac":"00:11:22:33:44:55"}`, []string{"00:11:22:33:44:55"}},
-		{"src override", `{"src_mac":"00:aa:bb:cc:dd:ee"}`, []string{"00:aa:bb:cc:dd:ee"}},
+		{"dst override", `{"dst_mac":"00:11:22:33:44:55"}`, []string{"ether src 00:11:22:33:44:55"}},
+		{"src override", `{"src_mac":"00:aa:bb:cc:dd:ee"}`, []string{"ether src 00:aa:bb:cc:dd:ee"}},
 		{"both override", `{"src_mac":"00:aa:bb:cc:dd:ee","dst_mac":"00:11:22:33:44:55"}`,
-			[]string{"00:aa:bb:cc:dd:ee", "00:11:22:33:44:55"}},
+			[]string{"ether src 00:11:22:33:44:55", "ether src 00:aa:bb:cc:dd:ee"}},
 		{"same value deduped", `{"src_mac":"00:11:22:33:44:55","dst_mac":"00:11:22:33:44:55"}`,
-			[]string{"00:11:22:33:44:55"}},
-		{"empty ignored", `{"src_mac":"","dst_mac":"00:11:22:33:44:55"}`, []string{"00:11:22:33:44:55"}},
+			[]string{"ether src 00:11:22:33:44:55"}},
+		{"empty ignored", `{"src_mac":"","dst_mac":"00:11:22:33:44:55"}`, []string{"ether src 00:11:22:33:44:55"}},
 		{"malformed empty", `not-json{`, nil},
 		// eth 层配置覆盖（arp/goose/sv 等 L2 族）：src/dst 都纳入（应答帧
 		// 把层 dst_mac 当帧源）。
 		{"eth layer src+dst", `{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{}}]}`,
-			[]string{"aa:bb:cc:dd:ee:01", "aa:bb:cc:dd:ee:02"}},
+			[]string{"ether src aa:bb:cc:dd:ee:01", "ether src aa:bb:cc:dd:ee:02"}},
 		{"eth layer defaults skipped", `{"layers":[{"eth":{"src_mac":"02:00:00:00:00:01"}},{"arp":{}}]}`, nil},
-		{"non-eth layer ignored", `{"layers":[{"vlan":{"src_mac":"aa:bb:cc:dd:ee:01"}},{"arp":{}}]}`, nil},
+		{"any-layer _mac collected", `{"layers":[{"vlan":{"src_mac":"aa:bb:cc:dd:ee:01"}},{"arp":{}}]}`,
+			[]string{"ether src aa:bb:cc:dd:ee:01"}},
+		{"non-mac keys ignored", `{"layers":[{"arp":{"sender_ip":"1.2.3.4","opcode":1}}]}`, nil},
 		{"top+layer deduped", `{"src_mac":"aa:bb:cc:dd:ee:01","layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01"}}]}`,
-			[]string{"aa:bb:cc:dd:ee:01"}},
+			[]string{"ether src aa:bb:cc:dd:ee:01"}},
+		// arp 显式 sender_mac/target_mac：帧 eth.src 直接取该 MAC
+		// （arp_t3_explicit_addrs 形状）。
+		{"arp sender/target mac", `{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01"}},{"arp":{"sender_mac":"11:22:33:44:55:66","target_mac":"66:55:44:33:22:11"}}]}`,
+			[]string{"ether src 11:22:33:44:55:66", "ether src 66:55:44:33:22:11", "ether src aa:bb:cc:dd:ee:01"}},
+		// 动态 MAC（sv_mac_dyn_*）：候选展开 + inc/rand 首字节 BPF 测试。
+		{"eth layer dynamic range", `{"layers":[{"eth":{"src_mac":{"strategy":"inc","range":["aa:00:00:00:00:01","aa:00:00:00:00:02"],"step":1}}},{"sv":{}}]}`,
+			[]string{"ether src aa:00:00:00:00:01", "ether src aa:00:00:00:00:02", "ether[6] = 0xaa"}},
+		{"eth layer dynamic list+value", `{"layers":[{"eth":{"src_mac":{"list":["aa:00:00:00:00:03"]},"dst_mac":{"value":"aa:00:00:00:00:04"}}},{"sv":{}}]}`,
+			[]string{"ether src aa:00:00:00:00:03", "ether src aa:00:00:00:00:04"}},
+		{"dynamic rand firstbyte", `{"layers":[{"eth":{"src_mac":{"strategy":"rand","range":["aa:00:00:00:00:01","aa:00:00:00:00:ff"],"seed":7}}},{"sv":{}}]}`,
+			[]string{"ether src aa:00:00:00:00:01", "ether src aa:00:00:00:00:ff", "ether[6] = 0xaa"}},
+		{"dynamic default range skipped", `{"layers":[{"eth":{"src_mac":{"strategy":"inc","range":["02:00:00:00:00:01","02:00:00:00:00:02"]}}}]}`,
+			[]string{"ether[6] = 0x02"}},
 	}
 	for _, tc := range cases {
 		c := Case{SpecJSON: json.RawMessage(tc.spec)}
