@@ -3426,6 +3426,168 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.Geneve = &gencfg
+	case "l2tp":
+		if spec.L2TP != nil {
+			return
+		}
+		cfgL2 := completedConfig(s, term.Config)
+		rawL2, err := json.Marshal(cfgL2)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("l2tp layer config encode: %v", err))
+			return
+		}
+		var l2cfg core.L2TPConfig
+		decL2 := json.NewDecoder(bytes.NewReader(rawL2))
+		decL2.DisallowUnknownFields()
+		if err := decL2.Decode(&l2cfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("l2tp layer config decode: %v", err))
+			return
+		}
+		spec.L2TP = &l2cfg
+	case "ldp":
+		if spec.LDP != nil && ldpConfigHasContent(spec.LDP) {
+			return
+		}
+		cfgLDP := completedConfig(s, term.Config)
+		rawLDP, err := json.Marshal(cfgLDP)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("ldp layer config encode: %v", err))
+			return
+		}
+		var ldpcfg core.LDPConfig
+		decLDP := json.NewDecoder(bytes.NewReader(rawLDP))
+		decLDP.DisallowUnknownFields()
+		if err := decLDP.Decode(&ldpcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("ldp layer config decode: %v", err))
+			return
+		}
+		spec.LDP = &ldpcfg
+	case "mdns":
+		if spec.MDNS != nil {
+			return
+		}
+		cfgMDNS := completedConfig(s, term.Config)
+		rawMDNS, err := json.Marshal(cfgMDNS)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("mdns layer config encode: %v", err))
+			return
+		}
+		var mcfg core.MDNSConfig
+		decMDNS := json.NewDecoder(bytes.NewReader(rawMDNS))
+		decMDNS.DisallowUnknownFields()
+		if err := decMDNS.Decode(&mcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("mdns layer config decode: %v", err))
+			return
+		}
+		spec.MDNS = &mcfg
+	case "modbus":
+		if spec.MODBUS != nil {
+			return
+		}
+		cfgMOD := completedConfig(s, term.Config)
+		rawMOD, err := json.Marshal(cfgMOD)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("modbus layer config encode: %v", err))
+			return
+		}
+		var modcfg core.MODBUSConfig
+		decMOD := json.NewDecoder(bytes.NewReader(rawMOD))
+		decMOD.DisallowUnknownFields()
+		if err := decMOD.Decode(&modcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("modbus layer config decode: %v", err))
+			return
+		}
+		spec.MODBUS = &modcfg
+	case "mysql":
+		if spec.MySQL != nil {
+			return
+		}
+		cfgMY := completedConfig(s, term.Config)
+		rawMY, err := json.Marshal(cfgMY)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("mysql layer config encode: %v", err))
+			return
+		}
+		var mycfg core.MySQLConfig
+		decMY := json.NewDecoder(bytes.NewReader(rawMY))
+		decMY.DisallowUnknownFields()
+		if err := decMY.Decode(&mycfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("mysql layer config decode: %v", err))
+			return
+		}
+		spec.MySQL = &mycfg
+	case "nmea":
+		if spec.NMEA != nil {
+			return
+		}
+		cfgNMEA := completedConfig(s, term.Config)
+		rawNMEA, err := json.Marshal(cfgNMEA)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("nmea layer config encode: %v", err))
+			return
+		}
+		var ncfg core.NMEAConfig
+		decNMEA := json.NewDecoder(bytes.NewReader(rawNMEA))
+		decNMEA.DisallowUnknownFields()
+		if err := decNMEA.Decode(&ncfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("nmea layer config decode: %v", err))
+			return
+		}
+		spec.NMEA = &ncfg
+	case "ntp":
+		if spec.NTP != nil {
+			return
+		}
+		cfgNTP := completedConfig(s, term.Config)
+		rawNTP, err := json.Marshal(cfgNTP)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("ntp layer config encode: %v", err))
+			return
+		}
+		var ntpcfg core.NTPConfig
+		decNTP := json.NewDecoder(bytes.NewReader(rawNTP))
+		decNTP.DisallowUnknownFields()
+		if err := decNTP.Decode(&ntpcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("ntp layer config decode: %v", err))
+			return
+		}
+		spec.NTP = &ntpcfg
+	case "nvgre":
+		if spec.NVGRE != nil {
+			return
+		}
+		cfgNV := completedConfig(s, term.Config)
+		rawNV, err := json.Marshal(cfgNV)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("nvgre layer config encode: %v", err))
+			return
+		}
+		var nvcfg core.NVGREConfig
+		decNV := json.NewDecoder(bytes.NewReader(rawNV))
+		decNV.DisallowUnknownFields()
+		if err := decNV.Decode(&nvcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("nvgre layer config decode: %v", err))
+			return
+		}
+		spec.NVGRE = &nvcfg
+	case "onvif":
+		if spec.ONVIF != nil {
+			return
+		}
+		cfgONVIF := completedConfig(s, term.Config)
+		rawONVIF, err := json.Marshal(cfgONVIF)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("onvif layer config encode: %v", err))
+			return
+		}
+		var ocfg core.ONVIFConfig
+		decONVIF := json.NewDecoder(bytes.NewReader(rawONVIF))
+		decONVIF.DisallowUnknownFields()
+		if err := decONVIF.Decode(&ocfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("onvif layer config decode: %v", err))
+			return
+		}
+		spec.ONVIF = &ocfg
 	case "mongodb":
 		// D-MONGODB-1（#87）G-MONGO-1：层 config（messages/sessions/wire_fault）
 		// 经 JSON 往返解码为 core.MongoDBConfig（dameng/cql 严格解码同款——
@@ -3918,6 +4080,17 @@ func isisConfigHasContent(c *core.ISISConfig) bool {
 		c.CircuitType != 0 || c.ChecksumMode != "" || c.AddressProfile != "" ||
 		len(c.AreaAddresses) > 0 || c.StartLSPID != "" || c.EndLSPID != "" ||
 		len(c.Events) > 0 || c.Checksum != 0 || c.LLC != nil || c.WireFault != nil
+}
+
+// ldpConfigHasContent mirrors isisConfigHasContent: 本函数头部 :756 已把 nil
+// 的 spec.LDP 填成空壳（非 nil 无信息），判别式必须看内容——有内容的
+// spec.LDP = 预 resolve 的 flat/直调值，翻译跳过（flat 权威）；空壳继续翻译。
+func ldpConfigHasContent(c *core.LDPConfig) bool {
+	return c.Transport != "" || c.WireProfile != "" || c.Carrier != "" ||
+		len(c.Events) > 0 || len(c.Sessions) > 0 || len(c.Adjacencies) > 0 ||
+		c.LSRID != "" || c.LabelSpace != 0 || c.HoldTime != 0 ||
+		c.Targeted || c.KeepaliveTime != 0 || c.LabelControl != "" ||
+		c.LabelAdvertisement != "" || c.FaultKind != ""
 }
 
 // completedConfig overlays the user layer config onto the schema defaults

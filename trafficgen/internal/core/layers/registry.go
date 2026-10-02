@@ -160,6 +160,36 @@ func buildDefaultRegistry() {
 	// 不落层 config——协议配置字段繁多且 ValidateLayerConfig 拒绝未知字段）。
 	r.Register(LayerSchema{Name: "ntp", Category: CategoryTerminal,
 		DependsOn: []string{"udp"},
+		Fields: map[string]FieldSchema{
+			"leap_indicator":  {Type: "uint8"},
+			"version":         {Type: "uint8"},
+			"mode":            {Type: "uint8"},
+			"stratum":         {Type: "uint8"},
+			"poll":            {Type: "uint8"},
+			"precision":       {Type: "int8"},
+			"root_delay":      {Type: "uint32"},
+			"root_dispersion": {Type: "uint32"},
+			"reference_id":    {Type: "string"},
+			"ref_timestamp":   {Type: "uint64"},
+			"origin_ts":       {Type: "uint64"},
+			"receive_ts":      {Type: "uint64"},
+			"transmit_ts":     {Type: "uint64"},
+			"key_id":          {Type: "uint32"},
+			"mac":             {Type: "list"},
+			"extensions":      {Type: "list"},
+			"is_response":     {Type: "bool"},
+			"poll_interval":   {Type: "int"},
+			"repeat_count":    {Type: "int"},
+			"sequence":        {Type: "string"},
+			"implementation":  {Type: "string"},
+			"request_code":    {Type: "uint16"},
+			"association_id":  {Type: "uint16"},
+			"offset":          {Type: "int"},
+			"error":           {Type: "uint16"},
+			"more":            {Type: "bool"},
+			"status_word":     {Type: "uint16"},
+			"control_data":    {Type: "object"},
+		},
 	})
 	r.Register(LayerSchema{Name: "snmp", Category: CategoryTerminal,
 		DependsOn: []string{"udp"},
@@ -171,6 +201,25 @@ func buildDefaultRegistry() {
 	// MessageEvent.DstIP/DstMAC 覆盖；配置经 FlowMeta 直传生成器）。
 	r.Register(LayerSchema{Name: "mdns", Category: CategoryTerminal,
 		DependsOn: []string{"udp"},
+		Fields: map[string]FieldSchema{
+			"mode":                   {Type: "string"},
+			"questions":              {Type: "list"},
+			"answers":                {Type: "list"},
+			"authorities":            {Type: "list"},
+			"additionals":            {Type: "list"},
+			"probing_repeat":         {Type: "int"},
+			"probing_interval":       {Type: "int"},
+			"probing_jitter_max":     {Type: "int"},
+			"probing_jitter_seed":    {Type: "int"},
+			"announcing_repeat":      {Type: "int"},
+			"announcing_interval":    {Type: "int"},
+			"response_delay":         {Type: "int"},
+			"multicast_group":        {Type: "string"},
+			"force_unicast_response": {Type: "bool"},
+			"cache_flush":            {Type: "bool"},
+			"default_ttl":            {Type: "uint32"},
+			"tc":                     {Type: "bool"},
+		},
 	})
 	r.Register(LayerSchema{Name: "dhcp", Category: CategoryTerminal,
 		DependsOn: []string{"udp"},
@@ -611,6 +660,35 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "l2tp", Category: CategoryTerminal,
 		DependsOn:     []string{"udp"},
 		FieldContract: map[string]string{"udp.dst_port": "1701"}, // RFC 2661 默认 1701；用户显式非标准端口优先，不强制
+		Fields: map[string]FieldSchema{
+			"version":             {Type: "uint8"},
+			"role":                {Type: "string"},
+			"local_tunnel_id":     {Type: "uint16"},
+			"peer_tunnel_id":      {Type: "uint16"},
+			"local_session_id":    {Type: "uint16"},
+			"peer_session_id":     {Type: "uint16"},
+			"local_session_id_32": {Type: "uint32"},
+			"peer_session_id_32":  {Type: "uint32"},
+			"host_name":           {Type: "string"},
+			"vendor_name":         {Type: "string"},
+			"firmware_rev":        {Type: "uint16"},
+			"framing_caps":        {Type: "string"},
+			"bearer_caps":         {Type: "string"},
+			"receive_window_size": {Type: "uint16"},
+			"initial_ns":          {Type: "uint16"},
+			"tie_breaker":         {Type: "list"},
+			"protocol_version":    {Type: "string"},
+			"cookie":              {Type: "string"},
+			"scenarios":           {Type: "list"},
+			"hello_interval":      {Type: "int"},
+			"ppp_frames":          {Type: "list"},
+			"custom_avps":         {Type: "list"},
+			"result_code":         {Type: "uint16"},
+			"error_code":          {Type: "uint16"},
+			"error_message":       {Type: "string"},
+			"scenario":            {Type: "string"},
+			"inner_ip":            {Type: "string"},
+		},
 	})
 	// ---- openvpn（udp 终结层。OpenVPN——UDP 承载的加密隧道协议，P_CONTROL/
 	// P_DATA 数据报序列，wire 字节由 build* 纯函数产出）。UDP 语义交给 udp 层
@@ -866,6 +944,13 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"tcp"},
 		TransportOn:   []string{"tcp", "udp"},
 		FieldContract: map[string]string{"tcp.dst_port": "10110", "udp.dst_port": "10110"},
+		Fields: map[string]FieldSchema{
+			"concurrent":  {Type: "bool"},
+			"sessions":    {Type: "list"},
+			"pack":        {Type: "list"},
+			"wire_fault":  {Type: "string"},
+			"termination": {Type: "string"},
+		},
 	})
 	// getwork（Bitcoin legacy getwork JSON-RPC over HTTP）：终结层事件已含
 	// 完整 HTTP 帧（请求/响应钉死头序），http 层以透传变换器转发（identity
@@ -906,6 +991,15 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "onvif", Category: CategoryTerminal,
 		DependsOn:     []string{"http"},
 		FieldContract: map[string]string{"tcp.dst_port": "80"},
+		Fields: map[string]FieldSchema{
+			"profile":      {Type: "string"},
+			"soap_version": {Type: "string"},
+			"charset":      {Type: "string"},
+			"content_type": {Type: "string"},
+			"concurrent":   {Type: "bool"},
+			"sessions":     {Type: "list"},
+			"wire_fault":   {Type: "string"},
+		},
 	})
 	r.Register(LayerSchema{Name: "opcua", Category: CategoryTerminal, DependsOn: []string{"tcp"}, Fields: map[string]FieldSchema{
 		"security_mode":    {Type: "string", Default: "none"},
@@ -1573,6 +1667,22 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "ldp", Category: CategoryTerminal,
 		DependsOn:   []string{"udp"},
 		TransportOn: []string{"udp", "tcp"},
+		Fields: map[string]FieldSchema{
+			"transport":           {Type: "string"},
+			"wire_profile":        {Type: "string"},
+			"carrier":             {Type: "string"},
+			"events":              {Type: "list"},
+			"sessions":            {Type: "list"},
+			"adjacencies":         {Type: "list"},
+			"lsr_id":              {Type: "string"},
+			"label_space":         {Type: "uint16"},
+			"hold_time":           {Type: "uint16"},
+			"targeted":            {Type: "bool"},
+			"keepalive_time":      {Type: "uint16"},
+			"label_control":       {Type: "string"},
+			"label_advertisement": {Type: "string"},
+			"fault_kind":          {Type: "string"},
+		},
 	})
 	// ---- B3：pcep（tcp 终结层。RFC 5440——Open/Keepalive/PCReq/PCRep/
 	// PCNtf/PCErr 逐报文事件，wire 字节由 build* 纯函数产出），TCP 语义
@@ -1796,6 +1906,20 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "mysql", Category: CategoryTerminal,
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "3306"}, // MySQL 默认 3306；用户显式非标准端口优先，不强制
+		Fields: map[string]FieldSchema{
+			"server_version":     {Type: "string"},
+			"thread_id":          {Type: "uint32"},
+			"auth_plugin":        {Type: "string"},
+			"username":           {Type: "string"},
+			"password":           {Type: "string"},
+			"scramble":           {Type: "string"},
+			"database":           {Type: "string"},
+			"capability_flags":   {Type: "uint32"},
+			"max_packet_size":    {Type: "uint32"},
+			"character_set":      {Type: "uint8"},
+			"commands":           {Type: "list"},
+			"server_bypass_auth": {Type: "bool"},
+		},
 	})
 	r.Register(LayerSchema{Name: "grpc", Category: CategoryTerminal,
 		DependsOn:     []string{"tcp"},
@@ -1910,6 +2034,14 @@ func buildDefaultRegistry() {
 	// nvgre 生成器自写外层 IP + L2.GRE。无传输层、无端口概念。
 	r.Register(LayerSchema{Name: "nvgre", Category: CategoryTerminal,
 		DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"vsid":       {Type: "uint32"},
+			"flow_id":    {Type: "uint16"},
+			"ttl":        {Type: "uint8"},
+			"inner":      {Type: "object"},
+			"datagrams":  {Type: "list"},
+			"wire_fault": {Type: "object"},
+		},
 	})
 	// srv6（raw-IP 终结层。RFC 8754——IPv6 扩展头 SRH（NH=43/Routing
 	// Type=4），非独立传输层：每 flow 产 frames 帧 IPv6+SRH(+HBH)+内层

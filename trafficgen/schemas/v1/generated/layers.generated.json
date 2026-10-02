@@ -2719,7 +2719,89 @@
       "field_contract": {
         "udp.dst_port": "1701"
       },
-      "fields": {}
+      "fields": {
+        "bearer_caps": {
+          "type": "string"
+        },
+        "cookie": {
+          "type": "string"
+        },
+        "custom_avps": {
+          "type": "list"
+        },
+        "error_code": {
+          "type": "uint16"
+        },
+        "error_message": {
+          "type": "string"
+        },
+        "firmware_rev": {
+          "type": "uint16"
+        },
+        "framing_caps": {
+          "type": "string"
+        },
+        "hello_interval": {
+          "type": "int"
+        },
+        "host_name": {
+          "type": "string"
+        },
+        "initial_ns": {
+          "type": "uint16"
+        },
+        "inner_ip": {
+          "type": "string"
+        },
+        "local_session_id": {
+          "type": "uint16"
+        },
+        "local_session_id_32": {
+          "type": "uint32"
+        },
+        "local_tunnel_id": {
+          "type": "uint16"
+        },
+        "peer_session_id": {
+          "type": "uint16"
+        },
+        "peer_session_id_32": {
+          "type": "uint32"
+        },
+        "peer_tunnel_id": {
+          "type": "uint16"
+        },
+        "ppp_frames": {
+          "type": "list"
+        },
+        "protocol_version": {
+          "type": "string"
+        },
+        "receive_window_size": {
+          "type": "uint16"
+        },
+        "result_code": {
+          "type": "uint16"
+        },
+        "role": {
+          "type": "string"
+        },
+        "scenario": {
+          "type": "string"
+        },
+        "scenarios": {
+          "type": "list"
+        },
+        "tie_breaker": {
+          "type": "list"
+        },
+        "vendor_name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "uint8"
+        }
+      }
     },
     "ldap": {
       "category": "terminal",
@@ -2790,7 +2872,50 @@
         "udp",
         "tcp"
       ],
-      "fields": {}
+      "fields": {
+        "adjacencies": {
+          "type": "list"
+        },
+        "carrier": {
+          "type": "string"
+        },
+        "events": {
+          "type": "list"
+        },
+        "fault_kind": {
+          "type": "string"
+        },
+        "hold_time": {
+          "type": "uint16"
+        },
+        "keepalive_time": {
+          "type": "uint16"
+        },
+        "label_advertisement": {
+          "type": "string"
+        },
+        "label_control": {
+          "type": "string"
+        },
+        "label_space": {
+          "type": "uint16"
+        },
+        "lsr_id": {
+          "type": "string"
+        },
+        "sessions": {
+          "type": "list"
+        },
+        "targeted": {
+          "type": "bool"
+        },
+        "transport": {
+          "type": "string"
+        },
+        "wire_profile": {
+          "type": "string"
+        }
+      }
     },
     "mcp": {
       "category": "terminal",
@@ -2868,7 +2993,59 @@
       "depends_on": [
         "udp"
       ],
-      "fields": {}
+      "fields": {
+        "additionals": {
+          "type": "list"
+        },
+        "announcing_interval": {
+          "type": "int"
+        },
+        "announcing_repeat": {
+          "type": "int"
+        },
+        "answers": {
+          "type": "list"
+        },
+        "authorities": {
+          "type": "list"
+        },
+        "cache_flush": {
+          "type": "bool"
+        },
+        "default_ttl": {
+          "type": "uint32"
+        },
+        "force_unicast_response": {
+          "type": "bool"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "multicast_group": {
+          "type": "string"
+        },
+        "probing_interval": {
+          "type": "int"
+        },
+        "probing_jitter_max": {
+          "type": "int"
+        },
+        "probing_jitter_seed": {
+          "type": "int"
+        },
+        "probing_repeat": {
+          "type": "int"
+        },
+        "questions": {
+          "type": "list"
+        },
+        "response_delay": {
+          "type": "int"
+        },
+        "tc": {
+          "type": "bool"
+        }
+      }
     },
     "megaco": {
       "category": "terminal",
@@ -3189,7 +3366,44 @@
       "field_contract": {
         "tcp.dst_port": "3306"
       },
-      "fields": {}
+      "fields": {
+        "auth_plugin": {
+          "type": "string"
+        },
+        "capability_flags": {
+          "type": "uint32"
+        },
+        "character_set": {
+          "type": "uint8"
+        },
+        "commands": {
+          "type": "list"
+        },
+        "database": {
+          "type": "string"
+        },
+        "max_packet_size": {
+          "type": "uint32"
+        },
+        "password": {
+          "type": "string"
+        },
+        "scramble": {
+          "type": "string"
+        },
+        "server_bypass_auth": {
+          "type": "bool"
+        },
+        "server_version": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "uint32"
+        },
+        "username": {
+          "type": "string"
+        }
+      }
     },
     "nfs": {
       "category": "terminal",
@@ -3331,7 +3545,23 @@
         "tcp.dst_port": "10110",
         "udp.dst_port": "10110"
       },
-      "fields": {}
+      "fields": {
+        "concurrent": {
+          "type": "bool"
+        },
+        "pack": {
+          "type": "list"
+        },
+        "sessions": {
+          "type": "list"
+        },
+        "termination": {
+          "type": "string"
+        },
+        "wire_fault": {
+          "type": "string"
+        }
+      }
     },
     "ntlm": {
       "category": "terminal",
@@ -3390,14 +3620,118 @@
       "depends_on": [
         "udp"
       ],
-      "fields": {}
+      "fields": {
+        "association_id": {
+          "type": "uint16"
+        },
+        "control_data": {
+          "type": "object"
+        },
+        "error": {
+          "type": "uint16"
+        },
+        "extensions": {
+          "type": "list"
+        },
+        "implementation": {
+          "type": "string"
+        },
+        "is_response": {
+          "type": "bool"
+        },
+        "key_id": {
+          "type": "uint32"
+        },
+        "leap_indicator": {
+          "type": "uint8"
+        },
+        "mac": {
+          "type": "list"
+        },
+        "mode": {
+          "type": "uint8"
+        },
+        "more": {
+          "type": "bool"
+        },
+        "offset": {
+          "type": "int"
+        },
+        "origin_ts": {
+          "type": "uint64"
+        },
+        "poll": {
+          "type": "uint8"
+        },
+        "poll_interval": {
+          "type": "int"
+        },
+        "precision": {
+          "type": "int8"
+        },
+        "receive_ts": {
+          "type": "uint64"
+        },
+        "ref_timestamp": {
+          "type": "uint64"
+        },
+        "reference_id": {
+          "type": "string"
+        },
+        "repeat_count": {
+          "type": "int"
+        },
+        "request_code": {
+          "type": "uint16"
+        },
+        "root_delay": {
+          "type": "uint32"
+        },
+        "root_dispersion": {
+          "type": "uint32"
+        },
+        "sequence": {
+          "type": "string"
+        },
+        "status_word": {
+          "type": "uint16"
+        },
+        "stratum": {
+          "type": "uint8"
+        },
+        "transmit_ts": {
+          "type": "uint64"
+        },
+        "version": {
+          "type": "uint8"
+        }
+      }
     },
     "nvgre": {
       "category": "terminal",
       "depends_on": [
         "ip"
       ],
-      "fields": {}
+      "fields": {
+        "datagrams": {
+          "type": "list"
+        },
+        "flow_id": {
+          "type": "uint16"
+        },
+        "inner": {
+          "type": "object"
+        },
+        "ttl": {
+          "type": "uint8"
+        },
+        "vsid": {
+          "type": "uint32"
+        },
+        "wire_fault": {
+          "type": "object"
+        }
+      }
     },
     "ocsp": {
       "category": "terminal",
@@ -3493,7 +3827,29 @@
       "field_contract": {
         "tcp.dst_port": "80"
       },
-      "fields": {}
+      "fields": {
+        "charset": {
+          "type": "string"
+        },
+        "concurrent": {
+          "type": "bool"
+        },
+        "content_type": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "sessions": {
+          "type": "list"
+        },
+        "soap_version": {
+          "type": "string"
+        },
+        "wire_fault": {
+          "type": "string"
+        }
+      }
     },
     "opcua": {
       "category": "terminal",
