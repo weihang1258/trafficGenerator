@@ -1118,6 +1118,25 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		}
 		spec.DHCPv6 = &dcfg6
 		return
+	case "dnp3":
+		if spec.DNP3 != nil {
+			return
+		}
+		cfgDNP3 := completedConfig(s, term.Config)
+		rawDNP3, err := json.Marshal(cfgDNP3)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("dnp3 layer config encode: %v", err))
+			return
+		}
+		var dcfg3 core.DNP3Config
+		decDNP3 := json.NewDecoder(bytes.NewReader(rawDNP3))
+		decDNP3.DisallowUnknownFields()
+		if err := decDNP3.Decode(&dcfg3); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, fmt.Sprintf("dnp3 layer config decode: %v", err))
+			return
+		}
+		spec.DNP3 = &dcfg3
+		return
 	case "icmpv6":
 		// D-ICMPV6-1：层 config 手工逐键映射进 spec.ICMPv6（parse 未导出
 		// 不可跨包）。缺省镜像 parse（strategy_convert.go:732，决策 D1）：

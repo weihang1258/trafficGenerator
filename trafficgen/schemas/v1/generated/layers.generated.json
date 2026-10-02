@@ -705,7 +705,125 @@
       "depends_on": [
         "tcp"
       ],
-      "fields": {}
+      "fields": {
+        "app_con": {
+          "type": "uint8"
+        },
+        "app_func": {
+          "type": "string"
+        },
+        "app_func_code": {
+          "type": "uint8"
+        },
+        "app_seq": {
+          "type": "uint8"
+        },
+        "confirm_required": {
+          "type": "bool"
+        },
+        "dst_addr": {
+          "type": "uint16"
+        },
+        "handshake": {
+          "type": "bool"
+        },
+        "iin": {
+          "type": "uint16"
+        },
+        "iin_already_executing": {
+          "type": "bool"
+        },
+        "iin_broadcast": {
+          "type": "bool"
+        },
+        "iin_class1": {
+          "type": "bool"
+        },
+        "iin_class2": {
+          "type": "bool"
+        },
+        "iin_class3": {
+          "type": "bool"
+        },
+        "iin_config_corrupt": {
+          "type": "bool"
+        },
+        "iin_device_restart": {
+          "type": "bool"
+        },
+        "iin_device_trouble": {
+          "type": "bool"
+        },
+        "iin_event_buffer_overflow": {
+          "type": "bool"
+        },
+        "iin_func_not_supported": {
+          "type": "bool"
+        },
+        "iin_local_control": {
+          "type": "bool"
+        },
+        "iin_need_time": {
+          "type": "bool"
+        },
+        "iin_object_unknown": {
+          "type": "bool"
+        },
+        "iin_parameter_error": {
+          "type": "bool"
+        },
+        "is_event": {
+          "type": "bool"
+        },
+        "is_unsolicited": {
+          "type": "bool"
+        },
+        "link_fc": {
+          "type": "uint8"
+        },
+        "link_fcb": {
+          "type": "uint8"
+        },
+        "link_type": {
+          "type": "string"
+        },
+        "malformed_crc": {
+          "type": "bool"
+        },
+        "malformed_length": {
+          "type": "uint8"
+        },
+        "mss": {
+          "type": "uint16"
+        },
+        "multi_outstation": {
+          "type": "object"
+        },
+        "objects": {
+          "type": "list"
+        },
+        "scenario": {
+          "type": "string"
+        },
+        "src_addr": {
+          "type": "uint16"
+        },
+        "termination": {
+          "type": "bool"
+        },
+        "think_time": {
+          "type": "int"
+        },
+        "transport": {
+          "type": "string"
+        },
+        "unknown_func": {
+          "type": "bool"
+        },
+        "unknown_object": {
+          "type": "bool"
+        }
+      }
     },
     "dns": {
       "category": "terminal",
