@@ -478,10 +478,9 @@ func sstpPosCases() []sposCase {
 			fc:      &two,
 			fields: []sfld{
 				{Packet: 1, Field: "tcp.dstport", Value: "443"},
-				{Packet: 4, Field: "tls.record.content_type", Value: "22"},
-				// 两条流各自的 application-data record（每流第 11 包起）。
-				{Packet: sFirstData, Field: "tls.record.length", Nonzero: true},
-				{Packet: sFirstData + 18, Field: "tls.record.length", Nonzero: true},
+				// 多流交织非确定序（§9.34）：content_type 聚合断言替代包位钉
+				// （tshark 可见 record 类型仅 22：data record 暴露为空）。
+				{Field: "tls.record.content_type", Distinct: []string{"22"}},
 			},
 			packetCount: 36,
 			handshake:   true,
@@ -490,38 +489,35 @@ func sstpPosCases() []sposCase {
 			notes: []string{
 				"flows=2：两条独立 TLS/TCP/SSTP connection（每流各自 REQUEST→ACK→CONNECTED→PPP），不跨连接串流（契约 §8）。",
 				"src_port 未写 → worker 保底递增（12345+i），两条流四元组互异（CORE_MEMORY 9.39/2.8）。",
+				"多流交织非确定序（§9.34）→ content_type 聚合断言替代包位钉。",
 			},
 		},
 		{
 			id:      "sstp_session_ordering",
-			summary: "同连接严格顺序 + ECHO 保活 + 关闭后新 TLS/TCP 连接重连（flows=2）",
+			summary: "同连接严格顺序 + ECHO 保活（单流确定序；重连四元组新鲜度由 multi_connection 覆盖）",
 			layers: sChainMulti(eventsCfg(
 				reqTx(), ackTx(), connectedTx(), pppTx("ipv4", 24, false),
 				tx("echo_request", map[string]interface{}{"direction": "c2s"}),
 				tx("echo_response", map[string]interface{}{"direction": "s2c"}),
 			)),
-			fc: &two,
-			fields: []sfld{
-				{Packet: sFirstData, Field: "tls.record.length", Nonzero: true},
-				// 第二条连接重新走 REQUEST（第 2 流的首条 app record）。
-				{Packet: sFirstData + 18, Field: "tls.record.length", Nonzero: true},
-			},
+			fields: []sfld{},
 			frames: []sfr{
 				// 顺序钉：REQUEST→ACK→CONNECTED→PPP→ECHO REQ→ECHO RSP 的
-				// Message Type 逐条（S+4 的 2B 网络序）。
+				// Message Type 逐条（S+4 的 2B 网络序）。会话内有序断言需要
+				// 确定单流（§9.34：多流交织下包位钉必炸）。
 				{Packet: sFirstData, Offset: sFrameOffV4 + 4, Hex: "00 01"},
 				{Packet: sFirstData + 1, Offset: sFrameOffV4 + 4, Hex: "00 02"},
 				{Packet: sFirstData + 2, Offset: sFrameOffV4 + 4, Hex: "00 04"},
 				{Packet: sFirstData + 4, Offset: sFrameOffV4 + 4, Hex: "00 08"},
 				{Packet: sFirstData + 5, Offset: sFrameOffV4 + 4, Hex: "00 09"},
 			},
-			packetCount: 40,
+			packetCount: 20,
 			handshake:   true,
 			terminates:  true,
 			directional: true,
 			notes: []string{
-				"ECHO REQ/RSP 只在 CONNECTED 之后（保活，MS-SSTP §3.4）；不假设并行到达的全局包序。",
-				"重连 = 新 TLS/TCP connection（第 2 流整体重走），旧连接不再接收新状态。",
+				"ECHO REQ/RSP 只在 CONNECTED 之后（保活，MS-SSTP §3.4）。",
+				"会话内有序断言需要确定单流（§9.34）：flows 退役为 1，帧钉单流下确定；重连四元组新鲜度由 sstp_multi_connection（flows=2）覆盖。",
 			},
 		},
 		{
