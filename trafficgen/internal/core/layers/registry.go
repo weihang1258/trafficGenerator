@@ -316,6 +316,20 @@ func buildDefaultRegistry() {
 	})
 	r.Register(LayerSchema{Name: "rip", Category: CategoryTerminal,
 		DependsOn: []string{"udp"},
+		Fields: map[string]FieldSchema{
+			"version":          {Type: "string"},
+			"command":          {Type: "string"},
+			"domain":           {Type: "uint16"},
+			"routes":           {Type: "list"},
+			"auth":             {Type: "object"},
+			"multicast":        {Type: "bool"},
+			"scenario":         {Type: "string"},
+			"routers":          {Type: "list"},
+			"rounds":           {Type: "int"},
+			"triggered_update": {Type: "bool"},
+			"split_horizon":    {Type: "string"},
+			"poison_reverse":   {Type: "string"},
+		},
 	})
 	// D-TFTP-1：tftp（udp 终结层；层 23 键对齐 core.TFTPConfig json
 	// 标签——键名=标签名。data_payload_pattern 实测为 hex 字符串

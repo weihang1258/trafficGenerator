@@ -828,6 +828,11 @@ func isUniversalDefaultSrcPort(name string, v uint16) bool {
 	// RFC 6762 §5.4 requires 5353 for mDNS. Universal default 12345 would be rejected.
 	case "ssdp", "mdns":
 		return true
+	// rip 的 resolveSrcPort 只对 0 做自动解析（单 router Response=520、
+	// multi-router=52001+idx、request_full=52001，rip.go:586-594）；通用
+	// 缺省 12345 会被当成用户端口原样上线，自动解析永不触发（设计 §6.13）。
+	case "rip":
+		return true
 	}
 	return false
 }
@@ -898,9 +903,11 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// 12345 也走此分支（见上）。
 			spec.SrcPort = ssdpPort
 		case "rip":
-			// RIP 源端口 0 保持 0：终结层生成器按 legacy resolveSrcPort 语义
-			// 逐事件解析（单 router Response=520、multi-router=52001+idx、
+			// RIP 源端口归 0（universal 12345 入口在此显式归零；真 0 本就
+			// 是 0）：终结层生成器按 legacy resolveSrcPort 语义逐事件解析
+			// （单 router Response=520、multi-router=52001+idx、
 			// request_full=52001，rip.go:579-587），不在此默认化。
+			spec.SrcPort = 0
 		case "dhcp":
 			// DHCP 源端口 0 保持 0：终结层生成器按角色解析（client→68、
 			// server/relay→67，dhcp planner.go:643-679 resolvePorts 语义）。

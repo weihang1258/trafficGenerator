@@ -4715,7 +4715,44 @@
       "depends_on": [
         "udp"
       ],
-      "fields": {}
+      "fields": {
+        "auth": {
+          "type": "object"
+        },
+        "command": {
+          "type": "string"
+        },
+        "domain": {
+          "type": "uint16"
+        },
+        "multicast": {
+          "type": "bool"
+        },
+        "poison_reverse": {
+          "type": "string"
+        },
+        "rounds": {
+          "type": "int"
+        },
+        "routers": {
+          "type": "list"
+        },
+        "routes": {
+          "type": "list"
+        },
+        "scenario": {
+          "type": "string"
+        },
+        "split_horizon": {
+          "type": "string"
+        },
+        "triggered_update": {
+          "type": "bool"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
     },
     "rtmfp": {
       "category": "terminal",

@@ -1594,7 +1594,11 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["rip"].(map[string]interface{}); ok {
 			spec.RIP = parseRIPConfig(sub)
 		}
-		setDefaultDstPort(&spec, cfg, 520)
+		// 目的端口缺省不再在此设置（原 setDefaultDstPort 520 会污染层链
+		// 路径：520 非 0/80 都不触发 validateSpecBase 的 rip 重置分支，
+		// ripng 的版本缺省 521 被钉死成 520）。缺省收敛至终结层生成器
+		// getDstPort（v1/v2→520、ng→521，事件携带 DstPort）——版本感知
+		// 缺省只有生成器能给。
 	case "dnp3":
 		if sub, ok := cfg["dnp3"].(map[string]interface{}); ok {
 			spec.DNP3 = parseDNP3Config(sub)
@@ -8713,6 +8717,10 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	case "pcep":
 		if v, ok := cfg["pcep"]; ok && v != nil {
 			return "protocol pcep no longer accepts a top-level pcep sub-config (move it into the pcep layer of an [ip,tcp,pcep] layers chain)"
+		}
+	case "rip":
+		if v, ok := cfg["rip"]; ok && v != nil {
+			return "protocol rip no longer accepts a top-level rip sub-config (move it into the rip layer of an [ip,udp,rip] layers chain)"
 		}
 	}
 	// D-CWMP-1：cwmp 顶层 cwmp 子映射 presence 判死（mqtt 先例；空 map 也

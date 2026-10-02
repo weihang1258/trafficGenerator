@@ -2790,6 +2790,28 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if err := json.Unmarshal(raw, &sc); err == nil {
 			spec.SMTP = &sc
 		}
+	case "rip":
+		if spec.RIP != nil || len(term.Config) == 0 {
+			return
+		}
+		// RIP 层 config 严格往返解码进 spec.RIP（snmp 同款）。空层 {} 保持
+		// spec.RIP=nil：生成器对 nil 走 P0b-2 默认流（v2 response_default）。
+		cfgRIP := completedConfig(s, term.Config)
+		rawRIP, err := json.Marshal(cfgRIP)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("rip layer config encode: %v", err))
+			return
+		}
+		var rcfg2 core.RIPConfig
+		decRIP := json.NewDecoder(bytes.NewReader(rawRIP))
+		decRIP.DisallowUnknownFields()
+		if err := decRIP.Decode(&rcfg2); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("rip layer config decode: %v", err))
+			return
+		}
+		spec.RIP = &rcfg2
 	case "snmp":
 		if spec.SNMP != nil || len(term.Config) == 0 {
 			return
