@@ -629,6 +629,7 @@ func buildDefaultRegistry() {
 			"master_count":       {Type: "int", Default: 0},
 			"flow_count":         {Type: "int", Default: 0},
 			"shared_tid_space":   {Type: "bool", Default: false},
+			"transactions":       {Type: "list"},
 		},
 	})
 	// ---- P4a：mqtt（tcp 终结层。MQTT 3.1.1/5.0——一次 flow = 一个

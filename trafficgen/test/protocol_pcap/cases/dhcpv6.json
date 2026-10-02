@@ -6,19 +6,26 @@
     "spec_json": {
       "layers": [
         {
+          "eth": {
+            "src_mac": "aa:bb:cc:dd:ee:ff"
+          }
+        },
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
           "udp": {}
         },
         {
-          "dhcpv6": {}
+          "dhcpv6": {
+            "scenario": "sarr",
+            "default_leased_addr": "2001:db8::100"
+          }
         }
-      ],
-      "src_ip": "2001:db8::1",
-      "dst_ip": "2001:db8::2",
-      "src_mac": "aa:bb:cc:dd:ee:ff",
-      "dhcpv6": {
-        "scenario": "sarr",
-        "default_leased_addr": "2001:db8::100"
-      }
+      ]
     },
     "expect": {
       "packet_count": 4,
@@ -122,6 +129,10 @@
         "Solicit/Request 目的为单播 2001:db8::2（流量生成器允许单播；RFC 8415 §7.2 标准用 ff02::1:2 多播）",
         "layers chain style: [udp,dhcpv6]; top-level fields preserved"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 dhcpv6 子映射迁入 layers[].dhcpv6",
+      "层链改造：顶层 src_mac 迁入 eth 层"
+    ]
   }
 ]

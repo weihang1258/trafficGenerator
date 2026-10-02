@@ -21,25 +21,24 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "master",
-            "uri": "/live/master.m3u8",
-            "variants": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
               {
-                "uri": "/live/low.m3u8",
-                "bandwidth": 800000,
-                "resolution": "640x360"
+                "kind": "master",
+                "uri": "/live/master.m3u8",
+                "variants": [
+                  {
+                    "uri": "/live/low.m3u8",
+                    "bandwidth": 800000,
+                    "resolution": "640x360"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -60,7 +59,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_media_target_duration",
@@ -84,30 +86,29 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "media",
-            "uri": "/live/low.m3u8",
-            "playlist_type": "media",
-            "target_duration": 6,
-            "segments": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
               {
-                "uri": "/seg/1.ts",
-                "duration": 5.0
-              },
-              {
-                "uri": "/seg/2.ts",
-                "duration": 6.0
+                "kind": "media",
+                "uri": "/live/low.m3u8",
+                "playlist_type": "media",
+                "target_duration": 6,
+                "segments": [
+                  {
+                    "uri": "/seg/1.ts",
+                    "duration": 5.0
+                  },
+                  {
+                    "uri": "/seg/2.ts",
+                    "duration": 6.0
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -123,7 +124,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_media_sequence",
@@ -147,34 +151,33 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "media",
-            "uri": "/live/seq.m3u8",
-            "media_sequence": 42,
-            "target_duration": 6,
-            "segments": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
               {
-                "uri": "/seg/42.ts",
-                "duration": 5.0
-              },
-              {
-                "uri": "/seg/43.ts",
-                "duration": 5.4
-              },
-              {
-                "uri": "/seg/44.ts",
-                "duration": 6.0
+                "kind": "media",
+                "uri": "/live/seq.m3u8",
+                "media_sequence": 42,
+                "target_duration": 6,
+                "segments": [
+                  {
+                    "uri": "/seg/42.ts",
+                    "duration": 5.0
+                  },
+                  {
+                    "uri": "/seg/43.ts",
+                    "duration": 5.4
+                  },
+                  {
+                    "uri": "/seg/44.ts",
+                    "duration": 6.0
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -190,7 +193,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_discontinuity",
@@ -214,36 +220,35 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "media",
-            "uri": "/live/disc.m3u8",
-            "media_sequence": 10,
-            "discontinuity_sequence": 3,
-            "target_duration": 6,
-            "segments": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
               {
-                "uri": "/seg/10.ts",
-                "duration": 5.0
-              },
-              {
-                "uri": "/seg/11.ts",
-                "duration": 5.0,
-                "discontinuity": true
-              },
-              {
-                "uri": "/seg/12.ts",
-                "duration": 5.0
+                "kind": "media",
+                "uri": "/live/disc.m3u8",
+                "media_sequence": 10,
+                "discontinuity_sequence": 3,
+                "target_duration": 6,
+                "segments": [
+                  {
+                    "uri": "/seg/10.ts",
+                    "duration": 5.0
+                  },
+                  {
+                    "uri": "/seg/11.ts",
+                    "duration": 5.0,
+                    "discontinuity": true
+                  },
+                  {
+                    "uri": "/seg/12.ts",
+                    "duration": 5.0
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -259,7 +264,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_byterange",
@@ -283,46 +291,45 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "media",
-            "uri": "/live/range.m3u8",
-            "target_duration": 6,
-            "segments": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
               {
-                "uri": "/media.mp4",
-                "duration": 5.0,
-                "byte_range": {
-                  "length": 1000,
-                  "offset": 0
-                },
-                "resource_length": 1800
+                "kind": "media",
+                "uri": "/live/range.m3u8",
+                "target_duration": 6,
+                "segments": [
+                  {
+                    "uri": "/media.mp4",
+                    "duration": 5.0,
+                    "byte_range": {
+                      "length": 1000,
+                      "offset": 0
+                    },
+                    "resource_length": 1800
+                  },
+                  {
+                    "uri": "/media.mp4",
+                    "duration": 5.0,
+                    "byte_range": {
+                      "length": 800
+                    },
+                    "resource_length": 1800
+                  }
+                ]
               },
               {
-                "uri": "/media.mp4",
-                "duration": 5.0,
-                "byte_range": {
-                  "length": 800
-                },
-                "resource_length": 1800
+                "kind": "segment",
+                "uri": "/media.mp4"
+              },
+              {
+                "kind": "segment",
+                "uri": "/media.mp4"
               }
             ]
-          },
-          {
-            "kind": "segment",
-            "uri": "/media.mp4"
-          },
-          {
-            "kind": "segment",
-            "uri": "/media.mp4"
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 13,
@@ -338,7 +345,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_aes128_key",
@@ -362,55 +372,54 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "media",
-            "session_id": "live",
-            "uri": "/live/encrypted.m3u8",
-            "target_duration": 6,
-            "body": "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"/keys/live.key\",IV=0x0000000000000000000000000000002A\n#EXTINF:5.0,\n/seg/1.ts\n#EXT-X-KEY:METHOD=NONE\n",
-            "segments": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
               {
+                "kind": "media",
+                "session_id": "live",
+                "uri": "/live/encrypted.m3u8",
+                "target_duration": 6,
+                "body": "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"/keys/live.key\",IV=0x0000000000000000000000000000002A\n#EXTINF:5.0,\n/seg/1.ts\n#EXT-X-KEY:METHOD=NONE\n",
+                "segments": [
+                  {
+                    "uri": "/seg/1.ts",
+                    "duration": 5.0,
+                    "key_ref": "/keys/live.key"
+                  }
+                ]
+              },
+              {
+                "kind": "key",
+                "session_id": "live",
+                "uri": "/keys/live.key",
+                "key": {
+                  "method": "AES-128",
+                  "uri": "/keys/live.key",
+                  "iv": "0x0000000000000000000000000000002a"
+                },
+                "response_body_b64": "AQIDBAUGBwgJCAsMDQ4PEA"
+              },
+              {
+                "kind": "segment",
+                "session_id": "live",
                 "uri": "/seg/1.ts",
-                "duration": 5.0,
+                "response_status_code": 200,
+                "response_body_b64": "AQIDBAUGBwgJCAsMDQ4PEA",
                 "key_ref": "/keys/live.key"
+              },
+              {
+                "kind": "key",
+                "session_id": "live",
+                "uri": "/keys/none.key",
+                "key": {
+                  "method": "NONE"
+                }
               }
             ]
-          },
-          {
-            "kind": "key",
-            "session_id": "live",
-            "uri": "/keys/live.key",
-            "key": {
-              "method": "AES-128",
-              "uri": "/keys/live.key",
-              "iv": "0x0000000000000000000000000000002a"
-            },
-            "response_body_b64": "AQIDBAUGBwgJCAsMDQ4PEA"
-          },
-          {
-            "kind": "segment",
-            "session_id": "live",
-            "uri": "/seg/1.ts",
-            "response_status_code": 200,
-            "response_body_b64": "AQIDBAUGBwgJCAsMDQ4PEA",
-            "key_ref": "/keys/live.key"
-          },
-          {
-            "kind": "key",
-            "session_id": "live",
-            "uri": "/keys/none.key",
-            "key": {
-              "method": "NONE"
-            }
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 15,
@@ -426,7 +435,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_live_refresh",
@@ -450,59 +462,58 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "live": {
-          "window": 3,
-          "refresh_count": 1,
-          "refresh_interval": 6
-        },
-        "sessions": [
-          {
-            "kind": "media",
-            "uri": "/live/live.m3u8",
-            "media_sequence": 100,
-            "target_duration": 6,
-            "segments": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "live": {
+              "window": 3,
+              "refresh_count": 1,
+              "refresh_interval": 6
+            },
+            "sessions": [
               {
-                "uri": "/seg/100.ts",
-                "duration": 5.0
+                "kind": "media",
+                "uri": "/live/live.m3u8",
+                "media_sequence": 100,
+                "target_duration": 6,
+                "segments": [
+                  {
+                    "uri": "/seg/100.ts",
+                    "duration": 5.0
+                  },
+                  {
+                    "uri": "/seg/101.ts",
+                    "duration": 5.0
+                  },
+                  {
+                    "uri": "/seg/102.ts",
+                    "duration": 5.0
+                  }
+                ]
               },
               {
-                "uri": "/seg/101.ts",
-                "duration": 5.0
-              },
-              {
-                "uri": "/seg/102.ts",
-                "duration": 5.0
-              }
-            ]
-          },
-          {
-            "kind": "refresh",
-            "uri": "/live/live.m3u8",
-            "media_sequence": 101,
-            "target_duration": 6,
-            "segments": [
-              {
-                "uri": "/seg/101.ts",
-                "duration": 5.0
-              },
-              {
-                "uri": "/seg/102.ts",
-                "duration": 5.0
-              },
-              {
-                "uri": "/seg/103.ts",
-                "duration": 5.0
+                "kind": "refresh",
+                "uri": "/live/live.m3u8",
+                "media_sequence": 101,
+                "target_duration": 6,
+                "segments": [
+                  {
+                    "uri": "/seg/101.ts",
+                    "duration": 5.0
+                  },
+                  {
+                    "uri": "/seg/102.ts",
+                    "duration": 5.0
+                  },
+                  {
+                    "uri": "/seg/103.ts",
+                    "duration": 5.0
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -518,7 +529,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_llhls_parts",
@@ -542,41 +556,40 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "apple_ll_hls",
-        "ll_hls": {
-          "part_target": 0.333,
-          "server_control": "CAN-SKIP-UNTIL=6.0,PART-HOLD-BACK=0.666"
-        },
-        "sessions": [
-          {
-            "kind": "media",
-            "uri": "/live/ll.m3u8",
-            "target_duration": 2,
-            "media_sequence": 101,
-            "segments": [
+          "hls": {
+            "profile": "apple_ll_hls",
+            "ll_hls": {
+              "part_target": 0.333,
+              "server_control": "CAN-SKIP-UNTIL=6.0,PART-HOLD-BACK=0.666"
+            },
+            "sessions": [
               {
-                "uri": "/seg/101.ts",
-                "duration": 2.0
+                "kind": "media",
+                "uri": "/live/ll.m3u8",
+                "target_duration": 2,
+                "media_sequence": 101,
+                "segments": [
+                  {
+                    "uri": "/seg/101.ts",
+                    "duration": 2.0
+                  }
+                ],
+                "parts": [
+                  {
+                    "uri": "/p/101.1.m4s",
+                    "duration": 0.333,
+                    "independent": true
+                  }
+                ],
+                "preload_hint": {
+                  "type": "PART",
+                  "uri": "/p/101.2.m4s"
+                }
               }
-            ],
-            "parts": [
-              {
-                "uri": "/p/101.1.m4s",
-                "duration": 0.333,
-                "independent": true
-              }
-            ],
-            "preload_hint": {
-              "type": "PART",
-              "uri": "/p/101.2.m4s"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -592,7 +605,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_master_renditions",
@@ -616,35 +632,34 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "master",
-            "uri": "/live/master.m3u8",
-            "renditions": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
               {
-                "type": "AUDIO",
-                "group_id": "aud",
-                "name": "main",
-                "default": true,
-                "autoselect": true,
-                "uri": "/audio.m3u8"
-              }
-            ],
-            "variants": [
-              {
-                "uri": "/video.m3u8",
-                "bandwidth": 1200000,
-                "audio": "aud"
+                "kind": "master",
+                "uri": "/live/master.m3u8",
+                "renditions": [
+                  {
+                    "type": "AUDIO",
+                    "group_id": "aud",
+                    "name": "main",
+                    "default": true,
+                    "autoselect": true,
+                    "uri": "/audio.m3u8"
+                  }
+                ],
+                "variants": [
+                  {
+                    "uri": "/video.m3u8",
+                    "bandwidth": 1200000,
+                    "audio": "aud"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -660,7 +675,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_fmp4_init_map",
@@ -684,63 +702,62 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "media",
-            "uri": "/live/fmp4.m3u8",
-            "target_duration": 6,
-            "map": {
-              "uri": "/init.mp4",
-              "byte_range": {
-                "length": 720,
-                "offset": 0
-              },
-              "resource_length": 720
-            },
-            "independent_segments": true,
-            "segments": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
               {
-                "uri": "/seg/1.m4s",
-                "duration": 5.0
-              },
-              {
-                "uri": "/seg/2.m4s",
-                "duration": 5.0
-              }
-            ],
-            "resource_responses": [
-              {
-                "kind": "map",
-                "uri": "/init.mp4",
-                "response_status_code": 200,
-                "response_content_type": "video/mp4",
-                "resource_length": 720,
-                "byte_range": {
-                  "length": 720,
-                  "offset": 0
-                }
-              },
-              {
-                "kind": "segment",
-                "uri": "/seg/1.m4s",
-                "response_status_code": 200,
-                "response_content_type": "video/mp4"
-              },
-              {
-                "kind": "segment",
-                "uri": "/seg/2.m4s",
-                "response_status_code": 200,
-                "response_content_type": "video/mp4"
+                "kind": "media",
+                "uri": "/live/fmp4.m3u8",
+                "target_duration": 6,
+                "map": {
+                  "uri": "/init.mp4",
+                  "byte_range": {
+                    "length": 720,
+                    "offset": 0
+                  },
+                  "resource_length": 720
+                },
+                "independent_segments": true,
+                "segments": [
+                  {
+                    "uri": "/seg/1.m4s",
+                    "duration": 5.0
+                  },
+                  {
+                    "uri": "/seg/2.m4s",
+                    "duration": 5.0
+                  }
+                ],
+                "resource_responses": [
+                  {
+                    "kind": "map",
+                    "uri": "/init.mp4",
+                    "response_status_code": 200,
+                    "response_content_type": "video/mp4",
+                    "resource_length": 720,
+                    "byte_range": {
+                      "length": 720,
+                      "offset": 0
+                    }
+                  },
+                  {
+                    "kind": "segment",
+                    "uri": "/seg/1.m4s",
+                    "response_status_code": 200,
+                    "response_content_type": "video/mp4"
+                  },
+                  {
+                    "kind": "segment",
+                    "uri": "/seg/2.m4s",
+                    "response_status_code": 200,
+                    "response_content_type": "video/mp4"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -756,7 +773,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_vod_endlist",
@@ -780,32 +800,31 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "media",
-            "uri": "/vod/movie.m3u8",
-            "playlist_type": "media",
-            "playlist_mode": "VOD",
-            "target_duration": 6,
-            "segments": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
               {
-                "uri": "/vod/1.ts",
-                "duration": 5.0
-              },
-              {
-                "uri": "/vod/2.ts",
-                "duration": 5.0
+                "kind": "media",
+                "uri": "/vod/movie.m3u8",
+                "playlist_type": "media",
+                "playlist_mode": "VOD",
+                "target_duration": 6,
+                "segments": [
+                  {
+                    "uri": "/vod/1.ts",
+                    "duration": 5.0
+                  },
+                  {
+                    "uri": "/vod/2.ts",
+                    "duration": 5.0
+                  }
+                ],
+                "endlist": true
               }
-            ],
-            "endlist": true
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -821,7 +840,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_empty_and_truncated",
@@ -845,24 +867,26 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "media",
-            "uri": "/bad/empty.m3u8",
-            "body": ""
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
+              {
+                "kind": "media",
+                "uri": "/bad/empty.m3u8",
+                "body": ""
+              }
+            ],
+            "truncate_body": true
           }
-        ],
-        "truncate_body": true
-      }
+        }
+      ]
     },
     "expect": {
       "min_packets": 6
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_invalid_tag",
@@ -886,30 +910,32 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "media",
-            "uri": "/bad/tag.m3u8",
-            "target_duration": 6,
-            "segments": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
               {
-                "uri": "",
-                "duration": 5.0
+                "kind": "media",
+                "uri": "/bad/tag.m3u8",
+                "target_duration": 6,
+                "segments": [
+                  {
+                    "uri": "",
+                    "duration": 5.0
+                  }
+                ]
               }
-            ]
+            ],
+            "bad_tag": "EXTINF"
           }
-        ],
-        "bad_tag": "EXTINF"
-      }
+        }
+      ]
     },
     "expect": {
       "min_packets": 6
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_ipv6_media",
@@ -933,26 +959,25 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "media",
-            "uri": "/v6/live.m3u8",
-            "target_duration": 6,
-            "media_sequence": 7,
-            "segments": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
               {
-                "uri": "/v6/7.ts",
-                "duration": 5.0
+                "kind": "media",
+                "uri": "/v6/live.m3u8",
+                "target_duration": 6,
+                "media_sequence": 7,
+                "segments": [
+                  {
+                    "uri": "/v6/7.ts",
+                    "duration": 5.0
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -968,7 +993,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_multi_session",
@@ -992,50 +1020,49 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "master",
-            "session_id": "a",
-            "src_port": 40014,
-            "uri": "/a/master.m3u8",
-            "variants": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
               {
-                "uri": "/a/media.m3u8",
-                "bandwidth": 800000
-              }
-            ]
-          },
-          {
-            "kind": "master",
-            "session_id": "b",
-            "src_port": 40015,
-            "uri": "/b/master.m3u8",
-            "variants": [
+                "kind": "master",
+                "session_id": "a",
+                "src_port": 40014,
+                "uri": "/a/master.m3u8",
+                "variants": [
+                  {
+                    "uri": "/a/media.m3u8",
+                    "bandwidth": 800000
+                  }
+                ]
+              },
               {
-                "uri": "/b/media.m3u8",
-                "bandwidth": 900000
-              }
-            ]
-          },
-          {
-            "kind": "master",
-            "session_id": "a",
-            "src_port": 40016,
-            "uri": "/a/reconnect.m3u8",
-            "variants": [
+                "kind": "master",
+                "session_id": "b",
+                "src_port": 40015,
+                "uri": "/b/master.m3u8",
+                "variants": [
+                  {
+                    "uri": "/b/media.m3u8",
+                    "bandwidth": 900000
+                  }
+                ]
+              },
               {
-                "uri": "/a/reconnect-media.m3u8",
-                "bandwidth": 800000
+                "kind": "master",
+                "session_id": "a",
+                "src_port": 40016,
+                "uri": "/a/reconnect.m3u8",
+                "variants": [
+                  {
+                    "uri": "/a/reconnect-media.m3u8",
+                    "bandwidth": 800000
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 13,
@@ -1051,7 +1078,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_http_errors",
@@ -1075,38 +1105,40 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "media",
-            "uri": "/live/missing.m3u8",
-            "response_status_code": 404
-          },
-          {
-            "kind": "segment",
-            "uri": "/seg/gone.ts",
-            "response_status_code": 410
-          },
-          {
-            "kind": "refresh",
-            "uri": "/live/rate.m3u8",
-            "response_status_code": 429
-          },
-          {
-            "kind": "segment",
-            "uri": "/seg/error.ts",
-            "response_status_code": 503
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
+              {
+                "kind": "media",
+                "uri": "/live/missing.m3u8",
+                "response_status_code": 404
+              },
+              {
+                "kind": "segment",
+                "uri": "/seg/gone.ts",
+                "response_status_code": 410
+              },
+              {
+                "kind": "refresh",
+                "uri": "/live/rate.m3u8",
+                "response_status_code": 429
+              },
+              {
+                "kind": "segment",
+                "uri": "/seg/error.ts",
+                "response_status_code": 503
+              }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "min_packets": 6
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_uri_encoding",
@@ -1130,19 +1162,18 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "segment",
-            "uri": "/live/seg%2F01.ts?token=a%2Bb",
-            "response_status_code": 200
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
+              {
+                "kind": "segment",
+                "uri": "/live/seg%2F01.ts?token=a%2Bb",
+                "response_status_code": 200
+              }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1158,7 +1189,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_neg_missing_extm3u",
@@ -1182,23 +1216,25 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "media",
-            "uri": "/bad/no-header.m3u8"
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
+              {
+                "kind": "media",
+                "uri": "/bad/no-header.m3u8"
+              }
+            ],
+            "missing_extm3u": true
           }
-        ],
-        "missing_extm3u": true
-      }
+        }
+      ]
     },
     "expect": {
       "min_packets": 6
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_neg_target_duration",
@@ -1222,29 +1258,31 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "media",
-            "uri": "/bad/target.m3u8",
-            "target_duration": 2,
-            "segments": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
               {
-                "uri": "/seg/1.ts",
-                "duration": 2.5
+                "kind": "media",
+                "uri": "/bad/target.m3u8",
+                "target_duration": 2,
+                "segments": [
+                  {
+                    "uri": "/seg/1.ts",
+                    "duration": 2.5
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "min_packets": 6
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_neg_sequence_regress",
@@ -1268,46 +1306,48 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "live": {
-          "refresh_count": 1
-        },
-        "sessions": [
-          {
-            "kind": "refresh",
-            "uri": "/bad/sequence.m3u8",
-            "media_sequence": 10,
-            "target_duration": 6,
-            "segments": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "live": {
+              "refresh_count": 1
+            },
+            "sessions": [
               {
-                "uri": "/seg/10.ts",
-                "duration": 5.0
-              }
-            ]
-          },
-          {
-            "kind": "refresh",
-            "uri": "/bad/sequence.m3u8",
-            "media_sequence": 9,
-            "target_duration": 6,
-            "segments": [
+                "kind": "refresh",
+                "uri": "/bad/sequence.m3u8",
+                "media_sequence": 10,
+                "target_duration": 6,
+                "segments": [
+                  {
+                    "uri": "/seg/10.ts",
+                    "duration": 5.0
+                  }
+                ]
+              },
               {
-                "uri": "/seg/9.ts",
-                "duration": 5.0
+                "kind": "refresh",
+                "uri": "/bad/sequence.m3u8",
+                "media_sequence": 9,
+                "target_duration": 6,
+                "segments": [
+                  {
+                    "uri": "/seg/9.ts",
+                    "duration": 5.0
+                  }
+                ]
               }
-            ]
+            ],
+            "sequence_regress": true
           }
-        ],
-        "sequence_regress": true
-      }
+        }
+      ]
     },
     "expect": {
       "min_packets": 6
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_neg_byterange",
@@ -1331,40 +1371,42 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "media",
-            "uri": "/bad/range.m3u8",
-            "target_duration": 6,
-            "segments": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
               {
-                "uri": "/a.mp4",
-                "duration": 5.0,
-                "byte_range": {
-                  "length": 999999,
-                  "offset": 0
-                }
-              },
-              {
-                "uri": "/b.mp4",
-                "duration": 5.0,
-                "byte_range": {
-                  "length": 10
-                }
+                "kind": "media",
+                "uri": "/bad/range.m3u8",
+                "target_duration": 6,
+                "segments": [
+                  {
+                    "uri": "/a.mp4",
+                    "duration": 5.0,
+                    "byte_range": {
+                      "length": 999999,
+                      "offset": 0
+                    }
+                  },
+                  {
+                    "uri": "/b.mp4",
+                    "duration": 5.0,
+                    "byte_range": {
+                      "length": 10
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "min_packets": 6
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_neg_key",
@@ -1388,38 +1430,40 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "key",
-            "uri": "/keys/bad.key",
-            "key": {
-              "method": "AES-128",
-              "uri": "",
-              "iv": "0x01"
-            }
-          },
-          {
-            "kind": "media",
-            "uri": "/bad/key.m3u8",
-            "segments": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
               {
-                "uri": "/seg/1.ts",
-                "duration": 5.0,
-                "key_ref": "/keys/other.key"
+                "kind": "key",
+                "uri": "/keys/bad.key",
+                "key": {
+                  "method": "AES-128",
+                  "uri": "",
+                  "iv": "0x01"
+                }
+              },
+              {
+                "kind": "media",
+                "uri": "/bad/key.m3u8",
+                "segments": [
+                  {
+                    "uri": "/seg/1.ts",
+                    "duration": 5.0,
+                    "key_ref": "/keys/other.key"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "min_packets": 6
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_neg_ll_profile",
@@ -1443,29 +1487,31 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "ll_hls": {},
-        "sessions": [
-          {
-            "kind": "media",
-            "uri": "/bad/ll.m3u8",
-            "parts": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "ll_hls": {},
+            "sessions": [
               {
-                "uri": "/p/1.m4s",
-                "duration": 0.333
+                "kind": "media",
+                "uri": "/bad/ll.m3u8",
+                "parts": [
+                  {
+                    "uri": "/p/1.m4s",
+                    "duration": 0.333
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "min_packets": 6
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   },
   {
     "id": "hls_neg_session_state",
@@ -1489,37 +1535,39 @@
           "http": {}
         },
         {
-          "hls": {}
-        }
-      ],
-      "hls": {
-        "profile": "rfc8216_v7",
-        "sessions": [
-          {
-            "kind": "media",
-            "session_id": "a",
-            "uri": "/a/live.m3u8",
-            "media_sequence": 1,
-            "segments": [
+          "hls": {
+            "profile": "rfc8216_v7",
+            "sessions": [
               {
-                "uri": "/a/1.ts",
-                "duration": 5.0,
-                "key_ref": "session-b:/keys/key"
+                "kind": "media",
+                "session_id": "a",
+                "uri": "/a/live.m3u8",
+                "media_sequence": 1,
+                "segments": [
+                  {
+                    "uri": "/a/1.ts",
+                    "duration": 5.0,
+                    "key_ref": "session-b:/keys/key"
+                  }
+                ]
+              },
+              {
+                "kind": "segment",
+                "session_id": "b",
+                "uri": "/b/1.ts",
+                "response_status_code": 200
               }
-            ]
-          },
-          {
-            "kind": "segment",
-            "session_id": "b",
-            "uri": "/b/1.ts",
-            "response_status_code": 200
+            ],
+            "cross_session_ref": true
           }
-        ],
-        "cross_session_ref": true
-      }
+        }
+      ]
     },
     "expect": {
       "min_packets": 6
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
+    ]
   }
 ]

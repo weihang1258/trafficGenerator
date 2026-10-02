@@ -3202,6 +3202,9 @@
           "type": "bool",
           "default": false
         },
+        "transactions": {
+          "type": "list"
+        },
         "unit_id": {
           "type": "uint8",
           "default": 1,

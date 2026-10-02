@@ -4,12 +4,20 @@
     "proto": "socks5",
     "summary": "SOCKS5 (端口 1080) 冒烟：完整 TCP 握手 + 方法协商 → CONNECT 请求/响应 + 终止",
     "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 1080,
-      "count": 1,
-      "socks": {}
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 1080
+          }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -111,7 +119,11 @@
         "10 帧 = 3 握手 + 4 数据 + 3 终止（双 FIN 后 ACK，f8=0x0011 f9=0x0011 f10=0x0010）；数据帧均 ≤76B 故不用 has_payload（frames 断言已覆盖）",
         "spec key 为 'socks'（非 'socks5'，registry 子映射键）"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 socks5 子映射迁入 layers[].socks5",
+      "层链改造：顶层 socks 子映射迁入 layers[].socks5"
+    ]
   },
   {
     "id": "socks5_over_tls",
@@ -120,7 +132,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 1080
+          }
         },
         {
           "tls": {}
@@ -134,11 +155,7 @@
             "dst_port": 8080
           }
         }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 13000,
-      "dst_port": 1080
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -166,7 +183,8 @@
       "J 组组合层：socks5 层 OptionalOn: tls（registry.go）——显式写 tls 层启用 over-TLS，默认不启用",
       "信令字节经 TLS record 封装（application_data），socks.version 断言不适用于加密记录——用 tls.record.content_type 校验",
       "帧 4 是 tls 握手（content_type=22）；pop3_over_tls/mqtt_over_tls 同款模式",
-      "decode_as: 1080 端口默认被 tshark SOCKS dissector 抢解析，须强制 TLS 解码才能断言 tls.record 字段"
+      "decode_as: 1080 端口默认被 tshark SOCKS dissector 抢解析，须强制 TLS 解码才能断言 tls.record 字段",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 socks5 子映射迁入 layers[].socks5"
     ],
     "decode_as": [
       "tcp.port==1080,tls"

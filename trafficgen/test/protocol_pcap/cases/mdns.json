@@ -6,24 +6,27 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "mdns": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 5353,
-      "count": 1,
-      "mdns": {
-        "questions": [
-          {
-            "name": "x.local",
-            "type": 1
+          "udp": {
+            "src_port": 5353
           }
-        ]
-      }
+        },
+        {
+          "mdns": {
+            "questions": [
+              {
+                "name": "x.local",
+                "type": 1
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -83,6 +86,9 @@
         "tshark 探针实测：src=5353、dst=5353、ip.dst=224.0.0.251、ttl=255、qry x.local/type 1/class 0x0001；偏移 42 DNS 头+问题区与帧断言逐字节一致",
         "layers chain style: [udp,mdns]; top-level fields preserved"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 mdns 子映射迁入 layers[].mdns"
+    ]
   }
 ]

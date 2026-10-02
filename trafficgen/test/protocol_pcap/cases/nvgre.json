@@ -4,21 +4,31 @@
     "proto": "nvgre",
     "summary": "outer IPv4/47 GRE + TEB + inner Ethernet/IPv4: flags 0x2000, protocol 0x6558, key, inner MAC/EtherType/IP",
     "spec_json": {
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.10",
-      "count": 1,
-      "nvgre": {
-        "vsid": 1000,
-        "flow_id": 1,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:01",
-          "dst_mac": "02:bb:00:00:00:01",
-          "ether_type": "ipv4",
-          "src_ip": "172.16.1.1",
-          "dst_ip": "172.16.1.2",
-          "payload_b64": "bnZncmUtaW5uZXItMDE="
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.10"
+          }
+        },
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 1000,
+            "flow_id": 1,
+            "inner": {
+              "src_mac": "02:aa:00:00:00:01",
+              "dst_mac": "02:bb:00:00:00:01",
+              "ether_type": "ipv4",
+              "src_ip": "172.16.1.1",
+              "dst_ip": "172.16.1.2",
+              "payload_b64": "bnZncmUtaW5uZXItMDE="
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -92,28 +102,41 @@
         "gre.key 值格式（hex 0x03e801 vs decimal 255489）以实际 tshark 3.6.14 校准；如为后者，本用例按实际改值",
         "inner Ethernet 从 offset 42 起（IPv4 outer 固定偏移）"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_outer_ipv6_inner_ipv4",
     "proto": "nvgre",
     "summary": "outer IPv6 Next Header=47 + GRE/TEB + inner IPv4 (independent family)",
     "spec_json": {
-      "src_ip": "2001:db8::10",
-      "dst_ip": "2001:db8::20",
-      "count": 1,
-      "nvgre": {
-        "vsid": 2000,
-        "flow_id": 2,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:02",
-          "dst_mac": "02:bb:00:00:00:02",
-          "ether_type": "ipv4",
-          "src_ip": "172.16.2.1",
-          "dst_ip": "172.16.2.2",
-          "payload_b64": "bnZncmUtaW5uZXItMDE="
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::10",
+            "dst": "2001:db8::20"
+          }
+        },
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 2000,
+            "flow_id": 2,
+            "inner": {
+              "src_mac": "02:aa:00:00:00:02",
+              "dst_mac": "02:bb:00:00:00:02",
+              "ether_type": "ipv4",
+              "src_ip": "172.16.2.1",
+              "dst_ip": "172.16.2.2",
+              "payload_b64": "bnZncmUtaW5uZXItMDE="
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -170,28 +193,41 @@
       "notes": [
         "IPv6 outer 固定偏移：GRE 54 / Key 58 / inner Ethernet 62（不可套用 IPv4 的 34/38/42）"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_outer_ipv4_inner_ipv6",
     "proto": "nvgre",
     "summary": "outer IPv4/47 + inner Ethernet/IPv6 (EtherType 0x86dd)",
     "spec_json": {
-      "src_ip": "192.0.2.30",
-      "dst_ip": "198.51.100.30",
-      "count": 1,
-      "nvgre": {
-        "vsid": 3000,
-        "flow_id": 3,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:03",
-          "dst_mac": "02:bb:00:00:00:03",
-          "ether_type": "ipv6",
-          "src_ip": "fc00::1",
-          "dst_ip": "fc00::2",
-          "payload_b64": "bnZncmUtaW5uZXItMDE="
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.30",
+            "dst": "198.51.100.30"
+          }
+        },
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 3000,
+            "flow_id": 3,
+            "inner": {
+              "src_mac": "02:aa:00:00:00:03",
+              "dst_mac": "02:bb:00:00:00:03",
+              "ether_type": "ipv6",
+              "src_ip": "fc00::1",
+              "dst_ip": "fc00::2",
+              "payload_b64": "bnZncmUtaW5uZXItMDE="
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -248,28 +284,41 @@
       "notes": [
         "内层 IPv6 由 inner ether_type 独立选择，不被 outer IPv4 改写"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_basic_ipv6_inner_ipv6",
     "proto": "nvgre",
     "summary": "outer/inner IPv6 independent fixtures",
     "spec_json": {
-      "src_ip": "2001:db8::30",
-      "dst_ip": "2001:db8::40",
-      "count": 1,
-      "nvgre": {
-        "vsid": 4000,
-        "flow_id": 4,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:04",
-          "dst_mac": "02:bb:00:00:00:04",
-          "ether_type": "ipv6",
-          "src_ip": "fd00::1",
-          "dst_ip": "fd00::2",
-          "payload_b64": "bnZncmUtaW5uZXItMDE="
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::30",
+            "dst": "2001:db8::40"
+          }
+        },
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 4000,
+            "flow_id": 4,
+            "inner": {
+              "src_mac": "02:aa:00:00:00:04",
+              "dst_mac": "02:bb:00:00:00:04",
+              "ether_type": "ipv6",
+              "src_ip": "fd00::1",
+              "dst_ip": "fd00::2",
+              "payload_b64": "bnZncmUtaW5uZXItMDE="
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -326,28 +375,41 @@
       "notes": [
         "内层 IPv6 payload length / Next Header 独立自洽"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_vsid_zero_flow_zero",
     "proto": "nvgre",
     "summary": "explicit VSID=0, FlowID=0: key 00 00 00 00 survives (not defaulted away)",
     "spec_json": {
-      "src_ip": "192.0.2.50",
-      "dst_ip": "198.51.100.50",
-      "count": 1,
-      "nvgre": {
-        "vsid": 0,
-        "flow_id": 0,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:05",
-          "dst_mac": "02:bb:00:00:00:05",
-          "ether_type": "ipv4",
-          "src_ip": "172.16.5.1",
-          "dst_ip": "172.16.5.2",
-          "payload_b64": "bnZncmUtaW5uZXItMDE="
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.50",
+            "dst": "198.51.100.50"
+          }
+        },
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 0,
+            "flow_id": 0,
+            "inner": {
+              "src_mac": "02:aa:00:00:00:05",
+              "dst_mac": "02:bb:00:00:00:05",
+              "ether_type": "ipv4",
+              "src_ip": "172.16.5.1",
+              "dst_ip": "172.16.5.2",
+              "payload_b64": "bnZncmUtaW5uZXItMDE="
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -374,28 +436,41 @@
       "notes": [
         "VSID=0/FlowID=0 是合法边界值，不得被空值即默认覆盖"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_vsid_max_flow_max",
     "proto": "nvgre",
     "summary": "VSID=0xffffff, FlowID=0xff: key ff ff ff ff, no truncation",
     "spec_json": {
-      "src_ip": "192.0.2.60",
-      "dst_ip": "198.51.100.60",
-      "count": 1,
-      "nvgre": {
-        "vsid": 16777215,
-        "flow_id": 255,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:06",
-          "dst_mac": "02:bb:00:00:00:06",
-          "ether_type": "ipv4",
-          "src_ip": "172.16.6.1",
-          "dst_ip": "172.16.6.2",
-          "payload_b64": "bnZncmUtaW5uZXItMDE="
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.60",
+            "dst": "198.51.100.60"
+          }
+        },
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 16777215,
+            "flow_id": 255,
+            "inner": {
+              "src_mac": "02:aa:00:00:00:06",
+              "dst_mac": "02:bb:00:00:00:06",
+              "ether_type": "ipv4",
+              "src_ip": "172.16.6.1",
+              "dst_ip": "172.16.6.2",
+              "payload_b64": "bnZncmUtaW5uZXItMDE="
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -422,58 +497,71 @@
       "notes": [
         "VSID 24-bit 满值不得截断为 16 位；Key 四字节全 ff"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_multi_vsid",
     "proto": "nvgre",
     "summary": "multi-VSID: distinct key high 24 bits, per-VSID inner frame association",
     "spec_json": {
-      "src_ip": "192.0.2.70",
-      "dst_ip": "198.51.100.70",
-      "count": 1,
-      "nvgre": {
-        "vsid": 1000,
-        "flow_id": 1,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:07",
-          "dst_mac": "02:bb:00:00:00:07",
-          "ether_type": "ipv4",
-          "src_ip": "172.16.7.1",
-          "dst_ip": "172.16.7.2",
-          "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
-        },
-        "datagrams": [
-          {
-            "vsid": 1000,
-            "flow_id": 1
-          },
-          {
-            "vsid": 300000,
-            "flow_id": 1,
-            "inner": {
-              "src_mac": "02:aa:00:00:00:08",
-              "dst_mac": "02:bb:00:00:00:08",
-              "ether_type": "ipv4",
-              "src_ip": "172.16.8.1",
-              "dst_ip": "172.16.8.2",
-              "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
-            }
-          },
-          {
-            "vsid": 16777215,
-            "flow_id": 1,
-            "inner": {
-              "src_mac": "02:aa:00:00:00:09",
-              "dst_mac": "02:bb:00:00:00:09",
-              "ether_type": "ipv4",
-              "src_ip": "172.16.9.1",
-              "dst_ip": "172.16.9.2",
-              "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
-            }
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.70",
+            "dst": "198.51.100.70"
           }
-        ]
-      }
+        },
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 1000,
+            "flow_id": 1,
+            "inner": {
+              "src_mac": "02:aa:00:00:00:07",
+              "dst_mac": "02:bb:00:00:00:07",
+              "ether_type": "ipv4",
+              "src_ip": "172.16.7.1",
+              "dst_ip": "172.16.7.2",
+              "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
+            },
+            "datagrams": [
+              {
+                "vsid": 1000,
+                "flow_id": 1
+              },
+              {
+                "vsid": 300000,
+                "flow_id": 1,
+                "inner": {
+                  "src_mac": "02:aa:00:00:00:08",
+                  "dst_mac": "02:bb:00:00:00:08",
+                  "ether_type": "ipv4",
+                  "src_ip": "172.16.8.1",
+                  "dst_ip": "172.16.8.2",
+                  "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
+                }
+              },
+              {
+                "vsid": 16777215,
+                "flow_id": 1,
+                "inner": {
+                  "src_mac": "02:aa:00:00:00:09",
+                  "dst_mac": "02:bb:00:00:00:09",
+                  "ether_type": "ipv4",
+                  "src_ip": "172.16.9.1",
+                  "dst_ip": "172.16.9.2",
+                  "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
+                }
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 3,
@@ -514,58 +602,71 @@
         "Key 高 24-bit 互异（0x03E8 / 0x493E0 / 0xFFFFFF），内层 frame 与 VSID 一一关联，不跨 VSID 复制",
         "包调度顺序非确定性——用 distinct 聚合断言"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_multi_flow_same_vsid",
     "proto": "nvgre",
     "summary": "same VSID, two Flow IDs: key high 24 bits equal, low 8 bits distinct",
     "spec_json": {
-      "src_ip": "192.0.2.80",
-      "dst_ip": "198.51.100.80",
-      "count": 1,
-      "nvgre": {
-        "vsid": 5000,
-        "flow_id": 1,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:10",
-          "dst_mac": "02:bb:00:00:00:10",
-          "ether_type": "ipv4",
-          "src_ip": "172.16.10.1",
-          "dst_ip": "172.16.10.2",
-          "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
-        },
-        "datagrams": [
-          {
-            "vsid": 5000,
-            "flow_id": 1
-          },
-          {
-            "vsid": 5000,
-            "flow_id": 2,
-            "inner": {
-              "src_mac": "02:aa:00:00:00:11",
-              "dst_mac": "02:bb:00:00:00:11",
-              "ether_type": "ipv4",
-              "src_ip": "172.16.11.1",
-              "dst_ip": "172.16.11.2",
-              "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
-            }
-          },
-          {
-            "vsid": 5000,
-            "flow_id": 3,
-            "inner": {
-              "src_mac": "02:aa:00:00:00:12",
-              "dst_mac": "02:bb:00:00:00:12",
-              "ether_type": "ipv4",
-              "src_ip": "172.16.12.1",
-              "dst_ip": "172.16.12.2",
-              "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
-            }
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.80",
+            "dst": "198.51.100.80"
           }
-        ]
-      }
+        },
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 5000,
+            "flow_id": 1,
+            "inner": {
+              "src_mac": "02:aa:00:00:00:10",
+              "dst_mac": "02:bb:00:00:00:10",
+              "ether_type": "ipv4",
+              "src_ip": "172.16.10.1",
+              "dst_ip": "172.16.10.2",
+              "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
+            },
+            "datagrams": [
+              {
+                "vsid": 5000,
+                "flow_id": 1
+              },
+              {
+                "vsid": 5000,
+                "flow_id": 2,
+                "inner": {
+                  "src_mac": "02:aa:00:00:00:11",
+                  "dst_mac": "02:bb:00:00:00:11",
+                  "ether_type": "ipv4",
+                  "src_ip": "172.16.11.1",
+                  "dst_ip": "172.16.11.2",
+                  "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
+                }
+              },
+              {
+                "vsid": 5000,
+                "flow_id": 3,
+                "inner": {
+                  "src_mac": "02:aa:00:00:00:12",
+                  "dst_mac": "02:bb:00:00:00:12",
+                  "ether_type": "ipv4",
+                  "src_ip": "172.16.12.1",
+                  "dst_ip": "172.16.12.2",
+                  "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
+                }
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 3,
@@ -597,30 +698,43 @@
       "notes": [
         "VSID=5000 高 24-bit 相同，FlowID 1/2/3 低 8-bit 互异（key 0x138801/0x138802/0x138803）"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_inner_vlan",
     "proto": "nvgre",
     "summary": "inner 802.1Q: TPID 0x8100, TCI=PCP<<13|VID, post-VLAN EtherType + inner IP",
     "spec_json": {
-      "src_ip": "192.0.2.90",
-      "dst_ip": "198.51.100.90",
-      "count": 1,
-      "nvgre": {
-        "vsid": 6000,
-        "flow_id": 1,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:13",
-          "dst_mac": "02:bb:00:00:00:13",
-          "ether_type": "vlan_ipv4",
-          "vlan_id": 100,
-          "vlan_priority": 3,
-          "src_ip": "172.16.13.1",
-          "dst_ip": "172.16.13.2",
-          "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.90",
+            "dst": "198.51.100.90"
+          }
+        },
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 6000,
+            "flow_id": 1,
+            "inner": {
+              "src_mac": "02:aa:00:00:00:13",
+              "dst_mac": "02:bb:00:00:00:13",
+              "ether_type": "vlan_ipv4",
+              "vlan_id": 100,
+              "vlan_priority": 3,
+              "src_ip": "172.16.13.1",
+              "dst_ip": "172.16.13.2",
+              "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -673,28 +787,41 @@
         "内层 VLAN tag 从 inner Ethernet 起点 42+12=54 起（TPID 81 00, TCI 60 64 = PCP3<<13|VID100）",
         "tshark 解 TEB payload 为 Ethernet：vlan.* 字段来自内层 tag"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_inner_ethernet_boundary",
     "proto": "nvgre",
     "summary": "boundary: explicit broadcast/unicast MACs, empty payload legal",
     "spec_json": {
-      "src_ip": "192.0.2.100",
-      "dst_ip": "198.51.100.100",
-      "count": 1,
-      "nvgre": {
-        "vsid": 7000,
-        "flow_id": 0,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:14",
-          "dst_mac": "ff:ff:ff:ff:ff:ff",
-          "ether_type": "ipv4",
-          "src_ip": "172.16.14.1",
-          "dst_ip": "172.16.14.2",
-          "payload_b64": ""
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.100",
+            "dst": "198.51.100.100"
+          }
+        },
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 7000,
+            "flow_id": 0,
+            "inner": {
+              "src_mac": "02:aa:00:00:00:14",
+              "dst_mac": "ff:ff:ff:ff:ff:ff",
+              "ether_type": "ipv4",
+              "src_ip": "172.16.14.1",
+              "dst_ip": "172.16.14.2",
+              "payload_b64": ""
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -740,46 +867,59 @@
       "notes": [
         "显式广播 dst MAC 原样落（不得改写）；空 payload 合法——inner frame = 14B eth + 20B ip = 34B"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_outer_inner_family_matrix",
     "proto": "nvgre",
     "summary": "four outer/inner IPv4-IPv6 family combinations",
     "spec_json": {
-      "src_ip": "192.0.2.110",
-      "dst_ip": "198.51.100.110",
-      "count": 1,
-      "nvgre": {
-        "vsid": 1,
-        "flow_id": 1,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:15",
-          "dst_mac": "02:bb:00:00:00:15",
-          "ether_type": "ipv4",
-          "src_ip": "172.16.15.1",
-          "dst_ip": "172.16.15.2",
-          "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.110",
+            "dst": "198.51.100.110"
+          }
         },
-        "datagrams": [
-          {
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
             "vsid": 1,
-            "flow_id": 1
-          },
-          {
-            "vsid": 2,
             "flow_id": 1,
             "inner": {
-              "src_mac": "02:aa:00:00:00:16",
-              "dst_mac": "02:bb:00:00:00:16",
-              "ether_type": "ipv6",
-              "src_ip": "fc00:1::1",
-              "dst_ip": "fc00:1::2",
+              "src_mac": "02:aa:00:00:00:15",
+              "dst_mac": "02:bb:00:00:00:15",
+              "ether_type": "ipv4",
+              "src_ip": "172.16.15.1",
+              "dst_ip": "172.16.15.2",
               "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
-            }
+            },
+            "datagrams": [
+              {
+                "vsid": 1,
+                "flow_id": 1
+              },
+              {
+                "vsid": 2,
+                "flow_id": 1,
+                "inner": {
+                  "src_mac": "02:aa:00:00:00:16",
+                  "dst_mac": "02:bb:00:00:00:16",
+                  "ether_type": "ipv6",
+                  "src_ip": "fc00:1::1",
+                  "dst_ip": "fc00:1::2",
+                  "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
+                }
+              }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 2,
@@ -810,28 +950,41 @@
         "四组合：outer v4+inner v4、outer v4+inner v6、outer v6+inner v4、outer v6+inner v6",
         "outer family 是 flow 级属性（spec src_ip/dst_ip 决定），同一 strategy 无法在 datagram 间切换外层 v4/v6；正例 1/2/3/4 已各自覆盖一个组合，本用例单 flow 覆盖 inner 族二分（v4+v6），outer v6 组合见用例 2/4"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_mtu_reassembly",
     "proto": "nvgre",
     "summary": "large inner frame: full payload carried intact (no real IP fragmentation this version)",
     "spec_json": {
-      "src_ip": "192.0.2.120",
-      "dst_ip": "198.51.100.120",
-      "count": 1,
-      "nvgre": {
-        "vsid": 1193046,
-        "flow_id": 122,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:17",
-          "dst_mac": "02:bb:00:00:00:17",
-          "ether_type": "ipv4",
-          "src_ip": "172.16.17.1",
-          "dst_ip": "172.16.17.2",
-          "payload_b64": "bnZncmUtbXR1LWxhcmdlLWZyYW1lLWNoZWNr"
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.120",
+            "dst": "198.51.100.120"
+          }
+        },
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 1193046,
+            "flow_id": 122,
+            "inner": {
+              "src_mac": "02:aa:00:00:00:17",
+              "dst_mac": "02:bb:00:00:00:17",
+              "ether_type": "ipv4",
+              "src_ip": "172.16.17.1",
+              "dst_ip": "172.16.17.2",
+              "payload_b64": "bnZncmUtbXR1LWxhcmdlLWZyYW1lLWNoZWNr"
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -874,28 +1027,41 @@
         "本版不实现底层 IP 分片：inner frame 单 datagram 完整发出，payload 前缀在 offset 70 逐字节验证",
         "与设计 §9 #12（IP 分片重组）的偏差：框架无分片表达，取最近可表达契约——完整大 payload 单帧 + Key/内层字节断言"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_pcap_nic_consistency",
     "proto": "nvgre",
     "summary": "PCAP output: deterministic key + inner prefix (NIC capture is orchestrated externally)",
     "spec_json": {
-      "src_ip": "192.0.2.130",
-      "dst_ip": "198.51.100.130",
-      "count": 1,
-      "nvgre": {
-        "vsid": 11259375,
-        "flow_id": 17,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:18",
-          "dst_mac": "02:bb:00:00:00:18",
-          "ether_type": "ipv4",
-          "src_ip": "172.16.18.1",
-          "dst_ip": "172.16.18.2",
-          "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.130",
+            "dst": "198.51.100.130"
+          }
+        },
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 11259375,
+            "flow_id": 17,
+            "inner": {
+              "src_mac": "02:aa:00:00:00:18",
+              "dst_mac": "02:bb:00:00:00:18",
+              "ether_type": "ipv4",
+              "src_ip": "172.16.18.1",
+              "dst_ip": "172.16.18.2",
+              "payload_b64": "bnZncmUtdnNpZGEtcGF5bG9hZA=="
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -942,29 +1108,42 @@
         "gre.key 期望 11259375 = 0xABCDEF11 十进制，为 tshark 十进制渲染占位（以实际为准）",
         "NIC capture 一致性命中由外部编排（本驱动只产出 PCAP 侧；NIC 侧由 nic_drive 独立驱动后比对同一 fixture 的 Key/inner 前缀）"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_key_endian_and_ttl",
     "proto": "nvgre",
     "summary": "key network byte order 12 34 56 7a + outer TTL boundary 255 (hop-limit boundary uses outer v6)",
     "spec_json": {
-      "src_ip": "192.0.2.140",
-      "dst_ip": "198.51.100.140",
-      "count": 1,
-      "nvgre": {
-        "vsid": 1193046,
-        "flow_id": 122,
-        "ttl": 255,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:19",
-          "dst_mac": "02:bb:00:00:00:19",
-          "ether_type": "ipv4",
-          "src_ip": "172.16.19.1",
-          "dst_ip": "172.16.19.2",
-          "payload_b64": "bnZncmUtaW5uZXItMDE="
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.140",
+            "dst": "198.51.100.140"
+          }
+        },
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 1193046,
+            "flow_id": 122,
+            "ttl": 255,
+            "inner": {
+              "src_mac": "02:aa:00:00:00:19",
+              "dst_mac": "02:bb:00:00:00:19",
+              "ether_type": "ipv4",
+              "src_ip": "172.16.19.1",
+              "dst_ip": "172.16.19.2",
+              "payload_b64": "bnZncmUtaW5uZXItMDE="
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -1008,174 +1187,255 @@
         "TTL/Hop Limit 边界：255 经 IPv4 外层（TTL 255 上线上可观测）；TTL=0 与 hop-limit=0 因核心 builder 对 0 的 TTL/HL 默认化（builder.go writeL3v4/v6 把 0 当未设置→64），线上无法表现，属框架偏差",
         "生成器 L3.TTL 按配置写入：*cfg.TTL=255 保留，不被默认化"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_neg_gre_flags_protocol",
     "proto": "nvgre",
     "summary": "negative: reserved GRE flags / non-TEB protocol rejected",
     "spec_json": {
-      "src_ip": "192.0.2.150",
-      "dst_ip": "198.51.100.150",
-      "count": 1,
-      "nvgre": {
-        "vsid": 1,
-        "flow_id": 1,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:20",
-          "dst_mac": "02:bb:00:00:00:20",
-          "ether_type": "ipv4",
-          "src_ip": "172.16.20.1",
-          "dst_ip": "172.16.20.2",
-          "payload_b64": "bnZncmUtaW5uZXItMDE="
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.150",
+            "dst": "198.51.100.150"
+          }
         },
-        "wire_fault": {
-          "kind": "flags_reserved",
-          "value": 0
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 1,
+            "flow_id": 1,
+            "inner": {
+              "src_mac": "02:aa:00:00:00:20",
+              "dst_mac": "02:bb:00:00:00:20",
+              "ether_type": "ipv4",
+              "src_ip": "172.16.20.1",
+              "dst_ip": "172.16.20.2",
+              "payload_b64": "bnZncmUtaW5uZXItMDE="
+            },
+            "wire_fault": {
+              "kind": "flags_reserved",
+              "value": 0
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "flags"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_neg_key_vsid_flow",
     "proto": "nvgre",
     "summary": "negative: VSID beyond 24-bit rejected (key missing/endian via wire fault)",
     "spec_json": {
-      "src_ip": "192.0.2.160",
-      "dst_ip": "198.51.100.160",
-      "count": 1,
-      "nvgre": {
-        "vsid": 16777216,
-        "flow_id": 1,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:21",
-          "dst_mac": "02:bb:00:00:00:21",
-          "ether_type": "ipv4",
-          "src_ip": "172.16.21.1",
-          "dst_ip": "172.16.21.2",
-          "payload_b64": "bnZncmUtaW5uZXItMDE="
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.160",
+            "dst": "198.51.100.160"
+          }
+        },
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 16777216,
+            "flow_id": 1,
+            "inner": {
+              "src_mac": "02:aa:00:00:00:21",
+              "dst_mac": "02:bb:00:00:00:21",
+              "ether_type": "ipv4",
+              "src_ip": "172.16.21.1",
+              "dst_ip": "172.16.21.2",
+              "payload_b64": "bnZncmUtaW5uZXItMDE="
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "vsid"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_neg_inner_ethernet_vlan",
     "proto": "nvgre",
     "summary": "negative: invalid inner MAC rejected",
     "spec_json": {
-      "src_ip": "192.0.2.170",
-      "dst_ip": "198.51.100.170",
-      "count": 1,
-      "nvgre": {
-        "vsid": 1,
-        "flow_id": 1,
-        "inner": {
-          "src_mac": "not-a-mac",
-          "dst_mac": "02:bb:00:00:00:22",
-          "ether_type": "ipv4",
-          "src_ip": "172.16.22.1",
-          "dst_ip": "172.16.22.2",
-          "payload_b64": "bnZncmUtaW5uZXItMDE="
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.170",
+            "dst": "198.51.100.170"
+          }
+        },
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 1,
+            "flow_id": 1,
+            "inner": {
+              "src_mac": "not-a-mac",
+              "dst_mac": "02:bb:00:00:00:22",
+              "ether_type": "ipv4",
+              "src_ip": "172.16.22.1",
+              "dst_ip": "172.16.22.2",
+              "payload_b64": "bnZncmUtaW5uZXItMDE="
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "inner"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_neg_address_family",
     "proto": "nvgre",
     "summary": "negative: inner ether_type ipv6 with IPv4 src_ip rejected (address family mismatch)",
     "spec_json": {
-      "src_ip": "192.0.2.180",
-      "dst_ip": "198.51.100.180",
-      "count": 1,
-      "nvgre": {
-        "vsid": 1,
-        "flow_id": 1,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:23",
-          "dst_mac": "02:bb:00:00:00:23",
-          "ether_type": "ipv6",
-          "src_ip": "172.16.23.1",
-          "dst_ip": "fc00::2",
-          "payload_b64": "bnZncmUtaW5uZXItMDE="
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.180",
+            "dst": "198.51.100.180"
+          }
+        },
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 1,
+            "flow_id": 1,
+            "inner": {
+              "src_mac": "02:aa:00:00:00:23",
+              "dst_mac": "02:bb:00:00:00:23",
+              "ether_type": "ipv6",
+              "src_ip": "172.16.23.1",
+              "dst_ip": "fc00::2",
+              "payload_b64": "bnZncmUtaW5uZXItMDE="
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "family"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_neg_carrier_length",
     "proto": "nvgre",
     "summary": "negative: length wraparound (payload overflow) rejected",
     "spec_json": {
-      "src_ip": "192.0.2.190",
-      "dst_ip": "198.51.100.190",
-      "count": 1,
-      "nvgre": {
-        "vsid": 1,
-        "flow_id": 1,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:24",
-          "dst_mac": "02:bb:00:00:00:24",
-          "ether_type": "ipv4",
-          "src_ip": "172.16.24.1",
-          "dst_ip": "172.16.24.2",
-          "payload_b64": ""
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.190",
+            "dst": "198.51.100.190"
+          }
         },
-        "wire_fault": {
-          "kind": "length_wrap",
-          "value": 0
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 1,
+            "flow_id": 1,
+            "inner": {
+              "src_mac": "02:aa:00:00:00:24",
+              "dst_mac": "02:bb:00:00:00:24",
+              "ether_type": "ipv4",
+              "src_ip": "172.16.24.1",
+              "dst_ip": "172.16.24.2",
+              "payload_b64": ""
+            },
+            "wire_fault": {
+              "kind": "length_wrap",
+              "value": 0
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "length"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   },
   {
     "id": "nvgre_neg_vsid_flow_isolation",
     "proto": "nvgre",
     "summary": "negative: cross-VSID/flow state reuse rejected",
     "spec_json": {
-      "src_ip": "192.0.2.200",
-      "dst_ip": "198.51.100.200",
-      "count": 1,
-      "nvgre": {
-        "vsid": 1,
-        "flow_id": 1,
-        "inner": {
-          "src_mac": "02:aa:00:00:00:25",
-          "dst_mac": "02:bb:00:00:00:25",
-          "ether_type": "ipv4",
-          "src_ip": "172.16.25.1",
-          "dst_ip": "172.16.25.2",
-          "payload_b64": "bnZncmUtaW5uZXItMDE="
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.200",
+            "dst": "198.51.100.200"
+          }
         },
-        "wire_fault": {
-          "kind": "vsid_flow_isolation",
-          "value": 0
+        {
+          "udp": {}
+        },
+        {
+          "nvgre": {
+            "vsid": 1,
+            "flow_id": 1,
+            "inner": {
+              "src_mac": "02:aa:00:00:00:25",
+              "dst_mac": "02:bb:00:00:00:25",
+              "ether_type": "ipv4",
+              "src_ip": "172.16.25.1",
+              "dst_ip": "172.16.25.2",
+              "payload_b64": "bnZncmUtaW5uZXItMDE="
+            },
+            "wire_fault": {
+              "kind": "vsid_flow_isolation",
+              "value": 0
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "isolation"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 nvgre 子映射迁入 layers[].nvgre"
+    ]
   }
 ]

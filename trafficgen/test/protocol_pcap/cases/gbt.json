@@ -21,33 +21,32 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -85,7 +84,10 @@
           "hex": "485454502F312E3120323030204F4B0D0A436F6E74656E742D547970653A206170706C69636174696F6E2F6A736F6E0D0A436F6E74656E742D4C656E6774683A203630370D0A"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_template_ipv6_8332",
@@ -109,33 +111,32 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -156,7 +157,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_port_nondefault_18332",
@@ -180,33 +184,32 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -232,7 +235,10 @@
           "value": "607"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_auth_basic_header",
@@ -256,33 +262,32 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -293,7 +298,10 @@
           "value": "Basic dXNlcjpwYXNz"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_http401_noauth",
@@ -317,29 +325,28 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "error_object",
-                "status": 401
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "error_object",
+                    "status": 401
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -360,7 +367,10 @@
           "value": "0"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_http500_rpc_error",
@@ -384,32 +394,31 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 5,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "error_object"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 5,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "error_object"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -432,7 +441,10 @@
           "hex": "7B22726573756C74223A6E756C6C2C226572726F72223A7B22636F6465223A2D312C226D657373616765223A22676574626C6F636B74656D706C6174653A20756E737570706F727465642072756C65227D2C226964223A357D"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_jsonrpc10_default",
@@ -456,33 +468,32 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -493,7 +504,10 @@
           "hex": "7B226A736F6E727063223A22312E30222C226964223A312C226D6574686F64223A22676574626C6F636B74656D706C617465222C22706172616D73223A5B5D7D"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_jsonrpc20_form",
@@ -517,34 +531,33 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "jsonrpc_version": "2.0",
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "jsonrpc_version": "2.0",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -555,7 +568,10 @@
           "hex": "7B226A736F6E727063223A22322E30222C226964223A312C226D6574686F64223A22676574626C6F636B74656D706C617465222C22706172616D73223A5B5D7D"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_id_numeric_sequence",
@@ -579,55 +595,54 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "refresh"
-              },
-              {
-                "kind": "request",
-                "id": 3,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "refresh"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "refresh"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 3,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "refresh"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 13,
@@ -648,7 +663,10 @@
           "value": "64"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_id_string_form",
@@ -672,33 +690,32 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": "rpc-001",
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": "rpc-001",
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -709,7 +726,10 @@
           "value": "72"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_host_header_value",
@@ -733,33 +753,32 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -770,7 +789,10 @@
           "hex": "486F73743A203139382E35312E3130302E37373A38333332"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_http10_close",
@@ -794,30 +816,29 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "http_version": "HTTP/1.0",
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "http_version": "HTTP/1.0",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -828,7 +849,10 @@
           "hex": "504F5354202F20485454502F312E30"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_empty_params_form",
@@ -852,33 +876,32 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -889,7 +912,10 @@
           "value": "64"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_rules_request",
@@ -913,39 +939,38 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": [
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
                   {
-                    "rules": [
-                      "segwit"
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": [
+                      {
+                        "rules": [
+                          "segwit"
+                        ]
+                      }
                     ]
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
                   }
                 ]
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -963,7 +988,10 @@
           "hex": "7B226A736F6E727063223A22312E30222C226964223A312C226D6574686F64223A22676574626C6F636B74656D706C617465222C22706172616D73223A5B7B2272756C6573223A5B22736567776974225D7D5D7D"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_capabilities_response",
@@ -987,37 +1015,39 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_id_large_value",
@@ -1041,33 +1071,32 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 2147483647,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 2147483647,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1078,7 +1107,10 @@
           "value": "73"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_template_keyset",
@@ -1102,37 +1134,39 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_prevhash_64hex",
@@ -1156,37 +1190,39 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_target_64hex",
@@ -1210,37 +1246,39 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_bits_8hex",
@@ -1264,37 +1302,39 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_noncerange_16hex",
@@ -1318,37 +1358,39 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_height_value",
@@ -1372,37 +1414,39 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_coinbasevalue_bigint",
@@ -1426,37 +1470,39 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_mintime_curtime",
@@ -1480,37 +1526,39 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_mutable_values",
@@ -1534,37 +1582,39 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_coinbaseaux_flags",
@@ -1588,37 +1638,39 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_transactions_empty",
@@ -1642,33 +1694,32 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "plain"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "plain"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1679,7 +1730,10 @@
           "value": "488"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_transactions_elements",
@@ -1703,33 +1757,32 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "tx1"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "tx1"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1740,7 +1793,10 @@
           "value": "884"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_limits_values",
@@ -1764,37 +1820,39 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "plain"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "plain"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_longpoll_uri_field",
@@ -1818,37 +1876,39 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_longpoll_request",
@@ -1872,49 +1932,48 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getblocktemplate",
-                "params": [
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
                   {
-                    "longpollid": "longpollid_from"
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getblocktemplate",
+                    "params": [
+                      {
+                        "longpollid": "longpollid_from"
+                      }
+                    ],
+                    "uri": "/longpoll"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "refresh"
                   }
-                ],
-                "uri": "/longpoll"
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "refresh"
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -1925,7 +1984,10 @@
           "hex": "504F5354202F6C6F6E67706F6C6C20485454502F312E31"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_longpollid_parameter",
@@ -1949,48 +2011,47 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getblocktemplate",
-                "params": [
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
                   {
-                    "longpollid": "lp-1000-1"
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getblocktemplate",
+                    "params": [
+                      {
+                        "longpollid": "lp-1000-1"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "refresh"
                   }
                 ]
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "refresh"
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -2001,7 +2062,10 @@
           "value": "90"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_workid_template",
@@ -2025,37 +2089,39 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_submitblock_with_workid",
@@ -2079,46 +2145,45 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
-              },
-              {
-                "kind": "request",
-                "id": 4,
-                "method": "submitblock",
-                "params": [
-                  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                  "workid_from"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 4,
+                    "method": "submitblock",
+                    "params": [
+                      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                      "workid_from"
+                    ]
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "accepted_null"
+                  }
                 ]
-              },
-              {
-                "kind": "response",
-                "result_kind": "accepted_null"
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -2129,7 +2194,10 @@
           "value": "227"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_template_refresh",
@@ -2153,44 +2221,43 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "refresh"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "refresh"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -2206,7 +2273,10 @@
           "value": "536870912,5000000000,1756684800,80000,4000000,1756685700,1001,2"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_submitblock_accepted",
@@ -2230,45 +2300,44 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
-              },
-              {
-                "kind": "request",
-                "id": 4,
-                "method": "submitblock",
-                "params": [
-                  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 4,
+                    "method": "submitblock",
+                    "params": [
+                      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    ]
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "accepted_null"
+                  }
                 ]
-              },
-              {
-                "kind": "response",
-                "result_kind": "accepted_null"
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -2286,7 +2355,10 @@
           "hex": "7B22726573756C74223A6E756C6C2C226572726F72223A6E756C6C2C226964223A347D"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_submitblock_rejected_reason",
@@ -2310,45 +2382,44 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
-              },
-              {
-                "kind": "request",
-                "id": 4,
-                "method": "submitblock",
-                "params": [
-                  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 4,
+                    "method": "submitblock",
+                    "params": [
+                      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    ]
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "reject_reason"
+                  }
                 ]
-              },
-              {
-                "kind": "response",
-                "result_kind": "reject_reason"
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -2366,7 +2437,10 @@
           "hex": "7B22726573756C74223A22707265762D626C6B2D6E6F742D666F756E64222C226572726F72223A6E756C6C2C226964223A347D"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_submitblock_error_500",
@@ -2390,34 +2464,33 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 4,
-                "method": "submitblock",
-                "params": [
-                  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 4,
+                    "method": "submitblock",
+                    "params": [
+                      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    ]
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "error_object"
+                  }
                 ]
-              },
-              {
-                "kind": "response",
-                "result_kind": "error_object"
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -2433,7 +2506,10 @@
           "value": "89"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_proposal_mode",
@@ -2457,48 +2533,47 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
-              },
-              {
-                "kind": "request",
-                "id": 3,
-                "method": "getblocktemplate",
-                "params": [
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
                   {
-                    "mode": "proposal",
-                    "data": "02abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababaa"
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 3,
+                    "method": "getblocktemplate",
+                    "params": [
+                      {
+                        "mode": "proposal",
+                        "data": "02abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababaa"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "proposal_true"
                   }
                 ]
-              },
-              {
-                "kind": "response",
-                "result_kind": "proposal_true"
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -2509,7 +2584,10 @@
           "value": "295"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_proposal_reject",
@@ -2533,48 +2611,47 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
-              },
-              {
-                "kind": "request",
-                "id": 3,
-                "method": "getblocktemplate",
-                "params": [
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
                   {
-                    "mode": "proposal",
-                    "data": "02abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababaa"
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 3,
+                    "method": "getblocktemplate",
+                    "params": [
+                      {
+                        "mode": "proposal",
+                        "data": "02abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababaa"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "proposal_reject"
                   }
                 ]
-              },
-              {
-                "kind": "response",
-                "result_kind": "proposal_reject"
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -2585,7 +2662,10 @@
           "value": "51"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_keepalive_multi_transaction",
@@ -2609,55 +2689,54 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "refresh"
-              },
-              {
-                "kind": "request",
-                "id": 3,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "refresh"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "refresh"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 3,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "refresh"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 13,
@@ -2668,7 +2747,10 @@
           "value": "0x0002"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_keepalive_then_close",
@@ -2692,45 +2774,44 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "refresh",
-                "close": true
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "refresh",
+                    "close": true
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -2751,7 +2832,10 @@
           "value": "607"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_body_mss_spanning",
@@ -2775,48 +2859,47 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "plain",
-                "id": 1,
-                "join_next": true
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "plain",
-                "id": 2,
-                "join_next": true
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "plain",
-                "id": 3
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "plain",
+                    "id": 1,
+                    "join_next": true
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "plain",
+                    "id": 2,
+                    "join_next": true
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "plain",
+                    "id": 3
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 10,
@@ -2834,7 +2917,10 @@
           "value": "64"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_multi_body_single_segment",
@@ -2858,47 +2944,46 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": [],
-                "join_next": true
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "id": 1,
-                "template": "full",
-                "join_next": true
-              },
-              {
-                "kind": "response",
-                "result_kind": "accepted_null",
-                "id": 2
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": [],
+                    "join_next": true
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "id": 1,
+                    "template": "full",
+                    "join_next": true
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "accepted_null",
+                    "id": 2
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -2924,7 +3009,10 @@
           "hex": "485454502F312E3120323030204F4B"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_multi_session",
@@ -2948,54 +3036,53 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               },
               {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ],
+                "src_port": 4078
               }
             ]
-          },
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
-              {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
-              }
-            ],
-            "src_port": 4078
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 18,
@@ -3012,7 +3099,10 @@
           ]
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_concurrent_sessions",
@@ -3037,55 +3127,54 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "concurrent": true,
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "concurrent": true,
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               },
               {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ],
+                "src_port": 4078
               }
             ]
-          },
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
-              {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
-              }
-            ],
-            "src_port": 4078
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 18,
@@ -3102,7 +3191,10 @@
           ]
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_session_state_isolation",
@@ -3126,80 +3218,79 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
-              },
-              {
-                "kind": "request",
-                "id": 4,
-                "method": "submitblock",
-                "params": [
-                  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                  "workid_from"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 4,
+                    "method": "submitblock",
+                    "params": [
+                      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                      "workid_from"
+                    ]
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "accepted_null"
+                  }
                 ]
               },
               {
-                "kind": "response",
-                "result_kind": "accepted_null"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 4,
+                    "method": "submitblock",
+                    "params": [
+                      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                      "workid_from"
+                    ]
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "accepted_null"
+                  }
+                ],
+                "src_port": 4078
               }
             ]
-          },
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
-              {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
-              },
-              {
-                "kind": "request",
-                "id": 4,
-                "method": "submitblock",
-                "params": [
-                  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                  "workid_from"
-                ]
-              },
-              {
-                "kind": "response",
-                "result_kind": "accepted_null"
-              }
-            ],
-            "src_port": 4078
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 22,
@@ -3216,7 +3307,10 @@
           ]
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_retry_after_500",
@@ -3240,43 +3334,42 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 5,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "error_object"
-              },
-              {
-                "kind": "request",
-                "id": 6,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 5,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "error_object"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 6,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -3292,7 +3385,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_reconnect_new_stream",
@@ -3316,54 +3412,53 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               },
               {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ],
+                "src_port": 4079
               }
             ]
-          },
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
-              {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
-              }
-            ],
-            "src_port": 4079
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 18,
@@ -3380,7 +3475,10 @@
           ]
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_rst_interrupt",
@@ -3405,28 +3503,27 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 5,
@@ -3437,7 +3534,10 @@
           "value": "0x0004"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_no_frames_after_fin",
@@ -3461,33 +3561,32 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -3498,7 +3597,10 @@
           "value": "0x0002"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_dual_family",
@@ -3522,54 +3624,53 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               },
               {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
-              }
-            ]
-          },
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "src_port": 4078,
-            "events": [
-              {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "full"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "src_port": 4078,
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "full"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 18,
@@ -3591,7 +3692,10 @@
           ]
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_template_large_mss",
@@ -3615,33 +3719,32 @@
           "http": {}
         },
         {
-          "gbt": {}
-        }
-      ],
-      "gbt": {
-        "sessions": [
-          {
-            "role": "miner",
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "events": [
+          "gbt": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getblocktemplate",
-                "params": []
-              },
-              {
-                "kind": "response",
-                "result_kind": "template",
-                "template": "big"
+                "role": "miner",
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getblocktemplate",
+                    "params": []
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "template",
+                    "template": "big"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 12,
@@ -3652,7 +3755,10 @@
           "hex": "485454502F312E3120323030204F4B0D0A436F6E74656E742D547970653A206170706C69636174696F6E2F6A736F6E0D0A436F6E74656E742D4C656E6774683A20353531320D0A436F6E6E656374696F6E3A206B6565702D616C6976650D0A0D0A"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_bad_json",
@@ -3676,19 +3782,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "bad_json"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "bad_json"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "json"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_body_truncated",
@@ -3712,19 +3820,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "body_truncated"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "body_truncated"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "truncat"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_content_length_mismatch",
@@ -3748,19 +3858,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "content_length_mismatch"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "content_length_mismatch"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "content-length"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_unknown_method",
@@ -3784,19 +3896,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "unknown_method"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "unknown_method"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "method"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_template_params_nonobject",
@@ -3820,19 +3934,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "template_params_nonobject"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "template_params_nonobject"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "params"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_submitblock_no_hexdata",
@@ -3856,19 +3972,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "submitblock_no_hexdata"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "submitblock_no_hexdata"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "params"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_submitblock_third_param",
@@ -3892,19 +4010,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "submitblock_third_param"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "submitblock_third_param"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "params"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_prevhash_length",
@@ -3928,19 +4048,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "prevhash_length"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "prevhash_length"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "length"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_bits_length",
@@ -3964,19 +4086,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "bits_length"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "bits_length"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "length"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_noncerange_length",
@@ -4000,19 +4124,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "noncerange_length"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "noncerange_length"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "length"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_target_length",
@@ -4036,19 +4162,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "target_length"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "target_length"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "length"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_field_missing",
@@ -4072,19 +4200,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "field_missing"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "field_missing"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "height"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_workid_mismatch",
@@ -4108,19 +4238,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "workid_mismatch"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "workid_mismatch"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "workid"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_id_mismatch",
@@ -4144,19 +4276,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "id_mismatch"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "id_mismatch"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "id"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_longpollid_missing",
@@ -4180,19 +4314,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "longpollid_missing"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "longpollid_missing"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "longpollid"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_longpollid_stale",
@@ -4216,19 +4352,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "longpollid_stale"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "longpollid_stale"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "longpollid"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_height_nonincrement",
@@ -4252,19 +4390,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "height_nonincrement"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "height_nonincrement"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "height"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_mode_invalid",
@@ -4288,19 +4428,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "mode_invalid"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "mode_invalid"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "mode"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_unknown_rule",
@@ -4324,19 +4466,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "unknown_rule"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "unknown_rule"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "rule"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_bip9_field",
@@ -4360,19 +4504,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "bip9_field"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "bip9_field"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "unsupported"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_witness_commitment",
@@ -4396,19 +4542,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "witness_commitment"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "witness_commitment"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "unsupported"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_coinbasetxn_form",
@@ -4432,19 +4580,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "coinbasetxn_form"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "coinbasetxn_form"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "unsupported"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_line_profile",
@@ -4468,19 +4618,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "line_profile"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "line_profile"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "carrier"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_udp_carrier",
@@ -4504,19 +4656,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "udp_carrier"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "udp_carrier"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "carrier"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_port_undeclared",
@@ -4540,19 +4694,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "port_undeclared"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "port_undeclared"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "port"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_address_family",
@@ -4576,19 +4732,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "address_family"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "address_family"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "family"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_http_method_get",
@@ -4612,19 +4770,21 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "http_method_get"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "http_method_get"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "post"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   },
   {
     "id": "gbt_neg_error_propagation",
@@ -4648,18 +4808,20 @@
           "http": {}
         },
         {
-          "gbt": {}
+          "gbt": {
+            "wire_fault": {
+              "kind": "error_propagation"
+            }
+          }
         }
-      ],
-      "gbt": {
-        "wire_fault": {
-          "kind": "error_propagation"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "propagat"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gbt 子映射迁入 layers[].gbt"
+    ]
   }
 ]

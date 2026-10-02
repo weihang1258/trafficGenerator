@@ -4,12 +4,23 @@
     "proto": "gtp",
     "summary": "冒烟：GTP-U T-PDU（空配置默认数据面，mode=u）。顶层不设端口 → 内外层均默认 2152（IANA），GTP 头 v1/TEID=0，共 1 包",
     "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 2152,
-      "dst_port": 2152,
-      "count": 1,
-      "gtp": {}
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 2152,
+            "dst_port": 2152
+          }
+        },
+        {
+          "gtp": {}
+        }
+      ]
     },
     "decode_as": [
       "udp.port==2152,gtp"
@@ -62,6 +73,9 @@
         "tshark 探针实测：version=1、message=0xff、length=28、teid=0x00000000；帧断言外层 UDP 头（offset 34 '08 68 08 68' = src/dst 2152）、8 字节 GTP 头（offset 42，Eth14+IPv4 20+UDP 8）与内层 IPv4 源/目的（offset 62，10.0.0.1→20.0.0.1 = spec 的 src_ip/dst_ip，InnerIP 默认回退 spec IP）",
         "udp.dstport/ip.ttl/ip.proto 不断言：GTP 帧内外两层 IP/UDP，tshark 显示多值（FieldAssert 只支持单值字段）；外层端口由帧断言覆盖"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 gtp 子映射迁入 layers[].gtp"
+    ]
   }
 ]

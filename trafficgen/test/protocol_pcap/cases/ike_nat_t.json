@@ -4,16 +4,23 @@
     "proto": "ike_nat_t",
     "summary": "smoke: IKEv2 SA_INIT initiator header-only message (no payloads) over UDP 500; tshark auto-parses isakmp; no Non-ESP marker since dst != 4500",
     "spec_json": {
-      "count": 1,
-      "dst_port": 500,
-      "ike_nat_t": {
-        "dialog": [
-          {
-            "direction": "up",
-            "exchange_type": 34
+      "layers": [
+        {
+          "udp": {
+            "dst_port": 500
           }
-        ]
-      }
+        },
+        {
+          "ike_nat_t": {
+            "dialog": [
+              {
+                "direction": "up",
+                "exchange_type": 34
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "min_packets": 1,
@@ -67,6 +74,9 @@
         "SPI is run-random (math/rand seeded by time) -> nonzero assert; responder SPI is 8 zero bytes -> exact value assert (tshark prints plain 0000000000000000)",
         "dst 500 avoids the udpencap/Non-ESP path (planner: only dst 4500 gets the marker); udp.port 500 is IANA-registered to isakmp so no decode_as needed"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ike_nat_t 子映射迁入 layers[].ike_nat_t"
+    ]
   }
 ]

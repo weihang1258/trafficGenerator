@@ -1,1374 +1,1488 @@
 [
- {
-  "id": "gnutella_handshake_ipv4",
-  "proto": "gnutella",
-  "summary": "S1: TCP/IPv4 6346 CONNECT/0.6→200 OK 握手与能力头（键序稳定）",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42059,
-   "dst_port": 6346,
-   "gnutella": {
-    "connections": [
-     {
-      "src_port": 42059,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       }
+  {
+    "id": "gnutella_handshake_ipv4",
+    "proto": "gnutella",
+    "summary": "S1: TCP/IPv4 6346 CONNECT/0.6→200 OK 握手与能力头（键序稳定）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42059,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "connections": [
+              {
+                "src_port": 42059,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  }
+                ]
+              }
+            ]
+          }
+        }
       ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 9,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "6346"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "474e5554454c4c4120434f4e4e4543542f302e360d0a557365722d4167656e743a207472616666696367656e2f312e300d0a582d4e6f64653a20306130623063306430653066306130620d0a582d51756572792d526f7574696e673a20302e310d0a582d556c747261706565723a2046616c73650d0a0d0a"
     },
-    {
-     "packet": 5,
-     "offset": 54,
-     "hex": "474e5554454c4c412f302e3620323030204f4b0d0a582d4e6f64653a20306130623063306430653066306130620d0a582d51756572792d526f7574696e673a20302e310d0a582d556c747261706565723a2046616c73650d0a0d0a"
-    }
-   ]
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "6346"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "474e5554454c4c4120434f4e4e4543542f302e360d0a557365722d4167656e743a207472616666696367656e2f312e300d0a582d4e6f64653a20306130623063306430653066306130620d0a582d51756572792d526f7574696e673a20302e310d0a582d556c747261706565723a2046616c73650d0a0d0a"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "474e5554454c4c412f302e3620323030204f4b0d0a582d4e6f64653a20306130623063306430653066306130620d0a582d51756572792d526f7574696e673a20302e310d0a582d556c747261706565723a2046616c73650d0a0d0a"
+        }
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_ping_pong",
+    "proto": "gnutella",
+    "summary": "S2: 握手后 PING→PONG，同 GUID 关联、PONG 地址/文件计数字段",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42059,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "connections": [
+              {
+                "src_port": 42059,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  },
+                  {
+                    "kind": "ping",
+                    "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
+                    "ttl": 5,
+                    "hops": 0
+                  },
+                  {
+                    "kind": "pong",
+                    "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
+                    "ttl": 5,
+                    "hops": 1,
+                    "pong_port": 6346,
+                    "files": 3,
+                    "kb": 128
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "0102030405060708090a0b0c0d0e0f1000050000000000"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "0102030405060708090a0b0c0d0e0f100105010e000000ca180a0000090300000080000000"
+        }
+      ]
+    },
+    "notes": [
+      "6=PING（PayloadLength=0），7=PONG 同 GUID（port 6346 小端/addr/files/KB 小端）；无自动额外 PING。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_query_queryhit",
+    "proto": "gnutella",
+    "summary": "S3: QUERY(criteria NUL 终止)→QUERY_HIT，QueryID 关联与 Hits/result 一致",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42059,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "connections": [
+              {
+                "src_port": 42059,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  },
+                  {
+                    "kind": "query",
+                    "message_id": "AwQFBgcICQoLDA0ODxAREg==",
+                    "ttl": 5,
+                    "criteria": "mp3",
+                    "min_speed": 10
+                  },
+                  {
+                    "kind": "query_hit",
+                    "message_id": "BAUGBwgJCgsMDQ4PEBESEw==",
+                    "query_id": "AwQFBgcICQoLDA0ODxAREg==",
+                    "ttl": 5,
+                    "hits": 1,
+                    "hit_port": 6348,
+                    "speed": 100,
+                    "results": [
+                      {
+                        "file_index": 7,
+                        "file_size": 4096,
+                        "name": "a.txt"
+                      }
+                    ],
+                    "servent_id": "CQoLDA0ODxAREhMUFRYXGA=="
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "030405060708090a0b0c0d0e0f101112800500060000000a006d703300"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "0405060708090a0b0c0d0e0f101112138105002900000001cc180a000009640000000700000000100000612e74787400090a0b0c0d0e0f101112131415161718"
+        }
+      ]
+    },
+    "notes": [
+      "6=QUERY(descriptor 0x80)，7=QUERY_HIT(0x81, hits=1, ServentID 结尾)。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_push",
+    "proto": "gnutella",
+    "summary": "S4: QueryHit 后显式 PUSH，ServentID/FileIndex/目标端口关联",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42059,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "connections": [
+              {
+                "src_port": 42059,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  },
+                  {
+                    "kind": "query",
+                    "message_id": "AwQFBgcICQoLDA0ODxAREg==",
+                    "ttl": 5,
+                    "criteria": "video"
+                  },
+                  {
+                    "kind": "query_hit",
+                    "message_id": "BAUGBwgJCgsMDQ4PEBESEw==",
+                    "query_id": "AwQFBgcICQoLDA0ODxAREg==",
+                    "ttl": 5,
+                    "hits": 1,
+                    "results": [
+                      {
+                        "file_index": 7,
+                        "file_size": 999,
+                        "name": "v.avi"
+                      }
+                    ],
+                    "servent_id": "CQoLDA0ODxAREhMUFRYXGA=="
+                  },
+                  {
+                    "kind": "push",
+                    "message_id": "BQYHCAkKCwwNDg8QERITFA==",
+                    "servent_id": "CQoLDA0ODxAREhMUFRYXGA==",
+                    "file_index": 7,
+                    "push_port": 6349
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "05060708090a0b0c0d0e0f10111213144000001a000000090a0b0c0d0e0f101112131415161718070000000a000009cd18"
+        }
+      ]
+    },
+    "notes": [
+      "8=PUSH(descriptor 0x40, ServentID=g9 与 QueryHit 一致, FileIndex 7)；无自动下载流。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_vendor_message",
+    "proto": "gnutella",
+    "summary": "S5: Vendor 扩展（VendorID/Selector/Version/payload），显式业务事件",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42059,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "connections": [
+              {
+                "src_port": 42059,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  },
+                  {
+                    "kind": "vendor",
+                    "message_id": "BgcICQoLDA0ODxAREhMUFQ==",
+                    "ttl": 5,
+                    "vendor_id": "GTKG",
+                    "selector": 3,
+                    "version": 1,
+                    "payload": "AQID"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 10,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "060708090a0b0c0d0e0f1011121314153105000b00000047544b4703000100010203"
+        }
+      ]
+    },
+    "notes": [
+      "6=VENDOR(descriptor 0x31, GTKG/3/1 + 3B payload=11 22 33)。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_forward_ttl_hops",
+    "proto": "gnutella",
+    "summary": "S6: 同 GUID 转发副本 TTL-1/Hops+1，payload 不变",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42059,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "connections": [
+              {
+                "src_port": 42059,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  },
+                  {
+                    "kind": "ping",
+                    "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
+                    "ttl": 5,
+                    "hops": 0
+                  },
+                  {
+                    "kind": "ping",
+                    "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
+                    "ttl": 4,
+                    "hops": 1
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "0102030405060708090a0b0c0d0e0f1000050000000000"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "0102030405060708090a0b0c0d0e0f1000040100000000"
+        }
+      ]
+    },
+    "notes": [
+      "6/7 同 GUID；头字节 TTL 05→04、Hops 00→01；validator 强制转发形状。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_multi_queryhit",
+    "proto": "gnutella",
+    "summary": "S7: 同一 Query 双 QueryHit（同 QueryID，不同 ServentID/result），Hits=result 数",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42059,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "connections": [
+              {
+                "src_port": 42059,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  },
+                  {
+                    "kind": "query",
+                    "message_id": "AwQFBgcICQoLDA0ODxAREg==",
+                    "ttl": 5,
+                    "criteria": "lossless"
+                  },
+                  {
+                    "kind": "query_hit",
+                    "message_id": "BAUGBwgJCgsMDQ4PEBESEw==",
+                    "query_id": "AwQFBgcICQoLDA0ODxAREg==",
+                    "ttl": 5,
+                    "hits": 2,
+                    "results": [
+                      {
+                        "file_index": 1,
+                        "file_size": 100,
+                        "name": "one.flac"
+                      },
+                      {
+                        "file_index": 2,
+                        "file_size": 200,
+                        "name": "two.flac"
+                      }
+                    ],
+                    "servent_id": "CQoLDA0ODxAREhMUFRYXGA=="
+                  },
+                  {
+                    "kind": "query_hit",
+                    "message_id": "BQYHCAkKCwwNDg8QERITFA==",
+                    "query_id": "AwQFBgcICQoLDA0ODxAREg==",
+                    "ttl": 5,
+                    "hits": 1,
+                    "results": [
+                      {
+                        "file_index": 3,
+                        "file_size": 300,
+                        "name": "three.flac"
+                      }
+                    ],
+                    "servent_id": "CgsMDQ4PEBESExQVFhcYGQ=="
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "frames": [
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "0405060708090a0b0c0d0e0f101112138105003d0000000200000a0000090000000001000000640000006f6e652e666c61630002000000c800000074776f2e666c616300090a0b0c0d0e0f101112131415161718"
+        },
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "05060708090a0b0c0d0e0f10111213148105002e0000000100000a00000900000000030000002c01000074687265652e666c6163000a0b0c0d0e0f10111213141516171819"
+        }
+      ]
+    },
+    "notes": [
+      "7=hits 2（两个 result），8=hits 1；QueryID 同为 g3。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_multi_stream",
+    "proto": "gnutella",
+    "summary": "S9: 两个 TCP 四元组各自握手并发不同 Query，状态隔离",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42059,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "connections": [
+              {
+                "src_port": 42059,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  },
+                  {
+                    "kind": "query",
+                    "message_id": "AwQFBgcICQoLDA0ODxAREg==",
+                    "ttl": 5,
+                    "criteria": "alpha"
+                  }
+                ]
+              },
+              {
+                "src_port": 42061,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  },
+                  {
+                    "kind": "query",
+                    "message_id": "BgcICQoLDA0ODxAREhMUFQ==",
+                    "ttl": 5,
+                    "criteria": "beta"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 20,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "42059",
+            "42061"
+          ],
+          "distinct_exclude": [
+            "6346"
+          ]
+        }
+      ],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "030405060708090a0b0c0d0e0f101112800500080000000000616c70686100"
+        },
+        {
+          "packet": 16,
+          "offset": 54,
+          "hex": "060708090a0b0c0d0e0f1011121314158005000700000000006265746100"
+        }
+      ]
+    },
+    "notes": [
+      "每连接 10 包；p6=conn1 query(alpha, g3)，p16=conn2 query(beta, g6)。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_multi_connection",
+    "proto": "gnutella",
+    "summary": "S10: 双连接（42059/42062）各自握手+ping/pong，节点状态不串用",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42059,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "connections": [
+              {
+                "src_port": 42059,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  },
+                  {
+                    "kind": "ping",
+                    "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
+                    "ttl": 5
+                  },
+                  {
+                    "kind": "pong",
+                    "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
+                    "ttl": 5,
+                    "hops": 1,
+                    "pong_port": 6346,
+                    "files": 1,
+                    "kb": 1
+                  }
+                ]
+              },
+              {
+                "src_port": 42062,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  },
+                  {
+                    "kind": "ping",
+                    "message_id": "BwgJCgsMDQ4PEBESExQVFg==",
+                    "ttl": 5
+                  },
+                  {
+                    "kind": "pong",
+                    "message_id": "BwgJCgsMDQ4PEBESExQVFg==",
+                    "ttl": 5,
+                    "hops": 1,
+                    "pong_port": 6346,
+                    "files": 2,
+                    "kb": 2
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 22,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "42059",
+            "42062"
+          ],
+          "distinct_exclude": [
+            "6346"
+          ]
+        }
+      ],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "0102030405060708090a0b0c0d0e0f1000050000000000"
+        },
+        {
+          "packet": 17,
+          "offset": 54,
+          "hex": "0708090a0b0c0d0e0f1011121314151600050000000000"
+        }
+      ]
+    },
+    "notes": [
+      "每连接 11 包；p6/p17 为两连接的 PING（不同 GUID g1/g7）。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_ipv6",
+    "proto": "gnutella",
+    "summary": "S11: IPv6/TCP 6346 握手+PING，ipv6.nxt=6、payload offset 74",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8:53::10",
+            "dst": "2001:db8:53::20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42060,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "connections": [
+              {
+                "src_port": 42060,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  },
+                  {
+                    "kind": "ping",
+                    "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
+                    "ttl": 5
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 10,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "ipv6.nxt",
+          "value": "6"
+        },
+        {
+          "packet": 4,
+          "field": "ipv6.src",
+          "value": "2001:db8:53::10"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 74,
+          "hex": "0102030405060708090a0b0c0d0e0f1000050000000000"
+        }
+      ]
+    },
+    "notes": [
+      "业务 bytes 与 v4 profile 一致（地址字段宽度由 profile 声明，不随外层地址族变化）。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_ipv4_ipv6_same_payload",
+    "proto": "gnutella",
+    "summary": "S12: 双栈连接各自完成 CONNECT/200 握手，帧字节一致（自驱链）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42063,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "connections": [
+              {
+                "src_port": 42063,
+                "src_ip": "192.0.2.53",
+                "dst_ip": "198.51.100.53",
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  }
+                ]
+              },
+              {
+                "src_port": 42064,
+                "src_ip": "2001:db8:53::10",
+                "dst_ip": "2001:db8:53::20",
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 18,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "ip.version",
+          "distinct_values": [
+            "4",
+            "6"
+          ]
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "474e5554454c4c4120434f4e4e4543542f302e360d0a557365722d4167656e743a207472616666696367656e2f312e300d0a582d4e6f64653a20306130623063306430653066306130620d0a582d51756572792d526f7574696e673a20302e310d0a582d556c747261706565723a2046616c73650d0a0d0a"
+        },
+        {
+          "packet": 13,
+          "offset": 74,
+          "hex": "474e5554454c4c4120434f4e4e4543542f302e360d0a557365722d4167656e743a207472616666696367656e2f312e300d0a582d4e6f64653a20306130623063306430653066306130620d0a582d51756572792d526f7574696e673a20302e310d0a582d556c747261706565723a2046616c73650d0a0d0a"
+        }
+      ]
+    },
+    "notes": [
+      "自驱链每连接 9 包；p4(v4,54)/p13(v6,74) 同一 CONNECT 帧字节。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_binary_vendor_payload",
+    "proto": "gnutella",
+    "summary": "S13: Vendor binary payload（base64 配置、线上裸字节 deadbeef00010203）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42059,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "connections": [
+              {
+                "src_port": 42059,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  },
+                  {
+                    "kind": "vendor",
+                    "message_id": "BgcICQoLDA0ODxAREhMUFQ==",
+                    "ttl": 5,
+                    "vendor_id": "GTKG",
+                    "selector": 7,
+                    "version": 2,
+                    "payload": "3q2+7wABAgM="
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 10,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "060708090a0b0c0d0e0f1011121314153105001000000047544b4707000200deadbeef00010203"
+        }
+      ]
+    },
+    "notes": [
+      "payload 8B 解码自 base64；PayloadLength=12（4+2+2+8）。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_mss_message_reassembly",
+    "proto": "gnutella",
+    "summary": "S14: 3000B 文件名 QueryHit 跨 MSS 三段，按 23B 头+PayloadLength 重组",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42059,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "connections": [
+              {
+                "src_port": 42059,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  },
+                  {
+                    "kind": "query",
+                    "message_id": "AwQFBgcICQoLDA0ODxAREg==",
+                    "ttl": 5,
+                    "criteria": "bulk"
+                  },
+                  {
+                    "kind": "query_hit",
+                    "message_id": "BAUGBwgJCgsMDQ4PEBESEw==",
+                    "query_id": "AwQFBgcICQoLDA0ODxAREg==",
+                    "ttl": 5,
+                    "hits": 1,
+                    "hit_port": 6348,
+                    "speed": 100,
+                    "results": [
+                      {
+                        "file_index": 7,
+                        "file_size": 4096,
+                        "name": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                      }
+                    ],
+                    "servent_id": "CQoLDA0ODxAREhMUFRYXGA=="
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 7,
+          "field": "tcp.len",
+          "value": "1460"
+        },
+        {
+          "packet": 8,
+          "field": "tcp.len",
+          "value": "1460"
+        },
+        {
+          "packet": 9,
+          "field": "tcp.len",
+          "value": "139"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "0405060708090a0b0c0d0e0f"
+        }
+      ]
+    },
+    "notes": [
+      "QueryHit 帧 3059B（payload 3036 → LE 长度 0x0bdc=3036）；p7-9 三段 1460/1460/139；帧头断言 GUID 前 12B（在 p7 段首）。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_frame_boundary",
+    "proto": "gnutella",
+    "summary": "S15: PayloadLength=0 最小 PING、TTL/Hops 边界（255/0）、空 criteria、uint32 满值边界",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42059,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "connections": [
+              {
+                "src_port": 42059,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  },
+                  {
+                    "kind": "ping",
+                    "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
+                    "ttl": 255,
+                    "hops": 0
+                  },
+                  {
+                    "kind": "ping",
+                    "message_id": "AgMEBQYHCAkKCwwNDg8QEQ==",
+                    "ttl": 0,
+                    "hops": 255
+                  },
+                  {
+                    "kind": "query",
+                    "message_id": "AwQFBgcICQoLDA0ODxAREg==",
+                    "ttl": 1,
+                    "hops": 0,
+                    "criteria": ""
+                  },
+                  {
+                    "kind": "query_hit",
+                    "message_id": "BAUGBwgJCgsMDQ4PEBESEw==",
+                    "query_id": "AwQFBgcICQoLDA0ODxAREg==",
+                    "ttl": 1,
+                    "hits": 1,
+                    "results": [
+                      {
+                        "file_index": 4294967295,
+                        "file_size": 4294967295,
+                        "name": "x"
+                      }
+                    ],
+                    "servent_id": "CQoLDA0ODxAREhMUFRYXGA=="
+                  },
+                  {
+                    "kind": "push",
+                    "message_id": "BQYHCAkKCwwNDg8QERITFA==",
+                    "servent_id": "CQoLDA0ODxAREhMUFRYXGA==",
+                    "file_index": 4294967295,
+                    "push_port": 65535
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 14,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "0102030405060708090a0b0c0d0e0f1000ff0000000000"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "02030405060708090a0b0c0d0e0f10110000ff00000000"
+        },
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "030405060708090a0b0c0d0e0f10111280010003000000000000"
+        }
+      ]
+    },
+    "notes": [
+      "6=PING(ttl255/hops0, len 0)，7=PING(ttl0/hops255 深跳边界)，8=QUERY(空 criteria→len 3)；query_hit/push 用 uint32 满值。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_neg_handshake",
+    "proto": "gnutella",
+    "summary": "N1: wire_fault bad_handshake_line → handshake/header 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42059,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "wire_fault": "bad_handshake_line",
+            "connections": [
+              {
+                "src_port": 42059,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "handshake"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_neg_message_header",
+    "proto": "gnutella",
+    "summary": "N2: wire_fault bad_descriptor → descriptor/message 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42059,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "wire_fault": "bad_descriptor",
+            "connections": [
+              {
+                "src_port": 42059,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "descriptor"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_neg_ttl_hops",
+    "proto": "gnutella",
+    "summary": "N3: TTL+Hops 回绕（200+100）→ ttl/hops 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42059,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "connections": [
+              {
+                "src_port": 42059,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  },
+                  {
+                    "kind": "ping",
+                    "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
+                    "ttl": 200,
+                    "hops": 100
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "ttl"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_neg_query_correlation",
+    "proto": "gnutella",
+    "summary": "N4: QUERY_HIT 引用未发送 query → query/correlation 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42059,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "connections": [
+              {
+                "src_port": 42059,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  },
+                  {
+                    "kind": "query_hit",
+                    "message_id": "BAUGBwgJCgsMDQ4PEBESEw==",
+                    "query_id": "AwQFBgcICQoLDA0ODxAREg==",
+                    "ttl": 5,
+                    "hits": 0,
+                    "servent_id": "CQoLDA0ODxAREhMUFRYXGA=="
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "query"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_neg_payload_encoding",
+    "proto": "gnutella",
+    "summary": "N5: PONG 地址宽度不符 profile（v4 配 16B）→ address/payload 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42059,
+            "dst_port": 6346
+          }
+        },
+        {
+          "gnutella": {
+            "connections": [
+              {
+                "src_port": 42059,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  },
+                  {
+                    "kind": "ping",
+                    "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
+                    "ttl": 5
+                  },
+                  {
+                    "kind": "pong",
+                    "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
+                    "ttl": 5,
+                    "pong_address": "AAAAAAAAAAAAAAAAAAAAAA=="
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "address"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
+  },
+  {
+    "id": "gnutella_neg_transport_profile",
+    "proto": "gnutella",
+    "summary": "N6: 非 6346 目的端口 → port 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.53",
+            "dst": "198.51.100.53"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 42059,
+            "dst_port": 6347
+          }
+        },
+        {
+          "gnutella": {
+            "connections": [
+              {
+                "src_port": 42059,
+                "events": [
+                  {
+                    "kind": "connect"
+                  },
+                  {
+                    "kind": "ok"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "port"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 gnutella 子映射迁入 layers[].gnutella"
+    ]
   }
- },
- {
-  "id": "gnutella_ping_pong",
-  "proto": "gnutella",
-  "summary": "S2: 握手后 PING→PONG，同 GUID 关联、PONG 地址/文件计数字段",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42059,
-   "dst_port": 6346,
-   "gnutella": {
-    "connections": [
-     {
-      "src_port": 42059,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       },
-       {
-        "kind": "ping",
-        "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
-        "ttl": 5,
-        "hops": 0
-       },
-       {
-        "kind": "pong",
-        "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
-        "ttl": 5,
-        "hops": 1,
-        "pong_port": 6346,
-        "files": 3,
-        "kb": 128
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 11,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "0102030405060708090a0b0c0d0e0f1000050000000000"
-    },
-    {
-     "packet": 7,
-     "offset": 54,
-     "hex": "0102030405060708090a0b0c0d0e0f100105010e000000ca180a0000090300000080000000"
-    }
-   ]
-  },
-  "notes": [
-   "6=PING（PayloadLength=0），7=PONG 同 GUID（port 6346 小端/addr/files/KB 小端）；无自动额外 PING。"
-  ]
- },
- {
-  "id": "gnutella_query_queryhit",
-  "proto": "gnutella",
-  "summary": "S3: QUERY(criteria NUL 终止)→QUERY_HIT，QueryID 关联与 Hits/result 一致",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42059,
-   "dst_port": 6346,
-   "gnutella": {
-    "connections": [
-     {
-      "src_port": 42059,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       },
-       {
-        "kind": "query",
-        "message_id": "AwQFBgcICQoLDA0ODxAREg==",
-        "ttl": 5,
-        "criteria": "mp3",
-        "min_speed": 10
-       },
-       {
-        "kind": "query_hit",
-        "message_id": "BAUGBwgJCgsMDQ4PEBESEw==",
-        "query_id": "AwQFBgcICQoLDA0ODxAREg==",
-        "ttl": 5,
-        "hits": 1,
-        "hit_port": 6348,
-        "speed": 100,
-        "results": [
-         {
-          "file_index": 7,
-          "file_size": 4096,
-          "name": "a.txt"
-         }
-        ],
-        "servent_id": "CQoLDA0ODxAREhMUFRYXGA=="
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 11,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "030405060708090a0b0c0d0e0f101112800500060000000a006d703300"
-    },
-    {
-     "packet": 7,
-     "offset": 54,
-     "hex": "0405060708090a0b0c0d0e0f101112138105002900000001cc180a000009640000000700000000100000612e74787400090a0b0c0d0e0f101112131415161718"
-    }
-   ]
-  },
-  "notes": [
-   "6=QUERY(descriptor 0x80)，7=QUERY_HIT(0x81, hits=1, ServentID 结尾)。"
-  ]
- },
- {
-  "id": "gnutella_push",
-  "proto": "gnutella",
-  "summary": "S4: QueryHit 后显式 PUSH，ServentID/FileIndex/目标端口关联",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42059,
-   "dst_port": 6346,
-   "gnutella": {
-    "connections": [
-     {
-      "src_port": 42059,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       },
-       {
-        "kind": "query",
-        "message_id": "AwQFBgcICQoLDA0ODxAREg==",
-        "ttl": 5,
-        "criteria": "video"
-       },
-       {
-        "kind": "query_hit",
-        "message_id": "BAUGBwgJCgsMDQ4PEBESEw==",
-        "query_id": "AwQFBgcICQoLDA0ODxAREg==",
-        "ttl": 5,
-        "hits": 1,
-        "results": [
-         {
-          "file_index": 7,
-          "file_size": 999,
-          "name": "v.avi"
-         }
-        ],
-        "servent_id": "CQoLDA0ODxAREhMUFRYXGA=="
-       },
-       {
-        "kind": "push",
-        "message_id": "BQYHCAkKCwwNDg8QERITFA==",
-        "servent_id": "CQoLDA0ODxAREhMUFRYXGA==",
-        "file_index": 7,
-        "push_port": 6349
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 12,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "frames": [
-    {
-     "packet": 8,
-     "offset": 54,
-     "hex": "05060708090a0b0c0d0e0f10111213144000001a000000090a0b0c0d0e0f101112131415161718070000000a000009cd18"
-    }
-   ]
-  },
-  "notes": [
-   "8=PUSH(descriptor 0x40, ServentID=g9 与 QueryHit 一致, FileIndex 7)；无自动下载流。"
-  ]
- },
- {
-  "id": "gnutella_vendor_message",
-  "proto": "gnutella",
-  "summary": "S5: Vendor 扩展（VendorID/Selector/Version/payload），显式业务事件",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42059,
-   "dst_port": 6346,
-   "gnutella": {
-    "connections": [
-     {
-      "src_port": 42059,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       },
-       {
-        "kind": "vendor",
-        "message_id": "BgcICQoLDA0ODxAREhMUFQ==",
-        "ttl": 5,
-        "vendor_id": "GTKG",
-        "selector": 3,
-        "version": 1,
-        "payload": "AQID"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 10,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "060708090a0b0c0d0e0f1011121314153105000b00000047544b4703000100010203"
-    }
-   ]
-  },
-  "notes": [
-   "6=VENDOR(descriptor 0x31, GTKG/3/1 + 3B payload=11 22 33)。"
-  ]
- },
- {
-  "id": "gnutella_forward_ttl_hops",
-  "proto": "gnutella",
-  "summary": "S6: 同 GUID 转发副本 TTL-1/Hops+1，payload 不变",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42059,
-   "dst_port": 6346,
-   "gnutella": {
-    "connections": [
-     {
-      "src_port": 42059,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       },
-       {
-        "kind": "ping",
-        "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
-        "ttl": 5,
-        "hops": 0
-       },
-       {
-        "kind": "ping",
-        "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
-        "ttl": 4,
-        "hops": 1
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 11,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "0102030405060708090a0b0c0d0e0f1000050000000000"
-    },
-    {
-     "packet": 7,
-     "offset": 54,
-     "hex": "0102030405060708090a0b0c0d0e0f1000040100000000"
-    }
-   ]
-  },
-  "notes": [
-   "6/7 同 GUID；头字节 TTL 05→04、Hops 00→01；validator 强制转发形状。"
-  ]
- },
- {
-  "id": "gnutella_multi_queryhit",
-  "proto": "gnutella",
-  "summary": "S7: 同一 Query 双 QueryHit（同 QueryID，不同 ServentID/result），Hits=result 数",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42059,
-   "dst_port": 6346,
-   "gnutella": {
-    "connections": [
-     {
-      "src_port": 42059,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       },
-       {
-        "kind": "query",
-        "message_id": "AwQFBgcICQoLDA0ODxAREg==",
-        "ttl": 5,
-        "criteria": "lossless"
-       },
-       {
-        "kind": "query_hit",
-        "message_id": "BAUGBwgJCgsMDQ4PEBESEw==",
-        "query_id": "AwQFBgcICQoLDA0ODxAREg==",
-        "ttl": 5,
-        "hits": 2,
-        "results": [
-         {
-          "file_index": 1,
-          "file_size": 100,
-          "name": "one.flac"
-         },
-         {
-          "file_index": 2,
-          "file_size": 200,
-          "name": "two.flac"
-         }
-        ],
-        "servent_id": "CQoLDA0ODxAREhMUFRYXGA=="
-       },
-       {
-        "kind": "query_hit",
-        "message_id": "BQYHCAkKCwwNDg8QERITFA==",
-        "query_id": "AwQFBgcICQoLDA0ODxAREg==",
-        "ttl": 5,
-        "hits": 1,
-        "results": [
-         {
-          "file_index": 3,
-          "file_size": 300,
-          "name": "three.flac"
-         }
-        ],
-        "servent_id": "CgsMDQ4PEBESExQVFhcYGQ=="
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 12,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "frames": [
-    {
-     "packet": 7,
-     "offset": 54,
-     "hex": "0405060708090a0b0c0d0e0f101112138105003d0000000200000a0000090000000001000000640000006f6e652e666c61630002000000c800000074776f2e666c616300090a0b0c0d0e0f101112131415161718"
-    },
-    {
-     "packet": 8,
-     "offset": 54,
-     "hex": "05060708090a0b0c0d0e0f10111213148105002e0000000100000a00000900000000030000002c01000074687265652e666c6163000a0b0c0d0e0f10111213141516171819"
-    }
-   ]
-  },
-  "notes": [
-   "7=hits 2（两个 result），8=hits 1；QueryID 同为 g3。"
-  ]
- },
- {
-  "id": "gnutella_multi_stream",
-  "proto": "gnutella",
-  "summary": "S9: 两个 TCP 四元组各自握手并发不同 Query，状态隔离",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42059,
-   "dst_port": 6346,
-   "gnutella": {
-    "connections": [
-     {
-      "src_port": 42059,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       },
-       {
-        "kind": "query",
-        "message_id": "AwQFBgcICQoLDA0ODxAREg==",
-        "ttl": 5,
-        "criteria": "alpha"
-       }
-      ]
-     },
-     {
-      "src_port": 42061,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       },
-       {
-        "kind": "query",
-        "message_id": "BgcICQoLDA0ODxAREhMUFQ==",
-        "ttl": 5,
-        "criteria": "beta"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 20,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.srcport",
-     "distinct_values": [
-      "42059",
-      "42061"
-     ],
-     "distinct_exclude": [
-      "6346"
-     ]
-    }
-   ],
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "030405060708090a0b0c0d0e0f101112800500080000000000616c70686100"
-    },
-    {
-     "packet": 16,
-     "offset": 54,
-     "hex": "060708090a0b0c0d0e0f1011121314158005000700000000006265746100"
-    }
-   ]
-  },
-  "notes": [
-   "每连接 10 包；p6=conn1 query(alpha, g3)，p16=conn2 query(beta, g6)。"
-  ]
- },
- {
-  "id": "gnutella_multi_connection",
-  "proto": "gnutella",
-  "summary": "S10: 双连接（42059/42062）各自握手+ping/pong，节点状态不串用",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42059,
-   "dst_port": 6346,
-   "gnutella": {
-    "connections": [
-     {
-      "src_port": 42059,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       },
-       {
-        "kind": "ping",
-        "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
-        "ttl": 5
-       },
-       {
-        "kind": "pong",
-        "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
-        "ttl": 5,
-        "hops": 1,
-        "pong_port": 6346,
-        "files": 1,
-        "kb": 1
-       }
-      ]
-     },
-     {
-      "src_port": 42062,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       },
-       {
-        "kind": "ping",
-        "message_id": "BwgJCgsMDQ4PEBESExQVFg==",
-        "ttl": 5
-       },
-       {
-        "kind": "pong",
-        "message_id": "BwgJCgsMDQ4PEBESExQVFg==",
-        "ttl": 5,
-        "hops": 1,
-        "pong_port": 6346,
-        "files": 2,
-        "kb": 2
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 22,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.srcport",
-     "distinct_values": [
-      "42059",
-      "42062"
-     ],
-     "distinct_exclude": [
-      "6346"
-     ]
-    }
-   ],
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "0102030405060708090a0b0c0d0e0f1000050000000000"
-    },
-    {
-     "packet": 17,
-     "offset": 54,
-     "hex": "0708090a0b0c0d0e0f1011121314151600050000000000"
-    }
-   ]
-  },
-  "notes": [
-   "每连接 11 包；p6/p17 为两连接的 PING（不同 GUID g1/g7）。"
-  ]
- },
- {
-  "id": "gnutella_ipv6",
-  "proto": "gnutella",
-  "summary": "S11: IPv6/TCP 6346 握手+PING，ipv6.nxt=6、payload offset 74",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "2001:db8:53::10",
-   "dst_ip": "2001:db8:53::20",
-   "src_port": 42060,
-   "dst_port": 6346,
-   "gnutella": {
-    "connections": [
-     {
-      "src_port": 42060,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       },
-       {
-        "kind": "ping",
-        "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
-        "ttl": 5
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 10,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "ipv6.nxt",
-     "value": "6"
-    },
-    {
-     "packet": 4,
-     "field": "ipv6.src",
-     "value": "2001:db8:53::10"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 74,
-     "hex": "0102030405060708090a0b0c0d0e0f1000050000000000"
-    }
-   ]
-  },
-  "notes": [
-   "业务 bytes 与 v4 profile 一致（地址字段宽度由 profile 声明，不随外层地址族变化）。"
-  ]
- },
- {
-  "id": "gnutella_ipv4_ipv6_same_payload",
-  "proto": "gnutella",
-  "summary": "S12: 双栈连接各自完成 CONNECT/200 握手，帧字节一致（自驱链）",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42063,
-   "dst_port": 6346,
-   "gnutella": {
-    "connections": [
-     {
-      "src_port": 42063,
-      "src_ip": "192.0.2.53",
-      "dst_ip": "198.51.100.53",
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       }
-      ]
-     },
-     {
-      "src_port": 42064,
-      "src_ip": "2001:db8:53::10",
-      "dst_ip": "2001:db8:53::20",
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 18,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "ip.version",
-     "distinct_values": [
-      "4",
-      "6"
-     ]
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "474e5554454c4c4120434f4e4e4543542f302e360d0a557365722d4167656e743a207472616666696367656e2f312e300d0a582d4e6f64653a20306130623063306430653066306130620d0a582d51756572792d526f7574696e673a20302e310d0a582d556c747261706565723a2046616c73650d0a0d0a"
-    },
-    {
-     "packet": 13,
-     "offset": 74,
-     "hex": "474e5554454c4c4120434f4e4e4543542f302e360d0a557365722d4167656e743a207472616666696367656e2f312e300d0a582d4e6f64653a20306130623063306430653066306130620d0a582d51756572792d526f7574696e673a20302e310d0a582d556c747261706565723a2046616c73650d0a0d0a"
-    }
-   ]
-  },
-  "notes": [
-   "自驱链每连接 9 包；p4(v4,54)/p13(v6,74) 同一 CONNECT 帧字节。"
-  ]
- },
- {
-  "id": "gnutella_binary_vendor_payload",
-  "proto": "gnutella",
-  "summary": "S13: Vendor binary payload（base64 配置、线上裸字节 deadbeef00010203）",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42059,
-   "dst_port": 6346,
-   "gnutella": {
-    "connections": [
-     {
-      "src_port": 42059,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       },
-       {
-        "kind": "vendor",
-        "message_id": "BgcICQoLDA0ODxAREhMUFQ==",
-        "ttl": 5,
-        "vendor_id": "GTKG",
-        "selector": 7,
-        "version": 2,
-        "payload": "3q2+7wABAgM="
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 10,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "060708090a0b0c0d0e0f1011121314153105001000000047544b4707000200deadbeef00010203"
-    }
-   ]
-  },
-  "notes": [
-   "payload 8B 解码自 base64；PayloadLength=12（4+2+2+8）。"
-  ]
- },
- {
-  "id": "gnutella_mss_message_reassembly",
-  "proto": "gnutella",
-  "summary": "S14: 3000B 文件名 QueryHit 跨 MSS 三段，按 23B 头+PayloadLength 重组",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42059,
-   "dst_port": 6346,
-   "gnutella": {
-    "connections": [
-     {
-      "src_port": 42059,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       },
-       {
-        "kind": "query",
-        "message_id": "AwQFBgcICQoLDA0ODxAREg==",
-        "ttl": 5,
-        "criteria": "bulk"
-       },
-       {
-        "kind": "query_hit",
-        "message_id": "BAUGBwgJCgsMDQ4PEBESEw==",
-        "query_id": "AwQFBgcICQoLDA0ODxAREg==",
-        "ttl": 5,
-        "hits": 1,
-        "hit_port": 6348,
-        "speed": 100,
-        "results": [
-         {
-          "file_index": 7,
-          "file_size": 4096,
-          "name": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-         }
-        ],
-        "servent_id": "CQoLDA0ODxAREhMUFRYXGA=="
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 13,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 7,
-     "field": "tcp.len",
-     "value": "1460"
-    },
-    {
-     "packet": 8,
-     "field": "tcp.len",
-     "value": "1460"
-    },
-    {
-     "packet": 9,
-     "field": "tcp.len",
-     "value": "139"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 7,
-     "offset": 54,
-     "hex": "0405060708090a0b0c0d0e0f"
-    }
-   ]
-  },
-  "notes": [
-   "QueryHit 帧 3059B（payload 3036 → LE 长度 0x0bdc=3036）；p7-9 三段 1460/1460/139；帧头断言 GUID 前 12B（在 p7 段首）。"
-  ]
- },
- {
-  "id": "gnutella_frame_boundary",
-  "proto": "gnutella",
-  "summary": "S15: PayloadLength=0 最小 PING、TTL/Hops 边界（255/0）、空 criteria、uint32 满值边界",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42059,
-   "dst_port": 6346,
-   "gnutella": {
-    "connections": [
-     {
-      "src_port": 42059,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       },
-       {
-        "kind": "ping",
-        "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
-        "ttl": 255,
-        "hops": 0
-       },
-       {
-        "kind": "ping",
-        "message_id": "AgMEBQYHCAkKCwwNDg8QEQ==",
-        "ttl": 0,
-        "hops": 255
-       },
-       {
-        "kind": "query",
-        "message_id": "AwQFBgcICQoLDA0ODxAREg==",
-        "ttl": 1,
-        "hops": 0,
-        "criteria": ""
-       },
-       {
-        "kind": "query_hit",
-        "message_id": "BAUGBwgJCgsMDQ4PEBESEw==",
-        "query_id": "AwQFBgcICQoLDA0ODxAREg==",
-        "ttl": 1,
-        "hits": 1,
-        "results": [
-         {
-          "file_index": 4294967295,
-          "file_size": 4294967295,
-          "name": "x"
-         }
-        ],
-        "servent_id": "CQoLDA0ODxAREhMUFRYXGA=="
-       },
-       {
-        "kind": "push",
-        "message_id": "BQYHCAkKCwwNDg8QERITFA==",
-        "servent_id": "CQoLDA0ODxAREhMUFRYXGA==",
-        "file_index": 4294967295,
-        "push_port": 65535
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 14,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "0102030405060708090a0b0c0d0e0f1000ff0000000000"
-    },
-    {
-     "packet": 7,
-     "offset": 54,
-     "hex": "02030405060708090a0b0c0d0e0f10110000ff00000000"
-    },
-    {
-     "packet": 8,
-     "offset": 54,
-     "hex": "030405060708090a0b0c0d0e0f10111280010003000000000000"
-    }
-   ]
-  },
-  "notes": [
-   "6=PING(ttl255/hops0, len 0)，7=PING(ttl0/hops255 深跳边界)，8=QUERY(空 criteria→len 3)；query_hit/push 用 uint32 满值。"
-  ]
- },
- {
-  "id": "gnutella_neg_handshake",
-  "proto": "gnutella",
-  "summary": "N1: wire_fault bad_handshake_line → handshake/header 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42059,
-   "dst_port": 6346,
-   "gnutella": {
-    "wire_fault": "bad_handshake_line",
-    "connections": [
-     {
-      "src_port": 42059,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "handshake"
-  }
- },
- {
-  "id": "gnutella_neg_message_header",
-  "proto": "gnutella",
-  "summary": "N2: wire_fault bad_descriptor → descriptor/message 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42059,
-   "dst_port": 6346,
-   "gnutella": {
-    "wire_fault": "bad_descriptor",
-    "connections": [
-     {
-      "src_port": 42059,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "descriptor"
-  }
- },
- {
-  "id": "gnutella_neg_ttl_hops",
-  "proto": "gnutella",
-  "summary": "N3: TTL+Hops 回绕（200+100）→ ttl/hops 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42059,
-   "dst_port": 6346,
-   "gnutella": {
-    "connections": [
-     {
-      "src_port": 42059,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       },
-       {
-        "kind": "ping",
-        "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
-        "ttl": 200,
-        "hops": 100
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "ttl"
-  }
- },
- {
-  "id": "gnutella_neg_query_correlation",
-  "proto": "gnutella",
-  "summary": "N4: QUERY_HIT 引用未发送 query → query/correlation 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42059,
-   "dst_port": 6346,
-   "gnutella": {
-    "connections": [
-     {
-      "src_port": 42059,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       },
-       {
-        "kind": "query_hit",
-        "message_id": "BAUGBwgJCgsMDQ4PEBESEw==",
-        "query_id": "AwQFBgcICQoLDA0ODxAREg==",
-        "ttl": 5,
-        "hits": 0,
-        "servent_id": "CQoLDA0ODxAREhMUFRYXGA=="
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "query"
-  }
- },
- {
-  "id": "gnutella_neg_payload_encoding",
-  "proto": "gnutella",
-  "summary": "N5: PONG 地址宽度不符 profile（v4 配 16B）→ address/payload 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42059,
-   "dst_port": 6346,
-   "gnutella": {
-    "connections": [
-     {
-      "src_port": 42059,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       },
-       {
-        "kind": "ping",
-        "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
-        "ttl": 5
-       },
-       {
-        "kind": "pong",
-        "message_id": "AQIDBAUGBwgJCgsMDQ4PEA==",
-        "ttl": 5,
-        "pong_address": "AAAAAAAAAAAAAAAAAAAAAA=="
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "address"
-  }
- },
- {
-  "id": "gnutella_neg_transport_profile",
-  "proto": "gnutella",
-  "summary": "N6: 非 6346 目的端口 → port 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "gnutella": {}
-    }
-   ],
-   "src_ip": "192.0.2.53",
-   "dst_ip": "198.51.100.53",
-   "src_port": 42059,
-   "dst_port": 6347,
-   "gnutella": {
-    "connections": [
-     {
-      "src_port": 42059,
-      "events": [
-       {
-        "kind": "connect"
-       },
-       {
-        "kind": "ok"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "port"
-  }
- }
 ]

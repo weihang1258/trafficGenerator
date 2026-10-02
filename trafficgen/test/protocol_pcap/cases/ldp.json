@@ -1,1831 +1,2055 @@
 [
- {
-  "id": "ldp_tcp_initialization",
-  "proto": "ldp",
-  "summary": "S1: TCP/646 session Initialization in both directions",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "tcp_session",
-    "events": [
-     {
-      "kind": "initialization",
-      "direction": "c2s",
-      "message_id": 10,
-      "lsr_id": "192.0.2.1",
-      "receiver_lsr_id": "192.0.2.2"
-     },
-     {
-      "kind": "initialization",
-      "direction": "s2c",
-      "message_id": 20,
-      "lsr_id": "192.0.2.2",
-      "receiver_lsr_id": "192.0.2.1"
-     }
-    ]
-   },
-   "src_port": 50000,
-   "dst_port": 646
-  },
-  "expect": {
-   "packet_count": 9,
-   "has_handshake": true,
-   "terminates": true,
-   "has_payload": true,
-   "directional": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "646"
-    },
-    {
-     "packet": 4,
-     "field": "ldp.hdr.version",
-     "value": "1"
-    },
-    {
-     "packet": 4,
-     "field": "ldp.hdr.pdu_len",
-     "value": "32"
-    },
-    {
-     "packet": 4,
-     "field": "ldp.hdr.ldpid.lsr",
-     "value": "192.0.2.1"
-    },
-    {
-     "packet": 4,
-     "field": "ldp.hdr.ldpid.lsid",
-     "value": "0"
-    },
-    {
-     "packet": 4,
-     "field": "ldp.msg.type",
-     "value": "0x0200"
-    },
-    {
-     "packet": 4,
-     "field": "ldp.msg.len",
-     "value": "22"
-    },
-    {
-     "packet": 4,
-     "field": "ldp.msg.id",
-     "value": "0x0000000a"
-    },
-    {
-     "packet": 4,
-     "field": "ldp.msg.tlv.type",
-     "value": "0x0500"
-    },
-    {
-     "packet": 4,
-     "field": "ldp.msg.tlv.len",
-     "value": "14"
-    },
-    {
-     "packet": 4,
-     "field": "ldp.msg.tlv.sess.ver",
-     "value": "1"
-    },
-    {
-     "packet": 4,
-     "field": "ldp.msg.tlv.sess.ka",
-     "value": "30"
-    },
-    {
-     "packet": 4,
-     "field": "ldp.msg.tlv.sess.mxpdu",
-     "value": "4096"
-    },
-    {
-     "packet": 4,
-     "field": "tcp.srcport",
-     "value": "50000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "00 01 00 20 c0 00 02 01 00 00 02 00 00 16 00 00 00 0a 05 00 00 0e 00 01 00 1e 00 00 10 00 c0 00 02 02 00 00"
-    },
-    {
-     "packet": 5,
-     "offset": 54,
-     "hex": "00 01 00 20 c0 00 02 01 00 00 02 00 00 16 00 00 00 14 05 00 00 0e 00 01 00 1e 00 00 10 00 c0 00 02 01 00 00"
-    }
-   ]
-  }
- },
- {
-  "id": "ldp_tcp_keepalive",
-  "proto": "ldp",
-  "summary": "S2: Initialization followed by bidirectional KeepAlive",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "tcp_session",
-    "events": [
-     {
-      "kind": "initialization",
-      "direction": "c2s",
-      "message_id": 10,
-      "lsr_id": "192.0.2.1",
-      "receiver_lsr_id": "192.0.2.2"
-     },
-     {
-      "kind": "initialization",
-      "direction": "s2c",
-      "message_id": 20,
-      "lsr_id": "192.0.2.2",
-      "receiver_lsr_id": "192.0.2.1"
-     },
-     {
-      "kind": "keepalive",
-      "direction": "c2s",
-      "message_id": 11
-     },
-     {
-      "kind": "keepalive",
-      "direction": "s2c",
-      "message_id": 21
-     }
-    ]
-   },
-   "src_port": 50000,
-   "dst_port": 646
-  },
-  "expect": {
-   "packet_count": 11,
-   "has_handshake": true,
-   "terminates": true,
-   "has_payload": true,
-   "directional": true,
-   "fields": [
-    {
-     "packet": 6,
-     "field": "ldp.msg.type",
-     "value": "0x0201"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.len",
-     "value": "4"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.id",
-     "value": "0x0000000b"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.hdr.pdu_len",
-     "value": "14"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "00 01 00 20 c0 00 02 01 00 00 02 00 00 16 00 00 00 0a 05 00 00 0e 00 01 00 1e 00 00 10 00 c0 00 02 02 00 00"
-    },
-    {
-     "packet": 5,
-     "offset": 54,
-     "hex": "00 01 00 20 c0 00 02 01 00 00 02 00 00 16 00 00 00 14 05 00 00 0e 00 01 00 1e 00 00 10 00 c0 00 02 01 00 00"
-    },
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "00 01 00 0e c0 00 02 01 00 00 02 01 00 04 00 00 00 0b"
-    },
-    {
-     "packet": 7,
-     "offset": 54,
-     "hex": "00 01 00 0e c0 00 02 01 00 00 02 01 00 04 00 00 00 15"
-    }
-   ]
-  }
- },
- {
-  "id": "ldp_address_ipv4",
-  "proto": "ldp",
-  "summary": "S3: IPv4 Address message after session initialization",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "tcp_session",
-    "events": [
-     {
-      "kind": "initialization",
-      "direction": "c2s",
-      "message_id": 10,
-      "lsr_id": "192.0.2.1",
-      "receiver_lsr_id": "192.0.2.2"
-     },
-     {
-      "kind": "initialization",
-      "direction": "s2c",
-      "message_id": 20,
-      "lsr_id": "192.0.2.2",
-      "receiver_lsr_id": "192.0.2.1"
-     },
-     {
-      "kind": "address",
-      "direction": "c2s",
-      "message_id": 12,
-      "addresses": [
-       "192.0.2.1"
+  {
+    "id": "ldp_tcp_initialization",
+    "proto": "ldp",
+    "summary": "S1: TCP/646 session Initialization in both directions",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 50000,
+            "dst_port": 646
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "tcp_session",
+            "events": [
+              {
+                "kind": "initialization",
+                "direction": "c2s",
+                "message_id": 10,
+                "lsr_id": "192.0.2.1",
+                "receiver_lsr_id": "192.0.2.2"
+              },
+              {
+                "kind": "initialization",
+                "direction": "s2c",
+                "message_id": 20,
+                "lsr_id": "192.0.2.2",
+                "receiver_lsr_id": "192.0.2.1"
+              }
+            ]
+          }
+        }
       ]
-     }
-    ]
-   },
-   "src_port": 50000,
-   "dst_port": 646
-  },
-  "expect": {
-   "packet_count": 10,
-   "has_handshake": true,
-   "terminates": true,
-   "has_payload": true,
-   "directional": true,
-   "fields": [
-    {
-     "packet": 6,
-     "field": "ldp.msg.type",
-     "value": "0x0300"
     },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.type",
-     "value": "0x0101"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.len",
-     "value": "6"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.addrl.addr_family",
-     "value": "1"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.addrl.addr",
-     "value": "192.0.2.1"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "00 01 00 18 c0 00 02 01 00 00 03 00 00 0e 00 00 00 0c 01 01 00 06 00 01 c0 00 02 01"
-    }
-   ]
-  }
- },
- {
-  "id": "ldp_label_mapping_ipv4",
-  "proto": "ldp",
-  "summary": "S4: IPv4 /24 Label Mapping with Generic Label",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "tcp_session",
-    "events": [
-     {
-      "kind": "initialization",
-      "direction": "c2s",
-      "message_id": 10,
-      "lsr_id": "192.0.2.1",
-      "receiver_lsr_id": "192.0.2.2"
-     },
-     {
-      "kind": "initialization",
-      "direction": "s2c",
-      "message_id": 20,
-      "lsr_id": "192.0.2.2",
-      "receiver_lsr_id": "192.0.2.1"
-     },
-     {
-      "kind": "label_mapping",
-      "direction": "c2s",
-      "message_id": 13,
-      "fec": "203.0.113.0/24",
-      "label": 74565
-     }
-    ],
-    "label_control": "independent",
-    "label_advertisement": "downstream_unsolicited"
-   },
-   "src_port": 50000,
-   "dst_port": 646
-  },
-  "expect": {
-   "packet_count": 10,
-   "has_handshake": true,
-   "terminates": true,
-   "has_payload": true,
-   "directional": true,
-   "fields": [
-    {
-     "packet": 6,
-     "field": "ldp.msg.type",
-     "value": "0x0400"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.fec.type",
-     "value": "2"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.fec.af",
-     "value": "1"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.fec.len",
-     "value": "24"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.fec.pfval",
-     "value": "203.0.113.0"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.type",
-     "value": "0x0100,0x0200"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.generic.label",
-     "value": "74565"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "00  0 1  00  2 1  c0  0 0  02  0 1  00  0 0  04  0 0  00  1 7  00  0 0  00  0 d  01  0 0  00  0 7  02  0 0  01  1 8  cb  0 0  71  0 2  00  0 0  04  0 0  01  2 3  45"
-    }
-   ]
-  }
- },
- {
-  "id": "ldp_label_request_ipv4",
-  "proto": "ldp",
-  "summary": "S5: IPv4 /24 Label Request",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "tcp_session",
-    "events": [
-     {
-      "kind": "initialization",
-      "direction": "c2s",
-      "message_id": 10,
-      "lsr_id": "192.0.2.1",
-      "receiver_lsr_id": "192.0.2.2"
-     },
-     {
-      "kind": "initialization",
-      "direction": "s2c",
-      "message_id": 20,
-      "lsr_id": "192.0.2.2",
-      "receiver_lsr_id": "192.0.2.1"
-     },
-     {
-      "kind": "label_request",
-      "direction": "c2s",
-      "message_id": 13,
-      "fec": "203.0.113.0/24"
-     }
-    ]
-   },
-   "src_port": 50000,
-   "dst_port": 646
-  },
-  "expect": {
-   "packet_count": 10,
-   "has_handshake": true,
-   "terminates": true,
-   "has_payload": true,
-   "directional": true,
-   "fields": [
-    {
-     "packet": 6,
-     "field": "ldp.msg.type",
-     "value": "0x0401"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.type",
-     "value": "0x0100"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.len",
-     "value": "15"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.id",
-     "value": "0x0000000d"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.len",
-     "value": "7"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "00 01 00 19 c0 00 02 01 00 00 04 01 00 0f 00 00 00 0d 01 00 00 07 02 00 01 18 cb 00 71"
-    }
-   ]
-  }
- },
- {
-  "id": "ldp_label_withdraw_ipv4",
-  "proto": "ldp",
-  "summary": "S6: IPv4 /24 Label Withdraw after Mapping",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "tcp_session",
-    "events": [
-     {
-      "kind": "initialization",
-      "direction": "c2s",
-      "message_id": 10,
-      "lsr_id": "192.0.2.1",
-      "receiver_lsr_id": "192.0.2.2"
-     },
-     {
-      "kind": "initialization",
-      "direction": "s2c",
-      "message_id": 20,
-      "lsr_id": "192.0.2.2",
-      "receiver_lsr_id": "192.0.2.1"
-     },
-     {
-      "kind": "label_mapping",
-      "direction": "c2s",
-      "message_id": 13,
-      "fec": "203.0.113.0/24",
-      "label": 74565
-     },
-     {
-      "kind": "label_withdraw",
-      "direction": "c2s",
-      "message_id": 14,
-      "fec": "203.0.113.0/24",
-      "label": 74565
-     }
-    ]
-   },
-   "src_port": 50000,
-   "dst_port": 646
-  },
-  "expect": {
-   "packet_count": 11,
-   "has_handshake": true,
-   "terminates": true,
-   "has_payload": true,
-   "directional": true,
-   "fields": [
-    {
-     "packet": 7,
-     "field": "ldp.msg.type",
-     "value": "0x0402"
-    },
-    {
-     "packet": 7,
-     "field": "ldp.msg.tlv.fec.type",
-     "value": "2"
-    },
-    {
-     "packet": 7,
-     "field": "ldp.msg.tlv.fec.af",
-     "value": "1"
-    },
-    {
-     "packet": 7,
-     "field": "ldp.msg.tlv.fec.len",
-     "value": "24"
-    },
-    {
-     "packet": 7,
-     "field": "ldp.msg.tlv.fec.pfval",
-     "value": "203.0.113.0"
-    },
-    {
-     "packet": 7,
-     "field": "ldp.msg.tlv.type",
-     "value": "0x0100,0x0200"
-    },
-    {
-     "packet": 7,
-     "field": "ldp.msg.tlv.generic.label",
-     "value": "74565"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "00  0 1  00  2 1  c0  0 0  02  0 1  00  0 0  04  0 0  00  1 7  00  0 0  00  0 d  01  0 0  00  0 7  02  0 0  01  1 8  cb  0 0  71  0 2  00  0 0  04  0 0  01  2 3  45"
-    },
-    {
-     "packet": 7,
-     "offset": 54,
-     "hex": "00  0 1  00  2 1  c0  0 0  02  0 1  00  0 0  04  0 2  00  1 7  00  0 0  00  0 e  01  0 0  00  0 7  02  0 0  01  1 8  cb  0 0  71  0 2  00  0 0  04  0 0  01  2 3  45"
-    }
-   ]
-  }
- },
- {
-  "id": "ldp_label_release_ipv4",
-  "proto": "ldp",
-  "summary": "S7: IPv4 /24 Label Release after Mapping",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "tcp_session",
-    "events": [
-     {
-      "kind": "initialization",
-      "direction": "c2s",
-      "message_id": 10,
-      "lsr_id": "192.0.2.1",
-      "receiver_lsr_id": "192.0.2.2"
-     },
-     {
-      "kind": "initialization",
-      "direction": "s2c",
-      "message_id": 20,
-      "lsr_id": "192.0.2.2",
-      "receiver_lsr_id": "192.0.2.1"
-     },
-     {
-      "kind": "label_mapping",
-      "direction": "c2s",
-      "message_id": 13,
-      "fec": "203.0.113.0/24",
-      "label": 74565
-     },
-     {
-      "kind": "label_release",
-      "direction": "c2s",
-      "message_id": 14,
-      "fec": "203.0.113.0/24",
-      "label": 74565
-     }
-    ]
-   },
-   "src_port": 50000,
-   "dst_port": 646
-  },
-  "expect": {
-   "packet_count": 11,
-   "has_handshake": true,
-   "terminates": true,
-   "has_payload": true,
-   "directional": true,
-   "fields": [
-    {
-     "packet": 7,
-     "field": "ldp.msg.type",
-     "value": "0x0403"
-    },
-    {
-     "packet": 7,
-     "field": "ldp.msg.tlv.fec.type",
-     "value": "2"
-    },
-    {
-     "packet": 7,
-     "field": "ldp.msg.tlv.fec.af",
-     "value": "1"
-    },
-    {
-     "packet": 7,
-     "field": "ldp.msg.tlv.fec.len",
-     "value": "24"
-    },
-    {
-     "packet": 7,
-     "field": "ldp.msg.tlv.fec.pfval",
-     "value": "203.0.113.0"
-    },
-    {
-     "packet": 7,
-     "field": "ldp.msg.tlv.type",
-     "value": "0x0100,0x0200"
-    },
-    {
-     "packet": 7,
-     "field": "ldp.msg.tlv.generic.label",
-     "value": "74565"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "00  0 1  00  2 1  c0  0 0  02  0 1  00  0 0  04  0 0  00  1 7  00  0 0  00  0 d  01  0 0  00  0 7  02  0 0  01  1 8  cb  0 0  71  0 2  00  0 0  04  0 0  01  2 3  45"
-    },
-    {
-     "packet": 7,
-     "offset": 54,
-     "hex": "00  0 1  00  2 1  c0  0 0  02  0 1  00  0 0  04  0 3  00  1 7  00  0 0  00  0 e  01  0 0  00  0 7  02  0 0  01  1 8  cb  0 0  71  0 2  00  0 0  04  0 0  01  2 3  45"
-    }
-   ]
-  }
- },
- {
-  "id": "ldp_label_mapping_host32",
-  "proto": "ldp",
-  "summary": "S8: IPv4 /32 host-route Label Mapping",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "tcp_session",
-    "events": [
-     {
-      "kind": "initialization",
-      "direction": "c2s",
-      "message_id": 10,
-      "lsr_id": "192.0.2.1",
-      "receiver_lsr_id": "192.0.2.2"
-     },
-     {
-      "kind": "initialization",
-      "direction": "s2c",
-      "message_id": 20,
-      "lsr_id": "192.0.2.2",
-      "receiver_lsr_id": "192.0.2.1"
-     },
-     {
-      "kind": "label_mapping",
-      "direction": "c2s",
-      "message_id": 13,
-      "fec": "192.0.2.1/32",
-      "label": 703710
-     }
-    ]
-   },
-   "src_port": 50000,
-   "dst_port": 646
-  },
-  "expect": {
-   "packet_count": 10,
-   "has_handshake": true,
-   "terminates": true,
-   "has_payload": true,
-   "directional": true,
-   "fields": [
-    {
-     "packet": 6,
-     "field": "ldp.msg.type",
-     "value": "0x0400"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.fec.type",
-     "value": "2"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.fec.af",
-     "value": "1"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.fec.len",
-     "value": "32"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.fec.pfval",
-     "value": "192.0.2.1"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.type",
-     "value": "0x0100,0x0200"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.generic.label",
-     "value": "703710"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "00  0 1  00  2 2  c0  0 0  02  0 1  00  0 0  04  0 0  00  1 8  00  0 0  00  0 d  01  0 0  00  0 8  02  0 0  01  2 0  c0  0 0  02  0 1  02  0 0  00  0 4  00  0 a  bc  d e"
-    }
-   ]
-  }
- },
- {
-  "id": "ldp_udp_targeted_hello",
-  "proto": "ldp",
-  "summary": "S9: targeted UDP/646 Hello with transport address",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
-    },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "udp_discovery",
-    "events": [
-     {
-      "kind": "hello",
-      "direction": "c2s",
-      "message_id": 1,
-      "hold_time": 15,
-      "targeted": true
-     }
-    ],
-    "targeted": true
-   },
-   "src_port": 646,
-   "dst_port": 646
-  },
-  "expect": {
-   "packet_count": 1,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "udp.srcport",
-     "value": "646"
-    },
-    {
-     "packet": 1,
-     "field": "udp.dstport",
-     "value": "646"
-    },
-    {
-     "packet": 1,
-     "field": "ldp.hdr.version",
-     "value": "1"
-    },
-    {
-     "packet": 1,
-     "field": "ldp.hdr.pdu_len",
-     "value": "30"
-    },
-    {
-     "packet": 1,
-     "field": "ldp.msg.type",
-     "value": "0x0100"
-    },
-    {
-     "packet": 1,
-     "field": "ldp.msg.tlv.hello.hold",
-     "value": "15"
-    },
-    {
-     "packet": 1,
-     "field": "ldp.msg.tlv.hello.targeted",
-     "value": "1"
-    },
-    {
-     "packet": 1,
-     "field": "ldp.msg.tlv.ipv4.taddr",
-     "value": "192.0.2.1"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 1,
-     "offset": 42,
-     "hex": "00 01 00 1e c0 00 02 01 00 00 01 00 00 14 00 00 00 01 04 00 00 04 00 0f 80 00 04 01 00 04 c0 00 02 01"
-    }
-   ]
-  }
- },
- {
-  "id": "ldp_udp_parallel_hellos",
-  "proto": "ldp",
-  "summary": "S10: basic discovery Hellos in both directions",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
-    },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "224.0.0.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "udp_discovery",
-    "events": [
-     {
-      "kind": "hello",
-      "direction": "c2s",
-      "message_id": 1,
-      "hold_time": 15
-     },
-     {
-      "kind": "hello",
-      "direction": "s2c",
-      "message_id": 2,
-      "hold_time": 15
-     }
-    ]
-   },
-   "src_port": 646,
-   "dst_port": 646
-  },
-  "expect": {
-   "packet_count": 2,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "udp.srcport",
-     "value": "646"
-    },
-    {
-     "packet": 1,
-     "field": "udp.dstport",
-     "value": "646"
-    },
-    {
-     "packet": 1,
-     "field": "ldp.msg.type",
-     "value": "0x0100"
-    },
-    {
-     "packet": 2,
-     "field": "udp.srcport",
-     "value": "646"
-    },
-    {
-     "packet": 2,
-     "field": "udp.dstport",
-     "value": "646"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 1,
-     "offset": 42,
-     "hex": "00 01 00 1e c0 00 02 01 00 00 01 00 00 14 00 00 00 01 04 00 00 04 00 0f 00 00 04 01 00 04 c0 00 02 01"
-    },
-    {
-     "packet": 2,
-     "offset": 42,
-     "hex": "00 01 00 1e c0 00 02 01 00 00 01 00 00 14 00 00 00 02 04 00 00 04 00 0f 00 00 04 01 00 04 c0 00 02 01"
-    }
-   ]
-  }
- },
- {
-  "id": "ldp_notification_shutdown",
-  "proto": "ldp",
-  "summary": "S11: Notification status event terminates the LDP session",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "tcp_session",
-    "events": [
-     {
-      "kind": "initialization",
-      "direction": "c2s",
-      "message_id": 10,
-      "lsr_id": "192.0.2.1",
-      "receiver_lsr_id": "192.0.2.2"
-     },
-     {
-      "kind": "initialization",
-      "direction": "s2c",
-      "message_id": 20,
-      "lsr_id": "192.0.2.2",
-      "receiver_lsr_id": "192.0.2.1"
-     },
-     {
-      "kind": "notification",
-      "direction": "s2c",
-      "message_id": 22,
-      "status_code": 10
-     }
-    ]
-   },
-   "src_port": 50000,
-   "dst_port": 646
-  },
-  "expect": {
-   "packet_count": 10,
-   "has_handshake": true,
-   "terminates": true,
-   "has_payload": true,
-   "directional": true,
-   "fields": [
-    {
-     "packet": 6,
-     "field": "ldp.msg.type",
-     "value": "0x0001"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.type",
-     "value": "0x0300"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.len",
-     "value": "10"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.tlv.status.data",
-     "value": "0x0000000a"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "00 01 00 1c c0 00 02 01 00 00 00 01 00 12 00 00 00 16 03 00 00 0a 00 00 00 0a 00 00 00 00 00 00"
-    }
-   ]
-  }
- },
- {
-  "id": "ldp_ordered_dod_allocation",
-  "proto": "ldp",
-  "summary": "S12: downstream-on-demand ordered label request/mapping",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "tcp_session",
-    "events": [
-     {
-      "kind": "initialization",
-      "direction": "c2s",
-      "message_id": 10,
-      "lsr_id": "192.0.2.1",
-      "receiver_lsr_id": "192.0.2.2"
-     },
-     {
-      "kind": "initialization",
-      "direction": "s2c",
-      "message_id": 20,
-      "lsr_id": "192.0.2.2",
-      "receiver_lsr_id": "192.0.2.1"
-     },
-     {
-      "kind": "label_request",
-      "direction": "c2s",
-      "message_id": 13,
-      "fec": "203.0.113.0/24"
-     },
-     {
-      "kind": "label_mapping",
-      "direction": "s2c",
-      "message_id": 23,
-      "fec": "203.0.113.0/24",
-      "label": 74565
-     }
-    ],
-    "label_control": "ordered",
-    "label_advertisement": "downstream_on_demand"
-   },
-   "src_port": 50000,
-   "dst_port": 646
-  },
-  "expect": {
-   "packet_count": 11,
-   "has_handshake": true,
-   "terminates": true,
-   "has_payload": true,
-   "directional": true,
-   "fields": [
-    {
-     "packet": 6,
-     "field": "ldp.msg.type",
-     "value": "0x0401"
-    },
-    {
-     "packet": 7,
-     "field": "ldp.msg.type",
-     "value": "0x0400"
-    },
-    {
-     "packet": 7,
-     "field": "ldp.msg.tlv.generic.label",
-     "value": "74565"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "00 01 00 19 c0 00 02 01 00 00 04 01 00 0f 00 00 00 0d 01 00 00 07 02 00 01 18 cb 00 71"
-    },
-    {
-     "packet": 7,
-     "offset": 54,
-     "hex": "00 01 00 21 c0 00 02 01 00 00 04 00 00 17 00 00 00 17 01 00 00 07 02 00 01 18 cb 00 71 02 00 00 04 00 01 23 45"
-    }
-   ]
-  }
- },
- {
-  "id": "ldp_tcp_multi_session",
-  "proto": "ldp",
-  "summary": "S13: two independent parallel TCP/646 LDP sessions",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "tcp_session",
-    "sessions": [
-     {
-      "src_port": 50000,
-      "src_lsr_id": "192.0.2.1",
-      "dst_lsr_id": "192.0.2.2",
-      "events": [
-       {
-        "kind": "initialization",
-        "direction": "c2s",
-        "message_id": 10,
-        "lsr_id": "192.0.2.1",
-        "receiver_lsr_id": "192.0.2.2"
-       },
-       {
-        "kind": "initialization",
-        "direction": "s2c",
-        "message_id": 20,
-        "lsr_id": "192.0.2.2",
-        "receiver_lsr_id": "192.0.2.1"
-       },
-       {
-        "kind": "keepalive",
-        "direction": "c2s",
-        "message_id": 11
-       },
-       {
-        "kind": "keepalive",
-        "direction": "s2c",
-        "message_id": 21
-       }
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "646"
+        },
+        {
+          "packet": 4,
+          "field": "ldp.hdr.version",
+          "value": "1"
+        },
+        {
+          "packet": 4,
+          "field": "ldp.hdr.pdu_len",
+          "value": "32"
+        },
+        {
+          "packet": 4,
+          "field": "ldp.hdr.ldpid.lsr",
+          "value": "192.0.2.1"
+        },
+        {
+          "packet": 4,
+          "field": "ldp.hdr.ldpid.lsid",
+          "value": "0"
+        },
+        {
+          "packet": 4,
+          "field": "ldp.msg.type",
+          "value": "0x0200"
+        },
+        {
+          "packet": 4,
+          "field": "ldp.msg.len",
+          "value": "22"
+        },
+        {
+          "packet": 4,
+          "field": "ldp.msg.id",
+          "value": "0x0000000a"
+        },
+        {
+          "packet": 4,
+          "field": "ldp.msg.tlv.type",
+          "value": "0x0500"
+        },
+        {
+          "packet": 4,
+          "field": "ldp.msg.tlv.len",
+          "value": "14"
+        },
+        {
+          "packet": 4,
+          "field": "ldp.msg.tlv.sess.ver",
+          "value": "1"
+        },
+        {
+          "packet": 4,
+          "field": "ldp.msg.tlv.sess.ka",
+          "value": "30"
+        },
+        {
+          "packet": 4,
+          "field": "ldp.msg.tlv.sess.mxpdu",
+          "value": "4096"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.srcport",
+          "value": "50000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "00 01 00 20 c0 00 02 01 00 00 02 00 00 16 00 00 00 0a 05 00 00 0e 00 01 00 1e 00 00 10 00 c0 00 02 02 00 00"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "00 01 00 20 c0 00 02 01 00 00 02 00 00 16 00 00 00 14 05 00 00 0e 00 01 00 1e 00 00 10 00 c0 00 02 01 00 00"
+        }
       ]
-     },
-     {
-      "src_port": 50001,
-      "src_lsr_id": "192.0.2.3",
-      "dst_lsr_id": "192.0.2.4",
-      "events": [
-       {
-        "kind": "initialization",
-        "direction": "c2s",
-        "message_id": 10,
-        "lsr_id": "192.0.2.1",
-        "receiver_lsr_id": "192.0.2.2"
-       },
-       {
-        "kind": "initialization",
-        "direction": "s2c",
-        "message_id": 20,
-        "lsr_id": "192.0.2.2",
-        "receiver_lsr_id": "192.0.2.1"
-       },
-       {
-        "kind": "keepalive",
-        "direction": "c2s",
-        "message_id": 11
-       },
-       {
-        "kind": "keepalive",
-        "direction": "s2c",
-        "message_id": 21
-       }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+    ]
+  },
+  {
+    "id": "ldp_tcp_keepalive",
+    "proto": "ldp",
+    "summary": "S2: Initialization followed by bidirectional KeepAlive",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 50000,
+            "dst_port": 646
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "tcp_session",
+            "events": [
+              {
+                "kind": "initialization",
+                "direction": "c2s",
+                "message_id": 10,
+                "lsr_id": "192.0.2.1",
+                "receiver_lsr_id": "192.0.2.2"
+              },
+              {
+                "kind": "initialization",
+                "direction": "s2c",
+                "message_id": 20,
+                "lsr_id": "192.0.2.2",
+                "receiver_lsr_id": "192.0.2.1"
+              },
+              {
+                "kind": "keepalive",
+                "direction": "c2s",
+                "message_id": 11
+              },
+              {
+                "kind": "keepalive",
+                "direction": "s2c",
+                "message_id": 21
+              }
+            ]
+          }
+        }
       ]
-     }
-    ]
-   },
-   "src_port": 50000,
-   "dst_port": 646
-  },
-  "expect": {
-   "packet_count": 22,
-   "has_handshake": true,
-   "terminates": true,
-   "has_payload": true,
-   "directional": true,
-   "fields": [
-    {
-     "packet": 0,
-     "field": "tcp.srcport",
-     "distinct_values": [
-      "50000",
-      "50001"
-     ],
-     "distinct_exclude": [
-      "646"
-     ]
     },
-    {
-     "packet": 0,
-     "field": "tcp.dstport",
-     "distinct_values": [
-      "646"
-     ],
-     "distinct_exclude": [
-      "50000",
-      "50001"
-     ]
-    },
-    {
-     "packet": 0,
-     "field": "ldp.hdr.ldpid.lsr",
-     "distinct_values": [
-      "192.0.2.1",
-      "192.0.2.3"
-     ]
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "00 01 00 20 c0 00 02 01 00 00 02 00 00 16 00 00 00 0a 05 00 00 0e 00 01 00 1e 00 00 10 00 c0 00 02 02 00 00"
-    }
-   ]
-  }
- },
- {
-  "id": "ldp_dual_adjacency",
-  "proto": "ldp",
-  "summary": "S14: basic and targeted discovery adjacencies plus TCP session",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {}
-    },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "src_port": 646,
-   "dst_port": 646,
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "dual_adjacency",
-    "adjacencies": [
-     {
-      "kind": "basic",
-      "carrier": "udp_discovery",
-      "direction": "c2s",
-      "message_id": 1,
-      "targeted": false
-     },
-     {
-      "kind": "targeted",
-      "carrier": "udp_discovery",
-      "direction": "s2c",
-      "message_id": 2,
-      "targeted": true
-     },
-     {
-      "kind": "session",
-      "carrier": "tcp_session",
-      "src_port": 50000,
-      "dst_port": 646,
-      "events": [
-       {
-        "kind": "initialization",
-        "direction": "c2s",
-        "message_id": 10,
-        "lsr_id": "192.0.2.1",
-        "receiver_lsr_id": "192.0.2.2"
-       },
-       {
-        "kind": "initialization",
-        "direction": "s2c",
-        "message_id": 20,
-        "lsr_id": "192.0.2.2",
-        "receiver_lsr_id": "192.0.2.1"
-       },
-       {
-        "kind": "keepalive",
-        "direction": "c2s",
-        "message_id": 11
-       }
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "ldp.msg.type",
+          "value": "0x0201"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.len",
+          "value": "4"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.id",
+          "value": "0x0000000b"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.hdr.pdu_len",
+          "value": "14"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "00 01 00 20 c0 00 02 01 00 00 02 00 00 16 00 00 00 0a 05 00 00 0e 00 01 00 1e 00 00 10 00 c0 00 02 02 00 00"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "00 01 00 20 c0 00 02 01 00 00 02 00 00 16 00 00 00 14 05 00 00 0e 00 01 00 1e 00 00 10 00 c0 00 02 01 00 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "00 01 00 0e c0 00 02 01 00 00 02 01 00 04 00 00 00 0b"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "00 01 00 0e c0 00 02 01 00 00 02 01 00 04 00 00 00 15"
+        }
       ]
-     }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
     ]
-   }
   },
-  "expect": {
-   "packet_count": 12,
-   "has_handshake": false,
-   "terminates": true,
-   "has_payload": true,
-   "directional": true,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "udp.srcport",
-     "value": "646"
+  {
+    "id": "ldp_address_ipv4",
+    "proto": "ldp",
+    "summary": "S3: IPv4 Address message after session initialization",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 50000,
+            "dst_port": 646
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "tcp_session",
+            "events": [
+              {
+                "kind": "initialization",
+                "direction": "c2s",
+                "message_id": 10,
+                "lsr_id": "192.0.2.1",
+                "receiver_lsr_id": "192.0.2.2"
+              },
+              {
+                "kind": "initialization",
+                "direction": "s2c",
+                "message_id": 20,
+                "lsr_id": "192.0.2.2",
+                "receiver_lsr_id": "192.0.2.1"
+              },
+              {
+                "kind": "address",
+                "direction": "c2s",
+                "message_id": 12,
+                "addresses": [
+                  "192.0.2.1"
+                ]
+              }
+            ]
+          }
+        }
+      ]
     },
-    {
-     "packet": 2,
-     "field": "ldp.msg.tlv.hello.targeted",
-     "value": "1"
+    "expect": {
+      "packet_count": 10,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "ldp.msg.type",
+          "value": "0x0300"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.type",
+          "value": "0x0101"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.len",
+          "value": "6"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.addrl.addr_family",
+          "value": "1"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.addrl.addr",
+          "value": "192.0.2.1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "00 01 00 18 c0 00 02 01 00 00 03 00 00 0e 00 00 00 0c 01 01 00 06 00 01 c0 00 02 01"
+        }
+      ]
     },
-    {
-     "packet": 3,
-     "field": "tcp.dstport",
-     "value": "646"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.msg.type",
-     "value": "0x0200"
-    },
-    {
-     "packet": 6,
-     "field": "ldp.hdr.ldpid.lsr",
-     "value": "192.0.2.1"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 1,
-     "offset": 42,
-     "hex": "00 01 00 1e c0 00 02 01 00 00 01 00 00 14 00 00 00 01 04 00 00 04 00 0e 00 00 04 01 00 04 c0 00 02 01"
-    },
-    {
-     "packet": 2,
-     "offset": 42,
-     "hex": "00 01 00 1e c0 00 02 02 00 00 01 00 00 14 00 00 00 02 04 00 00 04 00 0e 80 00 04 01 00 04 c0 00 02 02"
-    },
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "00 01 00 20 c0 00 02 01 00 00 02 00 00 16 00 00 00 0a 05 00 00 0e 00 01 00 1e 00 00 10 00 c0 00 02 02 00 00"
-    }
-   ],
-   "notes": [
-    "首帧为 UDP 发现 Hello（混合载体），TCP 握手由 negotiated/terminates 断言"
-   ]
-  }
- },
- {
-  "id": "ldp_neg_carrier",
-  "proto": "ldp",
-  "summary": "N1: LDP without UDP or TCP carrier",
-  "spec_json": {
-   "layers": [
-    {
-     "eth": {}
-    },
-    {
-     "ldp": {}
-    }
-   ],
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "raw",
-    "events": [
-     {
-      "kind": "hello",
-      "direction": "c2s"
-     }
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
     ]
-   }
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "carrier"
-  }
- },
- {
-  "id": "ldp_neg_port",
-  "proto": "ldp",
-  "summary": "N2: discovery with non-646 UDP port",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
+  {
+    "id": "ldp_label_mapping_ipv4",
+    "proto": "ldp",
+    "summary": "S4: IPv4 /24 Label Mapping with Generic Label",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 50000,
+            "dst_port": 646
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "tcp_session",
+            "events": [
+              {
+                "kind": "initialization",
+                "direction": "c2s",
+                "message_id": 10,
+                "lsr_id": "192.0.2.1",
+                "receiver_lsr_id": "192.0.2.2"
+              },
+              {
+                "kind": "initialization",
+                "direction": "s2c",
+                "message_id": 20,
+                "lsr_id": "192.0.2.2",
+                "receiver_lsr_id": "192.0.2.1"
+              },
+              {
+                "kind": "label_mapping",
+                "direction": "c2s",
+                "message_id": 13,
+                "fec": "203.0.113.0/24",
+                "label": 74565
+              }
+            ],
+            "label_control": "independent",
+            "label_advertisement": "downstream_unsolicited"
+          }
+        }
+      ]
     },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "udp_discovery",
-    "events": [
-     {
-      "kind": "hello",
-      "direction": "c2s"
-     }
-    ]
-   },
-   "src_port": 645,
-   "dst_port": 646
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "port"
-  }
- },
- {
-  "id": "ldp_neg_ipv6_profile",
-  "proto": "ldp",
-  "summary": "N3: IPv6 transport/profile is not silently mixed into IPv4",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
+    "expect": {
+      "packet_count": 10,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "ldp.msg.type",
+          "value": "0x0400"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.fec.type",
+          "value": "2"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.fec.af",
+          "value": "1"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.fec.len",
+          "value": "24"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.fec.pfval",
+          "value": "203.0.113.0"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.type",
+          "value": "0x0100,0x0200"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.generic.label",
+          "value": "74565"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "00  0 1  00  2 1  c0  0 0  02  0 1  00  0 0  04  0 0  00  1 7  00  0 0  00  0 d  01  0 0  00  0 7  02  0 0  01  1 8  cb  0 0  71  0 2  00  0 0  04  0 0  01  2 3  45"
+        }
+      ]
     },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "2001:db8::1",
-   "dst_ip": "2001:db8::2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "tcp_session",
-    "ipv6_profile": "ldp_rfc5036_ipv6_pending",
-    "events": [
-     {
-      "kind": "initialization",
-      "direction": "c2s",
-      "message_id": 10,
-      "lsr_id": "2001:db8::1",
-      "receiver_lsr_id": "2001:db8::2"
-     }
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
     ]
-   },
-   "src_port": 50000,
-   "dst_port": 646
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "profile"
-  }
- },
- {
-  "id": "ldp_neg_pdu_length",
-  "proto": "ldp",
-  "summary": "N4: declared PDU length mismatch",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
+  {
+    "id": "ldp_label_request_ipv4",
+    "proto": "ldp",
+    "summary": "S5: IPv4 /24 Label Request",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 50000,
+            "dst_port": 646
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "tcp_session",
+            "events": [
+              {
+                "kind": "initialization",
+                "direction": "c2s",
+                "message_id": 10,
+                "lsr_id": "192.0.2.1",
+                "receiver_lsr_id": "192.0.2.2"
+              },
+              {
+                "kind": "initialization",
+                "direction": "s2c",
+                "message_id": 20,
+                "lsr_id": "192.0.2.2",
+                "receiver_lsr_id": "192.0.2.1"
+              },
+              {
+                "kind": "label_request",
+                "direction": "c2s",
+                "message_id": 13,
+                "fec": "203.0.113.0/24"
+              }
+            ]
+          }
+        }
+      ]
     },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "udp_discovery",
-    "fault_kind": "pdu_length",
-    "events": [
-     {
-      "kind": "hello",
-      "direction": "c2s"
-     }
-    ]
-   },
-   "src_port": 646,
-   "dst_port": 646
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "pdu"
-  }
- },
- {
-  "id": "ldp_neg_message_length",
-  "proto": "ldp",
-  "summary": "N5: declared message length mismatch",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
+    "expect": {
+      "packet_count": 10,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "ldp.msg.type",
+          "value": "0x0401"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.type",
+          "value": "0x0100"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.len",
+          "value": "15"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.id",
+          "value": "0x0000000d"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.len",
+          "value": "7"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "00 01 00 19 c0 00 02 01 00 00 04 01 00 0f 00 00 00 0d 01 00 00 07 02 00 01 18 cb 00 71"
+        }
+      ]
     },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "tcp_session",
-    "fault_kind": "message_length",
-    "events": [
-     {
-      "kind": "initialization",
-      "direction": "c2s",
-      "message_id": 10,
-      "lsr_id": "192.0.2.1",
-      "receiver_lsr_id": "192.0.2.2"
-     }
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
     ]
-   },
-   "src_port": 50000,
-   "dst_port": 646
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "message"
-  }
- },
- {
-  "id": "ldp_neg_tlv_length",
-  "proto": "ldp",
-  "summary": "N6: declared TLV length mismatch",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
+  {
+    "id": "ldp_label_withdraw_ipv4",
+    "proto": "ldp",
+    "summary": "S6: IPv4 /24 Label Withdraw after Mapping",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 50000,
+            "dst_port": 646
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "tcp_session",
+            "events": [
+              {
+                "kind": "initialization",
+                "direction": "c2s",
+                "message_id": 10,
+                "lsr_id": "192.0.2.1",
+                "receiver_lsr_id": "192.0.2.2"
+              },
+              {
+                "kind": "initialization",
+                "direction": "s2c",
+                "message_id": 20,
+                "lsr_id": "192.0.2.2",
+                "receiver_lsr_id": "192.0.2.1"
+              },
+              {
+                "kind": "label_mapping",
+                "direction": "c2s",
+                "message_id": 13,
+                "fec": "203.0.113.0/24",
+                "label": 74565
+              },
+              {
+                "kind": "label_withdraw",
+                "direction": "c2s",
+                "message_id": 14,
+                "fec": "203.0.113.0/24",
+                "label": 74565
+              }
+            ]
+          }
+        }
+      ]
     },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "tcp_session",
-    "fault_kind": "tlv_length",
-    "events": [
-     {
-      "kind": "initialization",
-      "direction": "c2s",
-      "message_id": 10,
-      "lsr_id": "192.0.2.1",
-      "receiver_lsr_id": "192.0.2.2"
-     }
-    ]
-   },
-   "src_port": 50000,
-   "dst_port": 646
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "tlv"
-  }
- },
- {
-  "id": "ldp_neg_unknown_message",
-  "proto": "ldp",
-  "summary": "N7: unknown LDP message type",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 7,
+          "field": "ldp.msg.type",
+          "value": "0x0402"
+        },
+        {
+          "packet": 7,
+          "field": "ldp.msg.tlv.fec.type",
+          "value": "2"
+        },
+        {
+          "packet": 7,
+          "field": "ldp.msg.tlv.fec.af",
+          "value": "1"
+        },
+        {
+          "packet": 7,
+          "field": "ldp.msg.tlv.fec.len",
+          "value": "24"
+        },
+        {
+          "packet": 7,
+          "field": "ldp.msg.tlv.fec.pfval",
+          "value": "203.0.113.0"
+        },
+        {
+          "packet": 7,
+          "field": "ldp.msg.tlv.type",
+          "value": "0x0100,0x0200"
+        },
+        {
+          "packet": 7,
+          "field": "ldp.msg.tlv.generic.label",
+          "value": "74565"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "00  0 1  00  2 1  c0  0 0  02  0 1  00  0 0  04  0 0  00  1 7  00  0 0  00  0 d  01  0 0  00  0 7  02  0 0  01  1 8  cb  0 0  71  0 2  00  0 0  04  0 0  01  2 3  45"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "00  0 1  00  2 1  c0  0 0  02  0 1  00  0 0  04  0 2  00  1 7  00  0 0  00  0 e  01  0 0  00  0 7  02  0 0  01  1 8  cb  0 0  71  0 2  00  0 0  04  0 0  01  2 3  45"
+        }
+      ]
     },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "tcp_session",
-    "events": [
-     {
-      "kind": "initialization",
-      "direction": "c2s",
-      "message_id": 10,
-      "lsr_id": "192.0.2.1",
-      "receiver_lsr_id": "192.0.2.2"
-     },
-     {
-      "kind": "initialization",
-      "direction": "s2c",
-      "message_id": 20,
-      "lsr_id": "192.0.2.2",
-      "receiver_lsr_id": "192.0.2.1"
-     },
-     {
-      "kind": "wire_fault",
-      "direction": "c2s",
-      "fault_kind": "unknown_message",
-      "value": 32767
-     }
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
     ]
-   },
-   "src_port": 50000,
-   "dst_port": 646
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "unknown"
-  }
- },
- {
-  "id": "ldp_neg_label_bounds",
-  "proto": "ldp",
-  "summary": "N8: Generic Label exceeds 20-bit bound",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
+  {
+    "id": "ldp_label_release_ipv4",
+    "proto": "ldp",
+    "summary": "S7: IPv4 /24 Label Release after Mapping",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 50000,
+            "dst_port": 646
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "tcp_session",
+            "events": [
+              {
+                "kind": "initialization",
+                "direction": "c2s",
+                "message_id": 10,
+                "lsr_id": "192.0.2.1",
+                "receiver_lsr_id": "192.0.2.2"
+              },
+              {
+                "kind": "initialization",
+                "direction": "s2c",
+                "message_id": 20,
+                "lsr_id": "192.0.2.2",
+                "receiver_lsr_id": "192.0.2.1"
+              },
+              {
+                "kind": "label_mapping",
+                "direction": "c2s",
+                "message_id": 13,
+                "fec": "203.0.113.0/24",
+                "label": 74565
+              },
+              {
+                "kind": "label_release",
+                "direction": "c2s",
+                "message_id": 14,
+                "fec": "203.0.113.0/24",
+                "label": 74565
+              }
+            ]
+          }
+        }
+      ]
     },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "tcp_session",
-    "events": [
-     {
-      "kind": "initialization",
-      "direction": "c2s",
-      "message_id": 10,
-      "lsr_id": "192.0.2.1",
-      "receiver_lsr_id": "192.0.2.2"
-     },
-     {
-      "kind": "initialization",
-      "direction": "s2c",
-      "message_id": 20,
-      "lsr_id": "192.0.2.2",
-      "receiver_lsr_id": "192.0.2.1"
-     },
-     {
-      "kind": "label_mapping",
-      "direction": "c2s",
-      "message_id": 13,
-      "fec": "203.0.113.0/24",
-      "label": 1048576
-     }
-    ]
-   },
-   "src_port": 50000,
-   "dst_port": 646
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "label"
-  }
- },
- {
-  "id": "ldp_neg_prefix_bounds",
-  "proto": "ldp",
-  "summary": "N9: IPv4 FEC prefix length exceeds 32",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 7,
+          "field": "ldp.msg.type",
+          "value": "0x0403"
+        },
+        {
+          "packet": 7,
+          "field": "ldp.msg.tlv.fec.type",
+          "value": "2"
+        },
+        {
+          "packet": 7,
+          "field": "ldp.msg.tlv.fec.af",
+          "value": "1"
+        },
+        {
+          "packet": 7,
+          "field": "ldp.msg.tlv.fec.len",
+          "value": "24"
+        },
+        {
+          "packet": 7,
+          "field": "ldp.msg.tlv.fec.pfval",
+          "value": "203.0.113.0"
+        },
+        {
+          "packet": 7,
+          "field": "ldp.msg.tlv.type",
+          "value": "0x0100,0x0200"
+        },
+        {
+          "packet": 7,
+          "field": "ldp.msg.tlv.generic.label",
+          "value": "74565"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "00  0 1  00  2 1  c0  0 0  02  0 1  00  0 0  04  0 0  00  1 7  00  0 0  00  0 d  01  0 0  00  0 7  02  0 0  01  1 8  cb  0 0  71  0 2  00  0 0  04  0 0  01  2 3  45"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "00  0 1  00  2 1  c0  0 0  02  0 1  00  0 0  04  0 3  00  1 7  00  0 0  00  0 e  01  0 0  00  0 7  02  0 0  01  1 8  cb  0 0  71  0 2  00  0 0  04  0 0  01  2 3  45"
+        }
+      ]
     },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "tcp_session",
-    "events": [
-     {
-      "kind": "initialization",
-      "direction": "c2s",
-      "message_id": 10,
-      "lsr_id": "192.0.2.1",
-      "receiver_lsr_id": "192.0.2.2"
-     },
-     {
-      "kind": "initialization",
-      "direction": "s2c",
-      "message_id": 20,
-      "lsr_id": "192.0.2.2",
-      "receiver_lsr_id": "192.0.2.1"
-     },
-     {
-      "kind": "label_request",
-      "direction": "c2s",
-      "message_id": 13,
-      "fec": "203.0.113.0/33"
-     }
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
     ]
-   },
-   "src_port": 50000,
-   "dst_port": 646
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "prefix"
-  }
- },
- {
-  "id": "ldp_neg_state",
-  "proto": "ldp",
-  "summary": "N10: KeepAlive before Initialization",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
+  {
+    "id": "ldp_label_mapping_host32",
+    "proto": "ldp",
+    "summary": "S8: IPv4 /32 host-route Label Mapping",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 50000,
+            "dst_port": 646
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "tcp_session",
+            "events": [
+              {
+                "kind": "initialization",
+                "direction": "c2s",
+                "message_id": 10,
+                "lsr_id": "192.0.2.1",
+                "receiver_lsr_id": "192.0.2.2"
+              },
+              {
+                "kind": "initialization",
+                "direction": "s2c",
+                "message_id": 20,
+                "lsr_id": "192.0.2.2",
+                "receiver_lsr_id": "192.0.2.1"
+              },
+              {
+                "kind": "label_mapping",
+                "direction": "c2s",
+                "message_id": 13,
+                "fec": "192.0.2.1/32",
+                "label": 703710
+              }
+            ]
+          }
+        }
+      ]
     },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "tcp_session",
-    "events": [
-     {
-      "kind": "keepalive",
-      "direction": "c2s",
-      "message_id": 1
-     }
-    ]
-   },
-   "src_port": 50000,
-   "dst_port": 646
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "state"
-  }
- },
- {
-  "id": "ldp_neg_checksum",
-  "proto": "ldp",
-  "summary": "N11: invalid transport checksum rejected",
-  "spec_json": {
-   "layers": [
-    {
-     "udp": {}
+    "expect": {
+      "packet_count": 10,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "ldp.msg.type",
+          "value": "0x0400"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.fec.type",
+          "value": "2"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.fec.af",
+          "value": "1"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.fec.len",
+          "value": "32"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.fec.pfval",
+          "value": "192.0.2.1"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.type",
+          "value": "0x0100,0x0200"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.generic.label",
+          "value": "703710"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "00  0 1  00  2 2  c0  0 0  02  0 1  00  0 0  04  0 0  00  1 8  00  0 0  00  0 d  01  0 0  00  0 8  02  0 0  01  2 0  c0  0 0  02  0 1  02  0 0  00  0 4  00  0 a  bc  d e"
+        }
+      ]
     },
-    {
-     "ldp": {}
-    }
-   ],
-   "src_ip": "192.0.2.1",
-   "dst_ip": "192.0.2.2",
-   "src_port": 646,
-   "dst_port": 646,
-   "ldp": {
-    "wire_profile": "ldp_rfc5036_ipv4_basic",
-    "carrier": "udp_discovery",
-    "fault_kind": "checksum",
-    "events": [
-     {
-      "kind": "hello",
-      "direction": "c2s"
-     }
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
     ]
-   }
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "checksum"
+  {
+    "id": "ldp_udp_targeted_hello",
+    "proto": "ldp",
+    "summary": "S9: targeted UDP/646 Hello with transport address",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 646,
+            "dst_port": 646
+          }
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "udp_discovery",
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s",
+                "message_id": 1,
+                "hold_time": 15,
+                "targeted": true
+              }
+            ],
+            "targeted": true
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "646"
+        },
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "646"
+        },
+        {
+          "packet": 1,
+          "field": "ldp.hdr.version",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ldp.hdr.pdu_len",
+          "value": "30"
+        },
+        {
+          "packet": 1,
+          "field": "ldp.msg.type",
+          "value": "0x0100"
+        },
+        {
+          "packet": 1,
+          "field": "ldp.msg.tlv.hello.hold",
+          "value": "15"
+        },
+        {
+          "packet": 1,
+          "field": "ldp.msg.tlv.hello.targeted",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ldp.msg.tlv.ipv4.taddr",
+          "value": "192.0.2.1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "00 01 00 1e c0 00 02 01 00 00 01 00 00 14 00 00 00 01 04 00 00 04 00 0f 80 00 04 01 00 04 c0 00 02 01"
+        }
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+    ]
+  },
+  {
+    "id": "ldp_udp_parallel_hellos",
+    "proto": "ldp",
+    "summary": "S10: basic discovery Hellos in both directions",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "224.0.0.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 646,
+            "dst_port": 646
+          }
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "udp_discovery",
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s",
+                "message_id": 1,
+                "hold_time": 15
+              },
+              {
+                "kind": "hello",
+                "direction": "s2c",
+                "message_id": 2,
+                "hold_time": 15
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "646"
+        },
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "646"
+        },
+        {
+          "packet": 1,
+          "field": "ldp.msg.type",
+          "value": "0x0100"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "646"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "646"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "00 01 00 1e c0 00 02 01 00 00 01 00 00 14 00 00 00 01 04 00 00 04 00 0f 00 00 04 01 00 04 c0 00 02 01"
+        },
+        {
+          "packet": 2,
+          "offset": 42,
+          "hex": "00 01 00 1e c0 00 02 01 00 00 01 00 00 14 00 00 00 02 04 00 00 04 00 0f 00 00 04 01 00 04 c0 00 02 01"
+        }
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+    ]
+  },
+  {
+    "id": "ldp_notification_shutdown",
+    "proto": "ldp",
+    "summary": "S11: Notification status event terminates the LDP session",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 50000,
+            "dst_port": 646
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "tcp_session",
+            "events": [
+              {
+                "kind": "initialization",
+                "direction": "c2s",
+                "message_id": 10,
+                "lsr_id": "192.0.2.1",
+                "receiver_lsr_id": "192.0.2.2"
+              },
+              {
+                "kind": "initialization",
+                "direction": "s2c",
+                "message_id": 20,
+                "lsr_id": "192.0.2.2",
+                "receiver_lsr_id": "192.0.2.1"
+              },
+              {
+                "kind": "notification",
+                "direction": "s2c",
+                "message_id": 22,
+                "status_code": 10
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 10,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "ldp.msg.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.type",
+          "value": "0x0300"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.len",
+          "value": "10"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.status.data",
+          "value": "0x0000000a"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "00 01 00 1c c0 00 02 01 00 00 00 01 00 12 00 00 00 16 03 00 00 0a 00 00 00 0a 00 00 00 00 00 00"
+        }
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+    ]
+  },
+  {
+    "id": "ldp_ordered_dod_allocation",
+    "proto": "ldp",
+    "summary": "S12: downstream-on-demand ordered label request/mapping",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 50000,
+            "dst_port": 646
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "tcp_session",
+            "events": [
+              {
+                "kind": "initialization",
+                "direction": "c2s",
+                "message_id": 10,
+                "lsr_id": "192.0.2.1",
+                "receiver_lsr_id": "192.0.2.2"
+              },
+              {
+                "kind": "initialization",
+                "direction": "s2c",
+                "message_id": 20,
+                "lsr_id": "192.0.2.2",
+                "receiver_lsr_id": "192.0.2.1"
+              },
+              {
+                "kind": "label_request",
+                "direction": "c2s",
+                "message_id": 13,
+                "fec": "203.0.113.0/24"
+              },
+              {
+                "kind": "label_mapping",
+                "direction": "s2c",
+                "message_id": 23,
+                "fec": "203.0.113.0/24",
+                "label": 74565
+              }
+            ],
+            "label_control": "ordered",
+            "label_advertisement": "downstream_on_demand"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "ldp.msg.type",
+          "value": "0x0401"
+        },
+        {
+          "packet": 7,
+          "field": "ldp.msg.type",
+          "value": "0x0400"
+        },
+        {
+          "packet": 7,
+          "field": "ldp.msg.tlv.generic.label",
+          "value": "74565"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "00 01 00 19 c0 00 02 01 00 00 04 01 00 0f 00 00 00 0d 01 00 00 07 02 00 01 18 cb 00 71"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "00 01 00 21 c0 00 02 01 00 00 04 00 00 17 00 00 00 17 01 00 00 07 02 00 01 18 cb 00 71 02 00 00 04 00 01 23 45"
+        }
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+    ]
+  },
+  {
+    "id": "ldp_tcp_multi_session",
+    "proto": "ldp",
+    "summary": "S13: two independent parallel TCP/646 LDP sessions",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 50000,
+            "dst_port": 646
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "tcp_session",
+            "sessions": [
+              {
+                "src_port": 50000,
+                "src_lsr_id": "192.0.2.1",
+                "dst_lsr_id": "192.0.2.2",
+                "events": [
+                  {
+                    "kind": "initialization",
+                    "direction": "c2s",
+                    "message_id": 10,
+                    "lsr_id": "192.0.2.1",
+                    "receiver_lsr_id": "192.0.2.2"
+                  },
+                  {
+                    "kind": "initialization",
+                    "direction": "s2c",
+                    "message_id": 20,
+                    "lsr_id": "192.0.2.2",
+                    "receiver_lsr_id": "192.0.2.1"
+                  },
+                  {
+                    "kind": "keepalive",
+                    "direction": "c2s",
+                    "message_id": 11
+                  },
+                  {
+                    "kind": "keepalive",
+                    "direction": "s2c",
+                    "message_id": 21
+                  }
+                ]
+              },
+              {
+                "src_port": 50001,
+                "src_lsr_id": "192.0.2.3",
+                "dst_lsr_id": "192.0.2.4",
+                "events": [
+                  {
+                    "kind": "initialization",
+                    "direction": "c2s",
+                    "message_id": 10,
+                    "lsr_id": "192.0.2.1",
+                    "receiver_lsr_id": "192.0.2.2"
+                  },
+                  {
+                    "kind": "initialization",
+                    "direction": "s2c",
+                    "message_id": 20,
+                    "lsr_id": "192.0.2.2",
+                    "receiver_lsr_id": "192.0.2.1"
+                  },
+                  {
+                    "kind": "keepalive",
+                    "direction": "c2s",
+                    "message_id": 11
+                  },
+                  {
+                    "kind": "keepalive",
+                    "direction": "s2c",
+                    "message_id": 21
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 22,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 0,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "50000",
+            "50001"
+          ],
+          "distinct_exclude": [
+            "646"
+          ]
+        },
+        {
+          "packet": 0,
+          "field": "tcp.dstport",
+          "distinct_values": [
+            "646"
+          ],
+          "distinct_exclude": [
+            "50000",
+            "50001"
+          ]
+        },
+        {
+          "packet": 0,
+          "field": "ldp.hdr.ldpid.lsr",
+          "distinct_values": [
+            "192.0.2.1",
+            "192.0.2.3"
+          ]
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "00 01 00 20 c0 00 02 01 00 00 02 00 00 16 00 00 00 0a 05 00 00 0e 00 01 00 1e 00 00 10 00 c0 00 02 02 00 00"
+        }
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+    ]
+  },
+  {
+    "id": "ldp_dual_adjacency",
+    "proto": "ldp",
+    "summary": "S14: basic and targeted discovery adjacencies plus TCP session",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {
+            "src_port": 646,
+            "dst_port": 646
+          }
+        },
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "dual_adjacency",
+            "adjacencies": [
+              {
+                "kind": "basic",
+                "carrier": "udp_discovery",
+                "direction": "c2s",
+                "message_id": 1,
+                "targeted": false
+              },
+              {
+                "kind": "targeted",
+                "carrier": "udp_discovery",
+                "direction": "s2c",
+                "message_id": 2,
+                "targeted": true
+              },
+              {
+                "kind": "session",
+                "carrier": "tcp_session",
+                "src_port": 50000,
+                "dst_port": 646,
+                "events": [
+                  {
+                    "kind": "initialization",
+                    "direction": "c2s",
+                    "message_id": 10,
+                    "lsr_id": "192.0.2.1",
+                    "receiver_lsr_id": "192.0.2.2"
+                  },
+                  {
+                    "kind": "initialization",
+                    "direction": "s2c",
+                    "message_id": 20,
+                    "lsr_id": "192.0.2.2",
+                    "receiver_lsr_id": "192.0.2.1"
+                  },
+                  {
+                    "kind": "keepalive",
+                    "direction": "c2s",
+                    "message_id": 11
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "has_handshake": false,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "646"
+        },
+        {
+          "packet": 2,
+          "field": "ldp.msg.tlv.hello.targeted",
+          "value": "1"
+        },
+        {
+          "packet": 3,
+          "field": "tcp.dstport",
+          "value": "646"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.type",
+          "value": "0x0200"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.hdr.ldpid.lsr",
+          "value": "192.0.2.1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "00 01 00 1e c0 00 02 01 00 00 01 00 00 14 00 00 00 01 04 00 00 04 00 0e 00 00 04 01 00 04 c0 00 02 01"
+        },
+        {
+          "packet": 2,
+          "offset": 42,
+          "hex": "00 01 00 1e c0 00 02 02 00 00 01 00 00 14 00 00 00 02 04 00 00 04 00 0e 80 00 04 01 00 04 c0 00 02 02"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "00 01 00 20 c0 00 02 01 00 00 02 00 00 16 00 00 00 0a 05 00 00 0e 00 01 00 1e 00 00 10 00 c0 00 02 02 00 00"
+        }
+      ],
+      "notes": [
+        "首帧为 UDP 发现 Hello（混合载体），TCP 握手由 negotiated/terminates 断言"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+    ]
+  },
+  {
+    "id": "ldp_neg_carrier",
+    "proto": "ldp",
+    "summary": "N1: LDP without UDP or TCP carrier",
+    "spec_json": {
+      "layers": [
+        {
+          "eth": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "raw",
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "carrier"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+    ]
+  },
+  {
+    "id": "ldp_neg_port",
+    "proto": "ldp",
+    "summary": "N2: discovery with non-646 UDP port",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 645,
+            "dst_port": 646
+          }
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "udp_discovery",
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "port"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+    ]
+  },
+  {
+    "id": "ldp_neg_ipv6_profile",
+    "proto": "ldp",
+    "summary": "N3: IPv6 transport/profile is not silently mixed into IPv4",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 50000,
+            "dst_port": 646
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "tcp_session",
+            "ipv6_profile": "ldp_rfc5036_ipv6_pending",
+            "events": [
+              {
+                "kind": "initialization",
+                "direction": "c2s",
+                "message_id": 10,
+                "lsr_id": "2001:db8::1",
+                "receiver_lsr_id": "2001:db8::2"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "profile"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+    ]
+  },
+  {
+    "id": "ldp_neg_pdu_length",
+    "proto": "ldp",
+    "summary": "N4: declared PDU length mismatch",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 646,
+            "dst_port": 646
+          }
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "udp_discovery",
+            "fault_kind": "pdu_length",
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "pdu"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+    ]
+  },
+  {
+    "id": "ldp_neg_message_length",
+    "proto": "ldp",
+    "summary": "N5: declared message length mismatch",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 50000,
+            "dst_port": 646
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "tcp_session",
+            "fault_kind": "message_length",
+            "events": [
+              {
+                "kind": "initialization",
+                "direction": "c2s",
+                "message_id": 10,
+                "lsr_id": "192.0.2.1",
+                "receiver_lsr_id": "192.0.2.2"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "message"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+    ]
+  },
+  {
+    "id": "ldp_neg_tlv_length",
+    "proto": "ldp",
+    "summary": "N6: declared TLV length mismatch",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 50000,
+            "dst_port": 646
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "tcp_session",
+            "fault_kind": "tlv_length",
+            "events": [
+              {
+                "kind": "initialization",
+                "direction": "c2s",
+                "message_id": 10,
+                "lsr_id": "192.0.2.1",
+                "receiver_lsr_id": "192.0.2.2"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "tlv"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+    ]
+  },
+  {
+    "id": "ldp_neg_unknown_message",
+    "proto": "ldp",
+    "summary": "N7: unknown LDP message type",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 50000,
+            "dst_port": 646
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "tcp_session",
+            "events": [
+              {
+                "kind": "initialization",
+                "direction": "c2s",
+                "message_id": 10,
+                "lsr_id": "192.0.2.1",
+                "receiver_lsr_id": "192.0.2.2"
+              },
+              {
+                "kind": "initialization",
+                "direction": "s2c",
+                "message_id": 20,
+                "lsr_id": "192.0.2.2",
+                "receiver_lsr_id": "192.0.2.1"
+              },
+              {
+                "kind": "wire_fault",
+                "direction": "c2s",
+                "fault_kind": "unknown_message",
+                "value": 32767
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+    ]
+  },
+  {
+    "id": "ldp_neg_label_bounds",
+    "proto": "ldp",
+    "summary": "N8: Generic Label exceeds 20-bit bound",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 50000,
+            "dst_port": 646
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "tcp_session",
+            "events": [
+              {
+                "kind": "initialization",
+                "direction": "c2s",
+                "message_id": 10,
+                "lsr_id": "192.0.2.1",
+                "receiver_lsr_id": "192.0.2.2"
+              },
+              {
+                "kind": "initialization",
+                "direction": "s2c",
+                "message_id": 20,
+                "lsr_id": "192.0.2.2",
+                "receiver_lsr_id": "192.0.2.1"
+              },
+              {
+                "kind": "label_mapping",
+                "direction": "c2s",
+                "message_id": 13,
+                "fec": "203.0.113.0/24",
+                "label": 1048576
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "label"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+    ]
+  },
+  {
+    "id": "ldp_neg_prefix_bounds",
+    "proto": "ldp",
+    "summary": "N9: IPv4 FEC prefix length exceeds 32",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 50000,
+            "dst_port": 646
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "tcp_session",
+            "events": [
+              {
+                "kind": "initialization",
+                "direction": "c2s",
+                "message_id": 10,
+                "lsr_id": "192.0.2.1",
+                "receiver_lsr_id": "192.0.2.2"
+              },
+              {
+                "kind": "initialization",
+                "direction": "s2c",
+                "message_id": 20,
+                "lsr_id": "192.0.2.2",
+                "receiver_lsr_id": "192.0.2.1"
+              },
+              {
+                "kind": "label_request",
+                "direction": "c2s",
+                "message_id": 13,
+                "fec": "203.0.113.0/33"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "prefix"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+    ]
+  },
+  {
+    "id": "ldp_neg_state",
+    "proto": "ldp",
+    "summary": "N10: KeepAlive before Initialization",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 50000,
+            "dst_port": 646
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "tcp_session",
+            "events": [
+              {
+                "kind": "keepalive",
+                "direction": "c2s",
+                "message_id": 1
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "state"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+    ]
+  },
+  {
+    "id": "ldp_neg_checksum",
+    "proto": "ldp",
+    "summary": "N11: invalid transport checksum rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.1",
+            "dst": "192.0.2.2"
+          }
+        },
+        {
+          "udp": {
+            "src_port": 646,
+            "dst_port": 646
+          }
+        },
+        {
+          "ldp": {
+            "wire_profile": "ldp_rfc5036_ipv4_basic",
+            "carrier": "udp_discovery",
+            "fault_kind": "checksum",
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "checksum"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ldp 子映射迁入 layers[].ldp"
+    ]
   }
- }
 ]

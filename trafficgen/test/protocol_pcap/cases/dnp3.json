@@ -1,3509 +1,4172 @@
 [
- {
-  "id": "dnp3_t21_reset_link",
-  "proto": "dnp3",
-  "summary": "T21: reset_link 场景（master, TCP）→ 握手3 + ResetLink(C0)+ACK(00) + 挥手4 = 9 包",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "reset_link"
-   }
-  },
-  "expect": {
-   "packet_count": 9,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    },
-    {
-     "packet": 5,
-     "field": "tcp.srcport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 00 04 01 00"
-    },
-    {
-     "packet": 5,
-     "offset": 54,
-     "hex": "05 64 06  00 01 00 00 04"
-    }
-   ],
-   "notes": [
-    "§6.1: Reset Link Control=0xC0 (DIR=1,PRM=1,FCB=0,FCV=0,FC=0), ACK Control=0x00",
-    "DstAddr/SrcAddr 小端: 上行 00 04 01 00, 下行 01 00 00 04; offset 54 = Eth14+IPv4 20+TCP 20",
-    "包序: SYN/SYN-ACK/ACK(1-3), Reset Link(4), ACK(5), FIN/ACK/FIN/ACK(6-9)"
-   ]
-  }
- },
- {
-  "id": "dnp3_t22_read_class0",
-  "proto": "dnp3",
-  "summary": "T22: read_class0 场景 → 握手3 + ResetLink/ACK + read请求(FC=1)+ACK + respond(FC=13)+ACK + 挥手4 = 13 包",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "read_class0",
-    "app_seq": 0,
-    "objects": [
-     {
-      "object_type": 60,
-      "variation": 1,
-      "qualifier": 6
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 13,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    },
-    {
-     "packet": 6,
-     "field": "tcp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 00 04 01 00"
-    },
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "05 64 07 d3 00 04 01 00"
-    },
-    {
-     "packet": 8,
-     "offset": 54,
-     "hex": "05 64 06 03 01 00 00 04"
-    }
-   ],
-   "notes": [
-    "§6.2: 请求 Control=0xD3(FC=3 UserData Confirmed, FCV=1) 链路头 + App层 c0 01 3c 01 06 (AC=0xC0, FC=1, Obj=60.1, Qual=6)",
-    "响应 Control=0x03(DIR=0,FC=3) 链路头 + App层 c2 0d 00 00 (AC=0xC2, FC=13, IIN=0x0000)",
-    "包序 1-3 握手, 4 ResetLink, 5 ACK, 6 read, 7 ACK, 8 respond, 9 ACK, 10-13 挥手"
-   ]
-  }
- },
- {
-  "id": "dnp3_t23_select_operate",
-  "proto": "dnp3",
-  "summary": "T23/T65: select_operate 场景 → select(FC=3) + operate(FC=4) 各带响应，SBO 共享 AppSeq=3",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "select_operate",
-    "app_seq": 3,
-    "objects": [
-     {
-      "object_type": 12,
-      "variation": 1,
-      "qualifier": 0,
-      "index_range": [
-       5,
-       5
-      ],
-      "points": [
-       {
-        "value": 1
-       }
+  {
+    "id": "dnp3_t21_reset_link",
+    "proto": "dnp3",
+    "summary": "T21: reset_link 场景（master, TCP）→ 握手3 + ResetLink(C0)+ACK(00) + 挥手4 = 9 包",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "reset_link"
+          }
+        }
       ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 15,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
     },
-    {
-     "packet": 6,
-     "field": "tcp.srcport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 0f d3 00 04 01 00"
-    },
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "05 64 12 03 01 00 00 04"
-    },
-    {
-     "packet": 8,
-     "offset": 54,
-     "hex": "05 64 0f d3 00 04 01 00"
-    }
-   ],
-   "notes": [
-    "§6.5: select 与 operate 共享 AppSeq=3 (AC=0xE3, FIR=1,FIN=1,CON=1,Seq=3), IEEE 1815-2012 §5.1.3.2",
-    "链路 Control=0xD3 (FC=3 UserData Confirmed), CROB 请求 6B: 03 01 64 00 FF FF (Code=LATCH_ON)",
-    "包序: 3握手 + (select,ACK,respond,ACK)×2 + 4挥手 = 15 包"
-   ]
-  }
- },
- {
-  "id": "dnp3_t24_direct_operate",
-  "proto": "dnp3",
-  "summary": "T24/T69: direct_operate 场景 → FC=5 无 select，CON=0 (AC=0xC5)，响应回显 CROB",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "direct_operate",
-    "app_seq": 5,
-    "objects": [
-     {
-      "object_type": 12,
-      "variation": 1,
-      "qualifier": 0,
-      "index_range": [
-       5,
-       5
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        },
+        {
+          "packet": 5,
+          "field": "tcp.srcport",
+          "value": "20000"
+        }
       ],
-      "points": [
-       {
-        "value": 1
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 11,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 0f d3 00 04 01 00"
-    },
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "05 64 12 03 01 00 00 04"
-    }
-   ],
-   "notes": [
-    "§6.6/T62: direct_operate CON 自动=0 (AC=0xC5: FIR=1,FIN=1,CON=0,Seq=5)",
-    "包序: 3握手 + (do,ACK,respond,ACK) + 4挥手 = 11 包"
-   ]
-  }
- },
- {
-  "id": "dnp3_t25_unsolicited",
-  "proto": "dnp3",
-  "summary": "T25/T77: unsolicited 外设主动上报（outstation, 链路FC=4）→ 上报(FC=14) + confirm(FC=15)",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "outstation",
-    "transport": "tcp",
-    "src_addr": 1024,
-    "dst_addr": 1,
-    "scenario": "unsolicited",
-    "is_unsolicited": true,
-    "confirm_required": true,
-    "app_seq": 0,
-    "objects": [
-     {
-      "object_type": 10,
-      "variation": 2,
-      "qualifier": 23,
-      "count": 1,
-      "points": [
-       {
-        "value": 1,
-        "index": 3
-       }
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 00 04 01 00"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "05 64 06  00 01 00 00 04"
+        }
       ],
-      "flags": [
-       1
+      "notes": [
+        "§6.1: Reset Link Control=0xC0 (DIR=1,PRM=1,FCB=0,FCV=0,FC=0), ACK Control=0x00",
+        "DstAddr/SrcAddr 小端: 上行 00 04 01 00, 下行 01 00 00 04; offset 54 = Eth14+IPv4 20+TCP 20",
+        "包序: SYN/SYN-ACK/ACK(1-3), Reset Link(4), ACK(5), FIN/ACK/FIN/ACK(6-9)"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t22_read_class0",
+    "proto": "dnp3",
+    "summary": "T22: read_class0 场景 → 握手3 + ResetLink/ACK + read请求(FC=1)+ACK + respond(FC=13)+ACK + 挥手4 = 13 包",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "read_class0",
+            "app_seq": 0,
+            "objects": [
+              {
+                "object_type": 60,
+                "variation": 1,
+                "qualifier": 6
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        },
+        {
+          "packet": 6,
+          "field": "tcp.dstport",
+          "value": "20000"
+        }
       ],
-      "times": [
-       1691049600000
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 9,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    },
-    {
-     "packet": 5,
-     "field": "tcp.srcport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 0d 04 01 00 00 04"
-    },
-    {
-     "packet": 5,
-     "offset": 54,
-     "hex": "05 64 06 c4 00 04 01 00"
-    }
-   ],
-   "notes": [
-    "§6.8/T77: 上报帧链路 Control=0x04 (DIR=0,PRM=0,FC=4 User Data No Confirm, 外设主动上报)",
-    "AC=0xE0 (FIR=1,FIN=1,CON=1,Seq=0) FC=14 IIN=0x4000(Class1) Obj=10.2 Qual=0x17 count=1",
-    "confirm: AC=0xC0 FC=15, 无对象; 包序: 3握手 + 上报/confirm + 4挥手 = 9 包"
-   ]
-  }
- },
- {
-  "id": "dnp3_t26_cold_restart",
-  "proto": "dnp3",
-  "summary": "T26: cold_restart 场景 → FC=129 请求(CA 81, 无对象) + 响应含 Obj=51.1 Time Delay Coarse",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "cold_restart",
-    "app_seq": 10
-   }
-  },
-  "expect": {
-   "packet_count": 11,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06 d3 00 04 01 00"
-    },
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "05 64 0b 03 01 00 00 04"
-    }
-   ],
-   "notes": [
-    "§6.12: 请求 AC=0xCA(Seq=10) FC=0x81=129 无对象",
-    "响应 Obj=51.1(0x33 0x01) Qual=0x07 count=1 数据=01 (重启时长 1 秒); 包序 3+4+4=11"
-   ]
-  }
- },
- {
-  "id": "dnp3_write_single_80_1",
-  "proto": "dnp3",
-  "summary": "§6.4: write_single → FC=2 write Obj=80.1 Qual=0x00 Range=07 07 Data=01",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "write_single",
-    "app_func": "write",
-    "app_seq": 2,
-    "objects": [
-     {
-      "object_type": 80,
-      "variation": 1,
-      "qualifier": 0,
-      "index_range": [
-       7,
-       7
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 00 04 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "05 64 07 d3 00 04 01 00"
+        },
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "05 64 06 03 01 00 00 04"
+        }
       ],
-      "points": [
-       {
-        "value": 1
-       }
+      "notes": [
+        "§6.2: 请求 Control=0xD3(FC=3 UserData Confirmed, FCV=1) 链路头 + App层 c0 01 3c 01 06 (AC=0xC0, FC=1, Obj=60.1, Qual=6)",
+        "响应 Control=0x03(DIR=0,FC=3) 链路头 + App层 c2 0d 00 00 (AC=0xC2, FC=13, IIN=0x0000)",
+        "包序 1-3 握手, 4 ResetLink, 5 ACK, 6 read, 7 ACK, 8 respond, 9 ACK, 10-13 挥手"
       ]
-     }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
     ]
-   }
   },
-  "expect": {
-   "packet_count": 11,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 0a d3 00 04 01 00"
+  {
+    "id": "dnp3_t23_select_operate",
+    "proto": "dnp3",
+    "summary": "T23/T65: select_operate 场景 → select(FC=3) + operate(FC=4) 各带响应，SBO 共享 AppSeq=3",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "select_operate",
+            "app_seq": 3,
+            "objects": [
+              {
+                "object_type": 12,
+                "variation": 1,
+                "qualifier": 0,
+                "index_range": [
+                  5,
+                  5
+                ],
+                "points": [
+                  {
+                    "value": 1
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
     },
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "05 64 0c 03 01 00 00 04"
-    }
-   ],
-   "notes": [
-    "§6.4: 请求字节 c2 02 50 01 00 07 07 01 (AC=0xC2, FC=2, Obj=80.1, Qual=0x00, Range=07 07, Data=01)",
-    "响应 IIN=0x0000 写成功; 包序 3+4+4=11"
-   ]
-  }
- },
- {
-  "id": "dnp3_t27_udp_transport",
-  "proto": "dnp3",
-  "summary": "T27: UDP transport → 无握手/挥手，每链路帧前置 2B 传输头(LTH+SEQ)，reset_link 场景 2 包",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "udp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "reset_link"
-   }
-  },
-  "expect": {
-   "packet_count": 2,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "udp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 1,
-     "offset": 42,
-     "hex": "90 00 05 64 06 c0 00 04 01 00"
-    },
-    {
-     "packet": 2,
-     "offset": 42,
-     "hex": "90 01 05 64 06 00 01 00 00 04"
-    }
-   ],
-   "notes": [
-    "§2.9/T27: UDP 载荷前置 LTH(len|0x80)+SEQ, 帧头仍 05 64; offset 42 = Eth14+IPv4 20+UDP 8",
-    "LTH=0x8A(10B 数据|0x80) SEQ 0/1; 无 TCP 握手与挥手"
-   ]
-  }
- },
- {
-  "id": "dnp3_t28_no_handshake",
-  "proto": "dnp3",
-  "summary": "T28: handshake=false → 无 TCP 握手，直接从 Reset Link 开始（reset_link 场景 2+4=6 包）",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "reset_link",
-    "handshake": false
-   }
-  },
-  "expect": {
-   "packet_count": 6,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "tcp.flags",
-     "value": "0x0018"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 1,
-     "offset": 54,
-     "hex": "05 64 06  c0 00 04 01 00"
-    },
-    {
-     "packet": 2,
-     "offset": 54,
-     "hex": "05 64 06  00 01 00 00 04"
-    }
-   ],
-   "notes": [
-    "T28: 首包即 DNP3 Reset Link (PSH-ACK 0x18), 无 SYN; 挥手 4 包收尾"
-   ]
-  }
- },
- {
-  "id": "dnp3_t34_broadcast_no_ack",
-  "proto": "dnp3",
-  "summary": "T34: DstAddr=0xFFFF + direct_operate_no_ack → 外设不响应，仅请求帧（无 ACK/Respond），广播地址",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 65535,
-    "scenario": "",
-    "app_func": "direct_operate_no_ack",
-    "app_seq": 0,
-    "objects": [
-     {
-      "object_type": 12,
-      "variation": 1,
-      "qualifier": 0,
-      "index_range": [
-       0,
-       0
+    "expect": {
+      "packet_count": 15,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        },
+        {
+          "packet": 6,
+          "field": "tcp.srcport",
+          "value": "20000"
+        }
       ],
-      "points": [
-       {
-        "value": 1
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 8,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 0f d3 ff ff 01 00"
-    }
-   ],
-   "notes": [
-    "§6.16/T34: FC=6 Direct Operate No Ack 无响应; DstAddr=0xFFFF(ff ff) 广播",
-    "包序: 3握手 + 1请求 + 4挥手 = 8 包"
-   ]
-  }
- },
- {
-  "id": "dnp3_t29_no_termination",
-  "proto": "dnp3",
-  "summary": "T29: Termination=false → 无 TCP FIN，以最后 DNP3 ACK 结束（5 包）",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "reset_link",
-    "termination": false
-   }
-  },
-  "expect": {
-   "packet_count": 5,
-   "has_handshake": true,
-   "terminates": false,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 00 04 01 00"
-    },
-    {
-     "packet": 5,
-     "offset": 54,
-     "hex": "05 64 06  00 01 00 00 04"
-    }
-   ],
-   "notes": [
-    "T29: termination=false 跳过 TCP FIN 挥手, 包序: 3握手 + ResetLink + ACK = 5 包",
-    "terminates=false 标记确保挥手不被检查"
-   ]
-  }
- },
- {
-  "id": "dnp3_t30_appseq_wrap",
-  "proto": "dnp3",
-  "summary": "T30: AppSeq=15 回绕 → multi-request 场景，AppSeq 15→0",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "read_class0",
-    "app_seq": 15,
-    "objects": [
-     {
-      "object_type": 60,
-      "variation": 1,
-      "qualifier": 6
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 13,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    },
-    {
-     "packet": 6,
-     "field": "tcp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 00 04 01 00"
-    },
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "05 64 07 d3 00 04 01 00"
-    }
-   ],
-   "notes": [
-    "T30: AppSeq=15 在 read 请求中 AC=0xCF(FIR=1,FIN=1,CON=1,Seq=15), 回绕由下次请求触发",
-    "链路头不变, AppSeq 仅影响 App 层 AC 字节"
-   ]
-  }
- },
- {
-  "id": "dnp3_t36_malformed_crc",
-  "proto": "dnp3",
-  "summary": "T36: MalformedCRC=true → CRC 字节被篡改，外设应检测 CRC 错误",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "read_class0",
-    "app_seq": 0,
-    "malformed_crc": true,
-    "objects": [
-     {
-      "object_type": 60,
-      "variation": 1,
-      "qualifier": 6
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 13,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 00 04 01 00"
-    },
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "05 64 07 d3 00 04 01 00"
-    }
-   ],
-   "notes": [
-    "T36: MalformedCRC=true 篡改请求帧 CRC 字节(1 bit 翻转), 链路头前 8 字节不变",
-    "外设收到坏 CRC 请求后仍需 ACK(链路层不验证), App 层会丢弃"
-   ]
-  }
- },
- {
-  "id": "dnp3_t48_iin_already_executing",
-  "proto": "dnp3",
-  "summary": "T48: IINAlreadyExecuting=true → 响应 IIN byte2=0x04 (AlreadyExecuting bit)",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "read_class0",
-    "app_seq": 0,
-    "iin_already_executing": true,
-    "objects": [
-     {
-      "object_type": 60,
-      "variation": 1,
-      "qualifier": 6
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 13,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 00 04 01 00"
-    },
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "05 64 07 d3 00 04 01 00"
-    },
-    {
-     "packet": 8,
-     "offset": 54,
-     "hex": "05 64 06 03 01 00 00 04"
-    }
-   ],
-   "notes": [
-    "T48: IINAlreadyExecuting 设置后响应 IIN byte2=0x04, 响应 FC=1(read 响应)",
-    "链路头 Control=0x03(outstation user data confirmed), 响应链路长=6(AC+FC+IIN 2B+CRC2B)"
-   ]
-  }
- },
- {
-  "id": "dnp3_t49_iin_event_buffer_overflow",
-  "proto": "dnp3",
-  "summary": "T49: IINEventBufferOverflow=true → 响应 IIN byte2=0x08 (EventBufferOverflow bit)",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "read_class0",
-    "app_seq": 0,
-    "iin_event_buffer_overflow": true,
-    "objects": [
-     {
-      "object_type": 60,
-      "variation": 1,
-      "qualifier": 6
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 13,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 00 04 01 00"
-    },
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "05 64 07 d3 00 04 01 00"
-    },
-    {
-     "packet": 8,
-     "offset": 54,
-     "hex": "05 64 06 03 01 00 00 04"
-    }
-   ],
-   "notes": [
-    "T49: IINEventBufferOverflow=true, 响应 IIN byte2=0x08",
-    "链路头 Control=0x03, Length=6(无对象, 仅 FC+IIN)"
-   ]
-  }
- },
- {
-  "id": "dnp3_t50_iin_local_control",
-  "proto": "dnp3",
-  "summary": "T50: IINLocalControl=true → 响应 IIN byte1=0x04 (LocalControl bit)",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "read_class0",
-    "app_seq": 0,
-    "iin_local_control": true,
-    "objects": [
-     {
-      "object_type": 60,
-      "variation": 1,
-      "qualifier": 6
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 13,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 00 04 01 00"
-    },
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "05 64 07 d3 00 04 01 00"
-    },
-    {
-     "packet": 8,
-     "offset": 54,
-     "hex": "05 64 06 03 01 00 00 04"
-    }
-   ],
-   "notes": [
-    "T50: IINLocalControl=true, 响应 IIN byte1=0x04",
-    "链路头 Control=0x03, Length=6"
-   ]
-  }
- },
- {
-  "id": "dnp3_t52_iin_config_corrupt",
-  "proto": "dnp3",
-  "summary": "T52: IINConfigCorrupt=true → 响应 IIN byte2=0x80 (ConfigCorrupt bit)",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "read_class0",
-    "app_seq": 0,
-    "iin_config_corrupt": true,
-    "objects": [
-     {
-      "object_type": 60,
-      "variation": 1,
-      "qualifier": 6
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 13,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 00 04 01 00"
-    },
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "05 64 07 d3 00 04 01 00"
-    },
-    {
-     "packet": 8,
-     "offset": 54,
-     "hex": "05 64 06 03 01 00 00 04"
-    }
-   ],
-   "notes": [
-    "T52: IINConfigCorrupt=true, 响应 IIN byte2=0x80",
-    "链路头 Control=0x03, Length=6"
-   ]
-  }
- },
- {
-  "id": "dnp3_t46_unknown_func",
-  "proto": "dnp3",
-  "summary": "T46: UnknownFunc=true → 请求 FC=0xC8(200), 外设响应 FC=0xC9(201 FunctionUnknown)",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "",
-    "app_func_code": 200,
-    "unknown_func": true,
-    "app_seq": 0,
-    "objects": []
-   }
-  },
-  "expect": {
-   "packet_count": 11,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06 d3 00 04 01 00"
-    },
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "05 64 06 03 01 00 00 04"
-    }
-   ],
-   "notes": [
-    "T46: UnknownFunc=true + app_func_code=200, 请求 FC=200(0xC8)",
-    "响应 FC=201(0xC9 FunctionUnknown), IIN byte2 含 FuncNotSupported=0x40",
-    "链路头 Control=0xD3(请求)/0x03(响应), 请求 Length=4(AC+FC+CRC2B), 响应 Length=6(AC+FC+IIN 2B+CRC2B)"
-   ]
-  }
- },
- {
-  "id": "dnp3_t37_iin_object_unknown",
-  "proto": "dnp3",
-  "summary": "T37: IINObjectUnknown=true → 响应 IIN byte2=0x20 (ObjectUnknown bit) + Obj=255,Var=0,Qual=6",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "read_class0",
-    "app_seq": 0,
-    "iin_object_unknown": true,
-    "objects": [
-     {
-      "object_type": 60,
-      "variation": 1,
-      "qualifier": 6
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 13,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 00 04 01 00"
-    },
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "05 64 07 d3 00 04 01 00"
-    },
-    {
-     "packet": 8,
-     "offset": 54,
-     "hex": "05 64 06 03 01 00 00 04"
-    }
-   ],
-   "notes": [
-    "T37: IINObjectUnknown=true, 响应 IIN byte2=0x20 (ObjectUnknown bit)",
-    "链路头 Control=0x03 Length=6, App层 c0 0d 00 20 (AC+FC+IIN2B=00 20)",
-    "注: responseObjects 对 AppRead 返回 nil 强制覆盖 UnknownObject=true, 因此响应无对象"
-   ]
-  }
- },
- {
-  "id": "dnp3_t31_multi_outstation_3",
-  "proto": "dnp3",
-  "summary": "T31: MultiOutstation Count=3 → 3 个外设各不同 4-tuple，独立 ResetLink 流",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "reset_link",
-    "multi_outstation": {
-     "outstation_count": 3,
-     "outstation_addr_start": 1025,
-     "outstation_ip_list": [
-      "10.0.0.2",
-      "10.0.0.3",
-      "10.0.0.4"
-     ],
-     "src_port_start": 20001
-    }
-   }
-  },
-  "expect": {
-   "packet_count": 27,
-   "has_handshake": true,
-   "directional": true,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "tcp.srcport",
-     "value": "20001"
-    },
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 01 04 01 00"
-    }
-   ],
-   "notes": [
-    "T31: MultiOutstation Count=3, 每个外设独立 4-tuple: src_port 20001/20002/20003, dst 10.0.0.2/3/4, DstAddr 1025/1026/1027",
-    "第一个外设(DstAddr=0x0401=1025 LE) ResetLink 帧 8B 头: 05 64 00 c0 01 04 01 00",
-    "每流 = 3握手 + ResetLink + ACK + FIN + 3挥手 = 9 包 × 3 = 27 包"
-   ]
-  }
- },
- {
-  "id": "dnp3_t43_malformed_length",
-  "proto": "dnp3",
-  "summary": "T43: MalformedLength=255 → Length 字节被设为 0xFF（无效值）",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "read_class0",
-    "app_seq": 0,
-    "malformed_length": 255,
-    "objects": [
-     {
-      "object_type": 60,
-      "variation": 1,
-      "qualifier": 6
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 13,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 ff c0 00 04 01 00"
-    },
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "05 64 ff d3 00 04 01 00"
-    }
-   ],
-   "notes": [
-    "T43: MalformedLength=255 作用于每个链路帧 Length 字节(偏移 56), 含 ResetLink/read/respond/ACK",
-    "链路头 start/Control/DstAddr/SrcAddr 不变, 仅 Length 被篡改; CRC 不重算",
-    "外设收到 Length=255 判定为无效帧并丢弃, 仅链路 ACK"
-   ]
-  }
- },
- {
-  "id": "dnp3_t1_valid_minimal",
-  "proto": "dnp3",
-  "summary": "T1 ValidMinimal: 默认 master/read_class0 最小配置, 期望成功生成 pcap",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dnp3": {
-    "transport": "tcp",
-    "scenario": "read_class0"
-   }
-  },
-  "expect": {
-   "min_packets": 4,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64"
-    }
-   ],
-   "notes": [
-    "T1: 默认 link_type=master, scenario=read_class0, AppFuncCode=1 Read",
-    "默认 dst_addr=1024, src_addr=1, app_seq=0",
-    "Packet 3 是 TCP ACK (空 payload), 故帧断言必须指向 PSH,ACK (packet 4)"
-   ]
-  }
- },
- {
-  "id": "dnp3_t3_valid_outstation",
-  "proto": "dnp3",
-  "summary": "T3 ValidOutstation: link_type=outstation, scenario=respond, 期望成功生成 pcap",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dnp3": {
-    "transport": "tcp",
-    "link_type": "outstation",
-    "scenario": "respond"
-   }
-  },
-  "expect": {
-   "min_packets": 4,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.srcport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64"
-    }
-   ],
-   "notes": [
-    "T3: outstation 角色, scenario=respond 触发 Respond 帧(FIR/FIN)",
-    "LinkFC 默认 0(Reset); 响应帧由 outstation 主动发起, srcport=20000"
-   ]
-  }
- },
- {
-  "id": "dnp3_t4_invalid_link_type",
-  "proto": "dnp3",
-  "summary": "T4 InvalidLinkType: link_type='slave' 应被 Validate 拒绝, MCP 报错",
-  "spec_json": {
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "dnp3": {
-    "transport": "tcp",
-    "link_type": "slave",
-    "scenario": "read_class0"
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "link_type",
-   "notes": [
-    "T4: Validate 限制 link_type 仅 master/outstation, 'slave' 应拒绝"
-   ]
-  }
- },
- {
-  "id": "dnp3_t5_invalid_transport",
-  "proto": "dnp3",
-  "summary": "T5 InvalidTransport: transport='sctp' 应被 Validate 拒绝, MCP 报错",
-  "spec_json": {
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "dnp3": {
-    "transport": "sctp",
-    "scenario": "read_class0"
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "transport",
-   "notes": [
-    "T5: Validate 限制 transport 仅 tcp/udp"
-   ]
-  }
- },
- {
-  "id": "dnp3_t6_invalid_app_func",
-  "proto": "dnp3",
-  "summary": "T6 InvalidAppFunc: app_func='foobar' (字符串而非 uint8) 应被解析拒绝, MCP 报错",
-  "spec_json": {
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "dnp3": {
-    "transport": "tcp",
-    "scenario": "read_class0",
-    "app_func": "foobar"
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "",
-   "notes": [
-    "T6: app_func 字段为 uint8, 字符串 foobar 应在 JSON 解析或 Validate 阶段报错"
-   ]
-  }
- },
- {
-  "id": "dnp3_t7_appseq_overflow",
-  "proto": "dnp3",
-  "summary": "T7 越界: app_seq=16 超出 [0..15] 范围, Validate 拒绝",
-  "spec_json": {
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "dnp3": {
-    "transport": "tcp",
-    "scenario": "read_class0",
-    "app_seq": 16
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "app_seq",
-   "notes": [
-    "T7: app_seq 为 uint4, 16 超出范围 Validate 拒绝; spec ID T7 实质含义为字段越界"
-   ]
-  }
- },
- {
-  "id": "dnp3_t8_broadcast_confirm",
-  "proto": "dnp3",
-  "summary": "T8 BroadcastConfirm: dst_addr=65535 + confirm_required=true 互斥, Validate 拒绝",
-  "spec_json": {
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "dnp3": {
-    "transport": "tcp",
-    "scenario": "read_class0",
-    "dst_addr": 65535,
-    "confirm_required": true
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "",
-   "notes": [
-    "T8: Validate 检查 broadcast (0xFFFF) 不能 require confirm"
-   ]
-  }
- },
- {
-  "id": "dnp3_t39_link_fc_status",
-  "proto": "dnp3",
-  "summary": "T39 LinkFC=2 Status: 重置/ACK 帧 Control 字段 FC=2 而非默认 0",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dnp3": {
-    "transport": "tcp",
-    "scenario": "reset_link",
-    "link_fc": 2
-   }
-  },
-  "expect": {
-   "min_packets": 4,
-   "has_handshake": true,
-   "terminates": true,
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 57,
-     "hex": "c2"
-    },
-    {
-     "packet": 5,
-     "offset": 57,
-     "hex": "00"
-    }
-   ],
-   "notes": [
-    "T39: LinkFC=2 (Status) 仅替换上行的 UserConfirm FC, reset_link 的下行 ACK 硬编码 FC=0",
-    "Packet 4 是 Reset Link 上行帧 Control=0xC2 (PRM=1, FC=2); 下行 ACK Control=0x00"
-   ]
-  }
- },
- {
-  "id": "dnp3_t40_link_fc_overflow",
-  "proto": "dnp3",
-  "summary": "T40 LinkFC=15 Validate 拒绝, MCP 报错",
-  "spec_json": {
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "dnp3": {
-    "transport": "tcp",
-    "scenario": "reset_link",
-    "link_fc": 15
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "link_fc",
-   "notes": [
-    "T40: LinkFC 范围 [0..11], 15 应被 Validate 拒绝"
-   ]
-  }
- },
- {
-  "id": "dnp3_t41_fcb_zero_only",
-  "proto": "dnp3",
-  "summary": "T41 LinkFCB=1 但 FCV=0: wire 上 FCB 强制为 0",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dnp3": {
-    "transport": "tcp",
-    "scenario": "reset_link",
-    "link_fcb": 1,
-    "link_fcv": 0
-   }
-  },
-  "expect": {
-   "min_packets": 4,
-   "has_handshake": true,
-   "terminates": true,
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 57,
-     "hex": "c0"
-    }
-   ],
-   "notes": [
-    "T41: FCV=0 强制 FCB=0, wire Control byte 末位=0 → 0xC0 (PRM=1,FC=0,FCV=0,FCB=0)",
-    "注释 LinkFCB=1 不会被使用"
-   ]
-  }
- },
- {
-  "id": "dnp3_t42_fcb_toggle",
-  "proto": "dnp3",
-  "summary": "T42 LinkFCB=1+FCV=1: read_class0 请求帧 FCB=1, 响应帧 FCB=0",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dnp3": {
-    "transport": "tcp",
-    "scenario": "read_class0",
-    "link_fcb": 1,
-    "link_fcv": 1
-   }
-  },
-  "expect": {
-   "min_packets": 5,
-   "has_handshake": true,
-   "terminates": true,
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 57,
-     "hex": "f3"
-    },
-    {
-     "packet": 8,
-     "offset": 57,
-     "hex": "03"
-    }
-   ],
-   "notes": [
-    "T42: read_class0 TCP 包序列: 1=SYN, 2=SYNACK, 3=ACK, 4=ResetLink up, 5=ResetACK down, 6=read request, 7=down ack (10B, Control=0x00), 8=respond, 9=up ack",
-    "上行 read 请求 Control=0xF3 (DIR=1,PRM=1,FCV=1,FCB=1,FC=3);",
-    "下行 respond Control=0x03 (DIR=0,PRM=0,FCV=0,FCB=0,FC=3) — 仅 PRM=1 主站端翻转 FCB;副站(PRM=0)FCB 固定为 0",
-    "下行 ack Control=0x00 (DIR=0,PRM=0,FC=0)"
-   ]
-  }
- },
- {
-  "id": "dnp3_t44_malformed_length_zero",
-  "proto": "dnp3",
-  "summary": "T44 MalformedLength=0: 所有帧 Length 字节=0x00 (CRC 仍正确)",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dnp3": {
-    "transport": "tcp",
-    "scenario": "read_class0",
-    "malformed_length": 0
-   }
-  },
-  "expect": {
-   "min_packets": 4,
-   "has_handshake": true,
-   "terminates": true,
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 56,
-     "hex": "00"
-    }
-   ],
-   "notes": [
-    "T44: MalformedLength=0 强制每个链路帧 Length=0x00",
-    "CRC 字节不重算, 故总长度与 Length 不一致"
-   ]
-  },
-  "notes": [
-   "reset 帧含 3B 用户数据+CRC, Length 被强制为 0x00, 帧总长 15B; offset 56→62"
-  ]
- },
- {
-  "id": "dnp3_t47_malformed_length_200",
-  "proto": "dnp3",
-  "summary": "T47 MalformedLength=200 合法范围: 帧 Length 字节=0xC8",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dnp3": {
-    "transport": "tcp",
-    "scenario": "read_class0",
-    "malformed_length": 200
-   }
-  },
-  "expect": {
-   "min_packets": 4,
-   "has_handshake": true,
-   "terminates": true,
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 56,
-     "hex": "c8"
-    }
-   ],
-   "notes": [
-    "T47: MalformedLength=200 (0xC8) 在合法 [0..255] 范围, 注入到每个帧 Length 字节",
-    "CRC 字节不重算"
-   ]
-  }
- },
- {
-  "id": "dnp3_t14_block16_crc",
-  "proto": "dnp3",
-  "summary": "T14 16B user-data 分块: CRC 分块写入链路帧",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dnp3": {
-    "transport": "tcp",
-    "scenario": "read_class0",
-    "objects": [
-     {
-      "object_type": 60,
-      "variation": 1,
-      "qualifier": 6
-     }
-    ],
-    "user_data_size": 16
-   }
-  },
-  "expect": {
-   "min_packets": 4,
-   "has_handshake": true,
-   "terminates": true,
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64"
-    }
-   ],
-   "notes": [
-    "T14: 16B 用户数据触发单个 16B 分块(Length=18)",
-    "校验链路帧首部与 App 层完整"
-   ]
-  }
- },
- {
-  "id": "dnp3_t15_block17_crc",
-  "proto": "dnp3",
-  "summary": "T15 17B user-data: CRC 分两块写入 (16B+1B) 含独立 CRC",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dnp3": {
-    "transport": "tcp",
-    "scenario": "read_class0",
-    "objects": [
-     {
-      "object_type": 60,
-      "variation": 1,
-      "qualifier": 6
-     }
-    ],
-    "user_data_size": 17
-   }
-  },
-  "expect": {
-   "min_packets": 4,
-   "has_handshake": true,
-   "terminates": true,
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64"
-    }
-   ],
-   "notes": [
-    "T15: 17B 用户数据触发 16B+1B 双 CRC 分块 (两个 CRC16/DNP 各自保护一块)"
-   ]
-  }
- },
- {
-  "id": "dnp3_t51_iin_broadcast",
-  "proto": "dnp3",
-  "summary": "T51 IINBroadcast: iin_broadcast=true → 响应 IIN byte1=0x80 (BROADCAST bit7)",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dnp3": {
-    "transport": "tcp",
-    "scenario": "respond",
-    "iin_broadcast": true
-   }
-  },
-  "expect": {
-   "min_packets": 4,
-   "has_handshake": true,
-   "terminates": true,
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 66,
-     "hex": "80 00"
-    }
-   ],
-   "notes": [
-    "T51: 使用 scenario=respond 直接构造响应帧（绕过 exchange() 在 DstAddr=0xFFFF 时的 short-circuit）",
-    "IIN byte1=0x80 表示 BROADCAST 位 (bit7);byte2=0x00"
-   ]
-  }
- },
- {
-  "id": "dnp3_t53_iin_all_bits",
-  "proto": "dnp3",
-  "summary": "T53 IINAllBits: 全 shorthand=true (除 ConfigCorrupt) → byte1=0x7A, byte2=0x7C",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dnp3": {
-    "transport": "tcp",
-    "scenario": "respond",
-    "iin_class1": true,
-    "iin_class2": true,
-    "iin_class3": true,
-    "iin_need_time": true,
-    "iin_device_trouble": true,
-    "iin_object_unknown": true,
-    "iin_parameter_error": true,
-    "iin_func_not_supported": true,
-    "iin_already_executing": true,
-    "iin_event_buffer_overflow": true,
-    "iin_config_corrupt": false
-   }
-  },
-  "expect": {
-   "min_packets": 4,
-   "has_handshake": true,
-   "terminates": true,
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 66,
-     "hex": "7a 7c"
-    }
-   ],
-   "notes": [
-    "T53: byte1=Class1(0x40)+Class2(0x20)+Class3(0x10)+NeedTime(0x08)+DeviceTrouble(0x02)=0x7A",
-    "byte2=FuncNotSupported(0x40)+ObjectUnknown(0x20)+ParameterError(0x10)+AlreadyExecuting(0x04)+EventBufferOverflow(0x08)=0x7C"
-   ]
-  }
- },
- {
-  "id": "dnp3_t54_iin_raw_and_shorthand",
-  "proto": "dnp3",
-  "summary": "T54 IINRaw+Shorthand: iin=0x4000 (Class1) + iin_class2=true → byte1=0x60 OR",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dnp3": {
-    "transport": "tcp",
-    "scenario": "respond",
-    "iin": 16384,
-    "iin_class2": true
-   }
-  },
-  "expect": {
-   "min_packets": 4,
-   "has_handshake": true,
-   "terminates": true,
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 66,
-     "hex": "60 00"
-    }
-   ],
-   "notes": [
-    "T54: raw IIN=0x4000 提供 Class1=0x40;shorthand iin_class2=true 提供 Class2=0x20",
-    "effectiveIIN OR 关系: byte1=0x40+0x20=0x60, byte2=0x00"
-   ]
-  }
- },
- {
-  "id": "dnp3_t9_multi_zero_count",
-  "proto": "dnp3",
-  "summary": "T9 Validate: OutstationCount=0 → 拒绝 (outstation_count must be > 0)",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "reset_link",
-    "multi_outstation": {
-     "outstation_count": 0,
-     "outstation_ip_start": "10.0.0.2",
-     "src_port_start": 20001
-    }
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "outstation_count",
-   "notes": [
-    "T9: OutstationCount=0 非法 → Validate 拒绝, 任务以 validation failed 失败"
-   ]
-  }
- },
- {
-  "id": "dnp3_t10_multi_iplist_mismatch",
-  "proto": "dnp3",
-  "summary": "T10 Validate: OutstationCount=2 但 IPList 长度=1 → 拒绝 (length mismatch)",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "reset_link",
-    "multi_outstation": {
-     "outstation_count": 2,
-     "outstation_ip_list": [
-      "10.0.0.2"
-     ],
-     "src_port_start": 20001
-    }
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "outstation_ip_list",
-   "notes": [
-    "T10: IPList 长度 1 != OutstationCount 2 → Validate 拒绝"
-   ]
-  }
- },
- {
-  "id": "dnp3_t56_outstation_ip_start",
-  "proto": "dnp3",
-  "summary": "T56: OutstationIPStart=10.0.0.10 Count=3 → RTU 0/1/2 = 10.0.0.10/11/12 连续递增",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "reset_link",
-    "multi_outstation": {
-     "outstation_count": 3,
-     "outstation_addr_start": 1025,
-     "outstation_ip_start": "10.0.0.10",
-     "src_port_start": 20001
-    }
-   }
-  },
-  "expect": {
-   "packet_count": 27,
-   "has_handshake": true,
-   "directional": true,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "ip.dst",
-     "value": "10.0.0.10"
-    },
-    {
-     "packet": 1,
-     "field": "tcp.srcport",
-     "value": "20001"
-    },
-    {
-     "packet": 10,
-     "field": "ip.dst",
-     "value": "10.0.0.11"
-    },
-    {
-     "packet": 10,
-     "field": "tcp.srcport",
-     "value": "20002"
-    },
-    {
-     "packet": 19,
-     "field": "ip.dst",
-     "value": "10.0.0.12"
-    },
-    {
-     "packet": 19,
-     "field": "tcp.srcport",
-     "value": "20003"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 01 04 01 00"
-    },
-    {
-     "packet": 13,
-     "offset": 54,
-     "hex": "05 64 06  c0 02 04 01 00"
-    },
-    {
-     "packet": 22,
-     "offset": 54,
-     "hex": "05 64 06  c0 03 04 01 00"
-    }
-   ],
-   "notes": [
-    "T56: 无 IPList, OutstationIPStart=10.0.0.10 → RTU0=10.0.0.10, RTU1=10.0.0.11, RTU2=10.0.0.12 (连续递增)",
-    "每流 9 包 = 3握手 + ResetLink + ACK + FIN + 3挥手; 3 流顺序写入 pcap (流0=包1-9, 流1=包10-18, 流2=包19-27)",
-    "链路帧 DstAddr: RTU0=1025(0x0401) / RTU1=1026(0x0402) / RTU2=1027(0x0403), LE 字节序"
-   ]
-  }
- },
- {
-  "id": "dnp3_t57_multi_no_ip",
-  "proto": "dnp3",
-  "summary": "T57 Validate: OutstationCount=2 无 IPStart 无 IPList → 拒绝 (outstation_ip required)",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "reset_link",
-    "multi_outstation": {
-     "outstation_count": 2
-    }
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "outstation_ip",
-   "notes": [
-    "T57: Count>1 且既无 IPList 也无 IPStart → Validate 拒绝 outstation_ip required"
-   ]
-  }
- },
- {
-  "id": "dnp3_t58_multi_port_zero",
-  "proto": "dnp3",
-  "summary": "T58 Validate: OutstationCount=2 + IPList 但 SrcPortStart=0 → 拒绝 (src_port_start must be set)",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "reset_link",
-    "multi_outstation": {
-     "outstation_count": 2,
-     "outstation_ip_list": [
-      "10.0.0.2",
-      "10.0.0.3"
-     ],
-     "src_port_start": 0
-    }
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "src_port_start",
-   "notes": [
-    "T58: IPList 合法(长度=Count) 但 SrcPortStart=0 → Validate 拒绝 src_port_start must be set"
-   ]
-  }
- },
- {
-  "id": "dnp3_t59_multi_port_overflow",
-  "proto": "dnp3",
-  "summary": "T59 Validate: OutstationCount=10 + SrcPortStart=65530 → 拒绝 (exceeds 65535)",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "reset_link",
-    "multi_outstation": {
-     "outstation_count": 10,
-     "outstation_ip_list": [
-      "10.0.0.2",
-      "10.0.0.3",
-      "10.0.0.4",
-      "10.0.0.5",
-      "10.0.0.6",
-      "10.0.0.7",
-      "10.0.0.8",
-      "10.0.0.9",
-      "10.0.0.10",
-      "10.0.0.11"
-     ],
-     "src_port_start": 65530
-    }
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "exceeds 65535",
-   "notes": [
-    "T59: 65530 + 10 - 1 = 65539 > 65535 → Validate 拒绝 src_port_start + outstation_count exceeds 65535"
-   ]
-  }
- },
- {
-  "id": "dnp3_t60_iplist_overrides_start",
-  "proto": "dnp3",
-  "summary": "T60: IPStart=10.0.0.10 + IPList=[10.0.0.20,10.0.0.30] → IPList 优先, RTU0=.20 RTU1=.30",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "reset_link",
-    "multi_outstation": {
-     "outstation_count": 2,
-     "outstation_addr_start": 1025,
-     "outstation_ip_start": "10.0.0.10",
-     "outstation_ip_list": [
-      "10.0.0.20",
-      "10.0.0.30"
-     ],
-     "src_port_start": 20001
-    }
-   }
-  },
-  "expect": {
-   "packet_count": 18,
-   "has_handshake": true,
-   "directional": true,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "ip.dst",
-     "value": "10.0.0.20"
-    },
-    {
-     "packet": 1,
-     "field": "tcp.srcport",
-     "value": "20001"
-    },
-    {
-     "packet": 10,
-     "field": "ip.dst",
-     "value": "10.0.0.30"
-    },
-    {
-     "packet": 10,
-     "field": "tcp.srcport",
-     "value": "20002"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 01 04 01 00"
-    },
-    {
-     "packet": 13,
-     "offset": 54,
-     "hex": "05 64 06  c0 02 04 01 00"
-    }
-   ],
-   "notes": [
-    "T60: IPStart=10.0.0.10 但 IPList 非空 → IPList 覆盖 IPStart: RTU0=10.0.0.20, RTU1=10.0.0.30",
-    "2 流 × 9 包 = 18 包; 链路帧 DstAddr RTU0=1025 / RTU1=1026"
-   ]
-  }
- },
- {
-  "id": "dnp3_t35_empty_objects_link_only",
-  "proto": "dnp3",
-  "summary": "T35: Objects=[] + reset_link → 仅链路帧 (ResetLink up + ACK down), 无 App 层",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "reset_link",
-    "objects": []
-   }
-  },
-  "expect": {
-   "packet_count": 9,
-   "has_handshake": true,
-   "terminates": true,
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 00 04 01 00"
-    },
-    {
-     "packet": 5,
-     "offset": 54,
-     "hex": "05 64 06  00 01 00 00 04"
-    }
-   ],
-   "notes": [
-    "T35: scenario=reset_link 早返回 (scenario.go line 39) 不走 defaultObjects; Objects=[] 即 0 对象, 仅链路帧",
-    "packet 4 ResetLink up: Length=0, ctrl=0xC0 (DIR|PRM|FC=0), dst=1024(00 04), src=1(01 00); packet 5 ACK down: ctrl=0x00, dst=1, src=1024",
-    "包序 3握手(1-3) + ResetLink(4) + ACK(5) + 4挥手(6-9) = 9 包, 无任何 App 层字节"
-   ]
-  }
- },
- {
-  "id": "dnp3_t45_unknown_object_respond",
-  "proto": "dnp3",
-  "summary": "T45: UnknownObject=true read_class0 → 响应 Object=255 Var=0 Q=0x06, IIN byte2=0x20",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "read_class0",
-    "unknown_object": true
-   }
-  },
-  "expect": {
-   "packet_count": 13,
-   "has_handshake": true,
-   "terminates": true,
-   "frames": [
-    {
-     "packet": 8,
-     "offset": 66,
-     "hex": "00 20"
-    },
-    {
-     "packet": 8,
-     "offset": 68,
-     "hex": "ff 00 06"
-    }
-   ],
-   "notes": [
-    "T45: 走 read_class0 exchange() 路径, responseObjects(c, AppRead, ...) 在 UnknownObject=true 时返回 {255,0,6}",
-    "响应帧 packet 8: IIN offset 66-67 = byte1=00, byte2=0x20 (ObjectUnknown bit5); object offset 68-70 = ObjectType=255, Variation=0, Qualifier=0x06",
-    "App FC byte (offset 65) 由 buggy types.go 发出 0x0D (应 0x81 per IEEE 1815-2012, 见 dnp3-spec-mapping.md 备注)"
-   ]
-  }
- },
- {
-  "id": "dnp3_t70_response_var0_rejected",
-  "proto": "dnp3",
-  "summary": "T70 Validate: outstation+respond + Object{20,0,6} → 拒绝 (Variation=0 in response frame)",
-  "spec_json": {
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "dnp3": {
-    "link_type": "outstation",
-    "transport": "tcp",
-    "src_addr": 1024,
-    "dst_addr": 1,
-    "app_func": "respond",
-    "objects": [
-     {
-      "object_type": 20,
-      "variation": 0,
-      "qualifier": 6
-     }
-    ]
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "Variation",
-   "notes": [
-    "T70: isResponse=true (link_type=outstation) + Variation=0 → Validate 拒绝, 错误信息含 Variation"
-   ]
-  }
- },
- {
-  "id": "dnp3_t71_request_var0_accepted",
-  "proto": "dnp3",
-  "summary": "T71: master+read + Object{20,0,6} → 通过 (请求帧 Variation=0 = 任意变体)",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "app_func": "read",
-    "objects": [
-     {
-      "object_type": 20,
-      "variation": 0,
-      "qualifier": 6
-     }
-    ]
-   }
-  },
-  "expect": {
-   "min_packets": 4,
-   "has_handshake": true,
-   "terminates": true,
-   "notes": [
-    "T71: 请求帧 Variation=0 表示'任意变体' (IEEE 1815-2012 §5.1.1), Validate 通过",
-    "isResponse=false (master+read) 不触发 response Variation=0 校验"
-   ]
-  }
- },
- {
-  "id": "dnp3_t72_freeze_clear_var1",
-  "proto": "dnp3",
-  "summary": "T72: scenario=freeze_clear + Object{20,1,6} → 请求帧 data = C0 09 14 01 06",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "freeze_clear",
-    "app_seq": 0,
-    "objects": [
-     {
-      "object_type": 20,
-      "variation": 1,
-      "qualifier": 6
-     }
-    ]
-   }
-  },
-  "expect": {
-   "min_packets": 4,
-   "has_handshake": true,
-   "terminates": true,
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 64,
-     "hex": "c0 09 14 01 06"
-    }
-   ],
-   "notes": [
-    "T72: freeze_clear 请求帧 (无 reset 前缀) 在 packet 4; data = AC(FIR+FIN+seq=0) + FC(0x09=AppFreezeClear) + ObjHdr(14 01 06);",
-    "注: spec 期望 C6 (=FIR+FIN+seq=6), 此 case 用 app_seq=0 故 wire 是 C0, 帧字节随 seq 变, 这里只断言 App FC=0x09 正确"
-   ]
-  }
- },
- {
-  "id": "dnp3_t73_counter_var3_rejected",
-  "proto": "dnp3",
-  "summary": "T73 Validate: Object{20,3,6} (Variation=3 不存在) → 拒绝 (must be 1 or 2)",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "app_func": "read",
-    "objects": [
-     {
-      "object_type": 20,
-      "variation": 3,
-      "qualifier": 6
-     }
-    ]
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "variation",
-   "notes": [
-    "T73: Object 20 (Counter) 仅支持 Variation 1/2, Variation=3 → Validate 拒绝 must be 1 or 2"
-   ]
-  }
- },
- {
-  "id": "dnp3_t74_fc31_reserved_rejected",
-  "proto": "dnp3",
-  "summary": "T74 Validate: AppFuncCode=31 (Reserved) → 拒绝 (FC=31 is Reserved)",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "app_func_code": 31
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "FC=31",
-   "notes": [
-    "T74: AppFuncCode=31 → Validate 拒绝 FC=31 is Reserved in IEEE 1815-2012"
-   ]
-  }
- },
- {
-  "id": "dnp3_t75_fc215_reserved_rejected",
-  "proto": "dnp3",
-  "summary": "T75 Validate: AppFuncCode=215 (Configure deprecated) → 拒绝 (FC=215 is Reserved)",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "app_func_code": 215
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "FC=215",
-   "notes": [
-    "T75: AppFuncCode=215 → Validate 拒绝 FC=215 is Reserved in IEEE 1815-2012 (Configure deprecated)"
-   ]
-  }
- },
- {
-  "id": "dnp3_t78_link_ctrl03_outstation_data",
-  "proto": "dnp3",
-  "summary": "T78: scenario=respond 链路层 Control=0x03 (PRM=0,FC=3, User Data Confirm, outstation→master)",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dnp3": {
-    "transport": "tcp",
-    "scenario": "respond"
-   }
-  },
-  "expect": {
-   "min_packets": 4,
-   "has_handshake": true,
-   "terminates": true,
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 57,
-     "hex": "03"
-    }
-   ],
-   "notes": [
-    "T78: respond() 用 BuildControl(false,false,false,false,LinkUserConfirm=3) = 0x03,",
-    "PRM=0 DIR=0 FCB=0 FCV=0 FC=3 = 外设→主站 User Data Confirm (IEEE 1815-2012 §3.2)",
-    "注: FCV=0 表示不需 FCB 计数, 与外设 PRM=0 方向一致"
-   ]
-  }
- },
- {
-  "id": "dnp3_t80_empty_data_10bytes",
-  "proto": "dnp3",
-  "summary": "T80: scenario=reset_link 帧 Length=0 → 10B 帧 (05 64 00 ctrl dst src CRC16)",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "reset_link"
-   }
-  },
-  "expect": {
-   "min_packets": 4,
-   "has_handshake": true,
-   "terminates": true,
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 00 04 01 00"
-    }
-   ],
-   "notes": [
-    "T80: 无 user data, Length=0, 链路帧 = 起始2B + Length(0) + Ctrl + Dst2B + Src2B + CRC16 = 10B, 偏移 54-63 整 10B",
-    "ResetLink up 帧 ctrl=0xC0 (DIR|PRM), dst=1024(0x0400 LE=00 04), src=1(01 00); 下行 ACK 帧 ctrl=0x00 (DIR=0, PRM=0, FC=0=ACK)"
-   ]
-  }
- },
- {
-  "id": "dnp3_t84_multi_outstation_10",
-  "proto": "dnp3",
-  "summary": "T84: OutstationCount=10 + IPList (10 IP) → 10 个 4-tuple 各不同, 单流内顺序保持",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "reset_link",
-    "multi_outstation": {
-     "outstation_count": 10,
-     "outstation_addr_start": 1025,
-     "outstation_ip_list": [
-      "10.0.0.2",
-      "10.0.0.3",
-      "10.0.0.4",
-      "10.0.0.5",
-      "10.0.0.6",
-      "10.0.0.7",
-      "10.0.0.8",
-      "10.0.0.9",
-      "10.0.0.10",
-      "10.0.0.11"
-     ],
-     "src_port_start": 20001
-    }
-   }
-  },
-  "expect": {
-   "packet_count": 90,
-   "has_handshake": true,
-   "directional": true,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "ip.dst",
-     "value": "10.0.0.2"
-    },
-    {
-     "packet": 1,
-     "field": "tcp.srcport",
-     "value": "20001"
-    },
-    {
-     "packet": 82,
-     "field": "ip.dst",
-     "value": "10.0.0.11"
-    },
-    {
-     "packet": 82,
-     "field": "tcp.srcport",
-     "value": "20010"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 01 04 01 00"
-    },
-    {
-     "packet": 85,
-     "offset": 54,
-     "hex": "05 64 06  c0 0a 04 01 00"
-    }
-   ],
-   "notes": [
-    "T84: 10 外设 × 9 包/流 = 90 包; 流顺序写入 pcap",
-    "DstAddr: RTU0=1025(0x0401) ... RTU9=1034(0x040A LE=0a 04)",
-    "注: 跨外设包序不保证 (不同 PacketWorker 调度), 但单外设 4-tuple 唯一且内部 ResetLink→ACK→FIN 顺序由 exchange 保持"
-   ]
-  }
- },
- {
-  "id": "dnp3_t17_read_class123",
-  "proto": "dnp3",
-  "summary": "T17: read_class123 → 3 个 Object 60.2/60.3/60.4 各 Qual=6; 请求 data=C2 01 3C 02 06 3C 03 06 3C 04 06",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "read_class123",
-    "app_seq": 2
-   }
-  },
-  "expect": {
-   "packet_count": 13,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20000"
-    },
-    {
-     "packet": 6,
-     "field": "tcp.dstport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 00 04 01 00"
-    },
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "05 64 0d d3 00 04 01 00"
-    },
-    {
-     "packet": 6,
-     "offset": 64,
-     "hex": "c2 01 3c 02 06 3c 03 06 3c 04 06"
-    }
-   ],
-   "notes": [
-    "T17: 默认 Objects (60.2/60.3/60.4) Qual=6 由 read_class123 自动填充 (scenario.go defaultObjects)",
-    "请求 AC=0xC2 (FIR=1,FIN=1,AppSeq=2); App 层 data 9B: C2 01 3C 02 06 3C 03 06 3C 04 06",
-    "包序: 3握手 + (reset,ack,req,ack,resp,ack) + 4挥手 = 13 包; resp 帧 App FC=0x81",
-    "链路 Length=0x0d=13 (11B App data + 2B 块 CRC); 11B 装单块 16B 槽位"
-   ]
-  }
- },
- {
-  "id": "dnp3_t32_multi_outstation_3_groupid",
-  "proto": "dnp3",
-  "summary": "T32: OutstationCount=3 → 3 个流 GroupID 各不同 (flowid 后缀 RTU-0/1/2), 4-tuple 唯一",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "reset_link",
-    "multi_outstation": {
-     "outstation_count": 3,
-     "outstation_addr_start": 1025,
-     "outstation_ip_list": [
-      "10.0.0.2",
-      "10.0.0.3",
-      "10.0.0.4"
-     ],
-     "src_port_start": 20001
-    }
-   }
-  },
-  "expect": {
-   "packet_count": 27,
-   "has_handshake": true,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "tcp.srcport",
-     "value": "20001"
-    },
-    {
-     "packet": 1,
-     "field": "ip.dst",
-     "value": "10.0.0.2"
-    },
-    {
-     "packet": 10,
-     "field": "tcp.srcport",
-     "value": "20002"
-    },
-    {
-     "packet": 10,
-     "field": "ip.dst",
-     "value": "10.0.0.3"
-    },
-    {
-     "packet": 19,
-     "field": "tcp.srcport",
-     "value": "20003"
-    },
-    {
-     "packet": 19,
-     "field": "ip.dst",
-     "value": "10.0.0.4"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 01 04 01 00"
-    },
-    {
-     "packet": 13,
-     "offset": 54,
-     "hex": "05 64 06  c0 02 04 01 00"
-    },
-    {
-     "packet": 22,
-     "offset": 54,
-     "hex": "05 64 06  c0 03 04 01 00"
-    }
-   ],
-   "notes": [
-    "T32: 每流 GroupID = flowid (含 RTU-N 后缀) → 3 个流路由到不同 PacketWorker; pcap 无法直接断言 GroupID, 用每流起始帧块位置 + 4-tuple + DstAddr 间接断言",
-    "每流 9 包 (3握手+ResetLink+ACK+4挥手): flow0 p1-9, flow1 p10-18, flow2 p19-27",
-    "DstAddr 小端: RTU0=0x0401, RTU1=0x0402, RTU2=0x0403"
-   ]
-  }
- },
- {
-  "id": "dnp3_t33_multi_outstation_3_wire_order",
-  "proto": "dnp3",
-  "summary": "T33: OutstationCount=3 → 单外设内包序保持: ResetLink 先于 UserData, 每流 3握手+Reset+ACK+挥手",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "read_class0",
-    "multi_outstation": {
-     "outstation_count": 3,
-     "outstation_addr_start": 1025,
-     "outstation_ip_list": [
-      "10.0.0.2",
-      "10.0.0.3",
-      "10.0.0.4"
-     ],
-     "src_port_start": 20001
-    }
-   }
-  },
-  "expect": {
-   "packet_count": 39,
-   "has_handshake": true,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "tcp.srcport",
-     "value": "20001"
-    },
-    {
-     "packet": 14,
-     "field": "tcp.srcport",
-     "value": "20002"
-    },
-    {
-     "packet": 27,
-     "field": "tcp.srcport",
-     "value": "20003"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 01 04 01 00"
-    },
-    {
-     "packet": 6,
-     "offset": 64,
-     "hex": "c0 01 3c 01 06"
-    },
-    {
-     "packet": 19,
-     "offset": 64,
-     "hex": "c0 01 3c 01 06"
-    },
-    {
-     "packet": 32,
-     "offset": 64,
-     "hex": "c0 01 3c 01 06"
-    }
-   ],
-   "notes": [
-    "T33: read_class0 每流 13 包 (3握手+reset+ack+req+ack+resp+ack+4挥手): flow0 p1-13, flow1 p14-26, flow2 p27-39",
-    "每流内序: Reset Link(p4) → ACK(p5) → read 请求(p6) → ACK(p7) → respond(p8) → ACK(p9) → FIN 挥手",
-    "flow1/flow2 的 read 请求在 p17/p30, DstAddr 各为 0x0402/0x0403 (由 srcport 断言覆盖)",
-    "flow1 read 请求在 p19 (flow1 从 p14 起: 14+5=19), flow2 在 p32 (27+5=32)"
-   ]
-  }
- },
- {
-  "id": "dnp3_t55_iin_out_of_range",
-  "proto": "dnp3",
-  "summary": "T55: dnp3.iin=65536 超出 uint16 范围 → ValidateProtocolSubConfigs 拒绝 (iin out of uint16 range)",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "read_class0",
-    "iin": 65536
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "iin",
-   "notes": [
-    "T55: IIN=0x10000 超出 uint16, parseDNP3Config 的 getUint16 会静默截断为 0 → 必须在转换前拒绝 (validate.go dnp3 case)",
-    "期望错误: dnp3.iin 65536 invalid (must be 0-65535); 经 MCP generate_traffic 调用错误路径返回"
-   ]
-  }
- },
- {
-  "id": "dnp3_t64_freeze_clear_con0",
-  "proto": "dnp3",
-  "summary": "T64: scenario=freeze_clear + AppCON=0 → 请求帧 CON=0 (auto-set 0), AC 字节 C0",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "freeze_clear",
-    "app_seq": 0,
-    "objects": [
-     {
-      "object_type": 20,
-      "variation": 1,
-      "qualifier": 6
-     }
-    ]
-   }
-  },
-  "expect": {
-   "min_packets": 4,
-   "has_handshake": true,
-   "terminates": true,
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 07 d3 00 04 01 00"
-    },
-    {
-     "packet": 4,
-     "offset": 64,
-     "hex": "c0 09 14 01 06"
-    }
-   ],
-   "notes": [
-    "T64: freeze_clear 请求 AC=0xC0 (FIR=1,FIN=1,CON=0,Seq=0) — CON=0 auto-set 0 (IEEE 1815-2012 §5.1.2)",
-    "App data 5B: C0 09 14 01 06 (FC=9 FreezeClear, Obj=20.1 Qual=6); 与 t72 (C0 09 14 01 06) 帧一致但本 case 断言 CON 位=0",
-    "包序: 3握手 + (req, ack, resp, ack) + 4挥手 = 13 包"
-   ]
-  }
- },
- {
-  "id": "dnp3_t66_crob_request_status_rejected",
-  "proto": "dnp3",
-  "summary": "T66: CROB (12.1) 请求携带 status 字段 → Validate 拒绝 (Status is response-only)",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "select_operate",
-    "app_seq": 3,
-    "objects": [
-     {
-      "object_type": 12,
-      "variation": 1,
-      "qualifier": 0,
-      "index_range": [
-       5,
-       5
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 0f d3 00 04 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "05 64 12 03 01 00 00 04"
+        },
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "05 64 0f d3 00 04 01 00"
+        }
       ],
-      "points": [
-       {
-        "value": 1,
-        "status": 0
-       }
+      "notes": [
+        "§6.5: select 与 operate 共享 AppSeq=3 (AC=0xE3, FIR=1,FIN=1,CON=1,Seq=3), IEEE 1815-2012 §5.1.3.2",
+        "链路 Control=0xD3 (FC=3 UserData Confirmed), CROB 请求 6B: 03 01 64 00 FF FF (Code=LATCH_ON)",
+        "包序: 3握手 + (select,ACK,respond,ACK)×2 + 4挥手 = 15 包"
       ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "Status",
-   "notes": [
-    "T66: CROB 请求不得携带 Status 字段 (Status 是响应回显字段); encodePoint 请求帧固定 6B 会静默丢弃 Status",
-    "修复: dnp3.Validate 对 12.1 请求 + 任何 point.Status != nil → error \"CROB request must not carry Status field; Status is response-only\"",
-    "经 MCP generate_traffic 调用错误路径返回 (validation failed)"
-   ]
-  }
- },
- {
-  "id": "dnp3_t67_operate_crob_shared_appseq",
-  "proto": "dnp3",
-  "summary": "T67: select_operate + CROB Code=3 → select/operate 共享 AppSeq=3, 请求帧 App 层字节 C3 03/04 0C 01 00 05 05 03 01 64 00 FF FF",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
     },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "select_operate",
-    "app_seq": 3,
-    "objects": [
-     {
-      "object_type": 12,
-      "variation": 1,
-      "qualifier": 0,
-      "index_range": [
-       5,
-       5
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t24_direct_operate",
+    "proto": "dnp3",
+    "summary": "T24/T69: direct_operate 场景 → FC=5 无 select，CON=0 (AC=0xC5)，响应回显 CROB",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "direct_operate",
+            "app_seq": 5,
+            "objects": [
+              {
+                "object_type": 12,
+                "variation": 1,
+                "qualifier": 0,
+                "index_range": [
+                  5,
+                  5
+                ],
+                "points": [
+                  {
+                    "value": 1
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        }
       ],
-      "points": [
-       {
-        "value": 3
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 15,
-   "has_handshake": true,
-   "terminates": true,
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 0f d3 00 04 01 00"
-    },
-    {
-     "packet": 4,
-     "offset": 64,
-     "hex": "e3 03 0c 01 00 05 05 03 01 64 00 ff ff"
-    },
-    {
-     "packet": 8,
-     "offset": 54,
-     "hex": "05 64 0f d3 00 04 01 00"
-    },
-    {
-     "packet": 8,
-     "offset": 64,
-     "hex": "e3 04 0c 01 00 05 05 03 01 64 00 ff ff"
-    }
-   ],
-   "notes": [
-    "T67: operate 请求 App 层 = AC(0xE3, FIR=1,FIN=1,CON=1,Seq=3) + FC=4 + CROB 6B (03 01 64 00 FF FF)",
-    "select 与 operate 共享 AppSeq=3 (IEEE 1815-2012 §5.1.3.2 SBO 两步同序列号); 链路头同 t23 (Length=0x0f=13B App+2B CRC)",
-    "CROB 请求 6B 无 Status: 03(Code=LATCH_ON) 01(Count) 64 00(OnTime=100) FF FF(OffTime)"
-   ]
-  }
- },
- {
-  "id": "dnp3_t68_respond_crob_status_echo",
-  "proto": "dnp3",
-  "summary": "T68: outstation respond + CROB 回显 Status=0 → 响应帧 7B CROB: C3 81 00 00 0C 01 00 05 05 03 01 64 00 FF FF 00",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "dnp3": {}
-    }
-   ],
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "outstation",
-    "transport": "tcp",
-    "src_addr": 1024,
-    "dst_addr": 1,
-    "scenario": "respond",
-    "app_seq": 3,
-    "objects": [
-     {
-      "object_type": 12,
-      "variation": 1,
-      "qualifier": 0,
-      "index_range": [
-       5,
-       5
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 0f d3 00 04 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "05 64 12 03 01 00 00 04"
+        }
       ],
-      "points": [
-       {
-        "value": 3,
-        "status": 0
-       }
+      "notes": [
+        "§6.6/T62: direct_operate CON 自动=0 (AC=0xC5: FIR=1,FIN=1,CON=0,Seq=5)",
+        "包序: 3握手 + (do,ACK,respond,ACK) + 4挥手 = 11 包"
       ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 8,
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.srcport",
-     "value": "20000"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 12 03 00 04 01 00"
     },
-    {
-     "packet": 4,
-     "offset": 64,
-     "hex": "c3 81 00 00 0c 01 00 05 05 03 01 64 00 ff ff 00"
-    }
-   ],
-   "notes": [
-    "T68: 响应帧 AC=0xC3 (FIR=1,FIN=1,CON=0,Seq=3), FC=0x81 (AppRespond per IEEE 1815-2012), IIN=00 00",
-    "CROB 响应 7B: 03 01 64 00 FF FF 00 — 末尾 Status=0 由显式配置 status:0 回显 (修复: encodePoint 输出 *p.Status 而非硬编码 0)",
-    "链路头 Length=0x12=18 (16B App + 2B CRC); ctrl=0x03 (DIR=0,PRM=0,FC=3); 响应帧下行: dst=主站1024(00 04) src=外设1(01 00)"
-   ]
-  }
- },
- {
-  "id": "dnp3_t69_qualifier9_rejected",
-  "proto": "dnp3",
-  "summary": "T69: qualifier=9 (非法) → Validate 拒绝 (invalid qualifier 0x09)",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "direct_operate",
-    "objects": [
-     {
-      "object_type": 12,
-      "variation": 1,
-      "qualifier": 9,
-      "index_range": [
-       5,
-       5
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t25_unsolicited",
+    "proto": "dnp3",
+    "summary": "T25/T77: unsolicited 外设主动上报（outstation, 链路FC=4）→ 上报(FC=14) + confirm(FC=15)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "outstation",
+            "transport": "tcp",
+            "src_addr": 1024,
+            "dst_addr": 1,
+            "scenario": "unsolicited",
+            "is_unsolicited": true,
+            "confirm_required": true,
+            "app_seq": 0,
+            "objects": [
+              {
+                "object_type": 10,
+                "variation": 2,
+                "qualifier": 23,
+                "count": 1,
+                "points": [
+                  {
+                    "value": 1,
+                    "index": 3
+                  }
+                ],
+                "flags": [
+                  1
+                ],
+                "times": [
+                  1691049600000
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        },
+        {
+          "packet": 5,
+          "field": "tcp.srcport",
+          "value": "20000"
+        }
       ],
-      "points": [
-       {
-        "value": 3
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "qualifier",
-   "notes": [
-    "T69: qualifier 白名单 {0,1,6,7,8,0x17,0x28}; 9 不在其中 → Validate 拒绝 invalid qualifier 0x09",
-    "此前场景: qualifier 9 会经 encodeObject 报 unsupported qualifier, 但错误被 planFlow 吞掉 → 任务 0 包完成"
-   ]
-  }
- },
- {
-  "id": "dnp3_t69b_qualifier0_index_overflow",
-  "proto": "dnp3",
-  "summary": "T69(变体): qualifier=0 + index_range [300,300] 超出 8-bit → Validate 拒绝 (index exceeds 255)",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "direct_operate",
-    "objects": [
-     {
-      "object_type": 12,
-      "variation": 1,
-      "qualifier": 0,
-      "index_range": [
-       300,
-       300
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 0d 04 01 00 00 04"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "05 64 06 c4 00 04 01 00"
+        }
       ],
-      "points": [
-       {
-        "value": 3
-       }
+      "notes": [
+        "§6.8/T77: 上报帧链路 Control=0x04 (DIR=0,PRM=0,FC=4 User Data No Confirm, 外设主动上报)",
+        "AC=0xE0 (FIR=1,FIN=1,CON=1,Seq=0) FC=14 IIN=0x4000(Class1) Obj=10.2 Qual=0x17 count=1",
+        "confirm: AC=0xC0 FC=15, 无对象; 包序: 3握手 + 上报/confirm + 4挥手 = 9 包"
       ]
-     }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
     ]
-   }
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "index",
-   "notes": [
-    "T69(变体): qualifier 0x00 用 8-bit 索引, IndexRange>255 无法编码 → Validate 拒绝 (修复: dnp3.go Validate 新增检查)",
-    "此前: encodeObject 报错被 planFlow 吞掉 → 任务 0 包完成 (错误传播 bug)"
-   ]
-  }
- },
- {
-  "id": "dnp3_t69c_qualifier17_point_index_overflow",
-  "proto": "dnp3",
-  "summary": "T69(变体): qualifier=0x17 + point index=300 超出 8-bit → Validate 拒绝 (index exceeds 255)",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "read_class0",
-    "objects": [
-     {
-      "object_type": 1,
-      "variation": 1,
-      "qualifier": 23,
-      "count": 1,
-      "points": [
-       {
-        "index": 300,
-        "value": 1
-       }
+  {
+    "id": "dnp3_t26_cold_restart",
+    "proto": "dnp3",
+    "summary": "T26: cold_restart 场景 → FC=129 请求(CA 81, 无对象) + 响应含 Obj=51.1 Time Delay Coarse",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "cold_restart",
+            "app_seq": 10
+          }
+        }
       ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "index",
-   "notes": [
-    "T69(变体): qualifier 0x17 (8-bit 索引前缀) point index=300 → 编码时 byte(p.Index) 静默截断 300→44 → Validate 拒绝 (修复: dnp3.go 新增检查)",
-    "此前: 截断后任务正常完成, wire 上索引错误无感知"
-   ]
-  }
- },
- {
-  "id": "dnp3_t81_strategy_convert_full_path",
-  "proto": "dnp3",
-  "summary": "T81: strategy_convert 全链路 → link_type/src_addr/dst_addr/objects/points(status)/iin/multi_outstation 映射到 DNP3Config 再 Plan, wire 字节与直接构造一致",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "outstation",
-    "transport": "tcp",
-    "src_addr": 1024,
-    "dst_addr": 1,
-    "scenario": "respond",
-    "app_seq": 3,
-    "iin": 18464,
-    "objects": [
-     {
-      "object_type": 12,
-      "variation": 1,
-      "qualifier": 0,
-      "index_range": [
-       5,
-       5
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        }
       ],
-      "points": [
-       {
-        "value": 3,
-        "status": 0
-       }
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06 d3 00 04 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "05 64 0b 03 01 00 00 04"
+        }
+      ],
+      "notes": [
+        "§6.12: 请求 AC=0xCA(Seq=10) FC=0x81=129 无对象",
+        "响应 Obj=51.1(0x33 0x01) Qual=0x07 count=1 数据=01 (重启时长 1 秒); 包序 3+4+4=11"
       ]
-     }
-    ],
-    "multi_outstation": {
-     "outstation_count": 2,
-     "outstation_addr_start": 1025,
-     "outstation_ip_list": [
-      "10.0.0.2",
-      "10.0.0.3"
-     ],
-     "src_port_start": 20001
-    }
-   }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
   },
-  "expect": {
-   "packet_count": 16,
-   "has_handshake": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.srcport",
-     "value": "20000"
+  {
+    "id": "dnp3_write_single_80_1",
+    "proto": "dnp3",
+    "summary": "§6.4: write_single → FC=2 write Obj=80.1 Qual=0x00 Range=07 07 Data=01",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "write_single",
+            "app_func": "write",
+            "app_seq": 2,
+            "objects": [
+              {
+                "object_type": 80,
+                "variation": 1,
+                "qualifier": 0,
+                "index_range": [
+                  7,
+                  7
+                ],
+                "points": [
+                  {
+                    "value": 1
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
     },
-    {
-     "packet": 12,
-     "field": "tcp.srcport",
-     "value": "20000"
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 0a d3 00 04 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "05 64 0c 03 01 00 00 04"
+        }
+      ],
+      "notes": [
+        "§6.4: 请求字节 c2 02 50 01 00 07 07 01 (AC=0xC2, FC=2, Obj=80.1, Qual=0x00, Range=07 07, Data=01)",
+        "响应 IIN=0x0000 写成功; 包序 3+4+4=11"
+      ]
     },
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "20001"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 12 03 00 04 01 04"
-    },
-    {
-     "packet": 4,
-     "offset": 64,
-     "hex": "c3 81 48 20 0c 01 00 05 05 03 01 64 00 ff ff 00"
-    },
-    {
-     "packet": 12,
-     "offset": 54,
-     "hex": "05 64 12 03 00 04 02 04"
-    },
-    {
-     "packet": 12,
-     "offset": 64,
-     "hex": "c3 81 48 20 0c 01 00 05 05 03 01 64 00 ff ff 00"
-    }
-   ],
-   "notes": [
-    "T81: MCP generate_traffic = strategy_convert 全路径 (strategy_handler → parseDNP3Config → mapToFlowSpec → Plan)",
-    "iin=18464=0x4820 → 响应帧 IIN 字节 48 20 (Class1=0x40 + NeedTime=0x08, ObjectUnknown=0x20)",
-    "multi_outstation=2 → 2 流: RTU0 (DstAddr=0x0401, srcport 20001) p1-8, RTU1 (0x0402, 20002) p9-16; 每流 3握手+respond+4挥手=8 包",
-    "下行响应帧: dst=主站1024(00 04), src=RTU 1025/1026 (01 04 / 02 04)"
-   ]
-  }
- },
- {
-  "id": "dnp3_t85_multi_outstation_20_stress",
-  "proto": "dnp3",
-  "summary": "T85: OutstationCount=20 stress → 20 个流全产出, 每流 4-tuple 唯一, 总包数=20×9=180, 无冲突",
-  "spec_json": {
-   "src_ip": "10.0.0.100",
-   "dst_ip": "10.0.0.1",
-   "dnp3": {
-    "link_type": "master",
-    "transport": "tcp",
-    "src_addr": 1,
-    "dst_addr": 1024,
-    "scenario": "reset_link",
-    "multi_outstation": {
-     "outstation_count": 20,
-     "outstation_addr_start": 1025,
-     "outstation_ip_list": [
-      "10.0.0.2",
-      "10.0.0.3",
-      "10.0.0.4",
-      "10.0.0.5",
-      "10.0.0.6",
-      "10.0.0.7",
-      "10.0.0.8",
-      "10.0.0.9",
-      "10.0.0.10",
-      "10.0.0.11",
-      "10.0.0.12",
-      "10.0.0.13",
-      "10.0.0.14",
-      "10.0.0.15",
-      "10.0.0.16",
-      "10.0.0.17",
-      "10.0.0.18",
-      "10.0.0.19",
-      "10.0.0.20",
-      "10.0.0.21"
-     ],
-     "src_port_start": 20001
-    }
-   }
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
   },
-  "expect": {
-   "packet_count": 180,
-   "has_handshake": true,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "tcp.srcport",
-     "value": "20001"
+  {
+    "id": "dnp3_t27_udp_transport",
+    "proto": "dnp3",
+    "summary": "T27: UDP transport → 无握手/挥手，每链路帧前置 2B 传输头(LTH+SEQ)，reset_link 场景 2 包",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "udp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "reset_link"
+          }
+        }
+      ]
     },
-    {
-     "packet": 1,
-     "field": "ip.dst",
-     "value": "10.0.0.2"
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "20000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "90 00 05 64 06 c0 00 04 01 00"
+        },
+        {
+          "packet": 2,
+          "offset": 42,
+          "hex": "90 01 05 64 06 00 01 00 00 04"
+        }
+      ],
+      "notes": [
+        "§2.9/T27: UDP 载荷前置 LTH(len|0x80)+SEQ, 帧头仍 05 64; offset 42 = Eth14+IPv4 20+UDP 8",
+        "LTH=0x8A(10B 数据|0x80) SEQ 0/1; 无 TCP 握手与挥手"
+      ]
     },
-    {
-     "packet": 172,
-     "field": "tcp.srcport",
-     "value": "20020"
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t28_no_handshake",
+    "proto": "dnp3",
+    "summary": "T28: handshake=false → 无 TCP 握手，直接从 Reset Link 开始（reset_link 场景 2+4=6 包）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "reset_link",
+            "handshake": false
+          }
+        }
+      ]
     },
-    {
-     "packet": 172,
-     "field": "ip.dst",
-     "value": "10.0.0.21"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "05 64 06  c0 01 04 01 00"
+    "expect": {
+      "packet_count": 6,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x0018"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 54,
+          "hex": "05 64 06  c0 00 04 01 00"
+        },
+        {
+          "packet": 2,
+          "offset": 54,
+          "hex": "05 64 06  00 01 00 00 04"
+        }
+      ],
+      "notes": [
+        "T28: 首包即 DNP3 Reset Link (PSH-ACK 0x18), 无 SYN; 挥手 4 包收尾"
+      ]
     },
-    {
-     "packet": 175,
-     "offset": 54,
-     "hex": "05 64 06  c0 14 04 01 00"
-    }
-   ],
-   "notes": [
-    "T85: 20 外设 × 9 包/流 (reset_link) = 180 包; 全流产出无 4-tuple 冲突",
-    "RTU0=1025(0x0401) srcport 20001 dst 10.0.0.2; RTU19=1044(0x0414 LE=14 04) srcport 20020 dst 10.0.0.21",
-    "设计 T85 为 100 RTU (900 包); 此处按任务执行 20 RTU 压力验证 (100 可后续扩展)"
-   ]
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t34_broadcast_no_ack",
+    "proto": "dnp3",
+    "summary": "T34: DstAddr=0xFFFF + direct_operate_no_ack → 外设不响应，仅请求帧（无 ACK/Respond），广播地址",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 65535,
+            "scenario": "",
+            "app_func": "direct_operate_no_ack",
+            "app_seq": 0,
+            "objects": [
+              {
+                "object_type": 12,
+                "variation": 1,
+                "qualifier": 0,
+                "index_range": [
+                  0,
+                  0
+                ],
+                "points": [
+                  {
+                    "value": 1
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 0f d3 ff ff 01 00"
+        }
+      ],
+      "notes": [
+        "§6.16/T34: FC=6 Direct Operate No Ack 无响应; DstAddr=0xFFFF(ff ff) 广播",
+        "包序: 3握手 + 1请求 + 4挥手 = 8 包"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t29_no_termination",
+    "proto": "dnp3",
+    "summary": "T29: Termination=false → 无 TCP FIN，以最后 DNP3 ACK 结束（5 包）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "reset_link",
+            "termination": false
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 5,
+      "has_handshake": true,
+      "terminates": false,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 00 04 01 00"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "05 64 06  00 01 00 00 04"
+        }
+      ],
+      "notes": [
+        "T29: termination=false 跳过 TCP FIN 挥手, 包序: 3握手 + ResetLink + ACK = 5 包",
+        "terminates=false 标记确保挥手不被检查"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t30_appseq_wrap",
+    "proto": "dnp3",
+    "summary": "T30: AppSeq=15 回绕 → multi-request 场景，AppSeq 15→0",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "read_class0",
+            "app_seq": 15,
+            "objects": [
+              {
+                "object_type": 60,
+                "variation": 1,
+                "qualifier": 6
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        },
+        {
+          "packet": 6,
+          "field": "tcp.dstport",
+          "value": "20000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 00 04 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "05 64 07 d3 00 04 01 00"
+        }
+      ],
+      "notes": [
+        "T30: AppSeq=15 在 read 请求中 AC=0xCF(FIR=1,FIN=1,CON=1,Seq=15), 回绕由下次请求触发",
+        "链路头不变, AppSeq 仅影响 App 层 AC 字节"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t36_malformed_crc",
+    "proto": "dnp3",
+    "summary": "T36: MalformedCRC=true → CRC 字节被篡改，外设应检测 CRC 错误",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "read_class0",
+            "app_seq": 0,
+            "malformed_crc": true,
+            "objects": [
+              {
+                "object_type": 60,
+                "variation": 1,
+                "qualifier": 6
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 00 04 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "05 64 07 d3 00 04 01 00"
+        }
+      ],
+      "notes": [
+        "T36: MalformedCRC=true 篡改请求帧 CRC 字节(1 bit 翻转), 链路头前 8 字节不变",
+        "外设收到坏 CRC 请求后仍需 ACK(链路层不验证), App 层会丢弃"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t48_iin_already_executing",
+    "proto": "dnp3",
+    "summary": "T48: IINAlreadyExecuting=true → 响应 IIN byte2=0x04 (AlreadyExecuting bit)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "read_class0",
+            "app_seq": 0,
+            "iin_already_executing": true,
+            "objects": [
+              {
+                "object_type": 60,
+                "variation": 1,
+                "qualifier": 6
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 00 04 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "05 64 07 d3 00 04 01 00"
+        },
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "05 64 06 03 01 00 00 04"
+        }
+      ],
+      "notes": [
+        "T48: IINAlreadyExecuting 设置后响应 IIN byte2=0x04, 响应 FC=1(read 响应)",
+        "链路头 Control=0x03(outstation user data confirmed), 响应链路长=6(AC+FC+IIN 2B+CRC2B)"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t49_iin_event_buffer_overflow",
+    "proto": "dnp3",
+    "summary": "T49: IINEventBufferOverflow=true → 响应 IIN byte2=0x08 (EventBufferOverflow bit)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "read_class0",
+            "app_seq": 0,
+            "iin_event_buffer_overflow": true,
+            "objects": [
+              {
+                "object_type": 60,
+                "variation": 1,
+                "qualifier": 6
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 00 04 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "05 64 07 d3 00 04 01 00"
+        },
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "05 64 06 03 01 00 00 04"
+        }
+      ],
+      "notes": [
+        "T49: IINEventBufferOverflow=true, 响应 IIN byte2=0x08",
+        "链路头 Control=0x03, Length=6(无对象, 仅 FC+IIN)"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t50_iin_local_control",
+    "proto": "dnp3",
+    "summary": "T50: IINLocalControl=true → 响应 IIN byte1=0x04 (LocalControl bit)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "read_class0",
+            "app_seq": 0,
+            "iin_local_control": true,
+            "objects": [
+              {
+                "object_type": 60,
+                "variation": 1,
+                "qualifier": 6
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 00 04 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "05 64 07 d3 00 04 01 00"
+        },
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "05 64 06 03 01 00 00 04"
+        }
+      ],
+      "notes": [
+        "T50: IINLocalControl=true, 响应 IIN byte1=0x04",
+        "链路头 Control=0x03, Length=6"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t52_iin_config_corrupt",
+    "proto": "dnp3",
+    "summary": "T52: IINConfigCorrupt=true → 响应 IIN byte2=0x80 (ConfigCorrupt bit)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "read_class0",
+            "app_seq": 0,
+            "iin_config_corrupt": true,
+            "objects": [
+              {
+                "object_type": 60,
+                "variation": 1,
+                "qualifier": 6
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 00 04 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "05 64 07 d3 00 04 01 00"
+        },
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "05 64 06 03 01 00 00 04"
+        }
+      ],
+      "notes": [
+        "T52: IINConfigCorrupt=true, 响应 IIN byte2=0x80",
+        "链路头 Control=0x03, Length=6"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t46_unknown_func",
+    "proto": "dnp3",
+    "summary": "T46: UnknownFunc=true → 请求 FC=0xC8(200), 外设响应 FC=0xC9(201 FunctionUnknown)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "",
+            "app_func_code": 200,
+            "unknown_func": true,
+            "app_seq": 0,
+            "objects": []
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06 d3 00 04 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "05 64 06 03 01 00 00 04"
+        }
+      ],
+      "notes": [
+        "T46: UnknownFunc=true + app_func_code=200, 请求 FC=200(0xC8)",
+        "响应 FC=201(0xC9 FunctionUnknown), IIN byte2 含 FuncNotSupported=0x40",
+        "链路头 Control=0xD3(请求)/0x03(响应), 请求 Length=4(AC+FC+CRC2B), 响应 Length=6(AC+FC+IIN 2B+CRC2B)"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t37_iin_object_unknown",
+    "proto": "dnp3",
+    "summary": "T37: IINObjectUnknown=true → 响应 IIN byte2=0x20 (ObjectUnknown bit) + Obj=255,Var=0,Qual=6",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "read_class0",
+            "app_seq": 0,
+            "iin_object_unknown": true,
+            "objects": [
+              {
+                "object_type": 60,
+                "variation": 1,
+                "qualifier": 6
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 00 04 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "05 64 07 d3 00 04 01 00"
+        },
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "05 64 06 03 01 00 00 04"
+        }
+      ],
+      "notes": [
+        "T37: IINObjectUnknown=true, 响应 IIN byte2=0x20 (ObjectUnknown bit)",
+        "链路头 Control=0x03 Length=6, App层 c0 0d 00 20 (AC+FC+IIN2B=00 20)",
+        "注: responseObjects 对 AppRead 返回 nil 强制覆盖 UnknownObject=true, 因此响应无对象"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t31_multi_outstation_3",
+    "proto": "dnp3",
+    "summary": "T31: MultiOutstation Count=3 → 3 个外设各不同 4-tuple，独立 ResetLink 流",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "reset_link",
+            "multi_outstation": {
+              "outstation_count": 3,
+              "outstation_addr_start": 1025,
+              "outstation_ip_list": [
+                "10.0.0.2",
+                "10.0.0.3",
+                "10.0.0.4"
+              ],
+              "src_port_start": 20001
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 27,
+      "has_handshake": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "value": "20001"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 01 04 01 00"
+        }
+      ],
+      "notes": [
+        "T31: MultiOutstation Count=3, 每个外设独立 4-tuple: src_port 20001/20002/20003, dst 10.0.0.2/3/4, DstAddr 1025/1026/1027",
+        "第一个外设(DstAddr=0x0401=1025 LE) ResetLink 帧 8B 头: 05 64 00 c0 01 04 01 00",
+        "每流 = 3握手 + ResetLink + ACK + FIN + 3挥手 = 9 包 × 3 = 27 包"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t43_malformed_length",
+    "proto": "dnp3",
+    "summary": "T43: MalformedLength=255 → Length 字节被设为 0xFF（无效值）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "read_class0",
+            "app_seq": 0,
+            "malformed_length": 255,
+            "objects": [
+              {
+                "object_type": 60,
+                "variation": 1,
+                "qualifier": 6
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 ff c0 00 04 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "05 64 ff d3 00 04 01 00"
+        }
+      ],
+      "notes": [
+        "T43: MalformedLength=255 作用于每个链路帧 Length 字节(偏移 56), 含 ResetLink/read/respond/ACK",
+        "链路头 start/Control/DstAddr/SrcAddr 不变, 仅 Length 被篡改; CRC 不重算",
+        "外设收到 Length=255 判定为无效帧并丢弃, 仅链路 ACK"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t1_valid_minimal",
+    "proto": "dnp3",
+    "summary": "T1 ValidMinimal: 默认 master/read_class0 最小配置, 期望成功生成 pcap",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "dnp3": {
+            "transport": "tcp",
+            "scenario": "read_class0"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 4,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64"
+        }
+      ],
+      "notes": [
+        "T1: 默认 link_type=master, scenario=read_class0, AppFuncCode=1 Read",
+        "默认 dst_addr=1024, src_addr=1, app_seq=0",
+        "Packet 3 是 TCP ACK (空 payload), 故帧断言必须指向 PSH,ACK (packet 4)"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t3_valid_outstation",
+    "proto": "dnp3",
+    "summary": "T3 ValidOutstation: link_type=outstation, scenario=respond, 期望成功生成 pcap",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "dnp3": {
+            "transport": "tcp",
+            "link_type": "outstation",
+            "scenario": "respond"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 4,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.srcport",
+          "value": "20000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64"
+        }
+      ],
+      "notes": [
+        "T3: outstation 角色, scenario=respond 触发 Respond 帧(FIR/FIN)",
+        "LinkFC 默认 0(Reset); 响应帧由 outstation 主动发起, srcport=20000"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t4_invalid_link_type",
+    "proto": "dnp3",
+    "summary": "T4 InvalidLinkType: link_type='slave' 应被 Validate 拒绝, MCP 报错",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "transport": "tcp",
+            "link_type": "slave",
+            "scenario": "read_class0"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "link_type",
+      "notes": [
+        "T4: Validate 限制 link_type 仅 master/outstation, 'slave' 应拒绝"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t5_invalid_transport",
+    "proto": "dnp3",
+    "summary": "T5 InvalidTransport: transport='sctp' 应被 Validate 拒绝, MCP 报错",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "transport": "sctp",
+            "scenario": "read_class0"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "transport",
+      "notes": [
+        "T5: Validate 限制 transport 仅 tcp/udp"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t6_invalid_app_func",
+    "proto": "dnp3",
+    "summary": "T6 InvalidAppFunc: app_func='foobar' (字符串而非 uint8) 应被解析拒绝, MCP 报错",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "transport": "tcp",
+            "scenario": "read_class0",
+            "app_func": "foobar"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "",
+      "notes": [
+        "T6: app_func 字段为 uint8, 字符串 foobar 应在 JSON 解析或 Validate 阶段报错"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t7_appseq_overflow",
+    "proto": "dnp3",
+    "summary": "T7 越界: app_seq=16 超出 [0..15] 范围, Validate 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "transport": "tcp",
+            "scenario": "read_class0",
+            "app_seq": 16
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "app_seq",
+      "notes": [
+        "T7: app_seq 为 uint4, 16 超出范围 Validate 拒绝; spec ID T7 实质含义为字段越界"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t8_broadcast_confirm",
+    "proto": "dnp3",
+    "summary": "T8 BroadcastConfirm: dst_addr=65535 + confirm_required=true 互斥, Validate 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "transport": "tcp",
+            "scenario": "read_class0",
+            "dst_addr": 65535,
+            "confirm_required": true
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "",
+      "notes": [
+        "T8: Validate 检查 broadcast (0xFFFF) 不能 require confirm"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t39_link_fc_status",
+    "proto": "dnp3",
+    "summary": "T39 LinkFC=2 Status: 重置/ACK 帧 Control 字段 FC=2 而非默认 0",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "dnp3": {
+            "transport": "tcp",
+            "scenario": "reset_link",
+            "link_fc": 2
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 4,
+      "has_handshake": true,
+      "terminates": true,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 57,
+          "hex": "c2"
+        },
+        {
+          "packet": 5,
+          "offset": 57,
+          "hex": "00"
+        }
+      ],
+      "notes": [
+        "T39: LinkFC=2 (Status) 仅替换上行的 UserConfirm FC, reset_link 的下行 ACK 硬编码 FC=0",
+        "Packet 4 是 Reset Link 上行帧 Control=0xC2 (PRM=1, FC=2); 下行 ACK Control=0x00"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t40_link_fc_overflow",
+    "proto": "dnp3",
+    "summary": "T40 LinkFC=15 Validate 拒绝, MCP 报错",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "transport": "tcp",
+            "scenario": "reset_link",
+            "link_fc": 15
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "link_fc",
+      "notes": [
+        "T40: LinkFC 范围 [0..11], 15 应被 Validate 拒绝"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t41_fcb_zero_only",
+    "proto": "dnp3",
+    "summary": "T41 LinkFCB=1 但 FCV=0: wire 上 FCB 强制为 0",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "dnp3": {
+            "transport": "tcp",
+            "scenario": "reset_link",
+            "link_fcb": 1,
+            "link_fcv": 0
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 4,
+      "has_handshake": true,
+      "terminates": true,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 57,
+          "hex": "c0"
+        }
+      ],
+      "notes": [
+        "T41: FCV=0 强制 FCB=0, wire Control byte 末位=0 → 0xC0 (PRM=1,FC=0,FCV=0,FCB=0)",
+        "注释 LinkFCB=1 不会被使用"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t42_fcb_toggle",
+    "proto": "dnp3",
+    "summary": "T42 LinkFCB=1+FCV=1: read_class0 请求帧 FCB=1, 响应帧 FCB=0",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "dnp3": {
+            "transport": "tcp",
+            "scenario": "read_class0",
+            "link_fcb": 1,
+            "link_fcv": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 5,
+      "has_handshake": true,
+      "terminates": true,
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 57,
+          "hex": "f3"
+        },
+        {
+          "packet": 8,
+          "offset": 57,
+          "hex": "03"
+        }
+      ],
+      "notes": [
+        "T42: read_class0 TCP 包序列: 1=SYN, 2=SYNACK, 3=ACK, 4=ResetLink up, 5=ResetACK down, 6=read request, 7=down ack (10B, Control=0x00), 8=respond, 9=up ack",
+        "上行 read 请求 Control=0xF3 (DIR=1,PRM=1,FCV=1,FCB=1,FC=3);",
+        "下行 respond Control=0x03 (DIR=0,PRM=0,FCV=0,FCB=0,FC=3) — 仅 PRM=1 主站端翻转 FCB;副站(PRM=0)FCB 固定为 0",
+        "下行 ack Control=0x00 (DIR=0,PRM=0,FC=0)"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t44_malformed_length_zero",
+    "proto": "dnp3",
+    "summary": "T44 MalformedLength=0: 所有帧 Length 字节=0x00 (CRC 仍正确)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "dnp3": {
+            "transport": "tcp",
+            "scenario": "read_class0",
+            "malformed_length": 0
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 4,
+      "has_handshake": true,
+      "terminates": true,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 56,
+          "hex": "00"
+        }
+      ],
+      "notes": [
+        "T44: MalformedLength=0 强制每个链路帧 Length=0x00",
+        "CRC 字节不重算, 故总长度与 Length 不一致"
+      ]
+    },
+    "notes": [
+      "reset 帧含 3B 用户数据+CRC, Length 被强制为 0x00, 帧总长 15B; offset 56→62",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t47_malformed_length_200",
+    "proto": "dnp3",
+    "summary": "T47 MalformedLength=200 合法范围: 帧 Length 字节=0xC8",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "dnp3": {
+            "transport": "tcp",
+            "scenario": "read_class0",
+            "malformed_length": 200
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 4,
+      "has_handshake": true,
+      "terminates": true,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 56,
+          "hex": "c8"
+        }
+      ],
+      "notes": [
+        "T47: MalformedLength=200 (0xC8) 在合法 [0..255] 范围, 注入到每个帧 Length 字节",
+        "CRC 字节不重算"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t14_block16_crc",
+    "proto": "dnp3",
+    "summary": "T14 16B user-data 分块: CRC 分块写入链路帧",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "dnp3": {
+            "transport": "tcp",
+            "scenario": "read_class0",
+            "objects": [
+              {
+                "object_type": 60,
+                "variation": 1,
+                "qualifier": 6
+              }
+            ],
+            "user_data_size": 16
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 4,
+      "has_handshake": true,
+      "terminates": true,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64"
+        }
+      ],
+      "notes": [
+        "T14: 16B 用户数据触发单个 16B 分块(Length=18)",
+        "校验链路帧首部与 App 层完整"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t15_block17_crc",
+    "proto": "dnp3",
+    "summary": "T15 17B user-data: CRC 分两块写入 (16B+1B) 含独立 CRC",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "dnp3": {
+            "transport": "tcp",
+            "scenario": "read_class0",
+            "objects": [
+              {
+                "object_type": 60,
+                "variation": 1,
+                "qualifier": 6
+              }
+            ],
+            "user_data_size": 17
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 4,
+      "has_handshake": true,
+      "terminates": true,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64"
+        }
+      ],
+      "notes": [
+        "T15: 17B 用户数据触发 16B+1B 双 CRC 分块 (两个 CRC16/DNP 各自保护一块)"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t51_iin_broadcast",
+    "proto": "dnp3",
+    "summary": "T51 IINBroadcast: iin_broadcast=true → 响应 IIN byte1=0x80 (BROADCAST bit7)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "dnp3": {
+            "transport": "tcp",
+            "scenario": "respond",
+            "iin_broadcast": true
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 4,
+      "has_handshake": true,
+      "terminates": true,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 66,
+          "hex": "80 00"
+        }
+      ],
+      "notes": [
+        "T51: 使用 scenario=respond 直接构造响应帧（绕过 exchange() 在 DstAddr=0xFFFF 时的 short-circuit）",
+        "IIN byte1=0x80 表示 BROADCAST 位 (bit7);byte2=0x00"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t53_iin_all_bits",
+    "proto": "dnp3",
+    "summary": "T53 IINAllBits: 全 shorthand=true (除 ConfigCorrupt) → byte1=0x7A, byte2=0x7C",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "dnp3": {
+            "transport": "tcp",
+            "scenario": "respond",
+            "iin_class1": true,
+            "iin_class2": true,
+            "iin_class3": true,
+            "iin_need_time": true,
+            "iin_device_trouble": true,
+            "iin_object_unknown": true,
+            "iin_parameter_error": true,
+            "iin_func_not_supported": true,
+            "iin_already_executing": true,
+            "iin_event_buffer_overflow": true,
+            "iin_config_corrupt": false
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 4,
+      "has_handshake": true,
+      "terminates": true,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 66,
+          "hex": "7a 7c"
+        }
+      ],
+      "notes": [
+        "T53: byte1=Class1(0x40)+Class2(0x20)+Class3(0x10)+NeedTime(0x08)+DeviceTrouble(0x02)=0x7A",
+        "byte2=FuncNotSupported(0x40)+ObjectUnknown(0x20)+ParameterError(0x10)+AlreadyExecuting(0x04)+EventBufferOverflow(0x08)=0x7C"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t54_iin_raw_and_shorthand",
+    "proto": "dnp3",
+    "summary": "T54 IINRaw+Shorthand: iin=0x4000 (Class1) + iin_class2=true → byte1=0x60 OR",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "dnp3": {
+            "transport": "tcp",
+            "scenario": "respond",
+            "iin": 16384,
+            "iin_class2": true
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 4,
+      "has_handshake": true,
+      "terminates": true,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 66,
+          "hex": "60 00"
+        }
+      ],
+      "notes": [
+        "T54: raw IIN=0x4000 提供 Class1=0x40;shorthand iin_class2=true 提供 Class2=0x20",
+        "effectiveIIN OR 关系: byte1=0x40+0x20=0x60, byte2=0x00"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t9_multi_zero_count",
+    "proto": "dnp3",
+    "summary": "T9 Validate: OutstationCount=0 → 拒绝 (outstation_count must be > 0)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "reset_link",
+            "multi_outstation": {
+              "outstation_count": 0,
+              "outstation_ip_start": "10.0.0.2",
+              "src_port_start": 20001
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "outstation_count",
+      "notes": [
+        "T9: OutstationCount=0 非法 → Validate 拒绝, 任务以 validation failed 失败"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t10_multi_iplist_mismatch",
+    "proto": "dnp3",
+    "summary": "T10 Validate: OutstationCount=2 但 IPList 长度=1 → 拒绝 (length mismatch)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "reset_link",
+            "multi_outstation": {
+              "outstation_count": 2,
+              "outstation_ip_list": [
+                "10.0.0.2"
+              ],
+              "src_port_start": 20001
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "outstation_ip_list",
+      "notes": [
+        "T10: IPList 长度 1 != OutstationCount 2 → Validate 拒绝"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t56_outstation_ip_start",
+    "proto": "dnp3",
+    "summary": "T56: OutstationIPStart=10.0.0.10 Count=3 → RTU 0/1/2 = 10.0.0.10/11/12 连续递增",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "reset_link",
+            "multi_outstation": {
+              "outstation_count": 3,
+              "outstation_addr_start": 1025,
+              "outstation_ip_start": "10.0.0.10",
+              "src_port_start": 20001
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 27,
+      "has_handshake": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "10.0.0.10"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "value": "20001"
+        },
+        {
+          "packet": 10,
+          "field": "ip.dst",
+          "value": "10.0.0.11"
+        },
+        {
+          "packet": 10,
+          "field": "tcp.srcport",
+          "value": "20002"
+        },
+        {
+          "packet": 19,
+          "field": "ip.dst",
+          "value": "10.0.0.12"
+        },
+        {
+          "packet": 19,
+          "field": "tcp.srcport",
+          "value": "20003"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 01 04 01 00"
+        },
+        {
+          "packet": 13,
+          "offset": 54,
+          "hex": "05 64 06  c0 02 04 01 00"
+        },
+        {
+          "packet": 22,
+          "offset": 54,
+          "hex": "05 64 06  c0 03 04 01 00"
+        }
+      ],
+      "notes": [
+        "T56: 无 IPList, OutstationIPStart=10.0.0.10 → RTU0=10.0.0.10, RTU1=10.0.0.11, RTU2=10.0.0.12 (连续递增)",
+        "每流 9 包 = 3握手 + ResetLink + ACK + FIN + 3挥手; 3 流顺序写入 pcap (流0=包1-9, 流1=包10-18, 流2=包19-27)",
+        "链路帧 DstAddr: RTU0=1025(0x0401) / RTU1=1026(0x0402) / RTU2=1027(0x0403), LE 字节序"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t57_multi_no_ip",
+    "proto": "dnp3",
+    "summary": "T57 Validate: OutstationCount=2 无 IPStart 无 IPList → 拒绝 (outstation_ip required)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "reset_link",
+            "multi_outstation": {
+              "outstation_count": 2
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "outstation_ip",
+      "notes": [
+        "T57: Count>1 且既无 IPList 也无 IPStart → Validate 拒绝 outstation_ip required"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t58_multi_port_zero",
+    "proto": "dnp3",
+    "summary": "T58 Validate: OutstationCount=2 + IPList 但 SrcPortStart=0 → 拒绝 (src_port_start must be set)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "reset_link",
+            "multi_outstation": {
+              "outstation_count": 2,
+              "outstation_ip_list": [
+                "10.0.0.2",
+                "10.0.0.3"
+              ],
+              "src_port_start": 0
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "src_port_start",
+      "notes": [
+        "T58: IPList 合法(长度=Count) 但 SrcPortStart=0 → Validate 拒绝 src_port_start must be set"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t59_multi_port_overflow",
+    "proto": "dnp3",
+    "summary": "T59 Validate: OutstationCount=10 + SrcPortStart=65530 → 拒绝 (exceeds 65535)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "reset_link",
+            "multi_outstation": {
+              "outstation_count": 10,
+              "outstation_ip_list": [
+                "10.0.0.2",
+                "10.0.0.3",
+                "10.0.0.4",
+                "10.0.0.5",
+                "10.0.0.6",
+                "10.0.0.7",
+                "10.0.0.8",
+                "10.0.0.9",
+                "10.0.0.10",
+                "10.0.0.11"
+              ],
+              "src_port_start": 65530
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "exceeds 65535",
+      "notes": [
+        "T59: 65530 + 10 - 1 = 65539 > 65535 → Validate 拒绝 src_port_start + outstation_count exceeds 65535"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t60_iplist_overrides_start",
+    "proto": "dnp3",
+    "summary": "T60: IPStart=10.0.0.10 + IPList=[10.0.0.20,10.0.0.30] → IPList 优先, RTU0=.20 RTU1=.30",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "reset_link",
+            "multi_outstation": {
+              "outstation_count": 2,
+              "outstation_addr_start": 1025,
+              "outstation_ip_start": "10.0.0.10",
+              "outstation_ip_list": [
+                "10.0.0.20",
+                "10.0.0.30"
+              ],
+              "src_port_start": 20001
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 18,
+      "has_handshake": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "10.0.0.20"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "value": "20001"
+        },
+        {
+          "packet": 10,
+          "field": "ip.dst",
+          "value": "10.0.0.30"
+        },
+        {
+          "packet": 10,
+          "field": "tcp.srcport",
+          "value": "20002"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 01 04 01 00"
+        },
+        {
+          "packet": 13,
+          "offset": 54,
+          "hex": "05 64 06  c0 02 04 01 00"
+        }
+      ],
+      "notes": [
+        "T60: IPStart=10.0.0.10 但 IPList 非空 → IPList 覆盖 IPStart: RTU0=10.0.0.20, RTU1=10.0.0.30",
+        "2 流 × 9 包 = 18 包; 链路帧 DstAddr RTU0=1025 / RTU1=1026"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t35_empty_objects_link_only",
+    "proto": "dnp3",
+    "summary": "T35: Objects=[] + reset_link → 仅链路帧 (ResetLink up + ACK down), 无 App 层",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "reset_link",
+            "objects": []
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "terminates": true,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 00 04 01 00"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "05 64 06  00 01 00 00 04"
+        }
+      ],
+      "notes": [
+        "T35: scenario=reset_link 早返回 (scenario.go line 39) 不走 defaultObjects; Objects=[] 即 0 对象, 仅链路帧",
+        "packet 4 ResetLink up: Length=0, ctrl=0xC0 (DIR|PRM|FC=0), dst=1024(00 04), src=1(01 00); packet 5 ACK down: ctrl=0x00, dst=1, src=1024",
+        "包序 3握手(1-3) + ResetLink(4) + ACK(5) + 4挥手(6-9) = 9 包, 无任何 App 层字节"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t45_unknown_object_respond",
+    "proto": "dnp3",
+    "summary": "T45: UnknownObject=true read_class0 → 响应 Object=255 Var=0 Q=0x06, IIN byte2=0x20",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "read_class0",
+            "unknown_object": true
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "terminates": true,
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 66,
+          "hex": "00 20"
+        },
+        {
+          "packet": 8,
+          "offset": 68,
+          "hex": "ff 00 06"
+        }
+      ],
+      "notes": [
+        "T45: 走 read_class0 exchange() 路径, responseObjects(c, AppRead, ...) 在 UnknownObject=true 时返回 {255,0,6}",
+        "响应帧 packet 8: IIN offset 66-67 = byte1=00, byte2=0x20 (ObjectUnknown bit5); object offset 68-70 = ObjectType=255, Variation=0, Qualifier=0x06",
+        "App FC byte (offset 65) 由 buggy types.go 发出 0x0D (应 0x81 per IEEE 1815-2012, 见 dnp3-spec-mapping.md 备注)"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t70_response_var0_rejected",
+    "proto": "dnp3",
+    "summary": "T70 Validate: outstation+respond + Object{20,0,6} → 拒绝 (Variation=0 in response frame)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "outstation",
+            "transport": "tcp",
+            "src_addr": 1024,
+            "dst_addr": 1,
+            "app_func": "respond",
+            "objects": [
+              {
+                "object_type": 20,
+                "variation": 0,
+                "qualifier": 6
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "Variation",
+      "notes": [
+        "T70: isResponse=true (link_type=outstation) + Variation=0 → Validate 拒绝, 错误信息含 Variation"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t71_request_var0_accepted",
+    "proto": "dnp3",
+    "summary": "T71: master+read + Object{20,0,6} → 通过 (请求帧 Variation=0 = 任意变体)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "app_func": "read",
+            "objects": [
+              {
+                "object_type": 20,
+                "variation": 0,
+                "qualifier": 6
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 4,
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "T71: 请求帧 Variation=0 表示'任意变体' (IEEE 1815-2012 §5.1.1), Validate 通过",
+        "isResponse=false (master+read) 不触发 response Variation=0 校验"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t72_freeze_clear_var1",
+    "proto": "dnp3",
+    "summary": "T72: scenario=freeze_clear + Object{20,1,6} → 请求帧 data = C0 09 14 01 06",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "freeze_clear",
+            "app_seq": 0,
+            "objects": [
+              {
+                "object_type": 20,
+                "variation": 1,
+                "qualifier": 6
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 4,
+      "has_handshake": true,
+      "terminates": true,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 64,
+          "hex": "c0 09 14 01 06"
+        }
+      ],
+      "notes": [
+        "T72: freeze_clear 请求帧 (无 reset 前缀) 在 packet 4; data = AC(FIR+FIN+seq=0) + FC(0x09=AppFreezeClear) + ObjHdr(14 01 06);",
+        "注: spec 期望 C6 (=FIR+FIN+seq=6), 此 case 用 app_seq=0 故 wire 是 C0, 帧字节随 seq 变, 这里只断言 App FC=0x09 正确"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t73_counter_var3_rejected",
+    "proto": "dnp3",
+    "summary": "T73 Validate: Object{20,3,6} (Variation=3 不存在) → 拒绝 (must be 1 or 2)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "app_func": "read",
+            "objects": [
+              {
+                "object_type": 20,
+                "variation": 3,
+                "qualifier": 6
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "variation",
+      "notes": [
+        "T73: Object 20 (Counter) 仅支持 Variation 1/2, Variation=3 → Validate 拒绝 must be 1 or 2"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t74_fc31_reserved_rejected",
+    "proto": "dnp3",
+    "summary": "T74 Validate: AppFuncCode=31 (Reserved) → 拒绝 (FC=31 is Reserved)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "app_func_code": 31
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "FC=31",
+      "notes": [
+        "T74: AppFuncCode=31 → Validate 拒绝 FC=31 is Reserved in IEEE 1815-2012"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t75_fc215_reserved_rejected",
+    "proto": "dnp3",
+    "summary": "T75 Validate: AppFuncCode=215 (Configure deprecated) → 拒绝 (FC=215 is Reserved)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "app_func_code": 215
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "FC=215",
+      "notes": [
+        "T75: AppFuncCode=215 → Validate 拒绝 FC=215 is Reserved in IEEE 1815-2012 (Configure deprecated)"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t78_link_ctrl03_outstation_data",
+    "proto": "dnp3",
+    "summary": "T78: scenario=respond 链路层 Control=0x03 (PRM=0,FC=3, User Data Confirm, outstation→master)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "dnp3": {
+            "transport": "tcp",
+            "scenario": "respond"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 4,
+      "has_handshake": true,
+      "terminates": true,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 57,
+          "hex": "03"
+        }
+      ],
+      "notes": [
+        "T78: respond() 用 BuildControl(false,false,false,false,LinkUserConfirm=3) = 0x03,",
+        "PRM=0 DIR=0 FCB=0 FCV=0 FC=3 = 外设→主站 User Data Confirm (IEEE 1815-2012 §3.2)",
+        "注: FCV=0 表示不需 FCB 计数, 与外设 PRM=0 方向一致"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t80_empty_data_10bytes",
+    "proto": "dnp3",
+    "summary": "T80: scenario=reset_link 帧 Length=0 → 10B 帧 (05 64 00 ctrl dst src CRC16)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "reset_link"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 4,
+      "has_handshake": true,
+      "terminates": true,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 00 04 01 00"
+        }
+      ],
+      "notes": [
+        "T80: 无 user data, Length=0, 链路帧 = 起始2B + Length(0) + Ctrl + Dst2B + Src2B + CRC16 = 10B, 偏移 54-63 整 10B",
+        "ResetLink up 帧 ctrl=0xC0 (DIR|PRM), dst=1024(0x0400 LE=00 04), src=1(01 00); 下行 ACK 帧 ctrl=0x00 (DIR=0, PRM=0, FC=0=ACK)"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t84_multi_outstation_10",
+    "proto": "dnp3",
+    "summary": "T84: OutstationCount=10 + IPList (10 IP) → 10 个 4-tuple 各不同, 单流内顺序保持",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "reset_link",
+            "multi_outstation": {
+              "outstation_count": 10,
+              "outstation_addr_start": 1025,
+              "outstation_ip_list": [
+                "10.0.0.2",
+                "10.0.0.3",
+                "10.0.0.4",
+                "10.0.0.5",
+                "10.0.0.6",
+                "10.0.0.7",
+                "10.0.0.8",
+                "10.0.0.9",
+                "10.0.0.10",
+                "10.0.0.11"
+              ],
+              "src_port_start": 20001
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 90,
+      "has_handshake": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "10.0.0.2"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "value": "20001"
+        },
+        {
+          "packet": 82,
+          "field": "ip.dst",
+          "value": "10.0.0.11"
+        },
+        {
+          "packet": 82,
+          "field": "tcp.srcport",
+          "value": "20010"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 01 04 01 00"
+        },
+        {
+          "packet": 85,
+          "offset": 54,
+          "hex": "05 64 06  c0 0a 04 01 00"
+        }
+      ],
+      "notes": [
+        "T84: 10 外设 × 9 包/流 = 90 包; 流顺序写入 pcap",
+        "DstAddr: RTU0=1025(0x0401) ... RTU9=1034(0x040A LE=0a 04)",
+        "注: 跨外设包序不保证 (不同 PacketWorker 调度), 但单外设 4-tuple 唯一且内部 ResetLink→ACK→FIN 顺序由 exchange 保持"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t17_read_class123",
+    "proto": "dnp3",
+    "summary": "T17: read_class123 → 3 个 Object 60.2/60.3/60.4 各 Qual=6; 请求 data=C2 01 3C 02 06 3C 03 06 3C 04 06",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "read_class123",
+            "app_seq": 2
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20000"
+        },
+        {
+          "packet": 6,
+          "field": "tcp.dstport",
+          "value": "20000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 00 04 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "05 64 0d d3 00 04 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 64,
+          "hex": "c2 01 3c 02 06 3c 03 06 3c 04 06"
+        }
+      ],
+      "notes": [
+        "T17: 默认 Objects (60.2/60.3/60.4) Qual=6 由 read_class123 自动填充 (scenario.go defaultObjects)",
+        "请求 AC=0xC2 (FIR=1,FIN=1,AppSeq=2); App 层 data 9B: C2 01 3C 02 06 3C 03 06 3C 04 06",
+        "包序: 3握手 + (reset,ack,req,ack,resp,ack) + 4挥手 = 13 包; resp 帧 App FC=0x81",
+        "链路 Length=0x0d=13 (11B App data + 2B 块 CRC); 11B 装单块 16B 槽位"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t32_multi_outstation_3_groupid",
+    "proto": "dnp3",
+    "summary": "T32: OutstationCount=3 → 3 个流 GroupID 各不同 (flowid 后缀 RTU-0/1/2), 4-tuple 唯一",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "reset_link",
+            "multi_outstation": {
+              "outstation_count": 3,
+              "outstation_addr_start": 1025,
+              "outstation_ip_list": [
+                "10.0.0.2",
+                "10.0.0.3",
+                "10.0.0.4"
+              ],
+              "src_port_start": 20001
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 27,
+      "has_handshake": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "value": "20001"
+        },
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "10.0.0.2"
+        },
+        {
+          "packet": 10,
+          "field": "tcp.srcport",
+          "value": "20002"
+        },
+        {
+          "packet": 10,
+          "field": "ip.dst",
+          "value": "10.0.0.3"
+        },
+        {
+          "packet": 19,
+          "field": "tcp.srcport",
+          "value": "20003"
+        },
+        {
+          "packet": 19,
+          "field": "ip.dst",
+          "value": "10.0.0.4"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 01 04 01 00"
+        },
+        {
+          "packet": 13,
+          "offset": 54,
+          "hex": "05 64 06  c0 02 04 01 00"
+        },
+        {
+          "packet": 22,
+          "offset": 54,
+          "hex": "05 64 06  c0 03 04 01 00"
+        }
+      ],
+      "notes": [
+        "T32: 每流 GroupID = flowid (含 RTU-N 后缀) → 3 个流路由到不同 PacketWorker; pcap 无法直接断言 GroupID, 用每流起始帧块位置 + 4-tuple + DstAddr 间接断言",
+        "每流 9 包 (3握手+ResetLink+ACK+4挥手): flow0 p1-9, flow1 p10-18, flow2 p19-27",
+        "DstAddr 小端: RTU0=0x0401, RTU1=0x0402, RTU2=0x0403"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t33_multi_outstation_3_wire_order",
+    "proto": "dnp3",
+    "summary": "T33: OutstationCount=3 → 单外设内包序保持: ResetLink 先于 UserData, 每流 3握手+Reset+ACK+挥手",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "read_class0",
+            "multi_outstation": {
+              "outstation_count": 3,
+              "outstation_addr_start": 1025,
+              "outstation_ip_list": [
+                "10.0.0.2",
+                "10.0.0.3",
+                "10.0.0.4"
+              ],
+              "src_port_start": 20001
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 39,
+      "has_handshake": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "value": "20001"
+        },
+        {
+          "packet": 14,
+          "field": "tcp.srcport",
+          "value": "20002"
+        },
+        {
+          "packet": 27,
+          "field": "tcp.srcport",
+          "value": "20003"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 01 04 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 64,
+          "hex": "c0 01 3c 01 06"
+        },
+        {
+          "packet": 19,
+          "offset": 64,
+          "hex": "c0 01 3c 01 06"
+        },
+        {
+          "packet": 32,
+          "offset": 64,
+          "hex": "c0 01 3c 01 06"
+        }
+      ],
+      "notes": [
+        "T33: read_class0 每流 13 包 (3握手+reset+ack+req+ack+resp+ack+4挥手): flow0 p1-13, flow1 p14-26, flow2 p27-39",
+        "每流内序: Reset Link(p4) → ACK(p5) → read 请求(p6) → ACK(p7) → respond(p8) → ACK(p9) → FIN 挥手",
+        "flow1/flow2 的 read 请求在 p17/p30, DstAddr 各为 0x0402/0x0403 (由 srcport 断言覆盖)",
+        "flow1 read 请求在 p19 (flow1 从 p14 起: 14+5=19), flow2 在 p32 (27+5=32)"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t55_iin_out_of_range",
+    "proto": "dnp3",
+    "summary": "T55: dnp3.iin=65536 超出 uint16 范围 → ValidateProtocolSubConfigs 拒绝 (iin out of uint16 range)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "read_class0",
+            "iin": 65536
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "iin",
+      "notes": [
+        "T55: IIN=0x10000 超出 uint16, parseDNP3Config 的 getUint16 会静默截断为 0 → 必须在转换前拒绝 (validate.go dnp3 case)",
+        "期望错误: dnp3.iin 65536 invalid (must be 0-65535); 经 MCP generate_traffic 调用错误路径返回"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t64_freeze_clear_con0",
+    "proto": "dnp3",
+    "summary": "T64: scenario=freeze_clear + AppCON=0 → 请求帧 CON=0 (auto-set 0), AC 字节 C0",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "freeze_clear",
+            "app_seq": 0,
+            "objects": [
+              {
+                "object_type": 20,
+                "variation": 1,
+                "qualifier": 6
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 4,
+      "has_handshake": true,
+      "terminates": true,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 07 d3 00 04 01 00"
+        },
+        {
+          "packet": 4,
+          "offset": 64,
+          "hex": "c0 09 14 01 06"
+        }
+      ],
+      "notes": [
+        "T64: freeze_clear 请求 AC=0xC0 (FIR=1,FIN=1,CON=0,Seq=0) — CON=0 auto-set 0 (IEEE 1815-2012 §5.1.2)",
+        "App data 5B: C0 09 14 01 06 (FC=9 FreezeClear, Obj=20.1 Qual=6); 与 t72 (C0 09 14 01 06) 帧一致但本 case 断言 CON 位=0",
+        "包序: 3握手 + (req, ack, resp, ack) + 4挥手 = 13 包"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t66_crob_request_status_rejected",
+    "proto": "dnp3",
+    "summary": "T66: CROB (12.1) 请求携带 status 字段 → Validate 拒绝 (Status is response-only)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "select_operate",
+            "app_seq": 3,
+            "objects": [
+              {
+                "object_type": 12,
+                "variation": 1,
+                "qualifier": 0,
+                "index_range": [
+                  5,
+                  5
+                ],
+                "points": [
+                  {
+                    "value": 1,
+                    "status": 0
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "Status",
+      "notes": [
+        "T66: CROB 请求不得携带 Status 字段 (Status 是响应回显字段); encodePoint 请求帧固定 6B 会静默丢弃 Status",
+        "修复: dnp3.Validate 对 12.1 请求 + 任何 point.Status != nil → error \"CROB request must not carry Status field; Status is response-only\"",
+        "经 MCP generate_traffic 调用错误路径返回 (validation failed)"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t67_operate_crob_shared_appseq",
+    "proto": "dnp3",
+    "summary": "T67: select_operate + CROB Code=3 → select/operate 共享 AppSeq=3, 请求帧 App 层字节 C3 03/04 0C 01 00 05 05 03 01 64 00 FF FF",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "select_operate",
+            "app_seq": 3,
+            "objects": [
+              {
+                "object_type": 12,
+                "variation": 1,
+                "qualifier": 0,
+                "index_range": [
+                  5,
+                  5
+                ],
+                "points": [
+                  {
+                    "value": 3
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 15,
+      "has_handshake": true,
+      "terminates": true,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 0f d3 00 04 01 00"
+        },
+        {
+          "packet": 4,
+          "offset": 64,
+          "hex": "e3 03 0c 01 00 05 05 03 01 64 00 ff ff"
+        },
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "05 64 0f d3 00 04 01 00"
+        },
+        {
+          "packet": 8,
+          "offset": 64,
+          "hex": "e3 04 0c 01 00 05 05 03 01 64 00 ff ff"
+        }
+      ],
+      "notes": [
+        "T67: operate 请求 App 层 = AC(0xE3, FIR=1,FIN=1,CON=1,Seq=3) + FC=4 + CROB 6B (03 01 64 00 FF FF)",
+        "select 与 operate 共享 AppSeq=3 (IEEE 1815-2012 §5.1.3.2 SBO 两步同序列号); 链路头同 t23 (Length=0x0f=13B App+2B CRC)",
+        "CROB 请求 6B 无 Status: 03(Code=LATCH_ON) 01(Count) 64 00(OnTime=100) FF FF(OffTime)"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t68_respond_crob_status_echo",
+    "proto": "dnp3",
+    "summary": "T68: outstation respond + CROB 回显 Status=0 → 响应帧 7B CROB: C3 81 00 00 0C 01 00 05 05 03 01 64 00 FF FF 00",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "outstation",
+            "transport": "tcp",
+            "src_addr": 1024,
+            "dst_addr": 1,
+            "scenario": "respond",
+            "app_seq": 3,
+            "objects": [
+              {
+                "object_type": 12,
+                "variation": 1,
+                "qualifier": 0,
+                "index_range": [
+                  5,
+                  5
+                ],
+                "points": [
+                  {
+                    "value": 3,
+                    "status": 0
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.srcport",
+          "value": "20000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 12 03 00 04 01 00"
+        },
+        {
+          "packet": 4,
+          "offset": 64,
+          "hex": "c3 81 00 00 0c 01 00 05 05 03 01 64 00 ff ff 00"
+        }
+      ],
+      "notes": [
+        "T68: 响应帧 AC=0xC3 (FIR=1,FIN=1,CON=0,Seq=3), FC=0x81 (AppRespond per IEEE 1815-2012), IIN=00 00",
+        "CROB 响应 7B: 03 01 64 00 FF FF 00 — 末尾 Status=0 由显式配置 status:0 回显 (修复: encodePoint 输出 *p.Status 而非硬编码 0)",
+        "链路头 Length=0x12=18 (16B App + 2B CRC); ctrl=0x03 (DIR=0,PRM=0,FC=3); 响应帧下行: dst=主站1024(00 04) src=外设1(01 00)"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t69_qualifier9_rejected",
+    "proto": "dnp3",
+    "summary": "T69: qualifier=9 (非法) → Validate 拒绝 (invalid qualifier 0x09)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "direct_operate",
+            "objects": [
+              {
+                "object_type": 12,
+                "variation": 1,
+                "qualifier": 9,
+                "index_range": [
+                  5,
+                  5
+                ],
+                "points": [
+                  {
+                    "value": 3
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "qualifier",
+      "notes": [
+        "T69: qualifier 白名单 {0,1,6,7,8,0x17,0x28}; 9 不在其中 → Validate 拒绝 invalid qualifier 0x09",
+        "此前场景: qualifier 9 会经 encodeObject 报 unsupported qualifier, 但错误被 planFlow 吞掉 → 任务 0 包完成"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t69b_qualifier0_index_overflow",
+    "proto": "dnp3",
+    "summary": "T69(变体): qualifier=0 + index_range [300,300] 超出 8-bit → Validate 拒绝 (index exceeds 255)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "direct_operate",
+            "objects": [
+              {
+                "object_type": 12,
+                "variation": 1,
+                "qualifier": 0,
+                "index_range": [
+                  300,
+                  300
+                ],
+                "points": [
+                  {
+                    "value": 3
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "index",
+      "notes": [
+        "T69(变体): qualifier 0x00 用 8-bit 索引, IndexRange>255 无法编码 → Validate 拒绝 (修复: dnp3.go Validate 新增检查)",
+        "此前: encodeObject 报错被 planFlow 吞掉 → 任务 0 包完成 (错误传播 bug)"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t69c_qualifier17_point_index_overflow",
+    "proto": "dnp3",
+    "summary": "T69(变体): qualifier=0x17 + point index=300 超出 8-bit → Validate 拒绝 (index exceeds 255)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "read_class0",
+            "objects": [
+              {
+                "object_type": 1,
+                "variation": 1,
+                "qualifier": 23,
+                "count": 1,
+                "points": [
+                  {
+                    "index": 300,
+                    "value": 1
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "index",
+      "notes": [
+        "T69(变体): qualifier 0x17 (8-bit 索引前缀) point index=300 → 编码时 byte(p.Index) 静默截断 300→44 → Validate 拒绝 (修复: dnp3.go 新增检查)",
+        "此前: 截断后任务正常完成, wire 上索引错误无感知"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t81_strategy_convert_full_path",
+    "proto": "dnp3",
+    "summary": "T81: strategy_convert 全链路 → link_type/src_addr/dst_addr/objects/points(status)/iin/multi_outstation 映射到 DNP3Config 再 Plan, wire 字节与直接构造一致",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "outstation",
+            "transport": "tcp",
+            "src_addr": 1024,
+            "dst_addr": 1,
+            "scenario": "respond",
+            "app_seq": 3,
+            "iin": 18464,
+            "objects": [
+              {
+                "object_type": 12,
+                "variation": 1,
+                "qualifier": 0,
+                "index_range": [
+                  5,
+                  5
+                ],
+                "points": [
+                  {
+                    "value": 3,
+                    "status": 0
+                  }
+                ]
+              }
+            ],
+            "multi_outstation": {
+              "outstation_count": 2,
+              "outstation_addr_start": 1025,
+              "outstation_ip_list": [
+                "10.0.0.2",
+                "10.0.0.3"
+              ],
+              "src_port_start": 20001
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 16,
+      "has_handshake": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.srcport",
+          "value": "20000"
+        },
+        {
+          "packet": 12,
+          "field": "tcp.srcport",
+          "value": "20000"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "20001"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 12 03 00 04 01 04"
+        },
+        {
+          "packet": 4,
+          "offset": 64,
+          "hex": "c3 81 48 20 0c 01 00 05 05 03 01 64 00 ff ff 00"
+        },
+        {
+          "packet": 12,
+          "offset": 54,
+          "hex": "05 64 12 03 00 04 02 04"
+        },
+        {
+          "packet": 12,
+          "offset": 64,
+          "hex": "c3 81 48 20 0c 01 00 05 05 03 01 64 00 ff ff 00"
+        }
+      ],
+      "notes": [
+        "T81: MCP generate_traffic = strategy_convert 全路径 (strategy_handler → parseDNP3Config → mapToFlowSpec → Plan)",
+        "iin=18464=0x4820 → 响应帧 IIN 字节 48 20 (Class1=0x40 + NeedTime=0x08, ObjectUnknown=0x20)",
+        "multi_outstation=2 → 2 流: RTU0 (DstAddr=0x0401, srcport 20001) p1-8, RTU1 (0x0402, 20002) p9-16; 每流 3握手+respond+4挥手=8 包",
+        "下行响应帧: dst=主站1024(00 04), src=RTU 1025/1026 (01 04 / 02 04)"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
+  },
+  {
+    "id": "dnp3_t85_multi_outstation_20_stress",
+    "proto": "dnp3",
+    "summary": "T85: OutstationCount=20 stress → 20 个流全产出, 每流 4-tuple 唯一, 总包数=20×9=180, 无冲突",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.100",
+            "dst": "10.0.0.1"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "dnp3": {
+            "link_type": "master",
+            "transport": "tcp",
+            "src_addr": 1,
+            "dst_addr": 1024,
+            "scenario": "reset_link",
+            "multi_outstation": {
+              "outstation_count": 20,
+              "outstation_addr_start": 1025,
+              "outstation_ip_list": [
+                "10.0.0.2",
+                "10.0.0.3",
+                "10.0.0.4",
+                "10.0.0.5",
+                "10.0.0.6",
+                "10.0.0.7",
+                "10.0.0.8",
+                "10.0.0.9",
+                "10.0.0.10",
+                "10.0.0.11",
+                "10.0.0.12",
+                "10.0.0.13",
+                "10.0.0.14",
+                "10.0.0.15",
+                "10.0.0.16",
+                "10.0.0.17",
+                "10.0.0.18",
+                "10.0.0.19",
+                "10.0.0.20",
+                "10.0.0.21"
+              ],
+              "src_port_start": 20001
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 180,
+      "has_handshake": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "value": "20001"
+        },
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "10.0.0.2"
+        },
+        {
+          "packet": 172,
+          "field": "tcp.srcport",
+          "value": "20020"
+        },
+        {
+          "packet": 172,
+          "field": "ip.dst",
+          "value": "10.0.0.21"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 64 06  c0 01 04 01 00"
+        },
+        {
+          "packet": 175,
+          "offset": 54,
+          "hex": "05 64 06  c0 14 04 01 00"
+        }
+      ],
+      "notes": [
+        "T85: 20 外设 × 9 包/流 (reset_link) = 180 包; 全流产出无 4-tuple 冲突",
+        "RTU0=1025(0x0401) srcport 20001 dst 10.0.0.2; RTU19=1044(0x0414 LE=14 04) srcport 20020 dst 10.0.0.21",
+        "设计 T85 为 100 RTU (900 包); 此处按任务执行 20 RTU 压力验证 (100 可后续扩展)"
+      ]
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
+    ]
   }
- }
 ]

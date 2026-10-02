@@ -4,8 +4,16 @@
     "proto": "ike",
     "summary": "冒烟：IKEv2 空配置 → standard_v2（IKE_SA_INIT + IKE_AUTH 各一对）。显式 src_port=12345（客户端临时端口，planner 禁止 500 作源端口），dst 默认 500，共 4 包",
     "spec_json": {
-      "src_port": 12345,
-      "ike": {}
+      "layers": [
+        {
+          "udp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "ike": {}
+        }
+      ]
     },
     "expect": {
       "packet_count": 4,
@@ -87,6 +95,9 @@
         "cookie（SPI）为随机值 → 仅断言存在性可跳过（不断言）；payload 载荷顺序 SA/KE/Nonce 不逐字节断言",
         "tshark 探针实测：4 帧 exchangetype/flags/length 与上表一致（SA_INIT 376B、AUTH 225B），mjver=2、mnver=0"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ike 子映射迁入 layers[].ike"
+    ]
   }
 ]

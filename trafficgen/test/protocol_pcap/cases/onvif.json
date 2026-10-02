@@ -21,29 +21,28 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 200,
-                  "system_date_and_time": {
-                    "utc_date_time": "2026-09-01T00:00:00Z"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 200,
+                      "system_date_and_time": {
+                        "utc_date_time": "2026-09-01T00:00:00Z"
+                      }
+                    }
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -113,7 +112,10 @@
           "offset": 591
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_device_get_capabilities",
@@ -137,47 +139,46 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetCapabilities",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "category": [
-                    "All"
-                  ]
-                },
-                "response": {
-                  "http_status": 200,
-                  "capabilities": {
-                    "entries": [
-                      {
-                        "service": "Media",
-                        "x_addr": "http://198.51.100.67/onvif/media_service"
-                      },
-                      {
-                        "service": "Events",
-                        "x_addr": "http://198.51.100.67/onvif/event_service"
-                      },
-                      {
-                        "service": "PTZ",
-                        "x_addr": "http://198.51.100.67/onvif/ptz_service"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetCapabilities",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "category": [
+                        "All"
+                      ]
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "capabilities": {
+                        "entries": [
+                          {
+                            "service": "Media",
+                            "x_addr": "http://198.51.100.67/onvif/media_service"
+                          },
+                          {
+                            "service": "Events",
+                            "x_addr": "http://198.51.100.67/onvif/event_service"
+                          },
+                          {
+                            "service": "PTZ",
+                            "x_addr": "http://198.51.100.67/onvif/ptz_service"
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -237,7 +238,10 @@
           "offset": 586
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_device_get_device_information",
@@ -261,35 +265,34 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetDeviceInformation",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "auth": {
-                  "username": "admin",
-                  "password": "test123"
-                },
-                "response": {
-                  "http_status": 200,
-                  "manufacturer": "Example",
-                  "model": "IPC-67",
-                  "firmware_version": "1.0.0",
-                  "serial_number": "SN0000067",
-                  "hardware_id": "HW-67"
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetDeviceInformation",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "auth": {
+                      "username": "admin",
+                      "password": "test123"
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "manufacturer": "Example",
+                      "model": "IPC-67",
+                      "firmware_version": "1.0.0",
+                      "serial_number": "SN0000067",
+                      "hardware_id": "HW-67"
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -344,7 +347,10 @@
           "offset": 673
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_device_get_network_interfaces",
@@ -368,36 +374,35 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetNetworkInterfaces",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "auth": {
-                  "username": "admin",
-                  "password": "test123"
-                },
-                "response": {
-                  "http_status": 200,
-                  "network_interfaces": [
-                    {
-                      "token": "nic_1",
-                      "enabled": true
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetNetworkInterfaces",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "auth": {
+                      "username": "admin",
+                      "password": "test123"
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "network_interfaces": [
+                        {
+                          "token": "nic_1",
+                          "enabled": true
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -452,7 +457,10 @@
           "offset": 669
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_network_interfaces_multi",
@@ -476,40 +484,39 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetNetworkInterfaces",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "auth": {
-                  "username": "admin",
-                  "password": "test123"
-                },
-                "response": {
-                  "http_status": 200,
-                  "network_interfaces": [
-                    {
-                      "token": "nic_1",
-                      "enabled": true
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetNetworkInterfaces",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "auth": {
+                      "username": "admin",
+                      "password": "test123"
                     },
-                    {
-                      "token": "nic_2",
-                      "enabled": true
+                    "response": {
+                      "http_status": 200,
+                      "network_interfaces": [
+                        {
+                          "token": "nic_1",
+                          "enabled": true
+                        },
+                        {
+                          "token": "nic_2",
+                          "enabled": true
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -569,7 +576,10 @@
           "offset": 879
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_ws_security_usernametoken",
@@ -593,31 +603,30 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetDeviceInformation",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "auth": {
-                  "username": "admin",
-                  "password": "test123"
-                },
-                "response": {
-                  "http_status": 200,
-                  "manufacturer": "X"
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetDeviceInformation",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "auth": {
+                      "username": "admin",
+                      "password": "test123"
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "manufacturer": "X"
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -682,7 +691,10 @@
           "offset": 1017
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_usernametoken_created_namespace",
@@ -706,31 +718,30 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetDeviceInformation",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "auth": {
-                  "username": "admin",
-                  "password": "test123"
-                },
-                "response": {
-                  "http_status": 200,
-                  "manufacturer": "X"
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetDeviceInformation",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "auth": {
+                      "username": "admin",
+                      "password": "test123"
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "manufacturer": "X"
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -785,7 +796,10 @@
           "offset": 1089
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_soap12_envelope_structure",
@@ -809,26 +823,25 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 200
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 200
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -883,7 +896,10 @@
           "offset": 243
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_soap12_prefix_variant",
@@ -907,26 +923,25 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 200
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 200
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -986,7 +1001,10 @@
           "offset": 591
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_ws_addressing_correlation",
@@ -1010,26 +1028,25 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 200
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 200
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1094,7 +1111,10 @@
           "offset": 441
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_http_401_digest_challenge",
@@ -1118,45 +1138,44 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetDeviceInformation",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 401,
-                  "www_authenticate": "Digest realm=\"onvif@device\", nonce=\"abc123\", qop=\"auth\", algorithm=MD5, opaque=\"opaque0000067\""
-                }
-              },
-              {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetDeviceInformation",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
-                "auth": {
-                  "username": "admin",
-                  "password": "test123"
-                },
-                "response": {
-                  "http_status": 200,
-                  "manufacturer": "Example",
-                  "model": "IPC-67",
-                  "firmware_version": "1.0.0",
-                  "serial_number": "SN0000067",
-                  "hardware_id": "HW-67"
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetDeviceInformation",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 401,
+                      "www_authenticate": "Digest realm=\"onvif@device\", nonce=\"abc123\", qop=\"auth\", algorithm=MD5, opaque=\"opaque0000067\""
+                    }
+                  },
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetDeviceInformation",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
+                    "auth": {
+                      "username": "admin",
+                      "password": "test123"
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "manufacturer": "Example",
+                      "model": "IPC-67",
+                      "firmware_version": "1.0.0",
+                      "serial_number": "SN0000067",
+                      "hardware_id": "HW-67"
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1236,7 +1255,10 @@
           "offset": 118
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_http_400_malformed_no_body",
@@ -1260,26 +1282,25 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 400
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 400
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1323,7 +1344,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_http_405_method_not_allowed",
@@ -1347,27 +1371,26 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "method": "PUT",
-                "response": {
-                  "http_status": 405
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "method": "PUT",
+                    "response": {
+                      "http_status": 405
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1417,7 +1440,10 @@
           "offset": 54
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_http_415_unsupported_media",
@@ -1441,27 +1467,26 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "content_type": "text/xml",
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "content_type": "text/xml",
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 415
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 415
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1505,7 +1530,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_http_host_explicit",
@@ -1529,31 +1557,30 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "http": {
-                  "request_headers": {
-                    "Host": "onvif.example.com"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "http": {
+                      "request_headers": {
+                        "Host": "onvif.example.com"
+                      }
+                    },
+                    "response": {
+                      "http_status": 200
+                    }
                   }
-                },
-                "response": {
-                  "http_status": 200
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1602,7 +1629,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_single_transaction_connection_close",
@@ -1626,26 +1656,25 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 200
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 200
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1699,7 +1728,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_port_nondefault",
@@ -1723,26 +1755,25 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 200
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 200
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1796,7 +1827,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_http_keepalive_multi_transaction",
@@ -1820,58 +1854,57 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 200
-                }
-              },
-              {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetCapabilities",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
-                "response": {
-                  "http_status": 200,
-                  "capabilities": {
-                    "entries": [
-                      {
-                        "service": "Media",
-                        "x_addr": "http://198.51.100.67/onvif/media_service"
-                      }
-                    ]
-                  }
-                }
-              },
-              {
-                "kind": "request",
-                "service": "media",
-                "operation": "GetProfiles",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000003",
-                "response": {
-                  "http_status": 200,
-                  "profiles": [
-                    {
-                      "token": "profile_1",
-                      "name": "mainStream"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 200
                     }
-                  ]
-                }
+                  },
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetCapabilities",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
+                    "response": {
+                      "http_status": 200,
+                      "capabilities": {
+                        "entries": [
+                          {
+                            "service": "Media",
+                            "x_addr": "http://198.51.100.67/onvif/media_service"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "kind": "request",
+                    "service": "media",
+                    "operation": "GetProfiles",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000003",
+                    "response": {
+                      "http_status": 200,
+                      "profiles": [
+                        {
+                          "token": "profile_1",
+                          "name": "mainStream"
+                        }
+                      ]
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2015,7 +2048,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_media_get_profiles",
@@ -2039,38 +2075,37 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "media",
-                "operation": "GetProfiles",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 200,
-                  "profiles": [
-                    {
-                      "token": "profile_1",
-                      "name": "mainStream",
-                      "video_encoder": {
-                        "encoding": "H264",
-                        "width": 1920,
-                        "height": 1080,
-                        "fps": 25
-                      }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "media",
+                    "operation": "GetProfiles",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 200,
+                      "profiles": [
+                        {
+                          "token": "profile_1",
+                          "name": "mainStream",
+                          "video_encoder": {
+                            "encoding": "H264",
+                            "width": 1920,
+                            "height": 1080,
+                            "fps": 25
+                          }
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2130,7 +2165,10 @@
           "offset": 649
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_media_get_profiles_multi",
@@ -2154,36 +2192,35 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "media",
-                "operation": "GetProfiles",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 200,
-                  "profiles": [
-                    {
-                      "token": "profile_1",
-                      "name": "mainStream"
-                    },
-                    {
-                      "token": "profile_2",
-                      "name": "subStream"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "media",
+                    "operation": "GetProfiles",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 200,
+                      "profiles": [
+                        {
+                          "token": "profile_1",
+                          "name": "mainStream"
+                        },
+                        {
+                          "token": "profile_2",
+                          "name": "subStream"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2248,7 +2285,10 @@
           "offset": 836
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_media_get_stream_uri",
@@ -2272,49 +2312,48 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "media",
-                "operation": "GetProfiles",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 200,
-                  "profiles": [
-                    {
-                      "token": "profile_1",
-                      "name": "mainStream"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "media",
+                    "operation": "GetProfiles",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 200,
+                      "profiles": [
+                        {
+                          "token": "profile_1",
+                          "name": "mainStream"
+                        }
+                      ]
                     }
-                  ]
-                }
-              },
-              {
-                "kind": "request",
-                "service": "media",
-                "operation": "GetStreamUri",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
-                "parameters": {
-                  "stream_setup": {
-                    "stream": "RTP-Unicast",
-                    "protocol": "RTSP"
                   },
-                  "profile_token": "same_as_response:0.profiles[0].token"
-                },
-                "response": {
-                  "http_status": 200,
-                  "media_uri": "rtsp://198.51.100.67:554/profile_1/stream1"
-                }
+                  {
+                    "kind": "request",
+                    "service": "media",
+                    "operation": "GetStreamUri",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
+                    "parameters": {
+                      "stream_setup": {
+                        "stream": "RTP-Unicast",
+                        "protocol": "RTSP"
+                      },
+                      "profile_token": "same_as_response:0.profiles[0].token"
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "media_uri": "rtsp://198.51.100.67:554/profile_1/stream1"
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2409,7 +2448,10 @@
           "offset": 767
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_media_get_snapshot_uri",
@@ -2433,30 +2475,29 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "media",
-                "operation": "GetSnapshotUri",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "profile_token": "profile_1"
-                },
-                "response": {
-                  "http_status": 200,
-                  "media_uri": "http://198.51.100.67/onvif/snapshot/profile_1"
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "media",
+                    "operation": "GetSnapshotUri",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "profile_token": "profile_1"
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "media_uri": "http://198.51.100.67/onvif/snapshot/profile_1"
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2505,7 +2546,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_ptz_continuous_move",
@@ -2529,33 +2573,32 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "ptz",
-                "operation": "ContinuousMove",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "profile_token": "profile_1",
-                  "velocity": {
-                    "x": "0.1",
-                    "y": "0.2"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "ptz",
+                    "operation": "ContinuousMove",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "profile_token": "profile_1",
+                      "velocity": {
+                        "x": "0.1",
+                        "y": "0.2"
+                      }
+                    },
+                    "response": {
+                      "http_status": 200
+                    }
                   }
-                },
-                "response": {
-                  "http_status": 200
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2615,7 +2658,10 @@
           "offset": 579
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_ptz_continuous_move_timeout",
@@ -2639,30 +2685,29 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "ptz",
-                "operation": "ContinuousMove",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "profile_token": "profile_1",
-                  "timeout": "PT10S"
-                },
-                "response": {
-                  "http_status": 200
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "ptz",
+                    "operation": "ContinuousMove",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "profile_token": "profile_1",
+                      "timeout": "PT10S"
+                    },
+                    "response": {
+                      "http_status": 200
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2717,7 +2762,10 @@
           "offset": 742
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_ptz_move_stop_sequence",
@@ -2741,41 +2789,40 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "ptz",
-                "operation": "ContinuousMove",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "profile_token": "profile_1"
-                },
-                "response": {
-                  "http_status": 200
-                }
-              },
-              {
-                "kind": "request",
-                "service": "ptz",
-                "operation": "Stop",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
-                "parameters": {
-                  "profile_token": "profile_1"
-                },
-                "response": {
-                  "http_status": 200
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "ptz",
+                    "operation": "ContinuousMove",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "profile_token": "profile_1"
+                    },
+                    "response": {
+                      "http_status": 200
+                    }
+                  },
+                  {
+                    "kind": "request",
+                    "service": "ptz",
+                    "operation": "Stop",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
+                    "parameters": {
+                      "profile_token": "profile_1"
+                    },
+                    "response": {
+                      "http_status": 200
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2870,7 +2917,10 @@
           "offset": 441
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_ptz_stop_no_flags",
@@ -2894,29 +2944,28 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "ptz",
-                "operation": "Stop",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "profile_token": "profile_1"
-                },
-                "response": {
-                  "http_status": 200
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "ptz",
+                    "operation": "Stop",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "profile_token": "profile_1"
+                    },
+                    "response": {
+                      "http_status": 200
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2971,7 +3020,10 @@
           "offset": 569
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_ptz_stop_flags",
@@ -2995,31 +3047,30 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "ptz",
-                "operation": "Stop",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "profile_token": "profile_1",
-                  "pan_tilt": true,
-                  "zoom": true
-                },
-                "response": {
-                  "http_status": 200
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "ptz",
+                    "operation": "Stop",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "profile_token": "profile_1",
+                      "pan_tilt": true,
+                      "zoom": true
+                    },
+                    "response": {
+                      "http_status": 200
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3074,7 +3125,10 @@
           "offset": 722
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_events_create_pullpoint_subscription",
@@ -3098,32 +3152,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "events",
-                "operation": "CreatePullPointSubscription",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "initial_termination_time": "PT1M"
-                },
-                "response": {
-                  "http_status": 200,
-                  "subscription_reference": "http://198.51.100.67/onvif/subscription?Idx=0",
-                  "current_time": "2026-09-01T00:00:00Z",
-                  "termination_time": "2026-09-01T00:01:00Z"
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "events",
+                    "operation": "CreatePullPointSubscription",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "initial_termination_time": "PT1M"
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "subscription_reference": "http://198.51.100.67/onvif/subscription?Idx=0",
+                      "current_time": "2026-09-01T00:00:00Z",
+                      "termination_time": "2026-09-01T00:01:00Z"
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3183,7 +3236,10 @@
           "offset": 618
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_events_create_with_filter",
@@ -3207,31 +3263,30 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "events",
-                "operation": "CreatePullPointSubscription",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "initial_termination_time": "PT1M",
-                  "filter": "tns1:Device/Trigger/DigitalInput"
-                },
-                "response": {
-                  "http_status": 200,
-                  "subscription_reference": "http://198.51.100.67/onvif/subscription?Idx=0"
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "events",
+                    "operation": "CreatePullPointSubscription",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "initial_termination_time": "PT1M",
+                      "filter": "tns1:Device/Trigger/DigitalInput"
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "subscription_reference": "http://198.51.100.67/onvif/subscription?Idx=0"
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3286,7 +3341,10 @@
           "offset": 747
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_events_create_absolute_termination",
@@ -3310,30 +3368,29 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "events",
-                "operation": "CreatePullPointSubscription",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "initial_termination_time": "2026-09-02T00:00:00Z"
-                },
-                "response": {
-                  "http_status": 200,
-                  "subscription_reference": "http://198.51.100.67/onvif/subscription?Idx=0"
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "events",
+                    "operation": "CreatePullPointSubscription",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "initial_termination_time": "2026-09-02T00:00:00Z"
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "subscription_reference": "http://198.51.100.67/onvif/subscription?Idx=0"
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3382,7 +3439,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_events_create_to_pull_correlation",
@@ -3406,48 +3466,47 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "events",
-                "operation": "CreatePullPointSubscription",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "initial_termination_time": "PT1M"
-                },
-                "response": {
-                  "http_status": 200,
-                  "subscription_reference": "http://198.51.100.67/onvif/subscription?Idx=0",
-                  "current_time": "2026-09-01T00:00:00Z",
-                  "termination_time": "2026-09-01T00:01:00Z"
-                }
-              },
-              {
-                "kind": "request",
-                "service": "events",
-                "operation": "PullMessages",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
-                "parameters": {
-                  "timeout": "PT5S",
-                  "message_limit": 2
-                },
-                "to": "same_as_response:0.subscription_reference",
-                "response": {
-                  "http_status": 200,
-                  "current_time": "2026-09-01T00:00:00Z",
-                  "termination_time": "2026-09-01T00:01:00Z"
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "events",
+                    "operation": "CreatePullPointSubscription",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "initial_termination_time": "PT1M"
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "subscription_reference": "http://198.51.100.67/onvif/subscription?Idx=0",
+                      "current_time": "2026-09-01T00:00:00Z",
+                      "termination_time": "2026-09-01T00:01:00Z"
+                    }
+                  },
+                  {
+                    "kind": "request",
+                    "service": "events",
+                    "operation": "PullMessages",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
+                    "parameters": {
+                      "timeout": "PT5S",
+                      "message_limit": 2
+                    },
+                    "to": "same_as_response:0.subscription_reference",
+                    "response": {
+                      "http_status": 200,
+                      "current_time": "2026-09-01T00:00:00Z",
+                      "termination_time": "2026-09-01T00:01:00Z"
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3542,7 +3601,10 @@
           "offset": 676
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_events_pull_messages",
@@ -3566,41 +3628,40 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "events",
-                "operation": "PullMessages",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "to": "http://198.51.100.67/onvif/subscription?Idx=0",
-                "parameters": {
-                  "timeout": "PT5S",
-                  "message_limit": 2
-                },
-                "response": {
-                  "http_status": 200,
-                  "current_time": "2026-09-01T00:00:00Z",
-                  "termination_time": "2026-09-01T00:01:00Z",
-                  "notification_messages": [
-                    {
-                      "topic": "tns1:Device/Trigger/DigitalInput",
-                      "dialect": "http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet",
-                      "name": "LogicalState",
-                      "value": "true"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "events",
+                    "operation": "PullMessages",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+                    "parameters": {
+                      "timeout": "PT5S",
+                      "message_limit": 2
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "current_time": "2026-09-01T00:00:00Z",
+                      "termination_time": "2026-09-01T00:01:00Z",
+                      "notification_messages": [
+                        {
+                          "topic": "tns1:Device/Trigger/DigitalInput",
+                          "dialect": "http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet",
+                          "name": "LogicalState",
+                          "value": "true"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3660,7 +3721,10 @@
           "offset": 794
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_events_pull_messages_timeout_zero",
@@ -3684,33 +3748,32 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "events",
-                "operation": "PullMessages",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "to": "http://198.51.100.67/onvif/subscription?Idx=0",
-                "parameters": {
-                  "timeout": "PT5S",
-                  "message_limit": 2
-                },
-                "response": {
-                  "http_status": 200,
-                  "current_time": "2026-09-01T00:00:00Z",
-                  "termination_time": "2026-09-01T00:01:00Z"
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "events",
+                    "operation": "PullMessages",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+                    "parameters": {
+                      "timeout": "PT5S",
+                      "message_limit": 2
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "current_time": "2026-09-01T00:00:00Z",
+                      "termination_time": "2026-09-01T00:01:00Z"
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3759,7 +3822,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_events_pull_messages_limit_1",
@@ -3783,33 +3849,32 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "events",
-                "operation": "PullMessages",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "to": "http://198.51.100.67/onvif/subscription?Idx=0",
-                "parameters": {
-                  "timeout": "PT5S",
-                  "message_limit": 1
-                },
-                "response": {
-                  "http_status": 200,
-                  "current_time": "2026-09-01T00:00:00Z",
-                  "termination_time": "2026-09-01T00:01:00Z"
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "events",
+                    "operation": "PullMessages",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+                    "parameters": {
+                      "timeout": "PT5S",
+                      "message_limit": 1
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "current_time": "2026-09-01T00:00:00Z",
+                      "termination_time": "2026-09-01T00:01:00Z"
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3858,7 +3923,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_events_pull_messages_limit_int_max",
@@ -3882,33 +3950,32 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "events",
-                "operation": "PullMessages",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "to": "http://198.51.100.67/onvif/subscription?Idx=0",
-                "parameters": {
-                  "timeout": "PT5S",
-                  "message_limit": 2147483647
-                },
-                "response": {
-                  "http_status": 200,
-                  "current_time": "2026-09-01T00:00:00Z",
-                  "termination_time": "2026-09-01T00:01:00Z"
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "events",
+                    "operation": "PullMessages",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+                    "parameters": {
+                      "timeout": "PT5S",
+                      "message_limit": 2147483647
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "current_time": "2026-09-01T00:00:00Z",
+                      "termination_time": "2026-09-01T00:01:00Z"
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3963,7 +4030,10 @@
           "offset": 885
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_events_pull_timeout_pt0s",
@@ -3987,33 +4057,32 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "events",
-                "operation": "PullMessages",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "to": "http://198.51.100.67/onvif/subscription?Idx=0",
-                "parameters": {
-                  "timeout": "PT0S",
-                  "message_limit": 2
-                },
-                "response": {
-                  "http_status": 200,
-                  "current_time": "2026-09-01T00:00:00Z",
-                  "termination_time": "2026-09-01T00:01:00Z"
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "events",
+                    "operation": "PullMessages",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+                    "parameters": {
+                      "timeout": "PT0S",
+                      "message_limit": 2
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "current_time": "2026-09-01T00:00:00Z",
+                      "termination_time": "2026-09-01T00:01:00Z"
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4062,7 +4131,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_fault_400_auth",
@@ -4086,31 +4158,30 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetDeviceInformation",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 400,
-                  "fault": {
-                    "value": "env:Sender",
-                    "subcode": "ter:NotAuthorized",
-                    "reason": "Sender not Authorized"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetDeviceInformation",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 400,
+                      "fault": {
+                        "value": "env:Sender",
+                        "subcode": "ter:NotAuthorized",
+                        "reason": "Sender not Authorized"
+                      }
+                    }
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4175,7 +4246,10 @@
           "offset": 639
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_fault_500_no_such_service",
@@ -4199,37 +4273,36 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetCapabilities",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "category": [
-                    "Analytics"
-                  ]
-                },
-                "response": {
-                  "http_status": 500,
-                  "fault": {
-                    "value": "env:Receiver",
-                    "subcode": "ter:ActionNotSupported",
-                    "nested_subcode": "ter:NoSuchService",
-                    "reason": "No such service"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetCapabilities",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "category": [
+                        "Analytics"
+                      ]
+                    },
+                    "response": {
+                      "http_status": 500,
+                      "fault": {
+                        "value": "env:Receiver",
+                        "subcode": "ter:ActionNotSupported",
+                        "nested_subcode": "ter:NoSuchService",
+                        "reason": "No such service"
+                      }
+                    }
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4289,7 +4362,10 @@
           "offset": 703
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_fault_full_form",
@@ -4313,34 +4389,33 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetDeviceInformation",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 400,
-                  "fault": {
-                    "value": "env:Sender",
-                    "subcode": "ter:NotAuthorized",
-                    "reason": "Sender not Authorized",
-                    "node": "https://onvif.example/wsdl",
-                    "role": "https://onvif.example/role",
-                    "detail": "Token missing"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetDeviceInformation",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 400,
+                      "fault": {
+                        "value": "env:Sender",
+                        "subcode": "ter:NotAuthorized",
+                        "reason": "Sender not Authorized",
+                        "node": "https://onvif.example/wsdl",
+                        "role": "https://onvif.example/role",
+                        "detail": "Token missing"
+                      }
+                    }
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4405,7 +4480,10 @@
           "offset": 846
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_capabilities_category_device",
@@ -4429,39 +4507,38 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetCapabilities",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "category": [
-                    "Device"
-                  ]
-                },
-                "response": {
-                  "http_status": 200,
-                  "capabilities": {
-                    "entries": [
-                      {
-                        "service": "Device",
-                        "x_addr": "http://198.51.100.67/onvif/device_service"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetCapabilities",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "category": [
+                        "Device"
+                      ]
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "capabilities": {
+                        "entries": [
+                          {
+                            "service": "Device",
+                            "x_addr": "http://198.51.100.67/onvif/device_service"
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4510,7 +4587,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_capabilities_category_events",
@@ -4534,39 +4614,38 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetCapabilities",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "category": [
-                    "Events"
-                  ]
-                },
-                "response": {
-                  "http_status": 200,
-                  "capabilities": {
-                    "entries": [
-                      {
-                        "service": "Events",
-                        "x_addr": "http://198.51.100.67/onvif/event_service"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetCapabilities",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "category": [
+                        "Events"
+                      ]
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "capabilities": {
+                        "entries": [
+                          {
+                            "service": "Events",
+                            "x_addr": "http://198.51.100.67/onvif/event_service"
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4615,7 +4694,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_capabilities_category_imaging",
@@ -4639,39 +4721,38 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetCapabilities",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "category": [
-                    "Imaging"
-                  ]
-                },
-                "response": {
-                  "http_status": 200,
-                  "capabilities": {
-                    "entries": [
-                      {
-                        "service": "Imaging",
-                        "x_addr": "http://198.51.100.67/onvif/imaging"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetCapabilities",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "category": [
+                        "Imaging"
+                      ]
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "capabilities": {
+                        "entries": [
+                          {
+                            "service": "Imaging",
+                            "x_addr": "http://198.51.100.67/onvif/imaging"
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4720,7 +4801,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_capabilities_category_media",
@@ -4744,39 +4828,38 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetCapabilities",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "category": [
-                    "Media"
-                  ]
-                },
-                "response": {
-                  "http_status": 200,
-                  "capabilities": {
-                    "entries": [
-                      {
-                        "service": "Media",
-                        "x_addr": "http://198.51.100.67/onvif/media_service"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetCapabilities",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "category": [
+                        "Media"
+                      ]
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "capabilities": {
+                        "entries": [
+                          {
+                            "service": "Media",
+                            "x_addr": "http://198.51.100.67/onvif/media_service"
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4825,7 +4908,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_capabilities_category_ptz",
@@ -4849,39 +4935,38 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetCapabilities",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "category": [
-                    "PTZ"
-                  ]
-                },
-                "response": {
-                  "http_status": 200,
-                  "capabilities": {
-                    "entries": [
-                      {
-                        "service": "PTZ",
-                        "x_addr": "http://198.51.100.67/onvif/ptz_service"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetCapabilities",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "category": [
+                        "PTZ"
+                      ]
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "capabilities": {
+                        "entries": [
+                          {
+                            "service": "PTZ",
+                            "x_addr": "http://198.51.100.67/onvif/ptz_service"
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4930,7 +5015,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_capabilities_category_analytics",
@@ -4954,39 +5042,38 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetCapabilities",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "category": [
-                    "Analytics"
-                  ]
-                },
-                "response": {
-                  "http_status": 200,
-                  "capabilities": {
-                    "entries": [
-                      {
-                        "service": "Analytics",
-                        "x_addr": "http://198.51.100.67/onvif/analytics"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetCapabilities",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "category": [
+                        "Analytics"
+                      ]
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "capabilities": {
+                        "entries": [
+                          {
+                            "service": "Analytics",
+                            "x_addr": "http://198.51.100.67/onvif/analytics"
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5035,7 +5122,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_capabilities_multi_category",
@@ -5059,44 +5149,43 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetCapabilities",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "category": [
-                    "Device",
-                    "Events"
-                  ]
-                },
-                "response": {
-                  "http_status": 200,
-                  "capabilities": {
-                    "entries": [
-                      {
-                        "service": "Device",
-                        "x_addr": "http://198.51.100.67/onvif/device_service"
-                      },
-                      {
-                        "service": "Events",
-                        "x_addr": "http://198.51.100.67/onvif/event_service"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetCapabilities",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "category": [
+                        "Device",
+                        "Events"
+                      ]
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "capabilities": {
+                        "entries": [
+                          {
+                            "service": "Device",
+                            "x_addr": "http://198.51.100.67/onvif/device_service"
+                          },
+                          {
+                            "service": "Events",
+                            "x_addr": "http://198.51.100.67/onvif/event_service"
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5145,7 +5234,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_date_time_daylight_timezone",
@@ -5169,32 +5261,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 200,
-                  "system_date_and_time": {
-                    "date_time_type": "NTP",
-                    "daylight_savings": true,
-                    "time_zone": "CST-8",
-                    "utc_date_time": "2026-09-01T00:00:00Z"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 200,
+                      "system_date_and_time": {
+                        "date_time_type": "NTP",
+                        "daylight_savings": true,
+                        "time_zone": "CST-8",
+                        "utc_date_time": "2026-09-01T00:00:00Z"
+                      }
+                    }
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5254,7 +5345,10 @@
           "offset": 841
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_date_time_localtime",
@@ -5278,30 +5372,29 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 200,
-                  "system_date_and_time": {
-                    "utc_date_time": "2026-09-01T00:00:00Z",
-                    "local_date_time": "2026-09-01T08:00:00Z"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 200,
+                      "system_date_and_time": {
+                        "utc_date_time": "2026-09-01T00:00:00Z",
+                        "local_date_time": "2026-09-01T08:00:00Z"
+                      }
+                    }
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5356,7 +5449,10 @@
           "offset": 945
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_date_time_manual",
@@ -5380,30 +5476,29 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 200,
-                  "system_date_and_time": {
-                    "date_time_type": "Manual",
-                    "utc_date_time": "2026-09-01T00:00:00Z"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 200,
+                      "system_date_and_time": {
+                        "date_time_type": "Manual",
+                        "utc_date_time": "2026-09-01T00:00:00Z"
+                      }
+                    }
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5458,7 +5553,10 @@
           "offset": 754
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_token_len_63",
@@ -5482,30 +5580,29 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "media",
-                "operation": "GetSnapshotUri",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "profile_token": "tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-                },
-                "response": {
-                  "http_status": 200,
-                  "media_uri": "http://198.51.100.67/onvif/snapshot/tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "media",
+                    "operation": "GetSnapshotUri",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "profile_token": "tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "media_uri": "http://198.51.100.67/onvif/snapshot/tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5554,7 +5651,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_token_len_64",
@@ -5578,30 +5678,29 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "media",
-                "operation": "GetSnapshotUri",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "profile_token": "tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-                },
-                "response": {
-                  "http_status": 200,
-                  "media_uri": "http://198.51.100.67/onvif/snapshot/tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "media",
+                    "operation": "GetSnapshotUri",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "profile_token": "tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "media_uri": "http://198.51.100.67/onvif/snapshot/tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5650,7 +5749,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_long_message_id",
@@ -5674,26 +5776,25 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:6fa459ea-ee8a-3ca4-894e-db77e160355e",
-                "response": {
-                  "http_status": 200
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:6fa459ea-ee8a-3ca4-894e-db77e160355e",
+                    "response": {
+                      "http_status": 200
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5748,7 +5849,10 @@
           "offset": 512
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_ipv6_transport",
@@ -5772,26 +5876,25 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 200
-                }
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 200
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5851,7 +5954,10 @@
           "offset": 266
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_ipv6_media_get_profiles",
@@ -5875,32 +5981,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "media",
-                "operation": "GetProfiles",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 200,
-                  "profiles": [
-                    {
-                      "token": "profile_1",
-                      "name": "mainStream"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "media",
+                    "operation": "GetProfiles",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 200,
+                      "profiles": [
+                        {
+                          "token": "profile_1",
+                          "name": "mainStream"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5954,7 +6059,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_multi_session",
@@ -5978,47 +6086,46 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "src_port": 40067,
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 200
-                }
-              }
-            ]
-          },
-          {
-            "src_port": 40068,
-            "events": [
-              {
-                "kind": "request",
-                "service": "media",
-                "operation": "GetProfiles",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
-                "response": {
-                  "http_status": 200,
-                  "profiles": [
-                    {
-                      "token": "profile_1",
-                      "name": "mainStream"
+                "src_port": 40067,
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 200
                     }
-                  ]
-                }
+                  }
+                ]
+              },
+              {
+                "src_port": 40068,
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "media",
+                    "operation": "GetProfiles",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
+                    "response": {
+                      "http_status": 200,
+                      "profiles": [
+                        {
+                          "token": "profile_1",
+                          "name": "mainStream"
+                        }
+                      ]
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -6067,7 +6174,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_concurrent_sessions",
@@ -6091,48 +6201,47 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "concurrent": true,
-        "sessions": [
-          {
-            "src_port": 40067,
-            "events": [
+          "onvif": {
+            "concurrent": true,
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "response": {
-                  "http_status": 200
-                }
-              }
-            ]
-          },
-          {
-            "src_port": 40068,
-            "events": [
-              {
-                "kind": "request",
-                "service": "media",
-                "operation": "GetProfiles",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
-                "response": {
-                  "http_status": 200,
-                  "profiles": [
-                    {
-                      "token": "profile_1",
-                      "name": "mainStream"
+                "src_port": 40067,
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "response": {
+                      "http_status": 200
                     }
-                  ]
-                }
+                  }
+                ]
+              },
+              {
+                "src_port": 40068,
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "media",
+                    "operation": "GetProfiles",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
+                    "response": {
+                      "http_status": 200,
+                      "profiles": [
+                        {
+                          "token": "profile_1",
+                          "name": "mainStream"
+                        }
+                      ]
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -6181,7 +6290,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_mss_large_capabilities",
@@ -6205,83 +6317,82 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetCapabilities",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "category": [
-                    "All"
-                  ]
-                },
-                "response": {
-                  "http_status": 200,
-                  "capabilities": {
-                    "entries": [
-                      {
-                        "service": "Media",
-                        "x_addr": "http://198.51.100.67/onvif/media_service"
-                      },
-                      {
-                        "service": "Events",
-                        "x_addr": "http://198.51.100.67/onvif/event_service"
-                      },
-                      {
-                        "service": "PTZ",
-                        "x_addr": "http://198.51.100.67/onvif/ptz_service"
-                      },
-                      {
-                        "service": "Device",
-                        "x_addr": "http://198.51.100.67/onvif/device_service"
-                      },
-                      {
-                        "service": "Analytics",
-                        "x_addr": "http://198.51.100.67/onvif/analytics"
-                      },
-                      {
-                        "service": "Imaging",
-                        "x_addr": "http://198.51.100.67/onvif/imaging"
-                      },
-                      {
-                        "service": "Recording",
-                        "x_addr": "http://198.51.100.67/onvif/recording_service"
-                      },
-                      {
-                        "service": "Search",
-                        "x_addr": "http://198.51.100.67/onvif/search_service"
-                      },
-                      {
-                        "service": "Replay",
-                        "x_addr": "http://198.51.100.67/onvif/replay_service"
-                      },
-                      {
-                        "service": "Receiver",
-                        "x_addr": "http://198.51.100.67/onvif/receiver_service"
-                      },
-                      {
-                        "service": "AnalyticsEngine",
-                        "x_addr": "http://198.51.100.67/onvif/analytics_engine"
-                      },
-                      {
-                        "service": "DeviceIO",
-                        "x_addr": "http://198.51.100.67/onvif/device_io"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetCapabilities",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "category": [
+                        "All"
+                      ]
+                    },
+                    "response": {
+                      "http_status": 200,
+                      "capabilities": {
+                        "entries": [
+                          {
+                            "service": "Media",
+                            "x_addr": "http://198.51.100.67/onvif/media_service"
+                          },
+                          {
+                            "service": "Events",
+                            "x_addr": "http://198.51.100.67/onvif/event_service"
+                          },
+                          {
+                            "service": "PTZ",
+                            "x_addr": "http://198.51.100.67/onvif/ptz_service"
+                          },
+                          {
+                            "service": "Device",
+                            "x_addr": "http://198.51.100.67/onvif/device_service"
+                          },
+                          {
+                            "service": "Analytics",
+                            "x_addr": "http://198.51.100.67/onvif/analytics"
+                          },
+                          {
+                            "service": "Imaging",
+                            "x_addr": "http://198.51.100.67/onvif/imaging"
+                          },
+                          {
+                            "service": "Recording",
+                            "x_addr": "http://198.51.100.67/onvif/recording_service"
+                          },
+                          {
+                            "service": "Search",
+                            "x_addr": "http://198.51.100.67/onvif/search_service"
+                          },
+                          {
+                            "service": "Replay",
+                            "x_addr": "http://198.51.100.67/onvif/replay_service"
+                          },
+                          {
+                            "service": "Receiver",
+                            "x_addr": "http://198.51.100.67/onvif/receiver_service"
+                          },
+                          {
+                            "service": "AnalyticsEngine",
+                            "x_addr": "http://198.51.100.67/onvif/analytics_engine"
+                          },
+                          {
+                            "service": "DeviceIO",
+                            "x_addr": "http://198.51.100.67/onvif/device_io"
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -6330,7 +6441,10 @@
         }
       ],
       "frames": []
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_soap_envelope_ns",
@@ -6354,29 +6468,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "soap_envelope_ns"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "soap_envelope_ns"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "envelope"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_soap_truncated",
@@ -6400,29 +6516,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "soap_truncated"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "soap_truncated"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "xml"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_soap_body_missing",
@@ -6446,29 +6564,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "soap_body_missing"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "soap_body_missing"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "body"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_soap_header_order",
@@ -6492,29 +6612,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "soap_header_order"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "soap_header_order"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "header"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_content_type",
@@ -6538,29 +6660,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "content_type"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "content_type"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "content-type"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_charset_missing",
@@ -6584,29 +6708,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "charset_missing"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "charset_missing"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "charset"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_charset_wrong",
@@ -6630,29 +6756,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "charset_wrong"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "charset_wrong"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "charset"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_action_mismatch",
@@ -6676,30 +6804,32 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetProfiles",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "action": "http://www.onvif.org/ver10/device/wsdl/GetCapabilities",
-                "wire_fault": "action_mismatch"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetProfiles",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "action": "http://www.onvif.org/ver10/device/wsdl/GetCapabilities",
+                    "wire_fault": "action_mismatch"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "action"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_action_suffix",
@@ -6723,30 +6853,32 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "action": "http://www.onvif.org/ver10/device/wsdl/GetSystemDateAndTimeResponse",
-                "wire_fault": "action_suffix"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "action": "http://www.onvif.org/ver10/device/wsdl/GetSystemDateAndTimeResponse",
+                    "wire_fault": "action_suffix"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "action"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_addressing_action",
@@ -6770,29 +6902,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "addressing_action"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "addressing_action"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "addressing"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_addressing_message_id",
@@ -6816,29 +6950,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "addressing_message_id"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "addressing_message_id"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "message"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_addressing_relates",
@@ -6862,29 +6998,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "addressing_relates"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "addressing_relates"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "relates"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_addressing_ns",
@@ -6908,29 +7046,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "addressing_ns"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "addressing_ns"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "addressing"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_operation_unknown",
@@ -6954,29 +7094,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetFooBar",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "operation_unknown"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetFooBar",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "operation_unknown"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "operation"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_operation_ns",
@@ -7000,29 +7142,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetStreamUri",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "operation_ns"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetStreamUri",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "operation_ns"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "namespace"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_service_unknown",
@@ -7046,29 +7190,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "imaging",
-                "operation": "GetImagingSettings",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "service_unknown"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "imaging",
+                    "operation": "GetImagingSettings",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "service_unknown"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "service"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_parameter_stream_setup",
@@ -7092,32 +7238,34 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "media",
-                "operation": "GetStreamUri",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "profile_token": "profile_1"
-                },
-                "wire_fault": "parameter_stream_setup"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "media",
+                    "operation": "GetStreamUri",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "profile_token": "profile_1"
+                    },
+                    "wire_fault": "parameter_stream_setup"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "parameter"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_parameter_profile_token",
@@ -7141,35 +7289,37 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "media",
-                "operation": "GetStreamUri",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "stream_setup": {
-                    "stream": "RTP-Unicast",
-                    "protocol": "RTSP"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "media",
+                    "operation": "GetStreamUri",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "stream_setup": {
+                        "stream": "RTP-Unicast",
+                        "protocol": "RTSP"
+                      }
+                    },
+                    "wire_fault": "parameter_profile_token"
                   }
-                },
-                "wire_fault": "parameter_profile_token"
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "parameter"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_parameter_timeout",
@@ -7193,33 +7343,35 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "events",
-                "operation": "PullMessages",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "to": "http://198.51.100.67/onvif/subscription?Idx=0",
-                "parameters": {
-                  "message_limit": 2
-                },
-                "wire_fault": "parameter_timeout"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "events",
+                    "operation": "PullMessages",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+                    "parameters": {
+                      "message_limit": 2
+                    },
+                    "wire_fault": "parameter_timeout"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "parameter"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_parameter_message_limit",
@@ -7243,33 +7395,35 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "events",
-                "operation": "PullMessages",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "to": "http://198.51.100.67/onvif/subscription?Idx=0",
-                "parameters": {
-                  "timeout": "PT5S"
-                },
-                "wire_fault": "parameter_message_limit"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "events",
+                    "operation": "PullMessages",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+                    "parameters": {
+                      "timeout": "PT5S"
+                    },
+                    "wire_fault": "parameter_message_limit"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "parameter"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_parameter_duration",
@@ -7293,34 +7447,36 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "events",
-                "operation": "PullMessages",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "to": "http://198.51.100.67/onvif/subscription?Idx=0",
-                "parameters": {
-                  "timeout": "5s",
-                  "message_limit": 2
-                },
-                "wire_fault": "parameter_duration"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "events",
+                    "operation": "PullMessages",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+                    "parameters": {
+                      "timeout": "5s",
+                      "message_limit": 2
+                    },
+                    "wire_fault": "parameter_duration"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "parameter"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_auth_missing",
@@ -7344,29 +7500,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetDeviceInformation",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "auth_missing"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetDeviceInformation",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "auth_missing"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "auth"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_token_nonce",
@@ -7390,33 +7548,35 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetDeviceInformation",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "auth": {
-                  "username": "admin",
-                  "password": "test123"
-                },
-                "wire_fault": "token_nonce"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetDeviceInformation",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "auth": {
+                      "username": "admin",
+                      "password": "test123"
+                    },
+                    "wire_fault": "token_nonce"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "nonce"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_token_created",
@@ -7440,33 +7600,35 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetDeviceInformation",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "auth": {
-                  "username": "admin",
-                  "password": "test123"
-                },
-                "wire_fault": "token_created"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetDeviceInformation",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "auth": {
+                      "username": "admin",
+                      "password": "test123"
+                    },
+                    "wire_fault": "token_created"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "created"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_carrier_layer",
@@ -7487,28 +7649,30 @@
           }
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "layer"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_carrier_port",
@@ -7532,29 +7696,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "profile": "onvif_soap12_https",
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "profile": "onvif_soap12_https",
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "profile"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_carrier_wsdiscovery",
@@ -7578,29 +7744,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "carrier_wsdiscovery"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "carrier_wsdiscovery"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "carrier"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_fault_code",
@@ -7624,29 +7792,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetDeviceInformation",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "fault_code"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetDeviceInformation",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "fault_code"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "fault"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_fault_reason",
@@ -7670,29 +7840,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetDeviceInformation",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "fault_reason"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetDeviceInformation",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "fault_reason"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "reason"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_fault_value",
@@ -7716,29 +7888,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetDeviceInformation",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "fault_value"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetDeviceInformation",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "fault_value"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "code"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_fault_subcode",
@@ -7762,29 +7936,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetDeviceInformation",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "fault_subcode"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetDeviceInformation",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "fault_subcode"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "subcode"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_length_truncation",
@@ -7808,29 +7984,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "length_truncation"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "length_truncation"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "length"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_length_content_length",
@@ -7854,29 +8032,31 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "device",
-                "operation": "GetSystemDateAndTime",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "wire_fault": "length_content_length"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "device",
+                    "operation": "GetSystemDateAndTime",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "wire_fault": "length_content_length"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "content-length"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_subscription_source",
@@ -7900,34 +8080,36 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "events",
-                "operation": "PullMessages",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "to": "same_as_response:0.subscription_reference",
-                "parameters": {
-                  "timeout": "PT5S",
-                  "message_limit": 2
-                },
-                "wire_fault": "subscription_source"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "events",
+                    "operation": "PullMessages",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "to": "same_as_response:0.subscription_reference",
+                    "parameters": {
+                      "timeout": "PT5S",
+                      "message_limit": 2
+                    },
+                    "wire_fault": "subscription_source"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "subscription"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_subscription_cross_session",
@@ -7951,47 +8133,49 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "events",
-                "operation": "CreatePullPointSubscription",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "initial_termination_time": "PT1M"
-                }
-              }
-            ]
-          },
-          {
-            "events": [
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "events",
+                    "operation": "CreatePullPointSubscription",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "initial_termination_time": "PT1M"
+                    }
+                  }
+                ]
+              },
               {
-                "kind": "request",
-                "service": "events",
-                "operation": "PullMessages",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
-                "to": "same_as_response:0.subscription_reference",
-                "parameters": {
-                  "timeout": "PT5S",
-                  "message_limit": 2
-                },
-                "wire_fault": "subscription_cross_session"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "events",
+                    "operation": "PullMessages",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
+                    "to": "same_as_response:0.subscription_reference",
+                    "parameters": {
+                      "timeout": "PT5S",
+                      "message_limit": 2
+                    },
+                    "wire_fault": "subscription_cross_session"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "correlation"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_token_range",
@@ -8015,32 +8199,34 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "media",
-                "operation": "GetSnapshotUri",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "parameters": {
-                  "profile_token": "tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-                },
-                "wire_fault": "token_range"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "media",
+                    "operation": "GetSnapshotUri",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "parameters": {
+                      "profile_token": "tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    },
+                    "wire_fault": "token_range"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "token"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_message_limit_range",
@@ -8064,34 +8250,36 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "events",
-                "operation": "PullMessages",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "to": "http://198.51.100.67/onvif/subscription?Idx=0",
-                "parameters": {
-                  "timeout": "PT5S",
-                  "message_limit": 2147483648
-                },
-                "wire_fault": "message_limit_range"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "events",
+                    "operation": "PullMessages",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+                    "parameters": {
+                      "timeout": "PT5S",
+                      "message_limit": 2147483648
+                    },
+                    "wire_fault": "message_limit_range"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "limit"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   },
   {
     "id": "onvif_neg_wsnt_ns",
@@ -8115,33 +8303,35 @@
           "http": {}
         },
         {
-          "onvif": {}
-        }
-      ],
-      "onvif": {
-        "sessions": [
-          {
-            "events": [
+          "onvif": {
+            "sessions": [
               {
-                "kind": "request",
-                "service": "events",
-                "operation": "PullMessages",
-                "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
-                "to": "http://198.51.100.67/onvif/subscription?Idx=0",
-                "parameters": {
-                  "timeout": "PT5S",
-                  "message_limit": 2
-                },
-                "wire_fault": "wsnt_ns"
+                "events": [
+                  {
+                    "kind": "request",
+                    "service": "events",
+                    "operation": "PullMessages",
+                    "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+                    "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+                    "parameters": {
+                      "timeout": "PT5S",
+                      "message_limit": 2
+                    },
+                    "wire_fault": "wsnt_ns"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "wsnt"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 onvif 子映射迁入 layers[].onvif"
+    ]
   }
 ]

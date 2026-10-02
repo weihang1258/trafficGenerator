@@ -4,9 +4,13 @@
     "proto": "l2tp",
     "summary": "冒烟：L2TPv2 tunnel_with_data。顶层不设端口 → dst 默认 1701（IANA）、src 保持 flow 默认 12345；建隧道 SCCRQ/SCCRP/SCCCN + ICRQ/ICRP/ICCN + PPP 数据帧 + StopCCN，共 8 包",
     "spec_json": {
-      "l2tp": {
-        "scenario": "tunnel_with_data"
-      }
+      "layers": [
+        {
+          "l2tp": {
+            "scenario": "tunnel_with_data"
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 8,
@@ -112,6 +116,9 @@
         "顶层未设端口：dst 默认 1701（strategy_convert）、src 保持 flow 默认 12345",
         "控制消息顺序全断言（l2tp.avp.message_type）：1 SCCRQ → 2 SCCRP → 3 SCCCN → 9 ICRQ → 10 ICRP → 11 ICCN → (数据帧) → 4 StopCCN（RFC 2661 §4.3.1 Message Type AVP 值），消息顺序错乱即失败"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 l2tp 子映射迁入 layers[].l2tp"
+    ]
   }
 ]

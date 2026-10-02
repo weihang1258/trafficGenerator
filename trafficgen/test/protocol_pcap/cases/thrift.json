@@ -584,11 +584,7 @@
             ]
           }
         }
-      ],
-      "strategy_fc": {
-        "type": "flows",
-        "value": 2
-      }
+      ]
     },
     "expect": {
       "packet_count": 18,

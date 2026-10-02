@@ -11,8 +11,7 @@
         {
           "ntp": {}
         }
-      ],
-      "ntp": {}
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -60,6 +59,9 @@
         "tshark 探针实测：vn=4、mode=3、li=0、stratum=0、ppoll=6、dstport=123",
         "layers chain style: [udp,ntp]"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 ntp 子映射迁入 layers[].ntp"
+    ]
   }
 ]

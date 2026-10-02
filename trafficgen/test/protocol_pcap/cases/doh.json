@@ -21,35 +21,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -139,7 +138,10 @@
           "hex": "504F5354202F646E732D717565727920"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_ipv4_base64url",
@@ -163,25 +165,24 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -226,7 +227,10 @@
           "hex": "474554202F646E732D71756572793F646E733D456A5142414141424141414141414141413364336477646C654746746347786C41324E76625141414151414220485454502F312E310D0A486F73743A203139382E35312E3130302E36360D0A4163636570743A206170706C69636174696F6E2F646E732D6D6573736167650D0A436F6E74656E742D4C656E6774683A20300D0A436F6E6E656374696F6E3A20636C6F73650D0A0D0A"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_post_ipv6_http11",
@@ -250,35 +254,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -328,7 +331,10 @@
           "hex": "504F5354202F646E732D717565727920"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_ipv6_base64url",
@@ -352,25 +358,24 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -410,7 +415,10 @@
           "hex": "474554202F646E732D71756572793F646E733D456A5142414141424141414141414141413364336477646C654746746347786C41324E76625141414151414220485454502F312E310D0A486F73743A20323030313A6462383A3A3130303A36360D0A4163636570743A206170706C69636174696F6E2F646E732D6D6573736167650D0A436F6E74656E742D4C656E6774683A20300D0A436F6E6E656374696F6E3A20636C6F73650D0A0D0A"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_header_query",
@@ -434,35 +442,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -557,7 +564,10 @@
           "hex": "8180"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_question_a",
@@ -581,35 +591,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -649,7 +658,10 @@
           "hex": "0000010001"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_question_aaaa",
@@ -673,35 +685,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "AAAA",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "AAAA",
-                      "ttl": 300,
-                      "rdata": "2001:db8::1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "AAAA",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "AAAA",
+                          "ttl": 300,
+                          "rdata": "2001:db8::1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -724,7 +735,10 @@
           "value": "2001:db8::1"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_question_https",
@@ -748,42 +762,41 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "HTTPS",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "HTTPS",
-                      "ttl": 300,
-                      "priority": 1,
-                      "target": ".",
-                      "params": [
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "HTTPS",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
                         {
-                          "key": 1,
-                          "value_hex": "026832"
+                          "name": "www.example.com",
+                          "type": "HTTPS",
+                          "ttl": 300,
+                          "priority": 1,
+                          "target": ".",
+                          "params": [
+                            {
+                              "key": 1,
+                              "value_hex": "026832"
+                            }
+                          ]
                         }
                       ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -801,7 +814,10 @@
           "value": "65"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_question_root",
@@ -825,28 +841,27 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": []
-                }
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": []
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -881,7 +896,10 @@
           "hex": "00"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_response_noerror",
@@ -905,35 +923,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -971,7 +988,10 @@
           "value": "1"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_response_nxdomain",
@@ -995,28 +1015,27 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NXDOMAIN",
-                  "answers": []
-                }
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NXDOMAIN",
+                      "answers": []
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1039,7 +1058,10 @@
           "value": "0"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_response_servfail",
@@ -1063,28 +1085,27 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "SERVFAIL",
-                  "answers": []
-                }
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "SERVFAIL",
+                      "answers": []
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1107,7 +1128,10 @@
           "value": "0"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_answer_ttl",
@@ -1131,35 +1155,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1204,7 +1227,10 @@
           "hex": "0004C0000201"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_http_keepalive_multi_transaction",
@@ -1228,78 +1254,77 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
-                    }
-                  ]
-                }
-              },
-              {
-                "kind": "query",
-                "dns_id": 4661,
-                "name": "www.example.net",
-                "qtype": "AAAA",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.net",
-                      "type": "AAAA",
-                      "ttl": 300,
-                      "rdata": "2001:db8::1"
-                    }
-                  ]
-                }
-              },
-              {
-                "kind": "query",
-                "dns_id": 4662,
-                "name": "www.example.org",
-                "qtype": "HTTPS",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.org",
-                      "type": "HTTPS",
-                      "ttl": 300,
-                      "priority": 1,
-                      "target": ".",
-                      "params": [
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
                         {
-                          "key": 1,
-                          "value_hex": "026832"
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
                         }
                       ]
                     }
-                  ]
-                }
+                  },
+                  {
+                    "kind": "query",
+                    "dns_id": 4661,
+                    "name": "www.example.net",
+                    "qtype": "AAAA",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.net",
+                          "type": "AAAA",
+                          "ttl": 300,
+                          "rdata": "2001:db8::1"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "kind": "query",
+                    "dns_id": 4662,
+                    "name": "www.example.org",
+                    "qtype": "HTTPS",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.org",
+                          "type": "HTTPS",
+                          "ttl": 300,
+                          "priority": 1,
+                          "target": ".",
+                          "params": [
+                            {
+                              "key": 1,
+                              "value_hex": "026832"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1369,7 +1394,10 @@
           "hex": "436F6E6E656374696F6E3A20636C6F73650D0A"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_http_content_length_exact",
@@ -1393,35 +1421,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1446,7 +1473,10 @@
           "hex": "436F6E74656E742D4C656E6774683A203333"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_http_cache_control",
@@ -1470,41 +1500,40 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
-                    },
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 60,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        },
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 60,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1534,7 +1563,10 @@
           "hex": "0000003C"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_http_error_400",
@@ -1558,27 +1590,26 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET",
-                "response": {
-                  "status": 400
-                }
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET",
+                    "response": {
+                      "status": 400
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1603,7 +1634,10 @@
           "hex": "485454502F312E31203430302042616420526571756573740D0A436F6E74656E742D4C656E6774683A20300D0A0D0A"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_http_error_404",
@@ -1627,27 +1661,26 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "uri": "/unknown",
-                "response": {
-                  "status": 404
-                }
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "uri": "/unknown",
+                    "response": {
+                      "status": 404
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1672,7 +1705,10 @@
           "hex": "485454502F312E3120343034204E6F7420466F756E640D0A436F6E74656E742D4C656E6774683A20300D0A0D0A"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_http_error_415",
@@ -1696,31 +1732,30 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 415
-                },
-                "http": {
-                  "request_headers": {
-                    "Content-Type": "text/plain"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 415
+                    },
+                    "http": {
+                      "request_headers": {
+                        "Content-Type": "text/plain"
+                      }
+                    }
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1750,7 +1785,10 @@
           "hex": "485454502F312E312034313520556E737570706F72746564204D6564696120547970650D0A436F6E74656E742D4C656E6774683A20300D0A0D0A"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_mss_large_response",
@@ -1774,56 +1812,55 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "TXT",
-                      "ttl": 300,
-                      "txt_strings": [
-                        "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
-                        "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
-                      ]
-                    },
-                    {
-                      "name": "www.example.com",
-                      "type": "TXT",
-                      "ttl": 300,
-                      "txt_strings": [
-                        "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
-                        "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
-                      ]
-                    },
-                    {
-                      "name": "www.example.com",
-                      "type": "TXT",
-                      "ttl": 300,
-                      "txt_strings": [
-                        "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
-                        "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "TXT",
+                          "ttl": 300,
+                          "txt_strings": [
+                            "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+                            "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+                          ]
+                        },
+                        {
+                          "name": "www.example.com",
+                          "type": "TXT",
+                          "ttl": 300,
+                          "txt_strings": [
+                            "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+                            "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+                          ]
+                        },
+                        {
+                          "name": "www.example.com",
+                          "type": "TXT",
+                          "ttl": 300,
+                          "txt_strings": [
+                            "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+                            "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+                          ]
+                        }
                       ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1863,7 +1900,10 @@
           "hex": "54"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_multi_session",
@@ -1887,59 +1927,58 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
-              }
-            ],
-            "src_port": 42066
-          },
-          {
-            "events": [
+                  }
+                ],
+                "src_port": 42066
+              },
               {
-                "kind": "query",
-                "dns_id": 9217,
-                "name": "www.example.net",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.net",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 9217,
+                    "name": "www.example.net",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.net",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ],
+                "src_port": 42067
               }
-            ],
-            "src_port": 42067
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -1980,7 +2019,10 @@
           "value": "www.example.net"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_port_nondefault_post",
@@ -2004,35 +2046,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2060,7 +2101,10 @@
           "value": "1"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_port_nondefault_get",
@@ -2084,25 +2128,24 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2125,7 +2168,10 @@
           "value": "/dns-query?dns=EjQBAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_concurrent_sessions",
@@ -2149,60 +2195,59 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "concurrent": true,
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "concurrent": true,
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
-              }
-            ],
-            "src_port": 42066
-          },
-          {
-            "events": [
+                  }
+                ],
+                "src_port": 42066
+              },
               {
-                "kind": "query",
-                "dns_id": 9217,
-                "name": "www.example.net",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.net",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 9217,
+                    "name": "www.example.net",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.net",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ],
+                "src_port": 42067
               }
-            ],
-            "src_port": 42067
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2226,7 +2271,10 @@
           ]
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_b64_residue_1",
@@ -2250,25 +2298,24 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "a",
-                "qtype": "A",
-                "method": "GET"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "a",
+                    "qtype": "A",
+                    "method": "GET"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2296,7 +2343,10 @@
           "value": "0"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_b64_residue_2",
@@ -2320,25 +2370,24 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "ab",
-                "qtype": "A",
-                "method": "GET"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "ab",
+                    "qtype": "A",
+                    "method": "GET"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2366,7 +2415,10 @@
           "value": "0"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_rcode_formerr",
@@ -2390,28 +2442,27 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "FORMERR",
-                  "answers": []
-                }
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "FORMERR",
+                      "answers": []
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2434,7 +2485,10 @@
           "value": "0"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_rcode_notimp",
@@ -2458,28 +2512,27 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOTIMP",
-                  "answers": []
-                }
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOTIMP",
+                      "answers": []
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2502,7 +2555,10 @@
           "value": "0"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_rcode_refused",
@@ -2526,28 +2582,27 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "REFUSED",
-                  "answers": []
-                }
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "REFUSED",
+                      "answers": []
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2570,7 +2625,10 @@
           "value": "0"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_rcode_15_upper",
@@ -2594,28 +2652,27 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "15",
-                  "answers": []
-                }
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "15",
+                      "answers": []
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2640,7 +2697,10 @@
           "hex": "818F"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_rd_zero",
@@ -2664,36 +2724,35 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "rd": false,
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "rd": false,
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2713,7 +2772,10 @@
           "hex": "0000"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_ra_zero",
@@ -2737,36 +2799,35 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ],
+                      "ra": false
                     }
-                  ],
-                  "ra": false
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2784,7 +2845,10 @@
           "value": "1"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_aa_set",
@@ -2808,36 +2872,35 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ],
+                      "aa": true
                     }
-                  ],
-                  "aa": true
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2857,7 +2920,10 @@
           "hex": "8580"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_question_txt",
@@ -2881,35 +2947,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "TXT",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "TXT",
-                      "ttl": 300,
-                      "rdata": "hello"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "TXT",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "TXT",
+                          "ttl": 300,
+                          "rdata": "hello"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -2927,7 +2992,10 @@
           "value": "16"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_question_mx",
@@ -2951,36 +3019,35 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "MX",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "MX",
-                      "ttl": 300,
-                      "mx_pref": 10,
-                      "rdata": "mail.example.com"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "MX",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "MX",
+                          "ttl": 300,
+                          "mx_pref": 10,
+                          "rdata": "mail.example.com"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3005,7 +3072,10 @@
           "hex": "000A046D61696C076578616D706C6503636F6D00"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_qclass_ch",
@@ -3029,37 +3099,36 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "qclass": "CHAOS",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1",
-                      "class": "CHAOS"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "qclass": "CHAOS",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1",
+                          "class": "CHAOS"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3082,7 +3151,10 @@
           "value": "0x0003"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_answer_aaaa",
@@ -3106,35 +3178,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "AAAA",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "AAAA",
-                      "ttl": 300,
-                      "rdata": "2001:db8::1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "AAAA",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "AAAA",
+                          "ttl": 300,
+                          "rdata": "2001:db8::1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3159,7 +3230,10 @@
           "hex": "001020010DB8000000000000000000000001"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_answer_cname_chain",
@@ -3183,41 +3257,40 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "CNAME",
-                      "ttl": 300,
-                      "rdata": "cname.example.com"
-                    },
-                    {
-                      "name": "cname.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "CNAME",
+                          "ttl": 300,
+                          "rdata": "cname.example.com"
+                        },
+                        {
+                          "name": "cname.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3245,7 +3318,10 @@
           "value": "192.0.2.1"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_answer_multi_types",
@@ -3269,41 +3345,40 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
-                    },
-                    {
-                      "name": "www.example.com",
-                      "type": "AAAA",
-                      "ttl": 300,
-                      "rdata": "2001:db8::1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        },
+                        {
+                          "name": "www.example.com",
+                          "type": "AAAA",
+                          "ttl": 300,
+                          "rdata": "2001:db8::1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3331,7 +3406,10 @@
           "value": "2001:db8::1"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_answer_svcb_alpn",
@@ -3355,42 +3433,41 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "HTTPS",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "HTTPS",
-                      "ttl": 300,
-                      "priority": 1,
-                      "target": ".",
-                      "params": [
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "HTTPS",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
                         {
-                          "key": 1,
-                          "value_hex": "026832"
+                          "name": "www.example.com",
+                          "type": "HTTPS",
+                          "ttl": 300,
+                          "priority": 1,
+                          "target": ".",
+                          "params": [
+                            {
+                              "key": 1,
+                              "value_hex": "026832"
+                            }
+                          ]
                         }
                       ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3410,7 +3487,10 @@
           "hex": "00010000010003026832"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_answer_svcb_alias",
@@ -3434,37 +3514,36 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "HTTPS",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "HTTPS",
-                      "ttl": 300,
-                      "priority": 0,
-                      "target": "svc.example.net",
-                      "params": []
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "HTTPS",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "HTTPS",
+                          "ttl": 300,
+                          "priority": 0,
+                          "target": "svc.example.net",
+                          "params": []
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3484,7 +3563,10 @@
           "hex": "000003737663076578616D706C65036E657400"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_answer_txt_strings",
@@ -3508,38 +3590,37 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "TXT",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "TXT",
-                      "ttl": 300,
-                      "txt_strings": [
-                        "hello",
-                        "world"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "TXT",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "TXT",
+                          "ttl": 300,
+                          "txt_strings": [
+                            "hello",
+                            "world"
+                          ]
+                        }
                       ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3559,7 +3640,10 @@
           "hex": "0568656C6C6F05776F726C64"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_negative_cache_soa",
@@ -3583,42 +3667,41 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NXDOMAIN",
-                  "answers": [],
-                  "authority": [
-                    {
-                      "name": "example.com",
-                      "type": "SOA",
-                      "ttl": 60,
-                      "mname": "ns.example.com",
-                      "rname": "hostmaster.example.com",
-                      "serial": 2026090101,
-                      "refresh": 7200,
-                      "retry": 3600,
-                      "expire": 1209600,
-                      "minimum": 60
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NXDOMAIN",
+                      "answers": [],
+                      "authority": [
+                        {
+                          "name": "example.com",
+                          "type": "SOA",
+                          "ttl": 60,
+                          "mname": "ns.example.com",
+                          "rname": "hostmaster.example.com",
+                          "serial": 2026090101,
+                          "refresh": 7200,
+                          "retry": 3600,
+                          "expire": 1209600,
+                          "minimum": 60
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3653,7 +3736,10 @@
           "hex": "0000003C"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_http_cache_age_header",
@@ -3677,40 +3763,39 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
+                    },
+                    "http": {
+                      "response_headers": {
+                        "Age": "60"
+                      }
                     }
-                  ]
-                },
-                "http": {
-                  "response_headers": {
-                    "Age": "60"
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3735,7 +3820,10 @@
           "hex": "4167653A203630"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_http_mixed_get_post",
@@ -3759,42 +3847,41 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
-              },
-              {
-                "kind": "query",
-                "dns_id": 4661,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET"
+                  },
+                  {
+                    "kind": "query",
+                    "dns_id": 4661,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3837,7 +3924,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_http_host_explicit",
@@ -3861,40 +3951,39 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
+                    },
+                    "http": {
+                      "request_headers": {
+                        "Host": "doh.example.com"
+                      }
                     }
-                  ]
-                },
-                "http": {
-                  "request_headers": {
-                    "Host": "doh.example.com"
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3912,7 +4001,10 @@
           "value": "POST"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_http_error_400_extra_param",
@@ -3936,28 +4028,27 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET",
-                "extra_query": "foo=bar",
-                "response": {
-                  "status": 400
-                }
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET",
+                    "extra_query": "foo=bar",
+                    "response": {
+                      "status": 400
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -3992,7 +4083,10 @@
           "hex": "485454502F312E31203430302042616420526571756573740D0A436F6E74656E742D4C656E6774683A20300D0A0D0A"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_http_accept_absent",
@@ -4016,40 +4110,39 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
+                    },
+                    "http": {
+                      "request_headers": {
+                        "Accept": ""
+                      }
                     }
-                  ]
-                },
-                "http": {
-                  "request_headers": {
-                    "Accept": ""
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4079,7 +4172,10 @@
           "hex": "504F5354202F646E732D717565727920485454502F312E310D0A486F73743A203139382E35312E3130302E36360D0A436F6E74656E742D547970653A206170706C69636174696F6E2F646E732D6D6573736167650D0A436F6E74656E742D4C656E6774683A2033330D0A436F6E6E656374696F6E3A20636C6F73650D0A0D0A"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_http_connection_close",
@@ -4103,35 +4199,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4151,7 +4246,10 @@
           "hex": "436F6E6E656374696F6E3A20636C6F73650D0A"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_min_frame_get",
@@ -4175,25 +4273,24 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "",
-                "qtype": "A",
-                "method": "GET"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "",
+                    "qtype": "A",
+                    "method": "GET"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4216,7 +4313,10 @@
           "value": "17"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_ttl_zero",
@@ -4240,35 +4340,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 0,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 0,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4286,7 +4385,10 @@
           "value": "max-age=0"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_ttl_max",
@@ -4310,35 +4412,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 4294967295,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 4294967295,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4356,7 +4457,10 @@
           "value": "max-age=4294967295"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_qname_label_63",
@@ -4380,23 +4484,22 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4414,7 +4517,10 @@
           "value": "63"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_qname_total_255",
@@ -4438,23 +4544,22 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4472,7 +4577,10 @@
           "value": "253"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_id_zero",
@@ -4496,35 +4604,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 0,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 0,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4542,7 +4649,10 @@
           "same_as_packet": 4
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_id_max",
@@ -4566,35 +4676,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 65535,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 65535,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4612,7 +4721,10 @@
           "same_as_packet": 4
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_id_one",
@@ -4636,35 +4748,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 1,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 1,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4682,7 +4793,10 @@
           "same_as_packet": 4
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_id_65534",
@@ -4706,35 +4820,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 65534,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 65534,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4752,7 +4865,10 @@
           "same_as_packet": 4
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_ttl_one",
@@ -4776,35 +4892,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 1,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 1,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4822,7 +4937,10 @@
           "value": "max-age=1"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_ttl_4294967294",
@@ -4846,35 +4964,34 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 4294967294,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 4294967294,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4892,7 +5009,10 @@
           "value": "max-age=4294967294"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_qname_254",
@@ -4916,23 +5036,22 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -4950,7 +5069,10 @@
           "value": "252"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_dns_qname_label_62",
@@ -4974,23 +5096,22 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5008,7 +5129,10 @@
           "value": "62"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_http_cache_control_soa_minimum",
@@ -5032,42 +5156,41 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NXDOMAIN",
-                  "answers": [],
-                  "authority": [
-                    {
-                      "name": "example.com",
-                      "type": "SOA",
-                      "ttl": 60,
-                      "mname": "ns.example.com",
-                      "rname": "hostmaster.example.com",
-                      "serial": 2026090101,
-                      "refresh": 7200,
-                      "retry": 3600,
-                      "expire": 1209600,
-                      "minimum": 60
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NXDOMAIN",
+                      "answers": [],
+                      "authority": [
+                        {
+                          "name": "example.com",
+                          "type": "SOA",
+                          "ttl": 60,
+                          "mname": "ns.example.com",
+                          "rname": "hostmaster.example.com",
+                          "serial": 2026090101,
+                          "refresh": 7200,
+                          "retry": 3600,
+                          "expire": 1209600,
+                          "minimum": 60
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5085,7 +5208,10 @@
           "value": "1"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_qname_max",
@@ -5109,25 +5235,24 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-                "qtype": "A",
-                "method": "GET"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "qtype": "A",
+                    "method": "GET"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5150,7 +5275,10 @@
           "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_root_query",
@@ -5174,25 +5302,24 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "",
-                "qtype": "A",
-                "method": "GET"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "",
+                    "qtype": "A",
+                    "method": "GET"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5215,7 +5342,10 @@
           "value": "17"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_question_aaaa",
@@ -5239,37 +5369,36 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "AAAA",
-                "method": "GET",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "AAAA",
-                      "ttl": 300,
-                      "rdata": "2001:db8::1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "AAAA",
+                    "method": "GET",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "AAAA",
+                          "ttl": 300,
+                          "rdata": "2001:db8::1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5292,7 +5421,10 @@
           "value": "28"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_question_https",
@@ -5316,44 +5448,43 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "HTTPS",
-                "method": "GET",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "HTTPS",
-                      "ttl": 300,
-                      "priority": 1,
-                      "target": ".",
-                      "params": [
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "HTTPS",
+                    "method": "GET",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
                         {
-                          "key": 1,
-                          "value_hex": "026832"
+                          "name": "www.example.com",
+                          "type": "HTTPS",
+                          "ttl": 300,
+                          "priority": 1,
+                          "target": ".",
+                          "params": [
+                            {
+                              "key": 1,
+                              "value_hex": "026832"
+                            }
+                          ]
                         }
                       ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5376,7 +5507,10 @@
           "value": "65"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_question_txt",
@@ -5400,37 +5534,36 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "TXT",
-                "method": "GET",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "TXT",
-                      "ttl": 300,
-                      "rdata": "hello"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "TXT",
+                    "method": "GET",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "TXT",
+                          "ttl": 300,
+                          "rdata": "hello"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5453,7 +5586,10 @@
           "value": "16"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_question_mx",
@@ -5477,38 +5613,37 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "MX",
-                "method": "GET",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "MX",
-                      "ttl": 300,
-                      "mx_pref": 10,
-                      "rdata": "mail.example.com"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "MX",
+                    "method": "GET",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "MX",
+                          "ttl": 300,
+                          "mx_pref": 10,
+                          "rdata": "mail.example.com"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5531,7 +5666,10 @@
           "value": "15"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_rcode_formerr",
@@ -5555,30 +5693,29 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET",
-                "response": {
-                  "status": 200,
-                  "rcode": "FORMERR",
-                  "answers": []
-                }
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET",
+                    "response": {
+                      "status": 200,
+                      "rcode": "FORMERR",
+                      "answers": []
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5606,7 +5743,10 @@
           "value": "0"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_rcode_notimp",
@@ -5630,30 +5770,29 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOTIMP",
-                  "answers": []
-                }
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOTIMP",
+                      "answers": []
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5681,7 +5820,10 @@
           "value": "0"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_rcode_refused",
@@ -5705,30 +5847,29 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET",
-                "response": {
-                  "status": 200,
-                  "rcode": "REFUSED",
-                  "answers": []
-                }
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET",
+                    "response": {
+                      "status": 200,
+                      "rcode": "REFUSED",
+                      "answers": []
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5756,7 +5897,10 @@
           "value": "0"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_rcode_15",
@@ -5780,30 +5924,29 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET",
-                "response": {
-                  "status": 200,
-                  "rcode": "15",
-                  "answers": []
-                }
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET",
+                    "response": {
+                      "status": 200,
+                      "rcode": "15",
+                      "answers": []
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5831,7 +5974,10 @@
           "value": "0"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_response_noerror",
@@ -5855,37 +6001,36 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5913,7 +6058,10 @@
           "value": "0x1234"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_response_nxdomain",
@@ -5937,30 +6085,29 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET",
-                "response": {
-                  "status": 200,
-                  "rcode": "NXDOMAIN",
-                  "answers": []
-                }
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NXDOMAIN",
+                      "answers": []
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -5988,7 +6135,10 @@
           "value": "0"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_response_servfail",
@@ -6012,30 +6162,29 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET",
-                "response": {
-                  "status": 200,
-                  "rcode": "SERVFAIL",
-                  "answers": []
-                }
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET",
+                    "response": {
+                      "status": 200,
+                      "rcode": "SERVFAIL",
+                      "answers": []
+                    }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -6063,7 +6212,10 @@
           "value": "0"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_answer_ttl",
@@ -6087,37 +6239,36 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -6147,7 +6298,10 @@
           "hex": "0004C0000201"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_answer_aaaa",
@@ -6171,37 +6325,36 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "AAAA",
-                "method": "GET",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "AAAA",
-                      "ttl": 300,
-                      "rdata": "2001:db8::1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "AAAA",
+                    "method": "GET",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "AAAA",
+                          "ttl": 300,
+                          "rdata": "2001:db8::1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -6226,7 +6379,10 @@
           "hex": "0010"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_answer_cname_chain",
@@ -6250,43 +6406,42 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "CNAME",
-                      "ttl": 300,
-                      "rdata": "cname.example.com"
-                    },
-                    {
-                      "name": "cname.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "CNAME",
+                          "ttl": 300,
+                          "rdata": "cname.example.com"
+                        },
+                        {
+                          "name": "cname.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -6314,7 +6469,10 @@
           "value": "192.0.2.1"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_answer_svcb_alpn",
@@ -6338,44 +6496,43 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "HTTPS",
-                "method": "GET",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "HTTPS",
-                      "ttl": 300,
-                      "priority": 1,
-                      "target": ".",
-                      "params": [
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "HTTPS",
+                    "method": "GET",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
                         {
-                          "key": 1,
-                          "value_hex": "026832"
+                          "name": "www.example.com",
+                          "type": "HTTPS",
+                          "ttl": 300,
+                          "priority": 1,
+                          "target": ".",
+                          "params": [
+                            {
+                              "key": 1,
+                              "value_hex": "026832"
+                            }
+                          ]
                         }
                       ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -6400,7 +6557,10 @@
           "hex": "00010000010003026832"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_negative_cache_soa",
@@ -6424,44 +6584,43 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET",
-                "response": {
-                  "status": 200,
-                  "rcode": "NXDOMAIN",
-                  "answers": [],
-                  "authority": [
-                    {
-                      "name": "example.com",
-                      "type": "SOA",
-                      "ttl": 60,
-                      "mname": "ns.example.com",
-                      "rname": "hostmaster.example.com",
-                      "serial": 2026090101,
-                      "refresh": 7200,
-                      "retry": 3600,
-                      "expire": 1209600,
-                      "minimum": 60
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NXDOMAIN",
+                      "answers": [],
+                      "authority": [
+                        {
+                          "name": "example.com",
+                          "type": "SOA",
+                          "ttl": 60,
+                          "mname": "ns.example.com",
+                          "rname": "hostmaster.example.com",
+                          "serial": 2026090101,
+                          "refresh": 7200,
+                          "retry": 3600,
+                          "expire": 1209600,
+                          "minimum": 60
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -6489,7 +6648,10 @@
           "value": "max-age=60"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_rd_zero",
@@ -6513,26 +6675,25 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET",
-                "rd": false
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET",
+                    "rd": false
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -6555,7 +6716,10 @@
           "value": "www.example.com"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_aa_set",
@@ -6579,38 +6743,37 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 300,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 300,
+                          "rdata": "192.0.2.1"
+                        }
+                      ],
+                      "aa": true
                     }
-                  ],
-                  "aa": true
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -6628,7 +6791,10 @@
           "value": "1"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_get_port_nondefault",
@@ -6652,25 +6818,24 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -6693,7 +6858,10 @@
           "value": "/dns-query?dns=EjQBAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_query_missing",
@@ -6717,31 +6885,33 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "query_missing",
-        "method": "GET",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "query_missing",
+            "method": "GET",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "dns"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_base64_invalid",
@@ -6765,29 +6935,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "base64",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "base64",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "base64"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_base64_padding",
@@ -6811,29 +6983,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "padding",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "padding",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "base64"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_base64_truncated",
@@ -6857,29 +7031,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "b64_short",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "b64_short",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "decode"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_dns_header_short",
@@ -6903,29 +7079,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "dns_header_short",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "dns_header_short",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "dns"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_dns_qdcount_zero",
@@ -6949,29 +7127,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "qdcount",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "qdcount",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "question"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_dns_qname_overflow",
@@ -6995,28 +7175,30 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "qname"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_dns_question_truncated",
@@ -7040,29 +7222,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "question_truncated",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "question_truncated",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "question"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_content_type",
@@ -7086,29 +7270,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "content_type",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "content_type",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "content-type"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_method",
@@ -7132,29 +7318,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "PUT"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "PUT"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "method"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_content_length",
@@ -7178,29 +7366,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "content_length",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "content_length",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "content-length"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_layer_chain_missing_http",
@@ -7221,28 +7411,30 @@
           }
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "carrier"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_port_conflict",
@@ -7266,29 +7458,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "port_conflict",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "port_conflict",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "port"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_response_id",
@@ -7312,29 +7506,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "response_id",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "response_id",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "id"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_response_question",
@@ -7358,29 +7554,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "response_question",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "response_question",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "question"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_wire_over_max",
@@ -7404,29 +7602,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "wire_over_max",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "wire_over_max",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "length"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_opcode_nonzero",
@@ -7450,29 +7650,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "opcode_nonzero",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "opcode_nonzero",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "opcode"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_get_content_type",
@@ -7496,34 +7698,36 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "method": "GET",
-                "http": {
-                  "request_headers": {
-                    "Content-Type": "application/dns-message"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "method": "GET",
+                    "http": {
+                      "request_headers": {
+                        "Content-Type": "application/dns-message"
+                      }
+                    }
                   }
-                }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "content-type"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_response_qr",
@@ -7547,29 +7751,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "response_qr",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "response_qr",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "response"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_z_nonzero",
@@ -7593,29 +7799,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "z_nonzero",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "z_nonzero",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "z"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_rdlength_mismatch",
@@ -7639,29 +7847,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "rdlength_mismatch",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "rdlength_mismatch",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "rdlength"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_ancount_mismatch",
@@ -7685,29 +7895,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "ancount_mismatch",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "ancount_mismatch",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "ancount"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_qdcount_multi",
@@ -7731,29 +7943,31 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "wire_fault": "qdcount_multi",
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "wire_fault": "qdcount_multi",
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "qdcount"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_dns_id_range",
@@ -7777,28 +7991,30 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 65536,
-                "name": "www.example.com",
-                "qtype": "A"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 65536,
+                    "name": "www.example.com",
+                    "qtype": "A"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "id"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_ttl_range",
@@ -7822,40 +8038,42 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "A",
-                "response": {
-                  "status": 200,
-                  "rcode": "NOERROR",
-                  "answers": [
-                    {
-                      "name": "www.example.com",
-                      "type": "A",
-                      "ttl": 4294967296,
-                      "rdata": "192.0.2.1"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "A",
+                    "response": {
+                      "status": 200,
+                      "rcode": "NOERROR",
+                      "answers": [
+                        {
+                          "name": "www.example.com",
+                          "type": "A",
+                          "ttl": 4294967296,
+                          "rdata": "192.0.2.1"
+                        }
+                      ]
                     }
-                  ]
-                }
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "ttl"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   },
   {
     "id": "doh_neg_qtype_token",
@@ -7879,27 +8097,29 @@
           "http": {}
         },
         {
-          "doh": {}
-        }
-      ],
-      "doh": {
-        "sessions": [
-          {
-            "events": [
+          "doh": {
+            "sessions": [
               {
-                "kind": "query",
-                "dns_id": 4660,
-                "name": "www.example.com",
-                "qtype": "BOGUS"
+                "events": [
+                  {
+                    "kind": "query",
+                    "dns_id": 4660,
+                    "name": "www.example.com",
+                    "qtype": "BOGUS"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "qtype"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 doh 子映射迁入 layers[].doh"
+    ]
   }
 ]

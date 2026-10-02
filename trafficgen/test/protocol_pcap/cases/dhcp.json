@@ -9,14 +9,13 @@
           "udp": {}
         },
         {
-          "dhcp": {}
+          "dhcp": {
+            "scenario": "dora",
+            "default_your_ip": "192.168.1.100",
+            "default_server_identifier": "192.168.1.1"
+          }
         }
-      ],
-      "dhcp": {
-        "scenario": "dora",
-        "default_your_ip": "192.168.1.100",
-        "default_server_identifier": "192.168.1.1"
-      }
+      ]
     },
     "expect": {
       "packet_count": 4,
@@ -135,6 +134,9 @@
         "dhcp.hw.mac_addr (chaddr) 四包全为 02:00:00:00:00:01",
         "layers chain style: [udp,dhcp]"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/udp 层，顶层 dhcp 子映射迁入 layers[].dhcp"
+    ]
   }
 ]

@@ -21,31 +21,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -98,7 +97,10 @@
           "hex": "7B22726573756C74223A7B2264617461223A2230303030303032303131313131"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_request_ipv6_8332",
@@ -122,31 +124,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -172,7 +173,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_port80",
@@ -196,31 +200,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -246,7 +249,10 @@
           "value": "591"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_port_nondefault_9332",
@@ -270,31 +276,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -320,7 +325,10 @@
           "value": "591"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_uri_variant",
@@ -344,32 +352,31 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "uri": "/rpc"
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "uri": "/rpc"
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -392,7 +399,10 @@
           "hex": "504F5354202F72706320485454502F312E"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_auth_basic_header",
@@ -416,31 +426,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -458,7 +467,10 @@
           "hex": "486F73743A203139382E35312E3130302E37363A383333320D0A417574686F72697A6174696F6E3A2042617369632064584E6C636A707759584E7A0D0A"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_http401_noauth",
@@ -482,27 +494,26 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "status": 401
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "status": 401
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -535,7 +546,10 @@
           "hex": "5757572D41757468656E7469636174653A204261736963207265616C6D3D226A736F6E727063220D0A"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_http500_rpc_error",
@@ -559,32 +573,31 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 3,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "error_object",
-                "status": 500
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 3,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "error_object",
+                    "status": 500
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -607,7 +620,10 @@
           "hex": "7B22726573756C74223A6E756C6C2C226572726F72223A7B22636F6465223A2D33323630312C226D657373616765223A226D6574686F64206E6F7420666F756E64227D2C226964223A337D"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_jsonrpc10_default",
@@ -631,31 +647,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -666,7 +681,10 @@
           "hex": "7B226964223A312C226D6574686F64223A22676574776F726B222C22706172616D73223A5B5D7D"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_jsonrpc20_form",
@@ -690,32 +708,31 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "jsonrpc_version": "2.0"
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "jsonrpc_version": "2.0"
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -731,7 +748,10 @@
           "hex": "7B226A736F6E727063223A22322E30222C22726573756C74223A7B2264617461"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_http10_close",
@@ -755,28 +775,27 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "http_version": "HTTP/1.0"
               }
-            ],
-            "http_version": "HTTP/1.0"
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -799,7 +818,10 @@
           "hex": "485454502F312E3020323030204F4B0D0A"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_host_header_value",
@@ -823,31 +845,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -858,7 +879,10 @@
           "hex": "486F73743A203139382E35312E3130302E37363A383333320D0A"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_id_numeric_sequence",
@@ -882,49 +906,48 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              },
-              {
-                "kind": "request",
-                "id": 3,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 3,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 13,
@@ -960,7 +983,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_id_string_form",
@@ -984,31 +1010,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": "rpc-001",
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": "rpc-001",
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1026,7 +1051,10 @@
           "hex": "7B226964223A227270632D303031222C226D6574686F64223A22676574776F726B222C22706172616D73223A5B5D7D"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_id_large_value",
@@ -1050,31 +1078,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 2147483647,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 2147483647,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1085,7 +1112,10 @@
           "value": "48"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_empty_params_form",
@@ -1109,31 +1139,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1144,7 +1173,10 @@
           "hex": "7B226964223A312C226D6574686F64223A22676574776F726B222C22706172616D73223A5B5D7D"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_work_data_length",
@@ -1168,31 +1200,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1210,7 +1241,10 @@
           "hex": "7B22726573756C74223A7B2264617461223A2230303030303032303131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313132323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232363664656164303031623034303463623030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_work_target_length",
@@ -1234,31 +1268,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1269,7 +1302,10 @@
           "hex": "7B22726573756C74223A7B2264617461223A2230303030303032303131313131"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_work_midstate_length",
@@ -1293,31 +1329,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1328,7 +1363,10 @@
           "hex": "7B22726573756C74223A7B2264617461223A2230303030303032303131313131"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_work_hash1_constant",
@@ -1352,31 +1390,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1392,7 +1429,10 @@
           "hex": "30227D2C226572726F72223A6E756C6C2C226964223A317D"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_work_hex_charset",
@@ -1416,31 +1456,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1451,7 +1490,10 @@
           "hex": "7B22726573756C74223A7B2264617461223A2230303030303032303131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313132323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232363664656164303031623034303463623030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_work_no_jobid",
@@ -1475,31 +1517,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1515,7 +1556,10 @@
           "hex": "30303030303030303030303030303030303830303230303030227D2C226572726F72223A6E756C6C2C226964223A317D"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_jsonpath_result_data",
@@ -1539,31 +1583,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1574,7 +1617,10 @@
           "hex": "7B22726573756C74223A7B2264617461223A223030303030303230313131313131313131313131313131313131313131313131"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_target_boundary",
@@ -1598,31 +1644,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1633,7 +1678,10 @@
           "hex": "7B22726573756C74223A7B2264617461223A2230303030303032303131313131"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_error_null_success",
@@ -1657,31 +1705,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1692,7 +1739,10 @@
           "hex": "30303030303030303030303030303030303830303230303030227D2C226572726F72223A6E756C6C2C226964223A317D"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_submit_accepted",
@@ -1716,41 +1766,40 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getwork",
-                "params_from": "work.data_nonce_modified"
-              },
-              {
-                "kind": "response",
-                "result_kind": "true"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getwork",
+                    "params_from": "work.data_nonce_modified"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "true"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -1778,7 +1827,10 @@
           "hex": "7B22726573756C74223A747275652C226572726F72223A6E756C6C2C226964223A327D"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_submit_rejected_false",
@@ -1802,41 +1854,40 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getwork",
-                "params_from": "work.data_nonce_modified"
-              },
-              {
-                "kind": "response",
-                "result_kind": "false"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getwork",
+                    "params_from": "work.data_nonce_modified"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "false"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -1854,7 +1905,10 @@
           "hex": "7B22726573756C74223A66616C73652C226572726F72223A6E756C6C2C226964223A327D"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_submit_result_object",
@@ -1878,41 +1932,40 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getwork",
-                "params_from": "work.data_nonce_modified"
-              },
-              {
-                "kind": "response",
-                "result_kind": "object"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getwork",
+                    "params_from": "work.data_nonce_modified"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "object"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -1930,7 +1983,10 @@
           "hex": "7B22726573756C74223A7B22737461747573223A226163636570746564222C2273686172655F6964223A2273682D30303031227D2C226572726F72223A6E756C6C2C226964223A327D"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_submit_single_param",
@@ -1954,41 +2010,40 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getwork",
-                "params_from": "work.data_nonce_modified"
-              },
-              {
-                "kind": "response",
-                "result_kind": "true"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getwork",
+                    "params_from": "work.data_nonce_modified"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "true"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -2004,7 +2059,10 @@
           "hex": "3030303030303030303030303030303030303030303030303030303030225D7D"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_nonce_in_data",
@@ -2028,41 +2086,40 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getwork",
-                "params_from": "work.data_nonce_modified"
-              },
-              {
-                "kind": "response",
-                "result_kind": "true"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getwork",
+                    "params_from": "work.data_nonce_modified"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "true"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -2078,7 +2135,10 @@
           "hex": "5B223030303030303230313131313131"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_cycle_repeat",
@@ -2102,60 +2162,59 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getwork",
-                "params_from": "work.data_nonce_modified"
-              },
-              {
-                "kind": "response",
-                "result_kind": "true"
-              },
-              {
-                "kind": "request",
-                "id": 3,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              },
-              {
-                "kind": "request",
-                "id": 4,
-                "method": "getwork",
-                "params_from": "work.data_nonce_modified"
-              },
-              {
-                "kind": "response",
-                "result_kind": "true"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getwork",
+                    "params_from": "work.data_nonce_modified"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "true"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 3,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 4,
+                    "method": "getwork",
+                    "params_from": "work.data_nonce_modified"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "true"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 15,
@@ -2201,7 +2260,10 @@
           "value": "35"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_new_work_distinct",
@@ -2225,41 +2287,40 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work",
-                "work": "fixture_work2"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work",
+                    "work": "fixture_work2"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -2287,7 +2348,10 @@
           "hex": "7B22726573756C74223A7B2264617461223A223030303030"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_keepalive_multi_transaction",
@@ -2311,49 +2375,48 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              },
-              {
-                "kind": "request",
-                "id": 3,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 3,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 13,
@@ -2369,7 +2432,10 @@
           "value": "591"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_keepalive_then_close",
@@ -2393,41 +2459,40 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work",
-                "close": true
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work",
+                    "close": true
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -2455,7 +2520,10 @@
           "hex": "485454502F312E3120323030204F4B0D0A436F6E74656E742D547970653A206170706C6963617469"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_body_mss_spanning",
@@ -2479,53 +2547,52 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork",
-                "join_next": true
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getwork",
-                "join_next": true
-              },
-              {
-                "kind": "request",
-                "id": 3,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work",
-                "join_next": true
-              },
-              {
-                "kind": "response",
-                "result_kind": "work",
-                "join_next": true
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork",
+                    "join_next": true
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getwork",
+                    "join_next": true
+                  },
+                  {
+                    "kind": "request",
+                    "id": 3,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work",
+                    "join_next": true
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work",
+                    "join_next": true
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 10,
@@ -2548,7 +2615,10 @@
           "hex": "485454502F312E3120323030"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_multi_body_single_segment",
@@ -2572,45 +2642,44 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork",
-                "params": [],
-                "join_next": true
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getwork",
-                "params": [],
-                "join_next": false
-              },
-              {
-                "kind": "response",
-                "result_kind": "work",
-                "join_next": true
-              },
-              {
-                "kind": "response",
-                "result_kind": "true"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork",
+                    "params": [],
+                    "join_next": true
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getwork",
+                    "params": [],
+                    "join_next": false
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work",
+                    "join_next": true
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "true"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -2636,7 +2705,10 @@
           "hex": "485454502F312E3120323030"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_multi_session",
@@ -2660,50 +2732,49 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               },
               {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "src_port": 4077
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
-          },
-          {
-            "role": "miner",
-            "events": [
-              {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "src_port": 4077
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 18,
@@ -2726,7 +2797,10 @@
           "value": "0x0002"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_concurrent_sessions",
@@ -2751,51 +2825,50 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "concurrent": true,
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "concurrent": true,
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               },
               {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "src_port": 4077
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
-          },
-          {
-            "role": "miner",
-            "events": [
-              {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "src_port": 4077
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 18,
@@ -2823,7 +2896,10 @@
           "value": "POST"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_session_state_isolation",
@@ -2847,70 +2923,69 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getwork",
+                    "params_from": "work.data_nonce_modified"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "true"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               },
               {
-                "kind": "response",
-                "result_kind": "work"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getwork",
-                "params_from": "work.data_nonce_modified"
-              },
-              {
-                "kind": "response",
-                "result_kind": "true"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getwork",
+                    "params_from": "work.data_nonce_modified"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "true"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "src_port": 4077
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
-          },
-          {
-            "role": "miner",
-            "events": [
-              {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getwork",
-                "params_from": "work.data_nonce_modified"
-              },
-              {
-                "kind": "response",
-                "result_kind": "true"
-              }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "src_port": 4077
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 22,
@@ -2958,7 +3033,10 @@
           "value": "35"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_retry_after_500",
@@ -2982,41 +3060,40 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 3,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "error_object",
-                "status": 500
-              },
-              {
-                "kind": "request",
-                "id": 4,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 3,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "error_object",
+                    "status": 500
+                  },
+                  {
+                    "kind": "request",
+                    "id": 4,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -3042,7 +3119,10 @@
           "value": "591"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_reconnect_new_stream",
@@ -3066,51 +3146,50 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               },
               {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work",
+                    "work": "fixture_work2"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "src_port": 4078
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
-          },
-          {
-            "role": "miner",
-            "events": [
-              {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work",
-                "work": "fixture_work2"
-              }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "src_port": 4078
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 18,
@@ -3133,7 +3212,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_rst_interrupt",
@@ -3158,27 +3240,26 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 5,
@@ -3194,7 +3275,10 @@
           "value": "0x0004"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_no_frames_after_fin",
@@ -3218,31 +3302,30 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -3258,7 +3341,10 @@
           "value": "0x0011"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_dual_family",
@@ -3282,50 +3368,49 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               },
               {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                },
+                "src_port": 4077
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
-          },
-          {
-            "role": "miner",
-            "events": [
-              {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            },
-            "src_port": 4077
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 18,
@@ -3348,7 +3433,10 @@
           ]
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_pcap_nic_consistency",
@@ -3372,49 +3460,48 @@
           "http": {}
         },
         {
-          "getwork": {}
-        }
-      ],
-      "getwork": {
-        "sessions": [
-          {
-            "role": "miner",
-            "events": [
+          "getwork": {
+            "sessions": [
               {
-                "kind": "request",
-                "id": 1,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              },
-              {
-                "kind": "request",
-                "id": 2,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
-              },
-              {
-                "kind": "request",
-                "id": 3,
-                "method": "getwork"
-              },
-              {
-                "kind": "response",
-                "result_kind": "work"
+                "role": "miner",
+                "events": [
+                  {
+                    "kind": "request",
+                    "id": 1,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 2,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  },
+                  {
+                    "kind": "request",
+                    "id": 3,
+                    "method": "getwork"
+                  },
+                  {
+                    "kind": "response",
+                    "result_kind": "work"
+                  }
+                ],
+                "auth": {
+                  "user": "user",
+                  "pass": "pass"
+                }
               }
-            ],
-            "auth": {
-              "user": "user",
-              "pass": "pass"
-            }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 13,
@@ -3435,7 +3522,10 @@
           "value": "591"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_neg_bad_json",
@@ -3459,19 +3549,21 @@
           "http": {}
         },
         {
-          "getwork": {}
+          "getwork": {
+            "wire_fault": {
+              "kind": "bad_json"
+            }
+          }
         }
-      ],
-      "getwork": {
-        "wire_fault": {
-          "kind": "bad_json"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "json"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_neg_body_truncated",
@@ -3495,19 +3587,21 @@
           "http": {}
         },
         {
-          "getwork": {}
+          "getwork": {
+            "wire_fault": {
+              "kind": "body_truncated"
+            }
+          }
         }
-      ],
-      "getwork": {
-        "wire_fault": {
-          "kind": "body_truncated"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "truncat"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_neg_content_length_mismatch",
@@ -3531,19 +3625,21 @@
           "http": {}
         },
         {
-          "getwork": {}
+          "getwork": {
+            "wire_fault": {
+              "kind": "content_length_mismatch"
+            }
+          }
         }
-      ],
-      "getwork": {
-        "wire_fault": {
-          "kind": "content_length_mismatch"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "content-length"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_neg_unknown_method",
@@ -3567,19 +3663,21 @@
           "http": {}
         },
         {
-          "getwork": {}
+          "getwork": {
+            "wire_fault": {
+              "kind": "unknown_method"
+            }
+          }
         }
-      ],
-      "getwork": {
-        "wire_fault": {
-          "kind": "unknown_method"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "method"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_neg_getwork_params_nonempty",
@@ -3603,19 +3701,21 @@
           "http": {}
         },
         {
-          "getwork": {}
+          "getwork": {
+            "wire_fault": {
+              "kind": "getwork_params_nonempty"
+            }
+          }
         }
-      ],
-      "getwork": {
-        "wire_fault": {
-          "kind": "getwork_params_nonempty"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "params"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_neg_submit_two_params",
@@ -3639,19 +3739,21 @@
           "http": {}
         },
         {
-          "getwork": {}
+          "getwork": {
+            "wire_fault": {
+              "kind": "submit_two_params"
+            }
+          }
         }
-      ],
-      "getwork": {
-        "wire_fault": {
-          "kind": "submit_two_params"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "params"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_neg_data_not_hex",
@@ -3675,19 +3777,21 @@
           "http": {}
         },
         {
-          "getwork": {}
+          "getwork": {
+            "wire_fault": {
+              "kind": "data_not_hex"
+            }
+          }
         }
-      ],
-      "getwork": {
-        "wire_fault": {
-          "kind": "data_not_hex"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "hex"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_neg_data_length",
@@ -3711,19 +3815,21 @@
           "http": {}
         },
         {
-          "getwork": {}
+          "getwork": {
+            "wire_fault": {
+              "kind": "data_length"
+            }
+          }
         }
-      ],
-      "getwork": {
-        "wire_fault": {
-          "kind": "data_length"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "length"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_neg_field_missing",
@@ -3747,19 +3853,21 @@
           "http": {}
         },
         {
-          "getwork": {}
+          "getwork": {
+            "wire_fault": {
+              "kind": "field_missing"
+            }
+          }
         }
-      ],
-      "getwork": {
-        "wire_fault": {
-          "kind": "field_missing"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "hash1"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_neg_submit_work_uncorrelated",
@@ -3783,19 +3891,21 @@
           "http": {}
         },
         {
-          "getwork": {}
+          "getwork": {
+            "wire_fault": {
+              "kind": "submit_work_uncorrelated"
+            }
+          }
         }
-      ],
-      "getwork": {
-        "wire_fault": {
-          "kind": "submit_work_uncorrelated"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "correlation"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_neg_id_mismatch",
@@ -3819,19 +3929,21 @@
           "http": {}
         },
         {
-          "getwork": {}
+          "getwork": {
+            "wire_fault": {
+              "kind": "id_mismatch"
+            }
+          }
         }
-      ],
-      "getwork": {
-        "wire_fault": {
-          "kind": "id_mismatch"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "id"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_neg_cross_session_work",
@@ -3855,19 +3967,21 @@
           "http": {}
         },
         {
-          "getwork": {}
+          "getwork": {
+            "wire_fault": {
+              "kind": "cross_session_work"
+            }
+          }
         }
-      ],
-      "getwork": {
-        "wire_fault": {
-          "kind": "cross_session_work"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "session"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_neg_udp_carrier",
@@ -3891,19 +4005,21 @@
           "http": {}
         },
         {
-          "getwork": {}
+          "getwork": {
+            "wire_fault": {
+              "kind": "udp_carrier"
+            }
+          }
         }
-      ],
-      "getwork": {
-        "wire_fault": {
-          "kind": "udp_carrier"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "carrier"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_neg_port_undeclared",
@@ -3927,19 +4043,21 @@
           "http": {}
         },
         {
-          "getwork": {}
+          "getwork": {
+            "wire_fault": {
+              "kind": "port_undeclared"
+            }
+          }
         }
-      ],
-      "getwork": {
-        "wire_fault": {
-          "kind": "port_undeclared"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "port"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_neg_address_family",
@@ -3963,19 +4081,21 @@
           "http": {}
         },
         {
-          "getwork": {}
+          "getwork": {
+            "wire_fault": {
+              "kind": "address_family"
+            }
+          }
         }
-      ],
-      "getwork": {
-        "wire_fault": {
-          "kind": "address_family"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "family"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_neg_http_method_get",
@@ -3999,19 +4119,21 @@
           "http": {}
         },
         {
-          "getwork": {}
+          "getwork": {
+            "wire_fault": {
+              "kind": "http_method_get"
+            }
+          }
         }
-      ],
-      "getwork": {
-        "wire_fault": {
-          "kind": "http_method_get"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "post"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   },
   {
     "id": "getwork_neg_error_propagation",
@@ -4035,18 +4157,20 @@
           "http": {}
         },
         {
-          "getwork": {}
+          "getwork": {
+            "wire_fault": {
+              "kind": "error_propagation"
+            }
+          }
         }
-      ],
-      "getwork": {
-        "wire_fault": {
-          "kind": "error_propagation"
-        }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "propagat"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 getwork 子映射迁入 layers[].getwork"
+    ]
   }
 ]

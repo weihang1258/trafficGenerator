@@ -21,8 +21,7 @@
         {
           "http_flv": {}
         }
-      ],
-      "http_flv": {}
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -51,7 +50,10 @@
           "hex": "47 45 54 20 2f 6c 69 76 65 2f 74 65 73 74 2e 66 6c 76 20 48 54 54 50 2f 31 2e 31 0d 0a"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 http_flv 子映射迁入 layers[].http_flv"
+    ]
   },
   {
     "id": "http_flv_header_flags",
@@ -75,8 +77,7 @@
         {
           "http_flv": {}
         }
-      ],
-      "http_flv": {}
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -100,7 +101,10 @@
           "hex": "43 6f 6e 6e 65 63 74 69 6f 6e 3a 20 63 6c 6f 73 65 0d 0a 0d"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 http_flv 子映射迁入 layers[].http_flv"
+    ]
   },
   {
     "id": "http_flv_script_tag",
@@ -124,8 +128,7 @@
         {
           "http_flv": {}
         }
-      ],
-      "http_flv": {}
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -137,7 +140,10 @@
           "hex": "6c 6f 73 65 0d 0a 0d 0a 46 4c 56 01 05 00 00 00 09 00 00 00"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 http_flv 子映射迁入 layers[].http_flv"
+    ]
   },
   {
     "id": "http_flv_audio_aac",
@@ -161,8 +167,7 @@
         {
           "http_flv": {}
         }
-      ],
-      "http_flv": {}
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -174,7 +179,10 @@
           "hex": "0a 46 4c 56 01 05 00 00 00 09 00 00 00 00 12 00 00 8b 00 00"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 http_flv 子映射迁入 layers[].http_flv"
+    ]
   },
   {
     "id": "http_flv_video_avc",
@@ -198,8 +206,7 @@
         {
           "http_flv": {}
         }
-      ],
-      "http_flv": {}
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -211,7 +218,10 @@
           "hex": "00 00 09 00 00 00 00 12 00 00 8b 00 00 00 00 00 00 00 02 00"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 http_flv 子映射迁入 layers[].http_flv"
+    ]
   },
   {
     "id": "http_flv_empty_tag",
@@ -233,20 +243,19 @@
           }
         },
         {
-          "http_flv": {}
-        }
-      ],
-      "http_flv": {
-        "flags": 1,
-        "tags": [
-          {
-            "type": "script",
-            "timestamp": 0,
-            "data": []
+          "http_flv": {
+            "flags": 1,
+            "tags": [
+              {
+                "type": "script",
+                "timestamp": 0,
+                "data": []
+              }
+            ],
+            "rounds": 1
           }
-        ],
-        "rounds": 1
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -258,7 +267,10 @@
           "hex": "43 6f 6e 6e 65 63 74 69 6f 6e 3a 20 63 6c 6f 73 65 0d 0a 0d"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 http_flv 子映射迁入 layers[].http_flv"
+    ]
   },
   {
     "id": "http_flv_minimal_tags",
@@ -282,8 +294,7 @@
         {
           "http_flv": {}
         }
-      ],
-      "http_flv": {}
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -305,7 +316,10 @@
           "hex": "00 00 09 00 00 00 00 12 00 00 8b 00 00 00 00 00 00 00 02 00"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 http_flv 子映射迁入 layers[].http_flv"
+    ]
   },
   {
     "id": "http_flv_tag_boundary",
@@ -327,61 +341,60 @@
           }
         },
         {
-          "http_flv": {}
-        }
-      ],
-      "http_flv": {
-        "flags": 5,
-        "tags": [
-          {
-            "type": "script",
-            "timestamp": 0,
-            "data": [
-              2,
-              0,
-              10,
-              111,
-              110,
-              77,
-              101,
-              116,
-              97,
-              68,
-              97,
-              116,
-              97,
-              8,
-              0,
-              0,
-              0,
-              1,
-              0,
-              8,
-              100,
-              117,
-              114,
-              97,
-              116,
-              105,
-              111,
-              110,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              9
+          "http_flv": {
+            "flags": 5,
+            "tags": [
+              {
+                "type": "script",
+                "timestamp": 0,
+                "data": [
+                  2,
+                  0,
+                  10,
+                  111,
+                  110,
+                  77,
+                  101,
+                  116,
+                  97,
+                  68,
+                  97,
+                  116,
+                  97,
+                  8,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  8,
+                  100,
+                  117,
+                  114,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  9
+                ],
+                "data_size_override": 65536
+              }
             ],
-            "data_size_override": 65536
+            "rounds": 1
           }
-        ],
-        "rounds": 1
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -393,7 +406,10 @@
           "hex": "6f 73 65 0d 0a 0d 0a 46 4c 56 01 05 00 00 00 09 00 00 00 00"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 http_flv 子映射迁入 layers[].http_flv"
+    ]
   },
   {
     "id": "http_flv_keep_alive",
@@ -415,13 +431,12 @@
           }
         },
         {
-          "http_flv": {}
+          "http_flv": {
+            "flags": 5,
+            "rounds": 2
+          }
         }
-      ],
-      "http_flv": {
-        "flags": 5,
-        "rounds": 2
-      }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -438,7 +453,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 http_flv 子映射迁入 layers[].http_flv"
+    ]
   },
   {
     "id": "http_flv_multi_session",
@@ -462,8 +480,7 @@
         {
           "http_flv": {}
         }
-      ],
-      "http_flv": {}
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -480,7 +497,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 http_flv 子映射迁入 layers[].http_flv"
+    ]
   },
   {
     "id": "http_flv_ipv6",
@@ -504,8 +524,7 @@
         {
           "http_flv": {}
         }
-      ],
-      "http_flv": {}
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -527,7 +546,10 @@
           "value": "GET"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 http_flv 子映射迁入 layers[].http_flv"
+    ]
   },
   {
     "id": "http_flv_multi_stream",
@@ -551,8 +573,7 @@
         {
           "http_flv": {}
         }
-      ],
-      "http_flv": {}
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -569,7 +590,10 @@
           "value": "200"
         }
       ]
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 http_flv 子映射迁入 layers[].http_flv"
+    ]
   },
   {
     "id": "http_flv_neg_truncated_tag",
@@ -591,23 +615,25 @@
           }
         },
         {
-          "http_flv": {}
-        }
-      ],
-      "http_flv": {
-        "tags": [
-          {
-            "type": "unknown",
-            "timestamp": 0
+          "http_flv": {
+            "tags": [
+              {
+                "type": "unknown",
+                "timestamp": 0
+              }
+            ],
+            "rounds": 1
           }
-        ],
-        "rounds": 1
-      }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "tag"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 http_flv 子映射迁入 layers[].http_flv"
+    ]
   },
   {
     "id": "http_flv_neg_length_mismatch",
@@ -629,18 +655,20 @@
           }
         },
         {
-          "http_flv": {}
+          "http_flv": {
+            "flags": 5,
+            "rounds": -1
+          }
         }
-      ],
-      "http_flv": {
-        "flags": 5,
-        "rounds": -1
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "rounds"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 http_flv 子映射迁入 layers[].http_flv"
+    ]
   },
   {
     "id": "http_flv_neg_validate",
@@ -662,17 +690,19 @@
           }
         },
         {
-          "http_flv": {}
+          "http_flv": {
+            "flags": 255,
+            "rounds": 1
+          }
         }
-      ],
-      "http_flv": {
-        "flags": 255,
-        "rounds": 1
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "flags"
-    }
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 http_flv 子映射迁入 layers[].http_flv"
+    ]
   }
 ]
