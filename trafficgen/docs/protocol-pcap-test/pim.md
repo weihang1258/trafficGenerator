@@ -1,15 +1,19 @@
 # pim Pcap Test Results
 
-Cases: 24 — pass 24, fail 0, error 0
+Cases: 28 — pass 28, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
 | pim_neg_address_family | IPv4 PIM profile cannot encode IPv6 group/source | pass | 0 | [pcap]() |
+| pim_neg_carrier_missing_ip | §14-P2 缺 ip 载体判死：裸 [pim] 链（M5 清单③） | pass | 0 | [pcap]() |
+| pim_neg_carrier_udp | §14-P2 udp 载体判死：PIM 裸 IP（protocol 103）无传输层（M5 清单③） | pass | 0 | [pcap]() |
 | pim_neg_checksum | Malformed PIM checksum is rejected | pass | 0 | [pcap]() |
 | pim_neg_df_profile | DF Election requires independent Bidirectional PIM profile | pass | 0 | [pcap]() |
 | pim_neg_ipv6_profile | IPv6 PIM is a separate unsupported profile | pass | 0 | [pcap]() |
 | pim_neg_length | Inconsistent IPv4/PIM length is rejected | pass | 0 | [pcap]() |
 | pim_neg_ssm_rp | SSM cannot carry RP/Register or wildcard state | pass | 0 | [pcap]() |
+| pim_neg_stray_top_src_ip | §14-P2 白名单外游离顶层键判死：layers + 顶层 src_ip（M5 清单②，1.11–1.13） | pass | 0 | [pcap]() |
+| pim_neg_top_pim_presence_reject | §14-P2 presence 判死形状：层链 + 顶层空 pim 子映射并存（M5 清单①） | pass | 0 | [pcap]() |
 | pim_neg_type | Unknown or mismatched PIM message type is rejected | pass | 0 | [pcap]() |
 | pim_sm_assert | PIM-SM Assert with group/source and metrics | pass | 1 | [pcap](pim/pim_sm_assert.pcap) |
 | pim_sm_bootstrap_rp_set | PIM-SM Bootstrap with BSR and RP set priorities | pass | 1 | [pcap](pim/pim_sm_bootstrap_rp_set.pcap) |

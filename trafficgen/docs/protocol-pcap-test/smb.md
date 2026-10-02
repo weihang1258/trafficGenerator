@@ -1,10 +1,21 @@
 # smb Pcap Test Results
 
-Cases: 280 — pass 280, fail 0, error 0
+Cases: 308 — pass 308, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
-| probe_explicit_close | probe: explicit close single close | pass | 24 | [pcap](smb/probe_explicit_close.pcap) |
+| probe_default_session | probe: empty smb layer default session (default single read + implicit close) | pass | 29 | [pcap](smb/probe_default_session.pcap) |
+| probe_echo_liveness | probe: same-connection two ECHO rounds liveness | pass | 29 | [pcap](smb/probe_echo_liveness.pcap) |
+| probe_error_on_close | probe: error_on_command=close injected then teardown continues | pass | 25 | [pcap](smb/probe_error_on_close.pcap) |
+| probe_explicit_close | probe: explicit single close, CLOSE exactly one pair | pass | 25 | [pcap](smb/probe_explicit_close.pcap) |
+| probe_ipv6_session | probe: ipv6 carrier session | pass | 29 | [pcap](smb/probe_ipv6_session.pcap) |
+| probe_multi_flow_dynamic | probe: flows=2 with dynamic src_port | pass | 58 | [pcap](smb/probe_multi_flow_dynamic.pcap) |
+| probe_neg_flat_keys | probe neg: top-level flat keys rejected | pass | 0 | [pcap]() |
+| probe_neg_layers_flat_mix | probe neg: layers plus top-level src_port rejected | pass | 0 | [pcap]() |
+| probe_neg_static_copy | probe neg: static four-tuple with flows>1 rejected | pass | 0 | [pcap]() |
+| probe_netbios_139 | probe: netbios transport on TCP 139 | pass | 29 | [pcap](smb/probe_netbios_139.pcap) |
+| probe_ops_multi_round | probe: same-connection multi-round read,write,close | pass | 31 | [pcap](smb/probe_ops_multi_round.pcap) |
+| probe_pcap_nic_consistency | PCAP/NIC carrier consistency: TCP/445 + SMB2 PDU order + direction + teardown count | pass | 25 | [pcap](smb/probe_pcap_nic_consistency.pcap) |
 | smb_terr042_logon_failure_setup | T042: SESSION_SETUP LOGON_FAILURE | pass | 17 | [pcap](smb/smb_terr042_logon_failure_setup.pcap) |
 | smb_terr126_negotiate_error | T126/T135/T202: ErrorOnCommand=negotiate + Status=0xC000000D(INVALID_PARAMETER) → NEGOTIATE resp 错误, 无 SESSION_SETUP/LOGOFF, 直接 TCP teardown, 8 包 | pass | 9 | [pcap](smb/smb_terr126_negotiate_error.pcap) |
 | smb_terr128_treeconnect_error | T128/T059/T140: ErrorOnCommand=tree_connect + Status=0xC00000CC(BAD_NETWORK_NAME) → TC resp 错误 (体仅 SS=16 无 ShareType), 跳过 CREATE, teardown 仅 LOGOFF, 18 包 | pass | 19 | [pcap](smb/smb_terr128_treeconnect_error.pcap) |
@@ -193,9 +204,26 @@ Cases: 280 — pass 280, fail 0, error 0
 | smb_tpos48_tree_cmd | T048: TREE_CONNECT req Command | pass | 29 | [pcap](smb/smb_tpos48_tree_cmd.pcap) |
 | smb_tpos49_treeid_zero | T049: TREE_CONNECT req TreeId=0 | pass | 29 | [pcap](smb/smb_tpos49_treeid_zero.pcap) |
 | smb_tpos4_0311_preauth | T004/T171: 单 dialect 0x0311 → SMB3.1.1 含 Preauth+Encryption 两个 NegotiateContext (ContextCount=2), Ciphers=[0x0001,0x0002] | pass | 29 | [pcap](smb/smb_tpos4_0311_preauth.pcap) |
+| smb_tpos501_err_create_access_denied | T501: ErrorOnCommand=create + Status=0xC0000022(ACCESS_DENIED) → CREATE resp 错误体, 跳过 READ/WRITE/CLOSE, 仅 TD+LOGOFF | pass | 23 | [pcap](smb/smb_tpos501_err_create_access_denied.pcap) |
+| smb_tpos502_err_treeconnect_network_name_deleted | T502: ErrorOnCommand=tree_connect + Status=0xC0000120(NETWORK_NAME_DELETED) → TC resp 错误, 跳过 CREATE | pass | 19 | [pcap](smb/smb_tpos502_err_treeconnect_network_name_deleted.pcap) |
+| smb_tpos503_err_session_setup_smb_bad_tid | T503: ErrorOnCommand=session_setup + Status=0xC000007B(INVALID_IMAGE_FORMAT) → 最后一轮 resp 错误, 仅 LOGOFF | pass | 17 | [pcap](smb/smb_tpos503_err_session_setup_smb_bad_tid.pcap) |
+| smb_tpos504_err_read_lock_conflict | T504: ErrorOnCommand=read + Status=0xC0000021(FILE_LOCK_CONFLICT) → READ resp 错误, CLOSE+TD+LOGOFF 续走 | pass | 27 | [pcap](smb/smb_tpos504_err_read_lock_conflict.pcap) |
+| smb_tpos505_err_close_tid_mismatch | T505: ErrorOnCommand=close + Status=0xC00003E3 → 显式 close op 错误 (p16, resp p17 nt_status=0xc00003e3), CLOSE 恰一对(隐式被抑制), TD+LOGOFF 续走, 25 包 | pass | 25 | [pcap](smb/smb_tpos505_err_close_tid_mismatch.pcap) |
+| smb_tpos506_err_write_bad_netpath | T506: ErrorOnCommand=write + Status=0xC0000080(NOT_SUPPORTED) → WRITE resp 错误, CLOSE+TD+LOGOFF 续走 | pass | 27 | [pcap](smb/smb_tpos506_err_write_bad_netpath.pcap) |
 | smb_tpos50_treeid_assign | T050: TREE_CONNECT resp TreeId 分配 | pass | 29 | [pcap](smb/smb_tpos50_treeid_assign.pcap) |
+| smb_tpos510_disposition_0 | T510: CreateDisposition=0(supersede) 显式 + file_path 伴写 → 帧 158 = 00 00 00 00 (透传; validate.go:248-256 createStageSet 启发式) | pass | 29 | [pcap](smb/smb_tpos510_disposition_0.pcap) |
+| smb_tpos513_disposition_3 | T513: CreateDisposition=3(open_if) 显式 → 帧 158 = 03 00 00 00 (透传) | pass | 29 | [pcap](smb/smb_tpos513_disposition_3.pcap) |
+| smb_tpos514_disposition_4 | T514: CreateDisposition=4(overwrite) 显式 → 帧 158 = 04 00 00 00 (透传) | pass | 29 | [pcap](smb/smb_tpos514_disposition_4.pcap) |
+| smb_tpos515_disposition_5 | T515: CreateDisposition=5(overwrite_if) 显式 → 帧 158 = 05 00 00 00 (透传) | pass | 29 | [pcap](smb/smb_tpos515_disposition_5.pcap) |
 | smb_tpos51_sesid_reuse | T051: TREE_CONNECT req SessionId 复用 | pass | 29 | [pcap](smb/smb_tpos51_sesid_reuse.pcap) |
+| smb_tpos520_query_info_filesystem | T520: QUERY_INFO InfoType=1(FileSystem) + FileInfoClass=3(FileFsVolumeInformation) 显式 → 帧 124-125 透传 | pass | 27 | [pcap](smb/smb_tpos520_query_info_filesystem.pcap) |
+| smb_tpos521_query_info_security | T521: QUERY_INFO InfoType=2(Security) + FileInfoClass=0 缺省回退 4 → 帧 124-125 = 02 04 | pass | 27 | [pcap](smb/smb_tpos521_query_info_security.pcap) |
+| smb_tpos522_query_directory_infoclass_1 | T522: QUERY_DIRECTORY InfoClass=1(FileDirectoryInformation) 显式 → 帧 124 = 01 | pass | 27 | [pcap](smb/smb_tpos522_query_directory_infoclass_1.pcap) |
+| smb_tpos523_query_directory_infoclass_2 | T523: QUERY_DIRECTORY InfoClass=2(FileFullDirectoryInformation) 显式 → 帧 124 = 02 | pass | 27 | [pcap](smb/smb_tpos523_query_directory_infoclass_2.pcap) |
 | smb_tpos52_pathoffset | T052: TREE_CONNECT PathOffset=72 | pass | 29 | [pcap](smb/smb_tpos52_pathoffset.pcap) |
+| smb_tpos530_ipv6_default_session | T530: IPv6 载体默认会话 → 与 IPv4 同 8 阶段, 帧偏移 +20 (54→74 / 122→142) | pass | 29 | [pcap](smb/smb_tpos530_ipv6_default_session.pcap) |
+| smb_tpos531_ipv6_close_session | T531: IPv6 载体显式 close 会话 → CLOSE 恰一对, CLOSE 体起点 142 (IPv4 122 + 20) | pass | 25 | [pcap](smb/smb_tpos531_ipv6_close_session.pcap) |
+| smb_tpos532_ipv6_netbios_139 | T532: IPv6 载体 + netbios 139 → ipv6.nxt=6 + tcp.dstport=139 + NBSS 前缀 | pass | 29 | [pcap](smb/smb_tpos532_ipv6_netbios_139.pcap) |
 | smb_tpos53_pathlength | T053: TREE_CONNECT PathLength=26 | pass | 29 | [pcap](smb/smb_tpos53_pathlength.pcap) |
 | smb_tpos54_tree_resp_ss | T054: TREE_CONNECT resp StructureSize=16 | pass | 29 | [pcap](smb/smb_tpos54_tree_resp_ss.pcap) |
 | smb_tpos55_sharetype_disk | T055: ShareType DISK=0 | pass | 29 | [pcap](smb/smb_tpos55_sharetype_disk.pcap) |

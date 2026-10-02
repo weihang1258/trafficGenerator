@@ -1,9 +1,15 @@
 # nfs Pcap Test Results
 
-Cases: 201 — pass 201, fail 0, error 0
+Cases: 197 — pass 197, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
+| nfs_neg_flat_count |  白名单外游离键判死②-a：顶层 count（1.11–1.13；flow_control 家族外数量键） | pass | 0 | [pcap]() |
+| nfs_neg_presence_top_level_nfs |  presence 判死：层链 + 顶层空 nfs 子映射并存（M5 清单①；非残留） | pass | 0 | [pcap]() |
+| nfs_neg_static_copy_multiflow |  多流静态复制判死：flows=2 + 静态四元组（逃生口=层内动态对象；checkLayerChainStaticCopy） | pass | 0 | [pcap]() |
+| nfs_neg_stray_src_mac | 白名单外游离键判死②-b：顶层 src_mac（MAC 真相住 eth 层；checkLayerFlatConflict 混用门） | pass | 0 | [pcap]() |
+| nfs_neg_stray_ttl | 白名单外游离键判死②-c：顶层 ttl 越界（ttl 真相住 ip 层；越界走 ValidateConfigRanges shape 门） | pass | 0 | [pcap]() |
+| nfs_neg_unknown_layer_field |  未知层字段判死：nfs 层 bogus 键（ValidateLayers 未知字段门） | pass | 0 | [pcap]() |
 | nfs_t001_v3_null_mount | T-001/T-021: NFSv3 NULL (proc=0) 无 Program 显式 → 自动插入 MOUNT(proc1) + NULL + UMOUNT(proc3)，3 次 RPC 往返；TCP 3-way + 6 数据帧 + 3 挥手 = 12 包 | pass | 13 | [pcap](nfs/nfs_t001_v3_null_mount.pcap) |
 | nfs_t002_v3_null_reply | T-002: NFSv3 NULL call→reply 帧断言（RM=0x80000018，XID=1 echo, Type=1, ReplyState=0, AcceptState=0）；显式 Program 100003 跳过 MOUNT 自动插入 | pass | 9 | [pcap](nfs/nfs_t002_v3_null_reply.pcap) |
 | nfs_t003_v4_null | T-003: NFSv4 NULL (proc=0) 独立 RPC 调用，无 COMPOUND 嵌入，无 SETCLIENTID 补全；call payload=40B | pass | 13 | [pcap](nfs/nfs_t003_v4_null.pcap) |
@@ -118,7 +124,7 @@ Cases: 201 — pass 201, fail 0, error 0
 | nfs_t105_v4_setclientid_confirm_autofill | T-105: 用户显式 opcode=35 但无 opcode=36 → 自动追加 CONFIRM；序列 35 然后 36 | pass | 11 | [pcap](nfs/nfs_t105_v4_setclientid_confirm_autofill.pcap) |
 | nfs_t106_v4_clientid_default_session | T-106: op clientid=0（未设）→ 默认按会话分配 0x10001（单会话） | pass | 11 | [pcap](nfs/nfs_t106_v4_clientid_default_session.pcap) |
 | nfs_t107_v4_clientid_explicit | T-107: clientid 显式 12345 → call 8B clientid 00 00 00 00 00 00 30 39 | pass | 11 | [pcap](nfs/nfs_t107_v4_clientid_explicit.pcap) |
-| nfs_t108_v4_clientid_dup_sessions_validate | T-108: sessions=2 两会话 op 都设 clientid=100 → Validate 报错（V36） | pass | 0 | [pcap]() |
+| nfs_t108_v4_clientid_dup_sessions_validate | T-108: sessions=2 两会话 op 都设 clientid=100 → Validate 报错（V36）（P5 去扁平：sessions>1 在链上先被 sessions 双拒绝拦截，锚词以实测为准） | pass | 0 | [pcap]() |
 | nfs_t109_v4_clientid_dup_single_ok | T-109: sessions=1 两个 op 都设 clientid=100 → Validate 通过（单会话不限制） | pass | 15 | [pcap](nfs/nfs_t109_v4_clientid_dup_single_ok.pcap) |
 | nfs_t111_v4_lock_new_owner_false | T-111: LOCK new_lock_owner=false → locker4 disc=0 + lock_owner4(clientid+owner) | pass | 13 | [pcap](nfs/nfs_t111_v4_lock_new_owner_false.pcap) |
 | nfs_t112_v4_lock_read_lt | T-112: LOCK lock_type=1 (READ_LT) → 00000001 | pass | 13 | [pcap](nfs/nfs_t112_v4_lock_read_lt.pcap) |
@@ -161,11 +167,9 @@ Cases: 201 — pass 201, fail 0, error 0
 | nfs_t152_v4_op_reply_status | T-152: op.reply_status=10020 覆盖 → 该 op reply status=10020 | pass | 13 | [pcap](nfs/nfs_t152_v4_op_reply_status.pcap) |
 | nfs_t153_v4_reply_status_priority | T-153: result_status=1 + reply_status=2 → 顶层用 reply_status=2（op 覆盖） | pass | 13 | [pcap](nfs/nfs_t153_v4_reply_status_priority.pcap) |
 | nfs_t154_v4_err_nofilehandle | T-154/S15: NFSv4 GETATTR 无 PUTFH/PUTROOTFH → reply_status=10020 NFS4ERR_NOFILEHANDLE；resarray_len=2（PUTROOTFH+GETATTR 均回 op_status=10020），顶层 status 与 op_status 一致 | pass | 13 | [pcap](nfs/nfs_t154_v4_err_nofilehandle.pcap) |
-| nfs_t154_v4_no_filehandle | T-154: compound_ops 无 PUTFH/PUTROOTFH → 自动补 PUTROOTFH(24) 仍成功（对比 T-155 截断） | pass | 13 | [pcap](nfs/nfs_t154_v4_no_filehandle.pcap) |
 | nfs_t155_v4_compound_truncate | T-155: [PUTROOTFH, GETATTR{op_status:10025}, READ] → top=10025, resarray=2, READ 不返回 | pass | 13 | [pcap](nfs/nfs_t155_v4_compound_truncate.pcap) |
 | nfs_t156_v4_single_op_fail | T-156: 单 op 失败 op_status=1 → reply 顶层=1 + resarray=2 (encoder 实际 emit 全 0) | pass | 13 | [pcap](nfs/nfs_t156_v4_single_op_fail.pcap) |
 | nfs_t157_v4_all_success | T-157: [PUTROOTFH, GETATTR] 全成功 → top=0 resarray=2 | pass | 13 | [pcap](nfs/nfs_t157_v4_all_success.pcap) |
-| nfs_t158_rpc_accept_prog_unavail | T-158: rpc_accept_state=1 (PROG_UNAVAIL) → AcceptState=1 无 NFS body | pass | 9 | [pcap](nfs/nfs_t158_rpc_accept_prog_unavail.pcap) |
 | nfs_t158_rpc_prog_unavail | T-158: rpc_accept_state=1 (PROG_UNAVAIL) → REPLY AcceptState=1 无 NFS body（同一任务两个 op 分别注入 accept_state） | pass | 9 | [pcap](nfs/nfs_t158_rpc_prog_unavail.pcap) |
 | nfs_t159_rpc_accept_prog_mismatch | T-159: rpc_accept_state=2 + low=2 high=3 (PROG_MISMATCH) → AcceptState=2 + 版本范围 | pass | 9 | [pcap](nfs/nfs_t159_rpc_accept_prog_mismatch.pcap) |
 | nfs_t160_rpc_accept_proc_unavail | T-160: rpc_accept_state=3 (PROC_UNAVAIL) → AcceptState=3 | pass | 9 | [pcap](nfs/nfs_t160_rpc_accept_proc_unavail.pcap) |
@@ -180,15 +184,8 @@ Cases: 201 — pass 201, fail 0, error 0
 | nfs_t169_v4_err_resource | T-169: reply_status=10018 (NFS4ERR_RESOURCE) → 顶层 status=0x00002722 + 全部 op_status=10018 | pass | 13 | [pcap](nfs/nfs_t169_v4_err_resource.pcap) |
 | nfs_t170_v4_err_bad_stateid | T-170: NFS4ERR_BAD_STATEID=10025 注入（reply_status）→ 顶层 status 与两 op_status 均回 10025(0x2729) | pass | 13 | [pcap](nfs/nfs_t170_v4_err_bad_stateid.pcap) |
 | nfs_t171_v4_sessions1_default | T-171: sessions 未设 → 单 TCP 流 | pass | 13 | [pcap](nfs/nfs_t171_v4_sessions1_default.pcap) |
-| nfs_t172_v3_sessions2 | T-172/T-178: sessions=2 独立 TCP 流（src port 40000/40001），各含 MOUNT+NULL+UMOUNT 3 往返；每会话 XID 独立均从 1 起 | pass | 24 | [pcap](nfs/nfs_t172_v3_sessions2.pcap) |
-| nfs_t173_v4_sessions3 | T-173: sessions=3（无 base/step → 49152/49153/49154 默认）→ 3 个独立 TCP 流，每流独立 ISN 1000/2000 | pass | 36 | [pcap](nfs/nfs_t173_v4_sessions3.pcap) |
-| nfs_t174_v3_sessions2_step10 | T-174: sessions=2 step=10 → srcPort 40000/40010 | pass | 16 | [pcap](nfs/nfs_t174_v3_sessions2_step10.pcap) |
 | nfs_t175_v3_sessions2_step0_validate | T-175: sessions=2 step=0 → Validate 拒绝 | pass | 0 | [pcap]() |
 | nfs_t176_v3_sessions1_step0 | T-176: sessions=1 step=0 → Validate 通过 | pass | 9 | [pcap](nfs/nfs_t176_v3_sessions1_step0.pcap) |
-| nfs_t177_v4_sessions2_clientid | T-177: sessions=2 → session0 clientid=0x10001, session1=0x20001 | pass | 24 | [pcap](nfs/nfs_t177_v4_sessions2_clientid.pcap) |
-| nfs_t178_v4_sessions2_xid | T-178: sessions=2 xid_base=1 → 两会话首个 call XID 均=1（独立序列） | pass | 24 | [pcap](nfs/nfs_t178_v4_sessions2_xid.pcap) |
-| nfs_t179_v4_sessions2_client_id | T-179: sessions=2 → client id=trafficgen-client-0 / -1 | pass | 24 | [pcap](nfs/nfs_t179_v4_sessions2_client_id.pcap) |
-| nfs_t180_v4_sessions3_order | T-180: sessions=3 顺序生成不交错——session 0 全部包 → session 1 → session 2（按 srcPort 分组连续） | pass | 36 | [pcap](nfs/nfs_t180_v4_sessions3_order.pcap) |
 | nfs_t181_validate_version0 | T-181: version=0 → Validate 拒绝 | pass | 0 | [pcap]() |
 | nfs_t182_validate_version5 | T-182: version=5 → Validate 拒绝 | pass | 0 | [pcap]() |
 | nfs_t183_validate_version2 | T-183: version=2 → Validate 拒绝（NFSv2 不支持） | pass | 0 | [pcap]() |
@@ -200,8 +197,7 @@ Cases: 201 — pass 201, fail 0, error 0
 | nfs_t192_v4_full_session | T-192: NFSv4 完整会话 — SETCLIENTID(35) + CONFIRM(36) + 2 个用户 COMPOUND = 14 包 | pass | 15 | [pcap](nfs/nfs_t192_v4_full_session.pcap) |
 | nfs_t193_v4_auth_sys_full | T-193: AUTH_SYS 完整会话 — 每个 call CredFlavor=1、CredLen=32（默认 auth_sys） | pass | 13 | [pcap](nfs/nfs_t193_v4_auth_sys_full.pcap) |
 | nfs_t194_v4_result_status_full | T-194: result_status=10020 完整会话 — reply 顶层 status=0x2724 + 所有 op_status=10020 | pass | 13 | [pcap](nfs/nfs_t194_v4_result_status_full.pcap) |
-| nfs_t195_v4_sessions3_full | T-195: sessions=3 完整 — 3 个独立流 × 完整序列（SETCLIENTID+CONFIRM+用户 COMPOUND） | pass | 36 | [pcap](nfs/nfs_t195_v4_sessions3_full.pcap) |
+| nfs_t195_v3_multiflow_composite | T-195/T-200 复合大场景：flow_control.flows=3 条独立客户端流（层内动态 ip.src + 框架逐流源端口 12345/6/7）— 每流 MOUNT + GETATTR/LOOKUP/READ/WRITE/REMOVE + UMOUNT 共 7 轮 RPC；GETATTR 注入 NFS3ERR_STALE(70) 异常分支后 LOOKUP 恢复；AUTH_SYS 全 call；group_id 同 shard 定序 → 3×21=63 包 | pass | 63 | [pcap](nfs/nfs_t195_v3_multiflow_composite.pcap) |
 | nfs_t197_v4_e2e_pcap | T-197: 端到端 PCAP 产出 — 任务提交 → pcap 含 3-way + RPC + FIN，tshark 解析为 NFS | pass | 13 | [pcap](nfs/nfs_t197_v4_e2e_pcap.pcap) |
 | nfs_t198_v3_e2e_pcap | T-198: Plan→builder 集成 — v3 WRITE 字节流可被 NFS dissector 解析 | pass | 9 | [pcap](nfs/nfs_t198_v3_e2e_pcap.pcap) |
-| nfs_t199_v4_dup_clientid | T-199: broken spec — 跨会话重复 clientid（SETCLIENTID_CONFIRM ×2 同一 clientid）→ 任务实际失败 | pass | 0 | [pcap]() |
-| nfs_t200_v4_full_fields | T-200: 全字段端到端 — auth_sys + sessions=2 + result_status=10020 → 每 call AUTH_SYS、每会话独立流、reply status=10020 | pass | 24 | [pcap](nfs/nfs_t200_v4_full_fields.pcap) |
+| nfs_t199_v4_dup_clientid | T-199: broken spec — 跨会话重复 clientid（SETCLIENTID_CONFIRM ×2 同一 clientid）→ 任务实际失败（P5 去扁平：sessions>1 在链上先被 sessions 双拒绝拦截，锚词以实测为准） | pass | 0 | [pcap]() |
