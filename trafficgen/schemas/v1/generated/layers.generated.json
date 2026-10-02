@@ -4817,7 +4817,95 @@
       "depends_on": [
         "udp"
       ],
-      "fields": {}
+      "fields": {
+        "agent_addr": {
+          "type": "string"
+        },
+        "auth_password": {
+          "type": "string"
+        },
+        "auth_protocol": {
+          "type": "string"
+        },
+        "authoritative_engine_boots": {
+          "type": "uint32"
+        },
+        "authoritative_engine_id": {
+          "type": "string"
+        },
+        "authoritative_engine_time": {
+          "type": "uint32"
+        },
+        "community": {
+          "type": "string"
+        },
+        "context_name": {
+          "type": "string"
+        },
+        "engine_id_override": {
+          "type": "string"
+        },
+        "enterprise": {
+          "type": "string"
+        },
+        "generic_trap": {
+          "type": "uint8"
+        },
+        "is_response": {
+          "type": "bool"
+        },
+        "max_repetitions": {
+          "type": "uint8"
+        },
+        "max_size": {
+          "type": "uint32"
+        },
+        "non_repeaters": {
+          "type": "uint8"
+        },
+        "pdu_type": {
+          "type": "uint8"
+        },
+        "poll_interval": {
+          "type": "int"
+        },
+        "priv_password": {
+          "type": "string"
+        },
+        "priv_protocol": {
+          "type": "string"
+        },
+        "repeat_count": {
+          "type": "int"
+        },
+        "request_id": {
+          "type": "uint32"
+        },
+        "response_error": {
+          "type": "uint8"
+        },
+        "response_error_index": {
+          "type": "uint8"
+        },
+        "response_values": {
+          "type": "list"
+        },
+        "specific_trap": {
+          "type": "uint8"
+        },
+        "time_stamp": {
+          "type": "uint32"
+        },
+        "user_name": {
+          "type": "string"
+        },
+        "var_binds": {
+          "type": "list"
+        },
+        "version": {
+          "type": "uint8"
+        }
+      }
     },
     "socks5": {
       "category": "terminal",

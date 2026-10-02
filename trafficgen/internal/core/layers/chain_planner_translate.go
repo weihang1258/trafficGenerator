@@ -2768,6 +2768,42 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if err := json.Unmarshal(raw, &sc); err == nil {
 			spec.SMTP = &sc
 		}
+	case "snmp":
+		if spec.SNMP != nil {
+			return
+		}
+		// SNMP 层 config（v1/v2c/v3 全字段）严格往返解码进 spec.SNMP
+		// （bgp :705 同款——completedConfig + DisallowUnknownFields）。
+		// 空层 {} 翻译出非 nil 零配置 → 生成器默认 v2c GET public。
+		cfgSNMP := completedConfig(s, term.Config)
+		rawSNMP, err := json.Marshal(cfgSNMP)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("snmp layer config encode: %v", err))
+			return
+		}
+		var ncfg core.SNMPConfig
+		decSNMP := json.NewDecoder(bytes.NewReader(rawSNMP))
+		decSNMP.DisallowUnknownFields()
+		if err := decSNMP.Decode(&ncfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("snmp layer config decode: %v", err))
+			return
+		}
+		// 缺省键补平 flat 遗留语义（JSON 往返区分不了「缺键」和 0）：
+		// version 缺 → v2c（显式 0=v1 合法，SNMP.3.x 教训）；community 缺 →
+		// public；max_repetitions 缺 → 1。生成器 validator 对空 community
+		// 判死（planner.go:191），不在生成器侧补默认。
+		if _, ok := term.Config["version"]; !ok {
+			ncfg.Version = 1
+		}
+		if _, ok := term.Config["community"]; !ok {
+			ncfg.Community = "public"
+		}
+		if _, ok := term.Config["max_repetitions"]; !ok {
+			ncfg.MaxRepetitions = 1
+		}
+		spec.SNMP = &ncfg
 	case "imap":
 		if spec.IMAP != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略

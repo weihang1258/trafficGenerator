@@ -9,16 +9,15 @@
           "udp": {}
         },
         {
-          "snmp": {}
-        }
-      ],
-      "snmp": {
-        "var_binds": [
-          {
-            "name": "1.3.6.1.2.1.1.1.0"
+          "snmp": {
+            "var_binds": [
+              {
+                "name": "1.3.6.1.2.1.1.1.0"
+              }
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 1,
@@ -60,6 +59,9 @@
         "tshark 探针实测：version=1、community=public、get_request_element=1、name=1.3.6.1.2.1.1.1.0、error_status=0、dstport=161",
         "layers chain style: [udp,snmp]"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：顶层 snmp 子映射迁入 layers[].snmp（层链唯一配置真相）；version/community/max_repetitions 缺键默认与 flat 遗留语义一致（v2c/public/1）"
+    ]
   }
 ]

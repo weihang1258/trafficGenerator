@@ -538,6 +538,15 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// snmp 顶层 snmp 子映射 presence 判死（bgp 同款；空 map 也死——判死
+	// 形状「层链+顶层空子映射并存」wired 面）。时序：translateTerminalConfig
+	// case "snmp"（严格往返 + 缺键默认 v2c/public/1）先落码，冒烟例迁层后
+	// 此门才有执法对象。
+	if protocol == "snmp" {
+		if v, ok := cfg["snmp"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 	// D-MOXA-1 G-MOXA-1/G-MOXA-2：moxa 在库旧策略顶层 moxa → ValidationErrors
 	// （bgp 同款；空 map 也死——判死形状「层链+顶层空子映射并存」wired 面）。
 	// 时序：层内翻译（translateTerminalConfig case "moxa"）先落码，13 例改写
@@ -8667,6 +8676,14 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "mqtt" {
 		if v, ok := cfg["mqtt"]; ok && v != nil {
 			return "protocol mqtt no longer accepts a top-level mqtt sub-config (move it into the mqtt layer of an [ip,tcp,mqtt] layers chain)"
+		}
+	}
+	// snmp 顶层 snmp 子映射 presence 判死（mqtt 先例；空 map 也死）。
+	// 时序：translateTerminalConfig case "snmp"（严格往返 + 缺键默认
+	// v2c/public/1）先落码，冒烟例迁层后此门才有执法对象。层链形状不触发。
+	if protocol == "snmp" {
+		if v, ok := cfg["snmp"]; ok && v != nil {
+			return "protocol snmp no longer accepts a top-level snmp sub-config (move it into the snmp layer of an [ip,udp,snmp] layers chain)"
 		}
 	}
 	// D-CWMP-1：cwmp 顶层 cwmp 子映射 presence 判死（mqtt 先例；空 map 也
