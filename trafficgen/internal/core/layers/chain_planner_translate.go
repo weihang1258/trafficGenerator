@@ -2769,12 +2769,14 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			spec.SMTP = &sc
 		}
 	case "snmp":
-		if spec.SNMP != nil {
+		if spec.SNMP != nil || len(term.Config) == 0 {
 			return
 		}
 		// SNMP 层 config（v1/v2c/v3 全字段）严格往返解码进 spec.SNMP
 		// （bgp :705 同款——completedConfig + DisallowUnknownFields）。
-		// 空层 {} 翻译出非 nil 零配置 → 生成器默认 v2c GET public。
+		// 空层 {} 保持 spec.SNMP=nil：validator 对 nil 放行、生成器走
+		// P0b-2 默认流（v1 GET）；翻译出非 nil 零配置会被 Get 空
+		// varbinds 检查判死（planner.go:282），等价于引入回归。
 		cfgSNMP := completedConfig(s, term.Config)
 		rawSNMP, err := json.Marshal(cfgSNMP)
 		if err != nil {
@@ -2804,6 +2806,96 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			ncfg.MaxRepetitions = 1
 		}
 		spec.SNMP = &ncfg
+	case "openvpn":
+		if spec.OpenVPN != nil {
+			return
+		}
+		// OpenVPN 层 config 严格往返解码进 spec.OpenVPN（snmp 同款）。全
+		// 字段 omitempty：空层 {} → 零配置 = 生成器既有默认会话
+		// （HARD_RESET_CLIENT_V2 + P_DATA_V2 序列）。
+		cfgOVPN := completedConfig(s, term.Config)
+		rawOVPN, err := json.Marshal(cfgOVPN)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("openvpn layer config encode: %v", err))
+			return
+		}
+		var ocfg core.OpenVPNConfig
+		decOVPN := json.NewDecoder(bytes.NewReader(rawOVPN))
+		decOVPN.DisallowUnknownFields()
+		if err := decOVPN.Decode(&ocfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("openvpn layer config decode: %v", err))
+			return
+		}
+		spec.OpenVPN = &ocfg
+	case "rdp":
+		if spec.RDP != nil {
+			return
+		}
+		// RDP 层 config 严格往返解码进 spec.RDP（snmp 同款）。全字段
+		// omitempty：空层 {} → 零配置 = 生成器既有默认 X.224/MCS 序列。
+		cfgRDP := completedConfig(s, term.Config)
+		rawRDP, err := json.Marshal(cfgRDP)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("rdp layer config encode: %v", err))
+			return
+		}
+		var rcfg core.RDPConfig
+		decRDP := json.NewDecoder(bytes.NewReader(rawRDP))
+		decRDP.DisallowUnknownFields()
+		if err := decRDP.Decode(&rcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("rdp layer config decode: %v", err))
+			return
+		}
+		spec.RDP = &rcfg
+	case "redis":
+		if spec.Redis != nil {
+			return
+		}
+		// Redis 层 config 严格往返解码进 spec.Redis（snmp 同款）。全字段
+		// omitempty：空层 {} → 零配置 = 生成器既有默认 RESP 会话。
+		cfgRedis := completedConfig(s, term.Config)
+		rawRedis, err := json.Marshal(cfgRedis)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("redis layer config encode: %v", err))
+			return
+		}
+		var dcfg core.RedisConfig
+		decRedis := json.NewDecoder(bytes.NewReader(rawRedis))
+		decRedis.DisallowUnknownFields()
+		if err := decRedis.Decode(&dcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("redis layer config decode: %v", err))
+			return
+		}
+		spec.Redis = &dcfg
+	case "shadowsocks":
+		if spec.Shadowsocks != nil {
+			return
+		}
+		// Shadowsocks 层 config 严格往返解码进 spec.Shadowsocks（snmp 同
+		// 款）。全字段 omitempty：空层 {} → 零配置 = 生成器既有默认
+		// TCP-mode AEAD 流。
+		cfgSS := completedConfig(s, term.Config)
+		rawSS, err := json.Marshal(cfgSS)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("shadowsocks layer config encode: %v", err))
+			return
+		}
+		var scfg core.ShadowsocksConfig
+		decSS := json.NewDecoder(bytes.NewReader(rawSS))
+		decSS.DisallowUnknownFields()
+		if err := decSS.Decode(&scfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("shadowsocks layer config decode: %v", err))
+			return
+		}
+		spec.Shadowsocks = &scfg
 	case "imap":
 		if spec.IMAP != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略

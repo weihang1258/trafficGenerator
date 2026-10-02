@@ -262,9 +262,11 @@ func TestFlatChainEquivalence_UniversalTCPSubConfig(t *testing.T) {
 // helper.
 func TestFlatChainEquivalence_NoValidationErrors(t *testing.T) {
 	cases := map[string]map[string]interface{}{
-		"dns":    {"dns": map[string]interface{}{"domain": "example.com"}},
-		"ntp":    {"ntp": map[string]interface{}{}},
-		"snmp":   {"snmp": map[string]interface{}{}},
+		"dns": {"dns": map[string]interface{}{"domain": "example.com"}},
+		"ntp": {"ntp": map[string]interface{}{}},
+		// snmp 顶层子映射已迁层（CheckProtoFlat presence 判死，snmp 平移交
+		// 8f906e9），移出本烟雾表（tftp 先例）；wired 面由
+		// TestMapToFlowSpec_TopSNMPSubConfigRejected 锁定。
 		"syslog": {"syslog": map[string]interface{}{}},
 		"ssdp":   {"ssdp": map[string]interface{}{}},
 		"mdns":   {"mdns": map[string]interface{}{}},
@@ -317,26 +319,8 @@ func TestFlatChainEquivalence_SpecFieldsPopulated(t *testing.T) {
 			t.Errorf("Msg = %q, want hello", spec.Syslog.Msg)
 		}
 	})
-	t.Run("snmp", func(t *testing.T) {
-		spec := mapToFlowSpec(map[string]interface{}{
-			"snmp": map[string]interface{}{
-				"version":   float64(0), // SNMPv1: presence-checked
-				"community": "private",
-				"pdu_type":  float64(1),
-			},
-		}, "snmp")
-		if spec.SNMP == nil {
-			t.Fatal("SNMP not populated")
-		}
-		// Presence-checked: explicit version=0 must be honored, not
-		// collapsed to the default v2c (1).
-		if spec.SNMP.Version != 0 {
-			t.Errorf("SNMP.Version = %d, want 0 (v1)", spec.SNMP.Version)
-		}
-		if spec.SNMP.Community != "private" {
-			t.Errorf("Community = %q, want private", spec.SNMP.Community)
-		}
-	})
+	// snmp 平面子解析已随迁层退役（translateTerminalConfig case "snmp"
+	// 承接；显式 version=0 的 presence 语义改由层路径锁 snmp_layer_translate_test）。
 	// Helper detection: ensure the same value flows via the helper.
 
 }

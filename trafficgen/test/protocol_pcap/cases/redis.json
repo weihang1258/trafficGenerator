@@ -4,16 +4,25 @@
     "proto": "redis",
     "summary": "smoke: RESP inline PING with auto_reply pong over TCP 6379; default SelectDB=0 emits SELECT 0 +OK first, then PING +PONG (handshake + 4 data frames + FIN)",
     "spec_json": {
-      "count": 1,
-      "redis": {
-        "commands": [
-          {
-            "args": [
-              "PING"
-            ],
-            "auto_reply": "pong"
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "redis": {
+            "commands": [
+              {
+                "args": [
+                  "PING"
+                ],
+                "auto_reply": "pong"
+              }
+            ]
           }
-        ]
+        }
+      ],
+      "flow_control": {
+        "flows": 1
       }
     },
     "expect": {
@@ -73,6 +82,9 @@
         "tcp payload at offset 54 (eth14+ip20+tcp20); RESP encoding verified against /tmp/probe-iana/redis.pcap: SELECT 0 = *2\\r\\n$6\\r\\nSELECT\\r\\n$1\\r\\n0\\r\\n (23B), +OK\\r\\n (5B), PING = *1\\r\\n$4\\r\\nPING\\r\\n (14B), +PONG\\r\\n (7B)",
         "tshark 3.6 has no redis over TCP dissector; RESP bytes are asserted at raw frame level and via tcp.len"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：顶层 count/redis 子映射迁入 layers[].redis，flows=1 入 flow_control"
+    ]
   }
 ]

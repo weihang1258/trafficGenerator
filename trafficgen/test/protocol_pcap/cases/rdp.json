@@ -4,8 +4,17 @@
     "proto": "rdp",
     "summary": "smoke: RDP over TCP 3389; X.224 connection request/confirm + MCS Connect Initial (27 frames incl. handshake and FIN); LBMSRS heuristic dissector claims frame 9-10 -> decode_as echo forces data",
     "spec_json": {
-      "count": 1,
-      "rdp": {}
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "rdp": {}
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
     },
     "decode_as": [
       "tcp.port==3389,echo"
@@ -84,6 +93,9 @@
         "decode_as echo: LBMSRS (tcp port 3389 heuristic) claims valid MCS frames 9-10 -> tshark reports [Malformed Packet: LBMSRS]; forcing echo suppresses it (frames clean) while tcp.* fields still parse",
         "no tcp.port==3389 dissector registered in tshark 3.6 (only udp.port 3389 rdpudp), so X.224/MCS bytes are asserted at raw frame level"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：顶层 count/rdp 子映射退役，链 [tcp,rdp]，flows=1 入 flow_control"
+    ]
   }
 ]

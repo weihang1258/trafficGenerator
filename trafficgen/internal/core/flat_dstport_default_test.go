@@ -7,12 +7,12 @@ import (
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/core/layers"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dns"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/ntp"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/snmp"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/syslog"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/ssdp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mdns"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/modbus"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ntp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/snmp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ssdp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/syslog"
 )
 
 // TestFlatConfigWithoutDstPort_UsesProtocolPort is the failing test for the
@@ -49,16 +49,8 @@ func TestFlatConfigWithoutDstPort_UsesProtocolPort(t *testing.T) {
 			},
 			want: 123,
 		},
-		{
-			proto: "snmp",
-			cfg: map[string]interface{}{
-				"src_ip":   "10.0.0.1",
-				"dst_ip":   "20.0.0.1",
-				"src_port": float64(12345),
-				"snmp":     map[string]interface{}{"var_binds": []interface{}{map[string]interface{}{"name": "1.3.6.1.2.1.1.1.0"}}},
-			},
-			want: 161,
-		},
+		// snmp 顶层子映射已迁层（snmp 平移交 8f906e9），161 缺省由
+		// FieldContract udp.dst_port 与冒烟例锁（tftp 先例，无平面对照行）。
 		{
 			proto: "ssdp",
 			cfg: map[string]interface{}{

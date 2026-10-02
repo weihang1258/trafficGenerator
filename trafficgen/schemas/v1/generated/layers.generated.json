@@ -3909,7 +3909,104 @@
       "field_contract": {
         "udp.dst_port": "1194"
       },
-      "fields": {}
+      "fields": {
+        "auth_alg": {
+          "type": "string"
+        },
+        "auth_pass": {
+          "type": "string"
+        },
+        "auth_user": {
+          "type": "string"
+        },
+        "auth_user_pass": {
+          "type": "bool"
+        },
+        "data_cipher": {
+          "type": "string"
+        },
+        "data_packet_count": {
+          "type": "int"
+        },
+        "data_payload": {
+          "type": "list"
+        },
+        "exit_notify_count": {
+          "type": "uint8"
+        },
+        "exit_notify_interval": {
+          "type": "uint16"
+        },
+        "fragment_size": {
+          "type": "uint16"
+        },
+        "inner_ip_packets": {
+          "type": "list"
+        },
+        "keepalive_ping": {
+          "type": "uint16"
+        },
+        "keepalive_ping_restart": {
+          "type": "uint16"
+        },
+        "key_direction": {
+          "type": "uint8"
+        },
+        "key_id": {
+          "type": "uint8"
+        },
+        "mssfix": {
+          "type": "uint16"
+        },
+        "ncp_disable": {
+          "type": "bool"
+        },
+        "perform_soft_reset": {
+          "type": "bool"
+        },
+        "proto": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "uint64"
+        },
+        "sni": {
+          "type": "string"
+        },
+        "static_key": {
+          "type": "list"
+        },
+        "static_key_mode": {
+          "type": "bool"
+        },
+        "tls_auth": {
+          "type": "bool"
+        },
+        "tls_auth_hmac": {
+          "type": "list"
+        },
+        "tls_crypt": {
+          "type": "bool"
+        },
+        "tls_crypt_v2": {
+          "type": "bool"
+        },
+        "tls_crypt_wrapped_key": {
+          "type": "list"
+        },
+        "tls_role": {
+          "type": "string"
+        },
+        "tls_version": {
+          "type": "string"
+        },
+        "tun_mtu": {
+          "type": "uint16"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
     },
     "openwire": {
       "category": "terminal",
@@ -4409,7 +4506,143 @@
       "field_contract": {
         "tcp.dst_port": "3389"
       },
-      "fields": {}
+      "fields": {
+        "alternate_shell": {
+          "type": "string"
+        },
+        "auto_logon": {
+          "type": "bool"
+        },
+        "channels": {
+          "type": "list"
+        },
+        "client_build": {
+          "type": "uint32"
+        },
+        "client_name": {
+          "type": "string"
+        },
+        "code_page": {
+          "type": "uint32"
+        },
+        "color_depth": {
+          "type": "uint16"
+        },
+        "connection_type": {
+          "type": "uint8"
+        },
+        "cookie": {
+          "type": "string"
+        },
+        "data_events": {
+          "type": "list"
+        },
+        "desktop_height": {
+          "type": "uint16"
+        },
+        "desktop_width": {
+          "type": "uint16"
+        },
+        "domain": {
+          "type": "string"
+        },
+        "encryption_level": {
+          "type": "uint32"
+        },
+        "encryption_method": {
+          "type": "uint32"
+        },
+        "encryption_methods": {
+          "type": "uint32"
+        },
+        "ext_encryption_methods": {
+          "type": "uint32"
+        },
+        "flags2": {
+          "type": "uint16"
+        },
+        "force_rdp_version": {
+          "type": "uint32"
+        },
+        "high_color_depth": {
+          "type": "uint16"
+        },
+        "info_compression": {
+          "type": "bool"
+        },
+        "info_logon_notify": {
+          "type": "bool"
+        },
+        "info_unicode": {
+          "type": "bool"
+        },
+        "keyboard_function_key": {
+          "type": "uint32"
+        },
+        "keyboard_layout": {
+          "type": "uint32"
+        },
+        "keyboard_sub_type": {
+          "type": "uint32"
+        },
+        "keyboard_type": {
+          "type": "uint32"
+        },
+        "password": {
+          "type": "string"
+        },
+        "redirected_auth": {
+          "type": "bool"
+        },
+        "requested_protocols": {
+          "type": "uint32"
+        },
+        "restricted_admin": {
+          "type": "bool"
+        },
+        "scenario": {
+          "type": "string"
+        },
+        "security_exchange_rsa_key_bytes": {
+          "type": "int"
+        },
+        "security_layer": {
+          "type": "string"
+        },
+        "server_cert_version": {
+          "type": "uint32"
+        },
+        "server_random": {
+          "type": "list"
+        },
+        "server_responses": {
+          "type": "list"
+        },
+        "server_selected_protocol": {
+          "type": "uint32"
+        },
+        "skip_capability": {
+          "type": "bool"
+        },
+        "skip_license": {
+          "type": "bool"
+        },
+        "skip_mcs_channel_join": {
+          "type": "bool"
+        },
+        "skip_security_exchange": {
+          "type": "bool"
+        },
+        "supported_color_depths": {
+          "type": "uint16"
+        },
+        "user_name": {
+          "type": "string"
+        },
+        "working_dir": {
+          "type": "string"
+        }
+      }
     },
     "redis": {
       "category": "terminal",
@@ -4419,7 +4652,41 @@
       "field_contract": {
         "tcp.dst_port": "6379"
       },
-      "fields": {}
+      "fields": {
+        "client_name": {
+          "type": "string"
+        },
+        "commands": {
+          "type": "list"
+        },
+        "password": {
+          "type": "string"
+        },
+        "pipeline_size": {
+          "type": "int"
+        },
+        "publish_messages": {
+          "type": "list"
+        },
+        "select_db": {
+          "type": "int"
+        },
+        "skip_hello": {
+          "type": "bool"
+        },
+        "subscribe_patterns": {
+          "type": "list"
+        },
+        "subscribe_to": {
+          "type": "list"
+        },
+        "username": {
+          "type": "string"
+        },
+        "version": {
+          "type": "int"
+        }
+      }
     },
     "rip": {
       "category": "terminal",
@@ -4578,7 +4845,65 @@
       "field_contract": {
         "tcp.dst_port": "8388"
       },
-      "fields": {}
+      "fields": {
+        "chunk_payload_size": {
+          "type": "int"
+        },
+        "chunks": {
+          "type": "int"
+        },
+        "cipher": {
+          "type": "string"
+        },
+        "file_source": {
+          "type": "object"
+        },
+        "frag": {
+          "type": "uint8"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "obf_headers": {
+          "type": "object"
+        },
+        "obf_method": {
+          "type": "string"
+        },
+        "obfuscation": {
+          "type": "string"
+        },
+        "payload_bytes_format": {
+          "type": "string"
+        },
+        "socks5_auth_method": {
+          "type": "string"
+        },
+        "socks5_bnd_addr": {
+          "type": "string"
+        },
+        "socks5_bnd_port": {
+          "type": "uint16"
+        },
+        "socks5_cmd": {
+          "type": "string"
+        },
+        "socks5_dst_addr": {
+          "type": "string"
+        },
+        "socks5_dst_port": {
+          "type": "uint16"
+        },
+        "socks5_handshake": {
+          "type": "bool"
+        },
+        "socks5_password": {
+          "type": "string"
+        },
+        "socks5_username": {
+          "type": "string"
+        }
+      }
     },
     "sip": {
       "category": "terminal",

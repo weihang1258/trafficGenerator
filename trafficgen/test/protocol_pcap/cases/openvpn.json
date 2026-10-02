@@ -4,8 +4,17 @@
     "proto": "openvpn",
     "summary": "smoke: OpenVPN UDP 1194: P_CONTROL_HARD_RESET_CLIENT_V2 (frame 1) + SERVER_V2 (frame 2) + 10 P_DATA_V2 (frames 3-12); sessionid persists across the dialog",
     "spec_json": {
-      "count": 1,
-      "openvpn": {}
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "openvpn": {}
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
     },
     "expect": {
       "min_packets": 12,
@@ -74,6 +83,9 @@
         "sessionid is run-random (rand.Uint64) but generated once per flow -> same on frames 1-2 (same_as_packet); peerid run-random but constant across data frames (same_as_packet)",
         "udp.port 1194 is IANA-registered to openvpn -> auto-parses, no decode_as needed; TLS handshake bytes inside control frames are also random-ish (session-id based), only structural assertions"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：顶层 count/openvpn 子映射退役，链 [udp,openvpn]，flows=1 入 flow_control"
+    ]
   }
 ]

@@ -8686,6 +8686,27 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 			return "protocol snmp no longer accepts a top-level snmp sub-config (move it into the snmp layer of an [ip,udp,snmp] layers chain)"
 		}
 	}
+	// openvpn/rdp/redis/shadowsocks 四单例顶层子映射 presence 判死（snmp
+	// 先例；空 map 也死）。时序：各 translateTerminalConfig case（严格往返）
+	// 先落码，冒烟例迁层后此门才有执法对象。层链形状不触发。
+	switch protocol {
+	case "openvpn":
+		if v, ok := cfg["openvpn"]; ok && v != nil {
+			return "protocol openvpn no longer accepts a top-level openvpn sub-config (move it into the openvpn layer of an [ip,udp,openvpn] layers chain)"
+		}
+	case "rdp":
+		if v, ok := cfg["rdp"]; ok && v != nil {
+			return "protocol rdp no longer accepts a top-level rdp sub-config (move it into the rdp layer of an [ip,tcp,rdp] layers chain)"
+		}
+	case "redis":
+		if v, ok := cfg["redis"]; ok && v != nil {
+			return "protocol redis no longer accepts a top-level redis sub-config (move it into the redis layer of an [ip,tcp,redis] layers chain)"
+		}
+	case "shadowsocks":
+		if v, ok := cfg["shadowsocks"]; ok && v != nil {
+			return "protocol shadowsocks no longer accepts a top-level shadowsocks sub-config (move it into the shadowsocks layer of an [ip,tcp,shadowsocks] layers chain)"
+		}
+	}
 	// D-CWMP-1：cwmp 顶层 cwmp 子映射 presence 判死（mqtt 先例；空 map 也
 	// 死——B6 注入形退役，配置迁 cwmp 层六键）。层链形状不触发。
 	if protocol == "cwmp" {

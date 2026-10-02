@@ -4,9 +4,19 @@
     "proto": "shadowsocks",
     "summary": "smoke: shadowsocks TCP mode (aes-256-gcm) over port 8388; salt (32B) then one AEAD chunk (34B); encrypted stream is random, only structural assertions",
     "spec_json": {
-      "count": 1,
-      "dst_port": 8388,
-      "shadowsocks": {}
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 8388
+          }
+        },
+        {
+          "shadowsocks": {}
+        }
+      ],
+      "flow_control": {
+        "flows": 1
+      }
     },
     "expect": {
       "min_packets": 9,
@@ -34,6 +44,9 @@
         "encrypted bytes are random by design (salt 32B crypto/rand + ciphertext) -- hex assertions are impossible; only structural tcp.len assertions",
         "no shadowsocks tshark dissector; also no malformed flags on valid encrypted traffic"
       ]
-    }
+    },
+    "notes": [
+      "层链改造：顶层 count/dst_port/shadowsocks 子映射退役，dst_port 8388 并入 tcp 层，flows=1 入 flow_control"
+    ]
   }
 ]
