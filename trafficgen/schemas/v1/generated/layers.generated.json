@@ -4017,9 +4017,18 @@
         "tcp.dst_port": "61616"
       },
       "fields": {
+        "connections": {
+          "type": "list"
+        },
         "profile": {
           "type": "string",
           "default": "activemq_openwire_v12"
+        },
+        "wire_fault": {
+          "type": "string"
+        },
+        "wire_format": {
+          "type": "object"
         }
       }
     },

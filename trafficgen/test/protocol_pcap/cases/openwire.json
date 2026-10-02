@@ -1,2154 +1,2292 @@
 [
- {
-  "id": "openwire_wire_format_ipv4",
-  "proto": "openwire",
-  "summary": "S1: IPv4/TCP 61616 建连后首 command 为 WireFormatInfo（版本12、协商 options）",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "profile": "activemq_openwire_v12",
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 8,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "61616"
-    },
-    {
-     "packet": 4,
-     "field": "openwire.length",
-     "value": "22"
-    },
-    {
-     "packet": 4,
-     "field": "openwire.command",
-     "value": "1"
-    },
-    {
-     "packet": 4,
-     "field": "openwire.wireformatinfo.magic",
-     "value": "ActiveMQ"
-    },
-    {
-     "packet": 4,
-     "field": "openwire.wireformatinfo.version",
-     "value": "12"
-    },
-    {
-     "packet": 4,
-     "field": "openwire.wireformatinfo.length",
-     "value": "4"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "00 00 00 16 01 41 63 74 69 76 65 4d 51 00 00 00 0c 00 00 00 00 04 00 00 00 00"
-    }
-   ]
-  },
-  "notes": [
-   "3 握手 + 1 协商 + 4 挥手 = 8；offset=14+20+20。WireFormatInfo 前 5 字节帧头。"
-  ]
- },
- {
-  "id": "openwire_wire_format_ipv6",
-  "proto": "openwire",
-  "summary": "S2: IPv6/TCP 61616 协商，ipv6.nxt=6，payload offset 74",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "2001:db8:50::10",
-   "dst_ip": "2001:db8:50::20",
-   "src_port": 40002,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40002,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 10,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "ipv6.nxt",
-     "value": "6"
-    },
-    {
-     "packet": 4,
-     "field": "ipv6.src",
-     "value": "2001:db8:50::10"
-    },
-    {
-     "packet": 4,
-     "field": "openwire.command",
-     "value": "1"
-    },
-    {
-     "packet": 4,
-     "field": "openwire.wireformatinfo.version",
-     "value": "12"
-    },
-    {
-     "packet": 5,
-     "field": "openwire.command",
-     "value": "3"
-    },
-    {
-     "packet": 5,
-     "field": "openwire.connectioninfo.clientid",
-     "value": "client-a"
-    },
-    {
-     "packet": 6,
-     "field": "openwire.command",
-     "value": "30"
-    },
-    {
-     "packet": 6,
-     "field": "openwire.response.correlationid",
-     "value": "1"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 74,
-     "hex": "00 00 00 16 01 41 63 74 69 76 65 4d 51 00 00 00 0c 00 00 00 00 04 00 00 00 00"
-    }
-   ]
-  },
-  "notes": [
-   "IPv6 头 40B：offset=14+40+20=74；事件路径包号 v4 同款：4=首个事件。"
-  ]
- },
- {
-  "id": "openwire_connection_session",
-  "proto": "openwire",
-  "summary": "S3: ConnectionInfo/ack 后 SessionInfo 生命周期",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "session_info",
-        "session_id": 1,
-        "direction": "c2s"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 11,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 5,
-     "field": "openwire.command",
-     "value": "3"
-    },
-    {
-     "packet": 5,
-     "field": "openwire.connectioninfo.connectionid",
-     "value": "1"
-    },
-    {
-     "packet": 5,
-     "field": "openwire.connectioninfo.clientid",
-     "value": "client-a"
-    },
-    {
-     "packet": 6,
-     "field": "openwire.command",
-     "value": "30"
-    },
-    {
-     "packet": 7,
-     "field": "openwire.command",
-     "value": "4"
-    },
-    {
-     "packet": 7,
-     "field": "openwire.sessionid.value",
-     "value": "1"
-    },
-    {
-     "packet": 7,
-     "field": "openwire.sessioninfo.sessionid",
-     "value": "1"
-    },
-    {
-     "packet": 7,
-     "field": "openwire.sessionid.connectionid",
-     "value": "client-a"
-    }
-   ]
-  },
-  "notes": [
-   "5=ConnectionInfo,6=ack,7=SessionInfo。"
-  ]
- },
- {
-  "id": "openwire_producer_consumer",
-  "proto": "openwire",
-  "summary": "S4: ProducerInfo(queue://orders)+ConsumerInfo(topic://events)，distinct 实体 ID",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "session_info",
-        "session_id": 1,
-        "direction": "c2s"
-       },
-       {
-        "kind": "producer_info",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "direction": "c2s"
-       },
-       {
-        "kind": "consumer_info",
-        "session_id": 1,
-        "consumer_id": 2,
-        "destination": "topic://events",
-        "ack_mode": "auto",
-        "direction": "c2s"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 13,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 8,
-     "field": "openwire.command",
-     "value": "6"
-    },
-    {
-     "packet": 8,
-     "field": "openwire.producerid.value",
-     "value": "1"
-    },
-    {
-     "packet": 8,
-     "field": "openwire.destination.name",
-     "value": "orders"
-    },
-    {
-     "packet": 8,
-     "field": "openwire.producerinfo.destination",
-     "value": "1"
-    },
-    {
-     "packet": 9,
-     "field": "openwire.command",
-     "value": "5"
-    },
-    {
-     "packet": 9,
-     "field": "openwire.consumerid.value",
-     "value": "2"
-    },
-    {
-     "packet": 9,
-     "field": "openwire.destination.name",
-     "value": "events"
-    },
-    {
-     "packet": 9,
-     "field": "openwire.consumerinfo.prefetchsize",
-     "value": "1000"
-    },
-    {
-     "packet": 9,
-     "field": "openwire.consumerinfo.browser",
-     "value": "0"
-    }
-   ]
-  },
-  "notes": [
-   "8=ProducerInfo,9=ConsumerInfo；topic://events 的 destination.name=events。"
-  ]
- },
- {
-  "id": "openwire_message_persistent",
-  "proto": "openwire",
-  "summary": "S5: persistent=true 的 Message 携带 body 与 producer/session 关联",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "session_info",
-        "session_id": 1,
-        "direction": "c2s"
-       },
-       {
-        "kind": "producer_info",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "direction": "c2s"
-       },
-       {
-        "kind": "message",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "message_id": "m1",
-        "persistent": true,
-        "direction": "c2s",
-        "body": "hello-openwire"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 13,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "openwire.command",
-     "value": "23"
-    },
-    {
-     "packet": 9,
-     "field": "openwire.message.messageid",
-     "value": "1"
-    },
-    {
-     "packet": 9,
-     "field": "openwire.message.persistent",
-     "value": "1"
-    },
-    {
-     "packet": 9,
-     "field": "openwire.message.priority",
-     "value": "4"
-    },
-    {
-     "packet": 9,
-     "field": "openwire.destination.name",
-     "value": "orders"
-    },
-    {
-     "packet": 9,
-     "field": "openwire.messageid.producersequenceid",
-     "value": "1"
-    },
-    {
-     "packet": 9,
-     "field": "openwire.messageid.producerid",
-     "value": "1"
-    },
-    {
-     "packet": 9,
-     "field": "openwire.message.body",
-     "value": "68656c6c6f2d6f70656e77697265"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 9,
-     "offset": 54,
-     "hex": "00 00 00 b6 17 00 00 00 04 01 01 7b 01 00 08 63 6c 69 65 6e 74 2d 61 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 01 01 64 01 00 06 6f 72 64 65 72 73"
-    }
-   ]
-  },
-  "notes": [
-   "9=Message；persistent=1；producersequenceid 由 m1 尾部数字派生=1；message.body 渲染为 hex。"
-  ]
- },
- {
-  "id": "openwire_dispatch_ack",
-  "proto": "openwire",
-  "summary": "S6: MessageDispatch 后 MessageAck，correlation 关联 consumer/message",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "session_info",
-        "session_id": 1,
-        "direction": "c2s"
-       },
-       {
-        "kind": "producer_info",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "direction": "c2s"
-       },
-       {
-        "kind": "consumer_info",
-        "session_id": 1,
-        "consumer_id": 2,
-        "destination": "queue://orders",
-        "ack_mode": "auto",
-        "direction": "c2s"
-       },
-       {
-        "kind": "message",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "message_id": "m1",
-        "persistent": false,
-        "direction": "c2s",
-        "body": "hello"
-       },
-       {
-        "kind": "dispatch",
-        "consumer_id": 2,
-        "message_id": "m1",
-        "destination": "queue://orders",
-        "direction": "s2c"
-       },
-       {
-        "kind": "ack",
-        "consumer_id": 2,
-        "message_id": "m1",
-        "destination": "queue://orders",
-        "ack_mode": "auto",
-        "direction": "c2s"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 16,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 11,
-     "field": "openwire.command",
-     "value": "21"
-    },
-    {
-     "packet": 11,
-     "field": "openwire.messagedispatch.consumerid",
-     "value": "1"
-    },
-    {
-     "packet": 11,
-     "field": "openwire.messagedispatch.redeliverycounter",
-     "value": "0"
-    },
-    {
-     "packet": 11,
-     "field": "openwire.consumerid.value",
-     "value": "2"
-    },
-    {
-     "packet": 12,
-     "field": "openwire.command",
-     "value": "22"
-    },
-    {
-     "packet": 12,
-     "field": "openwire.messageack.acktype",
-     "value": "0"
-    },
-    {
-     "packet": 12,
-     "field": "openwire.messageack.messagecount",
-     "value": "1"
-    }
-   ]
-  },
-  "notes": [
-   "11=Dispatch,12=Ack；acktype 0=DELIVERED。"
-  ]
- },
- {
-  "id": "openwire_transaction_commit",
-  "proto": "openwire",
-  "summary": "S7: begin→message(事务内)→commit，transactioninfo.type=2",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "session_info",
-        "session_id": 1,
-        "direction": "c2s"
-       },
-       {
-        "kind": "producer_info",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "direction": "c2s"
-       },
-       {
-        "kind": "transaction",
-        "transaction": {
-         "id": 7,
-         "kind": "begin"
+  {
+    "id": "openwire_wire_format_ipv4",
+    "proto": "openwire",
+    "summary": "S1: IPv4/TCP 61616 建连后首 command 为 WireFormatInfo（版本12、协商 options）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
         },
-        "direction": "c2s"
-       },
-       {
-        "kind": "message",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "message_id": "m7",
-        "persistent": false,
-        "direction": "c2s",
-        "body": "tx-msg",
-        "transaction": {
-         "id": 7,
-         "kind": "begin"
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "profile": "activemq_openwire_v12",
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  }
+                ]
+              }
+            ]
+          }
         }
-       },
-       {
-        "kind": "transaction",
-        "transaction": {
-         "id": 7,
-         "kind": "commit"
-        },
-        "direction": "c2s"
-       }
       ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 15,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "openwire.command",
-     "value": "7"
     },
-    {
-     "packet": 9,
-     "field": "openwire.transactioninfo.type",
-     "value": "0"
-    },
-    {
-     "packet": 9,
-     "field": "openwire.localtransactionid.value",
-     "value": "7"
-    },
-    {
-     "packet": 10,
-     "field": "openwire.command",
-     "value": "23"
-    },
-    {
-     "packet": 10,
-     "field": "openwire.message.transactionid",
-     "value": "1"
-    },
-    {
-     "packet": 11,
-     "field": "openwire.command",
-     "value": "7"
-    },
-    {
-     "packet": 11,
-     "field": "openwire.transactioninfo.type",
-     "value": "2"
-    },
-    {
-     "packet": 11,
-     "field": "openwire.localtransactionid.value",
-     "value": "7"
-    }
-   ]
-  },
-  "notes": [
-   "9=begin(type0),10=消息(事务内),11=commit(type2)。"
-  ]
- },
- {
-  "id": "openwire_transaction_rollback",
-  "proto": "openwire",
-  "summary": "S8: begin→message→rollback，transactioninfo.type=4",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "session_info",
-        "session_id": 1,
-        "direction": "c2s"
-       },
-       {
-        "kind": "producer_info",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "direction": "c2s"
-       },
-       {
-        "kind": "transaction",
-        "transaction": {
-         "id": 3,
-         "kind": "begin"
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "61616"
         },
-        "direction": "c2s"
-       },
-       {
-        "kind": "message",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "message_id": "m3",
-        "persistent": false,
-        "direction": "c2s",
-        "body": "rb-msg",
-        "transaction": {
-         "id": 3,
-         "kind": "begin"
+        {
+          "packet": 4,
+          "field": "openwire.length",
+          "value": "22"
+        },
+        {
+          "packet": 4,
+          "field": "openwire.command",
+          "value": "1"
+        },
+        {
+          "packet": 4,
+          "field": "openwire.wireformatinfo.magic",
+          "value": "ActiveMQ"
+        },
+        {
+          "packet": 4,
+          "field": "openwire.wireformatinfo.version",
+          "value": "12"
+        },
+        {
+          "packet": 4,
+          "field": "openwire.wireformatinfo.length",
+          "value": "4"
         }
-       },
-       {
-        "kind": "transaction",
-        "transaction": {
-         "id": 3,
-         "kind": "rollback"
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "00 00 00 16 01 41 63 74 69 76 65 4d 51 00 00 00 0c 00 00 00 00 04 00 00 00 00"
+        }
+      ]
+    },
+    "notes": [
+      "3 握手 + 1 协商 + 4 挥手 = 8；offset=14+20+20。WireFormatInfo 前 5 字节帧头。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_wire_format_ipv6",
+    "proto": "openwire",
+    "summary": "S2: IPv6/TCP 61616 协商，ipv6.nxt=6，payload offset 74",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8:50::10",
+            "dst": "2001:db8:50::20"
+          }
         },
-        "direction": "c2s"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 15,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "openwire.transactioninfo.type",
-     "value": "0"
-    },
-    {
-     "packet": 10,
-     "field": "openwire.message.transactionid",
-     "value": "1"
-    },
-    {
-     "packet": 11,
-     "field": "openwire.transactioninfo.type",
-     "value": "4"
-    },
-    {
-     "packet": 11,
-     "field": "openwire.localtransactionid.value",
-     "value": "3"
-    }
-   ]
-  },
-  "notes": [
-   "11=rollback(type4) 只结束该事务。"
-  ]
- },
- {
-  "id": "openwire_multi_flow",
-  "proto": "openwire",
-  "summary": "S9: 同连接多 session/producer/consumer/destination 交织，s2c ack 回执",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "session_info",
-        "session_id": 1,
-        "direction": "c2s"
-       },
-       {
-        "kind": "session_info",
-        "session_id": 2,
-        "direction": "c2s"
-       },
-       {
-        "kind": "producer_info",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "direction": "c2s"
-       },
-       {
-        "kind": "consumer_info",
-        "session_id": 1,
-        "consumer_id": 2,
-        "destination": "queue://orders",
-        "ack_mode": "auto",
-        "direction": "c2s"
-       },
-       {
-        "kind": "message",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "message_id": "m1",
-        "persistent": false,
-        "direction": "c2s",
-        "body": "flow-a"
-       },
-       {
-        "kind": "dispatch",
-        "consumer_id": 2,
-        "message_id": "m1",
-        "destination": "queue://orders",
-        "direction": "s2c"
-       },
-       {
-        "kind": "ack",
-        "consumer_id": 2,
-        "message_id": "m1",
-        "destination": "queue://orders",
-        "ack_mode": "auto",
-        "direction": "c2s"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 17,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 7,
-     "field": "openwire.command",
-     "value": "4"
-    },
-    {
-     "packet": 7,
-     "field": "openwire.sessionid.value",
-     "value": "1"
-    },
-    {
-     "packet": 8,
-     "field": "openwire.sessionid.value",
-     "value": "2"
-    },
-    {
-     "packet": 12,
-     "field": "openwire.command",
-     "value": "21"
-    },
-    {
-     "packet": 12,
-     "field": "openwire.messagedispatch.consumerid",
-     "value": "1"
-    },
-    {
-     "packet": 13,
-     "field": "openwire.command",
-     "value": "22"
-    },
-    {
-     "packet": 13,
-     "field": "openwire.messageack.acktype",
-     "value": "0"
-    }
-   ]
-  },
-  "notes": [
-   "7/8=两个 session；12/13=dispatch/ack。"
-  ]
- },
- {
-  "id": "openwire_multi_connection",
-  "proto": "openwire",
-  "summary": "S10: 两个独立 TCP 连接（40001/40003）各自协商+connection+session",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "session_info",
-        "session_id": 1,
-        "direction": "c2s"
-       }
-      ]
-     },
-     {
-      "connection_id": 3,
-      "client_id": "client-c",
-      "src_port": 40003,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "session_info",
-        "session_id": 1,
-        "direction": "c2s"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 22,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "61616"
-    },
-    {
-     "packet": 4,
-     "field": "tcp.srcport",
-     "distinct_values": [
-      "40001",
-      "40003"
-     ],
-     "distinct_exclude": [
-      "61616"
-     ]
-    },
-    {
-     "packet": 4,
-     "field": "openwire.connectioninfo.clientid",
-     "distinct_values": [
-      "client-a",
-      "client-c"
-     ]
-    }
-   ]
-  },
-  "notes": [
-   "两连接各 3 握手+4 事件+4 挥手=22 包；down 帧 srcport=61616 排除后 distinct 成立。"
-  ]
- },
- {
-  "id": "openwire_message_body_segmentation",
-  "proto": "openwire",
-  "summary": "S11: 4000B body 跨 MSS 分段（1460/1460/1252）；tshark 不重组跨段 PDU（dissector 限制，malformed 白名单），按分段 tcp.len 与 length 前缀帧字节断言",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "session_info",
-        "session_id": 1,
-        "direction": "c2s"
-       },
-       {
-        "kind": "producer_info",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "direction": "c2s"
-       },
-       {
-        "kind": "message",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "message_id": "m100",
-        "persistent": false,
-        "direction": "c2s",
-        "body": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 15,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "tcp.len",
-     "value": "1460"
-    },
-    {
-     "packet": 10,
-     "field": "tcp.len",
-     "value": "1460"
-    },
-    {
-     "packet": 11,
-     "field": "tcp.len",
-     "value": "1252"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 9,
-     "offset": 54,
-     "hex": "00 00 10 48 17 00 00 00 04 01"
-    }
-   ]
-  },
-  "notes": [
-   "消息帧 4172B → MSS 1460 三段 1460/1460/1252=9/10/11 包；length 字段 0x1048=4168。"
-  ]
- },
- {
-  "id": "openwire_exception_response",
-  "proto": "openwire",
-  "summary": "S12: connection_info 请求 → ExceptionResponse（correlation=1，THROWABLE）",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "exception",
-        "correlation_id": 1,
-        "exception": "queue does not exist",
-        "direction": "s2c"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 10,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 6,
-     "field": "openwire.command",
-     "value": "31"
-    },
-    {
-     "packet": 6,
-     "field": "openwire.response.correlationid",
-     "value": "1"
-    },
-    {
-     "packet": 6,
-     "field": "openwire.exceptionresponse.exception",
-     "value": "1"
-    }
-   ],
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "00 00 00 45 1f 00 00 00 01 00 00 00 00 01 01 00 1f 6a 61 76 61 2e 6c 61 6e 67 2e 49 6c 6c 65 67 61 6c 53 74 61 74 65 45 78 63 65 70 74 69 6f 6e 01 00 14 71 75 65 75 65 20 64 6f 65 73 20 6e 6f 74 20 65 78 69 73 74 00 00"
-    }
-   ]
-  },
-  "notes": [
-   "6=ExceptionResponse；correlation=1 关联 connection_info 的 command id 1；THROWABLE 为已知 dissector 伪影（白名单）。"
-  ]
- },
- {
-  "id": "openwire_remove_shutdown",
-  "proto": "openwire",
-  "summary": "S13: RemoveInfo(consumer 2) + ShutdownInfo 后连接终止，无新业务 command",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "session_info",
-        "session_id": 1,
-        "direction": "c2s"
-       },
-       {
-        "kind": "consumer_info",
-        "session_id": 1,
-        "consumer_id": 2,
-        "destination": "queue://orders",
-        "ack_mode": "auto",
-        "direction": "c2s"
-       },
-       {
-        "kind": "remove",
-        "consumer_id": 2,
-        "direction": "c2s"
-       },
-       {
-        "kind": "shutdown",
-        "direction": "c2s"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 14,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "openwire.command",
-     "value": "12"
-    },
-    {
-     "packet": 9,
-     "field": "openwire.removeinfo.objectid",
-     "value": "1"
-    },
-    {
-     "packet": 10,
-     "field": "openwire.command",
-     "value": "11"
-    },
-    {
-     "packet": 10,
-     "field": "openwire.length",
-     "value": "6"
-    }
-   ]
-  },
-  "notes": [
-   "9=RemoveInfo,10=ShutdownInfo；removeinfo.objectid 是 CACHED 对象非零名义字段。"
-  ]
- },
- {
-  "id": "openwire_ipv4_ipv6_same_payload",
-  "proto": "openwire",
-  "summary": "S14: 独立双栈 fixture 各自完成协商+connection+session，WireFormatInfo payload 一致",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "session_info",
-        "session_id": 1,
-        "direction": "c2s"
-       }
-      ]
-     },
-     {
-      "connection_id": 6,
-      "client_id": "client-a",
-      "src_port": 40006,
-      "src_ip": "2001:db8:50::10",
-      "dst_ip": "2001:db8:50::20",
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "session_info",
-        "session_id": 1,
-        "direction": "c2s"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 22,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "ip.version",
-     "value": "4"
-    },
-    {
-     "packet": 4,
-     "field": "ip.version",
-     "distinct_values": [
-      "4",
-      "6"
-     ]
-    },
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "value": "61616"
-    },
-    {
-     "packet": 4,
-     "field": "tcp.dstport",
-     "distinct_values": [
-      "40001",
-      "40006",
-      "61616"
-     ]
-    }
-   ],
-   "frames": [
-    {
-     "packet": 4,
-     "offset": 54,
-     "hex": "00 00 00 16 01 41 63 74 69 76 65 4d 51 00 00 00 0c 00 00 00 00 04 00 00 00 00"
-    }
-   ]
-  },
-  "notes": [
-   "双栈自驱链：连接级显式 src_ip/dst_ip 触发生成器整包自产；两连接 11+11=22 包。"
-  ]
- },
- {
-  "id": "openwire_ack_modes",
-  "proto": "openwire",
-  "summary": "S15: auto/client/individual 三类 consumer/ack，acktype 0/2/3、messagecount 边界",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "session_info",
-        "session_id": 1,
-        "direction": "c2s"
-       },
-       {
-        "kind": "producer_info",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "direction": "c2s"
-       },
-       {
-        "kind": "consumer_info",
-        "session_id": 1,
-        "consumer_id": 2,
-        "destination": "queue://orders",
-        "ack_mode": "auto",
-        "direction": "c2s"
-       },
-       {
-        "kind": "message",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "message_id": "m1",
-        "persistent": false,
-        "direction": "c2s",
-        "body": "h"
-       },
-       {
-        "kind": "dispatch",
-        "consumer_id": 2,
-        "message_id": "m1",
-        "destination": "queue://orders",
-        "direction": "s2c"
-       },
-       {
-        "kind": "ack",
-        "consumer_id": 2,
-        "message_id": "m1",
-        "destination": "queue://orders",
-        "ack_mode": "auto",
-        "direction": "c2s",
-        "message_count": 2
-       },
-       {
-        "kind": "consumer_info",
-        "session_id": 1,
-        "consumer_id": 3,
-        "destination": "queue://orders",
-        "ack_mode": "client",
-        "direction": "c2s"
-       },
-       {
-        "kind": "dispatch",
-        "consumer_id": 3,
-        "message_id": "m1",
-        "destination": "queue://orders",
-        "direction": "s2c"
-       },
-       {
-        "kind": "ack",
-        "consumer_id": 3,
-        "message_id": "m1",
-        "destination": "queue://orders",
-        "ack_mode": "client",
-        "direction": "c2s"
-       },
-       {
-        "kind": "consumer_info",
-        "session_id": 1,
-        "consumer_id": 4,
-        "destination": "queue://orders",
-        "ack_mode": "individual",
-        "direction": "c2s"
-       },
-       {
-        "kind": "dispatch",
-        "consumer_id": 4,
-        "message_id": "m1",
-        "destination": "queue://orders",
-        "direction": "s2c"
-       },
-       {
-        "kind": "ack",
-        "consumer_id": 4,
-        "message_id": "m1",
-        "destination": "queue://orders",
-        "ack_mode": "individual",
-        "direction": "c2s"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "packet_count": 22,
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "has_payload": true,
-   "fields": [
-    {
-     "packet": 12,
-     "field": "openwire.messageack.acktype",
-     "value": "0"
-    },
-    {
-     "packet": 12,
-     "field": "openwire.messageack.messagecount",
-     "value": "2"
-    },
-    {
-     "packet": 15,
-     "field": "openwire.messageack.acktype",
-     "value": "2"
-    },
-    {
-     "packet": 15,
-     "field": "openwire.messageack.messagecount",
-     "value": "1"
-    },
-    {
-     "packet": 18,
-     "field": "openwire.messageack.acktype",
-     "value": "3"
-    },
-    {
-     "packet": 18,
-     "field": "openwire.messageack.messagecount",
-     "value": "1"
-    },
-    {
-     "packet": 18,
-     "field": "openwire.messageack.consumerid",
-     "value": "1"
-    }
-   ]
-  },
-  "notes": [
-   "15 事件：三 consumer 各自 dispatch+ack；12=auto ack(count2),15=client ack,18=individual ack。"
-  ]
- },
- {
-  "id": "openwire_neg_short_frame",
-  "proto": "openwire",
-  "summary": "N1: wire_fault short_frame → frame/length 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "wire_fault": {
-     "kind": "short_frame"
-    }
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "frame"
-  }
- },
- {
-  "id": "openwire_neg_unknown_command",
-  "proto": "openwire",
-  "summary": "N2: wire_fault bad_type → command/type 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "wire_fault": {
-     "kind": "bad_type"
-    }
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "command"
-  }
- },
- {
-  "id": "openwire_neg_length_overrun",
-  "proto": "openwire",
-  "summary": "N3: wire_fault length_overrun → length 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "wire_fault": {
-     "kind": "length_overrun"
-    }
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "length"
-  }
- },
- {
-  "id": "openwire_neg_state_order",
-  "proto": "openwire",
-  "summary": "N4: 未建 session 先发 producer → state/session 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "producer_info",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "direction": "c2s"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "session"
-  }
- },
- {
-  "id": "openwire_neg_correlation",
-  "proto": "openwire",
-  "summary": "N5: ack 引用未注册 consumer → correlation/message 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "session_info",
-        "session_id": 1,
-        "direction": "c2s"
-       },
-       {
-        "kind": "producer_info",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "direction": "c2s"
-       },
-       {
-        "kind": "message",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "message_id": "m1",
-        "persistent": false,
-        "direction": "c2s"
-       },
-       {
-        "kind": "ack",
-        "consumer_id": 9,
-        "message_id": "m1",
-        "destination": "queue://orders",
-        "ack_mode": "auto",
-        "direction": "c2s"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "correlation"
-  }
- },
- {
-  "id": "openwire_neg_transaction",
-  "proto": "openwire",
-  "summary": "N6: commit 无 begin → transaction 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
-    },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "session_info",
-        "session_id": 1,
-        "direction": "c2s"
-       },
-       {
-        "kind": "transaction",
-        "transaction": {
-         "id": 7,
-         "kind": "commit"
+        {
+          "tcp": {
+            "src_port": 40002,
+            "dst_port": 61616
+          }
         },
-        "direction": "c2s"
-       }
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40002,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  }
+                ]
+              }
+            ]
+          }
+        }
       ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "transaction"
-  }
- },
- {
-  "id": "openwire_neg_entity_scope",
-  "proto": "openwire",
-  "summary": "N7: producer 引用本连接未开 session → entity/connection 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
     },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "producer_info",
-        "session_id": 9,
-        "producer_id": 1,
-        "destination": "queue://orders",
-        "direction": "c2s"
-       }
+    "expect": {
+      "packet_count": 10,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "ipv6.nxt",
+          "value": "6"
+        },
+        {
+          "packet": 4,
+          "field": "ipv6.src",
+          "value": "2001:db8:50::10"
+        },
+        {
+          "packet": 4,
+          "field": "openwire.command",
+          "value": "1"
+        },
+        {
+          "packet": 4,
+          "field": "openwire.wireformatinfo.version",
+          "value": "12"
+        },
+        {
+          "packet": 5,
+          "field": "openwire.command",
+          "value": "3"
+        },
+        {
+          "packet": 5,
+          "field": "openwire.connectioninfo.clientid",
+          "value": "client-a"
+        },
+        {
+          "packet": 6,
+          "field": "openwire.command",
+          "value": "30"
+        },
+        {
+          "packet": 6,
+          "field": "openwire.response.correlationid",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 74,
+          "hex": "00 00 00 16 01 41 63 74 69 76 65 4d 51 00 00 00 0c 00 00 00 00 04 00 00 00 00"
+        }
       ]
-     }
-    ]
-   }
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "entity"
-  }
- },
- {
-  "id": "openwire_neg_destination",
-  "proto": "openwire",
-  "summary": "N8: 非法 destination → destination 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
     },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61616,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_info",
-        "direction": "c2s"
-       },
-       {
-        "kind": "connection_ack",
-        "direction": "s2c"
-       },
-       {
-        "kind": "session_info",
-        "session_id": 1,
-        "direction": "c2s"
-       },
-       {
-        "kind": "producer_info",
-        "session_id": 1,
-        "producer_id": 1,
-        "destination": "orders",
-        "direction": "c2s"
-       }
-      ]
-     }
+    "notes": [
+      "IPv6 头 40B：offset=14+40+20=74；事件路径包号 v4 同款：4=首个事件。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
     ]
-   }
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "destination"
-  }
- },
- {
-  "id": "openwire_neg_carrier_profile",
-  "proto": "openwire",
-  "summary": "N9: 非 61616 目的端口 → tcp/port/profile 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "tcp": {}
+  {
+    "id": "openwire_connection_session",
+    "proto": "openwire",
+    "summary": "S3: ConnectionInfo/ack 后 SessionInfo 生命周期",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "session_info",
+                    "session_id": 1,
+                    "direction": "c2s"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
     },
-    {
-     "openwire": {}
-    }
-   ],
-   "src_ip": "192.0.2.10",
-   "dst_ip": "198.51.100.20",
-   "src_port": 40001,
-   "dst_port": 61617,
-   "openwire": {
-    "connections": [
-     {
-      "connection_id": 1,
-      "client_id": "client-a",
-      "src_port": 40001,
-      "events": [
-       {
-        "kind": "wire_format_info",
-        "direction": "c2s"
-       }
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "openwire.command",
+          "value": "3"
+        },
+        {
+          "packet": 5,
+          "field": "openwire.connectioninfo.connectionid",
+          "value": "1"
+        },
+        {
+          "packet": 5,
+          "field": "openwire.connectioninfo.clientid",
+          "value": "client-a"
+        },
+        {
+          "packet": 6,
+          "field": "openwire.command",
+          "value": "30"
+        },
+        {
+          "packet": 7,
+          "field": "openwire.command",
+          "value": "4"
+        },
+        {
+          "packet": 7,
+          "field": "openwire.sessionid.value",
+          "value": "1"
+        },
+        {
+          "packet": 7,
+          "field": "openwire.sessioninfo.sessionid",
+          "value": "1"
+        },
+        {
+          "packet": 7,
+          "field": "openwire.sessionid.connectionid",
+          "value": "client-a"
+        }
       ]
-     }
+    },
+    "notes": [
+      "5=ConnectionInfo,6=ack,7=SessionInfo。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
     ]
-   }
   },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "port"
+  {
+    "id": "openwire_producer_consumer",
+    "proto": "openwire",
+    "summary": "S4: ProducerInfo(queue://orders)+ConsumerInfo(topic://events)，distinct 实体 ID",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "session_info",
+                    "session_id": 1,
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "producer_info",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "consumer_info",
+                    "session_id": 1,
+                    "consumer_id": 2,
+                    "destination": "topic://events",
+                    "ack_mode": "auto",
+                    "direction": "c2s"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "openwire.command",
+          "value": "6"
+        },
+        {
+          "packet": 8,
+          "field": "openwire.producerid.value",
+          "value": "1"
+        },
+        {
+          "packet": 8,
+          "field": "openwire.destination.name",
+          "value": "orders"
+        },
+        {
+          "packet": 8,
+          "field": "openwire.producerinfo.destination",
+          "value": "1"
+        },
+        {
+          "packet": 9,
+          "field": "openwire.command",
+          "value": "5"
+        },
+        {
+          "packet": 9,
+          "field": "openwire.consumerid.value",
+          "value": "2"
+        },
+        {
+          "packet": 9,
+          "field": "openwire.destination.name",
+          "value": "events"
+        },
+        {
+          "packet": 9,
+          "field": "openwire.consumerinfo.prefetchsize",
+          "value": "1000"
+        },
+        {
+          "packet": 9,
+          "field": "openwire.consumerinfo.browser",
+          "value": "0"
+        }
+      ]
+    },
+    "notes": [
+      "8=ProducerInfo,9=ConsumerInfo；topic://events 的 destination.name=events。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_message_persistent",
+    "proto": "openwire",
+    "summary": "S5: persistent=true 的 Message 携带 body 与 producer/session 关联",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "session_info",
+                    "session_id": 1,
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "producer_info",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "message",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "message_id": "m1",
+                    "persistent": true,
+                    "direction": "c2s",
+                    "body": "hello-openwire"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "openwire.command",
+          "value": "23"
+        },
+        {
+          "packet": 9,
+          "field": "openwire.message.messageid",
+          "value": "1"
+        },
+        {
+          "packet": 9,
+          "field": "openwire.message.persistent",
+          "value": "1"
+        },
+        {
+          "packet": 9,
+          "field": "openwire.message.priority",
+          "value": "4"
+        },
+        {
+          "packet": 9,
+          "field": "openwire.destination.name",
+          "value": "orders"
+        },
+        {
+          "packet": 9,
+          "field": "openwire.messageid.producersequenceid",
+          "value": "1"
+        },
+        {
+          "packet": 9,
+          "field": "openwire.messageid.producerid",
+          "value": "1"
+        },
+        {
+          "packet": 9,
+          "field": "openwire.message.body",
+          "value": "68656c6c6f2d6f70656e77697265"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 9,
+          "offset": 54,
+          "hex": "00 00 00 b6 17 00 00 00 04 01 01 7b 01 00 08 63 6c 69 65 6e 74 2d 61 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 01 01 64 01 00 06 6f 72 64 65 72 73"
+        }
+      ]
+    },
+    "notes": [
+      "9=Message；persistent=1；producersequenceid 由 m1 尾部数字派生=1；message.body 渲染为 hex。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_dispatch_ack",
+    "proto": "openwire",
+    "summary": "S6: MessageDispatch 后 MessageAck，correlation 关联 consumer/message",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "session_info",
+                    "session_id": 1,
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "producer_info",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "consumer_info",
+                    "session_id": 1,
+                    "consumer_id": 2,
+                    "destination": "queue://orders",
+                    "ack_mode": "auto",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "message",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "message_id": "m1",
+                    "persistent": false,
+                    "direction": "c2s",
+                    "body": "hello"
+                  },
+                  {
+                    "kind": "dispatch",
+                    "consumer_id": 2,
+                    "message_id": "m1",
+                    "destination": "queue://orders",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "ack",
+                    "consumer_id": 2,
+                    "message_id": "m1",
+                    "destination": "queue://orders",
+                    "ack_mode": "auto",
+                    "direction": "c2s"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 16,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 11,
+          "field": "openwire.command",
+          "value": "21"
+        },
+        {
+          "packet": 11,
+          "field": "openwire.messagedispatch.consumerid",
+          "value": "1"
+        },
+        {
+          "packet": 11,
+          "field": "openwire.messagedispatch.redeliverycounter",
+          "value": "0"
+        },
+        {
+          "packet": 11,
+          "field": "openwire.consumerid.value",
+          "value": "2"
+        },
+        {
+          "packet": 12,
+          "field": "openwire.command",
+          "value": "22"
+        },
+        {
+          "packet": 12,
+          "field": "openwire.messageack.acktype",
+          "value": "0"
+        },
+        {
+          "packet": 12,
+          "field": "openwire.messageack.messagecount",
+          "value": "1"
+        }
+      ]
+    },
+    "notes": [
+      "11=Dispatch,12=Ack；acktype 0=DELIVERED。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_transaction_commit",
+    "proto": "openwire",
+    "summary": "S7: begin→message(事务内)→commit，transactioninfo.type=2",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "session_info",
+                    "session_id": 1,
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "producer_info",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "transaction",
+                    "transaction": {
+                      "id": 7,
+                      "kind": "begin"
+                    },
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "message",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "message_id": "m7",
+                    "persistent": false,
+                    "direction": "c2s",
+                    "body": "tx-msg",
+                    "transaction": {
+                      "id": 7,
+                      "kind": "begin"
+                    }
+                  },
+                  {
+                    "kind": "transaction",
+                    "transaction": {
+                      "id": 7,
+                      "kind": "commit"
+                    },
+                    "direction": "c2s"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 15,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "openwire.command",
+          "value": "7"
+        },
+        {
+          "packet": 9,
+          "field": "openwire.transactioninfo.type",
+          "value": "0"
+        },
+        {
+          "packet": 9,
+          "field": "openwire.localtransactionid.value",
+          "value": "7"
+        },
+        {
+          "packet": 10,
+          "field": "openwire.command",
+          "value": "23"
+        },
+        {
+          "packet": 10,
+          "field": "openwire.message.transactionid",
+          "value": "1"
+        },
+        {
+          "packet": 11,
+          "field": "openwire.command",
+          "value": "7"
+        },
+        {
+          "packet": 11,
+          "field": "openwire.transactioninfo.type",
+          "value": "2"
+        },
+        {
+          "packet": 11,
+          "field": "openwire.localtransactionid.value",
+          "value": "7"
+        }
+      ]
+    },
+    "notes": [
+      "9=begin(type0),10=消息(事务内),11=commit(type2)。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_transaction_rollback",
+    "proto": "openwire",
+    "summary": "S8: begin→message→rollback，transactioninfo.type=4",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "session_info",
+                    "session_id": 1,
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "producer_info",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "transaction",
+                    "transaction": {
+                      "id": 3,
+                      "kind": "begin"
+                    },
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "message",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "message_id": "m3",
+                    "persistent": false,
+                    "direction": "c2s",
+                    "body": "rb-msg",
+                    "transaction": {
+                      "id": 3,
+                      "kind": "begin"
+                    }
+                  },
+                  {
+                    "kind": "transaction",
+                    "transaction": {
+                      "id": 3,
+                      "kind": "rollback"
+                    },
+                    "direction": "c2s"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 15,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "openwire.transactioninfo.type",
+          "value": "0"
+        },
+        {
+          "packet": 10,
+          "field": "openwire.message.transactionid",
+          "value": "1"
+        },
+        {
+          "packet": 11,
+          "field": "openwire.transactioninfo.type",
+          "value": "4"
+        },
+        {
+          "packet": 11,
+          "field": "openwire.localtransactionid.value",
+          "value": "3"
+        }
+      ]
+    },
+    "notes": [
+      "11=rollback(type4) 只结束该事务。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_multi_flow",
+    "proto": "openwire",
+    "summary": "S9: 同连接多 session/producer/consumer/destination 交织，s2c ack 回执",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "session_info",
+                    "session_id": 1,
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "session_info",
+                    "session_id": 2,
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "producer_info",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "consumer_info",
+                    "session_id": 1,
+                    "consumer_id": 2,
+                    "destination": "queue://orders",
+                    "ack_mode": "auto",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "message",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "message_id": "m1",
+                    "persistent": false,
+                    "direction": "c2s",
+                    "body": "flow-a"
+                  },
+                  {
+                    "kind": "dispatch",
+                    "consumer_id": 2,
+                    "message_id": "m1",
+                    "destination": "queue://orders",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "ack",
+                    "consumer_id": 2,
+                    "message_id": "m1",
+                    "destination": "queue://orders",
+                    "ack_mode": "auto",
+                    "direction": "c2s"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 17,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 7,
+          "field": "openwire.command",
+          "value": "4"
+        },
+        {
+          "packet": 7,
+          "field": "openwire.sessionid.value",
+          "value": "1"
+        },
+        {
+          "packet": 8,
+          "field": "openwire.sessionid.value",
+          "value": "2"
+        },
+        {
+          "packet": 12,
+          "field": "openwire.command",
+          "value": "21"
+        },
+        {
+          "packet": 12,
+          "field": "openwire.messagedispatch.consumerid",
+          "value": "1"
+        },
+        {
+          "packet": 13,
+          "field": "openwire.command",
+          "value": "22"
+        },
+        {
+          "packet": 13,
+          "field": "openwire.messageack.acktype",
+          "value": "0"
+        }
+      ]
+    },
+    "notes": [
+      "7/8=两个 session；12/13=dispatch/ack。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_multi_connection",
+    "proto": "openwire",
+    "summary": "S10: 两个独立 TCP 连接（40001/40003）各自协商+connection+session",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "session_info",
+                    "session_id": 1,
+                    "direction": "c2s"
+                  }
+                ]
+              },
+              {
+                "connection_id": 3,
+                "client_id": "client-c",
+                "src_port": 40003,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "session_info",
+                    "session_id": 1,
+                    "direction": "c2s"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 22,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "61616"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "40001",
+            "40003"
+          ],
+          "distinct_exclude": [
+            "61616"
+          ]
+        },
+        {
+          "packet": 4,
+          "field": "openwire.connectioninfo.clientid",
+          "distinct_values": [
+            "client-a",
+            "client-c"
+          ]
+        }
+      ]
+    },
+    "notes": [
+      "两连接各 3 握手+4 事件+4 挥手=22 包；down 帧 srcport=61616 排除后 distinct 成立。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_message_body_segmentation",
+    "proto": "openwire",
+    "summary": "S11: 4000B body 跨 MSS 分段（1460/1460/1252）；tshark 不重组跨段 PDU（dissector 限制，malformed 白名单），按分段 tcp.len 与 length 前缀帧字节断言",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "session_info",
+                    "session_id": 1,
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "producer_info",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "message",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "message_id": "m100",
+                    "persistent": false,
+                    "direction": "c2s",
+                    "body": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 15,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "tcp.len",
+          "value": "1460"
+        },
+        {
+          "packet": 10,
+          "field": "tcp.len",
+          "value": "1460"
+        },
+        {
+          "packet": 11,
+          "field": "tcp.len",
+          "value": "1252"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 9,
+          "offset": 54,
+          "hex": "00 00 10 48 17 00 00 00 04 01"
+        }
+      ]
+    },
+    "notes": [
+      "消息帧 4172B → MSS 1460 三段 1460/1460/1252=9/10/11 包；length 字段 0x1048=4168。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_exception_response",
+    "proto": "openwire",
+    "summary": "S12: connection_info 请求 → ExceptionResponse（correlation=1，THROWABLE）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "exception",
+                    "correlation_id": 1,
+                    "exception": "queue does not exist",
+                    "direction": "s2c"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 10,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "openwire.command",
+          "value": "31"
+        },
+        {
+          "packet": 6,
+          "field": "openwire.response.correlationid",
+          "value": "1"
+        },
+        {
+          "packet": 6,
+          "field": "openwire.exceptionresponse.exception",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "00 00 00 45 1f 00 00 00 01 00 00 00 00 01 01 00 1f 6a 61 76 61 2e 6c 61 6e 67 2e 49 6c 6c 65 67 61 6c 53 74 61 74 65 45 78 63 65 70 74 69 6f 6e 01 00 14 71 75 65 75 65 20 64 6f 65 73 20 6e 6f 74 20 65 78 69 73 74 00 00"
+        }
+      ]
+    },
+    "notes": [
+      "6=ExceptionResponse；correlation=1 关联 connection_info 的 command id 1；THROWABLE 为已知 dissector 伪影（白名单）。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_remove_shutdown",
+    "proto": "openwire",
+    "summary": "S13: RemoveInfo(consumer 2) + ShutdownInfo 后连接终止，无新业务 command",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "session_info",
+                    "session_id": 1,
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "consumer_info",
+                    "session_id": 1,
+                    "consumer_id": 2,
+                    "destination": "queue://orders",
+                    "ack_mode": "auto",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "remove",
+                    "consumer_id": 2,
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "shutdown",
+                    "direction": "c2s"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 14,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "openwire.command",
+          "value": "12"
+        },
+        {
+          "packet": 9,
+          "field": "openwire.removeinfo.objectid",
+          "value": "1"
+        },
+        {
+          "packet": 10,
+          "field": "openwire.command",
+          "value": "11"
+        },
+        {
+          "packet": 10,
+          "field": "openwire.length",
+          "value": "6"
+        }
+      ]
+    },
+    "notes": [
+      "9=RemoveInfo,10=ShutdownInfo；removeinfo.objectid 是 CACHED 对象非零名义字段。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_ipv4_ipv6_same_payload",
+    "proto": "openwire",
+    "summary": "S14: 独立双栈 fixture 各自完成协商+connection+session，WireFormatInfo payload 一致",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "src_ip": "192.0.2.10",
+                "dst_ip": "198.51.100.20",
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "session_info",
+                    "session_id": 1,
+                    "direction": "c2s"
+                  }
+                ]
+              },
+              {
+                "connection_id": 6,
+                "client_id": "client-a",
+                "src_port": 40006,
+                "src_ip": "2001:db8:50::10",
+                "dst_ip": "2001:db8:50::20",
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "session_info",
+                    "session_id": 1,
+                    "direction": "c2s"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 22,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "ip.version",
+          "value": "4"
+        },
+        {
+          "packet": 4,
+          "field": "ip.version",
+          "distinct_values": [
+            "4",
+            "6"
+          ]
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "61616"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "distinct_values": [
+            "40001",
+            "40006",
+            "61616"
+          ]
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "00 00 00 16 01 41 63 74 69 76 65 4d 51 00 00 00 0c 00 00 00 00 04 00 00 00 00"
+        }
+      ]
+    },
+    "notes": [
+      "双栈自驱链：连接级显式 src_ip/dst_ip 触发生成器整包自产；两连接 11+11=22 包。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_ack_modes",
+    "proto": "openwire",
+    "summary": "S15: auto/client/individual 三类 consumer/ack，acktype 0/2/3、messagecount 边界",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "session_info",
+                    "session_id": 1,
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "producer_info",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "consumer_info",
+                    "session_id": 1,
+                    "consumer_id": 2,
+                    "destination": "queue://orders",
+                    "ack_mode": "auto",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "message",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "message_id": "m1",
+                    "persistent": false,
+                    "direction": "c2s",
+                    "body": "h"
+                  },
+                  {
+                    "kind": "dispatch",
+                    "consumer_id": 2,
+                    "message_id": "m1",
+                    "destination": "queue://orders",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "ack",
+                    "consumer_id": 2,
+                    "message_id": "m1",
+                    "destination": "queue://orders",
+                    "ack_mode": "auto",
+                    "direction": "c2s",
+                    "message_count": 2
+                  },
+                  {
+                    "kind": "consumer_info",
+                    "session_id": 1,
+                    "consumer_id": 3,
+                    "destination": "queue://orders",
+                    "ack_mode": "client",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "dispatch",
+                    "consumer_id": 3,
+                    "message_id": "m1",
+                    "destination": "queue://orders",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "ack",
+                    "consumer_id": 3,
+                    "message_id": "m1",
+                    "destination": "queue://orders",
+                    "ack_mode": "client",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "consumer_info",
+                    "session_id": 1,
+                    "consumer_id": 4,
+                    "destination": "queue://orders",
+                    "ack_mode": "individual",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "dispatch",
+                    "consumer_id": 4,
+                    "message_id": "m1",
+                    "destination": "queue://orders",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "ack",
+                    "consumer_id": 4,
+                    "message_id": "m1",
+                    "destination": "queue://orders",
+                    "ack_mode": "individual",
+                    "direction": "c2s"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 22,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 12,
+          "field": "openwire.messageack.acktype",
+          "value": "0"
+        },
+        {
+          "packet": 12,
+          "field": "openwire.messageack.messagecount",
+          "value": "2"
+        },
+        {
+          "packet": 15,
+          "field": "openwire.messageack.acktype",
+          "value": "2"
+        },
+        {
+          "packet": 15,
+          "field": "openwire.messageack.messagecount",
+          "value": "1"
+        },
+        {
+          "packet": 18,
+          "field": "openwire.messageack.acktype",
+          "value": "3"
+        },
+        {
+          "packet": 18,
+          "field": "openwire.messageack.messagecount",
+          "value": "1"
+        },
+        {
+          "packet": 18,
+          "field": "openwire.messageack.consumerid",
+          "value": "1"
+        }
+      ]
+    },
+    "notes": [
+      "15 事件：三 consumer 各自 dispatch+ack；12=auto ack(count2),15=client ack,18=individual ack。",
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_neg_short_frame",
+    "proto": "openwire",
+    "summary": "N1: wire_fault short_frame → frame/length 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "wire_fault": {
+              "kind": "short_frame"
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "frame"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_neg_unknown_command",
+    "proto": "openwire",
+    "summary": "N2: wire_fault bad_type → command/type 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "wire_fault": {
+              "kind": "bad_type"
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "command"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_neg_length_overrun",
+    "proto": "openwire",
+    "summary": "N3: wire_fault length_overrun → length 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "wire_fault": {
+              "kind": "length_overrun"
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "length"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_neg_state_order",
+    "proto": "openwire",
+    "summary": "N4: 未建 session 先发 producer → state/session 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "producer_info",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "direction": "c2s"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "session"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_neg_correlation",
+    "proto": "openwire",
+    "summary": "N5: ack 引用未注册 consumer → correlation/message 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "session_info",
+                    "session_id": 1,
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "producer_info",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "message",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "message_id": "m1",
+                    "persistent": false,
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "ack",
+                    "consumer_id": 9,
+                    "message_id": "m1",
+                    "destination": "queue://orders",
+                    "ack_mode": "auto",
+                    "direction": "c2s"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "correlation"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_neg_transaction",
+    "proto": "openwire",
+    "summary": "N6: commit 无 begin → transaction 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "session_info",
+                    "session_id": 1,
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "transaction",
+                    "transaction": {
+                      "id": 7,
+                      "kind": "commit"
+                    },
+                    "direction": "c2s"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "transaction"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_neg_entity_scope",
+    "proto": "openwire",
+    "summary": "N7: producer 引用本连接未开 session → entity/connection 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "producer_info",
+                    "session_id": 9,
+                    "producer_id": 1,
+                    "destination": "queue://orders",
+                    "direction": "c2s"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "entity"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_neg_destination",
+    "proto": "openwire",
+    "summary": "N8: 非法 destination → destination 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61616
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_info",
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "connection_ack",
+                    "direction": "s2c"
+                  },
+                  {
+                    "kind": "session_info",
+                    "session_id": 1,
+                    "direction": "c2s"
+                  },
+                  {
+                    "kind": "producer_info",
+                    "session_id": 1,
+                    "producer_id": 1,
+                    "destination": "orders",
+                    "direction": "c2s"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "destination"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
+  },
+  {
+    "id": "openwire_neg_carrier_profile",
+    "proto": "openwire",
+    "summary": "N9: 非 61616 目的端口 → tcp/port/profile 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 61617
+          }
+        },
+        {
+          "openwire": {
+            "connections": [
+              {
+                "connection_id": 1,
+                "client_id": "client-a",
+                "src_port": 40001,
+                "events": [
+                  {
+                    "kind": "wire_format_info",
+                    "direction": "c2s"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "port"
+    },
+    "notes": [
+      "层链改造：扁平四元组并入 ip/tcp 层，顶层 openwire 子映射迁入 layers[].openwire"
+    ]
   }
- }
 ]

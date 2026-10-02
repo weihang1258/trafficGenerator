@@ -2253,7 +2253,10 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "61616"},
 		Fields: map[string]FieldSchema{
-			"profile": {Type: "string", Default: "activemq_openwire_v12"},
+			"profile":     {Type: "string", Default: "activemq_openwire_v12"},
+			"wire_format": {Type: "object"},
+			"connections": {Type: "list"},
+			"wire_fault":  {Type: "string"},
 		},
 	})
 

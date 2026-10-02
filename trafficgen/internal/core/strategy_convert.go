@@ -8706,6 +8706,10 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 		if v, ok := cfg["shadowsocks"]; ok && v != nil {
 			return "protocol shadowsocks no longer accepts a top-level shadowsocks sub-config (move it into the shadowsocks layer of an [ip,tcp,shadowsocks] layers chain)"
 		}
+	case "openwire":
+		if v, ok := cfg["openwire"]; ok && v != nil {
+			return "protocol openwire no longer accepts a top-level openwire sub-config (move it into the openwire layer of an [ip,tcp,openwire] layers chain)"
+		}
 	}
 	// D-CWMP-1：cwmp 顶层 cwmp 子映射 presence 判死（mqtt 先例；空 map 也
 	// 死——B6 注入形退役，配置迁 cwmp 层六键）。层链形状不触发。

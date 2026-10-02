@@ -2896,6 +2896,33 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			return
 		}
 		spec.Shadowsocks = &scfg
+	case "openwire":
+		if spec.OpenWire != nil {
+			return
+		}
+		// OpenWire 层 config 严格往返解码进 spec.OpenWire（snmp 同款）。
+		// 空层 {} 保持 spec.OpenWire=nil：生成器对 nil 走默认 wire_format
+		// 信息交换 + 默认会话（B5 收官面），翻译出非 nil 零配置会因无
+		// connections 触发 validator 判死（等价引入回归）。
+		if len(term.Config) == 0 {
+			return
+		}
+		cfgOW := completedConfig(s, term.Config)
+		rawOW, err := json.Marshal(cfgOW)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("openwire layer config encode: %v", err))
+			return
+		}
+		var wcfg core.OpenWireConfig
+		decOW := json.NewDecoder(bytes.NewReader(rawOW))
+		decOW.DisallowUnknownFields()
+		if err := decOW.Decode(&wcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("openwire layer config decode: %v", err))
+			return
+		}
+		spec.OpenWire = &wcfg
 	case "imap":
 		if spec.IMAP != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略

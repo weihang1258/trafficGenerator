@@ -369,19 +369,28 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 			break
 		}
 	}
-	// D-IEC104-1：iec104 同款（设计 §1 不变式 1——契约端口 2404 的域校验
-	// 住 planner.Validate，层内显式 5000 不先回填则 spec.DstPort 停在
-	// FieldContract 的 2404，错端口被静默放行）。
-	if p.name == "enip" || p.name == "dameng" || p.name == "cflow" || p.name == "drda" || p.name == "iec104" {
-		for _, l := range chain {
-			if l.Name != "tcp" && l.Name != "udp" {
-				continue
+	// 层端口真相先于协议级 validator 回填（原 enip/dameng/cflow/drda/
+	// iec104 特判块的根因修，openwire 实证：契约端口域校验住 planner
+	// validator，而通用回填原在 validator 之后——层内显式端口停在路上，
+	// validator 看到的是缺省 80，端口域检查被旁路）。语义与原通用回填块
+	// 同款：仅层内显式写（非 nil 标量）回填；dyn 对象（map）跳过——dyn
+	// 由 worker.resolveLayerTuple 按流解析进 spec，此处是单 spec 默认化，
+	// 不得抢占逐流值。
+	for _, l := range chain {
+		if l.Name != "tcp" && l.Name != "udp" {
+			continue
+		}
+		if v, ok := l.Config["src_port"]; ok && v != nil {
+			if _, isObj := v.(map[string]interface{}); !isObj {
+				if up, ok := configUint16(v); ok && up != 0 {
+					spec.SrcPort = up
+				}
 			}
-			if v, ok := l.Config["dst_port"]; ok && v != nil {
-				if _, isObj := v.(map[string]interface{}); !isObj {
-					if up, ok := configUint16(v); ok && up != 0 {
-						spec.DstPort = up
-					}
+		}
+		if v, ok := l.Config["dst_port"]; ok && v != nil {
+			if _, isObj := v.(map[string]interface{}); !isObj {
+				if up, ok := configUint16(v); ok && up != 0 {
+					spec.DstPort = up
 				}
 			}
 		}
@@ -391,6 +400,8 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 	// cflow 层，base 期 spec.CFlow 尚 nil），IPFIX 链缺省 udp.dst_port 时
 	// 会拿到 2055 被 validator 拒。层内 profile 显式写 ipfix 且 udp 层未
 	// 显式写端口 → 覆盖为 4739（显式层值仍优先，上一块已回填）。
+	// 本块先于 protocolValidator（validator 在 :413 的教训同源：缺省覆盖
+	// 也必须发生在端口域校验之前）。
 	if p.name == "cflow" {
 		udpExplicit := false
 		profile := ""
@@ -415,32 +426,8 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 			return spec, err
 		}
 	}
-	// 层值回填 spec（Task 6 修正）：用户在 tcp/udp 层显式写的 src_port/
-	// dst_port 是链形状的四元组真相，spec 侧在 Task 5 扁平判死后恒为
-	// mapToFlowSpec 的缺省值（12345/80 或 worker 自动递增基址）——不回填
-	// 则 flowID/包序列/事件 key 三者端口分裂（txindex_dual 实测首包
-	// 12345 而非层值 22000）。仅当层内显式写（非 nil）时回填；层内 dyn
-	// 对象（map）跳过——dyn 由 worker.resolveLayerTuple 按流解析进 spec，
-	// 此处是单 spec 默认化，不得抢占逐流值。
-	for _, l := range chain {
-		if l.Name != "tcp" && l.Name != "udp" {
-			continue
-		}
-		if v, ok := l.Config["src_port"]; ok && v != nil {
-			if _, isObj := v.(map[string]interface{}); !isObj {
-				if up, ok := configUint16(v); ok && up != 0 {
-					spec.SrcPort = up
-				}
-			}
-		}
-		if v, ok := l.Config["dst_port"]; ok && v != nil {
-			if _, isObj := v.(map[string]interface{}); !isObj {
-				if up, ok := configUint16(v); ok && up != 0 {
-					spec.DstPort = up
-				}
-			}
-		}
-	}
+	// 层端口回填已上移至 protocolValidator 之前（根因修，见上块注释）；
+	// 此处原通用回填循环删除，避免二次赋值（幂等但误导）。
 	// 链上 vlan 层 → spec.VLAN（D-GRE-3 通用路径）：tag 落定走既有 l2For
 	// 的 spec.VLAN 传播分支（chain_planner_gen.go:207），本处只做供给。
 	// 层值赢 flat（spec.VLAN 已由 mapToFlowSpec 从顶层 vlan_id 填）：补全链
