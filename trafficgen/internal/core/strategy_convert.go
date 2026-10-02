@@ -8742,6 +8742,11 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 			return "protocol dhcp no longer accepts a top-level dhcp sub-config (move it into the dhcp layer of an [ip,udp,dhcp] layers chain)"
 		}
 	}
+	if protocol == "dhcpv6" {
+		if v, ok := cfg["dhcpv6"]; ok && v != nil {
+			return "protocol dhcpv6 no longer accepts a top-level dhcpv6 sub-config (move it into the dhcpv6 layer of an [ip,udp,dhcpv6] layers chain)"
+		}
+	}
 	if protocol == "edp" {
 		if v, ok := cfg["edp"]; ok && v != nil {
 			return "protocol edp no longer accepts a top-level edp sub-config (move it into the edp layer of an [ip,tcp,edp] layers chain; OneNET EDP framing lives in the edp layer)"

@@ -5,6 +5,7 @@ package layers_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"net"
 	"testing"
@@ -92,7 +93,38 @@ func dhcpv6SARR(xid [3]byte) []core.DHCPv6Message {
 	}
 }
 
-// ---- option builders（与 legacy test_helpers 同款字节布局）----
+func TestChainPlanner_DHCPv6_LayerConfigTranslates(t *testing.T) {
+	clientDUID, serverDUID := dhcpv6ExplicitDUIDs()
+	p := layers.NewChainPlannerFromChain("dhcpv6", []layers.Layer{
+		{Name: "ip", Config: map[string]interface{}{"src": "fe80::1", "dst": "ff02::1:2"}},
+		{Name: "udp", Config: map[string]interface{}{}},
+		{Name: "dhcpv6", Config: map[string]interface{}{
+			"client_duid": clientDUID, "server_duid": serverDUID,
+			"messages": []interface{}{map[string]interface{}{"msg_type": float64(dhcpv6.MsgTypeSolicit), "transaction_id": []interface{}{18, 52, 86}}},
+		}},
+	})
+	spec, err := p.ValidateSpec(core.FlowSpec{SrcIP: "fe80::1", DstIP: "ff02::1:2", SrcMAC: "00:11:22:33:44:55", DstMAC: "33:33:00:01:00:02"})
+	if err != nil {
+		t.Fatalf("ValidateSpec: %v", err)
+	}
+	if spec.DHCPv6 == nil || len(spec.DHCPv6.Messages) != 1 || spec.DHCPv6.Messages[0].MsgType != dhcpv6.MsgTypeSolicit {
+		t.Fatalf("layer config was not translated: %+v", spec.DHCPv6)
+	}
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	count := 0
+	for pkt := range ch {
+		count++
+		if pkt.L4.Protocol != "udp" || len(pkt.Payload) == 0 || pkt.Payload[0] != dhcpv6.MsgTypeSolicit {
+			t.Fatalf("unexpected DHCPv6 packet: %+v", pkt)
+		}
+	}
+	if count != 1 {
+		t.Fatalf("packets=%d, want 1", count)
+	}
+}
 
 // buildORO builds option 6 data: requested option codes (2B each).
 func buildORO() []byte {
