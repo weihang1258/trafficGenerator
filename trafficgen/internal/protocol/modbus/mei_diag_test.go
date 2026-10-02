@@ -111,3 +111,37 @@ func TestFC2BMEIRequestDefaults(t *testing.T) {
 		t.Fatalf("request = %x, want %x", req, want)
 	}
 }
+
+// 评审 LOW：flat 路径（strategy_convert mapToFlowSpec）必须同参携带
+// data/mei_objects/conformity_level——层链与 flat 同配同线。
+func TestFlatPathDataAndMEIParity(t *testing.T) {
+	cfg := map[string]interface{}{
+		"modbus": map[string]interface{}{
+			"transactions": []interface{}{
+				map[string]interface{}{
+					"function_code":    float64(8),
+					"sub_function":     float64(0),
+					"data":             []interface{}{float64(0xA5), float64(0x37)},
+					"conformity_level": float64(2),
+					"mei_objects": []interface{}{
+						map[string]interface{}{"object_id": float64(0), "object_value": "TG"},
+					},
+				},
+			},
+		},
+	}
+	spec := core.ConvertFlatSpec(cfg, "modbus")
+	if len(spec.MODBUS.Transactions) != 1 {
+		t.Fatalf("transactions = %d, want 1", len(spec.MODBUS.Transactions))
+	}
+	op := spec.MODBUS.Transactions[0]
+	if string(op.Data) != string([]byte{0xA5, 0x37}) {
+		t.Fatalf("op.Data = %x, want a537", op.Data)
+	}
+	if op.ConformityLevel != 2 {
+		t.Fatalf("op.ConformityLevel = %d, want 2", op.ConformityLevel)
+	}
+	if len(op.MEIObjects) != 1 || op.MEIObjects[0].ObjectID != 0 || op.MEIObjects[0].ObjectValue != "TG" {
+		t.Fatalf("op.MEIObjects = %+v, want [{0 TG}]", op.MEIObjects)
+	}
+}

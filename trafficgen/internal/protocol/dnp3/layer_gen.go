@@ -106,6 +106,12 @@ func init() {
 			if c.MultiOutstation != nil {
 				return fmt.Errorf("dnp3 generator: multi_outstation is not supported on the layer chain (one flow per outstation)")
 			}
+			// user_data_size 上界在 validator 期报（评审 MEDIUM）：
+			// blocksLen = size + 2*ceil(size/16) ≤ 255 → size ≤ 225；越界的
+			// BuildLinkFrame 错误只会在 Generate 期出现并被 0-packet 掩蔽。
+			if c.UserDataSize != nil && *c.UserDataSize > 225 {
+				return fmt.Errorf("dnp3: user_data_size must be 1-225 (link frame length limit 255), got %d", *c.UserDataSize)
+			}
 		}
 		// cfg.Handshake/Termination 校准进 spec.TCP（legacy dnp3.go:120 同款：
 		// nil→true，显式 false→false；spec.TCP 零值 false 必须写默认值，否则

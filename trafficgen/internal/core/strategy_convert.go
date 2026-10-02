@@ -7797,6 +7797,24 @@ func parseMODBUSOperations(v interface{}) []MODBUSOperation {
 			ResponseMode:    getString(m, "response_mode"),
 			Direction:       getString(m, "direction"),
 		}
+		// 评审 LOW：新能力字段 flat 路径同参（层链路径经严格解码已支持；
+		// 两路径同参防同配异线）。
+		op.Data = getByteSlice(m, "data")
+		if objs, present := m["mei_objects"].([]interface{}); present {
+			for _, item := range objs {
+				om, ok := item.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				op.MEIObjects = append(op.MEIObjects, MODBUSMEIObject{
+					ObjectID:    uint8(getInt(om, "object_id")),
+					ObjectValue: getString(om, "object_value"),
+				})
+			}
+		}
+		if v := getInt(m, "conformity_level"); v > 0 {
+			op.ConformityLevel = uint8(v)
+		}
 		if op.FunctionCode == 0x2B && len(op.Values) == 0 {
 			// §3.3.17: derive the mandatory Read Device ID Code + Object ID
 			// bytes so the request PDU is well-formed.

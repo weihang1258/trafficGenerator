@@ -696,6 +696,18 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 	if len(p.chain) == 0 {
 		return
 	}
+	// 评审 LOW：payload 只在独立传输流协议 tcp（tcp 为终结层）下被消费；
+	// 中链 tcp 层的 payload 键会被静默忽略（死配置，CORE_MEMORY 判死类）。
+	// 在翻译期同步判死，锚词 "payload"。
+	for i, l := range p.chain {
+		if i == len(p.chain)-1 || l.Name != "tcp" {
+			continue
+		}
+		if v, ok := l.Config["payload"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				"tcp layer payload is only consumed by the independent-transport protocol tcp (terminal tcp layer); mid-chain tcp payload is dead config")
+		}
+	}
 	r := p.effectiveRegistry()
 	term := p.chain[len(p.chain)-1]
 	s, ok := r.Get(term.Name)

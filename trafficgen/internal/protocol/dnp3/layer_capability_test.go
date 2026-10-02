@@ -104,4 +104,22 @@ func TestScenario_UserDataSize17CrossBlock(t *testing.T) {
 	}
 }
 
+// user_data_size 上界：BuildLinkFrame 在 blocksLen>255（user_data_size ≥226）
+// 时才报错——那是 Generate 期，会被 0-packet 掩蔽（评审 MEDIUM）。validator
+// 必须先拒并给锚词。
+func TestLayerValidator_UserDataSizeTooLarge(t *testing.T) {
+	p, err := layers.BuildLayersPlanner("dnp3", []byte(`[
+		{"ip": {"src": "10.0.0.1", "dst": "10.0.0.2"}},
+		{"tcp": {}},
+		{"dnp3": {"user_data_size": 300}}
+	]`))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	err = p.Validate(core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 12345, DstPort: 20000})
+	if err == nil || !strings.Contains(err.Error(), "user_data_size") {
+		t.Fatalf("err = %v, want user_data_size anchor", err)
+	}
+}
+
 func ptrUint8(v uint8) *uint8 { return &v }
