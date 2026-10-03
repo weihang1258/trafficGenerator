@@ -112,7 +112,9 @@ dist: build-release
 	cp deploy/config.yaml.example deploy/uninstall.sh deploy/README.md $(DIST_DIR)/$(PKG_NAME)/
 	# install.sh 烧入发布版本号：curl | sudo bash 零参数在线安装（可被
 	# TRAFFICGEN_RELEASE_BASE / 显式参数覆盖）。源码副本保留占位符。
-	sed "s/__RELEASE_VERSION__/$(VERSION)/" deploy/install.sh > $(DIST_DIR)/$(PKG_NAME)/install.sh
+	# 只替换赋值行——全局替换会把守卫行里的占位符比较串也换掉，
+	# 使守卫恒假（在线分支必死，实机 root 安装测出）。
+	sed "s/^DEFAULT_VERSION=\"__RELEASE_VERSION__\"$$/DEFAULT_VERSION=\"$(VERSION)\"/" deploy/install.sh > $(DIST_DIR)/$(PKG_NAME)/install.sh
 	chmod 0755 $(DIST_DIR)/$(PKG_NAME)/trafficgen $(DIST_DIR)/$(PKG_NAME)/install.sh $(DIST_DIR)/$(PKG_NAME)/uninstall.sh
 	tar -czf $(DIST_DIR)/$(PKG_NAME).tar.gz -C $(DIST_DIR) $(PKG_NAME)
 	cd $(DIST_DIR) && sha256sum $(PKG_NAME).tar.gz > SHA256SUMS
