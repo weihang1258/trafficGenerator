@@ -33,13 +33,6 @@ SERVICE_USER=trafficgen
 DEFAULT_BASE="${TRAFFICGEN_RELEASE_BASE:-https://github.com/weihang1258/trafficGenerator/releases/download}"
 DEFAULT_VERSION="__RELEASE_VERSION__"
 
-INSTALL_DIR=/opt/trafficgen
-DATA_DIR=/var/lib/trafficgen
-CONF_DIR=/etc/trafficgen
-CONF_FILE=$CONF_DIR/config.yaml
-SERVICE=trafficgen
-SERVICE_USER=trafficgen
-
 log()  { printf '\033[32m%s\033[0m\n' "$*"; }
 warn() { printf '\033[33m%s\033[0m\n' "$*"; }
 die()  { printf '\033[31m错误：%s\033[0m\n' "$*" >&2; exit 1; }
@@ -137,7 +130,7 @@ IP=${IP:-127.0.0.1}
 log "──────────────────────────────────────────────────────"
 log "✅ $INSTALLED 安装完成，服务已启动（开机自启）"
 log ""
-log "   MCP 端点 :  http://$IP:8086/mcp"
+log "   MCP 端点 :  http://$IP:8081/mcp"
 log "   API Key  :  $API_KEY   （客户端请求头 X-MCP-Key）"
 log ""
 log "   常用命令 :  systemctl status|restart|stop $SERVICE"
