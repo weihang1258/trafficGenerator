@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -12,6 +13,9 @@ import (
 
 	"github.com/trafficgen/trafficgen/internal/core/layers"
 )
+
+//go:embed layer_examples.json
+var layerExamplesJSON []byte
 
 // layerFieldView is the JSON-safe view of one schema field (说明书字段)。
 type layerFieldView struct {
@@ -91,7 +95,9 @@ func buildLayerSchemaViews(reg *layers.Registry) []layerSchemaView {
 }
 
 type queryLayersInput struct {
-	Layer string `json:"layer,omitempty" jsonschema:"layer name to look up (e.g. ip/tcp/http). Empty = list all registered layers."`
+	Action string `json:"action,omitempty" jsonschema:"operation: schema (default; layer registry) | examples (verified per-protocol configs an LLM can copy verbatim)"`
+	Layer  string `json:"layer,omitempty" jsonschema:"schema action: layer name to look up (e.g. ip/tcp/http). Empty = list all registered layers."`
+	Proto  string `json:"protocol,omitempty" jsonschema:"examples action: protocol name (e.g. modbus/http/dns). Empty = all protocols."`
 }
 
 type queryLayersOutput struct {
@@ -99,37 +105,88 @@ type queryLayersOutput struct {
 	Data   interface{} `json:"data"`
 }
 
+// configEnvelopeDoc 顶层配置契约：LLM 只看字段表学不会的骨架知识——
+// layers 有序链 + flow_control 信封 + 引用示例。
+type configEnvelopeDoc struct {
+	Format       string   `json:"format"`
+	TopLevelKeys []string `json:"top_level_keys"`
+	FlowControl  string   `json:"flow_control"`
+	SeeAlso      string   `json:"see_also"`
+}
+
 func (s *Server) registerLayerTools() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
-			Name:         "flowb_query_layers",
-			Description:  "Query the layer-chain layer registry (层注册表): list every layer with its category, dependencies, and configurable fields with defaults. Live view of the same registry dumped to schemas/v1/generated/layers.generated.json (shape: schemas/v1/layers.json). Use this before creating or updating a strategy with a 'layers' config. Pass 'layer' to look up one layer's full field table; omit it to list all.",
+			Name: "flowb_query_layers",
+			Description: "Query the layer-chain layer registry + verified examples. " +
+				"action=schema (default): list every layer with category, dependencies, and configurable fields with defaults; pass 'layer' for one layer's full field table. " +
+				"action=examples: verified per-protocol layer-chain configs (from the tested case corpus) — pass 'protocol' (e.g. modbus) to get copy-paste-ready configs; ALWAYS fetch examples for the target protocol before composing a new task config. " +
+				"Live view of the same registry dumped to schemas/v1/generated/layers.generated.json.",
 			OutputSchema: manageOutputSchema(),
 		},
 		s.handleQueryLayers,
 	)
 }
 
+// queryLayersPayload 是 handler 的纯逻辑核（无 Server 依赖，单测直调）。
+func queryLayersPayload(in queryLayersInput) (string, interface{}, error) {
+	reg := layers.DefaultRegistry()
+	switch in.Action {
+	case "", "schema":
+		var data interface{}
+		if in.Layer == "" {
+			data = buildLayerSchemaViews(reg)
+		} else {
+			schema, ok := reg.Get(in.Layer)
+			if !ok {
+				return "", nil, &jsonrpc.Error{
+					Code:    jsonrpc.CodeInvalidParams,
+					Message: fmt.Sprintf("unknown layer %q (see flowb_query_layers with no args for the full list)", in.Layer),
+				}
+			}
+			data = withTunnelInner(reg, schema, buildLayerSchemaView(schema))
+		}
+		return "schema", data, nil
+	case "examples":
+		var env struct {
+			Generated int                      `json:"generated"`
+			Protocols map[string][]interface{} `json:"protocols"`
+		}
+		if err := json.Unmarshal(layerExamplesJSON, &env); err != nil {
+			return "", nil, fmt.Errorf("embedded examples corrupt: %w", err)
+		}
+		envelope := configEnvelopeDoc{
+			Format:       `{"layers":[{outermost}...{innermost}],"flow_control":{"type":"flows","value":N}}`,
+			TopLevelKeys: []string{"layers", "flow_control"},
+			FlowControl:  "flows=N 生成 N 条并发流（N>1 时包级交织，断言请用聚合视角）；省略 = 单流",
+			SeeAlso:      "action=examples&protocol=<proto> 取该协议已验证配置；unknown field 会被严格拒绝",
+		}
+		if in.Proto != "" {
+			exs, ok := env.Protocols[in.Proto]
+			if !ok || len(exs) == 0 {
+				return "", nil, &jsonrpc.Error{
+					Code:    jsonrpc.CodeInvalidParams,
+					Message: fmt.Sprintf("no verified examples for protocol %q (action=examples with no protocol lists all)", in.Proto),
+				}
+			}
+			return "examples", map[string]interface{}{"envelope": envelope, "protocol": in.Proto, "examples": exs}, nil
+		}
+		return "examples", map[string]interface{}{"envelope": envelope, "generated": env.Generated, "protocols": env.Protocols}, nil
+	default:
+		return "", nil, &jsonrpc.Error{
+			Code:    jsonrpc.CodeInvalidParams,
+			Message: fmt.Sprintf("invalid action %q (schema | examples)", in.Action),
+		}
+	}
+}
+
 func (s *Server) handleQueryLayers(ctx context.Context, req *mcp.CallToolRequest, in queryLayersInput) (*mcp.CallToolResult, queryLayersOutput, error) {
 	start := time.Now()
-	reg := layers.DefaultRegistry()
-
-	var data interface{}
-	if in.Layer == "" {
-		data = buildLayerSchemaViews(reg)
-	} else {
-		schema, ok := reg.Get(in.Layer)
-		if !ok {
-			s.auditLog(req, "flowb_query_layers", time.Since(start), "error", "unknown layer")
-			return nil, queryLayersOutput{}, &jsonrpc.Error{
-				Code:    jsonrpc.CodeInvalidParams,
-				Message: fmt.Sprintf("unknown layer %q (see flowb_query_layers with no args for the full list)", in.Layer),
-			}
-		}
-		view := withTunnelInner(reg, schema, buildLayerSchemaView(schema))
-		data = view
+	action, data, err := queryLayersPayload(in)
+	if err != nil {
+		s.auditLog(req, "flowb_query_layers", time.Since(start), "error", err.Error())
+		return nil, queryLayersOutput{}, err
 	}
-
 	raw, err := json.Marshal(data)
 	if err != nil {
 		s.auditLog(req, "flowb_query_layers", time.Since(start), "error", err.Error())
@@ -139,5 +196,5 @@ func (s *Server) handleQueryLayers(ctx context.Context, req *mcp.CallToolRequest
 	// rawData round-trips the marshaled view through interface{}: the SDK
 	// marshals the output struct itself, and a json.RawMessage would be
 	// re-encoded as base64. interface{} preserves the JSON payload.
-	return nil, queryLayersOutput{Action: "query_layers", Data: rawData(raw)}, nil
+	return nil, queryLayersOutput{Action: action, Data: rawData(raw)}, nil
 }

@@ -1,0 +1,4968 @@
+{
+ "generated": 123,
+ "protocols": {
+  "a2a": [
+   {
+    "protocol": "a2a",
+    "case_id": "a2a_s1_agent_card",
+    "summary": "S1/T013/T015: Discover=true 发 GET /.well-known/agent.json，响应 200 + AgentCard JSON（protocolVersion/securitySchemes/security），3 握手+3 Discover+3 Task+3 挥手=12 包",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 51001,
+        "dst_port": 8080
+       }
+      },
+      {
+       "a2a": {
+        "baseUrl": "http://agent.example.com/a2a",
+        "discover": true,
+        "agentCard": {
+         "name": "example-agent",
+         "description": "An example A2A agent",
+         "url": "http://agent.example.com/a2a",
+         "version": "1.0.0",
+         "protocolVersion": "0.3.0",
+         "capabilities": {
+          "streaming": true,
+          "pushNotifications": true,
+          "stateTransitionHistory": true
+         },
+         "skills": [
+          {
+           "id": "skill-1",
+           "name": "greeting",
+           "description": "Greets users",
+           "tags": [
+            "chat"
+           ]
+          }
+         ],
+         "securitySchemes": {
+          "bearerAuth": {
+           "type": "http",
+           "scheme": "bearer",
+           "bearerFormat": "JWT"
+          }
+         },
+         "security": [
+          {
+           "bearerAuth": []
+          }
+         ],
+         "defaultInputModes": [
+          "text"
+         ],
+         "defaultOutputModes": [
+          "text"
+         ]
+        },
+        "tasks": [
+         {
+          "method": "message/send",
+          "requestId": "req-001",
+          "message": {
+           "role": "user",
+           "parts": [
+            {
+             "kind": "text",
+             "text": "hello"
+            }
+           ],
+           "messageId": "m-001",
+           "contextId": "ctx-abc",
+           "kind": "message"
+          },
+          "configuration": {
+           "acceptedOutputModes": [
+            "text"
+           ],
+           "blocking": true
+          },
+          "response": {
+           "result": {
+            "id": "task-001",
+            "contextId": "ctx-abc",
+            "status": {
+             "state": "completed",
+             "timestamp": "2026-08-05T10:00:00Z"
+            },
+            "artifacts": [
+             {
+              "artifactId": "art-1",
+              "name": "reply",
+              "parts": [
+               {
+                "kind": "text",
+                "text": "hi there"
+               }
+              ]
+             }
+            ],
+            "kind": "task"
+           }
+          }
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "amqp": [
+   {
+    "protocol": "amqp",
+    "case_id": "amqp_protocol_header_ipv4",
+    "summary": "AMQP 0-9-1 8-byte protocol header over TCP/IPv4, port 5672",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "20.0.0.1",
+        "src": "10.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 5672,
+        "src_port": 12345
+       }
+      },
+      {
+       "amqp": {
+        "connections": [
+         {
+          "events": [
+           {
+            "direction": "c2s",
+            "kind": "protocol_header"
+           }
+          ]
+         }
+        ],
+        "profile": "amqp091_minimal"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "ams": [
+   {
+    "protocol": "ams",
+    "case_id": "ams_frame_header_ipv4",
+    "summary": "S1: TCP/IPv4 61616 最小 HELLO 协商，帧头 Length/Version/Type/Flags 与 FrameEnd(ae5a)",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.51",
+        "dst": "198.51.100.51"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 42051,
+        "dst_port": 61616
+       }
+      },
+      {
+       "ams": {
+        "connections": [
+         {
+          "src_port": 42051,
+          "events": [
+           {
+            "kind": "hello"
+           },
+           {
+            "kind": "hello_ok"
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "arp": [
+   {
+    "protocol": "arp",
+    "case_id": "arp_t1_baseline_pair",
+    "summary": "T-1 基线配对：op=1 缺省地址 2 帧——帧1 广播 ff*6+oper 0001+tha 全零；帧2 单播+oper 0002 角色互换",
+    "config": {
+     "layers": [
+      {
+       "eth": {
+        "src_mac": "aa:bb:cc:dd:ee:01",
+        "dst_mac": "aa:bb:cc:dd:ee:02"
+       }
+      },
+      {
+       "arp": {}
+      }
+     ]
+    }
+   }
+  ],
+  "bacnet": [
+   {
+    "protocol": "bacnet",
+    "case_id": "bacnet_bvlc_unicast_baseline",
+    "summary": "Who-Is(0-100)→I-Am 单播基线：BVLC 0x0a/len12、I-Am u16 宽度 22 000f、厂商 15",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "198.51.100.66",
+        "src": "192.0.2.66"
+       }
+      },
+      {
+       "udp": {
+        "dst_port": 47808,
+        "src_port": 47808
+       }
+      },
+      {
+       "bacnet": {
+        "sessions": [
+         {
+          "events": [
+           {
+            "high": 100,
+            "kind": "who_is",
+            "low": 0,
+            "respond_i_am": true
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "bgp": [
+   {
+    "protocol": "bgp",
+    "case_id": "bgp_connect",
+    "summary": "S1: TCP/179 connect without BGP application events",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345
+       }
+      },
+      {
+       "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": []
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "cflow": [
+   {
+    "protocol": "cflow",
+    "case_id": "cflow_v9_template_data_ipv4",
+    "summary": "NetFlow v9 template and IPv4 data record",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.10",
+        "dst": "198.51.100.10"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 40000,
+        "dst_port": 2055
+       }
+      },
+      {
+       "cflow": {
+        "profile": "netflow_v9_rfc3954",
+        "source_id": 7,
+        "sequence": 100,
+        "templates": [
+         {
+          "template_id": 256,
+          "fields": [
+           {
+            "element_id": 8,
+            "length": 4
+           },
+           {
+            "element_id": 12,
+            "length": 4
+           }
+          ]
+         }
+        ],
+        "records": [
+         {
+          "template_id": 256,
+          "record": {
+           "srcaddr": "10.43.1.1",
+           "dstaddr": "10.43.1.2"
+          }
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "coap": [
+   {
+    "protocol": "coap",
+    "case_id": "coap_con_get",
+    "summary": "C-001：CON GET /sensors/temp，ACK 2.05 回显 MID/Token",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 56565,
+        "dst_port": 5683
+       }
+      },
+      {
+       "coap": {
+        "method": "GET",
+        "path": [
+         "sensors",
+         "temp"
+        ],
+        "confirmable": true,
+        "token": "AQIDBA==",
+        "message_id": 4097,
+        "response_code": "2.05",
+        "response_payload": "eyJ2YWx1ZSI6MjMuNX0=",
+        "response_content_format": 50
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "cql": [
+   {
+    "protocol": "cql",
+    "case_id": "cql_v4_startup_ready",
+    "summary": "S1: CQL v4 STARTUP then READY",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 9042
+       }
+      },
+      {
+       "cql": {
+        "wire_profile": "cql_v4",
+        "events": [
+         {
+          "kind": "startup",
+          "direction": "c2s",
+          "options": {
+           "CQL_VERSION": "3.0.0"
+          }
+         },
+         {
+          "kind": "ready",
+          "direction": "s2c"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "cwmp": [
+   {
+    "protocol": "cwmp",
+    "case_id": "cwmp_inform_ipv4_2p",
+    "summary": "",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.65",
+        "dst": "198.51.100.65"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 50065,
+        "dst_port": 7547
+       }
+      },
+      {
+       "http": {}
+      },
+      {
+       "cwmp": {
+        "sessions": [
+         {
+          "transactions": [
+           {
+            "kind": "inform",
+            "id": "1",
+            "events": [
+             {
+              "code": "2 PERIODIC"
+             }
+            ],
+            "device_id": {
+             "manufacturer": "Example",
+             "oui": "001122",
+             "product_class": "GW",
+             "serial": "SN0000001"
+            }
+           },
+           {
+            "kind": "inform_response",
+            "id": "1"
+           },
+           {
+            "kind": "empty_post"
+           },
+           {
+            "kind": "empty_response"
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "dameng": [
+   {
+    "protocol": "dameng",
+    "case_id": "dameng_connect",
+    "summary": "S1: TCP 5236 connect event",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345
+       }
+      },
+      {
+       "dameng": {
+        "wire_profile": "dm8_profile_pending",
+        "events": [
+         {
+          "kind": "connect",
+          "direction": "c2s",
+          "profile": "connect_default"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "dcerpc": [
+   {
+    "protocol": "dcerpc",
+    "case_id": "dcerpc_epm_ipv4_bind_lookup",
+    "summary": "TCP/135 EPM bind→lookup→response 基线（IPv4）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "198.51.100.63",
+        "src": "192.0.2.63"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 135,
+        "src_port": 40063
+       }
+      },
+      {
+       "dcerpc": {
+        "sessions": [
+         {
+          "events": [
+           {
+            "contexts": [
+             {
+              "abstract": "e1af8308-5d1f-11c9-91a4-08002b14a0fa",
+              "abstract_version": [
+               3,
+               0
+              ],
+              "context_id": 0,
+              "syntaxes": [
+               {
+                "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+                "version": [
+                 2,
+                 0
+                ]
+               }
+              ]
+             }
+            ],
+            "kind": "bind",
+            "respond": {
+             "ack": "bind_ack",
+             "results": [
+              {
+               "context_id": 0,
+               "reason": 0,
+               "result": 0,
+               "uuid": "8a885d04-1ceb-11c9-9fe8-08002b104860",
+               "version": [
+                2,
+                0
+               ]
+              }
+             ],
+             "secondary": "135"
+            }
+           },
+           {
+            "context_id": 0,
+            "kind": "request",
+            "opnum": 2,
+            "respond": {
+             "ack": "response",
+             "stub": "00000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "stub": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "dhcp": [
+   {
+    "protocol": "dhcp",
+    "case_id": "dhcp_smoke_01",
+    "summary": "[chain] 冒烟：DHCP DORA（Discover/Offer/Request/ACK）。src 保持 flow 默认 12345、目的端口取 IANA 67/68（resolvePorts 只回退零值），your_ip/server_id 来自默认配置，共 4 包",
+    "config": {
+     "layers": [
+      {
+       "udp": {}
+      },
+      {
+       "dhcp": {
+        "scenario": "dora",
+        "default_your_ip": "192.168.1.100",
+        "default_server_identifier": "192.168.1.1"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "dhcpv6": [
+   {
+    "protocol": "dhcpv6",
+    "case_id": "dhcpv6_smoke_01",
+    "summary": "[chain] 冒烟：DHCPv6 SARR（Solicit/Advertise/Request/Reply，IPv6 链路，src_mac 必填）。顶层不设端口 → dst 默认 547（IANA）、src 保持 flow 默认 12345，leased addr 2001:db8::100，共 4 包",
+    "config": {
+     "layers": [
+      {
+       "eth": {
+        "src_mac": "aa:bb:cc:dd:ee:ff"
+       }
+      },
+      {
+       "ip": {
+        "src": "2001:db8::1",
+        "dst": "2001:db8::2"
+       }
+      },
+      {
+       "udp": {}
+      },
+      {
+       "dhcpv6": {
+        "scenario": "sarr",
+        "default_leased_addr": "2001:db8::100"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "dnp3": [
+   {
+    "protocol": "dnp3",
+    "case_id": "dnp3_t21_reset_link",
+    "summary": "T21: reset_link 场景（master, TCP）→ 握手3 + ResetLink(C0)+ACK(00) + 挥手4 = 9 包",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.100",
+        "dst": "10.0.0.1"
+       }
+      },
+      {
+       "tcp": {}
+      },
+      {
+       "dnp3": {
+        "link_type": "master",
+        "transport": "tcp",
+        "src_addr": 1,
+        "dst_addr": 1024,
+        "scenario": "reset_link"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "dns": [
+   {
+    "protocol": "dns",
+    "case_id": "dns_smoke_01",
+    "summary": "[chain] 冒烟：DNS单查询（example.com A记录，层链形[ip,udp,dns]，域名进dns层name）。dst 53（IANA），txid默认0x1234、QR=0、RD=1，共1包",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 12345,
+        "dst_port": 53
+       }
+      },
+      {
+       "dns": {
+        "name": "example.com",
+        "query_type": 1
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "doh": [
+   {
+    "protocol": "doh",
+    "case_id": "doh_post_ipv4_http11",
+    "summary": "POST/IPv4 plaintext single-flow baseline",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.66",
+        "dst": "198.51.100.66"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 42066,
+        "dst_port": 80
+       }
+      },
+      {
+       "http": {}
+      },
+      {
+       "doh": {
+        "sessions": [
+         {
+          "events": [
+           {
+            "kind": "query",
+            "dns_id": 4660,
+            "name": "www.example.com",
+            "qtype": "A",
+            "response": {
+             "status": 200,
+             "rcode": "NOERROR",
+             "answers": [
+              {
+               "name": "www.example.com",
+               "type": "A",
+               "ttl": 300,
+               "rdata": "192.0.2.1"
+              }
+             ]
+            }
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "doip": [
+   {
+    "protocol": "doip",
+    "case_id": "doip_s2_routing_activation",
+    "summary": "S2/T008+T009: TCP 握手 + 0x0005(SA=0x0E80,AT=0x00,PL=7) + 0x0006(RC=0x10,PL=9) + 挥手中 FIN×3 → 8 包",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.168.1.100",
+        "dst": "192.168.1.200"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 0
+       }
+      },
+      {
+       "doip": {
+        "tester_address": 3712,
+        "logical_address": 1,
+        "activation": {
+         "direction": "up",
+         "activation_type": 0,
+         "response_code": 16
+        }
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "drda": [
+   {
+    "protocol": "drda",
+    "case_id": "drda_excsat",
+    "summary": "T-DRDA-001/S1：TCP 446 与 EXCSAT→EXCSATRD 关联建立",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345
+       }
+      },
+      {
+       "drda": {
+        "association": "excsat",
+        "correlator_start": 1,
+        "ccsid": 1208
+       }
+      }
+     ],
+     "flow_control": {
+      "flows": 1
+     }
+    }
+   }
+  ],
+  "dtls": [
+   {
+    "protocol": "dtls",
+    "case_id": "dtls_ipv4_v12_basic",
+    "summary": "IPv4/UDP 4433 DTLS 1.2 握手+应用+关闭基线",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "198.51.100.63",
+        "src": "192.0.2.63"
+       }
+      },
+      {
+       "udp": {
+        "dst_port": 4433,
+        "src_port": 44330
+       }
+      },
+      {
+       "dtls": {
+        "sessions": [
+         {
+          "events": [
+           {
+            "handshake": {
+             "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000000002002F0100",
+             "type": 1
+            },
+            "kind": "handshake",
+            "up": true
+           },
+           {
+            "handshake": {
+             "body": "FEFD000000000000000000000000000000000000000000000000000000000000000000002F00",
+             "type": 2
+            },
+            "kind": "handshake",
+            "up": false
+           },
+           {
+            "handshake": {
+             "body": "000000",
+             "type": 11
+            },
+            "kind": "handshake",
+            "up": false
+           },
+           {
+            "handshake": {
+             "body": "0030414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141",
+             "type": 16
+            },
+            "kind": "handshake",
+            "up": true
+           },
+           {
+            "kind": "ccs",
+            "up": true
+           },
+           {
+            "kind": "ccs",
+            "up": false
+           },
+           {
+            "ciphertext_len": 16,
+            "epoch": 1,
+            "kind": "appdata",
+            "up": true
+           },
+           {
+            "ciphertext_len": 16,
+            "epoch": 1,
+            "kind": "appdata",
+            "up": false
+           },
+           {
+            "ciphertext_len": 8,
+            "epoch": 1,
+            "kind": "appdata",
+            "up": true
+           },
+           {
+            "ciphertext_len": 8,
+            "epoch": 1,
+            "kind": "appdata",
+            "up": false
+           },
+           {
+            "ciphertext_len": 2,
+            "epoch": 1,
+            "kind": "alert",
+            "up": true
+           },
+           {
+            "ciphertext_len": 2,
+            "epoch": 1,
+            "kind": "alert",
+            "up": false
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "edp": [
+   {
+    "protocol": "edp",
+    "case_id": "edp_connreq_devid_ipv4",
+    "summary": "方式 1 连接 + CONNRESP rtn=0，IPv4 单流基线",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.72",
+        "dst": "198.51.100.72"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 41072,
+        "dst_port": 4472
+       }
+      },
+      {
+       "edp": {
+        "sessions": [
+         {
+          "events": [
+           {
+            "kind": "connect",
+            "auth": "devid",
+            "keep_time": 128,
+            "devid": "123456789",
+            "apikey": "kJ8mQ2xV"
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "enip": [
+   {
+    "protocol": "enip",
+    "case_id": "enip_nop_heartbeat",
+    "summary": "S1/T-002: NOP keepalive 4-byte payload DE AD BE EF, 1 TCP packet, ENIP Length=4, SessionHandle=0x12345678, SenderContext fixed 0",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 44818
+       }
+      },
+      {
+       "enip": {
+        "transport": "tcp",
+        "commands": [
+         {
+          "command": 0,
+          "session_handle": 305419896,
+          "payload": [
+           222,
+           173,
+           190,
+           239
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "ethmining": [
+   {
+    "protocol": "ethmining",
+    "case_id": "ethmining_subscribe_ipv4",
+    "summary": "IPv4 baseline: subscribe request/response",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "198.51.100.73",
+        "src": "192.0.2.73"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 4444,
+        "src_port": 4073
+       }
+      },
+      {
+       "ethmining": {
+        "sessions": [
+         {
+          "events": [
+           {
+            "extranonce": "080c",
+            "id": 1,
+            "kind": "subscribe",
+            "protocol": "EthereumStratum/1.0.0",
+            "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+            "user_agent": "MinerName/1.0.0"
+           }
+          ],
+          "src_port": 4073
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "fins": [
+   {
+    "protocol": "fins",
+    "case_id": "fins_udp_dm_read",
+    "summary": "T-001: FINS/UDP 内存区读-响应往返（DM D100 读 2 字），请求 ICF=0x81/响应 ICF=0xC1，SID=0x01 回显，10.0.0.1:1234\u003c-\u003e20.0.0.1:9600",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 1234,
+        "dst_port": 9600
+       }
+      },
+      {
+       "fins": {
+        "transport": "udp",
+        "commands": [
+         {
+          "command": 257,
+          "memory_area": "dm",
+          "address": 100,
+          "items": 2
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "ftp": [
+   {
+    "protocol": "ftp",
+    "case_id": "ftp_multiflow_data",
+    "summary": "多流×数据通道组合：flows=3 每流 PASV+RETR 含独立数据通道（端口逐流隔离）",
+    "config": {
+     "layers": [
+      {
+       "tcp": {}
+      },
+      {
+       "ftp": {
+        "sessions": [
+         {
+          "transactions": [
+           {
+            "commands": [
+             {
+              "cmd": "PASS p",
+              "response": "230"
+             },
+             {
+              "cmd": "PASV",
+              "response": "227 Entering Passive Mode (20,0,0,1,195,106)"
+             },
+             {
+              "cmd": "RETR /f.bin",
+              "response": "150",
+              "emit_data_channel": true
+             },
+             {
+              "cmd": "",
+              "response": "226"
+             },
+             {
+              "cmd": "QUIT",
+              "response": "221"
+             }
+            ],
+            "data_channel": {
+             "mode": "passive",
+             "direction": "down",
+             "payload": "DATA"
+            }
+           }
+          ],
+          "src_port": {
+           "strategy": "inc",
+           "range": [
+            12345,
+            12347
+           ]
+          }
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "gbt": [
+   {
+    "protocol": "gbt",
+    "case_id": "gbt_template_ipv4_8332",
+    "summary": "IPv4/TCP/HTTP 8332 baseline: getblocktemplate + 18-key template",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.77",
+        "dst": "198.51.100.77"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 4077,
+        "dst_port": 8332
+       }
+      },
+      {
+       "http": {}
+      },
+      {
+       "gbt": {
+        "sessions": [
+         {
+          "role": "miner",
+          "auth": {
+           "user": "user",
+           "pass": "pass"
+          },
+          "events": [
+           {
+            "kind": "request",
+            "id": 1,
+            "method": "getblocktemplate",
+            "params": []
+           },
+           {
+            "kind": "response",
+            "result_kind": "template",
+            "template": "full"
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "gbt32960": [
+   {
+    "protocol": "gbt32960",
+    "case_id": "gbt_t001_login_full",
+    "summary": "T-GBT-001/005/007: 车辆登入完整流 — 握手 + 0x01(23 23 01 FE+VIN+len 00 1F+BCD 时间+流水号 00 01+SIM 补零+n=1 m=1) + 0x0C 确认 + 0x04 登出 + 挥手，10 包",
+    "config": {
+     "layers": [
+      {
+       "tcp": {}
+      },
+      {
+       "gbt32960": {
+        "role": "vehicle",
+        "vin": "LXXXXXXXXXXXXXXX1",
+        "sim": "13800138000",
+        "login_time": "2026-08-03T14:30:00+08:00",
+        "login_serial_number": 1,
+        "rechargeable_subsys_count": 1,
+        "rechargeable_subsys_code_length": 1,
+        "rechargeable_subsys_codes": [
+         "00"
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "geneve": [
+   {
+    "protocol": "geneve",
+    "case_id": "geneve_ipv4_outer_ipv4_inner",
+    "summary": "IPv4 outer/UDP 6081 + Ethernet/IPv4 inner: fixed 8-byte base header, VNI 5000",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.10",
+        "dst": "198.51.100.10"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 40110,
+        "dst_port": 6081
+       }
+      },
+      {
+       "geneve": {
+        "vni": 5000,
+        "inner": {
+         "src_mac": "02:00:00:00:31:01",
+         "dst_mac": "02:00:00:00:31:02",
+         "ether_type": "ipv4",
+         "src_ip": "10.31.0.1",
+         "dst_ip": "10.31.0.2",
+         "payload_b64": "Z2VuZXZlLWlubmVyLTAx"
+        }
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "getwork": [
+   {
+    "protocol": "getwork",
+    "case_id": "getwork_request_ipv4_8332",
+    "summary": "baseline apply transaction over IPv4/TCP/HTTP 8332 (id-paired)",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.76",
+        "dst": "198.51.100.76"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 4076,
+        "dst_port": 8332
+       }
+      },
+      {
+       "http": {}
+      },
+      {
+       "getwork": {
+        "sessions": [
+         {
+          "role": "miner",
+          "events": [
+           {
+            "kind": "request",
+            "id": 1,
+            "method": "getwork"
+           },
+           {
+            "kind": "response",
+            "result_kind": "work"
+           }
+          ],
+          "auth": {
+           "user": "user",
+           "pass": "pass"
+          }
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "gnutella": [
+   {
+    "protocol": "gnutella",
+    "case_id": "gnutella_handshake_ipv4",
+    "summary": "S1: TCP/IPv4 6346 CONNECT/0.6→200 OK 握手与能力头（键序稳定）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.53",
+        "dst": "198.51.100.53"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 42059,
+        "dst_port": 6346
+       }
+      },
+      {
+       "gnutella": {
+        "connections": [
+         {
+          "src_port": 42059,
+          "events": [
+           {
+            "kind": "connect"
+           },
+           {
+            "kind": "ok"
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "goose": [
+   {
+    "protocol": "goose",
+    "case_id": "goose_heartbeat",
+    "summary": "T-GSE-S1-01/02 static heartbeat: 3 frames, stNum constant 1, sqNum 1/2/3 incrementing, appid 0x1000, confRev 1, TAL 500, numDatSetEntries 3, no IP (L2-direct 0x88b8)",
+    "config": {
+     "layers": [
+      {
+       "eth": {
+        "src_mac": "aa:bb:cc:dd:ee:01"
+       }
+      },
+      {
+       "goose": {
+        "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+        "conf_rev": 1,
+        "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+        "tal_ms": 500,
+        "appid": 4096,
+        "test": false,
+        "nds_com": false,
+        "vlan_enabled": false,
+        "dst_mac": "01:0c:cd:01:02:03",
+        "data": [
+         {
+          "name": "pos",
+          "type": "int32",
+          "value": 1234
+         },
+         {
+          "name": "tm",
+          "type": "binary_time"
+         },
+         {
+          "name": "rate",
+          "type": "int32",
+          "value": 5678
+         }
+        ],
+        "count": 3
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "gre": [
+   {
+    "protocol": "gre",
+    "case_id": "gre_key",
+    "summary": "key K 位与值（T-GRE-10）：key=0x12345678，K 位置位（flags 0x2000）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "gre": {
+        "key": 305419896
+       }
+      },
+      {
+       "ip": {
+        "src": "192.168.1.1",
+        "dst": "192.168.1.2"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 12345,
+        "dst_port": 80
+       }
+      },
+      {
+       "dns": {}
+      }
+     ]
+    }
+   }
+  ],
+  "grpc": [
+   {
+    "protocol": "grpc",
+    "case_id": "grpc-basic-call",
+    "summary": "gRPC (端口 80, HTTP/2) 冒烟：完整 TCP 握手 + HTTP/2 SETTINGS/HEADERS/DATA/GOAWAY + 终止",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 80
+       }
+      },
+      {
+       "grpc": {
+        "service": "svc",
+        "method": "m"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "gtp": [
+   {
+    "protocol": "gtp",
+    "case_id": "gtp_smoke_01",
+    "summary": "冒烟：GTP-U T-PDU（空配置默认数据面，mode=u）。顶层不设端口 → 内外层均默认 2152（IANA），GTP 头 v1/TEID=0，共 1 包",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 2152,
+        "dst_port": 2152
+       }
+      },
+      {
+       "gtp": {}
+      }
+     ]
+    }
+   }
+  ],
+  "h323": [
+   {
+    "protocol": "h323",
+    "case_id": "h323_smoke_01",
+    "summary": "冒烟：full 场景呼叫周期（握手+Q.931 十消息+挥手），地址住 ip 层、端口住 h323 层",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "h323": {
+        "src_port": 12345,
+        "dst_port": 1720
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "hds": [
+   {
+    "protocol": "hds",
+    "case_id": "hds_manifest_ipv4",
+    "summary": "HDS F4M manifest over IPv4 HTTP（D-HDS-1 迁层：业务住 layers[].hds） | pending-suite（先跑后钉：断言/包数沿设计 §8 契约值，P5 suite 复核）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.47",
+        "dst": "198.51.100.47"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 41000,
+        "dst_port": 80
+       }
+      },
+      {
+       "http": {}
+      },
+      {
+       "hds": {
+        "profile": "hds_http1",
+        "keep_alive": true,
+        "manifest": {
+         "id": "channel-1",
+         "stream_type": "live",
+         "uri": "/live/channel.f4m",
+         "media": [
+          {
+           "stream_id": "main",
+           "href": "channel",
+           "bitrate": 800,
+           "bootstrap_info_id": "b0",
+           "fragments": [
+            {
+             "segment": 1,
+             "fragment": 1,
+             "timestamp": 0,
+             "duration": 2000,
+             "body": "AAAA"
+            }
+           ]
+          }
+         ],
+         "bootstrap_infos": [
+          {
+           "id": "b0",
+           "profile": "named",
+           "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
+          }
+         ]
+        },
+        "sessions": [
+         {
+          "kind": "manifest",
+          "uri": "/live/channel.f4m"
+         }
+        ]
+       }
+      }
+     ],
+     "flow_control": {
+      "flows": 1
+     }
+    }
+   }
+  ],
+  "hl7": [
+   {
+    "protocol": "hl7",
+    "case_id": "hl7_adt_a01_ipv4",
+    "summary": "ADT^A01 baseline: MSH/EVN/PID/PV1 + auto ACK",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.68",
+        "dst": "198.51.100.68"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 42680,
+        "dst_port": 2575
+       }
+      },
+      {
+       "hl7": {
+        "sessions": [
+         {
+          "events": [
+           {
+            "kind": "msg",
+            "direction": "c2s",
+            "message_type": "ADT^A01^ADT_A01",
+            "segments": [
+             {
+              "name": "EVN",
+              "fields": [
+               "A01",
+               "20260901083045",
+               ""
+              ]
+             },
+             {
+              "name": "PID",
+              "fields": [
+               "1",
+               "",
+               "PAT001^^^HOSP^MR",
+               "",
+               "DOE^JOHN^A",
+               "",
+               "19800101",
+               "M"
+              ]
+             },
+             {
+              "name": "PV1",
+              "fields": [
+               "1",
+               "I",
+               "WARD^ICU^B101"
+              ]
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "hls": [
+   {
+    "protocol": "hls",
+    "case_id": "hls_master_basic_ipv4",
+    "summary": "HLS master playlist over IPv4 HTTP",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.10",
+        "dst": "198.51.100.20"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 40000,
+        "dst_port": 80
+       }
+      },
+      {
+       "http": {}
+      },
+      {
+       "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+         {
+          "kind": "master",
+          "uri": "/live/master.m3u8",
+          "variants": [
+           {
+            "uri": "/live/low.m3u8",
+            "bandwidth": 800000,
+            "resolution": "640x360"
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "http": [
+   {
+    "protocol": "http",
+    "case_id": "http_get_baseline",
+    "summary": "GET 基线：单事务请求/响应，Host 自动、Connection close（T-HTTP-7）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.10",
+        "dst": "198.51.100.20"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 40010,
+        "dst_port": 80
+       }
+      },
+      {
+       "http": {
+        "method": "GET",
+        "uri": "/",
+        "version": "1.1"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "http_flv": [
+   {
+    "protocol": "http_flv",
+    "case_id": "http_flv_get_header",
+    "summary": "IPv4/TCP GET request with URI, Host, HTTP/1.1",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.10",
+        "dst": "198.51.100.20"
+       }
+      },
+      {
+       "http": {
+        "method": "GET",
+        "uri": "/live/test.flv",
+        "version": "HTTP/1.1"
+       }
+      },
+      {
+       "http_flv": {}
+      }
+     ]
+    }
+   }
+  ],
+  "icmp": [
+   {
+    "protocol": "icmp",
+    "case_id": "icmp_t1_smoke",
+    "summary": "T-1 smoke 配对：缺省 ping 2 帧——ip.proto=1；icmp.type p1=8/p2=0；src/dst 换向",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "icmp": {}
+      }
+     ]
+    }
+   }
+  ],
+  "icmpv6": [
+   {
+    "protocol": "icmpv6",
+    "case_id": "icmpv6_smoke_01",
+    "summary": "冒烟：ICMPv6 Echo Request → 自动 Reply（IPv6 链路，地址住 ip 层）。type 128/129、code 0、id/seq 固定 1，共 2 包",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "2001:db8::1",
+        "dst": "2001:db8::2"
+       }
+      },
+      {
+       "icmpv6": {}
+      }
+     ]
+    }
+   }
+  ],
+  "iec104": [
+   {
+    "protocol": "iec104",
+    "case_id": "iec104_startdt_msp",
+    "summary": "STARTDT 激活后发送 M_SP_NA_1 单点遥信并以 S 帧确认",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.104.0.1",
+        "dst": "10.104.0.2"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 2404,
+        "src_port": 31001
+       }
+      },
+      {
+       "iec104": {
+        "common_address": 1,
+        "events": [
+         {
+          "direction": "up",
+          "kind": "startdt_act"
+         },
+         {
+          "direction": "down",
+          "kind": "startdt_con"
+         },
+         {
+          "direction": "up",
+          "kind": "i",
+          "type_id": 1,
+          "cause": 3,
+          "ioa": 1,
+          "siq": 1
+         },
+         {
+          "direction": "down",
+          "kind": "s",
+          "rx": 1
+         },
+         {
+          "direction": "up",
+          "kind": "stopdt_act"
+         },
+         {
+          "direction": "down",
+          "kind": "stopdt_con"
+         }
+        ]
+       }
+      }
+     ],
+     "flow_control": {
+      "flows": 1
+     }
+    }
+   }
+  ],
+  "igmp": [
+   {
+    "protocol": "igmp",
+    "case_id": "igmp_v1_general_query",
+    "summary": "v1 General Query",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "224.0.0.1",
+        "src": "192.0.2.10",
+        "ttl": 1
+       }
+      },
+      {
+       "igmp": {
+        "group": "0.0.0.0",
+        "kind": "query",
+        "max_response_time": 0,
+        "profile": "v1"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "ike": [
+   {
+    "protocol": "ike",
+    "case_id": "ike_smoke_01",
+    "summary": "冒烟：IKEv2 空配置 → standard_v2（IKE_SA_INIT + IKE_AUTH 各一对）。显式 src_port=12345（客户端临时端口，planner 禁止 500 作源端口），dst 默认 500，共 4 包",
+    "config": {
+     "layers": [
+      {
+       "udp": {
+        "src_port": 12345
+       }
+      },
+      {
+       "ike": {}
+      }
+     ]
+    }
+   }
+  ],
+  "ike_nat_t": [
+   {
+    "protocol": "ike_nat_t",
+    "case_id": "ike_nat_t_sa_init_header_only",
+    "summary": "smoke: IKEv2 SA_INIT initiator header-only message (no payloads) over UDP 500; tshark auto-parses isakmp; no Non-ESP marker since dst != 4500",
+    "config": {
+     "layers": [
+      {
+       "udp": {
+        "dst_port": 500
+       }
+      },
+      {
+       "ike_nat_t": {
+        "dialog": [
+         {
+          "direction": "up",
+          "exchange_type": 34
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "imap": [
+   {
+    "protocol": "imap",
+    "case_id": "imap_t001_default_session",
+    "summary": "T-001: 默认会话冒烟",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 14000,
+        "dst_port": 143
+       }
+      },
+      {
+       "imap": {
+        "banner": "* OK IMAP ready",
+        "commands": [
+         {
+          "tag": "A001",
+          "cmd": "LOGIN alice secret",
+          "responses": [
+           "A001 OK LOGIN completed"
+          ]
+         },
+         {
+          "tag": "A002",
+          "cmd": "LIST \"\" \"*\"",
+          "responses": [
+           "* LIST (\\Inbox) \"\" INBOX",
+           "A002 OK LIST completed"
+          ]
+         },
+         {
+          "tag": "A003",
+          "cmd": "LOGOUT",
+          "responses": [
+           "* BYE Logging out",
+           "A003 OK LOGOUT completed"
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "isis": [
+   {
+    "protocol": "isis",
+    "case_id": "isis_l1_iih_llc",
+    "summary": "LLC L1 LAN IIH with Area TLV",
+    "config": {
+     "layers": [
+      {
+       "eth": {
+        "src_mac": "02:00:00:00:10:01"
+       }
+      },
+      {
+       "isis": {
+        "holding_timer": 30,
+        "lan_id": "01020304050601",
+        "level": "l1",
+        "pdu_type": "lan_hello",
+        "priority": 100,
+        "system_id": "0102.0304.0506",
+        "tlvs": [
+         {
+          "type": 1,
+          "value_hex": "03 49 00 01"
+         }
+        ],
+        "wire_profile": "iso10589_llc"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "jt808": [
+   {
+    "protocol": "jt808",
+    "case_id": "jt808_t1_baseline_assoc",
+    "summary": "T-1 基线关联：3 握手+4 消息+3 挥手=10 帧；msgId 序 0100/8100/0102/8001；双 SN 空间 0/0→1/1",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "jt808": {
+        "phone": "012345678901",
+        "auth_code": "ABCDEF1234567890",
+        "procedures": [
+         {
+          "type": "register"
+         },
+         {
+          "type": "registration_response"
+         },
+         {
+          "type": "auth"
+         },
+         {
+          "type": "platform_general_response"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "jt809": [
+   {
+    "protocol": "jt809",
+    "case_id": "jt809_t1_baseline",
+    "summary": "T-1 基线关联：主链 3 握手+2 消息（0x1001/0x1003）+3 挥手=8 帧；首帧 5B 起 5D 止",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "jt809": {
+        "gnss_center_id": 291,
+        "initial_sn": 100,
+        "procedures": [
+         {
+          "type": "main_login"
+         },
+         {
+          "type": "main_logout"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "jtt905": [
+   {
+    "protocol": "jtt905",
+    "case_id": "jtt905_t1_baseline",
+    "summary": "T-1 基线关联：自动会话 签到→应答→心跳→应答→签退→应答；3 握手+6 消息+3 挥手=12 帧；MsgId 序 0B03/8001/0002/8001/0B04/8001",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "jtt905": {
+        "isu_id": "103456789012",
+        "initial_sn": 100,
+        "heartbeat_count": 1
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "kerberos": [
+   {
+    "protocol": "kerberos",
+    "case_id": "kerberos_ipv4_udp_as_basic",
+    "summary": "IPv4/UDP 88 AS 交换（preauth 轮回 kinit 形态）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "198.51.100.59",
+        "src": "192.0.2.59"
+       }
+      },
+      {
+       "udp": {
+        "dst_port": 88,
+        "src_port": 40159
+       }
+      },
+      {
+       "kerberos": {
+        "sessions": [
+         {
+          "events": [
+           {
+            "kind": "as_req",
+            "up": true
+           },
+           {
+            "error_code": 7,
+            "kind": "krb_error",
+            "up": false
+           },
+           {
+            "kind": "as_req",
+            "padata": [
+             {
+              "type": 2,
+              "value_len": 4
+             }
+            ],
+            "up": true
+           },
+           {
+            "kind": "as_rep",
+            "up": false
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "l2tp": [
+   {
+    "protocol": "l2tp",
+    "case_id": "l2tp_smoke_01",
+    "summary": "冒烟：L2TPv2 tunnel_with_data。顶层不设端口 → dst 默认 1701（IANA）、src 保持 flow 默认 12345；建隧道 SCCRQ/SCCRP/SCCCN + ICRQ/ICRP/ICCN + PPP 数据帧 + StopCCN，共 8 包",
+    "config": {
+     "layers": [
+      {
+       "l2tp": {
+        "scenario": "tunnel_with_data"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "ldap": [
+   {
+    "protocol": "ldap",
+    "case_id": "ldap_session_full",
+    "summary": "T-1 全会话（smoke 改写，等价覆盖）：握手3+bindReq/bindResp+searchReq/entry/done+unbind+挥手4=12 包；protocolOp 六标签逐帧",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "ldap": {}
+      }
+     ]
+    }
+   }
+  ],
+  "ldp": [
+   {
+    "protocol": "ldp",
+    "case_id": "ldp_tcp_initialization",
+    "summary": "S1: TCP/646 session Initialization in both directions",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.1",
+        "dst": "192.0.2.2"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 50000,
+        "dst_port": 646
+       }
+      },
+      {
+       "ldp": {
+        "wire_profile": "ldp_rfc5036_ipv4_basic",
+        "carrier": "tcp_session",
+        "events": [
+         {
+          "kind": "initialization",
+          "direction": "c2s",
+          "message_id": 10,
+          "lsr_id": "192.0.2.1",
+          "receiver_lsr_id": "192.0.2.2"
+         },
+         {
+          "kind": "initialization",
+          "direction": "s2c",
+          "message_id": 20,
+          "lsr_id": "192.0.2.2",
+          "receiver_lsr_id": "192.0.2.1"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "mcp": [
+   {
+    "protocol": "mcp",
+    "case_id": "mcp_tpos1_stdio_initialize",
+    "summary": "T-POS-1/§6.2: stdio 单会话默认流程（initialize→tools/list→tools/call→shutdown），13 包，行分隔 JSON",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 8081
+       }
+      },
+      {
+       "mcp": {
+        "transport": "stdio",
+        "requests": [
+         {
+          "method": "tools/list"
+         },
+         {
+          "method": "tools/call",
+          "params": {
+           "name": "ping"
+          }
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "mdns": [
+   {
+    "protocol": "mdns",
+    "case_id": "mdns_smoke_01",
+    "summary": "[chain] 冒烟：mDNS 查询（x.local A 记录）。顶层不设端口 → 双向均 5353（IANA），多播 224.0.0.251、IP TTL=255（RFC 6762 §11），共 1 包",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 5353
+       }
+      },
+      {
+       "mdns": {
+        "questions": [
+         {
+          "name": "x.local",
+          "type": 1
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "megaco": [
+   {
+    "protocol": "megaco",
+    "case_id": "megaco_udp_ipv4_registration",
+    "summary": "MG registration: SC(Restart,ROOT)+Services, Reply pairing",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.70",
+        "dst": "198.51.100.70"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 40700,
+        "dst_port": 2944
+       }
+      },
+      {
+       "megaco": {
+        "sessions": [
+         {
+          "role": "mg",
+          "mid": "[192.0.2.70]",
+          "peer_mid": "[198.51.100.70]",
+          "events": [
+           {
+            "kind": "message",
+            "direction": "c2s",
+            "transactions": [
+             {
+              "type": "request",
+              "id": "1",
+              "actions": [
+               {
+                "context": "-",
+                "commands": [
+                 {
+                  "name": "ServiceChange",
+                  "termination": "ROOT",
+                  "descriptor": {
+                   "services": {
+                    "method": "Restart",
+                    "reason": "901 Cold Boot",
+                    "profile": "ResGW/1"
+                   }
+                  }
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           },
+           {
+            "kind": "message",
+            "direction": "s2c",
+            "transactions": [
+             {
+              "type": "reply",
+              "id": "same_as_request:0",
+              "actions": [
+               {
+                "context": "-",
+                "commands": [
+                 {
+                  "name": "ServiceChange",
+                  "termination": "ROOT",
+                  "descriptor": {
+                   "services": {
+                    "profile": "ResGW/1"
+                   }
+                  }
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "mms": [
+   {
+    "protocol": "mms",
+    "case_id": "mms_connect_establish",
+    "summary": "MMS complete association: TCP handshake + COTP CR/CC + DT(SPDU/CP/AARQ/ACSE/MMS Initiate) both directions",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.88",
+        "dst": "198.51.100.88"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 102
+       }
+      },
+      {
+       "mms": {}
+      }
+     ]
+    }
+   }
+  ],
+  "mmse": [
+   {
+    "protocol": "mmse",
+    "case_id": "mmse_send_req_ipv4",
+    "summary": "m-send-req 必选集 + multipart 完整体（含 Sender-Visibility=Show）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.71",
+        "dst": "198.51.100.71"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 40710,
+        "dst_port": 80
+       }
+      },
+      {
+       "http": {}
+      },
+      {
+       "mmse": {
+        "profile": "mmse_http_v1",
+        "mms_version": "1.2",
+        "sessions": [
+         {
+          "role": "ua",
+          "events": [
+           {
+            "kind": "send_req",
+            "transaction_id": "auto",
+            "from": {
+             "address": "+8613800138000/TYPE=PLMN"
+            },
+            "to": [
+             "+8613911223344/TYPE=PLMN"
+            ],
+            "content": {
+             "kind": "multipart_related",
+             "start": "\u003csmil.smil\u003e",
+             "type": "application/smil",
+             "parts": [
+              {
+               "content_type": "application/smil",
+               "content_id": "\u003csmil.smil\u003e",
+               "data_b64": "PHNtaWw+Li4uPC9zbWlsPg=="
+              },
+              {
+               "content_type": "text/plain",
+               "charset": 106,
+               "name": "text_1.txt",
+               "content_id": "\u003ctext_1.txt\u003e",
+               "content_location": "text_1.txt",
+               "data_b64": "SGVsbG8gTU1TRSB3b3JsZA=="
+              }
+             ]
+            },
+            "date": 1725000000,
+            "message_class": "personal",
+            "priority": "normal",
+            "sender_visibility": "show",
+            "delivery_report": true,
+            "read_reply": true,
+            "expiry": {
+             "relative": 3600
+            }
+           },
+           {
+            "kind": "send_conf",
+            "transaction_id": "auto",
+            "response_status": "ok",
+            "message_id": "auto"
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "modbus": [
+   {
+    "protocol": "modbus",
+    "case_id": "modbus-addr-0-min",
+    "summary": "T-133: StartingAddress=0x0000 最小地址边界 FC=0x03",
+    "config": {
+     "layers": [
+      {
+       "eth": {
+        "src_mac": "02:00:00:00:00:01",
+        "dst_mac": "02:00:00:00:00:02"
+       }
+      },
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 502
+       }
+      },
+      {
+       "modbus": {
+        "unit_id": 1,
+        "transactions": [
+         {
+          "function_code": 3,
+          "starting_address": 0,
+          "quantity": 1
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "mongodb": [
+   {
+    "protocol": "mongodb",
+    "case_id": "mongodb_query_reply",
+    "summary": "S1: OP_QUERY followed by OP_REPLY with responseTo correlation",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345
+       }
+      },
+      {
+       "mongodb": {
+        "messages": [
+         {
+          "request_id": 100,
+          "response_to": 0,
+          "opcode": "OP_QUERY",
+          "namespace": "test.users",
+          "flags": 0,
+          "skip": 0,
+          "return_count": 1,
+          "query": {
+           "x": 1
+          }
+         },
+         {
+          "request_id": 101,
+          "response_to": 100,
+          "opcode": "OP_REPLY",
+          "flags": 0,
+          "cursor_id": 0,
+          "starting_from": 0,
+          "returned": 1,
+          "documents": [
+           {
+            "x": 1
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ],
+     "flow_control": {
+      "flows": 1
+     }
+    }
+   }
+  ],
+  "moxa": [
+   {
+    "protocol": "moxa",
+    "case_id": "moxa_single_up",
+    "summary": "S1/T-MOXA-S1-01: 单向上行 \"hello\"，8 包 = 3 握手 + 1 数据 + 4 挥手（事件模式无单独 ACK）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 4800
+       }
+      },
+      {
+       "moxa": {
+        "stream": [
+         {
+          "payload": "hello"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "mpls": [
+   {
+    "protocol": "mpls",
+    "case_id": "mpls_single_label_ipv4",
+    "summary": "冒烟：单标签栈（label 100/TTL 64）内层 IPv4/UDP 单帧；地址 ip 层、端口 mpls 层（存量等价迁移）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "mpls": {
+        "src_port": 12345,
+        "dst_port": 80,
+        "labels": [
+         {
+          "label": 100
+         }
+        ],
+        "inner_payload": "probe"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "mqtt": [
+   {
+    "protocol": "mqtt",
+    "case_id": "mqtt_s1_connect_basic",
+    "summary": "S1/T-181: 3.1.1 CONNECT/CONNACK 基础连接(9 包：3 握手+CONNECT+CONNACK+DISCONNECT+3 挥手, 实现实际包数)",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {}
+      },
+      {
+       "mqtt": {
+        "client_id": "c1",
+        "keep_alive": 60,
+        "clean_session": true
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "mysql": [
+   {
+    "protocol": "mysql",
+    "case_id": "mysql-basic-session",
+    "summary": "MySQL (端口 3306) 冒烟：完整 TCP 握手 + 服务器问候 (8.0.36) + 登录请求 + OK 响应 + 终止",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 3306
+       }
+      },
+      {
+       "mysql": {}
+      }
+     ]
+    }
+   }
+  ],
+  "nfs": [
+   {
+    "protocol": "nfs",
+    "case_id": "nfs_t001_v3_null_mount",
+    "summary": "T-001/T-021: NFSv3 NULL (proc=0) 无 Program 显式 → 自动插入 MOUNT(proc1) + NULL + UMOUNT(proc3)，3 次 RPC 往返；TCP 3-way + 6 数据帧 + 3 挥手 = 12 包",
+    "config": {
+     "layers": [
+      {
+       "tcp": {}
+      },
+      {
+       "nfs": {
+        "version": 3,
+        "ops": [
+         {
+          "procedure": 0
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "ngap": [
+   {
+    "protocol": "ngap",
+    "case_id": "ngap_sctp_setup_basic",
+    "summary": "冒烟：SCTP 4路握手+NGSetup对+3路拆链=最小9包（存量等价迁移）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "ngap": {
+        "src_port": 12345,
+        "dst_port": 38412
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "nmea": [
+   {
+    "protocol": "nmea",
+    "case_id": "nmea_tcp_ipv4_stream",
+    "summary": "TCP single-session GGA+RMC two-sentence stream",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.69",
+        "dst": "198.51.100.69"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 40069,
+        "dst_port": 10110
+       }
+      },
+      {
+       "nmea": {
+        "sessions": [
+         {
+          "events": [
+           {
+            "kind": "sentence",
+            "talker": "GP",
+            "type": "GGA",
+            "fields": [
+             "123519.00",
+             "4807.038",
+             "N",
+             "01131.000",
+             "E",
+             "1",
+             "08",
+             "0.9",
+             "545.4",
+             "M",
+             "46.9",
+             "M",
+             "",
+             ""
+            ]
+           },
+           {
+            "kind": "sentence",
+            "talker": "GP",
+            "type": "RMC",
+            "fields": [
+             "123519.00",
+             "A",
+             "4807.038",
+             "N",
+             "01131.000",
+             "E",
+             "022.4",
+             "084.4",
+             "230394",
+             "003.1",
+             "W",
+             "A"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "ntlm": [
+   {
+    "protocol": "ntlm",
+    "case_id": "ntlm_smb_ipv4_v2_basic",
+    "summary": "P-SMB IPv4/TCP/445 Type 1→2→3 + STATUS_SUCCESS（NTLMv2）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "198.51.100.60",
+        "src": "192.0.2.60"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 445,
+        "src_port": 45600
+       }
+      },
+      {
+       "ntlm": {
+        "profile": "smb2",
+        "sessions": [
+         {
+          "events": [
+           {
+            "kind": "negotiate"
+           },
+           {
+            "kind": "challenge"
+           },
+           {
+            "kind": "authenticate"
+           },
+           {
+            "kind": "session_setup_success"
+           }
+          ],
+          "id": "s1"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "ntp": [
+   {
+    "protocol": "ntp",
+    "case_id": "ntp_smoke_01",
+    "summary": "[chain] 冒烟：NTPv4 client 请求（空配置）。顶层不设端口 → 默认 dst 123（IANA），VN=4/Mode=3/Stratum=0，共 1 包",
+    "config": {
+     "layers": [
+      {
+       "udp": {}
+      },
+      {
+       "ntp": {}
+      }
+     ]
+    }
+   }
+  ],
+  "nvgre": [
+   {
+    "protocol": "nvgre",
+    "case_id": "nvgre_basic_ipv4_inner_ipv4",
+    "summary": "outer IPv4/47 GRE + TEB + inner Ethernet/IPv4: flags 0x2000, protocol 0x6558, key, inner MAC/EtherType/IP",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.10",
+        "dst": "198.51.100.10"
+       }
+      },
+      {
+       "nvgre": {
+        "vsid": 1000,
+        "flow_id": 1,
+        "inner": {
+         "src_mac": "02:aa:00:00:00:01",
+         "dst_mac": "02:bb:00:00:00:01",
+         "ether_type": "ipv4",
+         "src_ip": "172.16.1.1",
+         "dst_ip": "172.16.1.2",
+         "payload_b64": "bnZncmUtaW5uZXItMDE="
+        }
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "ocsp": [
+   {
+    "protocol": "ocsp",
+    "case_id": "ocsp_tcp_record_framing",
+    "summary": "裸 TCP 整 DER：无私有长度前缀，响应 DER 跨 segment 按父长度重组",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "198.51.100.62",
+        "src": "192.0.2.62"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 8080,
+        "mss": 536,
+        "src_port": 42062
+       }
+      },
+      {
+       "ocsp": {
+        "profile": "tcp",
+        "request_count": 6,
+        "sessions": [
+         {
+          "id": "s1",
+          "transactions": [
+           {
+            "id": "t1"
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "onvif": [
+   {
+    "protocol": "onvif",
+    "case_id": "onvif_ipv4_get_system_date_and_time",
+    "summary": "POST/IPv4 plaintext single-flow baseline (PRE_AUTH, envelope/headers full)",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.67",
+        "dst": "198.51.100.67"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 40067,
+        "dst_port": 80
+       }
+      },
+      {
+       "http": {}
+      },
+      {
+       "onvif": {
+        "sessions": [
+         {
+          "events": [
+           {
+            "kind": "request",
+            "service": "device",
+            "operation": "GetSystemDateAndTime",
+            "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+            "response": {
+             "http_status": 200,
+             "system_date_and_time": {
+              "utc_date_time": "2026-09-01T00:00:00Z"
+             }
+            }
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "opcua": [
+   {
+    "protocol": "opcua",
+    "case_id": "opcua_hello_ack",
+    "summary": "OPC UA transport handshake: HEL/ACK with an empty EndpointUrl",
+    "config": {
+     "layers": [
+      {
+       "tcp": {
+        "dst_port": 4840,
+        "initial_seq": 100000
+       }
+      },
+      {
+       "opcua": {
+        "security_mode": "none",
+        "close": true
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "openvpn": [
+   {
+    "protocol": "openvpn",
+    "case_id": "openvpn_udp1194_reset_data",
+    "summary": "smoke: OpenVPN UDP 1194: P_CONTROL_HARD_RESET_CLIENT_V2 (frame 1) + SERVER_V2 (frame 2) + 10 P_DATA_V2 (frames 3-12); sessionid persists across the dialog",
+    "config": {
+     "layers": [
+      {
+       "udp": {}
+      },
+      {
+       "openvpn": {}
+      }
+     ],
+     "flow_control": {
+      "flows": 1
+     }
+    }
+   }
+  ],
+  "openwire": [
+   {
+    "protocol": "openwire",
+    "case_id": "openwire_wire_format_ipv4",
+    "summary": "S1: IPv4/TCP 61616 建连后首 command 为 WireFormatInfo（版本12、协商 options）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.10",
+        "dst": "198.51.100.20"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 40001,
+        "dst_port": 61616
+       }
+      },
+      {
+       "openwire": {
+        "profile": "activemq_openwire_v12",
+        "connections": [
+         {
+          "connection_id": 1,
+          "client_id": "client-a",
+          "src_port": 40001,
+          "events": [
+           {
+            "kind": "wire_format_info",
+            "direction": "c2s"
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "ospf": [
+   {
+    "protocol": "ospf",
+    "case_id": "ospf_hello_dr_bdr",
+    "summary": "T-OSPF-S1: Hello with mask, timers, priority, DR/BDR and one neighbor (24B header + 20B body + 4B neighbor) ｜ pending-suite（先跑后钉：断言/包数沿 D-OSPF-1 §7 契约值，P5 suite 复核）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "224.0.0.5",
+        "src": "10.0.0.1",
+        "ttl": 1
+       }
+      },
+      {
+       "ospf": {
+        "area_id": "0.0.0.0",
+        "auth_type": 0,
+        "backup_designated_router": "10.0.0.3",
+        "checksum_mode": "auto",
+        "dead_interval": 40,
+        "designated_router": "10.0.0.2",
+        "hello_interval": 10,
+        "neighbors": [
+         "2.2.2.2"
+        ],
+        "network_mask": "255.255.255.0",
+        "options": 2,
+        "packet_type": "hello",
+        "priority": 1,
+        "profile": "rfc2328_ipv4",
+        "router_id": "1.1.1.1",
+        "version": 2
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "pcep": [
+   {
+    "protocol": "pcep",
+    "case_id": "pcep_open_keepalive",
+    "summary": "Open then explicit Keepalive",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.10",
+        "dst": "192.0.2.20"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 40000,
+        "dst_port": 4189
+       }
+      },
+      {
+       "pcep": {
+        "profile": "pcep_rfc5440_ipv4",
+        "events": [
+         {
+          "kind": "open",
+          "direction": "c2s",
+          "keepalive": 30,
+          "deadtime": 120,
+          "sid": 7
+         },
+         {
+          "kind": "open",
+          "direction": "s2c",
+          "keepalive": 30,
+          "deadtime": 120,
+          "sid": 8
+         },
+         {
+          "kind": "keepalive",
+          "direction": "c2s"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "pim": [
+   {
+    "protocol": "pim",
+    "case_id": "pim_sm_hello_holdtime",
+    "summary": "PIM-SM Hello with explicit Holdtime and interval",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "224.0.0.13",
+        "src": "192.0.2.1",
+        "ttl": 1
+       }
+      },
+      {
+       "pim": {
+        "checksum_mode": "auto",
+        "events": [
+         {
+          "direction": "c2s",
+          "dr_priority": 10,
+          "generation_id": "0x01020304",
+          "hello_interval": 30,
+          "holdtime": 105,
+          "kind": "hello"
+         }
+        ],
+        "profile": "pim_sm_rfc7761_ipv4"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "pop3": [
+   {
+    "protocol": "pop3",
+    "case_id": "pop3_t023_auth",
+    "summary": "T-023: AUTH 三机制",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 13000,
+        "dst_port": 110
+       }
+      },
+      {
+       "pop3": {
+        "banner": "+OK POP3 server ready",
+        "commands": [
+         {
+          "cmd": "AUTH PLAIN",
+          "response": "+ Ready for authentication"
+         },
+         {
+          "cmd": "AUTH LOGIN",
+          "response": "+ VXNlcm5hbWU6"
+         },
+         {
+          "cmd": "AUTH CRAM-MD5",
+          "response": "+ PDEyMzQ1 poseidon"
+         },
+         {
+          "cmd": "QUIT",
+          "response": "+OK bye"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "postgresql": [
+   {
+    "protocol": "postgresql",
+    "case_id": "kingbase_connect",
+    "summary": "postgresql dialect=kingbase — S1: TCP 54321 connect and normal termination",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345
+       }
+      },
+      {
+       "postgresql": {
+        "dialect": "kingbase",
+        "wire_profile": "kingbase_es_v8_pg_compatible",
+        "events": []
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "pppoe": [
+   {
+    "protocol": "pppoe",
+    "case_id": "pppoe_lifecycle_full",
+    "summary": "T-1 全生命周期（smoke 改写，等价覆盖+PADT 重校准 7→8）：[ip,pppoe{}] 空业务面→PADI/PADO/PADR/PADS(缺省ID1)/LCP req/ack/1×IPv4 data/PADT(0xa7,ID回显,up)。RFC 2516 §5+§5.6",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "pppoe": {}
+      }
+     ]
+    }
+   }
+  ],
+  "pptp": [
+   {
+    "protocol": "pptp",
+    "case_id": "pptp_full_session_ref",
+    "summary": "T-1 full 会话（smoke 改写，参考 pcap 逐字节）：SCCRQ/SCCRP/OCRQ/OCRP/SLI×5/CCRQ+CCDN 合并/CCDN/StopRQ/StopRP",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "pptp": {}
+      }
+     ]
+    }
+   }
+  ],
+  "radius": [
+   {
+    "protocol": "radius",
+    "case_id": "radius_smoke_01",
+    "summary": "冒烟（改写）：[ip,radius] 空业务面→1 轮 req(up)/rsp(down) 2 包。端口显式化 12345/1812（worker/缺省显式化，mpls 轮先例）；code1→2 auto、id 0 复刻、length 26/20、authenticator nonzero 全保留等价",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "radius": {
+        "src_port": 12345,
+        "dst_port": 1812
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "rdp": [
+   {
+    "protocol": "rdp",
+    "case_id": "rdp_tcp3389_x224_mcs",
+    "summary": "smoke: RDP over TCP 3389; X.224 connection request/confirm + MCS Connect Initial (27 frames incl. handshake and FIN); LBMSRS heuristic dissector claims frame 9-10 -\u003e decode_as echo forces data",
+    "config": {
+     "layers": [
+      {
+       "tcp": {}
+      },
+      {
+       "rdp": {}
+      }
+     ],
+     "flow_control": {
+      "flows": 1
+     }
+    }
+   }
+  ],
+  "redis": [
+   {
+    "protocol": "redis",
+    "case_id": "redis_ping_select_pong",
+    "summary": "smoke: RESP inline PING with auto_reply pong over TCP 6379; default SelectDB=0 emits SELECT 0 +OK first, then PING +PONG (handshake + 4 data frames + FIN)",
+    "config": {
+     "layers": [
+      {
+       "tcp": {}
+      },
+      {
+       "redis": {
+        "commands": [
+         {
+          "args": [
+           "PING"
+          ],
+          "auto_reply": "pong"
+         }
+        ]
+       }
+      }
+     ],
+     "flow_control": {
+      "flows": 1
+     }
+    }
+   }
+  ],
+  "rip": [
+   {
+    "protocol": "rip",
+    "case_id": "rip_tpos25_md5_authdatalen20",
+    "summary": "T-POS-25: MD5 AuthDataLen=20 passthrough, trailer 24B, digest placeholder 20B 0xAA, 68B payload",
+    "config": {
+     "layers": [
+      {
+       "udp": {}
+      },
+      {
+       "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+         {
+          "afi": 2,
+          "ip_addr": "10.0.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         }
+        ],
+        "auth": {
+         "type": "md5",
+         "key_id": 1,
+         "auth_data_len": 20,
+         "sequence_number": 12345
+        }
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "rtmfp": [
+   {
+    "protocol": "rtmfp",
+    "case_id": "rtmfp_handshake_ipv4",
+    "summary": "RTMFP IPv4 UDP handshake and session establishment",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "198.51.100.20",
+        "src": "192.0.2.10"
+       }
+      },
+      {
+       "udp": {
+        "dst_port": 1935,
+        "src_port": 40000
+       }
+      },
+      {
+       "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "role": "initiator",
+        "sessions": [
+         {
+          "events": [
+           {
+            "direction": "c2s",
+            "kind": "hello"
+           },
+           {
+            "direction": "s2c",
+            "kind": "hello_ack"
+           },
+           {
+            "direction": "s2c",
+            "kind": "cookie"
+           },
+           {
+            "direction": "c2s",
+            "kind": "session_confirm"
+           }
+          ],
+          "session_id": 1
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "rtmp": [
+   {
+    "protocol": "rtmp",
+    "case_id": "rtmp_play_session_full",
+    "summary": "T-1 play 全会话（smoke 改写，等价覆盖）：握手3+RTMP 握手（C0C1/S0S1S2/C2 按 MSS 分段）+connect→窗口三件套→createStream→play 命令序+挥手",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "rtmp": {}
+      }
+     ]
+    }
+   }
+  ],
+  "rtsp": [
+   {
+    "protocol": "rtsp",
+    "case_id": "rtsp_options_smoke",
+    "summary": "T-1 OPTIONS 冒烟（smoke 改写，等价覆盖）：握手3+OPTIONS req/resp+挥手4=9 包；控制通道 554",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "rtsp": {
+        "dialog": [
+         {
+          "method": "OPTIONS"
+         },
+         {
+          "status_code": 200,
+          "status_text": "OK"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "s7": [
+   {
+    "protocol": "s7",
+    "case_id": "s7_connect_setup_read",
+    "summary": "S3 模板: 完整会话 TCP握手-\u003eCR-\u003eCC-\u003eSetup(F0)-\u003eRead DB1.DBW0-\u003eRead Ack(0x1234), 逐包断言 COTP 无S7头 + setup + read",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 102
+       }
+      },
+      {
+       "s7": {
+        "transport": "tcp",
+        "sessions": 1,
+        "commands": [
+         {
+          "kind": "read",
+          "items": [
+           {
+            "area": 132,
+            "db_number": 1,
+            "address": 0,
+            "transport_size": 4,
+            "length": 1
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "sctp": [
+   {
+    "protocol": "sctp",
+    "case_id": "sctp_t1_baseline_assoc",
+    "summary": "T-1 基线关联：4 握手+3 关闭=7 帧，chunk_type 序 1/2/10/11/7/8/14",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "sctp": {
+        "src_port": 12345,
+        "dst_port": 5000
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "shadowsocks": [
+   {
+    "protocol": "shadowsocks",
+    "case_id": "shadowsocks_default_tcp",
+    "summary": "smoke: shadowsocks TCP mode (aes-256-gcm) over port 8388; salt (32B) then one AEAD chunk (34B); encrypted stream is random, only structural assertions",
+    "config": {
+     "layers": [
+      {
+       "tcp": {
+        "dst_port": 8388
+       }
+      },
+      {
+       "shadowsocks": {}
+      }
+     ],
+     "flow_control": {
+      "flows": 1
+     }
+    }
+   }
+  ],
+  "sip": [
+   {
+    "protocol": "sip",
+    "case_id": "sip_basic_dialog",
+    "summary": "冒烟：TCP 3握手+五消息dialog(INVITE/200/ACK/BYE/200)+4挥手=12包（存量等价迁移）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "sip": {
+        "src_port": 12001,
+        "dst_port": 5060,
+        "dialog": [
+         {
+          "method": "INVITE",
+          "uri": "sip:callee@20.0.0.1",
+          "headers": [
+           "From: \u003csip:caller@10.0.0.1\u003e",
+           "To: \u003csip:callee@20.0.0.1\u003e",
+           "Call-ID: sip1@10.0.0.1",
+           "CSeq: 1 INVITE"
+          ]
+         },
+         {
+          "status_code": 200,
+          "status_text": "OK"
+         },
+         {
+          "method": "ACK",
+          "uri": "sip:callee@20.0.0.1"
+         },
+         {
+          "method": "BYE",
+          "uri": "sip:callee@20.0.0.1"
+         },
+         {
+          "status_code": 200,
+          "status_text": "OK"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "smb": [
+   {
+    "protocol": "smb",
+    "case_id": "probe_explicit_close",
+    "summary": "probe: explicit single close, CLOSE exactly one pair",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.100",
+        "dst": "10.0.0.1"
+       }
+      },
+      {
+       "tcp": {}
+      },
+      {
+       "smb": {
+        "operations": [
+         {
+          "op_type": "close"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "smtp": [
+   {
+    "protocol": "smtp",
+    "case_id": "smtp-basic-session",
+    "summary": "SMTP (端口 25) 冒烟：完整 TCP 握手 + HELO/MAIL/RCPT/DATA/QUIT 命令对话 + 终止",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 25
+       }
+      },
+      {
+       "smtp": {}
+      }
+     ]
+    }
+   }
+  ],
+  "snmp": [
+   {
+    "protocol": "snmp",
+    "case_id": "snmp_smoke_01",
+    "summary": "[chain] 冒烟：SNMPv1 GET 单 OID（1.3.6.1.2.1.1.1.0）。顶层不设端口 → 默认 dst 161（IANA），community=public，共 1 包",
+    "config": {
+     "layers": [
+      {
+       "udp": {}
+      },
+      {
+       "snmp": {
+        "var_binds": [
+         {
+          "name": "1.3.6.1.2.1.1.1.0"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "socks5": [
+   {
+    "protocol": "socks5",
+    "case_id": "socks5-connect-basic",
+    "summary": "SOCKS5 (端口 1080) 冒烟：完整 TCP 握手 + 方法协商 → CONNECT 请求/响应 + 终止",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 1080
+       }
+      },
+      {
+       "socks5": {}
+      }
+     ]
+    }
+   }
+  ],
+  "someip": [
+   {
+    "protocol": "someip",
+    "case_id": "someip_req_resp",
+    "summary": "T-SOMEIP-REQ-01/S1: 方法调用 REQUEST(0x00) -\u003e autoResponse RESPONSE(0x80), payload de ad be ef, 同 SessionID/MessageID 配对, UDP 30490",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 12345,
+        "dst_port": 30490
+       }
+      },
+      {
+       "someip": {
+        "service_id": 4660,
+        "method_id": 1,
+        "client_id": 1,
+        "protocol_version": 1,
+        "interface_version": 1,
+        "message_type": "request",
+        "auto_response": true,
+        "payload": [
+         222,
+         173,
+         190,
+         239
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "spnego": [
+   {
+    "protocol": "spnego",
+    "case_id": "spnego_neg_token_targ_legacy",
+    "summary": "旧式 negTokenTarg：显式 init_targ 声明 + [0]negResult/[1]supportedMech/[2]responseToken 字段序",
+    "config": {
+     "flow_control": {
+      "flows": 1
+     },
+     "layers": [
+      {
+       "ip": {
+        "dst": "198.51.100.61",
+        "src": "192.0.2.61"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 445,
+        "src_port": 45061
+       }
+      },
+      {
+       "spnego": {
+        "mech_types": [
+         "1.2.840.113554.1.2.2",
+         "1.2.840.48018.1.2.2"
+        ],
+        "neg_result": 0,
+        "negotiation": "init_targ",
+        "profile": "tcp",
+        "sessions": [
+         {
+          "events": [
+           {
+            "kind": "init"
+           },
+           {
+            "kind": "targ"
+           }
+          ],
+          "id": "s1"
+         }
+        ],
+        "supported_mech": "1.2.840.48018.1.2.2"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "srv6": [
+   {
+    "protocol": "srv6",
+    "case_id": "srv6_bnd10_tlv_value_255",
+    "summary": "BND-10: TLV value 255 字节边界通过（Length 字节=0xFF），SRH 281B 尾部 PadN 1B → 288",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "2001:db8::1",
+        "dst": "2001:db8::2"
+       }
+      },
+      {
+       "srv6": {
+        "segment_list": [
+         "2001:db8:a::1"
+        ],
+        "tlv": [
+         {
+          "type": 200,
+          "value": [
+           0,
+           1,
+           2,
+           3,
+           4,
+           5,
+           6,
+           7,
+           8,
+           9,
+           10,
+           11,
+           12,
+           13,
+           14,
+           15,
+           16,
+           17,
+           18,
+           19,
+           20,
+           21,
+           22,
+           23,
+           24,
+           25,
+           26,
+           27,
+           28,
+           29,
+           30,
+           31,
+           32,
+           33,
+           34,
+           35,
+           36,
+           37,
+           38,
+           39,
+           40,
+           41,
+           42,
+           43,
+           44,
+           45,
+           46,
+           47,
+           48,
+           49,
+           50,
+           51,
+           52,
+           53,
+           54,
+           55,
+           56,
+           57,
+           58,
+           59,
+           60,
+           61,
+           62,
+           63,
+           64,
+           65,
+           66,
+           67,
+           68,
+           69,
+           70,
+           71,
+           72,
+           73,
+           74,
+           75,
+           76,
+           77,
+           78,
+           79,
+           80,
+           81,
+           82,
+           83,
+           84,
+           85,
+           86,
+           87,
+           88,
+           89,
+           90,
+           91,
+           92,
+           93,
+           94,
+           95,
+           96,
+           97,
+           98,
+           99,
+           100,
+           101,
+           102,
+           103,
+           104,
+           105,
+           106,
+           107,
+           108,
+           109,
+           110,
+           111,
+           112,
+           113,
+           114,
+           115,
+           116,
+           117,
+           118,
+           119,
+           120,
+           121,
+           122,
+           123,
+           124,
+           125,
+           126,
+           127,
+           128,
+           129,
+           130,
+           131,
+           132,
+           133,
+           134,
+           135,
+           136,
+           137,
+           138,
+           139,
+           140,
+           141,
+           142,
+           143,
+           144,
+           145,
+           146,
+           147,
+           148,
+           149,
+           150,
+           151,
+           152,
+           153,
+           154,
+           155,
+           156,
+           157,
+           158,
+           159,
+           160,
+           161,
+           162,
+           163,
+           164,
+           165,
+           166,
+           167,
+           168,
+           169,
+           170,
+           171,
+           172,
+           173,
+           174,
+           175,
+           176,
+           177,
+           178,
+           179,
+           180,
+           181,
+           182,
+           183,
+           184,
+           185,
+           186,
+           187,
+           188,
+           189,
+           190,
+           191,
+           192,
+           193,
+           194,
+           195,
+           196,
+           197,
+           198,
+           199,
+           200,
+           201,
+           202,
+           203,
+           204,
+           205,
+           206,
+           207,
+           208,
+           209,
+           210,
+           211,
+           212,
+           213,
+           214,
+           215,
+           216,
+           217,
+           218,
+           219,
+           220,
+           221,
+           222,
+           223,
+           224,
+           225,
+           226,
+           227,
+           228,
+           229,
+           230,
+           231,
+           232,
+           233,
+           234,
+           235,
+           236,
+           237,
+           238,
+           239,
+           240,
+           241,
+           242,
+           243,
+           244,
+           245,
+           246,
+           247,
+           248,
+           249,
+           250,
+           251,
+           252,
+           253,
+           254
+          ]
+         }
+        ],
+        "seg_type": "end",
+        "payload_protocol": "udp"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "ssdp": [
+   {
+    "protocol": "ssdp",
+    "case_id": "ssdp_smoke_01",
+    "summary": "[chain] 冒烟：SSDP M-SEARCH（src_port=0 使 planner 用 1900）→ 自动响应 200 OK，双向均 1900/1900（IANA），共 2 包",
+    "config": {
+     "layers": [
+      {
+       "udp": {}
+      },
+      {
+       "ssdp": {
+        "message_type": "msearch",
+        "search_target": "ssdp:all"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "ssh": [
+   {
+    "protocol": "ssh",
+    "case_id": "ssh-basic-session",
+    "summary": "SSH (端口 22) 冒烟：完整 TCP 握手 + 密钥交换 KEXINIT → 服务请求 → 认证 → 会话通道 → 终止",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 22
+       }
+      },
+      {
+       "ssh": {}
+      }
+     ],
+     "flow_control": {
+      "flows": 1
+     }
+    }
+   }
+  ],
+  "sstp": [
+   {
+    "protocol": "sstp",
+    "case_id": "sstp_https_tls_handshake",
+    "summary": "TCP/443 + TLS 握手 + application-data 载体（无密钥只断言 TLS）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "198.51.100.57",
+        "src": "192.0.2.57"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 443,
+        "src_port": 45057
+       }
+      },
+      {
+       "tls": {
+        "role": "client",
+        "sni": "sstp.example.test",
+        "version": "tls1.3"
+       }
+      },
+      {
+       "sstp": {
+        "events": [
+         {
+          "attributes": [
+           {
+            "id": 1
+           }
+          ],
+          "direction": "c2s",
+          "expect": "ack",
+          "kind": "call_connect_request"
+         },
+         {
+          "attributes": [
+           {
+            "id": 4
+           }
+          ],
+          "direction": "s2c",
+          "kind": "call_connect_ack"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "stratum": [
+   {
+    "protocol": "stratum",
+    "case_id": "stratum_subscribe_ipv4",
+    "summary": "IPv4 baseline: single subscribe request/response, IPv4 single-flow",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.75",
+        "dst": "198.51.100.75"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 4075,
+        "dst_port": 3333
+       }
+      },
+      {
+       "stratum": {
+        "sessions": [
+         {
+          "events": [
+           {
+            "kind": "subscribe",
+            "id": 1,
+            "user_agent": "MinerName/1.0.0",
+            "extranonce1": "ea02567c",
+            "extranonce2_size": 4
+           }
+          ],
+          "src_port": 4075
+         }
+        ]
+       }
+      }
+     ],
+     "flow_control": {
+      "flows": 1
+     }
+    }
+   }
+  ],
+  "stun": [
+   {
+    "protocol": "stun",
+    "case_id": "stun_auth_attributes",
+    "summary": "Binding request authentication context attributes",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.10",
+        "dst": "198.51.100.20"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 40000,
+        "dst_port": 3478
+       }
+      },
+      {
+       "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+         {
+          "kind": "request",
+          "direction": "c2s",
+          "attributes": [
+           {
+            "type": "username",
+            "value": "alice"
+           },
+           {
+            "type": "realm",
+            "value": "example.org"
+           },
+           {
+            "type": "nonce",
+            "value": "server-nonce"
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "sv": [
+   {
+    "protocol": "sv",
+    "case_id": "sv_smp_seq",
+    "summary": "9-2LE base sampled-value stream: 3 frames, smpCnt 0/1/2 incrementing, appid 0x4000, length 0x6A(=106), confRev 1, no VLAN, no IP (eth:sv)",
+    "config": {
+     "layers": [
+      {
+       "eth": {
+        "src_mac": "aa:bb:cc:dd:ee:03"
+       }
+      },
+      {
+       "sv": {
+        "sv_id": "xxxxMUnn01",
+        "appid": 16384,
+        "conf_rev": 1,
+        "samples_per_cycle": 4000,
+        "smp_synch": 2,
+        "smp_rate": 4000,
+        "period_us": 250,
+        "double_send": false,
+        "dst_mac": "01:0c:cd:04:00:01",
+        "vlan_enabled": false,
+        "data": [
+         {
+          "name": "I_A",
+          "type": "int32",
+          "quality": 0
+         },
+         {
+          "name": "I_B",
+          "type": "int32",
+          "quality": 0
+         },
+         {
+          "name": "I_C",
+          "type": "int32",
+          "quality": 0
+         },
+         {
+          "name": "I_N",
+          "type": "int32",
+          "quality": 0
+         },
+         {
+          "name": "V_A",
+          "type": "int32",
+          "quality": 0
+         },
+         {
+          "name": "V_B",
+          "type": "int32",
+          "quality": 0
+         },
+         {
+          "name": "V_C",
+          "type": "int32",
+          "quality": 0
+         },
+         {
+          "name": "V_N",
+          "type": "int32",
+          "quality": 0
+         }
+        ],
+        "count": 3
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "swarm": [
+   {
+    "protocol": "swarm",
+    "case_id": "swarm_discovery_ipv4",
+    "summary": "S1: UDP/IPv4 discovery PING/PONG（SWD1 datagram，nonce 关联）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.52",
+        "dst": "198.51.100.52"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 42052,
+        "dst_port": 1634
+       }
+      },
+      {
+       "swarm": {
+        "discovery": {
+         "src_port": 42052,
+         "events": [
+          {
+           "kind": "ping",
+           "nonce": 4822678189205111,
+           "endpoints": [
+            {
+             "address_family": 1,
+             "port": 1634,
+             "address": "CgAACQ=="
+            }
+           ]
+          },
+          {
+           "kind": "pong",
+           "nonce": 4822678189205111,
+           "endpoints": [
+            {
+             "address_family": 1,
+             "port": 1634,
+             "address": "CgAACQ=="
+            }
+           ]
+          }
+         ]
+        }
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "syslog": [
+   {
+    "protocol": "syslog",
+    "case_id": "syslog_smoke_01",
+    "summary": "[chain] 冒烟：syslog RFC5424 消息（空配置）。顶层不设端口 → 默认 dst 514（IANA），facility=1(2)/level=6(Info)，共 1 包",
+    "config": {
+     "layers": [
+      {
+       "udp": {}
+      },
+      {
+       "syslog": {}
+      }
+     ]
+    }
+   }
+  ],
+  "tcp": [
+   {
+    "protocol": "tcp",
+    "case_id": "tcp-handshake-basic",
+    "summary": "TCP 完整握手 + 数据 + 终止（默认配置，MSS 1460）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 80
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "tds": [
+   {
+    "protocol": "tds",
+    "case_id": "tds_prelogin_versions",
+    "summary": "T-001/T-011/T-012: PRELOGIN VERSION+THREADID+MARS+TERMINATOR 协商 → 11 包",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 54321,
+        "dst_port": 1433
+       }
+      },
+      {
+       "tds": {
+        "sessions": [
+         {
+          "id": "s1",
+          "requests": [
+           {
+            "type": "attention"
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "telnet": [
+   {
+    "protocol": "telnet",
+    "case_id": "telnet_basic_session",
+    "summary": "冒烟：TCP 3握手+defaultDialog 6事件+4挥手=13包（存量等价迁移）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "telnet": {
+        "src_port": 12345,
+        "dst_port": 23
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "tftp": [
+   {
+    "protocol": "tftp",
+    "case_id": "tftp-rrq-short-aa100",
+    "summary": "T-001/S1: RRQ octet 单块（pattern 循环填满 512B，禁用自动追加）→ DATA#1 → ACK#1，3 包",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.100",
+        "dst": "10.0.0.1"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 49152,
+        "dst_port": 69
+       }
+      },
+      {
+       "tftp": {
+        "mode": "read",
+        "filename": "config.txt",
+        "transfer_mode": "octet",
+        "blocks_count": 1,
+        "data_payload_pattern": "AA",
+        "auto_append_final_block": false
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "thrift": [
+   {
+    "protocol": "thrift",
+    "case_id": "thrift_call_reply",
+    "summary": "S1/T-THRIFT-S1-01：add CALL→REPLY，9 包，大端 i32 与 seqid=1",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 9090
+       }
+      },
+      {
+       "thrift": {
+        "messages": [
+         {
+          "type": "CALL",
+          "method": "add",
+          "seqid": 1,
+          "args": [
+           {
+            "id": 1,
+            "type": "I32",
+            "value": 1
+           },
+           {
+            "id": 2,
+            "type": "I32",
+            "value": 2
+           }
+          ]
+         },
+         {
+          "type": "REPLY",
+          "method": "add",
+          "seqid": 1,
+          "result": [
+           {
+            "id": 0,
+            "type": "I32",
+            "value": 3
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "tls": [
+   {
+    "protocol": "tls",
+    "case_id": "tls-handshake-basic",
+    "summary": "TLS（端口 443）冒烟：完整 TCP 握手 + TLS 1.3 ClientHello → ServerHello → EncryptedExtensions → Certificate → Finished → 应用数据 + 终止（T-TLS-1）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 443
+       }
+      },
+      {
+       "tls": {}
+      },
+      {
+       "http": {}
+      }
+     ]
+    }
+   }
+  ],
+  "tns": [
+   {
+    "protocol": "tns",
+    "case_id": "tns_connect_accept",
+    "summary": "S1/T-TNS-S1: CONNECT→ACCEPT→TTC data; TCP 1521 (层链形 D-TNS-1)",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345
+       }
+      },
+      {
+       "tns": {
+        "events": [
+         {
+          "type": "CONNECT",
+          "direction": "c2s"
+         },
+         {
+          "type": "ACCEPT",
+          "direction": "s2c"
+         },
+         {
+          "type": "DATA",
+          "direction": "c2s",
+          "data_flags": 0
+         },
+         {
+          "type": "DATA",
+          "direction": "s2c",
+          "data_flags": 0
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "vmess": [
+   {
+    "protocol": "vmess",
+    "case_id": "vmess-basic-session",
+    "summary": "Vmess (端口 443) 冒烟：完整 TCP 握手 + VMess 协议头（版本 1, AES-GCM 加密负载）+ 终止",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 443
+       }
+      },
+      {
+       "vmess": {
+        "uuid": "12345678-1234-1234-1234-123456789012",
+        "port": 443
+       }
+      }
+     ],
+     "flow_control": {
+      "flows": 1
+     }
+    }
+   }
+  ],
+  "vnc": [
+   {
+    "protocol": "vnc",
+    "case_id": "vnc_t1_smoke_ref",
+    "summary": "T-1 smoke 改写（33 帧参考形）：Tight 握手 13 消息 + 客户端消息面 + FBU 循环 + 拆链，5900 端口",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "vnc": {
+        "initial_fbu": [
+         {
+          "x": 0,
+          "y": 1,
+          "width": 12,
+          "height": 19,
+          "encoding": "xcursor"
+         },
+         {
+          "x": 0,
+          "y": 0,
+          "width": 12,
+          "height": 19,
+          "encoding": "hextile"
+         }
+        ],
+        "update_rects": [
+         {
+          "x": 0,
+          "y": 0,
+          "width": 12,
+          "height": 19,
+          "encoding": "hextile"
+         }
+        ],
+        "rounds": 1
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "vxlan": [
+   {
+    "protocol": "vxlan",
+    "case_id": "vxlan_ipv4_outer_ipv4_inner",
+    "summary": "IPv4 outer/UDP 4789 + IPv4 inner Ethernet: fixed 8-byte header, VNI 5000",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.10",
+        "dst": "198.51.100.10"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 40010,
+        "dst_port": 4789
+       }
+      },
+      {
+       "vxlan": {
+        "vni": 5000,
+        "i_flag": true,
+        "inner": {
+         "src_mac": "02:00:00:00:11:01",
+         "dst_mac": "02:00:00:00:11:02",
+         "ether_type": "ipv4",
+         "src_ip": "10.10.0.1",
+         "dst_ip": "10.10.0.2",
+         "payload_b64": "dnhsYW4taW5uZXItMDE="
+        }
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "wireguard": [
+   {
+    "protocol": "wireguard",
+    "case_id": "wireguard_smoke_01",
+    "summary": "冒烟：WireGuard 握手（空配置）。顶层不设端口 → dst 默认 51820（IANA）、src 保持 flow 默认 12345；initiator→responder→transport（type 1/2/4），共 3 包",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "udp": {}
+      },
+      {
+       "wireguard": {}
+      }
+     ],
+     "flow_control": {
+      "flows": 1
+     }
+    }
+   }
+  ],
+  "xmpp": [
+   {
+    "protocol": "xmpp",
+    "case_id": "xmpp_t1_smoke_plain",
+    "summary": "T-1 smoke 改写（PLAIN 19 帧参考形）：10 阶段全序 + 5222",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "xmpp": {}
+      }
+     ]
+    }
+   }
+  ],
+  "xmrmining": [
+   {
+    "protocol": "xmrmining",
+    "case_id": "xmrmining_login_job_ipv4",
+    "summary": "login 请求/响应全字段 IPv4 单流基线",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.74",
+        "dst": "198.51.100.74"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 4074,
+        "dst_port": 18081
+       }
+      },
+      {
+       "xmrmining": {
+        "sessions": [
+         {
+          "events": [
+           {
+            "kind": "login"
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ]
+ }
+}
