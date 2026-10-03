@@ -88,7 +88,9 @@ else
     SVC_PW=$(openssl rand -hex 16 2>/dev/null || head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
     sed -e "s/__MCP_API_KEY__/$API_KEY/" -e "s/__MCP_SVC_PASSWORD__/$SVC_PW/" \
         "$SRC_DIR/config.yaml.example" > "$CONF_FILE"
-    chmod 0600 "$CONF_FILE"
+    # 0640：owner=root 可写，组 trafficgen（服务运行身份）必须可读——
+    # 0600 会让 systemd 服务读配置直接 permission denied（实机测出）。
+    chmod 0640 "$CONF_FILE"
     chown root:"$SERVICE_USER" "$CONF_FILE"
 fi
 
