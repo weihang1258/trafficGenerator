@@ -1,6 +1,6 @@
 # thrift Pcap Test Results
 
-Cases: 13 — pass 13, fail 0, error 0
+Cases: 18 — pass 18, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -16,4 +16,9 @@ Cases: 13 — pass 13, fail 0, error 0
 | thrift_neg_truncated | N1/T-THRIFT-N1：截断 payload 拒绝 | pass | 0 | [pcap]() |
 | thrift_neg_unknown_type | N2/T-THRIFT-N2：非法 field type=99 拒绝 | pass | 0 | [pcap]() |
 | thrift_oneway_call | S3/T-THRIFT-S3-01：ONEWAY notify 单向调用，无响应，8 包 | pass | 8 | [pcap](thrift/thrift_oneway_call.pcap) |
+| thrift_planner_bad_message_type | P5/T-THRIFT-P5：message type=9 拒绝（纯层链） | pass | 0 | [pcap]() |
+| thrift_planner_negative_container_count | P4/T-THRIFT-P4：LIST 负 count 拒绝（纯层链） | pass | 0 | [pcap]() |
+| thrift_planner_negative_length | P3/T-THRIFT-P3：STRING 负长度拒绝（纯层链） | pass | 0 | [pcap]() |
+| thrift_planner_truncated | P1/T-THRIFT-P1：截断 payload 拒绝（纯层链） | pass | 0 | [pcap]() |
+| thrift_planner_unknown_type | P2/T-THRIFT-P2：非法 field type=99 拒绝（纯层链） | pass | 0 | [pcap]() |
 | thrift_scalar_types | S5/T-THRIFT-S5-01：BOOL/BYTE/DOUBLE/I16/I32/I64/STRING/BINARY 全字段，9 包 | pass | 9 | [pcap](thrift/thrift_scalar_types.pcap) |

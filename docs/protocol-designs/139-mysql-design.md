@@ -11,7 +11,7 @@
 
 权威优先级为：现有 cases JSON（唯一可执行契约）→ 当前 Go 实现与测试 → MySQL 官方 protocol overview / 8.0 internals 文档 → TCP RFC 9293、IPv6 RFC 8200。官方文档用于消息语义与字段规则；帧偏移和 tshark 字段以 case 的实测断言为准。
 
-层链形状只有 `layers`、`flow_control` 与 `output`：地址在 `ip.src`/`ip.dst`，端口在 `tcp.src_port`/`tcp.dst_port`，数量在 `flow_control`；不得恢复顶层 `src_ip`、`dst_ip`、`src_port`、`dst_port`、`count` 或 `mysql` 映射。`mysql` 是 `CategoryTerminal`，依赖 `tcp`（registry.go:1606），默认 `tcp.dst_port=3306`；strategy_convert.go:1222 与 4628 负责翻译。
+层链形状只有 `layers`、`flow_control` 与 `output`：地址在 `ip.src`/`ip.dst`，端口在 `tcp.src_port`/`tcp.dst_port`，数量在 `flow_control`；不得恢复顶层 `src_ip`、`dst_ip`、`src_port`、`dst_port`、`count` 或 `mysql` 映射。`mysql` 是 `CategoryTerminal`，依赖 `tcp`（registry.go:1606），默认 `tcp.dst_port=3306`；strategy_convert.go:1222 与 4628 负责翻译。当前唯一 case 已采用该形状。
 
 ### 1.1 门1：§1–§14 对照表
 
@@ -27,12 +27,14 @@
 | §8 业务 | 登录后命令脚本、OK/ERR/result-set/prepare 是典型数据库业务；当前可按序多事务，JSON 尚只有基础登录。 |
 | §9 错误 | validator 错误锚词见 §9；负例尚未进入 cases，登记 G-MYSQL-1。 |
 | §10 载体 | 纯 TCP；TLS 不实现，IPv4/IPv6 均由通用层承载；pcap/NIC 使用同一 case 契约（见 §10）。 |
-| §11 存量审计 | 唯一当前 case 保留；旧 `trafficgen/docs/protocol-pcap-test/mysql.md` 提交 e7e7d1c（2026-08-27）早于 0417be5（2026-09-13），按 §12.4 登记过期。 |
+| §11 存量审计 | 唯一当前 case 已层链化；旧 `trafficgen/docs/protocol-pcap-test/mysql.md` 提交 e7e7d1c（2026-08-27）早于迁移提交 8267cef，按 §12.4 登记过期。 |
 | §12 动态字段 | 完整清单见 §3.6；当前 MySQL sub-map 使用标量 parseMySQLConfig，不具备五策略展开，故登记缺口，不伪报已支持。 |
 | §13 交付/三方 | design + testcase + cases 三方只有 `mysql-basic-session`；ID、场景、最小包数、字段/字节断言一致。 |
 | §14 审查/状态 | 本稿自审见 §14；独立代码设计逻辑审查与用例覆盖审查待主线程执行；待实现边界不计当前覆盖。 |
 
 ### 1.2 §1 顶层旧键逐键去向与目标形
+
+迁移已完成；下表保留为审计映射，说明旧键不得重新引入。
 
 | 旧键 | 去向 |
 |---|---|
@@ -145,7 +147,7 @@ TLS 不在此层实现；`sha256_password` 的真实 RSA 和 TLS 加密均是待
 
 ## 10. 存量配置与迁移
 
-`mysql.json` 的唯一条目是旧 flat `spec_json`，并且其 Greeting/handshake 帧断言是有效的 legacy 规划形状。当前文档按 cases 权威保留它，不改 JSON；目标层链形见 §1.2。迁移需同步把地址/端口/count/mysql 移入 layers/flow_control，并重新实测 packet/frame offsets，不能仅改文档。
+`mysql.json` 的唯一条目已经收敛为层链 `layers[ip,tcp,mysql]`，地址、端口和终端声明均不再使用顶层 flat 键。当前文档按 cases 权威记录；迁移已由提交 `8267cef` 完成，后续只需补充缺失覆盖与更新 P5 产物。
 
 ## 11. 缺口登记
 
@@ -153,7 +155,7 @@ TLS 不在此层实现；`sha256_password` 的真实 RSA 和 TLS 加密均是待
 |---|---|---|---|
 | G-MYSQL-1 | cases 只有 1 个正向冒烟，没有 validator/planner/线格式/状态/默认非默认端口/IPv6/截断等负例 | `cases/mysql.json` 仅 `mysql-basic-session`；§8 错误分支未被断言 | P4 用例覆盖 |
 | G-MYSQL-2 | MySQL 业务字段和四元组未接入 fixed/inc/rand/list/pattern 五策略 | strategy_convert.go:4628–4660 读标量；无 MySQL 动态序号算法 | P2/P3 动态字段 |
-| G-MYSQL-3 | 存量 case 仍是 flat spec_json，不满足层链唯一真相 | `cases/mysql.json` spec_json 含 src_ip/dst_ip/src_port/dst_port/count/mysql | P4 层链迁移 |
+| G-MYSQL-3 | ~~存量 case 仍是 flat spec_json~~（已关闭：cases/mysql.json 已采用 `layers[ip,tcp,mysql]`） | 迁移提交 `8267cef`；当前正例无顶层旧键 | 已完成（原 P4 层链迁移） |
 | G-MYSQL-4 | 真实 RSA/TLS、multi-result、部分命令能力未实现 | planner.go:45–54 明示 limitation；§5.2 | P3 协议能力 |
 | G-MYSQL-5 | tracked `trafficgen/docs/protocol-pcap-test/mysql.md` 过期 | git: e7e7d1c（2026-08-27）< 0417be5（2026-09-13） | P4 产物清理 |
 
@@ -162,7 +164,7 @@ TLS 不在此层实现；`sha256_password` 的真实 RSA 和 TLS 加密均是待
 供 `coverage_gate.py` 登记的静态可判定建议：
 
 1. JSON ID 集合精确为 `mysql-basic-session`，且 design/testcase/cases 同集合。
-2. case `spec_json` 不含顶层 `src_ip|dst_ip|src_port|dst_port|count|mysql`（当前应红，G-MYSQL-3）。
+2. case `spec_json` 不含顶层 `src_ip|dst_ip|src_port|dst_port|count|mysql`（当前应绿，G-MYSQL-3 已关闭）。
 3. 每个已声明 validator 锚词至少存在一个 `expect_error=true` case（当前应红，G-MYSQL-1）。
 4. 正例至少断言 `tcp.flags` SYN/SYN-ACK/ACK、Greeting/Handshake/Auth 三个 MySQL packet length/number、FIN 序列（当前 FIN 仅 notes，应补可执行字段断言）。
 5. pcap 与 NIC/port_group 执行使用同一 ID 与同一 packet/frame 断言集合。
@@ -170,8 +172,8 @@ TLS 不在此层实现；`sha256_password` 的真实 RSA 和 TLS 加密均是待
 
 ## 13. 修订记录
 
-- 2026-09-29：#139 初稿，按 HEAD 实现与 cases 逆向整理；登记 flat case、负例、动态字段、RSA/TLS 与过期产物边界。
+- 2026-09-29：#139 初稿，按 HEAD 实现与 cases 逆向整理；登记负例、动态字段、RSA/TLS 与过期产物边界；迁移提交 `8267cef` 已关闭 G-MYSQL-3。
 
 ## 14. 自审结论
 
-自审 3 轮，末轮干净。机读核对：cases ID=1；设计表 §1–§14=14 行；缺口=5；覆盖反查建议=6；唯一 case 的 ID、summary、`min_packets=9`、10 个 fields、4 个 frames 与 testcase §2 一致。当前 cases 的 notes 说实际 10 帧但 `min_packets` 仅 9，故 testcase 明确“至少 9、实测说明 10”，不擅自改机器契约。
+自审 3 轮，末轮干净。机读核对：cases ID=1；设计表 §1–§14=14 行；未关闭缺口=4；G-MYSQL-3 已完成；覆盖反查建议=6；唯一 case 的 ID、summary、`min_packets=9`、10 个 fields、4 个 frames 与 testcase §2 一致。当前 cases 的 notes 说实际 10 帧但 `min_packets` 仅 9，故 testcase 明确“至少 9、实测说明 10”，不擅自改机器契约。

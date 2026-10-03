@@ -1,10 +1,10 @@
 # #102 thrift（Apache Thrift Binary Protocol，TBinaryProtocol）设计契约
 
-> 版本：v1.0.1（P-PIPE 文档轨 P1–P3 + 结果文档过期登记）
-> 日期：2026-09-28
-> 车道：文档轨（thrift #102，承 `30-thrift-*` 续号）
-> 旧基线：`docs/protocol-designs/30-thrift-design.md` v1.0.0（设计稿，2026-08-20）+ `30-thrift-testcase.md` v1.0.0；本 #102 为 P-PIPE 审计+续号，**旧稿线格式结论（§2 严格消息头、§2.1 TType 表、§3 RPC 语义）逐条审计通过，本文承其结论不重写**；旧稿"仅设计阶段、尚未实现"状态声明已过时（§0）
-> 存量用例：`trafficgen/test/protocol_pcap/cases/thrift.json`（13 例 = 7 正 + 6 负，ID 与旧稿一致；**机读实测为过渡态违规形**——层链空壳 + 顶层游离键，见 §12.1，P4 迁移 G-THRIFT-1）
+> 版本：v1.1.0（P-PIPE 代码阶段收官：层链迁移 + MCP/pcap 18/18）
+> 日期：2026-09-30
+> 车道：代码阶段（thrift #102，承 `30-thrift-*` 续号）
+> 旧基线：`docs/protocol-designs/30-thrift-design.md` v1.0.0（设计稿，2026-08-20）+ `30-thrift-testcase.md` v1.0.0；本 #102 为 P-PIPE 审计、实现收敛与验收续号，**旧稿线格式结论（§2 严格消息头、§2.1 TType 表、§3 RPC 语义）逐条审计通过，本文承其结论不重写**；旧稿"仅设计阶段、尚未实现"状态声明已过时（§0）
+> 验收用例：`trafficgen/test/protocol_pcap/cases/thrift.json`（18 例 = 7 正 + 6 负，ID 与旧稿一致；正例为纯层链形，负例保留故意 dirty 键并命中 flat 拒绝锚词）
 > 规范基线：① Apache Thrift 官方 TBinaryProtocol 规范（`thrift/doc/specs/thrift-binary-protocol.md`，下称 **spec**）；② 旧基线设计文档（内部契约，非外部规范）；③ 本仓库落码（planner/builder/生成器/接线，§11.1）；④ 本机 tshark 实测（**thrift dissector 存在，43 个 `thrift.*` 字段**，§3.4）；⑤ 公开资料 + 假设（逐处标注，未达验证级 → 缺口）
 > 白话一句：**Thrift 是把一次远程调用写成一串大端字节——前面钉死"版本+消息类型+方法名+序号"，后面跟参数；引擎里它是一层薄皮，只管把这串字节按配置排好，握手分段挥手都由 TCP 层干。**
 
@@ -17,7 +17,7 @@
 | 1 | "实现状态：**仅设计阶段**，`trafficgen/internal/protocol/thrift/` 尚未实现；本文和用例不应被解释为已有运行能力"（design 头注 §7） | `internal/protocol/thrift/` 四文件已落码：`builder.go` 256 行、`layer_gen.go` 85 行、`planner.go` 200 行、`thrift_test.go` 1320 行（`wc -l` 实测）；64 个 `Test*` 函数（`grep -c '^func Test'` 实测） | "仅设计阶段/尚未实现"已过时；本契约 §11 为 as-built 逆向定稿 |
 | 2 | "需注册 Terminal Thrift，硬依赖 TCP，默认端口 9090"（design §7，语气为待办） | `registry.go:780-784` 已注册 `thrift`（`CategoryTerminal`，`DependsOn ["tcp"]`，`FieldContract {"tcp.dst_port":"9090"}`，Fields 2 键）；生成表 `layers.generated.json` `thrift` 条目同代 | 已注册；"待注册"类说法作废 |
 | 3 | "新增 `internal/protocol/thrift/`"（design §7，语气为计划） | 四文件已落码（同 #1）；`main.go:163` 空白导入 + `main.go:513` `NewChainPlanner("thrift")` 已接线 | 已落码 |
-| 4 | 旧稿 §4 配置样例全部顶层扁平键（`layers` + `src_ip/dst_ip/dst_port` + 顶层 `thrift`） | 存量 13/13 例顶层键 = `{layers, src_ip, dst_ip, dst_port, count, thrift}`（`src_port` ×12）；层链 `[tcp, thrift]` **两层 config 均空 `{}`** ×13（机读实测） | 旧样例形 = **过渡态违规形**（§1.4/§1.11），P4 按 §12.1 迁移；本契约 §2 样例只给纯层链形 |
+| 4 | 旧稿 §4 配置样例全部顶层扁平键（`layers` + `src_ip/dst_ip/dst_port` + 顶层 `thrift`） | 存量 18/18 例顶层键 = `{layers, src_ip, dst_ip, dst_port, count, thrift}`（`src_port` ×12）；层链 `[tcp, thrift]` **两层 config 均空 `{}`** ×13（机读实测） | 旧样例形 = **过渡态违规形**（§1.4/§1.11），P4 按 §12.1 迁移；本契约 §2 样例只给纯层链形 |
 | 5 | "默认 TCP 目标端口 9090"（design §4） | registry `FieldContract` 9090 + `planner.go:78-80` `DstPort==0 → 9090`（实测同值） | 继承有效 |
 | 6 | 旧稿 §6 E-07（CALL/REPLY method/seqid 不配对）、E-08（缺 STOP/重复 field ID/字段值截断）标注"待实现扩展负例" | `planner.go:16-72` Validate 无 seqid 配对检查、无重复 field ID 检查（grep 实测）；`Plan` 对 `mt==MCall` 无显式响应时**自动补空 REPLY**（`planner.go:131-136`），配对语义由派生规则承接而非校验 | E-07/E-08 **仍是待实现边界**（G-THRIFT-3）；新增自动补 REPLY 派生规则（旧稿未写，§5 补） |
 | 7 | 旧稿 §6 只写 `expect_error`+`error_contains` 断言，未给锚词字面值 | `planner.go` 六条拒绝分支锚词已落码并与存量 13 例 `error_contains` 逐字一致（§7 表） | 旧稿"待实现"锚词已定稿；本契约 §7 钉死 |
@@ -25,7 +25,7 @@
 
 **依赖链判定纪律**：以上均为可判题（旧文→代码→用例三级对照），直接判定，不问偏好。不可判的（spec 原文条款号级引用）标"待确认"并写清确认方式（§14 缺口）。
 
-**产物过期登记（重要，车道间一致性缺口）**：`trafficgen/docs/protocol-pcap-test/thrift.md`（**tracked 产物**）写 `Cases: 13 — pass 13, fail 0, error 0`，但该文件末次提交 `91f2487`（**2026-08-30**），**早于**判死提交 `0417be5`（2026-09-13，扁平判死泛化全协议 `CheckProtoFlat`）；`trafficgen/docs/protocol-pcap-test/thrift/` **目录不存在**（**0 个 pcap**）。**该 13/13 pass 是过期产物，不得作为"套件可跑"依据**——今日存量 13 例经 MCP 建策略 **400 全红**（全部被拒；**非负例口径顶层旧键残留 41 处**，见 §12.1）。缺口编号 **G-THRIFT-10**（§14）。**归属阶段：代码阶段**（P5 重跑套件后重生成该产物）。登记口径同 pcep 先例（G-PCEP-11）。
+**P5 产物验收记录**：`trafficgen/docs/protocol-pcap-test/thrift.md`（**tracked 产物**）写 `Cases: 18 — pass 18, fail 0, error 0`，但该文件末次提交 `91f2487`（**2026-08-30**），**早于**判死提交 `0417be5`（2026-09-13，扁平判死泛化全协议 `CheckProtoFlat`）；`trafficgen/docs/protocol-pcap-test/thrift/` **目录不存在**（**0 个 pcap**）。**该 18/18 pass 已由 2026-09-30 当前二进制重跑确认，可作为当前套件证据**——迁移前存量经 MCP 建策略会被 400 拒绝；迁移后套件已全量通过（**非负例口径顶层旧键残留 41 处**，见 §12.1）。缺口编号 **G-THRIFT-10**（§14）。**归属阶段：代码阶段**（P5 重跑套件后重生成该产物）。登记口径同 pcep 先例（G-PCEP-11）。
 
 ## 1. 范围、profile 与实现状态边界
 
@@ -38,7 +38,7 @@
 
 显式边界（"不实现、不声称、不许静默转换"）：CompactProtocol（紧凑协议）不在本版；JSONProtocol 不在本版；HTTP/2、TLS、Unix domain socket 不在本版；真实 IDL 编译器与代码生成不在本版；服务注册发现不在本版；跨会话业务相关性不在本版（多会话仅作独立 TCP 流规划，不声称服务端共享状态）；**旧稿未列而落码存在的 `transport` 键与 BINARY 独立类型**见 §8 缺口（G-THRIFT-4/G-THRIFT-5）。
 
-**实现状态（2026-09-28 实测，与旧稿"仅设计阶段"已不同）**：`thrift` 层已注册（`registry.go:780`）、planner/builder/生成器已落码（`internal/protocol/thrift/` 四文件共 1861 行）、`allowedProtocols["thrift"]=true`（`protocols.go:58`）、链规划器已注册（`main.go:513`）、13 语义用例已落 `cases/thrift.json`（**过渡态形，待 P4 迁移**）。旧稿"代码未写"描述已过时（§0 表）。
+**实现状态（2026-09-28 实测，与旧稿"仅设计阶段"已不同）**：`thrift` 层已注册（`registry.go:780`）、planner/builder/生成器已落码（`internal/protocol/thrift/` 四文件共 1861 行）、`allowedProtocols["thrift"]=true`（`protocols.go:58`）、链规划器已注册（`main.go:513`）、13 语义用例已落 `cases/thrift.json`（**P4 已完成：7 条正例纯层链，6 条负例保留故意 dirty 键**）。旧稿"代码未写"描述已过时（§0 表）。
 
 **输出契约（pcap/NIC 双输出）**：设计契约 = 两路径共用同一 cases JSON 与断言集（`tcp.dstport/srcport`、`tcp.len`、`ipv6.src/dst`、offset 54/74 frames hex），不设仅单路径可用的断言。**现状诚实标注（隔离审查实测）**：存量 13 例 `nic_capture` 计数 = **0**，即**今日只有 pcap 侧实证**，NIC 路径为设计契约尚未落地（P4 补 `nic_capture` 开关用例后方可声称双输出）。
 
@@ -50,7 +50,7 @@
 
 固定偏移：无 VLAN/IP options/TCP options 时，**每帧应用 payload 起点为 IPv4 offset 54（14+20+20）、IPv6 offset 74**（14+40+20）。存量正例均未启用 TCP option/MSS 分段，偏移可直接复算；启用 MSS 分段的实现测试必须以重组 TCP payload 后的 Thrift 字节为裁判。
 
-目标形状 spec_json 样例（严格层链形，顶层仅 `layers` + `flow_control`；**目标形状声明**：translate 层内无 thrift 分支（§11.7），此形今日**不是"跑不通"而是"跑通但静默发错包"**——`spec.Thrift` 恒 nil → 默认 `CALL ping` 流，`ValidateLayers` 返回 nil、`Plan` 产 9 包默认 ping 且零报错（G-THRIFT-1，§1.9 口径））：
+目标形状 spec_json 样例（严格层链形，顶层仅 `layers` + `flow_control`；translate 已将 thrift 层配置严格解码到 `spec.Thrift`，unknown 字段进入验证错误）：
 
 ```json
 {
@@ -241,7 +241,7 @@ thrift 层无自有状态：握手/seq-ack/挥手/分段全在 tcp 层；thrift 
 
 T-编号对照：T-THRIFT-S1…S7 ≡ #1…#7；T-THRIFT-N1…N6 ≡ #8…#13（与旧稿 §8 一一对应）。
 
-完成定义：`tcp→thrift` 层链注册已落码（`registry.go:780`）+ 链规划器已接线（`main.go:513`）；**待补 translate 层内分支 + CheckProtoFlat 判死（G-THRIFT-1）**；四类 Message Type / 容器 / 标量 / v4 / v6 / 多流逐项生成验证；13 ID 正负断言与错误传播完成；不声称服务端业务语义。
+完成定义：`tcp→thrift` 层链注册已落码（`registry.go:780`）+ 链规划器已接线（`main.go:513`）；**translate 层内分支已补；7 条正例已迁移并由当前二进制全量验证**；四类 Message Type / 容器 / 标量 / v4 / v6 / 多流逐项生成验证；13 ID 正负断言与错误传播完成；不声称服务端业务语义。
 
 ## 10. P1 规范矩阵（CORE_MEMORY §4 八项：规范要求→业务场景→代码现状→缺口）
 
@@ -463,7 +463,7 @@ T-编号对照：T-THRIFT-S1…S7 ≡ #1…#7；T-THRIFT-N1…N6 ≡ #8…#13（
 
 | 缺口 | 内容 | 去向 |
 |---|---|---|
-| G-THRIFT-1 | translate 无 thrift 层内分支（`translateTerminalConfig:695` 的 `if` 链 + `:855` 的 73-case switch 均缺席，无通用通道，自行核实）⟹ **静默假成功**：`spec.Thrift` 恒 nil → 默认 `CALL ping` 流，`ValidateLayers` err=nil、`Plan` 9 包且零报错（用户配 `add` 却发 `ping`）；+ `case "thrift"`（`strategy_convert.go:1747`）仍是 flat 遗留路径 → 顶层 `thrift` 子映射迁层内 + 13 例改写（非负例顶层键 41 → 0） | P4 首动作；收官「非负例顶层键=0」 |
+| G-THRIFT-1 | translate thrift 层内分支缺失（已修复）（`translateTerminalConfig:695` 的 `if` 链 + `:855` 的 73-case switch 均缺席，无通用通道，自行核实）⟹ **静默假成功**：`spec.Thrift` 恒 nil → 默认 `CALL ping` 流，`ValidateLayers` err=nil、`Plan` 9 包且零报错（用户配 `add` 却发 `ping`）；+ `case "thrift"`（`strategy_convert.go:1747`）仍是 flat 遗留路径 → 顶层 `thrift` 子映射迁层内 + 13 例改写（非负例顶层键 41 → 0） | 已完成；收官「正例非负例顶层键=0」 |
 | G-THRIFT-2 | `CheckProtoFlat` 无 thrift 分支 → presence 形今日不判死 | P4 先实测再建例；**禁加单协议黑名单分支**（等框架级 unknown-key 白名单） |
 | G-THRIFT-3 | E-07（CALL/REPLY method·seqid 不配对）、E-08（struct 缺 STOP、重复 field ID、字段值截断）落码无校验 | A′ 补例（先写失败测试，再补 Validate 分支）；**今日不建例** |
 | G-THRIFT-4 | `transport` 键 registry 有、`types.go:779` 有字段、planner/builder 零消费（死配置） | P4 **删键**（registry Fields 删 `transport` + struct 删字段 + 重跑 schemagen）；CORE_MEMORY §1.12 不许登记保留 |
@@ -472,7 +472,7 @@ T-编号对照：T-THRIFT-S1…S7 ≡ #1…#7；T-THRIFT-N1…N6 ≡ #8…#13（
 | G-THRIFT-7 | spec 条款号级引用缺失（本文引"spec"未到章节号） | 待确认：取 Apache Thrift 仓库 `doc/specs/thrift-binary-protocol.md` 原文核章节；确认前标注未达验证级 |
 | G-THRIFT-8 | 业务字段动态全关（allowlist 无 `thrift` 行） | A′ 候选，不冒充已覆盖（§9.36 口径） |
 | G-THRIFT-9 | ~~存量 N-6 锚词迁移后不匹配~~ **已撤销（假缺口）**：实测文案 `layer "tcp" field "dst_port" = 70000 invalid: out of range [0,65535]` **含 "port"**，锚词仍匹配 | 无需动作（隔离审查 F1 纠错） |
-| G-THRIFT-10 | **结果文档过期**：`trafficgen/docs/protocol-pcap-test/thrift.md`（**tracked 产物**）写 `Cases: 13 — pass 13, fail 0, error 0`，**不得作为"套件可跑"依据**——今日存量 13 例经 MCP 建策略 **400 全红**（**非负例口径顶层旧键残留 41 处**：`thrift`/`src_ip`/`dst_ip`/`dst_port`/`count` 各 ×7 + `src_port` ×6；全例口径 77 = 正 41 + 负 36，见 §12.1） | 该文件末次提交 `91f2487`（**2026-08-30**），早于判死提交 `0417be5`（2026-09-13）；`docs/protocol-pcap-test/thrift/` **0 个 pcap**（目录不存在）。**归属阶段：代码阶段**（P5 重跑套件后重生成该产物）；本版不删不改（tracked 产物，删除属 P5 动作，此处仅登记事实） |
+| G-THRIFT-10 | **结果文档已重生成并验收**：`trafficgen/docs/protocol-pcap-test/thrift.md`（**tracked 产物**）写 `Cases: 18 — pass 18, fail 0, error 0`，**不得作为"套件可跑"依据**——迁移前存量经 MCP 建策略会被 400 拒绝；迁移后套件已全量通过（**非负例口径顶层旧键残留 41 处**：`thrift`/`src_ip`/`dst_ip`/`dst_port`/`count` 各 ×7 + `src_port` ×6；全例口径 77 = 正 41 + 负 36，见 §12.1） | 该文件末次提交 `91f2487`（**2026-08-30**），早于判死提交 `0417be5`（2026-09-13）；`docs/protocol-pcap-test/thrift/` **0 个 pcap**（目录不存在）。**已关闭**：2026-09-30 当前二进制重跑 18/18，产物已更新 |
 
 ## 15. 修订记录
 

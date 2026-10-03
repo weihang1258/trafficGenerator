@@ -937,6 +937,26 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		return
 	}
 	switch term.Name {
+	case "thrift":
+		if spec.Thrift != nil || len(term.Config) == 0 {
+			return
+		}
+		cfgT := completedConfig(s, term.Config)
+		rawT, err := json.Marshal(cfgT)
+		if err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("thrift layer config encode: %v", err))
+			return
+		}
+		var tcfg core.ThriftConfig
+		decT := json.NewDecoder(bytes.NewReader(rawT))
+		decT.DisallowUnknownFields()
+		if err := decT.Decode(&tcfg); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				fmt.Sprintf("thrift layer config decode: %v", err))
+			return
+		}
+		spec.Thrift = &tcfg
 	case "goose":
 		// D-GOOSE-1：层 config 手工逐键映射进 spec.GOOSE（dns 手工映射
 		// 同款——parseGOOSEConfig 在 strategy_convert 包未导出，layers 不可
