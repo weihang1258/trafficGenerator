@@ -86,3 +86,34 @@ dev:
 # Install
 install:
 	$(GOCMD) install $(MAIN_PACKAGE)
+
+# ---- Release packaging (v1: Linux amd64, MCP service) ----------------------
+# CGO_ENABLED=1 必须：pcap 注入/解析走 cgo+libpcap（构建机需 libpcap-dev）。
+# 交叉编译目标（build-linux/windows/darwin, CGO_ENABLED=0）与 pcap 面不兼容，
+# 发布一律走 dist。
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+DIST_DIR = dist
+PKG_NAME = trafficgen-$(VERSION)-linux-amd64
+RELEASE_LDFLAGS = -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
+
+.PHONY: build-release dist clean-dist
+
+build-release:
+	mkdir -p $(BUILD_DIR)
+	CGO_ENABLED=1 $(GOBUILD) -buildvcs=false -ldflags "$(RELEASE_LDFLAGS)" -o $(BUILD_DIR)/trafficgen ./cmd/server
+	@$(BUILD_DIR)/trafficgen -version
+
+dist: build-release
+	rm -rf $(DIST_DIR)/$(PKG_NAME)
+	mkdir -p $(DIST_DIR)/$(PKG_NAME)
+	cp $(BUILD_DIR)/trafficgen $(DIST_DIR)/$(PKG_NAME)/
+	cp deploy/config.yaml.example deploy/install.sh deploy/uninstall.sh deploy/README.md $(DIST_DIR)/$(PKG_NAME)/
+	chmod 0755 $(DIST_DIR)/$(PKG_NAME)/trafficgen $(DIST_DIR)/$(PKG_NAME)/install.sh $(DIST_DIR)/$(PKG_NAME)/uninstall.sh
+	tar -czf $(DIST_DIR)/$(PKG_NAME).tar.gz -C $(DIST_DIR) $(PKG_NAME)
+	cd $(DIST_DIR) && sha256sum $(PKG_NAME).tar.gz > SHA256SUMS
+	@echo "=== dist: $(DIST_DIR)/$(PKG_NAME).tar.gz (+ SHA256SUMS) ==="
+
+clean-dist:
+	rm -rf $(DIST_DIR)

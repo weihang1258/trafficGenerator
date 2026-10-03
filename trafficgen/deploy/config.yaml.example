@@ -1,0 +1,53 @@
+# trafficgen 配置（v1：MCP 流量生成服务）
+#
+# 安装说明：install.sh 会把本文件复制到 /etc/trafficgen/config.yaml 并把
+# __MCP_API_KEY__ 替换为自动生成的随机密钥。手工安装时请自行替换为长随机串
+# （如 openssl rand -hex 24 的输出）——MCP HTTP 传输在 api_key 为空时拒绝启动。
+#
+# 相对路径（database.sqlite.path / filesystem.root）相对服务工作目录
+# /var/lib/trafficgen 解析。
+
+server:
+  host: "0.0.0.0"
+  port: 8082        # REST API（健康检查/任务管理；MCP 客户端不需要）
+  mode: "release"
+
+mcp:
+  enabled: true
+  service_user_id: "mcp-service"
+  service_user_role: "user"
+  service_account_password: "flowb-mcp-change-me"
+  # MCP over HTTP 的鉴权密钥。客户端以 X-MCP-Key 请求头携带。
+  api_key: "__MCP_API_KEY__"
+  transports:
+    stdio: false
+    http:
+      enabled: true
+      listen: "0.0.0.0:8086"   # MCP 端点 http://<host>:8086/mcp；仅本机使用改 127.0.0.1:8086
+      cors_origins:
+        - "http://localhost:*"
+        - "http://127.0.0.1:*"
+
+database:
+  type: "sqlite"               # 量大可切 postgres（配 database.postgres），零代码改动
+  sqlite:
+    path: "./data/trafficgen.db"
+  pool:
+    max_open: 100
+    max_idle: 10
+    conn_lifetime: "1h"
+
+engine:
+  config_workers: 4
+  packet_workers: 8
+  output_workers: 4
+  buffer_size: 4096
+  queue_size: 1024
+
+filesystem:
+  root: "data/filesystem"      # pcap 产物落盘根目录
+
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"

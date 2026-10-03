@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# trafficgen 安装脚本（v1，Linux amd64）
+#
+# 用法一（离线，推荐）：tar 包解开后在包目录内执行
+#   sudo ./install.sh
+#
+# 用法二（在线）：从发布地址直接拉取
+#   curl -fsSL <release-base>/trafficgen-vX.Y.Z-linux-amd64.tar.gz | 不可行时：
+#   curl -fsSL <release-base>/install.sh | sudo bash -s -- <release-base> <版本号>
+#   例：curl -fsSL https://example.com/install.sh | sudo bash -s -- \
+#         https://github.com/weihang1258/trafficGenerator/releases/download v1.1.0
+#
+# 脚本行为：装 /opt/trafficgen → 建 trafficgen 系统用户与 /var/lib/trafficgen
+# 数据目录 → 生成 /etc/trafficgen/config.yaml（自动随机 api_key，已存在则保留）
+# → 注册并启动 systemd 服务 → 打印 MCP 端点与密钥。
+set -euo pipefail
+
+INSTALL_DIR=/opt/trafficgen
+DATA_DIR=/var/lib/trafficgen
+CONF_DIR=/etc/trafficgen
+CONF_FILE=$CONF_DIR/config.yaml
+SERVICE=trafficgen
+SERVICE_USER=trafficgen
+
+log()  { printf '\033[32m%s\033[0m\n' "$*"; }
+warn() { printf '\033[33m%s\033[0m\n' "$*"; }
+die()  { printf '\033[31m错误：%s\033[0m\n' "$*" >&2; exit 1; }
+
+# ---- 0. 前置检查 -----------------------------------------------------------
+[ "$(id -u)" -eq 0 ] || die "请用 root 运行（sudo ./install.sh）"
+command -v systemctl >/dev/null || die "未找到 systemctl：本脚本依赖 systemd"
+[ "$(uname -m)" = "x86_64" ] || die "v1 仅支持 x86_64，当前 $(uname -m)"
+
+SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
+BASE_URL="${1:-}"
+VERSION="${2:-}"
+
+# ---- 1. 取得发布文件（本地包目录或在线下载）---------------------------------
+if [ -x "$SRC_DIR/trafficgen" ]; then
+    log "使用本地发布包：$SRC_DIR"
+else
+    [ -n "$BASE_URL" ] && [ -n "$VERSION" ] || die \
+        "当前目录没有 trafficgen 二进制。请在解包后的目录内运行，或传入 <发布base> <版本号>（如 v1.1.0）"
+    ARCH=linux-amd64
+    TARBALL="trafficgen-${VERSION}-${ARCH}.tar.gz"
+    TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+    log "下载 $BASE_URL/$VERSION/$TARBALL"
+    curl -fsSL -o "$TMP/$TARBALL" "$BASE_URL/$VERSION/$TARBALL"
+    curl -fsSL -o "$TMP/SHA256SUMS" "$BASE_URL/$VERSION/SHA256SUMS" || warn "无 SHA256SUMS，跳过校验"
+    [ -f "$TMP/SHA256SUMS" ] && (cd "$TMP" && grep "$TARBALL" SHA256SUMS | sha256sum -c - >/dev/null) \
+        || die "SHA256 校验失败，文件可能被篡改"
+    tar -xzf "$TMP/$TARBALL" -C "$TMP"
+    SRC_DIR="$TMP/$(ls "$TMP" | grep -v SHA256 | head -1)"
+    [ -x "$SRC_DIR/trafficgen" ] || die "发布包内容异常（缺 trafficgen 二进制）"
+fi
+
+# ---- 2. 安装二进制 ----------------------------------------------------------
+mkdir -p "$INSTALL_DIR/bin"
+install -m 0755 "$SRC_DIR/trafficgen" "$INSTALL_DIR/bin/trafficgen"
+INSTALLED=$("$INSTALL_DIR/bin/trafficgen" -version)
+
+# ---- 3. 系统用户与数据目录 --------------------------------------------------
+id -u "$SERVICE_USER" >/dev/null 2>&1 || \
+    useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin "$SERVICE_USER"
+mkdir -p "$DATA_DIR"
+chown -R "$SERVICE_USER:$SERVICE_USER" "$DATA_DIR"
+
+# ---- 4. 配置（已存在则保留，绝不覆盖用户配置）--------------------------------
+mkdir -p "$CONF_DIR"
+if [ -f "$CONF_FILE" ]; then
+    warn "检测到已有配置 $CONF_FILE —— 保留不动（升级场景）"
+    API_KEY=$(awk '/^[[:space:]]*api_key:/ {print $2; exit}' "$CONF_FILE")
+else
+    API_KEY=$(openssl rand -hex 24 2>/dev/null || head -c 48 /dev/urandom | od -An -tx1 | tr -d ' \n')
+    sed "s/__MCP_API_KEY__/$API_KEY/" "$SRC_DIR/config.yaml.example" > "$CONF_FILE"
+    chmod 0600 "$CONF_FILE"
+    chown root:"$SERVICE_USER" "$CONF_FILE"
+fi
+
+# ---- 5. systemd 服务（生成即注册）--------------------------------------------
+cat > /etc/systemd/system/${SERVICE}.service <<UNIT
+# 由 trafficgen install.sh 生成；手工改动会被 reinstall 覆盖
+[Unit]
+Description=trafficgen MCP traffic generation service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$SERVICE_USER
+Group=$SERVICE_USER
+WorkingDirectory=$DATA_DIR
+ExecStart=$INSTALL_DIR/bin/trafficgen -config $CONF_FILE
+Restart=on-failure
+RestartSec=2
+# NIC 实发（pcap 注入）所需能力；仅本地 pcap 文件生成时无用但无害
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable "$SERVICE" >/dev/null 2>&1
+systemctl restart "$SERVICE"
+sleep 1
+systemctl --quiet is-active "$SERVICE" || {
+    journalctl -u "$SERVICE" -n 30 --no-pager
+    die "服务启动失败，见上方日志"
+}
+
+# ---- 6. 就绪信息 -------------------------------------------------------------
+IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+IP=${IP:-127.0.0.1}
+log "──────────────────────────────────────────────────────"
+log "✅ $INSTALLED 安装完成，服务已启动（开机自启）"
+log ""
+log "   MCP 端点 :  http://$IP:8086/mcp"
+log "   API Key  :  $API_KEY   （客户端请求头 X-MCP-Key）"
+log ""
+log "   常用命令 :  systemctl status|restart|stop $SERVICE"
+log "   日志     :  journalctl -u $SERVICE -f"
+log "   卸载     :  sudo $INSTALL_DIR/uninstall.sh"
+log "──────────────────────────────────────────────────────"
