@@ -23,3 +23,6 @@ configs/config.yaml
 *.bak-root/
 *.bak-root2/
 *.bak-pre-*/
+
+# Release artifacts (make dist)
+dist/
