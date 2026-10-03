@@ -109,3 +109,35 @@ func TestConvertTaskToResponse_DownloadURL(t *testing.T) {
 		t.Errorf("port_group task download_url = %q, want empty", got)
 	}
 }
+
+// ServeTaskPcapPublic：纯 net/http 共享核心——gin 路由与 MCP HTTP mux
+// 双挂载同一实现（外部客户端从任一端口拼 download_url 都可达）。
+func TestServeTaskPcapPublic(t *testing.T) {
+	r, db, pcapFile := newPublicDownloadTestEnv(t)
+	_ = r
+	insertTask(t, db, "77777777-7777-7777-7777-777777777777", "pcap", pcapFile)
+
+	h := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		ServeTaskPcapPublic(db, w, req)
+	})
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/downloads/tasks/77777777-7777-7777-7777-777777777777/pcap")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	if cd := resp.Header.Get("Content-Disposition"); !strings.Contains(cd, "gen.pcap") {
+		t.Errorf("Content-Disposition = %q", cd)
+	}
+	// 非 pcap 任务 → 404
+	resp2, _ := http.Get(srv.URL + "/downloads/tasks/00000000-0000-0000-0000-000000000000/pcap")
+	if resp2.StatusCode != http.StatusNotFound {
+		t.Errorf("unknown task: status = %d, want 404", resp2.StatusCode)
+	}
+	resp2.Body.Close()
+}

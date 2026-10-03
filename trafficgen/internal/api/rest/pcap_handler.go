@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/gopacket/layers"
@@ -93,16 +95,16 @@ func (h *PcapHandler) Import(c *gin.Context) {
 
 	// Create the asset record (importing), then parse.
 	asset := &storage.PcapAssetModel{
-		ID:            assetID,
-		UserID:        userID,
-		Name:          file.Filename,
+		ID:               assetID,
+		UserID:           userID,
+		Name:             file.Filename,
 		OriginalFilename: file.Filename,
-		StoragePath:   pcapPath,
-		PayloadsPath:  payloadsPath,
-		FileHash:      fileHash,
-		FileSize:      file.Size,
-		Status:        "importing",
-		LinkType:      1, // DLT_EN10MB
+		StoragePath:      pcapPath,
+		PayloadsPath:     payloadsPath,
+		FileHash:         fileHash,
+		FileSize:         file.Size,
+		Status:           "importing",
+		LinkType:         1, // DLT_EN10MB
 	}
 	if err := h.repo.CreateAsset(asset); err != nil {
 		// Concurrent-import dedup (§15.6): the (user_id, file_hash) unique index
@@ -787,31 +789,45 @@ func (h *PcapHandler) Download(c *gin.Context) {
 // GET /downloads/tasks/:id/pcap —— 仅 output_type=pcap 的任务可下；
 // 从任务 output_config.pcap_path 直读文件（路径由任务创建时经 API
 // 校验写入 DB，请求侧不可控，无遍历面）。文件未生成/已清理 → 404。
+// 核心逻辑在 ServeTaskPcapPublic（gin 与 MCP HTTP mux 双挂载同一实现）。
 func (h *PcapHandler) DownloadByTask(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		NotFound(c, "missing task id")
+	ServeTaskPcapPublic(h.db, c.Writer, c.Request)
+}
+
+// ServeTaskPcapPublic 解析 /downloads/tasks/<id>/pcap 并直出任务 pcap 文件。
+// 404 语义：任务不存在 / 非 pcap 输出 / 无路径 / 文件不可用。
+func ServeTaskPcapPublic(db *storage.DB, w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	// ["downloads","tasks",<id>,"pcap"]
+	var taskID string
+	if len(parts) == 4 && parts[1] == "tasks" && parts[3] == "pcap" {
+		taskID = parts[2]
+	}
+	if taskID == "" {
+		http.NotFound(w, r)
 		return
 	}
 	var task storage.TaskModel
-	if err := h.db.Where("id = ?", id).First(&task).Error; err != nil {
-		NotFound(c, "task not found")
+	if err := db.Where("id = ?", taskID).First(&task).Error; err != nil {
+		http.NotFound(w, r)
 		return
 	}
 	if task.OutputType != "pcap" {
-		NotFound(c, "task has no downloadable pcap output")
+		http.NotFound(w, r)
 		return
 	}
 	var outputConfig OutputConfigRequest
 	if err := json.Unmarshal([]byte(task.OutputConfig), &outputConfig); err != nil || outputConfig.PcapPath == "" {
-		NotFound(c, "task has no pcap path")
+		http.NotFound(w, r)
 		return
 	}
 	if _, err := os.Stat(outputConfig.PcapPath); err != nil {
-		NotFound(c, "pcap file not available")
+		http.NotFound(w, r)
 		return
 	}
-	c.FileAttachment(outputConfig.PcapPath, filepath.Base(outputConfig.PcapPath))
+	w.Header().Set("Content-Disposition",
+		fmt.Sprintf("attachment; filename=%q", filepath.Base(outputConfig.PcapPath)))
+	http.ServeFile(w, r, outputConfig.PcapPath)
 }
 
 // layersLinkType converts the stored int link type to gopacket layers.LinkType.

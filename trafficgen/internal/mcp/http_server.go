@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/trafficgen/trafficgen/internal/api/rest"
 	"go.uber.org/zap"
 )
 
@@ -64,6 +65,14 @@ func NewHTTPServer(s *Server, listen string, apiKey string, corsOrigins []string
 	// With CORS outermost: preflight gets 204 + CORS headers; actual POST/GET
 	// still goes through apiKeyMiddleware which enforces X-MCP-Key.
 	mux.Handle("/mcp", corsMiddleware(corsOrigins, apiKeyMiddleware(apiKey, streamHandler)))
+
+	// Public pcap download links (no API key — the task UUID is the
+	// capability token): mounted on the MCP port too, so an LLM client can
+	// resolve a task's relative download_url against the host:port it is
+	// already connected to (the REST port may not even be exposed).
+	mux.Handle("/downloads/tasks/", corsMiddleware(corsOrigins, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rest.ServeTaskPcapPublic(s.db, w, r)
+	})))
 
 	hs := &HTTPServer{
 		srv: &http.Server{
