@@ -10,38 +10,61 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"runtime/debug"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 )
 
-// httpTransportKey marks tool-call contexts served over the Streamable HTTP
-// transport. The HTTP server injects it via middleware; stdio never does, so
-// absence means the client runs on this host.
+// httpTransportKey carries the request's own origin (scheme://host[:port],
+// derived from the Host header and TLS state) in tool-call contexts served
+// over the Streamable HTTP transport. Absence (stdio) means the client runs
+// on this host.
 type httpTransportKey struct{}
 
 // taskDataForTransport adapts a REST task payload to the calling transport.
 //
 // stdio clients run on this host: output_config.pcap_path is the direct
-// artifact reference, while the relative download_url cannot be resolved
-// without a server host:port — it is stripped (pre-direct-link behavior).
-// HTTP clients are remote: download_url (the unauthenticated capability
-// link set by rest.convertTaskToResponse for pcap tasks) is the useful
-// handle and is kept. Handles both a single task object and a list of tasks.
+// artifact reference, while any download link cannot be resolved without a
+// server host:port — it is stripped (pre-direct-link behavior).
+//
+// HTTP clients are remote: download_url is rewritten to an absolute URL
+// built from the request's own origin (what the client connected to is
+// exactly what it can reach), so the model can fetch it without assembling
+// anything; download_howto states the (lack of) auth requirements with a
+// ready curl example. rest.convertTaskToResponse sets the relative link
+// for pcap tasks. Handles a single task object and {items:[...]} lists.
 func taskDataForTransport(ctx context.Context, raw json.RawMessage) interface{} {
 	v := rawData(raw)
-	if ctx.Value(httpTransportKey{}) != nil {
-		// Single-task payloads: annotate the link with exact fetch
-		// instructions — the model sees a relative URL and must know how
-		// to turn it into a download without guessing the base address.
+	base, isHTTP := ctx.Value(httpTransportKey{}).(string)
+	if isHTTP && base != "" {
+		abs := func(u string) string {
+			if strings.HasPrefix(u, "/") {
+				return base + u
+			}
+			return u
+		}
 		if m, ok := v.(map[string]interface{}); ok {
 			if u, ok := m["download_url"].(string); ok && u != "" {
-				m["download_howto"] = "Prefix this relative URL with the address of this MCP server " +
-					"(the host:port your client connects to, e.g. http://10.0.0.1:8086) and fetch it with a " +
-					"plain GET — no authentication needed. e.g. curl -o out.pcap http://<server>:<port>" + u
+				full := abs(u)
+				m["download_url"] = full
+				m["download_howto"] = "Fetch with a plain GET — no authentication needed. " +
+					"e.g. curl -o out.pcap " + full
+			}
+			if items, ok := m["items"].([]interface{}); ok {
+				for _, e := range items {
+					if im, ok := e.(map[string]interface{}); ok {
+						if u, ok := im["download_url"].(string); ok && u != "" {
+							im["download_url"] = abs(u)
+						}
+					}
+				}
 			}
 		}
 		return v
+	}
+	if isHTTP {
+		return v // HTTP without a usable Host header: leave links relative.
 	}
 	switch t := v.(type) {
 	case map[string]interface{}:

@@ -88,19 +88,20 @@ func TestGetTaskProgressStdioPath(t *testing.T) {
 		t.Errorf("output_config.pcap_path missing or wrong: %v", m["output_config"])
 	}
 
-	// 同一任务走 HTTP ctx：download_url 必须保留，且带下载方法指引
-	//（模型读到相对路径时无需二次猜测怎么取文件）。
-	_, outH, err := srv.handleGetTaskProgress(
-		context.WithValue(context.Background(), httpTransportKey{}, true), nil, getTaskProgressInput{TaskID: id})
+	// 同一任务走 HTTP ctx（ctx 值=请求自带的 scheme://host 基址）：
+	// download_url 必须是可直接请求的绝对 URL——模型无需自己拼装。
+	httpCtx := context.WithValue(context.Background(), httpTransportKey{}, "http://10.10.10.35:8081")
+	_, outH, err := srv.handleGetTaskProgress(httpCtx, nil, getTaskProgressInput{TaskID: id})
 	if err != nil {
 		t.Fatalf("get_task_progress(http): %v", err)
 	}
 	mH := outH.Data.(map[string]interface{})
-	if got, _ := mH["download_url"].(string); got != "/downloads/tasks/"+id+"/pcap" {
-		t.Errorf("http response download_url = %q", got)
+	want := "http://10.10.10.35:8081/downloads/tasks/" + id + "/pcap"
+	if got, _ := mH["download_url"].(string); got != want {
+		t.Errorf("http download_url = %q, want absolute %q", got, want)
 	}
 	howto, _ := mH["download_howto"].(string)
-	if !strings.Contains(howto, id) || !strings.Contains(howto, "curl") {
+	if !strings.Contains(howto, want) || !strings.Contains(howto, "curl") {
 		t.Errorf("http response download_howto missing/unactionable: %q", howto)
 	}
 }
@@ -127,9 +128,9 @@ func TestTaskDataForTransportShapes(t *testing.T) {
 		}
 	}
 
-	httpCtx := context.WithValue(context.Background(), httpTransportKey{}, true)
-	if _, has := taskDataForTransport(httpCtx, raw).(map[string]interface{})["download_url"]; !has {
-		t.Errorf("http single task: download_url stripped, want kept")
+	httpCtx := context.WithValue(context.Background(), httpTransportKey{}, "http://h:1")
+	if got, _ := taskDataForTransport(httpCtx, raw).(map[string]interface{})["download_url"].(string); got != "http://h:1/d/1" {
+		t.Errorf("http single task: download_url = %q, want absolute", got)
 	}
 	// stdio 形态也不得泄漏指引字段。
 	if _, has := m["download_howto"]; has {

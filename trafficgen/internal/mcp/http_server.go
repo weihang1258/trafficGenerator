@@ -64,12 +64,21 @@ func NewHTTPServer(s *Server, listen string, apiKey string, corsOrigins []string
 	// preflight would 401 and browsers would block all cross-origin requests.
 	// With CORS outermost: preflight gets 204 + CORS headers; actual POST/GET
 	// still goes through apiKeyMiddleware which enforces X-MCP-Key.
-	// Tag the request context with the serving transport so tool handlers can
-	// adapt responses: HTTP (remote) clients get download_url on task payloads,
-	// stdio (same-host) clients get the raw output_config.pcap_path instead.
-	// The go-sdk propagates the HTTP request context into the tool handler.
+	// Tag the request context with the request's own origin so tool handlers
+	// can rewrite relative download links to absolute URLs (the origin the
+	// client connected to is exactly what it can reach). Scheme: TLS state,
+	// honoring X-Forwarded-Proto behind a reverse proxy. The go-sdk
+	// propagates the HTTP request context into the tool handler.
 	tagged := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		streamHandler.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), httpTransportKey{}, true)))
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+		if fp := r.Header.Get("X-Forwarded-Proto"); fp != "" {
+			scheme = fp
+		}
+		base := scheme + "://" + r.Host
+		streamHandler.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), httpTransportKey{}, base)))
 	})
 	mux.Handle("/mcp", corsMiddleware(corsOrigins, apiKeyMiddleware(apiKey, tagged)))
 
