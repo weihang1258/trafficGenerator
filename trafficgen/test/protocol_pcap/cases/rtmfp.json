@@ -2456,7 +2456,7 @@
   },
   {
     "expect": {
-      "error_contains": "no longer accepts a top-level rtmfp sub-config",
+      "error_contains": "rejects a top-level rtmfp sub-config",
       "expect_error": true
     },
     "id": "rtmfp_neg_top_rtmfp_presence_reject",
@@ -2485,7 +2485,7 @@
   },
   {
     "expect": {
-      "error_contains": "no longer accepts flat config field src_ip",
+      "error_contains": "rejects flat config field src_ip",
       "expect_error": true
     },
     "id": "rtmfp_neg_stray_src_ip",

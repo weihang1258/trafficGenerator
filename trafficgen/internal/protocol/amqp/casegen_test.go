@@ -760,11 +760,11 @@ func TestGenerateAMQPCases(t *testing.T) {
 	negatives = append(negatives, anegCase{id: "amqp_neg_presence_top_submap",
 		summary: "层链+顶层空 amqp 子映射并存判死（presence 负例形状）",
 		layers:  aChain(pres21cfg),
-		anchor:  "no longer accepts a top-level amqp sub-config",
+		anchor:  "rejects a top-level amqp sub-config",
 		extra:   map[string]interface{}{"amqp": map[string]interface{}{}}})
 	// ㉒ 白名单外游离键红例（M5 清单②：1.11–1.13）。
 	// 顶层 src_ip + layers 并存走 CheckProtoFlat 四元组面（fins/smtp 同构
-	// presence 形）——shape 门 400，锚词 "no longer accepts ... src_ip"。
+	// presence 形）——shape 门 400，锚词 "rejects flat config field ... src_ip"。
 	stray22cfg := map[string]interface{}{"profile": "amqp091_minimal",
 		"connections": []interface{}{map[string]interface{}{"events": []interface{}{ahdrEv()}}}}
 	stray22shape := map[string]interface{}{"layers": aChain(stray22cfg), "src_ip": aCli}
@@ -784,7 +784,7 @@ func TestGenerateAMQPCases(t *testing.T) {
 	negatives = append(negatives, anegCase{id: "amqp_neg_stray_top_key",
 		summary: "顶层游离键 src_ip 判死（白名单外）",
 		layers:  aChain(stray22cfg),
-		anchor:  "no longer accepts flat config field src_ip",
+		anchor:  "rejects flat config field src_ip",
 		extra:   map[string]interface{}{"src_ip": aCli}})
 	// ㉓ udp 载体红例（M5 清单；carrier 锚词，§13-P2）。
 	addNeg("amqp_neg_udp_carrier",

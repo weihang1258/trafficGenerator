@@ -297,7 +297,7 @@ HELO + `TURN` / `502 Command not implemented` + QUIT。
 
 | ID | 故障输入（机读实测） | JSON `error_contains` | 归属门 + 代码文案 | 代码位置 |
 |---|---|---|---|---|
-| `smtp_t002_top_smtp_presence_reject` | 层链 + 顶层 `smtp:{}` | `no longer accepts a top-level smtp sub-config` | 框架 `CheckProtoFlat`：`protocol smtp no longer accepts a top-level smtp sub-config (move it into the smtp layer of an [ip,tcp,smtp] layers chain)` | `strategy_convert.go:8830-8833` |
+| `smtp_t002_top_smtp_presence_reject` | 层链 + 顶层 `smtp:{}` | `rejects a top-level smtp sub-config` | 框架 `CheckProtoFlat`：`protocol smtp rejects a top-level smtp sub-config (move it into the smtp layer of an [ip,tcp,smtp] layers chain)` | `strategy_convert.go:8830-8833` |
 | `smtp_t019_bad_srcip_reject` | `ip.dst = "not-an-ip"` | `invalid IP address: not-an-ip` | 框架 ip 层：`invalid IP address: %s` | `convert.go:55` |
 | `smtp_t020_mss_reject` | `tcp.mss = 100` | `out of range [536,65535]` | 框架 tcp 层 V9 范围门：`layers: layer %q field %q = %v invalid: out of range [%d,%d]` | `layers/complete.go:325` |
 | `smtp_t021_boundary_reject` | multipart + `boundary` 71 字符 | `Boundary` | **smtp planner**：`smtp: Email.Boundary length %d exceeds max 70 chars (RFC 2046 §5.1.1 boundary)` | `mime.go:344` |
@@ -480,7 +480,7 @@ RFC 族（设计 §10）+ as-built 落码（设计 §11）+ tshark 3.6.14 `smtp.
 | 3 | 非负例顶层键计数 == 0 | 设计 §12.1 | 今日成立 |
 | 4 | 37 正例 `packet_count` 按 §9 公式复算一致 | 设计 §9 公式 | **红**（34 例缺键）→ G-SMTP-1 |
 | 5 | 6 负例 `expect` 键 == `{expect_error, error_contains}` | 本契约 §4 | **红**（含 `notes`）→ G-SMTP-11 |
-| 6 | 负例 `error_contains` ∈ 代码锚词集 `{"no longer accepts", "invalid IP address", "out of range", "Boundary", "neither Data nor DataB64", "static"}` | 设计 §7 | 今日成立 |
+| 6 | 负例 `error_contains` ∈ 代码锚词集 `{"rejects flat config field", "invalid IP address", "out of range", "Boundary", "neither Data nor DataB64", "static"}` | 设计 §7 | 今日成立 |
 | 7 | 每正例至少一条 frames 断言落在 offset 54（IPv4）或 74（IPv6） | 本契约 §3 | **红**（仅 9/37 例有 frames）→ G-SMTP-1 |
 | 8 | 层链形 ⊆ `{[ip,tcp,smtp], [tcp,smtp], [ip,tcp,tls,smtp]}` | 本契约 §1 | 今日成立（43/43 为 `[ip,tcp,smtp]`） |
 | 9 | 9 个 email 例至少一例含 `smtp.data.reassembled.length` 或 `smtp.data.fragment.count` 断言 | 本契约 §3.7 | **红**（零使用）→ G-SMTP-12 |

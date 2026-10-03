@@ -8670,21 +8670,21 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 		}
 	}
 	if len(flat) == 1 {
-		return "protocol " + protocol + " no longer accepts flat config field " + flat[0] +
+		return "protocol " + protocol + " rejects flat config field " + flat[0] +
 			" (use a layers chain: ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports, flow_control for the flow count)"
 	}
 	if len(flat) > 1 {
-		return "protocol " + protocol + " no longer accepts flat config fields " + strings.Join(flat, ", ") +
+		return "protocol " + protocol + " rejects flat config fields " + strings.Join(flat, ", ") +
 			" (use a layers chain: ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports, flow_control for the flow count)"
 	}
 	if protocol == "ams" {
 		if v, ok := cfg["ams"]; ok && v != nil {
-			return "protocol ams no longer accepts a top-level ams sub-config (move it into the ams layer of an [ip,tcp,ams] layers chain)"
+			return "protocol ams rejects a top-level ams sub-config (move it into the ams layer of an [ip,tcp,ams] layers chain)"
 		}
 	}
 	if protocol == "a2a" {
 		if v, ok := cfg["a2a"]; ok && v != nil {
-			return "protocol a2a no longer accepts a top-level a2a sub-config (move it into the a2a layer of an [ip,tcp,a2a] layers chain)"
+			return "protocol a2a rejects a top-level a2a sub-config (move it into the a2a layer of an [ip,tcp,a2a] layers chain)"
 		}
 	}
 	// D-HTTP-1 重走步骤 3：http 族 9 协议顶层 http 子映射 presence 判死
@@ -8694,21 +8694,21 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	switch protocol {
 	case "http", "http_flv", "hls", "hds", "gbt", "getwork", "cwmp", "doh", "onvif":
 		if v, ok := cfg["http"]; ok && v != nil {
-			return "protocol " + protocol + " no longer accepts a top-level http sub-config (move it into the http layer of a [ip,tcp,http] layers chain)"
+			return "protocol " + protocol + " rejects a top-level http sub-config (move it into the http layer of a [ip,tcp,http] layers chain)"
 		}
 	}
 	// D-DNS-1：dns 顶层 dns 子映射 presence 判死（http 族先例；空 map 也
 	// 死——presence 语义与 ParseHTTPConfigFromMap 一致）。层链形状不触发。
 	if protocol == "dns" {
 		if v, ok := cfg["dns"]; ok && v != nil {
-			return "protocol dns no longer accepts a top-level dns sub-config (move it into the dns layer of an [ip,udp,dns] layers chain)"
+			return "protocol dns rejects a top-level dns sub-config (move it into the dns layer of an [ip,udp,dns] layers chain)"
 		}
 	}
 	// D-MQTT-1：mqtt 顶层 mqtt 子映射 presence 判死（dns 先例；空 map 也
 	// 死）。层链形状不触发。
 	if protocol == "mqtt" {
 		if v, ok := cfg["mqtt"]; ok && v != nil {
-			return "protocol mqtt no longer accepts a top-level mqtt sub-config (move it into the mqtt layer of an [ip,tcp,mqtt] layers chain)"
+			return "protocol mqtt rejects a top-level mqtt sub-config (move it into the mqtt layer of an [ip,tcp,mqtt] layers chain)"
 		}
 	}
 	// snmp 顶层 snmp 子映射 presence 判死（mqtt 先例；空 map 也死）。
@@ -8716,7 +8716,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// v2c/public/1）先落码，冒烟例迁层后此门才有执法对象。层链形状不触发。
 	if protocol == "snmp" {
 		if v, ok := cfg["snmp"]; ok && v != nil {
-			return "protocol snmp no longer accepts a top-level snmp sub-config (move it into the snmp layer of an [ip,udp,snmp] layers chain)"
+			return "protocol snmp rejects a top-level snmp sub-config (move it into the snmp layer of an [ip,udp,snmp] layers chain)"
 		}
 	}
 	// openvpn/rdp/redis/shadowsocks 四单例顶层子映射 presence 判死（snmp
@@ -8725,99 +8725,99 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	switch protocol {
 	case "openvpn":
 		if v, ok := cfg["openvpn"]; ok && v != nil {
-			return "protocol openvpn no longer accepts a top-level openvpn sub-config (move it into the openvpn layer of an [ip,udp,openvpn] layers chain)"
+			return "protocol openvpn rejects a top-level openvpn sub-config (move it into the openvpn layer of an [ip,udp,openvpn] layers chain)"
 		}
 	case "rdp":
 		if v, ok := cfg["rdp"]; ok && v != nil {
-			return "protocol rdp no longer accepts a top-level rdp sub-config (move it into the rdp layer of an [ip,tcp,rdp] layers chain)"
+			return "protocol rdp rejects a top-level rdp sub-config (move it into the rdp layer of an [ip,tcp,rdp] layers chain)"
 		}
 	case "redis":
 		if v, ok := cfg["redis"]; ok && v != nil {
-			return "protocol redis no longer accepts a top-level redis sub-config (move it into the redis layer of an [ip,tcp,redis] layers chain)"
+			return "protocol redis rejects a top-level redis sub-config (move it into the redis layer of an [ip,tcp,redis] layers chain)"
 		}
 	case "shadowsocks":
 		if v, ok := cfg["shadowsocks"]; ok && v != nil {
-			return "protocol shadowsocks no longer accepts a top-level shadowsocks sub-config (move it into the shadowsocks layer of an [ip,tcp,shadowsocks] layers chain)"
+			return "protocol shadowsocks rejects a top-level shadowsocks sub-config (move it into the shadowsocks layer of an [ip,tcp,shadowsocks] layers chain)"
 		}
 	case "openwire":
 		if v, ok := cfg["openwire"]; ok && v != nil {
-			return "protocol openwire no longer accepts a top-level openwire sub-config (move it into the openwire layer of an [ip,tcp,openwire] layers chain)"
+			return "protocol openwire rejects a top-level openwire sub-config (move it into the openwire layer of an [ip,tcp,openwire] layers chain)"
 		}
 	case "pcep":
 		if v, ok := cfg["pcep"]; ok && v != nil {
-			return "protocol pcep no longer accepts a top-level pcep sub-config (move it into the pcep layer of an [ip,tcp,pcep] layers chain)"
+			return "protocol pcep rejects a top-level pcep sub-config (move it into the pcep layer of an [ip,tcp,pcep] layers chain)"
 		}
 	case "rip":
 		if v, ok := cfg["rip"]; ok && v != nil {
-			return "protocol rip no longer accepts a top-level rip sub-config (move it into the rip layer of an [ip,udp,rip] layers chain)"
+			return "protocol rip rejects a top-level rip sub-config (move it into the rip layer of an [ip,udp,rip] layers chain)"
 		}
 	case "ssdp":
 		if v, ok := cfg["ssdp"]; ok && v != nil {
-			return "protocol ssdp no longer accepts a top-level ssdp sub-config (move it into the ssdp layer of an [ip,udp,ssdp] layers chain)"
+			return "protocol ssdp rejects a top-level ssdp sub-config (move it into the ssdp layer of an [ip,udp,ssdp] layers chain)"
 		}
 	case "syslog":
 		if v, ok := cfg["syslog"]; ok && v != nil {
-			return "protocol syslog no longer accepts a top-level syslog sub-config (move it into the syslog layer of an [ip,udp,syslog] layers chain)"
+			return "protocol syslog rejects a top-level syslog sub-config (move it into the syslog layer of an [ip,udp,syslog] layers chain)"
 		}
 	case "ssh":
 		if v, ok := cfg["ssh"]; ok && v != nil {
-			return "protocol ssh no longer accepts a top-level ssh sub-config (move it into the ssh layer of an [ip,tcp,ssh] layers chain)"
+			return "protocol ssh rejects a top-level ssh sub-config (move it into the ssh layer of an [ip,tcp,ssh] layers chain)"
 		}
 	case "vmess":
 		if v, ok := cfg["vmess"]; ok && v != nil {
-			return "protocol vmess no longer accepts a top-level vmess sub-config (move it into the vmess layer of an [ip,tcp,vmess] layers chain)"
+			return "protocol vmess rejects a top-level vmess sub-config (move it into the vmess layer of an [ip,tcp,vmess] layers chain)"
 		}
 	case "wireguard":
 		if v, ok := cfg["wireguard"]; ok && v != nil {
-			return "protocol wireguard no longer accepts a top-level wireguard sub-config (move it into the wireguard layer of an [ip,udp,wireguard] layers chain)"
+			return "protocol wireguard rejects a top-level wireguard sub-config (move it into the wireguard layer of an [ip,udp,wireguard] layers chain)"
 		}
 	case "stun":
 		if v, ok := cfg["stun"]; ok && v != nil {
-			return "protocol stun no longer accepts a top-level stun sub-config (move it into the stun layer of an [ip,udp,stun] layers chain)"
+			return "protocol stun rejects a top-level stun sub-config (move it into the stun layer of an [ip,udp,stun] layers chain)"
 		}
 	case "swarm":
 		if v, ok := cfg["swarm"]; ok && v != nil {
-			return "protocol swarm no longer accepts a top-level swarm sub-config (move it into the swarm layer of an [ip,udp,swarm] layers chain)"
+			return "protocol swarm rejects a top-level swarm sub-config (move it into the swarm layer of an [ip,udp,swarm] layers chain)"
 		}
 	case "vxlan":
 		if v, ok := cfg["vxlan"]; ok && v != nil {
-			return "protocol vxlan no longer accepts a top-level vxlan sub-config (move it into the vxlan layer of an [ip,udp,vxlan] layers chain)"
+			return "protocol vxlan rejects a top-level vxlan sub-config (move it into the vxlan layer of an [ip,udp,vxlan] layers chain)"
 		}
 	case "someip":
 		if v, ok := cfg["someip"]; ok && v != nil {
-			return "protocol someip no longer accepts a top-level someip sub-config (move it into the someip layer of an [ip,udp,someip] layers chain)"
+			return "protocol someip rejects a top-level someip sub-config (move it into the someip layer of an [ip,udp,someip] layers chain)"
 		}
 	case "thrift":
 		if v, ok := cfg["thrift"]; ok && v != nil {
-			return "protocol thrift no longer accepts a top-level thrift sub-config (move it into the thrift layer of an [ip,tcp,thrift] layers chain)"
+			return "protocol thrift rejects a top-level thrift sub-config (move it into the thrift layer of an [ip,tcp,thrift] layers chain)"
 		}
 	}
 	// D-CWMP-1：cwmp 顶层 cwmp 子映射 presence 判死（mqtt 先例；空 map 也
 	// 死——B6 注入形退役，配置迁 cwmp 层六键）。层链形状不触发。
 	if protocol == "cwmp" {
 		if v, ok := cfg["cwmp"]; ok && v != nil {
-			return "protocol cwmp no longer accepts a top-level cwmp sub-config (move it into the cwmp layer of a [ip,tcp,http,cwmp] layers chain)"
+			return "protocol cwmp rejects a top-level cwmp sub-config (move it into the cwmp layer of a [ip,tcp,http,cwmp] layers chain)"
 		}
 	}
 	// D-MEGACO-1：megaco 顶层 megaco 子映射 presence 判死（cwmp 先例；空
 	// map 也死——B6 顶层注入形退役，配置迁 megaco 层七键）。层链形状不触发。
 	if protocol == "megaco" {
 		if v, ok := cfg["megaco"]; ok && v != nil {
-			return "protocol megaco no longer accepts a top-level megaco sub-config (move it into the megaco layer of an [ip,udp,megaco] layers chain; tcp carrier = [ip,tcp,megaco] with RFC 1006 TPKT framing)"
+			return "protocol megaco rejects a top-level megaco sub-config (move it into the megaco layer of an [ip,udp,megaco] layers chain; tcp carrier = [ip,tcp,megaco] with RFC 1006 TPKT framing)"
 		}
 	}
 	// D-HL7-1：hl7 顶层 hl7 子映射 presence 判死（megaco 先例；空 map 也
 	// 死——B6 扁平注入形退役，配置迁 hl7 层八键）。层链形状不触发。
 	if protocol == "hl7" {
 		if v, ok := cfg["hl7"]; ok && v != nil {
-			return "protocol hl7 no longer accepts a top-level hl7 sub-config (move it into the hl7 layer of an [ip,tcp,hl7] layers chain; MLLP framing lives in the hl7 layer)"
+			return "protocol hl7 rejects a top-level hl7 sub-config (move it into the hl7 layer of an [ip,tcp,hl7] layers chain; MLLP framing lives in the hl7 layer)"
 		}
 	}
 	// D-MMSE-1：mmse 顶层 mmse 子映射 presence 判死（hl7 先例；空 map 也
 	// 死——B6 扁平注入形退役，配置迁 mmse 层五键）。层链形状不触发。
 	if protocol == "mmse" {
 		if v, ok := cfg["mmse"]; ok && v != nil {
-			return "protocol mmse no longer accepts a top-level mmse sub-config (move it into the mmse layer of an [ip,tcp,http,mmse] layers chain; WAP-209 PDU config lives in the mmse layer)"
+			return "protocol mmse rejects a top-level mmse sub-config (move it into the mmse layer of an [ip,tcp,http,mmse] layers chain; WAP-209 PDU config lives in the mmse layer)"
 		}
 	}
 	// D-NTLM-1：ntlm 顶层 ntlm 子映射 presence 判死（bacnet 先例；空 map
@@ -8825,14 +8825,14 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// 层链形状不触发。
 	if protocol == "ntlm" {
 		if v, ok := cfg["ntlm"]; ok && v != nil {
-			return "protocol ntlm no longer accepts a top-level ntlm sub-config (move it into the ntlm layer of an [ip,tcp,ntlm] layers chain)"
+			return "protocol ntlm rejects a top-level ntlm sub-config (move it into the ntlm layer of an [ip,tcp,ntlm] layers chain)"
 		}
 	}
 	// D-OCSP-1：ocsp 顶层 ocsp 子映射 presence 判死（mmse 先例；空 map 也
 	// 死——新协议无扁平存量，配置迁 ocsp 层键，层链形状不触发）。
 	if protocol == "ocsp" {
 		if v, ok := cfg["ocsp"]; ok && v != nil {
-			return "protocol ocsp no longer accepts a top-level ocsp sub-config (move it into the ocsp layer of an [ip,tcp,http,ocsp] layers chain; RFC 6960/8954 OCSP config lives in the ocsp layer)"
+			return "protocol ocsp rejects a top-level ocsp sub-config (move it into the ocsp layer of an [ip,tcp,http,ocsp] layers chain; RFC 6960/8954 OCSP config lives in the ocsp layer)"
 		}
 	}
 	// D-SPNEGO-1：spnego 顶层 spnego 子映射 presence 判死（ntlm 先例；空
@@ -8840,14 +8840,14 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// output）。层链形状不触发。
 	if protocol == "spnego" {
 		if v, ok := cfg["spnego"]; ok && v != nil {
-			return "protocol spnego no longer accepts a top-level spnego sub-config (move it into the spnego layer of an [ip,tcp,spnego] layers chain)"
+			return "protocol spnego rejects a top-level spnego sub-config (move it into the spnego layer of an [ip,tcp,spnego] layers chain)"
 		}
 	}
 	// D-AMQP-1：amqp 顶层 amqp 子映射 presence 判死（ocsp 先例；空 map 也
 	// 死——新协议无扁平存量，配置迁 amqp 层键，层链形状不触发）。
 	if protocol == "amqp" {
 		if v, ok := cfg["amqp"]; ok && v != nil {
-			return "protocol amqp no longer accepts a top-level amqp sub-config (move it into the amqp layer of an [ip,tcp,amqp] layers chain; AMQP 0-9-1 config lives in the amqp layer)"
+			return "protocol amqp rejects a top-level amqp sub-config (move it into the amqp layer of an [ip,tcp,amqp] layers chain; AMQP 0-9-1 config lives in the amqp layer)"
 		}
 	}
 	// D-HDS-1（G-HDS-1）：hds 顶层 hds 子映射 presence 判死（amqp 先例；空
@@ -8855,7 +8855,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// 迁 layers[].hds）。层链形状不触发；顶层 http 已由上方 http 族分支判死。
 	if protocol == "hds" {
 		if v, ok := cfg["hds"]; ok && v != nil {
-			return "protocol hds no longer accepts a top-level hds sub-config (move it into the hds layer of an [ip,tcp,http,hds] layers chain)"
+			return "protocol hds rejects a top-level hds sub-config (move it into the hds layer of an [ip,tcp,http,hds] layers chain)"
 		}
 	}
 	// D-EDP-1：edp 顶层 edp 子映射 presence 判死（mmse 先例；空 map 也
@@ -8865,21 +8865,21 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// 落地（bgp/coap 先例：翻译先落码，cases 改写后此门才有执法对象）。
 	if protocol == "edp" {
 		if v, ok := cfg["edp"]; ok && v != nil {
-			return "protocol edp no longer accepts a top-level edp sub-config (move it into the edp layer of an [ip,tcp,edp] layers chain; OneNET EDP framing lives in the edp layer)"
+			return "protocol edp rejects a top-level edp sub-config (move it into the edp layer of an [ip,tcp,edp] layers chain; OneNET EDP framing lives in the edp layer)"
 		}
 	}
 	// D-BGP-1 G-BGP-6：bgp 顶层 bgp 子映射 presence 判死（amqp 先例；空
 	// map 也死——事件面迁 bgp 层 13 键，层链是唯一真相）。层链形状不触发。
 	if protocol == "bgp" {
 		if v, ok := cfg["bgp"]; ok && v != nil {
-			return "protocol bgp no longer accepts a top-level bgp sub-config (move it into the bgp layer of an [ip,tcp,bgp] layers chain; the layer chain is the only config truth)"
+			return "protocol bgp rejects a top-level bgp sub-config (move it into the bgp layer of an [ip,tcp,bgp] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-COAP-1 G-COAP-1②：coap 顶层 coap 子映射 presence 判死（bgp 先例；
 	// 空 map 也死——29 键业务面迁 coap 层，层链是唯一真相）。层链形状不触发。
 	if protocol == "coap" {
 		if v, ok := cfg["coap"]; ok && v != nil {
-			return "protocol coap no longer accepts a top-level coap sub-config (move it into the coap layer of an [ip,udp,coap] layers chain; the layer chain is the only config truth)"
+			return "protocol coap rejects a top-level coap sub-config (move it into the coap layer of an [ip,udp,coap] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-STRATUM-1 G-ST-4：stratum 顶层 stratum 子映射 presence 判死（bgp
@@ -8887,7 +8887,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// 层链是唯一配置真相）。层链形状不触发。
 	if protocol == "stratum" {
 		if v, ok := cfg["stratum"]; ok && v != nil {
-			return "protocol stratum no longer accepts a top-level stratum sub-config (move it into the stratum layer of an [ip,tcp,stratum] layers chain; the layer chain is the only config truth)"
+			return "protocol stratum rejects a top-level stratum sub-config (move it into the stratum layer of an [ip,tcp,stratum] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-TNS-1（G-TNS-5）：tns 顶层 tns 子映射 presence 判死（bgp 先例；空
@@ -8896,7 +8896,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// 不触发。
 	if protocol == "tns" {
 		if v, ok := cfg["tns"]; ok && v != nil {
-			return "protocol tns no longer accepts a top-level tns sub-config (move it into the tns layer of an [ip,tcp,tns] layers chain; the layer chain is the only config truth)"
+			return "protocol tns rejects a top-level tns sub-config (move it into the tns layer of an [ip,tcp,tns] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-CQL-1（G-CQL-1）：cql 顶层 cql 子映射 presence 判死（tds 先例；
@@ -8904,21 +8904,21 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// layers[i].cql）。层链形状不触发。
 	if protocol == "cql" {
 		if v, ok := cfg["cql"]; ok && v != nil {
-			return "protocol cql no longer accepts a top-level cql sub-config (move it into the cql layer of an [ip,tcp,cql] layers chain)"
+			return "protocol cql rejects a top-level cql sub-config (move it into the cql layer of an [ip,tcp,cql] layers chain)"
 		}
 	}
 	// D-S7-85（G-S7-1）：s7 顶层 s7 子映射 presence 判死（amqp 先例；空
 	// map 也死——配置住 s7 层，层链是唯一真相）。层链形状不触发。
 	if protocol == "s7" {
 		if v, ok := cfg["s7"]; ok && v != nil {
-			return "protocol s7 no longer accepts a top-level s7 sub-config (move it into the s7 layer of an [ip,tcp,s7] layers chain)"
+			return "protocol s7 rejects a top-level s7 sub-config (move it into the s7 layer of an [ip,tcp,s7] layers chain)"
 		}
 	}
 	// D-DOIP-1：doip 顶层 doip 子映射 presence 判死（enip 先例；空 map
 	// 也死——G-DOIP-5；十三键迁 layers[i].doip）。层链形状不触发。
 	if protocol == "doip" {
 		if v, ok := cfg["doip"]; ok && v != nil {
-			return "protocol doip no longer accepts a top-level doip sub-config (move it into the doip layer of an [ip,tcp,doip] layers chain; the layer chain is the only config truth)"
+			return "protocol doip rejects a top-level doip sub-config (move it into the doip layer of an [ip,tcp,doip] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-DAMENG-1（G-DM-6 框架级判死洞 P4 落码）：dameng 顶层 dameng 子
@@ -8927,14 +8927,14 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// 状不触发。
 	if protocol == "dameng" {
 		if v, ok := cfg["dameng"]; ok && v != nil {
-			return "protocol dameng no longer accepts a top-level dameng sub-config (move it into the dameng layer of an [ip,tcp,dameng] layers chain; the layer chain is the only config truth)"
+			return "protocol dameng rejects a top-level dameng sub-config (move it into the dameng layer of an [ip,tcp,dameng] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-XMR-1：xmrmining 顶层 xmrmining 子映射 presence 判死（edp 先例；空
 	// map 也死——B6 扁平注入形退役，配置迁 xmrmining 层键）。层链形状不触发。
 	if protocol == "xmrmining" {
 		if v, ok := cfg["xmrmining"]; ok && v != nil {
-			return "protocol xmrmining no longer accepts a top-level xmrmining sub-config (move it into the xmrmining layer of an [ip,tcp,xmrmining] layers chain; Monero stratum framing lives in the xmrmining layer)"
+			return "protocol xmrmining rejects a top-level xmrmining sub-config (move it into the xmrmining layer of an [ip,tcp,xmrmining] layers chain; Monero stratum framing lives in the xmrmining layer)"
 		}
 	}
 	// D-ETHMINING-1 P4（G-EM-4 前半）：ethmining 顶层 ethmining 子映射
@@ -8944,49 +8944,49 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// open，不在本分支内（同族不混淆）。
 	if protocol == "ethmining" {
 		if v, ok := cfg["ethmining"]; ok && v != nil {
-			return "protocol ethmining no longer accepts a top-level ethmining sub-config (move it into the ethmining layer of an [ip,tcp,ethmining] layers chain; EthereumStratum framing lives in the ethmining layer)"
+			return "protocol ethmining rejects a top-level ethmining sub-config (move it into the ethmining layer of an [ip,tcp,ethmining] layers chain; EthereumStratum framing lives in the ethmining layer)"
 		}
 	}
 	// D-SMB-1：smb 顶层 smb 子映射 presence 判死（bacnet 先例；空 map 也
 	// 死——B6 扁平注入形退役，配置迁 smb 层 34 键）。层链形状不触发。
 	if protocol == "smb" {
 		if v, ok := cfg["smb"]; ok && v != nil {
-			return "protocol smb no longer accepts a top-level smb sub-config (move it into the smb layer of an [ip,tcp,smb] layers chain)"
+			return "protocol smb rejects a top-level smb sub-config (move it into the smb layer of an [ip,tcp,smb] layers chain)"
 		}
 	}
 	// D-BACNET-1：bacnet 顶层 bacnet 子映射 presence 判死（xmrmining 先例；
 	// 空 map 也死——B6 扁平注入形退役，配置迁 bacnet 层键）。层链形状不触发。
 	if protocol == "bacnet" {
 		if v, ok := cfg["bacnet"]; ok && v != nil {
-			return "protocol bacnet no longer accepts a top-level bacnet sub-config (move it into the bacnet layer of an [ip,udp,bacnet] layers chain; BACnet/IP Annex J framing lives in the bacnet layer)"
+			return "protocol bacnet rejects a top-level bacnet sub-config (move it into the bacnet layer of an [ip,udp,bacnet] layers chain; BACnet/IP Annex J framing lives in the bacnet layer)"
 		}
 	}
 	// D-SMTP-1：smtp 顶层 smtp 子映射 presence 判死（mqtt 先例；空 map 也
 	// 死）。层链形状不触发。
 	if protocol == "smtp" {
 		if v, ok := cfg["smtp"]; ok && v != nil {
-			return "protocol smtp no longer accepts a top-level smtp sub-config (move it into the smtp layer of an [ip,tcp,smtp] layers chain)"
+			return "protocol smtp rejects a top-level smtp sub-config (move it into the smtp layer of an [ip,tcp,smtp] layers chain)"
 		}
 	}
 	// D-POP3-1：pop3 顶层 pop3 子映射 presence 判死（smtp 先例；空 map 也
 	// 死）。层链形状不触发。
 	if protocol == "pop3" {
 		if v, ok := cfg["pop3"]; ok && v != nil {
-			return "protocol pop3 no longer accepts a top-level pop3 sub-config (move it into the pop3 layer of an [ip,tcp,pop3] layers chain)"
+			return "protocol pop3 rejects a top-level pop3 sub-config (move it into the pop3 layer of an [ip,tcp,pop3] layers chain)"
 		}
 	}
 	// D-NFS-1：nfs 顶层 nfs 子映射 presence 判死（pop3 先例；空 map 也
 	// 死——配置住 nfs 层，层链是唯一真相）。层链形状不触发。
 	if protocol == "nfs" {
 		if v, ok := cfg["nfs"]; ok && v != nil {
-			return "protocol nfs no longer accepts a top-level nfs sub-config (move it into the nfs layer of an [ip,tcp,nfs] layers chain)"
+			return "protocol nfs rejects a top-level nfs sub-config (move it into the nfs layer of an [ip,tcp,nfs] layers chain)"
 		}
 	}
 	// D-DRDA-1：drda 顶层 drda 子映射 presence 判死（nfs 先例；空 map 也
 	// 死——配置住 drda 层十三键，层链是唯一真相）。层链形状不触发。
 	if protocol == "drda" {
 		if v, ok := cfg["drda"]; ok && v != nil {
-			return "protocol drda no longer accepts a top-level drda sub-config (move it into the drda layer of an [ip,tcp,drda] layers chain)"
+			return "protocol drda rejects a top-level drda sub-config (move it into the drda layer of an [ip,tcp,drda] layers chain)"
 		}
 	}
 	// D-MOXA-1 G-MOXA-2（P4 落码）：moxa 顶层 moxa 子映射 presence 判死
@@ -8995,7 +8995,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// 实测 grep -c = 0），presence 形不判死 = G-MOXA-2 缺口。
 	if protocol == "moxa" {
 		if v, ok := cfg["moxa"]; ok && v != nil {
-			return "protocol moxa no longer accepts a top-level moxa sub-config (move it into the moxa layer of an [ip,tcp,moxa] layers chain; the layer chain is the only config truth)"
+			return "protocol moxa rejects a top-level moxa sub-config (move it into the moxa layer of an [ip,tcp,moxa] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-SSTP-1：sstp 顶层 sstp 子映射 presence 判死（kerberos 之后的 sstp
@@ -9003,7 +9003,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// 并存=判死负例」）。层链形状不触发。
 	if protocol == "sstp" {
 		if v, ok := cfg["sstp"]; ok && v != nil {
-			return "protocol sstp no longer accepts a top-level sstp sub-config (move it into the sstp layer of an [ip,tcp,tls,sstp] layers chain; the layer chain is the only config truth)"
+			return "protocol sstp rejects a top-level sstp sub-config (move it into the sstp layer of an [ip,tcp,tls,sstp] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-TFTP-1：tftp 顶层 tftp 子映射 presence 判死（sstp 先例；空 map 也
@@ -9011,7 +9011,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// 层链形状不触发。
 	if protocol == "tftp" {
 		if v, ok := cfg["tftp"]; ok && v != nil {
-			return "protocol tftp no longer accepts a top-level tftp sub-config (move it into the tftp layer of an [ip,udp,tftp] layers chain; the layer chain is the only config truth)"
+			return "protocol tftp rejects a top-level tftp sub-config (move it into the tftp layer of an [ip,udp,tftp] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-GBT32960 P4：gbt32960 顶层 gbt32960 子映射 presence 判死（tftp
@@ -9019,112 +9019,112 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// translateTerminalConfig 翻译进 spec.GBT32960）。层链形状不触发。
 	if protocol == "gbt32960" {
 		if v, ok := cfg["gbt32960"]; ok && v != nil {
-			return "protocol gbt32960 no longer accepts a top-level gbt32960 sub-config (move it into the gbt32960 layer of an [ip,tcp,gbt32960] layers chain; the layer chain is the only config truth)"
+			return "protocol gbt32960 rejects a top-level gbt32960 sub-config (move it into the gbt32960 layer of an [ip,tcp,gbt32960] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-IMAP-1：imap 顶层 imap 子映射 presence 判死（pop3 先例；空 map 也
 	// 死）。层链形状不触发。
 	if protocol == "imap" {
 		if v, ok := cfg["imap"]; ok && v != nil {
-			return "protocol imap no longer accepts a top-level imap sub-config (move it into the imap layer of an [ip,tcp,imap] layers chain)"
+			return "protocol imap rejects a top-level imap sub-config (move it into the imap layer of an [ip,tcp,imap] layers chain)"
 		}
 	}
 	// D-MCP-1：mcp 顶层 mcp 子映射 presence 判死（imap 先例；空 map 也
 	// 死）。层链形状不触发。
 	if protocol == "mcp" {
 		if v, ok := cfg["mcp"]; ok && v != nil {
-			return "protocol mcp no longer accepts a top-level mcp sub-config (move it into the mcp layer of an [ip,tcp,mcp] layers chain)"
+			return "protocol mcp rejects a top-level mcp sub-config (move it into the mcp layer of an [ip,tcp,mcp] layers chain)"
 		}
 	}
 	// D-SRV6-1：srv6 顶层 srv6 子映射 presence 判死（mcp 先例；空 map 也
 	// 死）。层链形状不触发。
 	if protocol == "srv6" {
 		if v, ok := cfg["srv6"]; ok && v != nil {
-			return "protocol srv6 no longer accepts a top-level srv6 sub-config (move it into the srv6 layer of an [ip,srv6] layers chain)"
+			return "protocol srv6 rejects a top-level srv6 sub-config (move it into the srv6 layer of an [ip,srv6] layers chain)"
 		}
 	}
 	// D-FINS-1：fins 顶层 fins 子映射 presence 判死（srv6 先例；空 map 也
 	// 死）。层链形状不触发。
 	if protocol == "fins" {
 		if v, ok := cfg["fins"]; ok && v != nil {
-			return "protocol fins no longer accepts a top-level fins sub-config (move it into the fins layer of a layers chain: ip + udp/tcp carrier + fins)"
+			return "protocol fins rejects a top-level fins sub-config (move it into the fins layer of a layers chain: ip + udp/tcp carrier + fins)"
 		}
 	}
 	// D-GOOSE-1：goose 顶层 goose 子映射 presence 判死（fins 先例；空 map 也
 	// 死）。层链形状不触发。
 	if protocol == "goose" {
 		if v, ok := cfg["goose"]; ok && v != nil {
-			return "protocol goose no longer accepts a top-level goose sub-config (move it into the goose layer of an [eth,goose] layers chain)"
+			return "protocol goose rejects a top-level goose sub-config (move it into the goose layer of an [eth,goose] layers chain)"
 		}
 	}
 	// D-SV-1：sv 顶层 sv 子映射 presence 判死（goose 先例；空 map 也
 	// 死）。层链形状不触发。
 	if protocol == "sv" {
 		if v, ok := cfg["sv"]; ok && v != nil {
-			return "protocol sv no longer accepts a top-level sv sub-config (move it into the sv layer of an [eth,sv] layers chain)"
+			return "protocol sv rejects a top-level sv sub-config (move it into the sv layer of an [eth,sv] layers chain)"
 		}
 	}
 	// D-ICMPV6-1：icmpv6 顶层 icmpv6 子映射 presence 判死（sv 先例；空
 	// map 也死）。层链形状不触发。
 	if protocol == "icmpv6" {
 		if v, ok := cfg["icmpv6"]; ok && v != nil {
-			return "protocol icmpv6 no longer accepts a top-level icmpv6 sub-config (move it into the icmpv6 layer of an [ip,icmpv6] layers chain)"
+			return "protocol icmpv6 rejects a top-level icmpv6 sub-config (move it into the icmpv6 layer of an [ip,icmpv6] layers chain)"
 		}
 	}
 	// D-H323-1：h323 顶层 h323 子映射 presence 判死（icmpv6 先例；空
 	// map 也死）。层链形状不触发。
 	if protocol == "h323" {
 		if v, ok := cfg["h323"]; ok && v != nil {
-			return "protocol h323 no longer accepts a top-level h323 sub-config (move it into the h323 layer of an [ip,h323] layers chain)"
+			return "protocol h323 rejects a top-level h323 sub-config (move it into the h323 layer of an [ip,h323] layers chain)"
 		}
 	}
 	// D-MPLS-1：mpls 顶层 mpls 子映射 presence 判死（h323 先例；空
 	// map 也死）。层链形状不触发。
 	if protocol == "mpls" {
 		if v, ok := cfg["mpls"]; ok && v != nil {
-			return "protocol mpls no longer accepts a top-level mpls sub-config (move it into the mpls layer of an [ip,mpls] layers chain)"
+			return "protocol mpls rejects a top-level mpls sub-config (move it into the mpls layer of an [ip,mpls] layers chain)"
 		}
 	}
 	// D-NGAP-1：ngap 顶层 ngap 子映射 presence 判死（h323/mpls 同款；
 	// 空 map 也死）。层链形状不触发。
 	if protocol == "ngap" {
 		if v, ok := cfg["ngap"]; ok && v != nil {
-			return "protocol ngap no longer accepts a top-level ngap sub-config (move it into the ngap layer of an [ip,ngap] layers chain)"
+			return "protocol ngap rejects a top-level ngap sub-config (move it into the ngap layer of an [ip,ngap] layers chain)"
 		}
 	}
 	// D-TELNET-1：telnet 顶层 telnet 子映射 presence 判死（h323/mpls/ngap
 	// 同款；空 map 也死）。层链形状不触发。
 	if protocol == "telnet" {
 		if v, ok := cfg["telnet"]; ok && v != nil {
-			return "protocol telnet no longer accepts a top-level telnet sub-config (move it into the telnet layer of an [ip,telnet] layers chain)"
+			return "protocol telnet rejects a top-level telnet sub-config (move it into the telnet layer of an [ip,telnet] layers chain)"
 		}
 	}
 	// D-SIP-1：sip 顶层 sip 子映射 presence 判死（前四协议同款；空 map
 	// 也死）。层链形状不触发。
 	if protocol == "sip" {
 		if v, ok := cfg["sip"]; ok && v != nil {
-			return "protocol sip no longer accepts a top-level sip sub-config (move it into the sip layer of an [ip,sip] layers chain)"
+			return "protocol sip rejects a top-level sip sub-config (move it into the sip layer of an [ip,sip] layers chain)"
 		}
 	}
 	// D-RADIUS-1：radius 顶层 radius 子映射 presence 判死（前六协议同款；
 	// 空 map 也死）。层链形状不触发。
 	if protocol == "radius" {
 		if v, ok := cfg["radius"]; ok && v != nil {
-			return "protocol radius no longer accepts a top-level radius sub-config (move it into the radius layer of an [ip,radius] layers chain)"
+			return "protocol radius rejects a top-level radius sub-config (move it into the radius layer of an [ip,radius] layers chain)"
 		}
 	}
 	// D-TDS-1：tds 顶层 tds 子映射 presence 判死（mqtt 先例；空 map 也
 	// 死——B6 扁平注入形退役，配置迁 tds 层十六键）。层链形状不触发。
 	if protocol == "tds" {
 		if v, ok := cfg["tds"]; ok && v != nil {
-			return "protocol tds no longer accepts a top-level tds sub-config (move it into the tds layer of an [ip,tcp,tds] layers chain)"
+			return "protocol tds rejects a top-level tds sub-config (move it into the tds layer of an [ip,tcp,tds] layers chain)"
 		}
 	}
 	// D-CFLOW-1：cflow 顶层 cflow 子映射 presence 判死（tds 先例；空 map
 	// 也死——配置住 cflow 层，层链是唯一真相）。层链形状不触发。
 	if protocol == "cflow" {
 		if v, ok := cfg["cflow"]; ok && v != nil {
-			return "protocol cflow no longer accepts a top-level cflow sub-config (move it into the cflow layer of an [ip,udp,cflow] layers chain)"
+			return "protocol cflow rejects a top-level cflow sub-config (move it into the cflow layer of an [ip,udp,cflow] layers chain)"
 		}
 	}
 	// D-CQL-1（G-CQL-1）：cql 顶层 cql 子映射 presence 判死（tds 先例；
@@ -9132,14 +9132,14 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// layers[i].cql）。层链形状不触发。
 	if protocol == "cql" {
 		if v, ok := cfg["cql"]; ok && v != nil {
-			return "protocol cql no longer accepts a top-level cql sub-config (move it into the cql layer of an [ip,tcp,cql] layers chain)"
+			return "protocol cql rejects a top-level cql sub-config (move it into the cql layer of an [ip,tcp,cql] layers chain)"
 		}
 	}
 	// D-RTMFP-1：rtmfp 顶层 rtmfp 子映射 presence 判死（tds 先例；空 map
 	// 也死——契约 §12-P2 判死形状「层链+顶层空子映射并存」。层链形状不触发。
 	if protocol == "rtmfp" {
 		if v, ok := cfg["rtmfp"]; ok && v != nil {
-			return "protocol rtmfp no longer accepts a top-level rtmfp sub-config (move it into the rtmfp layer of an [ip,udp,rtmfp] layers chain; the layer chain is the only config truth)"
+			return "protocol rtmfp rejects a top-level rtmfp sub-config (move it into the rtmfp layer of an [ip,udp,rtmfp] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-ENIP-1（G-ENIP-3，§14-P2）：enip 顶层 enip 子映射 presence 判死
@@ -9148,21 +9148,21 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// layers[i].enip）。层链形状不触发。
 	if protocol == "enip" {
 		if v, ok := cfg["enip"]; ok && v != nil {
-			return "protocol enip no longer accepts a top-level enip sub-config (move it into the enip layer of an [ip,tcp,enip] layers chain; the layer chain is the only config truth)"
+			return "protocol enip rejects a top-level enip sub-config (move it into the enip layer of an [ip,tcp,enip] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-S7-85（G-S7-1）：s7 顶层 s7 子映射 presence 判死（amqp 先例；空
 	// map 也死——配置住 s7 层，层链是唯一真相）。层链形状不触发。
 	if protocol == "s7" {
 		if v, ok := cfg["s7"]; ok && v != nil {
-			return "protocol s7 no longer accepts a top-level s7 sub-config (move it into the s7 layer of an [ip,tcp,s7] layers chain)"
+			return "protocol s7 rejects a top-level s7 sub-config (move it into the s7 layer of an [ip,tcp,s7] layers chain)"
 		}
 	}
 	// D-DOIP-1：doip 顶层 doip 子映射 presence 判死（enip 先例；空 map
 	// 也死——G-DOIP-5；十三键迁 layers[i].doip）。层链形状不触发。
 	if protocol == "doip" {
 		if v, ok := cfg["doip"]; ok && v != nil {
-			return "protocol doip no longer accepts a top-level doip sub-config (move it into the doip layer of an [ip,tcp,doip] layers chain; the layer chain is the only config truth)"
+			return "protocol doip rejects a top-level doip sub-config (move it into the doip layer of an [ip,tcp,doip] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-IGMP-1（§14-P2）：igmp 顶层 igmp 子映射 presence 判死（tftp/sstp
@@ -9170,7 +9170,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// 层链形状不触发。
 	if protocol == "igmp" {
 		if v, ok := cfg["igmp"]; ok && v != nil {
-			return "protocol igmp no longer accepts a top-level igmp sub-config (move it into the igmp layer of an [ip,igmp] layers chain; the layer chain is the only config truth)"
+			return "protocol igmp rejects a top-level igmp sub-config (move it into the igmp layer of an [ip,igmp] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-OSPF-1（§14-P2）：ospf 顶层 ospf 子映射 presence 判死（igmp 先例；
@@ -9178,7 +9178,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// 形状不触发。
 	if protocol == "ospf" {
 		if v, ok := cfg["ospf"]; ok && v != nil {
-			return "protocol ospf no longer accepts a top-level ospf sub-config (move it into the ospf layer of an [ip,ospf] layers chain; the layer chain is the only config truth)"
+			return "protocol ospf rejects a top-level ospf sub-config (move it into the ospf layer of an [ip,ospf] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-MMS-2（G-MMS-1，§14-P2）：mms 顶层 mms 子映射 presence 判死
@@ -9186,7 +9186,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// 层链形状不触发。
 	if protocol == "mms" {
 		if v, ok := cfg["mms"]; ok && v != nil {
-			return "protocol mms no longer accepts a top-level mms sub-config (move it into the mms layer of an [ip,tcp,mms] layers chain; the layer chain is the only config truth)"
+			return "protocol mms rejects a top-level mms sub-config (move it into the mms layer of an [ip,tcp,mms] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-PIM-1（§14-P2）：pim 顶层 pim 子映射 presence 判死（igmp 先例；空
@@ -9194,7 +9194,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// 正是此形）。层链形状不触发。
 	if protocol == "pim" {
 		if v, ok := cfg["pim"]; ok && v != nil {
-			return "protocol pim no longer accepts a top-level pim sub-config (move it into the pim layer of an [ip,pim] layers chain; the layer chain is the only config truth)"
+			return "protocol pim rejects a top-level pim sub-config (move it into the pim layer of an [ip,pim] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-MONGODB-1（#87）G-MONGO-6：mongodb 顶层 mongodb 子映射 presence 判死
@@ -9203,7 +9203,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// 配置真相）。层链形状不触发。
 	if protocol == "mongodb" {
 		if v, ok := cfg["mongodb"]; ok && v != nil {
-			return "protocol mongodb no longer accepts a top-level mongodb sub-config (move it into the mongodb layer of an [ip,tcp,mongodb] layers chain; the layer chain is the only config truth)"
+			return "protocol mongodb rejects a top-level mongodb sub-config (move it into the mongodb layer of an [ip,tcp,mongodb] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-IEC104-1：iec104 顶层 iec104 子映射 presence 判死（mms 先例；空
@@ -9211,7 +9211,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// 层链形状不触发。
 	if protocol == "iec104" {
 		if v, ok := cfg["iec104"]; ok && v != nil {
-			return "protocol iec104 no longer accepts a top-level iec104 sub-config (move it into the iec104 layer of an [ip,tcp,iec104] layers chain; the layer chain is the only config truth)"
+			return "protocol iec104 rejects a top-level iec104 sub-config (move it into the iec104 layer of an [ip,tcp,iec104] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-POSTGRESQL-1（G-PG-6 关闭）：postgresql 顶层 postgresql 子映射
@@ -9220,7 +9220,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	// （唯一形态 = postgresql 层 dialect:"kingbase"）。
 	if protocol == "postgresql" {
 		if v, ok := cfg["postgresql"]; ok && v != nil {
-			return "protocol postgresql no longer accepts a top-level postgresql sub-config (move it into the postgresql layer of an [ip,tcp,postgresql] layers chain; the layer chain is the only config truth)"
+			return "protocol postgresql rejects a top-level postgresql sub-config (move it into the postgresql layer of an [ip,tcp,postgresql] layers chain; the layer chain is the only config truth)"
 		}
 	}
 	// D-*-1 raw 自驱八协议：顶层同名子映射 presence 判死（mcp 先例；空
@@ -9242,7 +9242,7 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	}
 	if chainHint, ok := rawWrapChains[protocol]; ok {
 		if v, ok := cfg[protocol]; ok && v != nil {
-			return "protocol " + protocol + " no longer accepts a top-level " + protocol +
+			return "protocol " + protocol + " rejects a top-level " + protocol +
 				" sub-config (move it into the " + protocol + " layer of a " + chainHint + " layers chain)"
 		}
 	}
@@ -9262,12 +9262,12 @@ func CheckFTPFlat(cfg map[string]interface{}) string {
 	}
 	for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port", "count"} {
 		if v, ok := cfg[k]; ok && v != nil {
-			return "protocol ftp no longer accepts flat config field " + k +
+			return "protocol ftp rejects flat config field " + k +
 				" (FTP requires a layers chain: ip.src/ip.dst for addresses, tcp src_port/dst_port for ports, flow_control for the flow count)"
 		}
 	}
 	if v, ok := cfg["ftp"]; ok && v != nil {
-		return "protocol ftp no longer accepts a top-level ftp sub-config (move it into the ftp layer of an [ip,tcp,ftp] layers chain)"
+		return "protocol ftp rejects a top-level ftp sub-config (move it into the ftp layer of an [ip,tcp,ftp] layers chain)"
 	}
 	return ""
 }

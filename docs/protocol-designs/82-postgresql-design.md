@@ -517,7 +517,7 @@ PostgreSQL **没有**控制流派生数据流的形态（对照 FTP 控制+数�
 
 **裁定**：**postgresql 是主协议（#82），kingbase 是其 dialect 变体（#35 已收官）**。两者共用同一层、同一生成器、同一 validator、同一字节模板；差异仅在 `dialect` 值 → 契约端口（5432/54321）+ `wire_profile` 登记名。**本契约的全部新增能力（扩展协议、认证族、错误面）自动惠及两个 dialect**，无需分叉文档。反向声明：**不存在**"kingbase 独立层"的合法形态，任何 `{"kingbase": {}}` 层按 unknown layer 拒绝（`validate_layers.go:918` 实测行号，`layers: unknown layer %q (position %d)`，漂移时以字面 grep 为准）。
 
-**残留洞（如实登记）**：`CheckProtoFlat`（`strategy_convert.go:8347`（`func CheckProtoFlat`：通用五键检查 + 其后 presence 分支，`grep -c "no longer accepts a top-level"` 32 条，含 ftp/rawWrap 通用门）**无 `postgresql` 条目**——即顶层 `{"postgresql": {...}}` 子映射与 `layers` 并存时**不判死**（其余 31 个协议都有各自条目）。按 kingbase 记忆的裁定（「判死补门方案先问'这个身份还准入吗'；config 级 unknown-key 白名单缺失是框架缺口，禁加单键黑名单分支」）→ 本项**立项 G-PG-6**（等框架级 unknown-key 白名单），**不加单协议分支**。
+**残留洞（如实登记）**：`CheckProtoFlat`（`strategy_convert.go:8347`（`func CheckProtoFlat`：通用五键检查 + 其后 presence 分支，`grep -c "rejects a top-level"` 32 条，含 ftp/rawWrap 通用门）**无 `postgresql` 条目**——即顶层 `{"postgresql": {...}}` 子映射与 `layers` 并存时**不判死**（其余 31 个协议都有各自条目）。按 kingbase 记忆的裁定（「判死补门方案先问'这个身份还准入吗'；config 级 unknown-key 白名单缺失是框架缺口，禁加单键黑名单分支」）→ 本项**立项 G-PG-6**（等框架级 unknown-key 白名单），**不加单协议分支**。
 
 ---
 
@@ -776,7 +776,7 @@ strategy config(layers)
 | **G-PG-3** | CancelRequest 关联语义：第二条独立连接（无响应字节），`driven_by{session,transaction,field}` 三件套**无法套用**（不属于任何会话/事务） | 查文档 §54.2.6 + §54.7 CancelRequest 原文；裁定方式 = P4 与框架共同定（扩展 driven_by / 独立 `cancel_of` 字段 / 明确不支持） | **B′**（三选一收口后写结论，不留白） |
 | **G-PG-4** | 现网行为未到抓包级：libpq/pgx/JDBC/KingBaseES 的真实 Startup 参数面与认证序列只有官方文档描述，无本机抓包证据（§10.5 ②） | **抓包**：本机回环起 PostgreSQL（或容器）+ `psql`/`pgx` 连接，tcpdump 抓 5432 核对参数面与认证序 | P4 前置确认项，不挡开工；确认前相关条目按 §5.5 标"待确认" |
 | **G-PG-5** | 事件内死字段 `profile`（15/16 例）/`result`（6 例 8 事件）：配上不报错也不生效；删字段会因 `DisallowUnknownFields` 硬失败，必须与存量改写**同批** | 读 `layer_gen.go`（零 `.Profile`/`.Result` 命中）+ 存量 16 例机读 | **P4 第 1 步必办**（§11.3 时序约束）；用例 #59 守未知键门 + 存量 16 例删键改写同批 |
-| **G-PG-6** | 顶层白名单洞：`CheckProtoFlat`（:8347 起）presence 分支无 `postgresql` 条目 → 顶层 `postgresql` 子映射不判死；顶层游离键（`src_mac` 等五键外）是否被框架级白名单拦，P4 须实测 | 读 `strategy_convert.go:8347` 起分支表（grep `no longer accepts a top-level` 32 条，无 postgresql）+ 实测提交该形 | **框架级缺口**（禁加单协议黑名单分支——kingbase 记忆裁定）；上报主线程；用例侧**不建**该负例（避免假通过） |
+| **G-PG-6** | 顶层白名单洞：`CheckProtoFlat`（:8347 起）presence 分支无 `postgresql` 条目 → 顶层 `postgresql` 子映射不判死；顶层游离键（`src_mac` 等五键外）是否被框架级白名单拦，P4 须实测 | 读 `strategy_convert.go:8347` 起分支表（grep `rejects a top-level` 32 条，无 postgresql）+ 实测提交该形 | **框架级缺口**（禁加单协议黑名单分支——kingbase 记忆裁定）；上报主线程；用例侧**不建**该负例（避免假通过） |
 | **G-PG-7** | 生成器恒值面：`RowDescription` 恒 1 列 `col1`、`DataRow` 恒 1 行值 `42`、`ErrorResponse` 恒 3 字段、`ReadyForQuery` 恒 `'I'`、`PasswordMessage` 恒 `testpass`、`authtype` 缺省 3 而非 0 —— 均无配置面 | 读 `pgwire.go:148-204` + `layer_gen.go:129-176` | **A′**（legacy planner 已有 `PGField`（`types.go:6711-6719`）/`ColumnTypes`/`RowCount`（`PostgreSQLConfig` 内，`types.go:6472-6591`）/`PGErrorField`（`types.go:6703-6706`）实现，可迁移）；用例 #21/#22 钉现状，扩展面列 A′ |
 | **G-PG-8** | 状态机守卫不全（负例 #54/#55 已建，#64 随守卫同批）：仅 c2s `query`/`simple_query`/`password` before-ready 被拒（`validate.go:126-144`：`validatePostgreSqlEvent` + `c2sNeedsPgReady` 三 kind）；Terminate 后继续发 query、认证未完成即发 query、扩展协议乱序等**无守卫** | 读 `validate.go:126-175` 全文（`validatePostgreSqlEvent` :126 + `c2sNeedsPgReady` :149 + `s2cMakesPgReady` :158 + `validPgKind` :167） | **A′**（P4 补守卫；已建 #54/#55，#64 随守卫同批） |
 

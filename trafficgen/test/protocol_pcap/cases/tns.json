@@ -1159,7 +1159,7 @@
     },
     "expect": {
       "expect_error": true,
-      "error_contains": "no longer accepts a top-level tns sub-config"
+      "error_contains": "rejects a top-level tns sub-config"
     },
     "notes": [
       "pending-suite：判死锚词与形状经链级红例在案（tns_chain_test.go）；suite 待跑确认。",

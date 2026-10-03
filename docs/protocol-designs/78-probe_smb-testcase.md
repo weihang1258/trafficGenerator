@@ -57,7 +57,7 @@
 
 | # | ID | 故障输入 | 目标 `error_contains` | 锚词出处（实读） |
 |---:|---|---|---|---|
-| 10 | `probe_neg_flat_keys` | 顶层 `src_ip`（存量例原文形状） | `no longer accepts flat config field src_ip` | `internal/core/strategy_convert.go:8282-8283`（`CheckProtoFlat`，经 `schema/semantic.go:131` 进入） |
+| 10 | `probe_neg_flat_keys` | 顶层 `src_ip`（存量例原文形状） | `rejects flat config field src_ip` | `internal/core/strategy_convert.go:8282-8283`（`CheckProtoFlat`，经 `schema/semantic.go:131` 进入） |
 | 11 | `probe_neg_layers_flat_mix` | `layers` + 顶层 `src_port` 并存 | `config mixes layers with flat four-tuple field src_port` | `internal/core/schema/semantic.go:186-190` |
 | 12 | `probe_neg_static_copy` | `layers` 内静态标量四元组 + `flows=2` | `layers pin a static four-tuple but flows > 1` | `internal/core/schema/semantic.go:285` |
 

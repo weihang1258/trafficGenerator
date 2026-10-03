@@ -110,7 +110,7 @@
 | 52 | `enip_t170_multiflow_udp_shared_tuple` | `io_data` |
 | 53 | `enip_v005_session_count_negative` | `session_count -1 out of range` |
 | 54 | `enip_v006_flow_count_negative` | `multi-unit expansion` |
-| 55 | `enip_neg_presence` | `no longer accepts a top-level enip` |
+| 55 | `enip_neg_presence` | `rejects a top-level enip` |
 
 ## 5. 存量 135 例逐条审计去向（§9.14；P3 审计基线，下表 135 行止于 P3 基线）
 

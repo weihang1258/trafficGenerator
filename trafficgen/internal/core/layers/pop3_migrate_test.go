@@ -56,8 +56,8 @@ func TestPOP3Chain_FlatPresenceRejected(t *testing.T) {
 	if msg := core.CheckProtoFlat("pop3", cfg); msg == "" {
 		t.Fatal("CheckProtoFlat(pop3, {layers, pop3:{}}) = \"\", want top-level pop3 presence rejection")
 	}
-	if msg := core.CheckProtoFlat("pop3", cfg); !strings.Contains(msg, "no longer accepts a top-level pop3 sub-config") {
-		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `no longer accepts a top-level pop3 sub-config`", msg)
+	if msg := core.CheckProtoFlat("pop3", cfg); !strings.Contains(msg, "rejects a top-level pop3 sub-config") {
+		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `rejects a top-level pop3 sub-config`", msg)
 	}
 }
 

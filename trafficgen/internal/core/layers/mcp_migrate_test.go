@@ -62,8 +62,8 @@ func TestMCPChain_FlatPresenceRejected(t *testing.T) {
 	if msg := core.CheckProtoFlat("mcp", cfg); msg == "" {
 		t.Fatal("CheckProtoFlat(mcp, {layers, mcp:{}}) = \"\", want top-level mcp presence rejection")
 	}
-	if msg := core.CheckProtoFlat("mcp", cfg); !strings.Contains(msg, "no longer accepts a top-level mcp sub-config") {
-		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `no longer accepts a top-level mcp sub-config`", msg)
+	if msg := core.CheckProtoFlat("mcp", cfg); !strings.Contains(msg, "rejects a top-level mcp sub-config") {
+		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `rejects a top-level mcp sub-config`", msg)
 	}
 }
 

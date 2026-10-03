@@ -49,8 +49,8 @@ func TestCWMPChain_FlatPresenceRejected(t *testing.T) {
 	if msg == "" {
 		t.Fatal(`CheckProtoFlat(cwmp, {layers, cwmp:{}}) = "", want top-level cwmp presence rejection`)
 	}
-	if !strings.Contains(msg, "no longer accepts a top-level cwmp sub-config") {
-		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `no longer accepts a top-level cwmp sub-config`", msg)
+	if !strings.Contains(msg, "rejects a top-level cwmp sub-config") {
+		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `rejects a top-level cwmp sub-config`", msg)
 	}
 }
 

@@ -167,12 +167,12 @@ func TestMMSChain_PresenceAndStrayTopLevelKeys(t *testing.T) {
 	}
 	if msg := core.CheckProtoFlat("mms", cfg); msg == "" {
 		t.Fatal("CheckProtoFlat(mms, {layers, mms:{}}) = \"\", want presence rejection")
-	} else if !strings.Contains(msg, "no longer accepts a top-level mms sub-config") {
+	} else if !strings.Contains(msg, "rejects a top-level mms sub-config") {
 		t.Fatalf("CheckProtoFlat msg = %q", msg)
 	}
 	spec := core.MapToFlowSpec(map[string]interface{}{"mms": map[string]interface{}{}}, "mms")
 	joined := strings.Join(spec.ValidationErrors, "; ")
-	if !strings.Contains(joined, "no longer accepts a top-level mms") {
+	if !strings.Contains(joined, "rejects a top-level mms") {
 		t.Fatalf("presence wired: %q", joined)
 	}
 	for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port", "count"} {

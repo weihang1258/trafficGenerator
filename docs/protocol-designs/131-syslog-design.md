@@ -205,7 +205,7 @@ syslog 层**无自有状态机**：UDP 载体每消息独立数据报、无序�
 | 21 | `StructuredData[%d] SD-ID empty` | :321 | 空 SD-ID |
 | 22 | `StructuredData[%d] parameter %q missing '='` | :339 | 参数缺 `=` |
 
-**链级附加拒绝**：transport tcp/tls（`layer_gen.go:133-135` 锚词 `not supported by the layer chain yet`）；层内未知键 `layers: layer "syslog": unknown field %q`（`complete.go:293`）；顶层扁平五键 `protocol syslog no longer accepts flat config field %s`（`CheckProtoFlat` 通用段，`strategy_convert.go`）。**混写注意**：#8（transport=tcp 在 Validate 放行）与链级拒绝**双门**——链路径先触链级锚词，负例锚词须按层路径取 `not supported by the layer chain yet`。
+**链级附加拒绝**：transport tcp/tls（`layer_gen.go:133-135` 锚词 `not supported by the layer chain yet`）；层内未知键 `layers: layer "syslog": unknown field %q`（`complete.go:293`）；顶层扁平五键 `protocol syslog rejects flat config field %s`（`CheckProtoFlat` 通用段，`strategy_convert.go`）。**混写注意**：#8（transport=tcp 在 Validate 放行）与链级拒绝**双门**——链路径先触链级锚词，负例锚词须按层路径取 `not supported by the layer chain yet`。
 
 **不得误报的合法协议事件**：MSG 含 LF（octet_counting/udp 下合法，`:264` 单测钉死）；facility=0/severity=0（kern/emerg 合法值，显式设置不拒）；空配置默认流。
 

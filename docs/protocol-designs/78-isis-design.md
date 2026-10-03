@@ -462,7 +462,7 @@ packet_count 序列（正例 13 个，按序）：`[1,1,1,1,1,1,1,1,1,1,1,4,2]`�
 
 ### §12-P2 presence 负例形状（链级红例必含①）
 
-层链+顶层空子映射并存=判死负例（presence 负例形状，非残留）：`{"layers":[{"eth":{}},{"isis":{}}],"isis":{}}`（顶层空 `isis:{}` 与层链并存）必须 planner/validator 拒——**但 isis 当前 `CheckProtoFlat` 无同名子映射分支**（`strategy_convert.go:8322-8555` 有 http/dns/mqtt/…/radius 等分支，**无 isis**；`rawWrapChains :8541-8546` 仅含 pppoe/ldap/rtmp/rtsp/pptp/vnc/xmpp/sctp/jt808/jtt905/arp/icmp，**无 isis**）：P4 须补 `isis` presence 判死分支（`error_contains` 含顶层键锚词 `no longer accepts a top-level isis sub-config`），否则 presence 形静默过（顶层先填 spec 赢层配置——隔离复审 F1 探针同构）。跨协议共享面，**主线程定夺，车道不自改**（→ G-ISIS-1）。白名单外游离键（如顶层 `src_mac` 与 layers 并存——`checkLayerFlatConflict :183-192` 已有守卫，P4 加例）判死负例见 §11。另注：isis 单 L2 载体 → 链中夹 `tcp`/`udp`（`[eth,tcp,isis]`/`[ip,udp,isis]`）判死负例（V7b 含 Transport 即错）；裸链 `[isis]` 判死负例（`DependsOn ["eth"]` 缺失由 validate_layers 拒绝）。P4 链级红例共 4 例 + 收官自查行「非负例 `spec_json` 顶层键=0」。
+层链+顶层空子映射并存=判死负例（presence 负例形状，非残留）：`{"layers":[{"eth":{}},{"isis":{}}],"isis":{}}`（顶层空 `isis:{}` 与层链并存）必须 planner/validator 拒——**但 isis 当前 `CheckProtoFlat` 无同名子映射分支**（`strategy_convert.go:8322-8555` 有 http/dns/mqtt/…/radius 等分支，**无 isis**；`rawWrapChains :8541-8546` 仅含 pppoe/ldap/rtmp/rtsp/pptp/vnc/xmpp/sctp/jt808/jtt905/arp/icmp，**无 isis**）：P4 须补 `isis` presence 判死分支（`error_contains` 含顶层键锚词 `rejects a top-level isis sub-config`），否则 presence 形静默过（顶层先填 spec 赢层配置——隔离复审 F1 探针同构）。跨协议共享面，**主线程定夺，车道不自改**（→ G-ISIS-1）。白名单外游离键（如顶层 `src_mac` 与 layers 并存——`checkLayerFlatConflict :183-192` 已有守卫，P4 加例）判死负例见 §11。另注：isis 单 L2 载体 → 链中夹 `tcp`/`udp`（`[eth,tcp,isis]`/`[ip,udp,isis]`）判死负例（V7b 含 Transport 即错）；裸链 `[isis]` 判死负例（`DependsOn ["eth"]` 缺失由 validate_layers 拒绝）。P4 链级红例共 4 例 + 收官自查行「非负例 `spec_json` 顶层键=0」。
 
 ## §13 缺口立项清单（有缺口写"缺口立项"，不许空着）
 

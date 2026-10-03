@@ -181,7 +181,7 @@ Init ──SYN/SYN-ACK/ACK──▶ Established ──应用事件*──▶ Est
 | `wire_fault` 5 kind | 拒（各锚词） | `truncated`/`length`/`limit`/`opcode`/`bson` | `builder.go:404-426` | ✅ 已有 |
 | 链夹 `udp` | 拒（通用路径） | `tcp`（`transport layer duplicated` 文案内含 "tcp"） | `complete.go:480` | ✅ 已有（无 mongodb 专属 carrier 块，见 §5） |
 | 层内第 5 个键 | 拒（V9） | `unknown field` | `complete.go:293` | ✅ 已有 |
-| 顶层扁平四键/五键 | 拒（通用） | `no longer accepts flat config field` | `CheckProtoFlat:8329-8334` | ✅ 已有 |
+| 顶层扁平四键/五键 | 拒（通用） | `rejects flat config field` | `CheckProtoFlat:8329-8334` | ✅ 已有 |
 | 顶层 `mongodb` 子映射 presence | **不拒**（无分支） | — | `strategy_convert.go:8322-`（无 mongodb 分支） | ❌ 缺口 G-MONGO-6 |
 | responseTo 无对应请求 / request 非 0 | **不校验**（只写字节） | — | validator 无此检查 | ❌ 缺口 G-MONGO-3 |
 | 数字 opcode 越界（2013/2003/2012/INT_MAX） | Validate 放行；`buildMessage` default 拒（链路径下错误被驱动吞成**空流**，见 §7） | `unsupported opcode` | `builder.go:265` | ❌ 缺口 G-MONGO-3 |

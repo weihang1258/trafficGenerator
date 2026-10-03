@@ -103,7 +103,7 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "no longer accepts a top-level dns sub-config"
+   "error_contains": "rejects a top-level dns sub-config"
   }
  },
  {

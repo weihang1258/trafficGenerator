@@ -657,7 +657,7 @@ RFC 959 §4.1 命令 33 条（§4.1.1 八条 + §4.1.2 五条 + §4.1.3 二十�
 
 ### 12-P2 判死负例形状（链级红例必含清单①③④）
 
-- ① presence 形状 `{"layers":[…],"ftp":{}}` 今日**会被拒**（`CheckFTPFlat` `strategy_convert.go:9133` 专分支，`if v, ok := cfg["ftp"]; ok && v != nil` → 返回"no longer accepts a top-level ftp sub-config"）——**与 opcua/moxa 不同，ftp 有专分支** ✓。但**存量 141 例无此负例** → A′ 立项（G-FTP-9）。② 白名单外游离键判死（`unknown field`）今日**无通用门** → G-FTP-9，**不建**（建了会真绿 = 假通过）。③ 5 负例每条带锚词（4 条有，1 条空串 → G-FTP-9）。④ 收官自查「非负例顶层键 = 0」**今日已成立**（§12.1）。
+- ① presence 形状 `{"layers":[…],"ftp":{}}` 今日**会被拒**（`CheckFTPFlat` `strategy_convert.go:9133` 专分支，`if v, ok := cfg["ftp"]; ok && v != nil` → 返回"rejects a top-level ftp sub-config"）——**与 opcua/moxa 不同，ftp 有专分支** ✓。但**存量 141 例无此负例** → A′ 立项（G-FTP-9）。② 白名单外游离键判死（`unknown field`）今日**无通用门** → G-FTP-9，**不建**（建了会真绿 = 假通过）。③ 5 负例每条带锚词（4 条有，1 条空串 → G-FTP-9）。④ 收官自查「非负例顶层键 = 0」**今日已成立**（§12.1）。
 
 ### 12.3 §3 强制展开：五件套
 

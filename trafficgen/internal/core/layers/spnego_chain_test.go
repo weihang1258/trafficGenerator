@@ -861,7 +861,7 @@ func TestSPNEGOChain_PresenceAndStrayTopLevelKeys(t *testing.T) {
 	}
 	if msg := core.CheckProtoFlat("spnego", cfg); msg == "" {
 		t.Fatal("CheckProtoFlat(spnego, {layers, spnego:{}}) = \"\", want top-level spnego presence rejection")
-	} else if !strings.Contains(msg, "no longer accepts a top-level spnego sub-config") {
+	} else if !strings.Contains(msg, "rejects a top-level spnego sub-config") {
 		t.Fatalf("CheckProtoFlat msg = %q", msg)
 	}
 	// ②白名单外游离键（1.11–1.13）：四元组类经 CheckProtoFlat 判死。

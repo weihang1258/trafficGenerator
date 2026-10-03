@@ -2010,7 +2010,7 @@ v2.0.1 复审（R2）发现 v2.0.1 修复 R1-CRITICAL-1 时引用了错误的 RF
 
 ### §13-P2 presence 负例形状（链级红例必含①）
 
-**层链 + 顶层空子映射并存 = 判死负例**（非残留）：`{"layers":[{"ip":{}},{"udp":{}},{"tftp":{}}], "tftp":{}}` 必须被拒，`error_contains` 含 `presence` 或顶层键锚词。**实读现状（诚实）**：①存量 226 例中**无此形状**（实读：`tftp` 子映射非空 226/226、空子映射 0 例）；②**`CheckProtoFlat` 今日对 tftp 不判死顶层 `tftp` 子映射**——`strategy_convert.go:8273-8330` 的判死名单（ftp/http 族/dns/mqtt/cwmp/megaco/hl7/mmse/edp/xmrmining/bacnet/smtp/pop3/imap/mcp/…）**无 tftp 分支**（tftp 只被 `:8280-8285` 的通用五键判死）。故本形状今日**不红** → P5 必做两件：①`CheckProtoFlat` 增 tftp 分支（`no longer accepts a top-level tftp sub-config (move it into the tftp layer of an [ip,udp,tftp] layers chain)`，mqtt 先例（`strategy_convert.go:8305-8308` 的 presence 分支文案）同构）；②新增该 presence 负例（G-TFTP-1）。白名单外游离键（顶层 `src_mac`/`ttl`/`tcp`/`http`）判死负例同样 P5 新增（§17 G-TFTP-4）。
+**层链 + 顶层空子映射并存 = 判死负例**（非残留）：`{"layers":[{"ip":{}},{"udp":{}},{"tftp":{}}], "tftp":{}}` 必须被拒，`error_contains` 含 `presence` 或顶层键锚词。**实读现状（诚实）**：①存量 226 例中**无此形状**（实读：`tftp` 子映射非空 226/226、空子映射 0 例）；②**`CheckProtoFlat` 今日对 tftp 不判死顶层 `tftp` 子映射**——`strategy_convert.go:8273-8330` 的判死名单（ftp/http 族/dns/mqtt/cwmp/megaco/hl7/mmse/edp/xmrmining/bacnet/smtp/pop3/imap/mcp/…）**无 tftp 分支**（tftp 只被 `:8280-8285` 的通用五键判死）。故本形状今日**不红** → P5 必做两件：①`CheckProtoFlat` 增 tftp 分支（`rejects a top-level tftp sub-config (move it into the tftp layer of an [ip,udp,tftp] layers chain)`，mqtt 先例（`strategy_convert.go:8305-8308` 的 presence 分支文案）同构）；②新增该 presence 负例（G-TFTP-1）。白名单外游离键（顶层 `src_mac`/`ttl`/`tcp`/`http`）判死负例同样 P5 新增（§17 G-TFTP-4）。
 
 ### §13.5 链路可达性断言（以实读 `complete.go` `validateChain` 为准，commit 0c355be 后）
 

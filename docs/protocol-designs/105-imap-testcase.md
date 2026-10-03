@@ -111,7 +111,7 @@
 | 61 | `imap_t061_imaps_993` | 正 | IMAPS 993 | §2 | 20 | 1 field：`tcp.dstport`(p1 = 993) |
 | 62 | `imap_t062_v6` | 正 | IPv6 承载 | §2 | 13 | 1 field：`imap.command`(p5) |
 | 63 | `imap_t063_bad_ip_reject` | **负** | 坏 IP | §7 N-3 | —（0 帧） | `error_contains="invalid IP address: not-an-ip"` |
-| 64 | `imap_t064_presence_reject` | **负** | 顶层 `imap` 子映射判死 | §7 N-4 | —（0 帧） | `error_contains="no longer accepts a top-level imap sub-config"` |
+| 64 | `imap_t064_presence_reject` | **负** | 顶层 `imap` 子映射判死 | §7 N-4 | —（0 帧） | `error_contains="rejects a top-level imap sub-config"` |
 | 65 | `imap_t065_static_pinned_reject` | **负** | 静态四元组 + flows>1 | §7 N-5 | —（0 帧） | `error_contains="static"` |
 | 66 | `imap_t072_tag_space_reject` | **负** | tag 含空格 | §7 N-6 | —（0 帧） | `error_contains="contains SP/CRLF"` |
 | 67 | `imap_t066_tag_toolong_reject` | **负** | tag 超 256 | §7 N-7 | —（0 帧） | `error_contains="Tag length"` |
@@ -271,7 +271,7 @@ p17 A005 LOGOUT     p18 * BYE   p19 A005 OK LOGOUT completed
 | N-1 | `imap_t050_utf8_off_reject` | `allow_utf8_mailbox=false` + `cmd:"SELECT INBOX.日本語"` | `non-ASCII` | `imap: Commands[%d].Cmd %q contains non-ASCII bytes; …` | planner Validate | `planner.go:194` |
 | N-2 | `imap_t053_mss_reject` | `tcp.mss=100` | `out of range [536,65535]` | `layers: layer %q field %q = %v invalid: out of range [%d,%d]` | **tcp 层 schema** | `complete.go:325` |
 | N-3 | `imap_t063_bad_ip_reject` | `ip.dst:"not-an-ip"` | `invalid IP address: not-an-ip` | `invalid IP address: %s` | **框架 IP 门** | `convert.go:55` |
-| N-4 | `imap_t064_presence_reject` | 层链 + **顶层 `imap:{}` 并存** | `no longer accepts a top-level imap sub-config` | `protocol imap no longer accepts a top-level imap sub-config …` | **顶层判死门** | `strategy_convert.go:8893` |
+| N-4 | `imap_t064_presence_reject` | 层链 + **顶层 `imap:{}` 并存** | `rejects a top-level imap sub-config` | `protocol imap rejects a top-level imap sub-config …` | **顶层判死门** | `strategy_convert.go:8893` |
 | N-5 | `imap_t065_static_pinned_reject` | 显式标量四元组 + `flows=2` | `static` | `layers pin a static four-tuple but flows > 1: …` | **静态复制门** | `schema/semantic.go:285` |
 | N-6 | `imap_t072_tag_space_reject` | `tag:"A 001"` | `contains SP/CRLF` | `imap: Commands[%d].Tag %q contains SP/CRLF (RFC 9051 §2.2.1)` | planner Validate | `planner.go:179` |
 | N-7 | `imap_t066_tag_toolong_reject` | `tag` 257 字节 | `Tag length` | `imap: Commands[%d].Tag length %d exceeds max %d …` | planner Validate | `planner.go:174` |

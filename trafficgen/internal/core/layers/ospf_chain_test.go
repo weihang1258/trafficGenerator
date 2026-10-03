@@ -36,7 +36,7 @@ func ospfChainRaw(t *testing.T, ospfCfg map[string]interface{}) json.RawMessage 
 }
 
 // 红①【D-OSPF-1 §14-P2】：顶层 ospf 子映射 presence 判死（层链+顶层并存，
-// 空映射同判死——debug 文案锚词 "no longer accepts a top-level ospf sub-config"）。
+// 空映射同判死——debug 文案锚词 "rejects a top-level ospf sub-config"）。
 func TestOSPFChain_FlatPresenceRejected(t *testing.T) {
 	cfg := map[string]interface{}{
 		"layers": []interface{}{
@@ -47,7 +47,7 @@ func TestOSPFChain_FlatPresenceRejected(t *testing.T) {
 	}
 	if msg := core.CheckProtoFlat("ospf", cfg); msg == "" {
 		t.Fatal(`CheckProtoFlat(ospf, {layers, ospf:{}}) = "", want top-level ospf presence rejection`)
-	} else if !strings.Contains(msg, "no longer accepts a top-level ospf sub-config") {
+	} else if !strings.Contains(msg, "rejects a top-level ospf sub-config") {
 		t.Fatalf("anchor mismatch: %q", msg)
 	}
 }

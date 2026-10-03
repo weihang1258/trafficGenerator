@@ -463,7 +463,7 @@ Join/Prune `(*,G)` 样例（含上游单播目的 + 通配源）：
 
 ### 14-P2 presence 负例形状（链级红例必含①）
 
-层链+顶层空子映射并存=判死负例（presence 负例形状，非残留）：`{"layers":[{"ip":{}},{"pim":{}}],"pim":{}}`（顶层空 `pim:{}` 与层链并存）必须 planner/validator 拒——**但 pim 当前 `CheckProtoFlat` 无同名子映射分支**（`strategy_convert.go:8515-8526` `rawWrapChains` 仅含 pppoe/ldap/rtmp/rtsp/pptp/vnc/xmpp/sctp/jt808/jt809/jtt905/arp/icmp，无 pim；实测 `grep -n "pim" :727` 仅解析分支）：P4 须补 `pim` presence 判死分支（协议本地文件 `strategy_convert.go`，`error_contains` 含顶层键锚词 `no longer accepts a top-level pim sub-config`），否则 presence 形静默过（顶层先填 spec 赢层配置——隔离复审 F1 探针同构）。白名单外游离键（如顶层 `src_mac`/`ttl`——`ttl` 已迁 `ip` 层，顶层出现即游离）判死负例见 §15。**另注**：pim 单 raw-IP 载体 → 链中夹 `tcp`/`udp` 层（`[ip,tcp,pim]` / `[ip,udp,pim]`）判死负例（`isRawIPChain :40-51` 含 tcp/udp 即否，转 transport 分支出错）；链缺 `ip`（`[pim]` 裸链）判死负例（`DependsOn ["ip"]` 缺失由 `complete.go:484-491` 拒绝）。P4 链级红例共 4 例 + 收官自查行「非负例 `spec_json` 顶层键=0」。
+层链+顶层空子映射并存=判死负例（presence 负例形状，非残留）：`{"layers":[{"ip":{}},{"pim":{}}],"pim":{}}`（顶层空 `pim:{}` 与层链并存）必须 planner/validator 拒——**但 pim 当前 `CheckProtoFlat` 无同名子映射分支**（`strategy_convert.go:8515-8526` `rawWrapChains` 仅含 pppoe/ldap/rtmp/rtsp/pptp/vnc/xmpp/sctp/jt808/jt809/jtt905/arp/icmp，无 pim；实测 `grep -n "pim" :727` 仅解析分支）：P4 须补 `pim` presence 判死分支（协议本地文件 `strategy_convert.go`，`error_contains` 含顶层键锚词 `rejects a top-level pim sub-config`），否则 presence 形静默过（顶层先填 spec 赢层配置——隔离复审 F1 探针同构）。白名单外游离键（如顶层 `src_mac`/`ttl`——`ttl` 已迁 `ip` 层，顶层出现即游离）判死负例见 §15。**另注**：pim 单 raw-IP 载体 → 链中夹 `tcp`/`udp` 层（`[ip,tcp,pim]` / `[ip,udp,pim]`）判死负例（`isRawIPChain :40-51` 含 tcp/udp 即否，转 transport 分支出错）；链缺 `ip`（`[pim]` 裸链）判死负例（`DependsOn ["ip"]` 缺失由 `complete.go:484-491` 拒绝）。P4 链级红例共 4 例 + 收官自查行「非负例 `spec_json` 顶层键=0」。
 
 ## 15. D-PIM-1 P2 代码设计草稿（CORE_MEMORY §8 八要素；门1 获批=定稿）
 

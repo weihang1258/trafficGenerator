@@ -95,7 +95,7 @@ func TestGBT32960Chain_PresenceAndStrayTopLevelKeys(t *testing.T) {
 	}
 	if msg := core.CheckProtoFlat("gbt32960", cfg); msg == "" {
 		t.Fatal("CheckProtoFlat(gbt32960, {layers, gbt32960:{}}) = \"\", want top-level gbt32960 presence rejection")
-	} else if !strings.Contains(msg, "no longer accepts a top-level gbt32960 sub-config") {
+	} else if !strings.Contains(msg, "rejects a top-level gbt32960 sub-config") {
 		t.Fatalf("CheckProtoFlat msg = %q", msg)
 	}
 	for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port", "count"} {

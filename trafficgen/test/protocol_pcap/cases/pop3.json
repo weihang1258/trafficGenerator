@@ -2171,7 +2171,7 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "no longer accepts a top-level pop3 sub-config",
+   "error_contains": "rejects a top-level pop3 sub-config",
    "notes": [
     "D-POP3-1 §5 新锚词；mqtt/dns/smtp 先例同构；failing 先行①"
    ]

@@ -213,7 +213,7 @@
 | `radius_neg_format` | `format:"dword"` | `unknown format` | `radius %s[%d]: unknown format %q (allowed: string, ipv4, uint32, hex)` | `:189` | task-time |
 | `radius_neg_vsa_len` | VSA value 248B | `exceeds the 247-byte field limit` | 同 `:171`（`%d`=247） | `:171` | task-time |
 | `radius_neg_coa` | `code:43`（RFC 5176 CoA-Request） | `invalid request code` | `radius: invalid request code %d (allowed: 1, 3, 4, 11, 12)` | `:117` | task-time |
-| `radius_flat_presence` | `{layers:[ip,radius{}], radius:{}}` 并存 | `top-level radius sub-config` | `protocol radius no longer accepts a top-level radius sub-config (move it into the radius layer of an [ip,radius] layers chain)` | `strategy_convert.go:8977` | **create-time** |
+| `radius_flat_presence` | `{layers:[ip,radius{}], radius:{}}` 并存 | `top-level radius sub-config` | `protocol radius rejects a top-level radius sub-config (move it into the radius layer of an [ip,radius] layers chain)` | `strategy_convert.go:8977` | **create-time** |
 | `radius_flat_static_port` | `[ip{},radius{src_port,dst_port}]` + `strategy_fc{flows:2}` | `static four-tuple` | `layers pin a static four-tuple but flows > 1: …` | `schema/semantic.go:285` | **create-time** |
 
 **锚词口径**：`error_contains` 是**子串**判定；11/11 均命中代码文案（前 9 例带 `radius: ` 前缀或 `radius %s[%d]: ` 前缀，后 2 例为框架文案）。

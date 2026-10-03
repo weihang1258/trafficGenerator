@@ -64,8 +64,8 @@ func TestSMTPChain_FlatPresenceRejected(t *testing.T) {
 	if msg := core.CheckProtoFlat("smtp", cfg); msg == "" {
 		t.Fatal("CheckProtoFlat(smtp, {layers, smtp:{}}) = \"\", want top-level smtp presence rejection")
 	}
-	if msg := core.CheckProtoFlat("smtp", cfg); !strings.Contains(msg, "no longer accepts a top-level smtp sub-config") {
-		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `no longer accepts a top-level smtp sub-config`", msg)
+	if msg := core.CheckProtoFlat("smtp", cfg); !strings.Contains(msg, "rejects a top-level smtp sub-config") {
+		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `rejects a top-level smtp sub-config`", msg)
 	}
 }
 

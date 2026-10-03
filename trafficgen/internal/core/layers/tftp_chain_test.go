@@ -146,12 +146,12 @@ func TestTFTPChain_PresenceTopLevelSubconfigRejected(t *testing.T) {
 	bad := map[string]interface{}{"layers": layersArr, "tftp": map[string]interface{}{}}
 	if msg := core.CheckProtoFlat("tftp", bad); msg == "" {
 		t.Fatal("CheckProtoFlat(tftp, {layers, tftp:{}}) = \"\", want top-level tftp presence rejection")
-	} else if !strings.Contains(msg, "no longer accepts a top-level tftp sub-config") {
+	} else if !strings.Contains(msg, "rejects a top-level tftp sub-config") {
 		t.Fatalf("CheckProtoFlat msg = %q, want presence anchor", msg)
 	}
 	// 非空顶层 tftp 子映射同判死（presence 语义与 Parse 一致）。
 	bad2 := map[string]interface{}{"layers": layersArr, "tftp": map[string]interface{}{"mode": "read"}}
-	if m2 := core.CheckProtoFlat("tftp", bad2); !strings.Contains(m2, "no longer accepts a top-level tftp sub-config") {
+	if m2 := core.CheckProtoFlat("tftp", bad2); !strings.Contains(m2, "rejects a top-level tftp sub-config") {
 		t.Fatalf("non-empty top-level tftp must be rejected too, got %q", m2)
 	}
 	// 纯层链形不触发。

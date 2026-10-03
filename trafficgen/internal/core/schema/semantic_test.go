@@ -235,14 +235,14 @@ func TestTaskCreateEntry(t *testing.T) {
 }
 
 // T-FTP-15（D-FTP-2 §5；Step 1 全协议扁平删除后更新）：纯扁平四元组/count
-// 任一出现即判死（no longer accepts，先于 static copy）。省略端口/只带子映射
+// 任一出现即判死（rejects flat config field，先于 static copy）。省略端口/只带子映射
 // 通过；带 layers+扁平键 → 同判死（D-FTP-3 混用门被泛化门覆盖，同条件）。
 func TestSemanticStaticCopyRejection(t *testing.T) {
 	// ① reject
 	_, errs := ValidateStrategy("synth", "tcp",
 		map[string]any{"src_port": float64(12345), "tcp": map[string]any{}},
 		&FlowControl{Type: "flows", Value: 3})
-	if len(errs) == 0 || !strings.Contains(errs[0].Message, "no longer accepts flat config field") {
+	if len(errs) == 0 || !strings.Contains(errs[0].Message, "rejects flat config field") {
 		t.Fatalf("① want flat-deletion reject, got %v", errs)
 	}
 	msg := errs[0].Message
@@ -271,7 +271,7 @@ func TestSemanticStaticCopyRejection(t *testing.T) {
 			"src_port": float64(12345)},
 		&FlowControl{Type: "flows", Value: 3}); len(errs) == 0 {
 		t.Fatalf("④ want flat-deletion rejection, got clean")
-	} else if !strings.Contains(errs.Error(), "no longer accepts flat config field") {
+	} else if !strings.Contains(errs.Error(), "rejects flat config field") {
 		t.Fatalf("④ wrong message: %v", errs)
 	}
 	// ⑤ flows=1 仍判死（Step 1 后扁平键与流数无关，见者即拒）。

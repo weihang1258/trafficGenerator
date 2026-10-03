@@ -14,7 +14,7 @@
 
 | # | 存量说法/形状 | HEAD 实测（2026-09-29） | 校正结论 |
 |---|---|---|---|
-| 1 | `cases/vmess.json` 存量 1 例 `spec_json` 顶层 = `{src_ip,dst_ip,src_port,dst_port,count,vmess}`（**扁平形**） | schema 层实测：`ValidateStrategy("synth","vmess",扁平形状)` → **`protocol vmess no longer accepts flat config field src_ip`**（判死提交 `0417be5` 2026-09-13 泛化全协议；`CheckProtoFlat` 五键循环无条件） | **存量 1 例今日不可创建/不可跑**；本版 §2 目标形状为纯层链，迁移动作列 G-VMESS-1（本车道不动 JSON） |
+| 1 | `cases/vmess.json` 存量 1 例 `spec_json` 顶层 = `{src_ip,dst_ip,src_port,dst_port,count,vmess}`（**扁平形**） | schema 层实测：`ValidateStrategy("synth","vmess",扁平形状)` → **`protocol vmess rejects flat config field src_ip`**（判死提交 `0417be5` 2026-09-13 泛化全协议；`CheckProtoFlat` 五键循环无条件） | **存量 1 例今日不可创建/不可跑**；本版 §2 目标形状为纯层链，迁移动作列 G-VMESS-1（本车道不动 JSON） |
 | 2 | 存量 notes："vmess 设计无默认 dst_port，必须显式 443" | registry `vmess` FieldContract `tcp.dst_port:443`（`registry.go:1624`）+ 链路径 DstPort switch 缺省 443（`chain_planner.go:1235`） | **链路径有缺省 443**；notes 是 legacy `strategy_convert` 口径（`strategy_convert.go:1550` 确无默认，注释 "vmess has no canonical port; user must specify"）——两口径并存，本文 §2 按链路径钉 |
 | 3 | 存量 notes："f5/f7 为服务器响应段 (18B 随机)" | 发射序（`planner.go:533-573`）：f4=req(up) → **f5=客户端终止空块(up, 18B)** → f6=resp(down) → **f7=服务端终止空块(down, 18B)** | **f5 方向标错**（是客户端侧终止块）；包数/长度本身正确。P4 改写 notes（G-VMESS-1） |
 | 4 | 存量 notes："AES-128-GCM 加密的请求头 + 负载（含随机 nonce 与**密钥派生**，字节不可预测）" | 实现零真实密码学：无 `crypto/aes`/`crypto/cipher` import（grep 命中 0），无 MD5/FNV/HMAC 运算（命中 0），`rand.Read` **16 处**——IV/body/payload/tag 全部随机填充（`planner.go:27-30` 包注释自述 "does NOT implement real cryptography"）；且缺省 encryption = `aead_chacha20_poly1305`（`:328-331`），**不是** notes 说的 GCM | **notes 夸大**（"密钥派生"不存在）且算法名标错（缺省 chacha20 非 GCM）；P4 改写（G-VMESS-1）。本文 §3 按实现如实钉："合成密文"（synth ciphertext） |
@@ -284,7 +284,7 @@ vmess 层无自有状态机：握手/挥手/分段在 tcp 层；vmess 层是"按
 | N-17 | `TCP.MSS` + `too small` | MSS < 536 | `planner.go:176` |
 | N-18 | `unknown field`（schema 层） | 层内任何 vmess 键（Fields 空） | registry Fields 空 → `complete.go:292` |
 
-**形状级拒绝（schema 层，非 planner）**：顶层 `src_ip/dst_ip/src_port/dst_port/count` 任一 → `no longer accepts flat config field <k>`（`CheckProtoFlat` 五键循环，实测存量形状命中）。
+**形状级拒绝（schema 层，非 planner）**：顶层 `src_ip/dst_ip/src_port/dst_port/count` 任一 → `rejects flat config field <k>`（`CheckProtoFlat` 五键循环，实测存量形状命中）。
 
 **不得误报的合法协议事件**：Legacy 模式 alter_id=0（仅注释告警不拒绝，`:208-210`）；AEAD 模式 alter_id>0（同，`:205-207`）；空地址自动 IPv4 零地址；PadLen=0。
 
@@ -518,7 +518,7 @@ vmess 层无自有状态机：握手/挥手/分段在 tcp 层；vmess 层是"按
 
 | 缺口 | 内容（现象/证据/归属阶段） | 去向 |
 |---|---|---|
-| G-VMESS-1 | **存量 1 例扁平判死 + notes 三处失实**：①`spec_json` 顶层 6 键（含五判死键）→ schema 400（本车道探针实测锚词 `no longer accepts flat config field src_ip`）；②notes "f5/f7 服务器响应段" 方向标错（f5=up）；③notes "密钥派生" 夸大 + "AES-128-GCM" 算法名错（缺省 chacha20）；④notes "无默认 dst_port" 与链缺省 443 矛盾。证据：cases 机读 + planner.go:328-331/:533-573/registry.go:1624 | **P4 必做**：改写为纯层链形 + 修 notes 四处；本车道不动 JSON |
+| G-VMESS-1 | **存量 1 例扁平判死 + notes 三处失实**：①`spec_json` 顶层 6 键（含五判死键）→ schema 400（本车道探针实测锚词 `rejects flat config field src_ip`）；②notes "f5/f7 服务器响应段" 方向标错（f5=up）；③notes "密钥派生" 夸大 + "AES-128-GCM" 算法名错（缺省 chacha20）；④notes "无默认 dst_port" 与链缺省 443 矛盾。证据：cases 机读 + planner.go:328-331/:533-573/registry.go:1624 | **P4 必做**：改写为纯层链形 + 修 notes 四处；本车道不动 JSON |
 | G-VMESS-2 | **线布局偏离官方 spec**：无 EAuID/ALength/Nonce 认证三段；指令段缺 Key16/RespAuthV/Opt/Checksum-FNV1a 字段；响应头格式不同；零密码学运算（AES/ChaCha/HMAC-MD5/KDF 全无，rand.Read 16 处）。证据：§3.8 差异表逐行 + planner.go:27-30 包注释 | **裁定项**：(a) 布局对齐 spec（重写 build*，帧长全变）或 (b) 明确不解决（合成帧定位写死）；真实互通验证 → G-VMESS-10。归属 P4 裁定 + 设计阶段 |
 | G-VMESS-3 | **MUX 帧偏离 mux-spec**：缺 Opt/NetworkType 字节、长度前缀语义不同、`Command=0x03` 为私有扩展（spec Cmd 仅 0x01/0x02）。证据：§3.4 对比 + mux-spec 引文 | P4 裁定（对齐 or 声明私有扩展并收窄断言）；`mux_streams` 无法从层内配置（G-VMESS-4 联动） |
 | G-VMESS-4 | **纯层链不可跑**：registry `vmess` 无 Fields（13 配置键层内全 `unknown field`，逐键实测）+ `translateTerminalConfig` 无 vmess 分支（grep=0）→ 层链空配置 `vmess: VmessConfig is required`（实测）；唯一可跑 = 混合形（层链+顶层 vmess 子映射）。证据：本车道探针三形状实测 | **P4 首动作**：补 Fields 14 键 + translate 分支 + `validateBaseDstPortHandled` 名单核对 + schemagen 重跑；之后 #1 迁纯层链 |

@@ -8767,7 +8767,7 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "no longer accepts a top-level tds sub-config"
+   "error_contains": "rejects a top-level tds sub-config"
   }
  },
  {
@@ -8798,7 +8798,7 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "no longer accepts flat config field src_ip"
+   "error_contains": "rejects flat config field src_ip"
   }
  },
  {
@@ -8829,7 +8829,7 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "no longer accepts flat config field count"
+   "error_contains": "rejects flat config field count"
   }
  }
 ]

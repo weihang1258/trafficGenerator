@@ -4097,7 +4097,7 @@
   },
   {
     "expect": {
-      "error_contains": "no longer accepts a top-level ethmining",
+      "error_contains": "rejects a top-level ethmining",
       "expect_error": true
     },
     "id": "ethmining_neg_presence",
@@ -4126,7 +4126,7 @@
   },
   {
     "expect": {
-      "error_contains": "no longer accepts flat config field src_ip",
+      "error_contains": "rejects flat config field src_ip",
       "expect_error": true
     },
     "id": "ethmining_neg_stray_src_ip",

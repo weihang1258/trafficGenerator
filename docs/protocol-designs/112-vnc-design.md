@@ -590,7 +590,7 @@ E = (1 + R×I) × ([bell?1] + [colourmap?1] + [serverCutText?1])
 
 层链配置 → `ValidateLayers`（registry Fields 26 键 allowlist + V9 范围）→ translate（`chain_planner_translate.go:2806` 层内 config → `spec.VNC`，经 `core.ParseVNCConfigFromMap` 复用扁平解析单一真相）→ `chain_planner.go:1525` `meta.VNC = spec.VNC` → raw-IP 自驱分支（`isRawIPChain` 命中）→ 生成器 `Generate` → `Planner.Plan`（`Validate` → 缺省补齐 → TCP 握手 → 握手 13 消息 → 客户端消息面 → FBU 循环 → 拆链）→ `req.Emit` 逐包（`Direction` 统一改 `"up"`）→ writer（PCAP/NIC）。
 
-**扁平入口**：`strategy_convert.go:1344` `case "vnc"` → `parseVNCConfig` + `setDefaultDstPort(&spec, cfg, 5900)`；**顶层 `vnc` 子映射在链形状下判死**（`rawWrapChains` 表，报 `no longer accepts a top-level vnc sub-config`）。
+**扁平入口**：`strategy_convert.go:1344` `case "vnc"` → `parseVNCConfig` + `setDefaultDstPort(&spec, cfg, 5900)`；**顶层 `vnc` 子映射在链形状下判死**（`rawWrapChains` 表，报 `rejects a top-level vnc sub-config`）。
 
 ### 11.5 错误分支
 
@@ -658,7 +658,7 @@ E = (1 + R×I) × ([bell?1] + [colourmap?1] + [serverCutText?1])
 
 ### 12-P2 判死负例形状（链级红例必含清单①③④）
 
-- ① presence 形状 `{"layers":[…],"vnc":{}}` 今日**会被拒**（`rawWrapChains` 表含 vnc，报 `no longer accepts a top-level vnc sub-config`）——**与 opcua 相反**：本协议该负例**可建且会真红**；但存量未建，建例属 JSON 阶段动作 → G-VNC-18。② 白名单外游离键判死（`unknown field`）今日**无通用门** → 框架面缺口（与 moxa/opcua 同款，**不单独立项**）。③ 4 负例每条带锚词（已齐，§7）。④ 收官自查「非负例顶层键 = 0」**今日已成立**（§12.1）。
+- ① presence 形状 `{"layers":[…],"vnc":{}}` 今日**会被拒**（`rawWrapChains` 表含 vnc，报 `rejects a top-level vnc sub-config`）——**与 opcua 相反**：本协议该负例**可建且会真红**；但存量未建，建例属 JSON 阶段动作 → G-VNC-18。② 白名单外游离键判死（`unknown field`）今日**无通用门** → 框架面缺口（与 moxa/opcua 同款，**不单独立项**）。③ 4 负例每条带锚词（已齐，§7）。④ 收官自查「非负例顶层键 = 0」**今日已成立**（§12.1）。
 
 ### 12.3 §3 强制展开：五件套
 
@@ -718,7 +718,7 @@ E = (1 + R×I) × ([bell?1] + [colourmap?1] + [serverCutText?1])
 | **G-VNC-15** | **协议版本降级未实现**：`versionString` 恒 `RFB 003.008\n`（`:54`，**不可配**）；RFC 6143 §7.1.1 允许客户端回 `003.003`/`003.007` 触发降级协商——本实现不支持 | **明确不解决**（现网 003.008 已是绝对主流）+ A′ 候选（若需覆盖老服务器场景） |
 | **G-VNC-16** | **`hextileData` 预分配容量偏低**：`:521` 预分配 `(w*h*4)/16` 字节，但实际输出（每瓦片 1B ctrl + 全量像素）约为 `w*h*4` → **预分配低约 16 倍**，`append` 多次扩容。非正确性缺陷，影响吞吐 | P4 基准测量后裁定（`hextileData` 瓦片化后总量 ≈ `(瓦片数) + w*h*4`） |
 | **G-VNC-17** | **同值双名**：`secTypeVNCAuthCode = 2` 与 `secTypeVNC = 2`（`vnc.go:32-33`）——前者是 AuthCaps 记录的 code，后者是安全类型枚举，**同值不同语义**，可读性隐患 | P4 合并或改名（非缺陷，低优先） |
-| **G-VNC-18** | **presence 负例未建**：顶层 `vnc` 子映射今日**已判死**（`rawWrapChains` 表，报 `no longer accepts a top-level vnc sub-config`）——与 opcua 相反，本协议该负例**会真红**；但存量 21 例无此例 | A′ 补例 `vnc_presence_neg`（`{"layers":[…],"vnc":{}}`）；P4 |
+| **G-VNC-18** | **presence 负例未建**：顶层 `vnc` 子映射今日**已判死**（`rawWrapChains` 表，报 `rejects a top-level vnc sub-config`）——与 opcua 相反，本协议该负例**会真红**；但存量 21 例无此例 | A′ 补例 `vnc_presence_neg`（`{"layers":[…],"vnc":{}}`）；P4 |
 | **G-VNC-20** | **可用字段零收编 + 1 条 notes 文案与事实相反**：21 例只用 **15 个 field 名**，而 tshark 3.6.14 有 **249 个 `vnc.*` 字段**——其中 `vnc.key_down`/`vnc.key`/`vnc.pointer_x_pos`/`vnc.pointer_y_pos`/`vnc.button_*_pos`/`vnc.client_set_encodings_num`/`vnc.client_set_encodings_encoding_type`/`vnc.fb_update_encoding_type`/`vnc.fb_update_width`/`vnc.fb_update_height`/`vnc.fb_update_x_pos`/`vnc.fb_update_y_pos`/`vnc.colormap_first_color`/`vnc.client_cut_text`/`vnc.server_cut_text`/`vnc.encoding_name`/`vnc.encoding_vendor`/`vnc.hextile_subencoding` 等**已实测可用却零使用**（§9 表）。**另：存量 `vnc_t8_key_down_explicit` 的 `notes` 写"tshark 不出 key_down 字段"，本轮实测该字段存在且 T-8 帧 19 输出 `1`——文案与事实相反** | A′ 收编上述字段（优先 `key_down`/`key`/`pointer_x_pos`/`pointer_y_pos`/`client_set_encodings_encoding_type`/`fb_update_encoding_type`）；P4 改写 T-8 的 `notes` 文案（**文档车道不碰 JSON**，故此处仅登记） |
 | **G-VNC-21** | **`negotiated=false` 不是可执行断言**：`pcaptest` 的 `negotiated` 检查**只在 `true` 时执行**（`internal/pcaptest/verify.go:195` `if c.Expect.Negotiated {…}`）——存量 `vnc_t5_auth_fail` 的 `negotiated=false` **不触发任何检查**，是**文档性标注**（表达"无 ClientInit/ServerInit"），真正的可执行证据是 `packet_count=17` + f13 的 reason 字节 | P4 裁定：或补 `pcaptest` 的 `false` 分支检查（断言"无 ServerInit"），或把该键从 `expect` 移除并改由 `notes` 承载；**不得**继续把它当作已生效断言 |
 | **G-VNC-22** | **覆盖反查门口径滞后 + 漏键**：`coverage_gate.py:7172` 的 `check_vnc` 有 **48 行**（21 协议行 + 23 键行 + 4 锚词行），本轮实跑 **48/48 全绿**；但 ① docstring 自述 "T-VNC-1…17，9.52 对账 27/27" 是**历史口径**（追加 4 例后未更新）；② 键行**漏 3 键**（`auth_reason`/`client_set_encodings`/`fbu_update_interval`，registry 26 键 vs 门 23 键）；③ 无「负例 `expect` 严格两键」「fields 名 ⊆ tshark 实测集」等本契约 §9 建议行 | **主线程**在 `coverage_gate.py` 的 vnc 段补：更新 docstring 例数、补 3 键行、登记本契约 §9 的 12 条建议断言（**本车道不碰该文件**） |

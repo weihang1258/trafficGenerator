@@ -36,7 +36,7 @@
 
 ## 3. 负例契约与名实不符项
 
-**负例（交付 29 例 = 26 V-TDS 锚词 + presence 1 + 游离键 2）**：全部 `expect_error=true` + `error_contains` 锚词；**走真实流程**（MCP 提交必须被拒，14.11）。presence/游离键 3 例锚词为 CheckProtoFlat 判死文案（`no longer accepts flat config field <k>`），V-TDS 26 例为 `V-TDS-0xx` 字面。
+**负例（交付 29 例 = 26 V-TDS 锚词 + presence 1 + 游离键 2）**：全部 `expect_error=true` + `error_contains` 锚词；**走真实流程**（MCP 提交必须被拒，14.11）。presence/游离键 3 例锚词为 CheckProtoFlat 判死文案（`rejects flat config field <k>`），V-TDS 26 例为 `V-TDS-0xx` 字面。
 
 **名实不符项（3 例，P6 处置=summary 如实注记 + 缺口立项，ID 未改名）**：
 

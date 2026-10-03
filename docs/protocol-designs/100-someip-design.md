@@ -32,7 +32,7 @@
 
 > **第 12/13 行属"旧稿继承错误"而非"新错"**：本版 §3.4.1/§3.5 初稿照抄了 28 稿表，经隔离审查 B-1/B-2 打回后按代码 + tshark 探针重写（§3.4.1/§3.5 各附复算命令与原始输出）。教训：**字段/偏移表必须实调 tshark 探针产出，禁由旧稿搬运**。
 
-**产物过期登记（重要，G-SOMEIP-12）**：`trafficgen/docs/protocol-pcap-test/someip.md` 写 "Cases: 16 — pass 16, fail 0, error 0"，但该文件末次提交 `3c5991a`（2026-08-28），**早于**判死提交 `0417be5`（2026-09-13）**16 天**；`cases/someip.json` 末改同为 `3c5991a`（2026-08-28）；`docs/protocol-pcap-test/someip/` 目录 **0 个 pcap 文件**（目录本身不存在）。更关键：**存量 16 例今日经 MCP 建策略 400 全红**——顶层旧键残留 **60 处**（非负例 12/12 全违规形，每例 `src_ip`/`dst_ip`/`src_port`/`dst_port` + 顶层 `someip` 子映射 5 键），首条即被 `CheckProtoFlat`（`strategy_convert.go:8632`）拒：`protocol someip no longer accepts flat config field src_ip`。**该结果文档是过期产物，16/16 pass 不代表今日可跑**——读者不得据此判断套件可用。
+**产物过期登记（重要，G-SOMEIP-12）**：`trafficgen/docs/protocol-pcap-test/someip.md` 写 "Cases: 16 — pass 16, fail 0, error 0"，但该文件末次提交 `3c5991a`（2026-08-28），**早于**判死提交 `0417be5`（2026-09-13）**16 天**；`cases/someip.json` 末改同为 `3c5991a`（2026-08-28）；`docs/protocol-pcap-test/someip/` 目录 **0 个 pcap 文件**（目录本身不存在）。更关键：**存量 16 例今日经 MCP 建策略 400 全红**——顶层旧键残留 **60 处**（非负例 12/12 全违规形，每例 `src_ip`/`dst_ip`/`src_port`/`dst_port` + 顶层 `someip` 子映射 5 键），首条即被 `CheckProtoFlat`（`strategy_convert.go:8632`）拒：`protocol someip rejects flat config field src_ip`。**该结果文档是过期产物，16/16 pass 不代表今日可跑**——读者不得据此判断套件可用。
 
 复算命令与原始输出（`trafficgen/` 下执行）：
 
@@ -53,7 +53,7 @@ fk={'src_ip','dst_ip','src_port','dst_port','someip'}
 print('non-neg residue', sum(len(set(c['spec_json'])&fk) for c in cs if 'expect_error' not in c['expect']),
       '| violating non-neg', sum(1 for c in cs if 'expect_error' not in c['expect'] and set(c['spec_json'])&fk), '/12')"
 # → non-neg residue 60 | violating non-neg 12 /12
-# MCP 建策略 16/16 → 400（`protocol someip no longer accepts flat config field src_ip …`）
+# MCP 建策略 16/16 → 400（`protocol someip rejects flat config field src_ip …`）
 ```
 
 ## 1. 范围、profile 与实现状态边界

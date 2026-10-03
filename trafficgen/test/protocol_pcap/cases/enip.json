@@ -9866,7 +9866,7 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "no longer accepts a top-level enip"
+   "error_contains": "rejects a top-level enip"
   }
  },
  {

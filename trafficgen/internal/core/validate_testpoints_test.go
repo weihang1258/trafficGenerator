@@ -262,7 +262,7 @@ func TestValidateBatchSpec_Branches(t *testing.T) {
 		{"flow count neg", BatchSpec{Classes: []TrafficClass{{ID: "c1", Type: "tcp", FlowCount: -1, Config: map[string]interface{}{}}}}, "flow_count must be > 0"},
 		{"config ranges invalid", BatchSpec{Classes: []TrafficClass{{ID: "c1", Type: "tcp", FlowCount: 1, Config: map[string]interface{}{"dscp": float64(64)}}}}, "dscp 64 invalid"},
 		{"sub config invalid", BatchSpec{Classes: []TrafficClass{{ID: "c1", Type: "tcp", FlowCount: 1, Config: map[string]interface{}{"tcp": map[string]interface{}{"mss": float64(65536)}}}}}, "tcp.mss 65536 invalid"},
-		{"flat field rejected before flow-spec check", BatchSpec{Classes: []TrafficClass{{ID: "c1", Type: "tcp", FlowCount: 1, Config: map[string]interface{}{"src_ip": "bad"}}}}, "no longer accepts flat config field src_ip"},
+		{"flat field rejected before flow-spec check", BatchSpec{Classes: []TrafficClass{{ID: "c1", Type: "tcp", FlowCount: 1, Config: map[string]interface{}{"src_ip": "bad"}}}}, "rejects flat config field src_ip"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

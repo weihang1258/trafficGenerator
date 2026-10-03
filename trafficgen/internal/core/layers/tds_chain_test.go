@@ -84,7 +84,7 @@ func TestTDSChain_PresenceAndStrayTopLevelKeys(t *testing.T) {
 	}
 	if msg := core.CheckProtoFlat("tds", cfg); msg == "" {
 		t.Fatal("CheckProtoFlat(tds, {layers, tds:{}}) = \"\", want top-level tds presence rejection")
-	} else if !strings.Contains(msg, "no longer accepts a top-level tds sub-config") {
+	} else if !strings.Contains(msg, "rejects a top-level tds sub-config") {
 		t.Fatalf("CheckProtoFlat msg = %q", msg)
 	}
 	for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port", "count"} {

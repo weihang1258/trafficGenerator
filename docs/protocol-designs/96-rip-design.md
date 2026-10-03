@@ -481,7 +481,7 @@ RIP 层**无自有状态**：RIP 是 UDP 上的无连接协议，无握手/无�
 
 ### 12-P2 判死负例形状（链级红例必含清单①③④）
 
-- ① presence 形状 `{"layers":[…],"rip":{}}` 今日**不会被拒**（`CheckProtoFlat` 无 rip 分支，`grep -c` = 0 实测；探针 `ValidateStrategy` → errs=0）→ **代码阶段不建该负例**（建了会真绿 = 假通过）→ 缺口 G-RIP-3 登记。② 白名单外游离键判死（`no longer accepts flat config field src_ip`）今日**已生效**（`CheckProtoFlat` 通用五键检查，探针实证）→ 代码阶段建一条（A′）。③ 19 负例每条带锚词（已齐，§7）。④ 收官自查「非负例顶层键 = 0」（代码阶段迁移后执行）。
+- ① presence 形状 `{"layers":[…],"rip":{}}` 今日**不会被拒**（`CheckProtoFlat` 无 rip 分支，`grep -c` = 0 实测；探针 `ValidateStrategy` → errs=0）→ **代码阶段不建该负例**（建了会真绿 = 假通过）→ 缺口 G-RIP-3 登记。② 白名单外游离键判死（`rejects flat config field src_ip`）今日**已生效**（`CheckProtoFlat` 通用五键检查，探针实证）→ 代码阶段建一条（A′）。③ 19 负例每条带锚词（已齐，§7）。④ 收官自查「非负例顶层键 = 0」（代码阶段迁移后执行）。
 
 ### 12-P3 判死形状与 MCP 可达性：三条探针证据原文（2026-09-28 实测）
 
@@ -500,9 +500,9 @@ RIP 层**无自有状态**：RIP 是 UDP 上的无连接协议，无握手/无�
 
 ```
 存量层链形 {layers:[{udp:{}},{rip:{}}], count:1, src_port:0, rip:{...}}
-  → errs = "protocol rip no longer accepts flat config field src_port (use a layers chain: …)"
+  → errs = "protocol rip rejects flat config field src_port (use a layers chain: …)"
 存量扁平形 {count:1, src_port:0, rip:{...}}
-  → errs = "protocol rip no longer accepts flat config field src_port (use a layers chain: …)"
+  → errs = "protocol rip rejects flat config field src_port (use a layers chain: …)"
 ```
 
 → 52 个层链例（带顶层 `src_port`）与 19 个扁平例**全部 400**：既不是绿（MCP 建不了策略）也不是红（离线套件仍绿）。**存量 71 例不是合法 MCP 任务 spec**（违反 §14.1/§14.2）。

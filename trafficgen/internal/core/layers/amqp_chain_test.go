@@ -395,7 +395,7 @@ func TestAMQPChain_PresenceAndStrayTopLevelKeys(t *testing.T) {
 	}
 	if msg := core.CheckProtoFlat("amqp", cfg); msg == "" {
 		t.Fatal("CheckProtoFlat(amqp, {layers, amqp:{}}) = \"\", want top-level amqp presence rejection")
-	} else if !strings.Contains(msg, "no longer accepts a top-level amqp sub-config") {
+	} else if !strings.Contains(msg, "rejects a top-level amqp sub-config") {
 		t.Fatalf("CheckProtoFlat msg = %q", msg)
 	}
 	// ②白名单外游离键（1.11–1.13）：四元组类经 CheckProtoFlat/门2-1 判死。

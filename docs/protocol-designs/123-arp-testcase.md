@@ -95,7 +95,7 @@
 | 5 | `arp_t5_neg_operation` | `arp:{operation:3}` | `out of range [1,2]` | `layers: layer "arp" field "operation" = 3 invalid: out of range [1,2]` | `complete.go:325` | create-time（400） |
 | 6 | `arp_t6_neg_sender_ip` | `arp:{sender_ip:"not-an-ip"}` | `invalid sender_ip` | `arp: invalid sender_ip "not-an-ip"` | `layer_gen.go:151` | task-time（validator） |
 | 7 | `arp_t7_neg_ip_carrier` | 层链 `[eth, ip, arp]` | `must not have an ip/transport carrier` | `layers: layer "arp" (l2) must not have an ip/transport carrier, got "ip" at position 1` | `complete.go:355` | create-time（400） |
-| 8 | `arp_t8_neg_presence` | `layers + 顶层 arp:{}` | `no longer accepts a top-level arp` | `protocol arp no longer accepts a top-level arp sub-config (move it into the arp layer of a [eth,arp] layers chain)` | `strategy_convert.go:9108-9110` | create-time（400） |
+| 8 | `arp_t8_neg_presence` | `layers + 顶层 arp:{}` | `rejects a top-level arp` | `protocol arp rejects a top-level arp sub-config (move it into the arp layer of a [eth,arp] layers chain)` | `strategy_convert.go:9108-9110` | create-time（400） |
 | 9 | `arp_t9_neg_sender_mac` | `arp:{sender_mac:"zz:bb:cc:dd:ee:01"}` | `invalid sender_mac` | `arp: invalid sender_mac "zz:…"` | `layer_gen.go:158` | task-time（validator） |
 | 10 | `arp_t10_neg_target_mac` | `arp:{target_mac:"nope"}` | `invalid target_mac` | `arp: invalid target_mac "nope"` | `layer_gen.go:163` | task-time（validator） |
 | 11 | `arp_t11_neg_target_ip` | `arp:{target_ip:"999.0.0.1"}` | `invalid target_ip` | `arp: invalid target_ip "999.0.0.1"` | `layer_gen.go:154` | task-time（validator） |
@@ -115,7 +115,7 @@
 |---|---|---|---|
 | IPv6 文本入 sender_ip/target_ip | `invalid sender_ip`（构造期后缀 `: want IPv4`） | `layer_gen.go:133-137` | 层校验器 `net.ParseIP` 放行 v6 → 构造期 `To4()` 拒（**两段式**，设计 §3.2） |
 | op 非数值（浮点/负值） | `not a numeric value in [1,2]` | `complete.go:311-313` | V9 不可转换分支，今日无例 |
-| 顶层五键扁平（src_ip 等） | `no longer accepts flat config field src_ip` | `strategy_convert.go:8635-8637` | 五键通用门，arp 无专用例 |
+| 顶层五键扁平（src_ip 等） | `rejects flat config field src_ip` | `strategy_convert.go:8635-8637` | 五键通用门，arp 无专用例 |
 | 顶层游离未知键 | `unknown field` 通用门**不存在** | — | **不建**（会真绿 = 假通过，G-ARP-9） |
 
 **不得误报的合法协议事件**：`arp:{}` 空层（合法缺省，T-1/T-2 即证）；`operation` 显式 0（V9 放行→1）；eth 层 MAC 与 arp 层 sender_mac 并存（层键优先，T-3）；`flows>1` + eth MAC 动态对象（合法多流，A′ 正例）；tpa=255.255.255.255（合法 IPv4，语义由用户负责）。
@@ -232,7 +232,7 @@ T-ARP-1 ≡ `arp_t1_baseline_pair`；T-ARP-2 ≡ `arp_t2_bytes_full`；T-ARP-3 �
 | 3 | 4 正例 `packet_count` == `2 if oper∈{缺省,1} else 1`（由 spec 推出，**精确等值**） | 设计 §9 公式 |
 | 4 | 4 正例 `expect` 键 == `{packet_count, fields, frames}`（**P4 删 `notes` 后**） | 本契约 §1；G-ARP-8 |
 | 5 | 8 负例 `expect` 键 == `{expect_error, error_contains}`（**今日已成立**） | 本契约 §4 |
-| 6 | 负例 `error_contains` ∈ 代码锚词集 `{"out of range [1,2]", "invalid sender_ip", "invalid target_ip", "invalid sender_mac", "invalid target_mac", "must not have an ip/transport carrier", "no longer accepts a top-level arp", "static four-tuple"}` | 设计 §7 |
+| 6 | 负例 `error_contains` ∈ 代码锚词集 `{"out of range [1,2]", "invalid sender_ip", "invalid target_ip", "invalid sender_mac", "invalid target_mac", "must not have an ip/transport carrier", "rejects a top-level arp", "static four-tuple"}` | 设计 §7 |
 | 7 | 非负例顶层键计数 == 0（**今日已成立**） | 设计 §12.1 |
 | 8 | 每正例至少一条 frames 断言落在 **offset 14–41**（28B 体段，**偏移基=帧首**）——非 54 | 本契约 §1/§3 |
 | 9 | 12/12 例 `spec_json.layers` **不含** `ip`（T-7 除外——该例是载体拒执法对象）且末层名 == `"arp"` | 设计 §12.3 |

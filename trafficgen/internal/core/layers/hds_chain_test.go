@@ -135,8 +135,8 @@ func TestHDSChain_FlatPresenceRejected(t *testing.T) {
 	if msg == "" {
 		t.Fatal(`CheckProtoFlat(hds, {layers, hds:{}}) = "", want top-level hds presence rejection`)
 	}
-	if !strings.Contains(msg, "no longer accepts a top-level hds sub-config") {
-		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `no longer accepts a top-level hds sub-config`", msg)
+	if !strings.Contains(msg, "rejects a top-level hds sub-config") {
+		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `rejects a top-level hds sub-config`", msg)
 	}
 	// 层链形状（无顶层 hds）不触发。
 	if msg := core.CheckProtoFlat("hds", map[string]interface{}{
@@ -152,7 +152,7 @@ func TestHDSChain_StrayKeyRejected(t *testing.T) {
 	if msg := core.CheckProtoFlat("hds", map[string]interface{}{
 		"layers": []interface{}{map[string]interface{}{"hds": map[string]interface{}{}}},
 		"src_ip": hdsCli,
-	}); !strings.Contains(msg, "no longer accepts flat config field src_ip") {
+	}); !strings.Contains(msg, "rejects flat config field src_ip") {
 		t.Fatalf("flat anchor msg = %q", msg)
 	}
 	if _, errs := schema.ValidateStrategy("synth", "hds", map[string]any{

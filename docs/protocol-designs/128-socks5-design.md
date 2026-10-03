@@ -88,7 +88,7 @@ SOCKS5 是 TCP 终结层，插入 `[ip,tcp,socks5]`；TLS 可插在 socks5 前�
 | TCP MSS < 536 | 框架先报 `layer "tcp" field "mss" ... out of range [536,65535]` | framework |
 | username/password >255 | `Username exceeds 255 bytes` / `Password exceeds 255 bytes` | socks5.go:181-185 |
 | REP !=0 | reply 仍发出，数据事件被抑制 | layer_gen.go / RFC1928 §6 |
-| flat 顶层地址/端口与 layers 并存 | `protocol socks5 no longer accepts flat config field src_ip` | CheckProtoFlat；当前两存量例均此错误 |
+| flat 顶层地址/端口与 layers 并存 | `protocol socks5 rejects flat config field src_ip` | CheckProtoFlat；当前两存量例均此错误 |
 | 多 flow 静态复制 | `layers pin a static four-tuple but flows > 1... static copy` | checkLayerChainStaticCopy |
 
 ## 8. 边界与容量
@@ -168,7 +168,7 @@ MaxDomainLen=255；用户名/密码 1..255；TCP 默认 TTL=64、MSS=1460，最�
 
 | 缺口 | 现象 | 证据 | 归属阶段 |
 |---|---|---|---|
-| G-SOCKS5-1 | 两存量 case 顶层 flat 四元组被拒，今日 0/2 可执行 | suite 错误 `protocol socks5 no longer accepts flat config field src_ip`；cases 两例均有 flat 字段 | P4/fixtures |
+| G-SOCKS5-1 | 两存量 case 顶层 flat 四元组被拒，今日 0/2 可执行 | suite 错误 `protocol socks5 rejects flat config field src_ip`；cases 两例均有 flat 字段 | P4/fixtures |
 | G-SOCKS5-2 | registry 声明 1080，但 chain 通用缺省可落 80 | registry FieldContract；`isUniversalDefault(v)==(v==80)`；socks5 不在 dst-port switch | P4 chain |
 | G-SOCKS5-3 | socks5 缺 `CheckProtoFlat`/static-copy 专属核验分支，presence 负例会假绿 | semantic.go 清单无 socks5；presence probe 完成 11 帧 | P4 framework |
 | G-SOCKS5-4 | 域名 >255 被截断而非拒绝 | `socks5.go:745-747`；300 字符 probe 截为 255 | P4 validator |

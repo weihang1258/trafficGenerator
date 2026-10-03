@@ -570,12 +570,12 @@ func TestSSTPChain_PresenceShapes(t *testing.T) {
 	// CheckProtoFlat 面 = create 400 真相；mapToFlowSpec 把它记进
 	// ValidationErrors = 存量启动 error 真相）。
 	t.Run("top_level_empty_sstp_map", func(t *testing.T) {
-		if got := core.CheckProtoFlat("sstp", map[string]interface{}{"sstp": map[string]interface{}{}}); !strings.Contains(got, "no longer accepts a top-level sstp") {
+		if got := core.CheckProtoFlat("sstp", map[string]interface{}{"sstp": map[string]interface{}{}}); !strings.Contains(got, "rejects a top-level sstp") {
 			t.Fatalf("presence: %q", got)
 		}
 		spec := core.MapToFlowSpec(map[string]interface{}{"sstp": map[string]interface{}{}}, "sstp")
 		joined := strings.Join(spec.ValidationErrors, "; ")
-		if !strings.Contains(joined, "no longer accepts a top-level sstp") {
+		if !strings.Contains(joined, "rejects a top-level sstp") {
 			t.Fatalf("presence wired: %q", joined)
 		}
 	})
@@ -585,11 +585,11 @@ func TestSSTPChain_PresenceShapes(t *testing.T) {
 		key  string
 		want string
 	}{
-		{"src_ip", "no longer accepts flat config field src_ip"},
-		{"dst_ip", "no longer accepts flat config field dst_ip"},
-		{"src_port", "no longer accepts flat config field src_port"},
-		{"dst_port", "no longer accepts flat config field dst_port"},
-		{"count", "no longer accepts flat config field count"},
+		{"src_ip", "rejects flat config field src_ip"},
+		{"dst_ip", "rejects flat config field dst_ip"},
+		{"src_port", "rejects flat config field src_port"},
+		{"dst_port", "rejects flat config field dst_port"},
+		{"count", "rejects flat config field count"},
 	} {
 		t.Run("flat_"+tc.key, func(t *testing.T) {
 			if got := core.CheckProtoFlat("sstp", map[string]interface{}{tc.key: "x"}); !strings.Contains(got, tc.want) {

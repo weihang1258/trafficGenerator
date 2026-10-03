@@ -7910,7 +7910,7 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "no longer accepts a top-level mqtt sub-config",
+   "error_contains": "rejects a top-level mqtt sub-config",
    "notes": [
     "T-149 原 30 包扇出（3 会话×10）已随 sessions 拆分作废；本例保留为 presence 执法负例",
     "跨流同 worker 保序（group_id fixed g1）是任务级 batch 语义，需多策略任务另立项验证，单 spec 不表达"

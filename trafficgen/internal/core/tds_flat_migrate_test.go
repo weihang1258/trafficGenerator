@@ -14,7 +14,7 @@ func TestMapToFlowSpec_TopTDSSubConfigRejected(t *testing.T) {
 	}, "tds")
 	n := 0
 	for _, e := range spec.ValidationErrors {
-		if containsSub(e, "no longer accepts a top-level tds sub-config") {
+		if containsSub(e, "rejects a top-level tds sub-config") {
 			n++
 		}
 	}
@@ -25,7 +25,7 @@ func TestMapToFlowSpec_TopTDSSubConfigRejected(t *testing.T) {
 	spec = mapToFlowSpec(map[string]any{"tds": map[string]any{}}, "tds")
 	n = 0
 	for _, e := range spec.ValidationErrors {
-		if containsSub(e, "no longer accepts a top-level tds sub-config") {
+		if containsSub(e, "rejects a top-level tds sub-config") {
 			n++
 		}
 	}

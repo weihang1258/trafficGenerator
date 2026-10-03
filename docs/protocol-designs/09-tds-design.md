@@ -2904,7 +2904,7 @@ TDS **是长连接协议**（TCP 连接即会话）→ 3.14 的"无长连接协�
 
 1. **通用改写（131 例）**：删顶层 `count`→`flow_control.flows`；顶层 `src_ip`/`dst_ip`→`layers[].ip`（**新增 ip 层**，现 105 例只有 `[tcp,tds]`）；顶层 `src_port`/`dst_port`→`layers[].tcp`；顶层 `tds` 子映射→`layers[].tds`；删 `layers` 里的空 `{}` 占位改写为带值形态。
 2. **负例组（26 例）**：改为"纯 layers + 非法内容"（负例内容住层条目/层字段），或按判死项新增"顶层 `tds` 与 layers 并存" presence 负例（1 例即可复用锚词）。
-3. **新增必含负例（M5 清单，落地口径）**：①presence 负例形状——`{"layers":[{"ip":{}},{"tcp":{}},{"tds":{}}],"tds":{}}` 判死（空子映射亦然）→ 落地 `tds_neg_top_tds_presence_reject`；②白名单外游离键负例 → **落地为顶层 `src_ip`/`count` 两例**（`tds_neg_stray_src_ip`/`tds_neg_stray_count`，CheckProtoFlat 五键白名单面，锚词 `no longer accepts flat config field <k>`）；清单原列的 `ttl`/`src_mac` 不在 CheckProtoFlat 五键循环内（框架白名单缺口，登记 G-PG-6 家族 backlog，非 tds 本地可收口——P6 m2 裁定）；③全部负例 `expect_error` + 锚词（交付 29 负例全带锚词）；④收官自查行「非负例顶层键=0」（check_tds 含此断言）。
+3. **新增必含负例（M5 清单，落地口径）**：①presence 负例形状——`{"layers":[{"ip":{}},{"tcp":{}},{"tds":{}}],"tds":{}}` 判死（空子映射亦然）→ 落地 `tds_neg_top_tds_presence_reject`；②白名单外游离键负例 → **落地为顶层 `src_ip`/`count` 两例**（`tds_neg_stray_src_ip`/`tds_neg_stray_count`，CheckProtoFlat 五键白名单面，锚词 `rejects flat config field <k>`）；清单原列的 `ttl`/`src_mac` 不在 CheckProtoFlat 五键循环内（框架白名单缺口，登记 G-PG-6 家族 backlog，非 tds 本地可收口——P6 m2 裁定）；③全部负例 `expect_error` + 锚词（交付 29 负例全带锚词）；④收官自查行「非负例顶层键=0」（check_tds 含此断言）。
 4. **门 2① 复跑**：`trafficgen/tools/pipe_gate.sh tds`，已绿（P6 独立复跑；P5 前旧红为 131 例顶层旧键，去扁平后消除）。
 
 ### 16.8 缺口立项清单（G-TDS-1…10）

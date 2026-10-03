@@ -359,7 +359,7 @@ GRE 的地址面有**两套 IP**（外层隧道端点 + 内层被封装包），
 
 | # | 负例 ID | 故障输入 | 代码锚词 | 代码位置 | 拒绝阶段 |
 |---:|---|---|---|---|---|
-| N-1 | `gre_neg_flat` | 层链 + 顶层 `count`（旧扁平键混用） | `no longer accepts flat config field count` | `strategy_convert.go:8632-8636` | 建策略期 400 |
+| N-1 | `gre_neg_flat` | 层链 + 顶层 `count`（旧扁平键混用） | `rejects flat config field count` | `strategy_convert.go:8632-8636` | 建策略期 400 |
 | N-2 | `gre_neg_static_copy` | `flows=2` + 链上四元组全静态标量 | `static four-tuple` | `schema/semantic.go:285` | 建策略期 400 |
 | N-3 | `gre_neg_dyn_key` | `gre{key: {strategy:"list",…}}` | `does not support dynamic` | `validate_layers.go:1004` | 建策略期 400 |
 | N-4 | `gre_neg_inner_dyn` | 内层 `ip{src: {strategy:"list",…}}` | `inner ip layer does not support dynamic` | `validate_layers.go:1333`（**双侧**：`layer_dyn.go:121` worker 兜底） | 建策略期 400 + worker 侧 |
@@ -678,7 +678,7 @@ GRE 的地址面有**两套 IP**（外层隧道端点 + 内层被封装包），
 | `dst_ip` | **0** | 同上 |
 | `src_port` | **0** | 从未用过；端口住 `layers[i].udp.src_port` / `layers[i].tcp.src_port` |
 | `dst_port` | **0** | 从未用过；端口住 `layers[i].udp.dst_port` / `layers[i].tcp.dst_port` |
-| `count` | **1**（`gre_neg_flat`，负例） | **判死对象本身**——`CheckProtoFlat` 命中即 400（锚词 `no longer accepts flat config field count`）；数量正确住处 = `flow_control` |
+| `count` | **1**（`gre_neg_flat`，负例） | **判死对象本身**——`CheckProtoFlat` 命中即 400（锚词 `rejects flat config field count`）；数量正确住处 = `flow_control` |
 | 顶层 `gre` 子映射 | **0** | 从未用过；GRE 配置住 `layers[i].gre`（3 键） |
 | `strategy_fc`（用例级） | 5（非 `spec_json` 键） | **用例文件的 harness 字段**，不是 spec 键——`test/protocol_pcap` 驱动读它构造 `flow_control{"type":"flows","value":N}`（`pcaptest/types.go:80-84` StrategyFC）。**不在 §1 白名单违规之列** |
 

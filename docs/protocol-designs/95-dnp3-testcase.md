@@ -114,8 +114,8 @@
 | 68 | `dnp3_t33_multi_outstation_3_wire_order` | N-22 同上（线序形） | 同上 | **存量为正例**，待转 |
 | 69 | `dnp3_t81_strategy_convert_full_path` | N-22 同上（全链路形） | 同上 | **存量为正例**，待转 |
 | 70 | `dnp3_t85_multi_outstation_20_stress` | N-22 同上（20 外设压力） | 同上 | **存量为正例**，待转 |
-| 71 | `dnp3_neg_presence` | N-23 层链 + 顶层空 dnp3 子映射并存 | `no longer accepts a top-level dnp3 sub-config` | **待新建**（G-DNP3-2） |
-| 72 | `dnp3_neg_stray_src_ip` | N-24 层链 + 顶层 src_ip 游离键 | `no longer accepts flat config field src_ip` | **待新建**（G-DNP3-2） |
+| 71 | `dnp3_neg_presence` | N-23 层链 + 顶层空 dnp3 子映射并存 | `rejects a top-level dnp3 sub-config` | **待新建**（G-DNP3-2） |
+| 72 | `dnp3_neg_stray_src_ip` | N-24 层链 + 顶层 src_ip 游离键 | `rejects flat config field src_ip` | **待新建**（G-DNP3-2） |
 
 T-编号对照：T-DNP3-P1…P41 ≡ #1…#41；T-DNP3-N1…N31 ≡ #42…#72（与设计 §7 对应）。
 
@@ -219,8 +219,8 @@ Write 80.1 请求 + Respond；`tcp.dstport=20000`；`has_handshake`/`terminates`
 | `dnp3_t75_fc215_reserved_rejected` | `app_func_code=215` | `FC=215` | Validate | ✓ |
 | `dnp3_t27_udp_transport` | `transport="udp"`（层链） | `transport=udp is not supported on the layer chain` | 生成器 | **存量为正例**（G-DNP3-11） |
 | `dnp3_t31_*` 等 8 例 | `multi_outstation`（层链） | `multi_outstation is not supported on the layer chain` | 生成器 | **存量为正例**（G-DNP3-11） |
-| `dnp3_neg_presence` | 层链 + 顶层空 dnp3 子映射 | `no longer accepts a top-level dnp3 sub-config` | CheckProtoFlat（补分支后） | **待新建**（G-DNP3-2） |
-| `dnp3_neg_stray_src_ip` | 层链 + 顶层 src_ip | `no longer accepts flat config field src_ip` | CheckProtoFlat 通用门 | **待新建**（G-DNP3-2） |
+| `dnp3_neg_presence` | 层链 + 顶层空 dnp3 子映射 | `rejects a top-level dnp3 sub-config` | CheckProtoFlat（补分支后） | **待新建**（G-DNP3-2） |
+| `dnp3_neg_stray_src_ip` | 层链 + 顶层 src_ip | `rejects flat config field src_ip` | CheckProtoFlat 通用门 | **待新建**（G-DNP3-2） |
 
 **负例原子性**：每例单一故障注入；单次执行不得混注。
 

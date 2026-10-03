@@ -475,7 +475,7 @@ CASE_PROTO=nvgre go test ./test/protocol_pcap/ -run TestProtocolPcapDrive -count
 RESULT: 0 pass, 6 fail, 14 error (of 20)
   nvgre    0/20
 ```
-- 14 正例 = `error`：submit 被 `CheckProtoFlat` 拒（`protocol nvgre no longer accepts flat config field src_ip`，`strategy_convert.go:8625-8637`）。
+- 14 正例 = `error`：submit 被 `CheckProtoFlat` 拒（`protocol nvgre rejects flat config field src_ip`，`strategy_convert.go:8625-8637`）。
 - 6 负例 = `fail`：被拒但错误文本**不含** `flags`/`vsid`/`inner`/`family`/`length`/`isolation`——**锚词全部失守**（harness 报 `rejected but error "..." does not contain "flags"` 等 6 条）。
 ⇒ 存量**不是「仍可跑的过渡态」，而是全量失效（0 pass）**；「本版不动 cases」有两条理由——**改了硬红**（层链形被 `unknown field` 拒）+ **不改也全红**（扁平形被 `CheckProtoFlat` 拒）。
 

@@ -966,7 +966,7 @@
     },
     "expect": {
       "expect_error": true,
-      "error_contains": "no longer accepts a top-level mongodb sub-config"
+      "error_contains": "rejects a top-level mongodb sub-config"
     },
     "decode_as": [
       "tcp.port==27017,mongo"
@@ -1012,7 +1012,7 @@
     },
     "expect": {
       "expect_error": true,
-      "error_contains": "no longer accepts flat config field src_ip"
+      "error_contains": "rejects flat config field src_ip"
     },
     "decode_as": [
       "tcp.port==27017,mongo"
@@ -1058,7 +1058,7 @@
     },
     "expect": {
       "expect_error": true,
-      "error_contains": "no longer accepts flat config field count"
+      "error_contains": "rejects flat config field count"
     },
     "decode_as": [
       "tcp.port==27017,mongo"

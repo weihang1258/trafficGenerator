@@ -90,7 +90,7 @@ IPv4/IPv6 同住 `ip` 层（地址字面区分，无 `ipv6` 层）。应用字�
 | 未知 kind | `unknown session kind` |
 | Base64 非法 | `bootstrap base64 decode` |
 | 缺 http 载体（链级，待 P4 例） | `requires the http carrier layer` |
-| 层链+顶层 `hds` 空映射并存（待 P4 守卫+例） | `no longer accepts a top-level hds sub-config` |
+| 层链+顶层 `hds` 空映射并存（待 P4 守卫+例） | `rejects a top-level hds sub-config` |
 
 完成定义：F4M/abst/asrt/afrt/mdat 逐字节生成；HTTP/TCP 状态、keep-alive 串行、MSS 重组、IPv4/IPv6 有 pcap 例；G-HDS-1 迁层后每负例传播为 task error；链级红例（载体缺失/presence/白名单游离）齐备。
 
@@ -220,7 +220,7 @@ IPv4/IPv6 同住 `ip` 层（地址字面区分，无 `ipv6` 层）。应用字�
 
 | 旧键 | 去向（P4 G-HDS-1） |
 |---|---|
-| 顶层 `hds` 子映射（profile/keep_alive/manifest/sessions） | → `layers[]` 中 `{"hds": {...}}` 条目（业务键全量迁入）；迁入后顶层 `hds` presence 判死（新增守卫 `no longer accepts a top-level hds sub-config`，http 族 `http` 守卫同款 `strategy_convert.go:373/:8340`） |
+| 顶层 `hds` 子映射（profile/keep_alive/manifest/sessions） | → `layers[]` 中 `{"hds": {...}}` 条目（业务键全量迁入）；迁入后顶层 `hds` presence 判死（新增守卫 `rejects a top-level hds sub-config`，http 族 `http` 守卫同款 `strategy_convert.go:373/:8340`） |
 | `src_ip`/`dst_ip`/`src_port`/`dst_port`/`count` | 已在层链（`CheckProtoFlat` 全协议门）；`count`→`flow_control.flows`（17 例补键） |
 | 顶层 `http` 子映射 | 已判死（hds 在列），17 例零出现 |
 

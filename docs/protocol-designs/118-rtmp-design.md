@@ -659,8 +659,8 @@ packet_count = 20 + N      （N = rtmp.data 数组长度）
 
 | 输入形状 | `CheckProtoFlat` 返回 | 判定 |
 |---|---|---|
-| `{layers:[…], rtmp:{}}` | `protocol rtmp no longer accepts a top-level rtmp sub-config (move it into the rtmp layer of a [ip,rtmp] layers chain)` | **判死 ✓**（可建负例） |
-| `{layers:[…], src_ip/dst_ip/src_port/dst_port/count}` | `protocol rtmp no longer accepts flat config field <k> …` | **判死 ✓**（五键全判） |
+| `{layers:[…], rtmp:{}}` | `protocol rtmp rejects a top-level rtmp sub-config (move it into the rtmp layer of a [ip,rtmp] layers chain)` | **判死 ✓**（可建负例） |
+| `{layers:[…], src_ip/dst_ip/src_port/dst_port/count}` | `protocol rtmp rejects flat config field <k> …` | **判死 ✓**（五键全判） |
 | `{layers:[…], bogus:1}` | `""`（**不判死**） | **缺口 G-RTMP-1**（presence 负例不得建，建了会真绿） |
 
 目标形状样例见 §2（顶层仅 `layers`）。

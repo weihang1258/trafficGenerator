@@ -2865,7 +2865,7 @@ v2.0.0：15 个完整 HexDump 场景（S1-S15），每个场景含：
 
 > **跑不通声明**（§1.9）：上例的 enip 层业务键（`commands`/`transport`/`scenario`）**今天跑不通**——enip registry 行零 `Fields`，`layers: layer "enip": unknown field "commands"`（complete.go:279-293 实测路径）。G-ENIP-3 落地前，等价可跑形仍是顶层 `enip` 子映射（本契约 §5 配置面）+ `layers` 只有 `[{tcp},{enip}]` 空负载的混合形。**本契约不允许把混合形当作目标形状**，只作为 G-ENIP-3 迁入期的过渡证据。
 
-> **落地状态（v2.1.1 P6 回写）**：G-ENIP-3 已落地（P4 `0c5c9e7`）——上例的 enip 层业务键现**可跑通**（六键注册于 registry.go:229-240，层翻译 chain_planner_translate.go:2366 落 `spec.ENIP`）；混合形（层链 + 顶层 `enip` 子映射并存）**已判死**：`enip_neg_presence` 负例锚 `no longer accepts a top-level enip`，现文件 137 例全纯 `layers` 形。上例仍为**目标形状示意**（0x65 与 0x6F 两条命令同列仅为展示两类命令的键面），非最小可跑配置。
+> **落地状态（v2.1.1 P6 回写）**：G-ENIP-3 已落地（P4 `0c5c9e7`）——上例的 enip 层业务键现**可跑通**（六键注册于 registry.go:229-240，层翻译 chain_planner_translate.go:2366 落 `spec.ENIP`）；混合形（层链 + 顶层 `enip` 子映射并存）**已判死**：`enip_neg_presence` 负例锚 `rejects a top-level enip`，现文件 137 例全纯 `layers` 形。上例仍为**目标形状示意**（0x65 与 0x6F 两条命令同列仅为展示两类命令的键面），非最小可跑配置。
 
 ### 14.3 §3 强制展开：五件套（会话表 / 事务序列 / 关联关系 / 插入位置 / 时间线）
 

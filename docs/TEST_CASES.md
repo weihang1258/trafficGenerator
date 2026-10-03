@@ -1385,7 +1385,7 @@
 **输入：** 同链形（src_port 40057）+ 顶层 `"src_ip":"10.0.0.1"`（混用）+ `http{method GET,uri /,version HTTP/1.1}`。
 **前置条件：** 无。
 **执行：** 同 T-HTTP-7（suite 走 `flowb_generate_traffic`，MCP 即拒）。
-**期望输出：** 任务失败；错误含 `no longer accepts flat config field src_ip`。
+**期望输出：** 任务失败；错误含 `rejects flat config field src_ip`。
 **错误期望：** 即本条（`expect_error` + `error_contains`）。
 **性能期望：** 不适用。
 **实现位置：** `cases/http.json`（http_neg_flat_src_ip）。
@@ -1709,13 +1709,13 @@
 
 **状态：** 已通过（P5 实测 67/67 全绿；二进制与 HEAD 同代）
 **级别：** pcap（Validate-negative：真实流程拒绝）
-**来源：** Step1 CheckProtoFlat（`strategy_convert.go` http 族 9 协议分支；单测 `TestProtoFlat_TopHTTPSubConfigRejected` + `TestMapToFlowSpec_TopHTTPSubConfigRejected` 覆 9 家离线断言，本例钉 http 真实流程落点。锚词 `no longer accepts a top-level http sub-config`）
+**来源：** Step1 CheckProtoFlat（`strategy_convert.go` http 族 9 协议分支；单测 `TestProtoFlat_TopHTTPSubConfigRejected` + `TestMapToFlowSpec_TopHTTPSubConfigRejected` 覆 9 家离线断言，本例钉 http 真实流程落点。锚词 `rejects a top-level http sub-config`）
 **目标：** 顶层 `http` 子映射与 `layers` 共存时建任务即被拒（迁入完成的执法证据：层内 21 键之外无第二住处）。
 
 **输入：** 同链形（`http:{}` 空层）+ 顶层 `"http":{"method":"GET"}`。
 **前置条件：** 无。
 **执行：** 同 T-HTTP-50。
-**期望输出：** 任务失败；错误含 `no longer accepts a top-level http sub-config`。
+**期望输出：** 任务失败；错误含 `rejects a top-level http sub-config`。
 **错误期望：** 即本条（`expect_error` + `error_contains`）。注：门 2-1 顶层旧键扫描须豁免本例（presence 负例是执法对象，不是残留——`pipe_gate.sh` 按 `error_contains` 含 `top-level` 豁免）。
 **性能期望：** 不适用。
 **实现位置：** `cases/http.json`（http_neg_top_http）。
@@ -1754,13 +1754,13 @@
 
 **状态：** 已执行（P5，2026-09-14：绿）
 **级别：** pcap（Validate-negative：真实流程拒绝）
-**来源：** Step1 CheckProtoFlat（`strategy_convert.go:7593` 全协议分支，tls 与全体协议同口径；单测 `TestProtoFlat_*` 家族已覆，本例钉 tls 真实流程落点。锚词 `no longer accepts flat config field`）
+**来源：** Step1 CheckProtoFlat（`strategy_convert.go:7593` 全协议分支，tls 与全体协议同口径；单测 `TestProtoFlat_*` 家族已覆，本例钉 tls 真实流程落点。锚词 `rejects flat config field`）
 **目标：** tls 策略带顶层 `src_ip/dst_ip/src_port/dst_port/count` 任一建任务即 400。
 
 **输入：** `{"layers":[...],"src_ip":"10.0.0.1"}`（层链+顶层旧键混用形状）。
 **前置条件：** 无。
 **执行：** 同 T-TLS-1（`expect_error` 路径：MCP 调用即拒）。
-**期望输出：** 任务失败；错误含 `no longer accepts flat config field src_ip`。
+**期望输出：** 任务失败；错误含 `rejects flat config field src_ip`。
 **错误期望：** 即本条（`expect_error` + `error_contains`）。
 **性能期望：** 不适用。
 **实现位置：** `cases/tls.json`（tls_neg_flat）。
@@ -1964,13 +1964,13 @@
 
 **状态：** 已执行（P5，2026-09-14：绿）
 **级别：** pcap（Validate-negative：真实流程拒绝）
-**来源：** Step1 CheckProtoFlat（`strategy_convert.go:7593` 全协议分支，gre 与全体协议同口径；单测 `TestProtoFlat_*` 家族已覆，本例钉 gre 真实流程落点。锚词 `no longer accepts flat config field`）
+**来源：** Step1 CheckProtoFlat（`strategy_convert.go:7593` 全协议分支，gre 与全体协议同口径；单测 `TestProtoFlat_*` 家族已覆，本例钉 gre 真实流程落点。锚词 `rejects flat config field`）
 **目标：** gre 策略带顶层 `src_ip/dst_ip/src_port/dst_port/count` 任一建任务即 400。
 
 **输入：** `{"layers":[…同 T-GRE-1…],"count":2}`（层链+顶层旧键混用形状）。
 **前置条件：** 无。
 **执行：** 同 T-GRE-1（`expect_error` 路径：MCP 调用即拒）。
-**期望输出：** 任务失败；错误含 `no longer accepts flat config field count`。
+**期望输出：** 任务失败；错误含 `rejects flat config field count`。
 **错误期望：** 即本条（`expect_error` + `error_contains`）。
 **性能期望：** 不适用。
 **实现位置：** `cases/gre.json`（gre_neg_flat）。
@@ -2289,7 +2289,7 @@
 **输入：** T-DNS-1 链形 + 顶层 `"dns":{}` 空映射。
 **前置条件：** 无。
 **执行：** 同 T-GRE-2（expect_error 路径）。
-**期望输出：** 任务失败；错误含 `no longer accepts a top-level dns sub-config`。
+**期望输出：** 任务失败；错误含 `rejects a top-level dns sub-config`。
 **错误期望：** 即本条。
 **性能期望：** 不适用。
 **实现位置：** `cases/dns.json`（dns_neg_flat）。
@@ -2746,7 +2746,7 @@
 | `layers+顶层mqtt+顶层tcp`（mss/rst/initial_seq 7 例：t043/t044/t052/t168/t169 + 2 扁平） | 5+2 | 合入：tcp 键（mss/rst/initial_seq）迁 `layers[tcp]` 同名键；RST 两例包数按链 4 包挥手重校准 |
 | 纯 `{"mqtt"}` 扁平（含 17 sessions 例 + 54 负例） | 71 | 合入：补 `[ip,tcp,mqtt]` 链（缺 ip 层则补；mqtt 层 DependsOn tcp 连带补全）；sessions 17 例逐条拆单会话（继承值写全）；54 负例只换形状不换锚词 |
 | `mqtt_over_tls`（扁平四键 + `[tcp,tls,mqtt]`） | 1 | 合入：四键迁 `layers[ip]/layers[tcp]`，目标形状见 D-MQTT-1 §1 |
-| `group_id+{"mqtt"}`（t149） | 1 | 转负例：sessions 扇出形状已被 presence 门拒绝，改 expect_error（锚词 `no longer accepts a top-level mqtt sub-config`）；跨流保序任务级语义另立项 |
+| `group_id+{"mqtt"}`（t149） | 1 | 转负例：sessions 扇出形状已被 presence 门拒绝，改 expect_error（锚词 `rejects a top-level mqtt sub-config`）；跨流保序任务级语义另立项 |
 | 新增 v6/dyn（P4） | 4 | mqtt_v6_connect（v6 CONNECT，clientid 钉；ipv6 tshark 字段名待查，帧偏移断言降级注记）+ mqtt_dyn_client_id_list/topic_pattern/payload_list（flows=2 distinct 钉；§9④陷阱：ip 层留空防静态复制，dyn 对象即逐流有别证明） |
 | 新增负例（P4，§5 缺口收口） | 8 | mqtt_neg_dup_qos0/bad_direction/unknown_prop_format/stringpair_nonul/vbi_overflow/sessions_rejected/string_nul/clientid_nul；surrogate 分支 JSON 不可达（孤立代理项无法编码），与 U+0000 同循环，注记不冒充 |
 | 13 拆分例 frames 补钉（P5） | 13 | 原多流 frames/fields 只剩包数，逐例补 CONNECT(client_id，含 will/keepalive 标志位差异）+PUBLISH(topic/payload) 字节断言，全部落盘校准（4 例 CONNECT 手算错→ landed pcap 取实际值修正） |
@@ -2784,7 +2784,7 @@
 | 规范行 | 用例 | 分类 |
 |---|---|---|
 | 默认会话（HELO/MAIL/RCPT/DATA/body/QUIT，改写存量冒烟） | T-SMTP-1 | A（改写，落盘重钉包数/字段） |
-| 顶层 smtp presence 判死 | T-SMTP-2 | A（负例，新锚词 `no longer accepts a top-level smtp sub-config`） |
+| 顶层 smtp presence 判死 | T-SMTP-2 | A（负例，新锚词 `rejects a top-level smtp sub-config`） |
 | EHLO 多行能力表（250-/SIZE/HELP） | T-SMTP-3 | A（`TestSMTP_1_2_2` 已有离线版，转 pcap） |
 | 多 RCPT 群发（双收件人） | T-SMTP-4 | A |
 | RSET 中断重来 | T-SMTP-5 | A（`TestSMTP_1_7_1` 离线版转 pcap） |
@@ -2887,7 +2887,7 @@
 | POP3S 端口 995 显式通过（改写存量 over_tls；缺省 110 见 T-POP3-1） | T-POP3-32 | A（改写；明文不断言 TLS 握手细节，随形钉 `tcp.dstport=995`） |
 | v6 承载冒烟（`[ip(v6),tcp,pop3]`） | T-POP3-33 | A（mqtt_v6/smtp_t015 先例：字段名 tshark 无回值则降级注记） |
 | 坏 IP 拒绝（链上走框架 ip 层门） | T-POP3-34 | A（负例，锚词 `is not a valid IP address`；pop3 validator 坏 IP 门由 legacy 扁平路径覆盖，C 类） |
-| 顶层 pop3 presence 判死 | T-POP3-35 | A（负例，新锚词 `no longer accepts a top-level pop3 sub-config`；failing 先行①） |
+| 顶层 pop3 presence 判死 | T-POP3-35 | A（负例，新锚词 `rejects a top-level pop3 sub-config`；failing 先行①） |
 | 显式标量四元组 flows=2 拒绝 | T-POP3-36 | A（负例，锚词 `static`；pop3 业务全关无动态逃生，与 T-POP3-33 对照；failing 先行锁回归） |
 | RETR 双附件下载（对标 smtp_t033） | T-POP3-37 | A（maildrop MIME 双附件合成；包 10 附件块整帧偏移 288 落盘钉） |
 | RETR 空正文信（对标 smtp_t034） | T-POP3-38 | A（空体 size=0，包 10 状态行 `+OK 0 octets` 落盘钉） |
@@ -2991,7 +2991,7 @@
 | IMAPS 端口 993 显式通过 | T-IMAP-61 | A（明文不断言 TLS 握手细节，随形钉 `tcp.dstport=993`） |
 | v6 承载冒烟（`[ip(v6),tcp,imap]`） | T-IMAP-62 | A（mqtt_v6/smtp_t015 先例：字段名 tshark 无回值则降级注记） |
 | 坏 IP 拒绝（链上走框架 ip 层门） | T-IMAP-63 | A（负例，锚词 `is not a valid IP address`；imap validator 坏 IP 门由 legacy 扁平路径覆盖，C 类） |
-| 顶层 imap presence 判死 | T-IMAP-64 | A（负例，新锚词 `no longer accepts a top-level imap sub-config`；failing 先行①） |
+| 顶层 imap presence 判死 | T-IMAP-64 | A（负例，新锚词 `rejects a top-level imap sub-config`；failing 先行①） |
 | 显式标量四元组 flows=2 拒绝 | T-IMAP-65 | A（负例，锚词 `static`；imap 业务全关无动态逃生；failing 先行锁回归） |
 | Tag 含空格拒绝 | T-IMAP-72 | A（负例，锚词 `contains SP/CRLF`；转离线 `TestIMAPValidate_TagWithSpace`） |
 | Tag 超长拒绝（>256） | T-IMAP-66 | A（负例，锚词 `Tag length`；转离线 `TestIMAPValidate_TagTooLong`） |
@@ -3047,7 +3047,7 @@
 | §2.5 streamable 全程（POST→JSON/SSE→DELETE/204 带内） | T-MCP-87（session_id 显式固定） | A（现网①） |
 | §4.4 规则 4 auth 枚举 | T-MCP-88（非法 scheme 拒，锚词 `invalid auth scheme`） | A（负例） |
 | §5.4 能力门控 sampling（未声明→-32601 台词） | T-MCP-89（t063 subscribe 门已有，本例补 sampling 对称面） | A |
-| §1 顶层 mcp presence 判死 | T-MCP-90（负例，锚词 `no longer accepts a top-level mcp sub-config`；failing 先行①） | A（负例） |
+| §1 顶层 mcp presence 判死 | T-MCP-90（负例，锚词 `rejects a top-level mcp sub-config`；failing 先行①） | A（负例） |
 | §9 全缺省双流放行（对标 smtp_t024/pop3_t046/imap_t078） | T-MCP-91（`[{ip:{}},{tcp:{}},{mcp:{}}]` flows=2；src_port 保底+1） | A |
 | §9 静态复制拒绝（显式标量四元组 flows=2） | T-MCP-92（负例，锚词 `static four-tuple`） | A（负例） |
 | §2.2 错误码 -32600 Invalid Request 台词 | T-MCP-93 | A（复审纠正：此前"六码全有"误判，实缺） |
@@ -3876,7 +3876,7 @@ JT/T 905.2-2014 出租汽车 ISU 反推 13 例（9 正+4 负；T-8 金向量=单
 
 ### T-ARP-1…12 arp 层链收敛（#32，D-ARP-1 P3 清单见 CODE_DESIGN D-ARP-1；RFC 826 三源，L2-only [eth,arp] 族；P5 8/8 ×2 + 修轮 +4 例后 12/12 ×2）
 
-ARP（RFC 826）反推 12 例（4 正+8 负；链级红例 4=单测面不占号，修轮 +4 负例）：T-1 基线配对（op=1 缺省地址 2 帧：帧1 广播 ff:ff:ff:ff:ff:ff+oper 0001+tha 全零；帧2 单播+oper 0002 spa/tpa、sha/tha 角色互换）/T-2 字节全钉（帧1 28B payload 全等：htype 0001+ptype 0800+hlen 06+plen 04+oper+sha/spa/tha/tpa；ethertype 0x0806——体首=帧偏移 14，L2-only 无 IP/TCP 头）/T-3 显式地址（sender_ip=192.168.10.5/target_ip=192.168.10.1 → spa/tpa 字节钉）/T-4 单发宣告（operation=2：1 帧，ether src=target_mac/dst=sender_mac 单播，oper 0002——裁定3 legacy 广播错位勘误后语义）/T-5 负例 operation=3（V9 registry 先火锚 `out of range [1,2]`）/T-6 负例 sender_ip 格式错（锚 `invalid sender_ip`）/T-7 负例 [eth,ip,arp] 承载混入（锚 sv 同款 `must not have an ip/transport carrier`）/T-8 presence 判死（层链+顶层 arp 子映射并存，锚 `no longer accepts a top-level arp`）/T-9 负例 sender_mac 格式错（锚 `invalid sender_mac`）/T-10 负例 target_mac 格式错（锚 `invalid target_mac`）/T-11 负例 target_ip 格式错（锚 `invalid target_ip`）/T-12 静态复制拒（eth 显式标量+case 顶层 strategy_fc flows=2，锚框架层链门 `static four-tuple`——sv_vn_static_copy 同款）。单测面（不占号）：layer_gen 链级红例 4（[eth,arp] 最小链配对/op=2 单播/显式地址/validator 锚直测）。**9.52 对账：分项和 12=建例 12（T-1…12 各 1 点，修轮 +T-9…12 四负例），可复算**。存量审计：arp 无存量 cases（零文件），legacy Planner 单测（arp_test/arp_testpoints）保留为回归面；legacy op=2 广播错位=重建勘误（裁定3），无用例迁移。
+ARP（RFC 826）反推 12 例（4 正+8 负；链级红例 4=单测面不占号，修轮 +4 负例）：T-1 基线配对（op=1 缺省地址 2 帧：帧1 广播 ff:ff:ff:ff:ff:ff+oper 0001+tha 全零；帧2 单播+oper 0002 spa/tpa、sha/tha 角色互换）/T-2 字节全钉（帧1 28B payload 全等：htype 0001+ptype 0800+hlen 06+plen 04+oper+sha/spa/tha/tpa；ethertype 0x0806——体首=帧偏移 14，L2-only 无 IP/TCP 头）/T-3 显式地址（sender_ip=192.168.10.5/target_ip=192.168.10.1 → spa/tpa 字节钉）/T-4 单发宣告（operation=2：1 帧，ether src=target_mac/dst=sender_mac 单播，oper 0002——裁定3 legacy 广播错位勘误后语义）/T-5 负例 operation=3（V9 registry 先火锚 `out of range [1,2]`）/T-6 负例 sender_ip 格式错（锚 `invalid sender_ip`）/T-7 负例 [eth,ip,arp] 承载混入（锚 sv 同款 `must not have an ip/transport carrier`）/T-8 presence 判死（层链+顶层 arp 子映射并存，锚 `rejects a top-level arp`）/T-9 负例 sender_mac 格式错（锚 `invalid sender_mac`）/T-10 负例 target_mac 格式错（锚 `invalid target_mac`）/T-11 负例 target_ip 格式错（锚 `invalid target_ip`）/T-12 静态复制拒（eth 显式标量+case 顶层 strategy_fc flows=2，锚框架层链门 `static four-tuple`——sv_vn_static_copy 同款）。单测面（不占号）：layer_gen 链级红例 4（[eth,arp] 最小链配对/op=2 单播/显式地址/validator 锚直测）。**9.52 对账：分项和 12=建例 12（T-1…12 各 1 点，修轮 +T-9…12 四负例），可复算**。存量审计：arp 无存量 cases（零文件），legacy Planner 单测（arp_test/arp_testpoints）保留为回归面；legacy op=2 广播错位=重建勘误（裁定3），无用例迁移。
 
 ### T-KINGBASE-1…15（#35 D-KINGBASE-1，协议身份退役口径）
 
@@ -3919,7 +3919,7 @@ ARP（RFC 826）反推 12 例（4 正+8 负；链级红例 4=单测面不占号�
 
 ## T-ICMP-1…8 icmp 层链收敛（#33，D-ICMP-1 P3 清单见 CODE_DESIGN D-ICMP-1；RFC 792 三源，raw-IP [ip,icmp] 族——icmpv6 对称第 12 连）
 
-ICMPv4（RFC 792）反推 8 例（4 正+4 负；链级红例=单测面不占号）：T-1 smoke 配对（缺省 ping 2 帧：ip.proto=1+icmp.type p1=8/p2=0+src/dst 换向）/T-2 头字节钉（8B 头整钉：type 08/code 00/校验和/id=seq=1 回退面+data "ping"；体首=帧偏移 34——eth14+ip20，raw-IP 无 L4 头）/T-3 显式 identifier/sequence/data 覆盖钉/T-4 Pattern 多轮（2×echo 步 → 4 帧 seq 1/2 递增）/T-5 负例 type=3（validator 锚 `icmp type must be 8 (Echo Request) or 0 (Echo Reply), got 3`）/T-6 负例 code=1（锚 `icmp code must be 0 for Echo, got 1`）/T-7 负例 presence 判死（层链+顶层 icmp 子映射并存，锚 `no longer accepts a top-level icmp`）/T-8 负例静态复制（ip 层显式标量+case 顶层 strategy_fc flows=2，锚框架层链门 `static four-tuple`——icmpv6_vn_static_copy 同款）。**9.52 对账：分项和 8=建例 8（T-1…8 各 1 点），可复算**。存量审计：icmp 无存量 cases（零文件）；legacy 单测（icmp_test/icmp_testpoints/f7_autoreply/filesource）保留回归面；file_source 层链不映射=C 类（flat 判死后 MCP 不可达，单测面保留）；非 Echo 型（3/5/11/12/13/14）B′ 不编排。**协议天花板豁免（修轮 L2）**：无连接 2 帧面 ping 协议，9.50/9.53 显式 N/A（T-4 多步 Pattern+自动应答=已达天花板）。
+ICMPv4（RFC 792）反推 8 例（4 正+4 负；链级红例=单测面不占号）：T-1 smoke 配对（缺省 ping 2 帧：ip.proto=1+icmp.type p1=8/p2=0+src/dst 换向）/T-2 头字节钉（8B 头整钉：type 08/code 00/校验和/id=seq=1 回退面+data "ping"；体首=帧偏移 34——eth14+ip20，raw-IP 无 L4 头）/T-3 显式 identifier/sequence/data 覆盖钉/T-4 Pattern 多轮（2×echo 步 → 4 帧 seq 1/2 递增）/T-5 负例 type=3（validator 锚 `icmp type must be 8 (Echo Request) or 0 (Echo Reply), got 3`）/T-6 负例 code=1（锚 `icmp code must be 0 for Echo, got 1`）/T-7 负例 presence 判死（层链+顶层 icmp 子映射并存，锚 `rejects a top-level icmp`）/T-8 负例静态复制（ip 层显式标量+case 顶层 strategy_fc flows=2，锚框架层链门 `static four-tuple`——icmpv6_vn_static_copy 同款）。**9.52 对账：分项和 8=建例 8（T-1…8 各 1 点），可复算**。存量审计：icmp 无存量 cases（零文件）；legacy 单测（icmp_test/icmp_testpoints/f7_autoreply/filesource）保留回归面；file_source 层链不映射=C 类（flat 判死后 MCP 不可达，单测面保留）；非 Echo 型（3/5/11/12/13/14）B′ 不编排。**协议天花板豁免（修轮 L2）**：无连接 2 帧面 ping 协议，9.50/9.53 显式 N/A（T-4 多步 Pattern+自动应答=已达天花板）。
 
 ### T-MEGACO-1…79 megaco 层链接入（#36 D-MEGACO-1；B6 契约 v1.2.0 三源，77 语义 ID + 2 事务级 error 边界）
 

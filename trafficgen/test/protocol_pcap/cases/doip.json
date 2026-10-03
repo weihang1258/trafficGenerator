@@ -4633,7 +4633,7 @@
     },
     "expect": {
       "expect_error": true,
-      "error_contains": "no longer accepts a top-level doip sub-config",
+      "error_contains": "rejects a top-level doip sub-config",
       "notes": [
         "G-DOIP-5 wired: presence shape layers+top doip:{}"
       ]
@@ -4668,7 +4668,7 @@
     },
     "expect": {
       "expect_error": true,
-      "error_contains": "no longer accepts flat config field src_ip",
+      "error_contains": "rejects flat config field src_ip",
       "notes": [
         "whitelist 1.11-1.13: top-level src_ip is dead"
       ]
@@ -4703,7 +4703,7 @@
     },
     "expect": {
       "expect_error": true,
-      "error_contains": "no longer accepts flat config field count",
+      "error_contains": "rejects flat config field count",
       "notes": [
         "whitelist 1.11-1.13: top-level count is dead"
       ]

@@ -20,31 +20,31 @@ func TestFTPFlatRejection(t *testing.T) {
 			name:     "flat src_ip",
 			protocol: "ftp",
 			config:   map[string]any{"src_ip": "10.0.0.1", "ftp": map[string]any{"banner": "220"}},
-			wantSub:  "no longer accepts flat config field src_ip",
+			wantSub:  "rejects flat config field src_ip",
 		},
 		{
 			name:     "flat dst_ip",
 			protocol: "ftp",
 			config:   map[string]any{"dst_ip": "20.0.0.1"},
-			wantSub:  "no longer accepts flat config field dst_ip",
+			wantSub:  "rejects flat config field dst_ip",
 		},
 		{
 			name:     "flat src_port",
 			protocol: "ftp",
 			config:   map[string]any{"src_port": float64(21000)},
-			wantSub:  "no longer accepts flat config field src_port",
+			wantSub:  "rejects flat config field src_port",
 		},
 		{
 			name:     "flat dst_port",
 			protocol: "ftp",
 			config:   map[string]any{"dst_port": float64(21)},
-			wantSub:  "no longer accepts flat config field dst_port",
+			wantSub:  "rejects flat config field dst_port",
 		},
 		{
 			name:     "flat count",
 			protocol: "ftp",
 			config:   map[string]any{"count": float64(1)},
-			wantSub:  "no longer accepts flat config field count",
+			wantSub:  "rejects flat config field count",
 		},
 		{
 			name:     "top-level ftp sub-config",
@@ -115,7 +115,7 @@ func TestFTPFlatBeatsStaticCopyMessage(t *testing.T) {
 	if len(errs) == 0 {
 		t.Fatal("want rejection")
 	}
-	if got := errs[0].Message; !strings.Contains(got, "no longer accepts flat config field") {
+	if got := errs[0].Message; !strings.Contains(got, "rejects flat config field") {
 		t.Fatalf("first error must be the flat rejection, got %q", got)
 	}
 }

@@ -28,8 +28,8 @@ func TestMapToFlowSpec_FTP_FlatRejected(t *testing.T) {
 				t.Fatalf("flat ftp config must produce ValidationErrors, got clean (cfg=%v)", tc.cfg)
 			}
 			joined := strings.Join(spec.ValidationErrors, "; ")
-			if !strings.Contains(joined, "no longer accepts") {
-				t.Fatalf("error must carry the flat-deletion message, got %q", joined)
+			if !strings.Contains(joined, "protocol ftp rejects") {
+				t.Fatalf("error must carry the flat-rejection message, got %q", joined)
 			}
 		})
 	}

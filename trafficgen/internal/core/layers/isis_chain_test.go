@@ -208,14 +208,14 @@ func TestISISChain_PresenceAndStrayTopLevelKeys(t *testing.T) {
 	if msg == "" {
 		t.Fatal(`CheckProtoFlat(isis, {layers, isis:{}}) = "", want top-level isis presence rejection`)
 	}
-	if !strings.Contains(msg, "no longer accepts a top-level isis sub-config") {
+	if !strings.Contains(msg, "rejects a top-level isis sub-config") {
 		t.Fatalf("presence anchor mismatch: %q", msg)
 	}
 	for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port", "count"} {
 		bad := map[string]interface{}{"layers": cfg["layers"], k: 1}
 		if m := core.CheckProtoFlat("isis", bad); m == "" {
 			t.Fatalf("CheckProtoFlat(isis, {layers, %s}) = \"\", want flat-field rejection", k)
-		} else if !strings.Contains(m, "no longer accepts flat config field "+k) {
+		} else if !strings.Contains(m, "rejects flat config field "+k) {
 			t.Fatalf("flat anchor mismatch for %s: %q", k, m)
 		}
 	}

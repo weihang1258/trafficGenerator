@@ -52,7 +52,7 @@ TFTP（RFC 1350）跑在 UDP 上：客户端从临时端口把 RRQ/WRQ 发往服
 | 互斥 | `server_tid_change and error_code are mutually exclusive` / `… and retransmit_blocks …` | `tftp.go` |
 | retransmit | `retransmit_blocks entry <N> out of range` | `tftp.go` |
 | 跨协议互斥（**迁层后改判读**，E 族） | 现状 `tcp field must not be set` / `http field must not be set`；迁层后应为顶层游离键/白名单锚词 | `tftp.go` V20 → 迁层后由 `CheckProtoFlat` 承载 |
-| 顶层旧键（P5 新增 presence 负例） | `no longer accepts flat config field <k>` / `no longer accepts a top-level tftp sub-config` | `strategy_convert.go:8280-8285`（已生效）+ tftp presence 分支（G-TFTP-1 新增） |
+| 顶层旧键（P5 新增 presence 负例） | `rejects flat config field <k>` / `rejects a top-level tftp sub-config` | `strategy_convert.go:8280-8285`（已生效）+ tftp presence 分支（G-TFTP-1 新增） |
 
 > RFC 1350 §4 合规的 TID 校验负例（新 TID 包应被丢弃 + 向错误源回 ERROR(5) + 继续旧 TID）**不实现** → 不冒充覆盖（G-TFTP-6）；本协议所有 TID 变更例均标"互操作负向"。
 

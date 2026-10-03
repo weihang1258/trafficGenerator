@@ -183,7 +183,7 @@ arp 层无自有状态机（RFC 826 的 Packet Generation/Reception 两段是**�
 | N-1 | `arp_t5_neg_operation` | `operation=3` | `out of range [1,2]` | `complete.go:325`（V9 registry Min1/Max2） | create-time（400） |
 | N-2 | `arp_t6_neg_sender_ip` | `sender_ip="not-an-ip"` | `invalid sender_ip` | `layer_gen.go:151` | task-time（validator） |
 | N-3 | `arp_t7_neg_ip_carrier` | 链 `[eth, ip, arp]` | `must not have an ip/transport carrier` | `complete.go:342-357`（V-carrier 通用门，DependsOn eth 自动获得） | create-time（400） |
-| N-4 | `arp_t8_neg_presence` | `layers + 顶层 arp:{}`（**空 map 也死**） | `no longer accepts a top-level arp` | `strategy_convert.go:9096-9111`（rawWrapChains `"arp": "[eth,arp]"`） | create-time（400） |
+| N-4 | `arp_t8_neg_presence` | `layers + 顶层 arp:{}`（**空 map 也死**） | `rejects a top-level arp` | `strategy_convert.go:9096-9111`（rawWrapChains `"arp": "[eth,arp]"`） | create-time（400） |
 | N-5 | `arp_t9_neg_sender_mac` | `sender_mac="zz:bb:cc:dd:ee:01"` | `invalid sender_mac` | `layer_gen.go:158` | task-time（validator） |
 | N-6 | `arp_t10_neg_target_mac` | `target_mac="nope"` | `invalid target_mac` | `layer_gen.go:163` | task-time（validator） |
 | N-7 | `arp_t11_neg_target_ip` | `target_ip="999.0.0.1"` | `invalid target_ip` | `layer_gen.go:154` | task-time（validator） |
@@ -198,7 +198,7 @@ arp 层无自有状态机（RFC 826 的 Packet Generation/Reception 两段是**�
 | 分支 | 锚词 | 代码行 | 说明 |
 |---|---|---|---|
 | IPv6 文本入 sender_ip/target_ip | `invalid sender_ip`（构造期 `want IPv4` 后缀） | `layer_gen.go:133-137` | 层校验器 `net.ParseIP` 放行 v6 → 构造期 `To4()` 拒；**两段式**，§3.2 |
-| 顶层五键扁平（src_ip 等） | `no longer accepts flat config field src_ip` | `strategy_convert.go:8635-8637` | 全协议通用五键门；arp 无专用例 |
+| 顶层五键扁平（src_ip 等） | `rejects flat config field src_ip` | `strategy_convert.go:8635-8637` | 全协议通用五键门；arp 无专用例 |
 | htype/ptype 面不可配 | — | 固写 | 无配置入口 = 无拒绝分支（如实，非缺口） |
 
 **不得误报的合法协议事件**：`operation` 缺省/显式 0（→1，§5）；`arp:{}` 空层（合法缺省，#1/#2 即证）；ether 层 MAC 与 arp 层 sender_mac 并存（层键优先，#3）；IPv4 广播地址 255.255.255.255 入 tpa（`ParseIP`+`To4` 合法，照发——语义由用户负责）；`flows>1` + eth MAC 动态对象（**合法逃生口**，§2 多流样例）。

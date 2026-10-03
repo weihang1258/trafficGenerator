@@ -393,7 +393,7 @@ len(NGAP-PDU) = 3 + 2 + Σ(4 + len(IE_value_i))       # 头3B + 容器count(2B) 
 
 | # | 负例 ID | 故障输入 | 代码锚词 | 代码行 |
 |---:|---|---|---|---|
-| N-1 | `ngap_flat_presence` | 顶层 `ngap` 子映射 presence（**空 map 也死**） | `no longer accepts a top-level ngap sub-config` | `strategy_convert.go:8954-8958` |
+| N-1 | `ngap_flat_presence` | 顶层 `ngap` 子映射 presence（**空 map 也死**） | `rejects a top-level ngap sub-config` | `strategy_convert.go:8954-8958` |
 | N-2 | `ngap_flat_static_port` | ngap 层**静态标量端口** + `flows=2`（静态四元组复制） | `layers pin a static four-tuple but flows > 1` | `schema/semantic.go:285` |
 
 **B 类：任务期校验器拒绝（task-time，产出 0 帧 pcap）**

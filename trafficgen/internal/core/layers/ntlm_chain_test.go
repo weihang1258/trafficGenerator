@@ -882,7 +882,7 @@ func TestNTLMChain_PresenceAndStrayTopLevelKeys(t *testing.T) {
 	}
 	if msg := core.CheckProtoFlat("ntlm", cfg); msg == "" {
 		t.Fatal("CheckProtoFlat(ntlm, {layers, ntlm:{}}) = \"\", want top-level ntlm presence rejection")
-	} else if !strings.Contains(msg, "no longer accepts a top-level ntlm sub-config") {
+	} else if !strings.Contains(msg, "rejects a top-level ntlm sub-config") {
 		t.Fatalf("CheckProtoFlat msg = %q", msg)
 	}
 	// ②白名单外游离键（1.11–1.13）：四元组类经 CheckProtoFlat/门2-1 判死。

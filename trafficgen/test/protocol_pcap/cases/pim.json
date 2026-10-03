@@ -1859,7 +1859,7 @@
   },
   {
     "expect": {
-      "error_contains": "no longer accepts a top-level pim sub-config",
+      "error_contains": "rejects a top-level pim sub-config",
       "expect_error": true
     },
     "id": "pim_neg_top_pim_presence_reject",
@@ -1883,7 +1883,7 @@
   },
   {
     "expect": {
-      "error_contains": "no longer accepts flat config field src_ip",
+      "error_contains": "rejects flat config field src_ip",
       "expect_error": true
     },
     "id": "pim_neg_stray_top_src_ip",

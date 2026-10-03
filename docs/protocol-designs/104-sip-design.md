@@ -425,7 +425,7 @@ RTP 帧 = **12 字节头 + payload**，UDP 承载（`sip.go:1198-1230`）：
 
 | # | 负例 ID | 故障输入 | 锚词（代码逐字） | 代码行 |
 |---:|---|---|---|---|
-| N-1 | `sip_flat_presence` | 顶层 `sip` 子映射存在（**空 map 也死**） | `protocol sip no longer accepts a top-level sip sub-config (move it into the sip layer of an [ip,sip] layers chain)` | `strategy_convert.go:8970` |
+| N-1 | `sip_flat_presence` | 顶层 `sip` 子映射存在（**空 map 也死**） | `protocol sip rejects a top-level sip sub-config (move it into the sip layer of an [ip,sip] layers chain)` | `strategy_convert.go:8970` |
 | N-2 | `sip_flat_static_port` | 层内标量端口 + `flows=2` | `layers pin a static four-tuple but flows > 1: every flow would emit identical addresses/ports (static copy). …` | `semantic.go:285` |
 | N-3 | `sip_neg_sessions_dialog_mutex` | `sessions` 与 `dialog` 同给 | `sip: sessions and dialog are mutually exclusive (use sessions for the multi-session shape, dialog for the single-dialog shorthand)` | `semantic.go:311` + `sip.go:110` |
 | N-4 | `sip_neg_sessions_empty` | `sessions: []`（空数组，同锚词面） | 同 N-3 | `semantic.go:314` |

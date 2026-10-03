@@ -394,7 +394,7 @@ packet_count = 3（握手） + [banner? 1 : 0] + Σ轮（[cmd? 1 : 0] + [resp �
 |---|---|---|---|---|
 | `pop3_t024_mss_reject` | `tcp.mss=100`（<536） | `out of range [536,65535]` | 层字段范围门 | `layers/complete.go:325`（registry `mss` `Min:536`，`registry.go:68`） |
 | `pop3_t034_bad_ip_reject` | `ip.dst="not-an-ip"` | `invalid IP address: not-an-ip` | 框架 ip 层门 | `ip` 层 |
-| `pop3_t035_presence_reject` | `layers:[…]` **与**顶层 `pop3:{}` **并存** | `no longer accepts a top-level pop3 sub-config` | `CheckProtoFlat` pop3 分支 | `strategy_convert.go:8837-8841` |
+| `pop3_t035_presence_reject` | `layers:[…]` **与**顶层 `pop3:{}` **并存** | `rejects a top-level pop3 sub-config` | `CheckProtoFlat` pop3 分支 | `strategy_convert.go:8837-8841` |
 | `pop3_t036_static_pinned_reject` | 显式标量四元组 + `strategy_fc{flows:2}` + 无动态逃生 | `static` | 静态复制门 | `schema/semantic.go:198-285` |
 
 ### 4.3 锚词口径与原子性

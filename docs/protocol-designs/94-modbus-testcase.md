@@ -26,7 +26,7 @@
 | 断言字段面 | `modbus.*` 30 种 + `mbtcp.*` 3 种 + `tcp.dstport/srcport` + `ip.src` |
 | 负例 | 62；expect 键集：`{ec,ee,notes}`×33 / `{ec,ee}`×13 / `{expect_error}`×8 / 含成功断言×5 / `{ee,notes}`×3。**缺 `error_contains` 者 11 例**（8 例仅 `{expect_error}` + 3 例 `{expect_error,notes}`）；**混入成功断言者 5 例** |
 
-**执行可行性（MCP 实测，设计 §0.1）**：三种形状**全部被拒**——纯扁平 → `no longer accepts flat config field src_ip`；空壳 layers + 顶层扁平键 → 同上 + `config mixes layers with flat four-tuple field src_ip`；严格层链 → `layers: layer "modbus": unknown field "transactions"`。**本文件全部断言在 G-MODBUS-1/2 闭合前无法执行**（不冒充已覆盖，CORE_MEMORY §1.9 / B6 §1 JSON ID 纪律）。
+**执行可行性（MCP 实测，设计 §0.1）**：三种形状**全部被拒**——纯扁平 → `rejects flat config field src_ip`；空壳 layers + 顶层扁平键 → 同上 + `config mixes layers with flat four-tuple field src_ip`；严格层链 → `layers: layer "modbus": unknown field "transactions"`。**本文件全部断言在 G-MODBUS-1/2 闭合前无法执行**（不冒充已覆盖，CORE_MEMORY §1.9 / B6 §1 JSON ID 纪律）。
 
 **结果文档过期（G-MODBUS-14，**重要**）**：`trafficgen/docs/protocol-pcap-test/modbus.md` 写 "Cases: 213 — pass 213, fail 0, error 0"，但该文件末次提交 `e7e7d1c`（**2026-08-27**），**早于**判死提交 `0417be5`（2026-09-13，扁平判死泛化全协议 `CheckProtoFlat`）**17 天**；`cases/modbus.json` 末改 `243ddd8`（2026-08-14）；`trafficgen/docs/protocol-pcap-test/modbus/` 目录 **0 个 pcap**。**该 213/213 pass 是过期产物**——今日 213 例经 live MCP 逐条探针**全部被拒**（本节执行可行性段），**不得作为"套件可跑"依据**。归属：**代码阶段**（P5 重跑套件后重生成该产物）。登记见设计 §0 产物过期登记 + §14 G-MODBUS-14。
 
@@ -236,7 +236,7 @@ Modbus.org **MB-ASYM-TCP V1.1b3**（MBAP 帧 + 19 FC + 10 异常码 + 广播语�
 
 | # | 缺口 | 现状（机读/实测） | 闭合条件 |
 |---|---|---|---|
-| 1 | **213 例全部不可执行** | 三种形状全被拒（设计 §0.1 MCP 逐条探针）：纯扁平 → `no longer accepts flat config field src_ip`；空壳 layers+顶层扁平键 → 同上 + `config mixes layers with flat four-tuple field src_ip`；严格层链 → `layers: layer "modbus": unknown field "transactions"` | 补 G-MODBUS-1（registry Fields 加 `transactions` + 16 per-op 键）+ G-MODBUS-2（translate 加 `case "modbus"`） |
+| 1 | **213 例全部不可执行** | 三种形状全被拒（设计 §0.1 MCP 逐条探针）：纯扁平 → `rejects flat config field src_ip`；空壳 layers+顶层扁平键 → 同上 + `config mixes layers with flat four-tuple field src_ip`；严格层链 → `layers: layer "modbus": unknown field "transactions"` | 补 G-MODBUS-1（registry Fields 加 `transactions` + 16 per-op 键）+ G-MODBUS-2（translate 加 `case "modbus"`） |
 | 2 | **132 例的"层链"是空壳** | `layers` 只声明 `tcp`/`modbus` 两个空对象，真配置住顶层扁平键——§1.4 混用违规形（moxa G-MOXA-1 同形先例） | 同上；改写时配置搬入 `layers[modbus]` |
 | 3 | **零 IPv6 覆盖** | 213 例地址恒 `10.0.0.1→20.0.0.1`；**引擎已支持**（MCP 实测 IPv6 链 `completed/9 包`，`ipv6.src/dst` 正确） | A′ 补例 `modbus_ipv6`（offset 74） |
 | 4 | **多流用例与链形状冲突** | 22 例（13 `master_count>1` ∪ 12 `flow_count>1`，19 正 + 3 负）链上被双拒 | §5.4 三选一裁定；另 `validate-mastercount-0` 与 `-1001` **载荷重复**（均 1001）且注记与载荷不符 |

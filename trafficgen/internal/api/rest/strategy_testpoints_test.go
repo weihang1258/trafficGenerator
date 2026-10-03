@@ -1217,7 +1217,7 @@ func TestLayerFlatConflict(t *testing.T) {
 	// ① layers + src_ip → 400 + 判死文案（Step 1 后泛化门覆盖混用门，同条件）
 	body := `{"name":"m1","protocol":"tcp","config":{"layers":[{"tcp":{}}],"src_ip":"10.0.0.1"},"flow_control":{"type":"flows","value":1}}`
 	w := postStrategy(t, r, body)
-	if w.Code != 400 || !strings.Contains(w.Body.String(), "no longer accepts flat config field") {
+	if w.Code != 400 || !strings.Contains(w.Body.String(), "rejects flat config field") {
 		t.Fatalf("① status=%d body=%s", w.Code, w.Body.String())
 	}
 	// ② layers + src_port → 400
@@ -1251,7 +1251,7 @@ func TestFTPFlatDeletion(t *testing.T) {
 	// ① 纯扁平（四元组 + count + 顶层 ftp 键，旧 21 例的典型形状）→ 400
 	body := `{"name":"f1","protocol":"ftp","config":{"src_ip":"10.0.0.1","dst_ip":"20.0.0.1","src_port":21000,"dst_port":21,"count":1,"ftp":{"banner":"220 ready","commands":[{"cmd":"QUIT","response":"221"}]}}}`
 	w := postStrategy(t, r, body)
-	if w.Code != 400 || !strings.Contains(w.Body.String(), "no longer accepts flat config field src_ip") {
+	if w.Code != 400 || !strings.Contains(w.Body.String(), "rejects flat config field src_ip") {
 		t.Fatalf("① status=%d body=%s", w.Code, w.Body.String())
 	}
 	// ② 仅顶层 ftp 键（无四元组）→ 400，文案指路层链

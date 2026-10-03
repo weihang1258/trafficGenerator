@@ -52,7 +52,7 @@ spec_json layers 为 `tcp` → `tls` → `socks5`，socks5 配置 `auth_method=p
 | N-3 FileSource | data message with FileSource | `FileSource data is not supported in layer chains` | layer_gen.go:56/validator:163，已覆盖单测 |
 | N-4 static copy | 2 flows + static IP/ports | `layers pin a static four-tuple... static copy` | framework gate，已探针确认 |
 | N-5 bad MSS | tcp mss=500 | framework `out of range [536,65535]` | validator 前置门，非 socks5 自身锚词 |
-| N-6 flat shape | 任一现有 case 的顶层四元组 | `protocol socks5 no longer accepts flat config field src_ip` | 当前两正例均此状态 |
+| N-6 flat shape | 任一现有 case 的顶层四元组 | `protocol socks5 rejects flat config field src_ip` | 当前两正例均此状态 |
 
 非法状态转换：未 method response 就 auth/request；auth failure 后继续 request；REP 非零仍发 relay；TLS handshake 未完成就按 SOCKS 明文解析；TCP 关闭后发送新 SOCKS 消息。RFC1928 §3/§6、RFC1929 §2 要求拒绝或关闭。
 

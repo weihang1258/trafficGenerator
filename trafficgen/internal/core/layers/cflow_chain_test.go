@@ -131,7 +131,7 @@ func TestCFlowChain_PresenceAndStrayTopLevelKeys(t *testing.T) {
 	}
 	if msg := core.CheckProtoFlat("cflow", cfg); msg == "" {
 		t.Fatal("CheckProtoFlat(cflow, {layers, cflow:{}}) = \"\", want top-level cflow presence rejection")
-	} else if !strings.Contains(msg, "no longer accepts a top-level cflow sub-config") {
+	} else if !strings.Contains(msg, "rejects a top-level cflow sub-config") {
 		t.Fatalf("CheckProtoFlat msg = %q", msg)
 	}
 	for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port", "count"} {

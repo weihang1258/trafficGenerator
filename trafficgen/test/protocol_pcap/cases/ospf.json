@@ -1720,7 +1720,7 @@
   },
   {
     "expect": {
-      "error_contains": "no longer accepts a top-level ospf sub-config",
+      "error_contains": "rejects a top-level ospf sub-config",
       "expect_error": true
     },
     "id": "ospf_neg_presence_top_level_ospf",

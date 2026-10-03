@@ -463,7 +463,7 @@ planner/validator 必须拒绝：
 | internal/protocol/cql/cql_test.go（已落码 1192 行 60 函数） | P4 修 W1 后同步改 QUERY/EXECUTE 宽度断言（失败测试先行：先改期望宽度转红再修 builder 转绿） |
 | internal/core/layers/registry.go | `:807` cql 行补 `FieldContract {"tcp.dst_port": "9042"}` + `Fields` 4 键（wire_profile/events/sessions/wire_fault）；`schemagen` 重跑（13.18） |
 | internal/core/layers/chain_planner_translate.go | `translateTerminalConfig` 新增 `case "cql"`：`completedConfig(s, term.Config)` → JSON 往返 → `spec.CQL`（vnc/ntlm 先例；层优先，flat 判死后无双轨） |
-| internal/core/strategy_convert.go | `CheckProtoFlat`（`:8286`）新增 cql presence 分支（mmse/ntlm 先例文案：`protocol cql no longer accepts a top-level cql sub-config (move it into the cql layer of an [ip,tcp,cql] layers chain)`） |
+| internal/core/strategy_convert.go | `CheckProtoFlat`（`:8286`）新增 cql presence 分支（mmse/ntlm 先例文案：`protocol cql rejects a top-level cql sub-config (move it into the cql layer of an [ip,tcp,cql] layers chain)`） |
 | tools/coverage_gate.py + tools/pipe_gate.sh | `check_cql` 登记（出口 2 视红）+ presence 名单加 cql |
 | test/protocol_pcap/cases/cql.json | 17 例去扁平改写 + 2 例帧重钉（W1）+ v5 例改形（W2 过渡档）+ 4 链级红例 + A′ 补例（G-CQL-7 清单） |
 

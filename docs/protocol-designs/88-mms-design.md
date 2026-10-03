@@ -340,7 +340,7 @@ MMS 无"控制关联数据流"结构（单 TCP 连接内全序，无派生流、
 
 `Generate`（关联→服务→多会话展开）与 `Plan`（legacy 回归面）双实现现状不变；A′ 补例只增 cases 条目 + 必要 builder 修。
 
-### 11.5 错误分支（§4.2 表 + G-MMS-1/3 新增锚词：presence 拒 `no longer accepts a top-level mms sub-config`；三值修后锚词不变）
+### 11.5 错误分支（§4.2 表 + G-MMS-1/3 新增锚词：presence 拒 `rejects a top-level mms sub-config`；三值修后锚词不变）
 
 ### 11.6 性能边界（§6 全文，P5 按六类跑）
 

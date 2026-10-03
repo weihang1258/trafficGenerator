@@ -23,13 +23,13 @@ func TestCheckProtoFlat_ReportsAllOffendingKeys(t *testing.T) {
 			t.Errorf("aggregated error missing %q: %s", k, msg)
 		}
 	}
-	if strings.Count(msg, "no longer accepts flat config field") != 1 {
+	if strings.Count(msg, "rejects flat config field") != 1 {
 		t.Errorf("want single sentence listing all keys, got: %s", msg)
 	}
 
 	// 单键场景：文案逐字不漂移（既有钉死测试依赖）。
 	single := CheckProtoFlat("dns", map[string]interface{}{"dst_ip": "20.0.0.1"})
-	want := "protocol dns no longer accepts flat config field dst_ip" +
+	want := "protocol dns rejects flat config field dst_ip" +
 		" (use a layers chain: ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports, flow_control for the flow count)"
 	if single != want {
 		t.Errorf("single-key message drifted:\n got  %s\n want %s", single, want)

@@ -33,7 +33,7 @@
 
 | 形状 | 例数 | MCP `flowb_generate_traffic` 实测返回 |
 |---|---:|---|
-| 纯扁平（无 `layers`） | 81 | `protocol modbus no longer accepts flat config field src_ip (use a layers chain: ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports, flow_control for the flow count)` |
+| 纯扁平（无 `layers`） | 81 | `protocol modbus rejects flat config field src_ip (use a layers chain: ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports, flow_control for the flow count)` |
 | 存量"层链"形（空壳 layers + 顶层扁平键） | 132 | 同上文案 **+** `config mixes layers with flat four-tuple field src_ip (use ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports)` |
 | 严格层链（配置搬进 `layers[modbus]`） | — | `layers: layer "modbus": unknown field "transactions"` |
 | 空层探针（`layers:[{ip},{tcp},{modbus:{}}]`） | — | 任务 `status=failed`：`validation failed: modbus: MODBUS config is required` |

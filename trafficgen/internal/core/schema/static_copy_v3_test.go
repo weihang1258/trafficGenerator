@@ -22,7 +22,7 @@ func TestStrategyMixedUseRejected(t *testing.T) {
 			if len(errs) == 0 {
 				t.Fatalf("want mixed-use rejection for %s, got clean", tc.name)
 			}
-			if !strings.Contains(errs[0].Message, "no longer accepts flat config field") {
+			if !strings.Contains(errs[0].Message, "rejects flat config field") {
 				t.Fatalf("wrong message: %v", errs)
 			}
 		})

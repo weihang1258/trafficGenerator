@@ -480,7 +480,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 - http 校验器（64cc9d7 已补，mqtt `mqtt/layer_gen.go:236` 范式）：调 `(&Planner{}).Validate(*spec)`（IP 格式 + MSS 下界）+ spec.TCP nil 则建、pin `Handshake/Termination=true`（防零值跳握手；legacy http 恒握手/挥手，链上同样不可关）。MSS 上界（65535）由链 `chain_planner.go:845` 覆盖，legacy `http.go:46` 只管下界——校验器复用 planner 即与现状一致，不另加。
 - 载体检查 8 家（64cc9d7 已补，`validate_layers.go:86-98` 同款文案）：`gbt/getwork/hls/hds/http_flv/cwmp/doh/onvif: terminal layer requires the http carrier layer ([tcp, http, X]; tcp→X direct chain rejected)`。位置在 `CompleteChain` 前，Plan/Validate 期同步失败（drive 期报错会被吞成空流，dns `:106` 同款教训）。
 - 内层流提前关闭：`inner %s stream closed before body event %d/%d`（FLV/HLS/HDS 各一，须排空后返回）。`Meta.HLS/HDS` nil 进变换器即错（配置与链不一致）。该分支无 pcap 负例（触发需内层中途断流，suite 表达力边界；单测亦未覆盖——缺口如实记录）。
-- http 专属负例（T-HTTP-50/51/52/59/70/71/72，真实流程 error_contains）：①顶层 `src_ip` 扁平判死（Step1 CheckProtoFlat，锚词 `no longer accepts flat config field src_ip`）；②层链静态复制（`checkLayerChainStaticCopy`，锚词 `static four-tuple`，flows=2+全静态标量）；③gbt 缺 http 载体（锚词 `requires the http carrier layer`，载体检查 8 家代表）；④顶层 `http` presence 判死 T-HTTP-72（锚词 `no longer accepts a top-level http sub-config`，步骤 3）；⑤层地址 pattern T-HTTP-59；⑥string 面 inc T-HTTP-70；⑦关字段 method T-HTTP-71。五策略动态畸形（range 非 2 元/list 空等）由框架级 T-FTP-14 覆盖（同 ValidateLayers 入口，http 不重复）。
+- http 专属负例（T-HTTP-50/51/52/59/70/71/72，真实流程 error_contains）：①顶层 `src_ip` 扁平判死（Step1 CheckProtoFlat，锚词 `rejects flat config field src_ip`）；②层链静态复制（`checkLayerChainStaticCopy`，锚词 `static four-tuple`，flows=2+全静态标量）；③gbt 缺 http 载体（锚词 `requires the http carrier layer`，载体检查 8 家代表）；④顶层 `http` presence 判死 T-HTTP-72（锚词 `rejects a top-level http sub-config`，步骤 3）；⑤层地址 pattern T-HTTP-59；⑥string 面 inc T-HTTP-70；⑦关字段 method T-HTTP-71。五策略动态畸形（range 非 2 元/list 空等）由框架级 T-FTP-14 覆盖（同 ValidateLayers 入口，http 不重复）。
 - planner 错误中断 Plan（既有语义）；超时/重传归 tcp 层。扁平/混用拒绝沿 Step1（CheckProtoFlat + checkLayerFlatConflict）；顶层 `http` presence 判死见步骤 3（本轮新增）。
 - Failing 先行（64cc9d7 已做：validator 零值 TCP 链→握手包存在、FLV version 裸值→`HTTP/1.1`、载体 5 家 `[ip,tcp,X]`→载体锚词、删键回归 `think_time`；本轮新增见 §7 步骤 0）。
 
@@ -516,7 +516,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 
 步骤 2（`ParseHTTPConfigFromMap` + 双调用点）：`strategy_convert.go`（`ParseFTPConfigFromMap:7654` 同构位置旁）新建 `ParseHTTPConfigFromMap(m map[string]interface{}) *HTTPConfig`——nil/非 map 输入→nil（缺席）；20 键全读（getString/getInt/getBool/getStringMap + `content_encoding` 回退 + BodyB64 不解码只存，解码归 builder；`file_source` 经既有 `parseFileSource(m)` 直读 `m["file_source"]`——map 内键，与通用读 `:1348` 同口）；空 map→`&HTTPConfig{}` 非 nil（presence 语义：`{"http":{}}` 走默认 GET///200，与 `{"http":{"method":"X"}}` 显式同路）；`version` 存裸值不 prefix（prefix 只在层翻译侧做，通用读侧裸值进 builder 由 builder 默认 `HTTP/1.1` 接管——与现状通用读 `getString(sub,"version")` 裸值语义一致，不改行为）。调用点 A 通用读（`:378`）：`if sub,ok:=cfg["http"].(map[string]interface{}); ok { spec.HTTP=ParseHTTPConfigFromMap(sub) }`（非 map→nil，旧行为保持）。调用点 B 层翻译（`chain_planner_translate.go:830` case http 重写）：删 5 字段手写，改 `cfg:=completedConfig(s,term.Config); hc:=core.ParseHTTPConfigFromMap(cfg); if hc.Version!=""&&!strings.HasPrefix(hc.Version,"HTTP/"){hc.Version="HTTP/"+hc.Version}; spec.HTTP=hc`（flat 权威早返保留：`spec.HTTP!=nil` 即顶层 presence，层翻译跳过——判死在 schema/convert 先报，翻译侧只做优先级）。
 
-步骤 3（顶层 presence 判死，http 族 9 协议）：`CheckProtoFlat` 加族分支（`http/http_flv/hls/hds/gbt/getwork/cwmp/doh/onvif` 任一：`cfg["http"]` presence（`ok&&!=nil`，空 map 也判死——与 presence 语义一致）→ `"protocol X no longer accepts a top-level http sub-config (move it into the http layer …)"`，ftp 范本同构文案）；`mapToFlowSpec` 加同条件→`spec.ValidationErrors`（在库旧策略启动 error，覆盖 schema 未走路径）；`schema/semantic.go` 经 `CheckProtoFlat` 自动继承（create/update 400）。`pipe_gate.sh` 门 2-1 同步加顶层 `http` presence 检查（扁平负例除外；http 族 9 协议任一见 `http` 键即红）。
+步骤 3（顶层 presence 判死，http 族 9 协议）：`CheckProtoFlat` 加族分支（`http/http_flv/hls/hds/gbt/getwork/cwmp/doh/onvif` 任一：`cfg["http"]` presence（`ok&&!=nil`，空 map 也判死——与 presence 语义一致）→ `"protocol X rejects a top-level http sub-config (move it into the http layer …)"`，ftp 范本同构文案）；`mapToFlowSpec` 加同条件→`spec.ValidationErrors`（在库旧策略启动 error，覆盖 schema 未走路径）；`schema/semantic.go` 经 `CheckProtoFlat` 自动继承（create/update 400）。`pipe_gate.sh` 门 2-1 同步加顶层 `http` presence 检查（扁平负例除外；http 族 9 协议任一见 `http` 键即红）。
 
 步骤 4（业务动态 6 开 15 关）：`layer_dyn.go:17` allowlist 加 `"http": {uri,body,body_b64,response_body,response_body_b64,response_status_code}`；`parseLayerDyn:29` 加 `case "http"` 分发（值出 `*StrategyConfig` 进 `LayerDynValues.HTTP` 新结构 6 指针 + `HasAny:3553` 扩展）；`checkDynShape:119`：6 开字段走形状门（string 面 5：`fixed/list/pattern`，inc/rand 拒绝见裁定表 F；`response_status_code` 走 int 面 `fixed/inc/rand/list`，pattern 拒绝）；15 关字段对象→`does not support dynamic`（`checkLayerDynObjects:116` 自动生效，allowlist 即真相）；`resolveLayerTuple` 加 HTTP 回填（6 字段：string 面 `ResolveStringValue`，status_code `genSmallInt(s,i,0,65535)` range 面；value 空→no-op 保留静态；回填目标 `spec.HTTP` nil 时建空补后再写——层翻译已建非 nil，防御性补建）。回填时机说明：回填点在 worker 侧每流 `Plan` 之前（现有点 `resolveLayerTuple(&spec,i)`，D-FTP-3 既有；`copy-on-write` 注意——`spec.HTTP` 是指针，回填前深拷贝再写，不污染模板，`generateTerminal:106` 已有同款拷贝语义）。`HasLayerDynIP` 不动（http 业务无 IP 面）。
 
@@ -613,7 +613,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 #### 5. 错误与异常
 - tls 校验器（本轮新补，mqtt/D-HTTP-1 范式）：调 `(&Planner{}).Validate(*spec)`（IP 格式 + MSS 下界 + 版本/role/SNI/AlertPath/PSK）+ spec.TCP nil 则建、pin `Handshake/Termination=true`（防零值跳握手；legacy tls 恒握手/挥手，链上同样不可关）。MSS 上界（65535）由链 `chain_planner.go:845` 覆盖（既有语义，与 http 同款）。
 - 链结构性校验（已有，`chain_planner.go:221`）：version 非 1.3 / role 非 client / SNI 超 253 / ALPN 名超 255 → ValidateSpec 同步拒绝（drive 期报错会被吞成空流，dns `:106` 同款教训）。validator 与结构性校验的分工：validator 管 legacy 全量语义（含 1.2 版/AlertPath/PSK 形状），结构性校验管链上子集（1.3/client + 长度上限）；1.2 版走链被结构性校验拒（不是 validator 拒），锚词 `not supported in the layer chain yet`。
-- tls 专属负例（T-TLS-3/4，真实流程 error_contains）：①顶层五键扁平判死（Step1 CheckProtoFlat，锚词 `no longer accepts flat config field`）；②层链静态复制（`checkLayerChainStaticCopy`，锚词 `static four-tuple`，flows=2+全静态标量）。顶层 `tls` presence 不判死（本轮明确不解决，见范围；CheckProtoFlat 现不拦顶层 `tls`）。
+- tls 专属负例（T-TLS-3/4，真实流程 error_contains）：①顶层五键扁平判死（Step1 CheckProtoFlat，锚词 `rejects flat config field`）；②层链静态复制（`checkLayerChainStaticCopy`，锚词 `static four-tuple`，flows=2+全静态标量）。顶层 `tls` presence 不判死（本轮明确不解决，见范围；CheckProtoFlat 现不拦顶层 `tls`）。
 - planner 错误中断 Plan（既有语义）；超时/重传归 tcp 层。扁平/混用拒绝沿 Step1。
 - Failing 先行：validator 零值 TCP 链→握手包存在（mqtt/D-HTTP-1 同款红例）；version tls1.2 链→结构性锚词（既有行为，新测钉死）；SNI 超 253→锚词（legacy Validate 与链校验双口径，各一例）。
 
@@ -641,7 +641,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 #### 8. 验收
 - 对应 `docs/TEST_CASES.md` T-TLS-1…9（P3 已交，P5 全绿回钉）。
 - 完成条件（2026-09-14 实测）：步骤 0 三红例先红后绿；tls 包单测 + T13 链测试绿；tls.json suite 9/9 绿（`RESULT: 9 pass, 0 fail, 0 error`，二进制与 HEAD 同代，`pipe_gate.sh tls` 静态两项绿）；`go vet` + touched 包 `-race` 绿；§1 两道门：①层链跑通（tls.json）；②旧字段移除（顶层五键判死：新建 400 + 在库 error + 门 2-1 脚本绿；顶层 `tls` 不迁入故无 presence 门）。
-- 门 3 抽查（任抽三条，均点到证据）：①§1 顶层旧键去向→`pipe_gate.sh tls` 门 2-1 绿 + T-TLS-3 负例锚词 `no longer accepts flat config field src_ip`；②§12 sni 开 1 关 3→`layer_dyn.go:17` allowlist 行 + T-TLS-5/6 pcap（f4/f20 SNI 落盘）+ T-TLS-7 单测 `TestTLSSNIDyn_StringSurfaceRejected` + T-TLS-8 负例锚词 `does not support dynamic`；③§14 真实流程→`RESULT: 9 pass` + 落盘 `/tmp/mcp-pcaps-tls/tls/` 6 pcap（负例 0 包无落盘）+ T-TLS-1 16 帧口径。
+- 门 3 抽查（任抽三条，均点到证据）：①§1 顶层旧键去向→`pipe_gate.sh tls` 门 2-1 绿 + T-TLS-3 负例锚词 `rejects flat config field src_ip`；②§12 sni 开 1 关 3→`layer_dyn.go:17` allowlist 行 + T-TLS-5/6 pcap（f4/f20 SNI 落盘）+ T-TLS-7 单测 `TestTLSSNIDyn_StringSurfaceRejected` + T-TLS-8 负例锚词 `does not support dynamic`；③§14 真实流程→`RESULT: 9 pass` + 落盘 `/tmp/mcp-pcaps-tls/tls/` 6 pcap（负例 0 包无落盘）+ T-TLS-1 16 帧口径。
 - 缺口如实记录：①在库 tls 行清空未执行（P6 待办：count→备份→删→复核）；②8 子女回归未跑（tls 是 9 协议底座：http/dns/mqtt/smtp/pop3/imap/socks5/ftp/自身链回归逐个重跑，P6 待办）；③网卡验收未跑（本机无发包口，pcap 一路已全绿）；④Full 3588 + `go test ./internal/...` 待 123 协议全走完后 Step 8 执行。
 
 #### 9. 关键决策对比
@@ -812,7 +812,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 #### 5. 错误与异常
 - gre 校验器（本轮新补；**nil 容忍**修订）：spec.GRE nil → 放行（纯层链合法态，链上不读 flat）；非 nil → `(&Planner{}).Validate` 直传（ProtocolType 枚举/InnerIP 格式与隧道模式一致性/ARP 矛盾/InnerProto 枚举/Frames≥0/Direction 枚举——在库旧行启动期错误语义与 legacy 一致）。无 pin（gre 无握手/挥手语义）。
 - 链结构性校验（已有，`chain_planner.go:200`）：内层 IPv4 必填（空/IPv6 同步拒绝，gre HIGH-2 先例）。
-- gre 专属负例（T-GRE-2/3/4，真实流程 error_contains）：①顶层扁平判死（Step1 CheckProtoFlat，锚词 `no longer accepts flat config field`——既有用例 `count`+顶层 `gre` 即判死对象）；②层链静态复制（`checkLayerChainStaticCopy`，锚词 `static four-tuple`，flows=2+全静态标量）；③关字段动态（`checkLayerDynObjects` allowlist 门，锚词 `does not support dynamic`，`key{"strategy"…}` 即拒）。
+- gre 专属负例（T-GRE-2/3/4，真实流程 error_contains）：①顶层扁平判死（Step1 CheckProtoFlat，锚词 `rejects flat config field`——既有用例 `count`+顶层 `gre` 即判死对象）；②层链静态复制（`checkLayerChainStaticCopy`，锚词 `static four-tuple`，flows=2+全静态标量）；③关字段动态（`checkLayerDynObjects` allowlist 门，锚词 `does not support dynamic`，`key{"strategy"…}` 即拒）。
 - Failing 先行（修订）：①非法 ProtocolType 进 `validateGRESpec` 必拒（实现前符号未定义=编译红）；②`validateGRESpec` 对 spec.GRE nil 必放行（nil 容忍契约钉死，防将来误改回 nil 拒绝）；key 对象→`does not support dynamic` 是**既有 allowlist 门的回归锁**（当日已绿非红例——allowlist 无 gre 行，对象在 `checkLayerDynObjects` 即拒）。
 
 #### 6. 性能设计与验收
@@ -1072,7 +1072,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 | §2 策略/任务分工 | 沿框架语义；多流走 `flow_control` + 层动态（§12 行） | D-DNS-1 §3 |
 | §3 五件套 | 豁免：dns 无 sessions、无子流派生、无关联字段；单流=1 查询（up）+ 可选 1 响应（down，`is_response` 开关）；dns 只产报文事件（GenEvents），udp 层每事件一 datagram；时间线=查询先响应后、无交错 | `dns/layer_gen.go:29-89` |
 | §4 规范矩阵 | RFC 1035 §4.1/§4.1.1/§4.1.2（报文/头/查询节）+ §4.2.1（UDP 载体）+ §3.2.1（RR）+ §3.4.1/§6（A/AAAA/权威节）；RFC 6891（EDNS0 OPT）；RFC 7766 + RFC 1035 §4.2.2（TCP 载体——明确不支持，链上同步拒）；现网 53/UDP 默认端口；三路对照见本条目依据行 | 本条目依据行 |
-| §5 有错必处理 | 三类锚词：①顶层 dns presence 判死（新锚词 `no longer accepts a top-level dns sub-config`，http 族 9 协议先例）；②TCP 载体链上拒（既有 `dns: tcp transport not supported`）；③层未知字段拒（V9 既有）。无 pin | T-DNS-2/3；`dns/layer_gen.go:114` |
+| §5 有错必处理 | 三类锚词：①顶层 dns presence 判死（新锚词 `rejects a top-level dns sub-config`，http 族 9 协议先例）；②TCP 载体链上拒（既有 `dns: tcp transport not supported`）；③层未知字段拒（V9 既有）。无 pin | T-DNS-2/3；`dns/layer_gen.go:114` |
 | §6 性能 | 单查询 1 包 / 响应 2 包；无锁无 sleep；回归 ±10%；边界诚实声明（未测吞吐/并发） | D-DNS-1 §6 |
 | §7 三份文档 | 设计=本条目；用例=T-DNS-*；cases 回指编号 | TEST_CASES T-DNS-* |
 | §8 先设计后代码 | 本条目定稿后开工 | 本条目 |
@@ -1160,7 +1160,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 - 正交组合：query_type × name 不单建组合例（两字段独立翻译，dyn 路径同一 parseLayerDyn；T-DNS-9 以 AAAA 域名附带覆盖）。
 
 #### 5. 错误与异常
-- 新锚词：`protocol dns no longer accepts a top-level dns sub-config (move it into the dns layer of an [ip,udp,dns] layers chain)`（http 族文案同构）。
+- 新锚词：`protocol dns rejects a top-level dns sub-config (move it into the dns layer of an [ip,udp,dns] layers chain)`（http 族文案同构）。
 - 既有锚词沿用：`dns: tcp transport not supported…`（T-DNS-11）；`dns rcode %d exceeds the 4-bit field`（T-DNS-12）；`dns query_name (domain) is required`（T-DNS-13）；`static four-tuple`（T-DNS-3）。
 - Failing 先行 3 红例：①顶层 `{"dns":{}}` 空映射 BuildLayersPlanner/Validate 即拒（现状放行——presence 未判死）；②层 `{"dns":{"name":"a.com"}}` 翻译后 spec.DNS.Domain=a.com（现状：name 键未知字段 V9 拒绝——注册表仅 2 键）；③层 name list 动态双流 distinct（现状：allowlist 无 dns 行即 `does not support dynamic`）。
 
@@ -1310,7 +1310,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 - 正交组合：端口 25/587/465 × v4/v6 × 单会话；query×name 类组合不适用（smtp 无双独立翻译字段）。
 
 #### 5. 错误与异常
-- 新锚词：`protocol smtp no longer accepts a top-level smtp sub-config (move it into the smtp layer of an [ip,tcp,smtp] layers chain)`（mqtt 文案同构）。
+- 新锚词：`protocol smtp rejects a top-level smtp sub-config (move it into the smtp layer of an [ip,tcp,smtp] layers chain)`（mqtt 文案同构）。
 - 既有锚词沿用（A 类直转 `.neg` 负例）：`smtp: invalid SrcIP/DstIP`、`smtp: TCP.MSS %d too small`、`Email.Boundary … exceeds max 70 chars / contains CRLF`、`Email.Attachments[%d] has neither Data nor DataB64`。
 - 回放序列错（503/530/顺序错）属 C 类：不断言引擎拦截，用脚本序列覆盖。
 - Failing 先行 3 红例：①顶层 `{"smtp":{}}` 空映射即拒（现状放行——presence 未判死）；②层 `{"smtp":{"banner":"220 x"}}` 翻译后 `spec.SMTP.Banner=220 x`（现状：层配置被忽略，spec.SMTP 保持 nil）；③扁平无端口时 `spec.DstPort=25`（现状：注释写默认 25，实际未调 setDefaultDstPort）。
@@ -1459,7 +1459,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 - 静态门业务逃生口：pop3 业务全关→flows=2 例无动态逃生，留空防静态复制（T-POP3-33 同款 smtp T-024：无显式标量四元组，src_port 保底+1）。
 
 #### 5. 错误与异常
-- 新锚词：`protocol pop3 no longer accepts a top-level pop3 sub-config (move it into the pop3 layer of an [ip,tcp,pop3] layers chain)`（mqtt/dns/smtp 文案同构）。
+- 新锚词：`protocol pop3 rejects a top-level pop3 sub-config (move it into the pop3 layer of an [ip,tcp,pop3] layers chain)`（mqtt/dns/smtp 文案同构）。
 - 既有锚词沿用 16 分支（字面子串）：`is not a valid IP address`（T-POP3-34）/`too small`（T-POP3-24）/`max`（mailbox 超限：离线无 10 万构造基线，pcap 负例不断全量构造，见 T-POP3-15 注记）/`UID length`（T-POP3-18）/`contains CRLF`（T-POP3-16/17）/`but Mailbox is nil`（T-POP3-12）/`out of range`（T-POP3-7/12）/`mutually exclusive`（T-POP3-12）/`USER name length`（T-POP3-14）/`PASS password length`（T-POP3-15 改小载荷断文案）/`APOP digest`（T-POP3-17）。
 - Failing 先行 3 红例：①顶层 `{"pop3":{}}` 空映射 create 即 400（现状放行——presence 未判死）；②扁平 `{"dst_port":…}` 无 pop3 键 legacy 形 DstPort=0（现状：注释写默认 110 但无 `setDefaultDstPort` 调用）；③层 `{"pop3":{"mailbox":{…}}}` 翻译后 spec.POP3.Mailbox 非空（现状已绿——翻译分支齐，本例锁回归）。
 - 超早拒绝无落盘口径沿 d323068（T-POP3-35/36/24 在 writer 建文件前被拒，`.neg.pcap` 24B 头或零文件，mqtt/smtp 先例同款）。
@@ -1653,7 +1653,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 - 静态门业务逃生口：imap 业务全关→flows=2 例无动态逃生，留空防静态复制（smtp T-024 同款：无显式标量四元组，src_port 保底+1）。
 
 #### 5. 错误与异常
-- 新锚词：`protocol imap no longer accepts a top-level imap sub-config (move it into the imap layer of an [ip,tcp,imap] layers chain)`（mqtt/dns/smtp/pop3 文案同构）。
+- 新锚词：`protocol imap rejects a top-level imap sub-config (move it into the imap layer of an [ip,tcp,imap] layers chain)`（mqtt/dns/smtp/pop3 文案同构）。
 - 既有锚词沿用 23 分支（字面子串）：`is not a valid IP address`（T-IMAP-63）/`out of range [536,65535]`（T-IMAP-53，tcp 层 V9 门字面，smtp T-020/pop3 T-24 同款；`too small` 系 legacy planner 门，仅扁平路径覆盖）/`Tag length`（T-IMAP-66）/`contains SP/CRLF`（Tag SP 门 T-IMAP-72，转离线 `TestIMAPValidate_TagWithSpace`）/`contains CRLF`（T-IMAP-67，转离线 `TestIMAPValidate_CRLFInjectionRejected`）/`split into multiple entries`（Response CRLF 门 T-IMAP-73，转离线 `TestIMAPValidate_ResponseWithCRLFRejected`）/`non-ASCII`（T-IMAP-50）/`exceeds max`（Responses 上限 T-IMAP-84 小载荷断文案；Push/Literal 上限离线/设计注记，不断全量构造）/`decode error`（T-IMAP-68）/`mutually exclusive`（Literal 互斥 T-IMAP-74/MIME 互斥 T-IMAP-83）/`EmitIDLE=true but IMAPConfig.IDLE is nil`（T-IMAP-69）/`CancelAfterResponses`（越界 T-IMAP-75，转离线 `TestIMAPValidate_CancelAfterExceedsResponses`）/`PushResponses[0] contains CRLF`（T-IMAP-76，IDLE 块小载荷）/`must be one of`（T-IMAP-70）/`DoneTag` + `SP/CRLF`（T-IMAP-77，IDLE 块小载荷）/`DoneResponse contains CRLF`（T-IMAP-71）。
 - Failing 先行 4 红例：①顶层 `{"imap":{}}` 空映射 create 即 400（现状放行——presence 未判死）；②扁平无端口 legacy 形 DstPort=0（现状：无 `setDefaultDstPort` 调用，注释亦无）；③层 `{"imap":{"banner":"…"}}` 报 unknown field 或包内无 banner（现状：registry 零 Fields + 无翻译分支）；④层 commands 翻译后 spec.IMAP.Commands 非空且包内见 tag（现状：无分支，生成器走默认空会话）。
 - 超早拒绝无落盘口径沿 d323068（presence/静态门/MSS 门在 writer 建文件前被拒，`.neg.pcap` 24B 头或零文件，mqtt/smtp/pop3 先例同款）。
@@ -1781,7 +1781,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 - 正交组合：传输 3 × 版本 3（显式三值各 ≥1 例+缺省）× 地址族（v4 全量 + v6 冒烟 T-86）× flows（1/2/3）。
 
 #### 5. 错误与异常
-- 新锚词：`protocol mcp no longer accepts a top-level mcp sub-config (move it into the mcp layer of an [ip,tcp,mcp] layers chain)`（imap 文案同构）。
+- 新锚词：`protocol mcp rejects a top-level mcp sub-config (move it into the mcp layer of an [ip,tcp,mcp] layers chain)`（imap 文案同构）。
 - 既有锚词沿用（P5 全量收口）：`must be a JSON object`/`mixed auto and explicit id assignment`/`requests[0].method is required`/`invalid protocol_version`/`responses[0].error.code=… out of JSON-RPC reserved range`；P5 新增负例锚词：`invalid transport`/`invalid auth scheme`/`invalid state.initial`/`id_counter must be >= 0`/`parts[0].role`/`notifications[0].step=`。
 - Failing 先行 4 红例（已全红后转绿）：①顶层 `{"mcp":{}}` 空映射 presence 拒；②层 `{"mcp":{"transport":…,"requests":…}}` V9 放行（原 unknown field）；③层 requests 翻译上線（原 spec.MCP nil→"mcp config is required"）；④`MCPConfig` 无 ThinkTime（反射锁）。
 
@@ -1886,7 +1886,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 - 正交组合：载荷 7 × 段数 8 形 × reduced 3 态 × TLV 6 形 × 方向 2 × flows（1/10/100）。
 
 #### 5. 错误与异常
-- 新锚词：`protocol srv6 no longer accepts a top-level srv6 sub-config (move it into the srv6 layer of an [ip,srv6] layers chain)`（mcp 文案同构）。
+- 新锚词：`protocol srv6 rejects a top-level srv6 sub-config (move it into the srv6 layer of an [ip,srv6] layers chain)`（mcp 文案同构）。
 - 既有锚词全量沿用（23 分支字面，子表①）；failing 先行 5 红例：①presence 拒；②层 16 键 V9 放行（原 unknown field）；③层翻译上线（原 generator not implemented）；④inner_payload "12345678" 字节=原文（防 JSON 往返 base64 误读，决策 F 锁）；⑤direction=down 不双换（L3 地址=legacy 换向值）。
 
 #### 6. 性能设计与验收
@@ -1946,7 +1946,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 - `type FINSReadArea struct { MemoryArea string `json:"memory_area"`; Address uint16 `json:"address"`; Bit uint8 `json:"bit,omitempty"`; Items uint16 `json:"items"` }`
 - `FINSCommand.ReadAreas []FINSReadArea`（json:"read_areas,omitempty"）
 - translate：`case "fins": spec.Metadata["fins"] = term.Config`（层优先，flat 判死后无双轨）
-- presence 锚词：`protocol fins no longer accepts a top-level fins sub-config (move it into the fins layer of a layers chain: ip + udp/tcp carrier + fins)`
+- presence 锚词：`protocol fins rejects a top-level fins sub-config (move it into the fins layer of a layers chain: ip + udp/tcp carrier + fins)`
 
 #### 3. 主流程
 链路径：ValidateLayers（V9 16 键）→ validateSpecBase（ip/udp/tcp 补全；fins dst 9600 缺省既有 :726）→ **translateTerminalConfig case "fins"（:161，先于 carrier 门 :369，序安全）** → carrier 门（transport↔载体一致性，既有）→ protocolValidator（RegisterLayerValidator 既有 layer_gen.go:177）→ Plan → FINSGenerator（**零改动**）→ GetConfig→Validate（新增分支）→ emitSessionCommands（零改动，命令循环自然承载 0103/0104）→ BuildFrameWithConfig（新增 0103/0104 case）→ req.Emit。
@@ -2007,7 +2007,7 @@ presence="top-level fins sub-config"；E-01="invalid memory area"；E-02="unsupp
 - Test: `trafficgen/internal/core/layers/goose_migrate_test.go`（failing 先行红例族）
 
 #### 2. 接口签名
-- presence 锚词：`protocol goose no longer accepts a top-level goose sub-config (move it into the goose layer of an [eth,goose] layers chain)`（srv6/fins 同款，空 map 也死，CheckProtoFlat :7706 后追加）
+- presence 锚词：`protocol goose rejects a top-level goose sub-config (move it into the goose layer of an [eth,goose] layers chain)`（srv6/fins 同款，空 map 也死，CheckProtoFlat :7706 后追加）
 - translate 签名（dns 手工映射同款）：`raw := term.Config`（p.chain 原始层 config，对象完整）→ `cfg := completedConfig(s, term.Config)`（标量补全）→ `spec.GOOSE = &core.GOOSEConfig{...}` 逐键 `configUint16/configUint32/configString/configBool` + `data[]` 下钻 `GOOSEData{Name,Type,Value:item["value"],BitLength}` + `event_seq[]` 下钻 `GOOSEEventSeq{DataIdx,DelayMs,Retransmits,SqNumStep}`（parseGOOSEConfig:7590 逐键对照，不可跨包调用故手工复刻）
 
 #### 3. 主流程
@@ -2091,7 +2091,7 @@ presence="top-level goose sub-config"；"goose appid 0x... outside GOOSE range"�
 - **零改动**：`internal/protocol/sv/sv.go`（validator :26 双界既有/BuildPayload/Generate/注册，字节事实不动）、`internal/core/types.go`（SVConfig/SVData 既有）——P3 假发现导致的"一行修"计划在 P4 实读后撤销
 
 #### 2. 接口签名
-- presence 锚词：`protocol sv no longer accepts a top-level sv sub-config (move it into the sv layer of an [eth,sv] layers chain)`（goose/srv6/fins 同款家族，空 map 也死，CheckProtoFlat goose 分支后追加）
+- presence 锚词：`protocol sv rejects a top-level sv sub-config (move it into the sv layer of an [eth,sv] layers chain)`（goose/srv6/fins 同款家族，空 map 也死，CheckProtoFlat goose 分支后追加）
 - translate 签名（goose 手工逐键同款）：`raw := term.Config`（p.chain 原始层 config）→ `cfg := completedConfig(s, term.Config)`（标量补全；本层 15 键零 Default，补全即原值）→ `spec.SV = &core.SVConfig{...}` 逐键 + data 下钻 `SVData{Name, Type, InstMag int32(f), InstMagF float32(f)|type 分流, Quality, HasQuality}`
 - V9 边界锚词：appid `out of range [16384,32767]`（create-time 先火，② 终审）；vlan_id `out of range [0,4095]`；validator 9 锚词原样（sv.go:23-50 零改动）
 
@@ -2269,7 +2269,7 @@ presence="top-level sv sub-config"；V9 appid="out of range [16384,32767]"；V9 
 - 零改动：`internal/protocol/icmpv6/icmpv6.go`（legacy Plan/Validate 字节事实）
 
 #### 2. 接口签名
-- presence 锚词：`protocol icmpv6 no longer accepts a top-level icmpv6 sub-config (move it into the icmpv6 layer of an [ip,icmpv6] layers chain)`
+- presence 锚词：`protocol icmpv6 rejects a top-level icmpv6 sub-config (move it into the icmpv6 layer of an [ip,icmpv6] layers chain)`
 - validator 锚词：`icmpv6 config is required`（spec.ICMPv6==nil 翻译后不可达=C 类，与 translate 保底同款）/`icmpv6 type must be 128 (Echo Request) or 129 (Echo Reply), got %d`/`icmpv6 code must be 0 for Echo, got %d`/`icmpv6 pattern step %d type must be 128 or 129, got %d`/legacy 复用 `must be IPv6 (got IPv4)`（零新文案）
 
 #### 3. 主流程
@@ -2364,7 +2364,7 @@ create：ValidateStrategy→ValidateLayers（V9 6 键）→CheckProtoFlat presen
 - 零改动：`internal/protocol/h323/h323.go`（字节事实）
 
 #### 2. 接口签名（锚词）
-- presence：`protocol h323 no longer accepts a top-level h323 sub-config (move it into the h323 layer of an [ip,h323] layers chain)`
+- presence：`protocol h323 rejects a top-level h323 sub-config (move it into the h323 layer of an [ip,h323] layers chain)`
 - validator：`h323: H323Config is required`（translate 后不可达=C 类保底）；legacy 复用 8 锚词原样（`h323: invalid role %q (must be caller or callee)` 等）
 - static：`static four-tuple`（semantic.go 既有门，扫描面扩 h323）
 
@@ -2446,7 +2446,7 @@ create：ValidateStrategy→ValidateLayers（V9 10 键）→CheckProtoFlat prese
 - 零改动：`internal/protocol/mpls/planner.go`（字节事实）
 
 #### 2. 接口签名（锚词）
-- presence：`protocol mpls no longer accepts a top-level mpls sub-config (move it into the mpls layer of an [ip,mpls] layers chain)`
+- presence：`protocol mpls rejects a top-level mpls sub-config (move it into the mpls layer of an [ip,mpls] layers chain)`
 - validator：`mpls: MPLS config is required`（translate 后不可达=C 类保底）；legacy 10 锚词原样复用
 - static：`static four-tuple`（既有门，扫描面扩 mpls）
 
@@ -2521,7 +2521,7 @@ create：ValidateStrategy→ValidateLayers（V9 8 键）→CheckProtoFlat presen
 - 零改动：`internal/protocol/ngap/ngap.go`（字节事实）
 
 #### 2. 接口签名（锚词）
-- presence：`protocol ngap no longer accepts a top-level ngap sub-config (move it into the ngap layer of an [ip,ngap] layers chain)`
+- presence：`protocol ngap rejects a top-level ngap sub-config (move it into the ngap layer of an [ip,ngap] layers chain)`
 - validator：`ngap: NGAP config is required`？——**legacy Validate 对 nil-config 返 nil（ngap.go:166-168 "minimal: SCTP handshake only"）！** translate 恒填非 nil（空层→零值 NGAPConfig=合法 9 包最小联结）——**无需 required 保底分支**（h323/mpls 不同：legacy 自身接受 nil）。validateLayer=纯 legacy 复用。
 - static：`static four-tuple`（既有门，扫描面扩 ngap）
 
@@ -2596,7 +2596,7 @@ create：ValidateStrategy→ValidateLayers（V9 14 键）→CheckProtoFlat prese
 - 零改动：`internal/protocol/telnet/telnet.go`/`scenario.go`（字节事实）
 
 #### 2. 接口签名（锚词）
-- presence：`protocol telnet no longer accepts a top-level telnet sub-config (move it into the telnet layer of an [ip,telnet] layers chain)`
+- presence：`protocol telnet rejects a top-level telnet sub-config (move it into the telnet layer of an [ip,telnet] layers chain)`
 - validator：legacy 5 锚词（`not a valid IP address`×2/`too small (min`/`too large (max`/`unknown scenario`）——nil-config 合法走 defaultDialog
 - static：`static four-tuple`（既有门，扫描面扩 telnet）
 
@@ -2671,7 +2671,7 @@ create：ValidateStrategy→ValidateLayers（V9 14 键）→CheckProtoFlat prese
 - 零改动：`internal/protocol/sip/sip.go`（字节事实）
 
 #### 2. 接口签名（锚词）
-- presence：`protocol sip no longer accepts a top-level sip sub-config (move it into the sip layer of an [ip,sip] layers chain)`
+- presence：`protocol sip rejects a top-level sip sub-config (move it into the sip layer of an [ip,sip] layers chain)`
 - validator：legacy 3 锚词（`invalid source IP`/`invalid destination IP`/`MSS %d too small`——后者链不可达）；nil-config 合法走空 dialog 7 包
 - static：`static four-tuple`（既有门，扫描面扩 sip）
 
@@ -2858,7 +2858,7 @@ create：ValidateStrategy→ValidateLayers（V9 4 键）→CheckProtoFlat presen
 - 零改动：`internal/protocol/radius/radius.go`（字节事实）
 
 #### 2. 接口签名（锚词）
-- presence：`protocol radius no longer accepts a top-level radius sub-config (move it into the radius layer of an [ip,radius] layers chain)`
+- presence：`protocol radius rejects a top-level radius sub-config (move it into the radius layer of an [ip,radius] layers chain)`
 - validator：legacy 13 锚词（`invalid request code (allowed: 1, 3, 4, 11, 12)`/`invalid response code (allowed: 2, 3, 5, 11, 13)`/`has no default response code`/`invalid authenticator hex`/`must be 16 bytes`/`exceeds the %d-byte field limit`/`format=ipv4/uint32/hex`/`unknown format` 等——radius.go:98-189 实取）
 - static：`static four-tuple`（既有门，扫描面扩 radius）
 
@@ -3376,7 +3376,7 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 | § | 满足方式+证据 |
 |---|---|
 | §1 顶层旧键 | 扁平键全删、目标形 `{"layers":[{"ip":{…}},{"jt808":{…}}]}`（可跑形态，1.8/1.9）；顶层 jt808 子映射判死（CheckProtoFlat rawWrapChains 第 9 协议+TestProtoFlat_TopRawWrapSubConfigRejected jt808 子测）；顶层白名单净（1.11-1.13：15/16 例顶层仅 layers，隔离复审探针 E 顶层 src_port 400） |
-| §2 判死 | 顶层 jt808 子映射+layers 混用 400 锚词 `no longer accepts a top-level jt808 sub-config`；纯层链不误杀（隔离复审探针 D/F） |
+| §2 判死 | 顶层 jt808 子映射+layers 混用 400 锚词 `rejects a top-level jt808 sub-config`；纯层链不误杀（隔离复审探针 D/F） |
 | §3 五件套+单流豁免 | 单 TCP 连接会话（终端↔平台）：会话表=1 连接/事务序=procedures 数组顺序/关联=分包子帧同连接（无独立子流）/插入=handshake 后 teardown 前/时间线=顺序；无子流派生无 sessions（豁免如实） |
 | §4 规范矩阵 | 见 P1 表（JT/T 808-2019 八项+三张子表+三路对照+候选对比 (a)/(b)）；线格式保真 F1/F2 勘误后 builder/parser/用例对齐原文（jt808_spec_shape_test.go 双绿例+tshark 复算） |
 | §5 依赖与错误 | 依赖 ip 层；ValidateConfig 锚族（phone 12 位/auth/车牌互斥/ACKFlag≤3）；0 包静默护栏=legacy Plan 硬错+validator nil 层拒绝（N5）+嵌套 V9 不下探 |
@@ -3722,7 +3722,7 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 | T-4 | Pattern 多轮 | 2×echo 步 → 4 帧；seq 1/2 递增；data 逐字节 |
 | T-5 | 负例 type=3 | 锚 `icmp type must be 8 (Echo Request) or 0 (Echo Reply), got 3` |
 | T-6 | 负例 code=1 | 锚 `icmp code must be 0 for Echo, got 1` |
-| T-7 | 负例 presence | 层链+顶层 icmp 子映射并存 → `no longer accepts a top-level icmp` |
+| T-7 | 负例 presence | 层链+顶层 icmp 子映射并存 → `rejects a top-level icmp` |
 | T-8 | 负例静态复制 | ip 层显式标量+flows=2 → 框架层链门 `static four-tuple`（icmpv6_vn_static_copy 同款） |
 
 ### 门 1 开工对照表（§1–§14，2026-09-22 icmp P6 回填，证据=文档节/代码行/用例号）
@@ -3799,7 +3799,7 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 1. **行为字节零改动**：builder/layer_gen/planner/validator 的行为面代码零改动（150 例 pcap 基线不变=验收线）；迁移只动**配置解析路径**。
 2. **层 Fields 六键**：`profile`(string)/`namespace`(string)/`concurrent`(bool)/`sessions`(list)/`flows`(list)/`auth`(object)——CWMPConfig 顶层键同名（smtp/ftp 同款：V9 只验顶层键存在，嵌套值语义归 translate JSON 往返 + validator）。
 3. **translate case "cwmp"**：层 config → JSON 往返 → `spec.CWMP`（smtp `:2017` 同款；带 "flat 权优" 守卫镜照 smtp——在库 legacy 行若存顶层键由判死门 400/ValidationErrors 兜住，守卫纯防御）。空层 config 翻译出零值 config → 生成器/validator 走 P0b 基线单会话（现状口径，validator nil 放行 + 生成器 len==0 补基线，零改动）。
-4. **判死双门**：CheckProtoFlat 加 `cwmp` 顶层子映射 presence 判死（文案 "protocol cwmp no longer accepts a top-level cwmp sub-config (move it into the cwmp layer of a [ip,tcp,http,cwmp] layers chain)"，presence 负例豁免口径与 http 族一致）；mapToFlowSpec 在库 switch（`:368` 区）加 cwmp → 存量行启动 ValidationErrors。mapToFlowSpec case "cwmp"（`:576`）保留（smtp/dns/mqtt 先例：新建路径已被判死，存量行由 switch 兜底）。
+4. **判死双门**：CheckProtoFlat 加 `cwmp` 顶层子映射 presence 判死（文案 "protocol cwmp rejects a top-level cwmp sub-config (move it into the cwmp layer of a [ip,tcp,http,cwmp] layers chain)"，presence 负例豁免口径与 http 族一致）；mapToFlowSpec 在库 switch（`:368` 区）加 cwmp → 存量行启动 ValidationErrors。mapToFlowSpec case "cwmp"（`:576`）保留（smtp/dns/mqtt 先例：新建路径已被判死，存量行由 switch 兜底）。
 5. **150 例整形**：脚本化——`spec_json` 顶层 `cwmp` 值原样移入 `layers[3]["cwmp"]`（层槽恒在，现恒 `{}`）；字节面断言（packet_count/has_handshake/钉位）零变化。
 6. **新负例**：①顶层 `cwmp` 子映射+layers 并存 → 400 presence 负例（锚 `top-level cwmp sub-config`）；②cwmp 层未知字段 → V9 锚 `unknown field`；③空层 cwmp = 基线单会话正例（13.20 缺省面钉）。
 7. **gate**：pipe_gate cwmp 移自键组（presence 键="cwmp"）；coverage_gate 补 check_cwmp。
@@ -3947,7 +3947,7 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 
 - G1 D-MEGACO-1 条目（唯一入口）/ G2 T-MEGACO 节（79 审计）/ G3 coverage_gate check_megaco 25 项 → 全部分别落地。
 - G4 pipe_gate megaco 自键组（presence 判死执法）→ binary 门实跑绿。
-- **G5 承载面判死**：`CheckProtoFlat` megaco 分支（顶层 megaco 子映射+layers 并存即 400，锚 `no longer accepts a top-level megaco sub-config`）+ mapToFlowSpec 在库 switch（存量行启动 error；在库 0 行纯防御）。
+- **G5 承载面判死**：`CheckProtoFlat` megaco 分支（顶层 megaco 子映射+layers 并存即 400，锚 `rejects a top-level megaco sub-config`）+ mapToFlowSpec 在库 switch（存量行启动 error；在库 0 行纯防御）。
 - **裁定1 协议身份**：三名合一收敛 megaco 单准入名（protocols.go 白名单 + 同步 negativeOnly 摘除——红先绿后：negativeOnly 守卫先红→摘除→绿）。
 - **裁定2 载体**：udp/tcp 双合法，TPKT 由生成器负责；会话 `transport` 显式声明与链载体不符 → validator 同步拒（`carrier`）。
 - **裁定3 端口域**：2944 默认（FieldContract 双 carrier 常量）；2427（mgcp 别名）合法放行；2945+BINARY/text 声明混配 → 拒（`encoding`）；其余显式端口 → 拒（`port`）。
@@ -3972,7 +3972,7 @@ JT809_0x1001.Serialize）实录，对裁定 1/裁定 7/T-2 修正如下：
 
 | § | 本协议怎么满足 | 证据 |
 |---|---|---|
-| §1 层链唯一真相 | 顶层旧键：`src_ip/dst_ip/src_port/dst_port/count` 零残留（门 2-1 脚本扫）；顶层 `megaco` 子映射 presence 判死（B6 注入形退役，kingbase 同型）；目标形状：`{"layers":[{"ip":{"src":"192.0.2.70","dst":"198.51.100.70"}},{"udp":{"src_port":40700}},{"megaco":{"profile":"megaco_v1_text","encoding":"text","version":1,"token_form":"long","whitespace":"","sessions":[{"role":"mg","mid":"[192.0.2.70]","peer_mid":"[198.51.100.70]","events":[{"kind":"message","direction":"c2s","transactions":[{"type":"request","id":"auto","actions":[{"context":"-","commands":[{"name":"ServiceChange","termination":"ROOT","descriptor":{"services":{"method":"Restart","reason":"901 Cold Boot"}}}]}]}]}]}],"wire_fault":""}}]}`（megaco 层七键全列；TCP 载体 = `[ip,tcp,megaco]`，TPKT 成帧） | `strategy_convert.go:8242` CheckProtoFlat megaco 分支（锚 `no longer accepts a top-level megaco sub-config`）；红例① TestMegacoChain_FlatPresenceRejected；门 2-1 绿 |
+| §1 层链唯一真相 | 顶层旧键：`src_ip/dst_ip/src_port/dst_port/count` 零残留（门 2-1 脚本扫）；顶层 `megaco` 子映射 presence 判死（B6 注入形退役，kingbase 同型）；目标形状：`{"layers":[{"ip":{"src":"192.0.2.70","dst":"198.51.100.70"}},{"udp":{"src_port":40700}},{"megaco":{"profile":"megaco_v1_text","encoding":"text","version":1,"token_form":"long","whitespace":"","sessions":[{"role":"mg","mid":"[192.0.2.70]","peer_mid":"[198.51.100.70]","events":[{"kind":"message","direction":"c2s","transactions":[{"type":"request","id":"auto","actions":[{"context":"-","commands":[{"name":"ServiceChange","termination":"ROOT","descriptor":{"services":{"method":"Restart","reason":"901 Cold Boot"}}}]}]}]}]}],"wire_fault":""}}]}`（megaco 层七键全列；TCP 载体 = `[ip,tcp,megaco]`，TPKT 成帧） | `strategy_convert.go:8242` CheckProtoFlat megaco 分支（锚 `rejects a top-level megaco sub-config`）；红例① TestMegacoChain_FlatPresenceRejected；门 2-1 绿 |
 | §2 策略/任务分工 | megaco 无子流派生端口；多流只走 `flow_control`；会话编排住 megaco 层 `sessions[]`，任务合跑沿框架语义 | registry.go megaco 行（无 dyn 字段）；T-MEGACO 用例面 |
 | §3 五件套 | 会话表=`sessions[]`（role/mid/peer_mid/transport/ports）；事务序列=`events[].transactions[]`（request/reply/pending/response_ack 四形态）；关联=`same_as_request:<i>` 引用 + `ack` 覆盖已确认事务 + ObservedEvents RequestID 关联（observedReqIDs）；插入位置=链终结层生成器每消息一 MessageEvent；时间线=会话内顺序回放，`concurrent:true` 按事件下标 round-robin 交错 | `layer_gen.go` sessionRun/sessionTxState.resolve（复评收口后唯一解析权威）；`planner.go` validateSession 状态机面；正例 45（concurrent） |
 | §4 规范矩阵 | RFC 3525 / ITU-T H.248.1 (03/2002)：§7 命令与描述符、§8 事务、Annex B.2 文本 ABNF、Annex D.1 UDP / D.2 TPKT；B6 契约 70-megaco-design.md v1.2.1 为行为面权威 | 本条目 P1 矩阵 10 行 |

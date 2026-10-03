@@ -112,7 +112,7 @@ func pimChainNegCases() []pimChainNeg {
 				map[string]interface{}{"pim": map[string]interface{}{}},
 			},
 			top:    map[string]interface{}{"pim": map[string]interface{}{}},
-			anchor: "no longer accepts a top-level pim sub-config",
+			anchor: "rejects a top-level pim sub-config",
 		},
 		{
 			id:      "pim_neg_stray_top_src_ip",
@@ -125,7 +125,7 @@ func pimChainNegCases() []pimChainNeg {
 				}},
 			},
 			top:    map[string]interface{}{"src_ip": "192.0.2.99"},
-			anchor: "no longer accepts flat config field src_ip",
+			anchor: "rejects flat config field src_ip",
 		},
 		{
 			id:      "pim_neg_carrier_udp",

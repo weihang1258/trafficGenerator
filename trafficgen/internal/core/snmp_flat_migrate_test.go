@@ -17,7 +17,7 @@ func TestMapToFlowSpec_TopSNMPSubConfigRejected(t *testing.T) {
 		}, "snmp")
 		found := false
 		for _, e := range spec.ValidationErrors {
-			if containsSub(e, "no longer accepts a top-level snmp sub-config") {
+			if containsSub(e, "rejects a top-level snmp sub-config") {
 				found = true
 			}
 		}

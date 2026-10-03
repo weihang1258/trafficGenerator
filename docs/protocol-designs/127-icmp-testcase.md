@@ -38,7 +38,7 @@
 | 4 | `icmp_t4_pattern` | 正 | Pattern 多轮 | RFC 792 会话语义 + 设计 §3.5 | 4 | 帧序 req1/rep1/req2/rep2；seq 1/2；frames@34/@42 逐字节（0x9698/0x9D96） |
 | 5 | `icmp_t5_neg_type` | 负 | type=3 非 Echo 拒 | RFC 792 + 设计 §7 N-1 | — | `error_contains: icmp type must be 8 (Echo Request) or 0 (Echo Reply), got 3` |
 | 6 | `icmp_t6_neg_code` | 负 | code=1 拒 | RFC 792 + 设计 §7 N-2 | — | `error_contains: icmp code must be 0 for Echo, got 1` |
-| 7 | `icmp_t7_neg_presence` | 负 | 层链+顶层 icmp 并存判死 | 设计 §7 N-3/§12-P2 | — | `error_contains: no longer accepts a top-level icmp` |
+| 7 | `icmp_t7_neg_presence` | 负 | 层链+顶层 icmp 并存判死 | 设计 §7 N-3/§12-P2 | — | `error_contains: rejects a top-level icmp` |
 | 8 | `icmp_t8_neg_static_copy` | 负 | ip 层静态标量 + flows=2 | 设计 §7 N-4/§12.12 | — | `error_contains: static four-tuple` |
 
 T-编号对照：T-ICMP-T1…T8 ≡ #1…#8（顺序一致，无虚例——旧稿无 T4/T8 合并类问题）。**序号以 cases JSON 顺序为权威**（机读实测一致）。
@@ -94,7 +94,7 @@ T-编号对照：T-ICMP-T1…T8 ≡ #1…#8（顺序一致，无虚例——旧�
 |---|---|---|---|---|---|
 | `icmp_t5_neg_type` | `icmp.type=3` | `icmp type must be 8 (Echo Request) or 0 (Echo Reply), got 3` | `layer_gen.go:64-66` | 层 validator（translate 后判） | **是**（离线实测 PASS） |
 | `icmp_t6_neg_code` | `icmp.code=1` | `icmp code must be 0 for Echo, got 1` | `layer_gen.go:67-69` | 层 validator | **是**（离线实测 PASS） |
-| `icmp_t7_neg_presence` | 层链 + 顶层 `icmp:{}` | `no longer accepts a top-level icmp` | `strategy_convert.go:9100/9107-9111`（rawWrapChains） | **create-time**（schema.ValidateStrategy，semantic.go:130；batch 同门 convert.go:166） | **否**（离线实测失守，G-ICMP-4） |
+| `icmp_t7_neg_presence` | 层链 + 顶层 `icmp:{}` | `rejects a top-level icmp` | `strategy_convert.go:9100/9107-9111`（rawWrapChains） | **create-time**（schema.ValidateStrategy，semantic.go:130；batch 同门 convert.go:166） | **否**（离线实测失守，G-ICMP-4） |
 | `icmp_t8_neg_static_copy` | ip 层显式标量 + `strategy_fc flows=2` | `static four-tuple` | `semantic.go:285`（checkLayerChainStaticCopy） | **create-time**（semantic.go:142） | **否**（同上） |
 
 **锚词口径**：`error_contains` 是子串判定；四例均命中代码文案（N-3/N-4 为前缀子串）。

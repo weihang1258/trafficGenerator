@@ -55,7 +55,7 @@
 |---|---|---|---|
 | ① 改写后形状（配置在 `a2a` 层） | `[{"ip":{src,dst}},{"tcp":{src_port,dst_port}},{"a2a":{"baseUrl":"…","tasks":[…]}}]` → `layers.ValidateLayers(raw,"a2a")` | **`layers: layer "a2a": unknown field "baseUrl"`** | `complete.go:293`（`ValidateLayerConfig`） |
 | ① 对照：空壳层 | `[{"ip":{…}},{"tcp":{…}},{"a2a":{}}]` | `err=<nil>`（config 为空不触发；但配置也进不去） | 同上 |
-| ② 存量形状（未改写） | `{layers:[{tcp:{}},{a2a:{}}], count:1, src_ip, dst_ip, src_port, dst_port, a2a:{…}}` → `schema.ValidateStrategy("synth","a2a",…)` | **`protocol a2a no longer accepts flat config field src_ip (use a layers chain: ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports, flow_control for the flow count)`** + **`config mixes layers with flat four-tuple field src_ip (…)`** | `schema/semantic.go:130`（`CheckProtoFlat`）+ `checkLayerFlatConflict` |
+| ② 存量形状（未改写） | `{layers:[{tcp:{}},{a2a:{}}], count:1, src_ip, dst_ip, src_port, dst_port, a2a:{…}}` → `schema.ValidateStrategy("synth","a2a",…)` | **`protocol a2a rejects flat config field src_ip (use a layers chain: ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports, flow_control for the flow count)`** + **`config mixes layers with flat four-tuple field src_ip (…)`** | `schema/semantic.go:130`（`CheckProtoFlat`）+ `checkLayerFlatConflict` |
 
 **结论**：两条路今日都不通——存量形状经 MCP 建策略 **400**，改写形状被 `unknown field "baseUrl"` 硬拒。**合规层链形必须先补代码**。
 

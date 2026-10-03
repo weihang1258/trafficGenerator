@@ -95,7 +95,7 @@
 `spec_json = {"layers":[{ip},{telnet{ports}}], "telnet":{}}`（**层链 + 顶层空子映射并存**）。
 
 - `expect = {expect_error:true, error_contains:"top-level telnet sub-config", notes:[…]}`。
-- **锚词证据（代码逐字）**：`strategy_convert.go:8961-8963` —— `protocol telnet no longer accepts a top-level telnet sub-config (move it into the telnet layer of an [ip,telnet] layers chain)`；**空 map 也判死**（`v != nil` 判定，`{}` 非 nil）。
+- **锚词证据（代码逐字）**：`strategy_convert.go:8961-8963` —— `protocol telnet rejects a top-level telnet sub-config (move it into the telnet layer of an [ip,telnet] layers chain)`；**空 map 也判死**（`v != nil` 判定，`{}` 非 nil）。
 - **时机**：create-time（400）。
 - **形状说明（CORE_MEMORY presence-negative-case-shape 口径）**：此形状是**判死执法对象**，不是旧键残留——层链本身合法，顶层 `telnet` 子映射触发门。**该形状必须点名**。
 
@@ -253,7 +253,7 @@
 
 | ID | 故障输入（机读实测） | JSON `error_contains` | 代码文案（逐字） | 代码行 | 时机 |
 |---|---|---|---|---|---|
-| `telnet_flat_presence` | `{"layers":[…],"telnet":{}}` | `top-level telnet sub-config` | `protocol telnet no longer accepts a top-level telnet sub-config (move it into the telnet layer of an [ip,telnet] layers chain)` | `strategy_convert.go:8961-8963` | create-time |
+| `telnet_flat_presence` | `{"layers":[…],"telnet":{}}` | `top-level telnet sub-config` | `protocol telnet rejects a top-level telnet sub-config (move it into the telnet layer of an [ip,telnet] layers chain)` | `strategy_convert.go:8961-8963` | create-time |
 | `telnet_flat_static_port` | `[ip{},telnet{静态端口}]` + `flows=2` | `static four-tuple` | `layers pin a static four-tuple but flows > 1: every flow would emit identical addresses/ports (static copy). …` | `schema/semantic.go:285` | create-time |
 | `telnet_neg_scenario` | `scenario:"telnet999"` | `unknown scenario` | `telnet: unknown scenario %q (want login_full/login_fail/multi_command/long_output/option_reject/synch)` | `scenario.go:58` | task-time |
 

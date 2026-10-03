@@ -213,7 +213,7 @@ Apache Thrift TBinaryProtocol spec（§10）+ D-THRIFT-1（设计 §11）+ tshar
 | 5 | FlowSpec.Thrift 字段 | `re.search(r"Thrift\s+\*ThriftConfig", types.go)` | 在案（`:1716`） |
 | 6 | registry thrift 行 | `'DependsOn: []string{"tcp"}' in reg_block` 且 `'"tcp.dst_port": "9090"'` 且 `'"transport"'` 且 `'"messages"'` | 在案（`:780-784`） |
 | 7 | main.go 空白导入 + ChainPlanner(thrift) | `"internal/protocol/thrift" in mn and 'NewChainPlanner("thrift")' in mn` | 在案（`:163`/`:513`） |
-| 8 | CheckProtoFlat 顶层 thrift presence 判死 | `"no longer accepts a top-level thrift sub-config" in strategy_convert.go` | P4 落码后填（G-THRIFT-2） |
+| 8 | CheckProtoFlat 顶层 thrift presence 判死 | `"rejects a top-level thrift sub-config" in strategy_convert.go` | P4 落码后填（G-THRIFT-2） |
 | 9 | strategy_convert thrift 目的端口缺省 9090 | `re.search(r'setDefaultDstPort\(&spec, cfg, 9090\)', sc)` | P4 落码后填 |
 | 10 | planner 目的端口缺省 9090 | `'spec.DstPort = 9090' in planner.go` | 在案（`:79`） |
 | 11 | generated schema thrift 条目 | `entry["depends_on"] == ["tcp"] and len(entry["fields"]) == 2` | 在案（与 registry 同代） |

@@ -767,7 +767,7 @@ FIN-ACK(up) → ACK(down) → FIN-ACK(down) → ACK(up)         ← 4 帧，恒
 
 ### 12-P2 判死负例形状（链级红例必含清单①③④）
 
-- ① presence 形状 `{"layers":[…],"ldap":{}}` 今日**会被拒**（`CheckProtoFlat` `rawWrapChains` 有 ldap 分支，锚词 `no longer accepts a top-level ldap sub-config`）——**与 opcua 相反**（opcua 无分支故 P4 不建该例）。**本协议该负例今日可建**，但**存量 22 例中无此例** → A′ 立项（G-LDAP-17）。
+- ① presence 形状 `{"layers":[…],"ldap":{}}` 今日**会被拒**（`CheckProtoFlat` `rawWrapChains` 有 ldap 分支，锚词 `rejects a top-level ldap sub-config`）——**与 opcua 相反**（opcua 无分支故 P4 不建该例）。**本协议该负例今日可建**，但**存量 22 例中无此例** → A′ 立项（G-LDAP-17）。
 - ② 白名单外游离键判死（`unknown field`）今日**无通用门**（§11.7）→ G-LDAP-15，**P4 不建该例**（建了会真绿 = 假通过）。
 - ③ 6 负例每条带锚词（已齐，§7）。
 - ④ 收官自查「非负例顶层键 = 0」**今日已成立**（§12.1）。
@@ -844,7 +844,7 @@ FIN-ACK(up) → ACK(down) → FIN-ACK(down) → ACK(up)         ← 4 帧，恒
 | G-LDAP-14 | **第三源未取全**——参考 pcap 文件不在本仓（仅其编码习惯被镜像，§10.5）；真实 AD/OpenLDAP 服务器线字节未抓包核对 | **待确认**：抓真实 LDAP 服务器包对照；确认前按实现钉、不声称合规 |
 | G-LDAP-15 | **顶层未知游离键通用门缺**——`{layers:[…], bogus: 1}` 今日**不判死**（`CheckProtoFlat` 只查五键 + `rawWrapChains` 子映射白名单）→ presence 负例今日建了会真绿 = 假通过，**不建** | **框架面（B′）**：等框架级 unknown-key 白名单（CORE_MEMORY §1.11/§1.13）；**禁加单协议黑名单分支**（kingbase 记忆裁定）。同 opcua G-OPCUA-1 / moxa G-MOXA-2 |
 | G-LDAP-16 | **端口无层位**——registry Fields 15 键无 `dst_port`/`src_port`；目的端口只能由 `Plan` 缺省 389，源端口由 worker 保底 12345+i | **设计选择（非缺口）**：raw 自驱族统一形态（radius/rtmp/rtsp/pptp/vnc/xmpp/sctp 同款，`validateBaseDstPortHandled` 豁免名单）。**登记为事实**，不立项；用例不断言 srcport（§12.1） |
-| G-LDAP-17 | **presence 判死负例未建**——`CheckProtoFlat` `rawWrapChains` **有 ldap 分支**（与 opcua 相反），故 `{"layers":[…],"ldap":{}}` **今日会被拒**，该负例**可建**但存量无 | **A′ 补例** `ldap_neg_presence_toplevel`（锚词 `no longer accepts a top-level ldap sub-config`）。**注**：`CheckProtoFlat` 无 ldap 专项单测（`grep` 实测零命中，pim/isis/amqp/tds/smb/mmse 等有）→ 本负例同时补该单测空白 |
+| G-LDAP-17 | **presence 判死负例未建**——`CheckProtoFlat` `rawWrapChains` **有 ldap 分支**（与 opcua 相反），故 `{"layers":[…],"ldap":{}}` **今日会被拒**，该负例**可建**但存量无 | **A′ 补例** `ldap_neg_presence_toplevel`（锚词 `rejects a top-level ldap sub-config`）。**注**：`CheckProtoFlat` 无 ldap 专项单测（`grep` 实测零命中，pim/isis/amqp/tds/smb/mmse 等有）→ 本负例同时补该单测空白 |
 | G-LDAP-18 | **业务字段动态零覆盖**——allowlist 无 `ldap` 行，15 键全关（§12.12）；`search_filter`/`filter_value` 的多用户批量查询场景真实存在但今日无动态支持 | **A′ 候选**（不冒充已覆盖）；若实现须先开 allowlist 并补 §12.15 五类测试 |
 | G-LDAP-19 | **`ldap.*` field 断言零使用**——22/22 例 `fields` 数组只含 `tcp.*`；6 个已实测可用的 ldap dissector 字段（`messageID`/`protocolOp`/`resultCode`/`scope`/`filter`/`attributes`，§1.3）**未被收编** | **A′ 收编**（testcase §6.2）；今日**不是被迫用 frames**，是未收编 |
 | G-LDAP-20 | **summary/notes 文案包数错 6 处**——`packet_count` 值**全部正确**，仅文案数字错：`ldap_session_full` summary `挥手4=12 包`→13；`ldap_bind_anonymous` notes `11 包`→12；`ldap_message_id_increment` notes `挥手=17`→18；`ldap_rounds_two` notes `挥手=16`→17；`ldap_unbind_suppressed` summary `11 包`→12；`ldap_composite_multi_round` summary `16 包`→17。**confirmed finding** | **P4 改文案**（6 处）；testcase §8.2 已逐条登记正确值。**注意口径**：机读正则 `(\d+)\s*包` **只命中 4 处**（`ldap_message_id_increment` 的 `挥手=17` 与 `ldap_rounds_two` 的 `挥手=16` 均**无"包"字**），故 **6 处须人读核对，不可只靠正则**——本缺口本身即该教训的实例 |

@@ -66,8 +66,8 @@ func TestMQTTChain_FlatPresenceRejected(t *testing.T) {
 	if msg := core.CheckProtoFlat("mqtt", cfg); msg == "" {
 		t.Fatal("CheckProtoFlat(mqtt, {layers, mqtt:{}}) = \"\", want top-level mqtt presence rejection")
 	}
-	if msg := core.CheckProtoFlat("mqtt", cfg); !strings.Contains(msg, "no longer accepts a top-level mqtt sub-config") {
-		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `no longer accepts a top-level mqtt sub-config`", msg)
+	if msg := core.CheckProtoFlat("mqtt", cfg); !strings.Contains(msg, "rejects a top-level mqtt sub-config") {
+		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `rejects a top-level mqtt sub-config`", msg)
 	}
 }
 

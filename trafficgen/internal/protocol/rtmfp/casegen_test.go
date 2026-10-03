@@ -632,14 +632,14 @@ func rtmfpNegCases() []rneg {
 			summary: "§12-P2 presence 判死形状：层链 + 顶层空 rtmfp 子映射并存",
 			layers: []interface{}{ipL(cli, srv), udpL(sport, dport), rtmfpL(map[string]interface{}{})},
 			top:    map[string]interface{}{"rtmfp": map[string]interface{}{}},
-			anchor: "no longer accepts a top-level rtmfp sub-config",
+			anchor: "rejects a top-level rtmfp sub-config",
 			notes:  []string{"判死形状（非残留）：层链与顶层空子映射并存即拒（CheckProtoFlat rtmfp 分支）。"},
 		},
 		{
 			id: "rtmfp_neg_stray_src_ip", summary: "§12-P2 白名单外游离顶层键判死：layers + src_ip",
 			layers: []interface{}{ipL(cli, srv), udpL(sport, dport), rtmfpL(map[string]interface{}{})},
 			top:    map[string]interface{}{"src_ip": "192.0.2.99"},
-			anchor: "no longer accepts flat config field src_ip",
+			anchor: "rejects flat config field src_ip",
 			notes:  []string{"1.11–1.13 白名单制：非负例顶层键=0（仅 layers/flow_control/output）。"},
 		},
 		{

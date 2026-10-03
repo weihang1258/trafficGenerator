@@ -9,10 +9,10 @@
 | 1.1 | 地址只写 ip 层 | 19 例 `layers[i].ip.src/dst`（192.0.2.88→198.51.100.88）；mms_ipv6 同层住 IPv6（2001:db8::1/2，offset 74）；mms_multiflow ip.src 层内 inc 动态（10.0.1.1 起）；无顶层地址键 | PASS |
 | 1.2 | 端口只写 tcp/udp 层 | `tcp.dst_port=102`（mms 无 FieldContract，显式≠102 不拒，设计 §5 如实披露）；缺省链路径 `chain_planner.go:978` 补 102 | PASS |
 | 1.3 | 流数量只写 flow_control | mms_multiflow `strategy_fc={type:flows,value:2}`；正例 0 游离（19/19 顶层仅 layers[+fc]，机核=coverage_gate 50/50） | PASS |
-| 1.4 | 禁 layers 与顶层五键混用 | 门 2-1 绿；`mms_neg_stray_src_ip` 判死（`strategy_convert.go:8518` `no longer accepts flat config field src_ip`）；链测试 `TestMMSChain_PresenceAndStrayTopLevelKeys` 另断言 dst_ip/src_port/dst_port/count 四键同拒 | PASS |
+| 1.4 | 禁 layers 与顶层五键混用 | 门 2-1 绿；`mms_neg_stray_src_ip` 判死（`strategy_convert.go:8518` `rejects flat config field src_ip`）；链测试 `TestMMSChain_PresenceAndStrayTopLevelKeys` 另断言 dst_ip/src_port/dst_port/count 四键同拒 | PASS |
 | 1.5 | 混用示例/用例/文档都算跑偏 | 无混用示例；19 例 spec_json 全纯 layers；T-9 flat 残留已重写（`ip` 层 `2001:db8::1/2`） | PASS |
 | 1.6 | 门①层链能跑通 | suite 19/19（canonical 8081 P6 独立复跑，EXIT=0）；17 pcap 落盘（2 纯配置负例计划期拒、无产物=预期） | PASS |
-| 1.7 | 门②旧格式彻底移除 | presence 判死两路：`strategy_convert.go:8878`（`no longer accepts a top-level mms sub-config`）+ `:554` mapToFlowSpec 同口径；pipe_gate.sh presence 红线已收 mms；mms_neg_presence 绿 | PASS |
+| 1.7 | 门②旧格式彻底移除 | presence 判死两路：`strategy_convert.go:8878`（`rejects a top-level mms sub-config`）+ `:554` mapToFlowSpec 同口径；pipe_gate.sh presence 红线已收 mms；mms_neg_presence 绿 | PASS |
 | 1.8 | 示例只给严格层链形 | 19/19 严格 `[ip,tcp,mms]`；design §2.1 样例纯 layers+flow_control | PASS |
 | 1.9 | 暂不支持时标注目标形状 | B′ 缺口（AARE 拒绝/Conclude/分页/粘包分片/S7 混跑）design §14 G-MMS-4/5/6 逐条立项声明 | PASS |
 | 1.10 | 汇报分开说跑通/清旧字段 | p4-report「Suite RESULT」「框架层改动声明」分节；P6 报 §(a)-(f) 分节 | PASS |

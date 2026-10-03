@@ -167,7 +167,7 @@
 
 | ID | 故障输入（机读实测） | JSON `error_contains` | 代码文案（逐字） | 代码位置 |
 |---|---|---|---|---|
-| `tls-neg-flat` | `spec_json` 顶层 `"src_ip":"10.0.0.1"`（+ 完整 layers） | `no longer accepts flat config field src_ip` | `protocol tls no longer accepts flat config field src_ip (use a layers chain: …)` | `strategy_convert.go:8634` |
+| `tls-neg-flat` | `spec_json` 顶层 `"src_ip":"10.0.0.1"`（+ 完整 layers） | `rejects flat config field src_ip` | `protocol tls rejects flat config field src_ip (use a layers chain: …)` | `strategy_convert.go:8634` |
 | `tls-neg-static-copy` | 全静态标量四元组 + `strategy_fc{flows:2}` | `static four-tuple` | `layers pin a static four-tuple but flows > 1: …` | `schema/semantic.go:285` |
 | `tls-neg-dyn-closed-version` | `tls.version={strategy:"list", list:["tls1.3","tls1.2"]}` | `does not support dynamic` | `… does not support dynamic` | `validate_layers.go:1004` |
 | `tls-cert-neg-dyn-keytype` | `tls.cert.key_type={strategy:"list", list:["ecdsa-p256"]}` | `does not support dynamic` | `… does not support dynamic` | `validate_layers.go:1046` |

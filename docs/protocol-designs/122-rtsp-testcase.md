@@ -186,7 +186,7 @@ packet_count = 7（3 握手 + 4 挥手）
 | `media` 有配置但无任何 `emit_media:true` | `media` 被解析、永不消费；**0 个 RTP 帧，无错误** | `:259` 条件不满足 |
 | `[ip,tcp,rtsp]` 链（放 tcp 层） | `Plan` 返回 **0 包，无错误**（G-RTSP-2） | `chain_planner_util.go:44-51` |
 
-**已通的判死门（可建负例，会真红）**：顶层 `rtsp` 子映射 presence——`{"layers":[…],"rtsp":{}}` 实测文案 `protocol rtsp no longer accepts a top-level rtsp sub-config (move it into the rtsp layer of a [ip,rtsp] layers chain)`（`strategy_convert.go:9100-9116` `rawWrapChains`）。**A′ 可建此负例**（与 opcua/moxa 的"不建"相反）。
+**已通的判死门（可建负例，会真红）**：顶层 `rtsp` 子映射 presence——`{"layers":[…],"rtsp":{}}` 实测文案 `protocol rtsp rejects a top-level rtsp sub-config (move it into the rtsp layer of a [ip,rtsp] layers chain)`（`strategy_convert.go:9100-9116` `rawWrapChains`）。**A′ 可建此负例**（与 opcua/moxa 的"不建"相反）。
 
 **未通的判死门（不得建负例，建了会真绿）**：游离顶层未知键——`{"layers":[…],"bogus":1}` 实测 `CheckProtoFlat("rtsp", …)` 返回**空串**（不判死）→ G-RTSP-15。
 
@@ -329,7 +329,7 @@ RFC 2326 §10/§12/附录 A + RFC 7826 + RFC 3550 §5.1 + RFC 4566 + RFC 879（�
 | 9 | 无任何用例断言 `tcp.srcport`（**单流源端口实测 = 0**，断非 0 会假红） | 设计 §2/§11.7 | **绿** |
 | 10 | 无任何用例断言 `PacketConfig.Direction == "down"`（**raw 链恒改写为 `"up"`**，断 down 会假绿） | 设计 §3.5/G-RTSP-4 | **绿** |
 | 11 | `media` 块内不得出现 `packets`/`payload` 键（**解析集不含，死配置**） | 设计 §3.5/G-RTSP-1 | **红**（#8/#10 各两键） |
-| 12 | 顶层 `rtsp` 子映射 presence 负例存在且锚词 ∈ `{"no longer accepts a top-level rtsp sub-config"}` | 设计 §12-P2 | **红**（A′ 未建，但**门已通**可建） |
+| 12 | 顶层 `rtsp` 子映射 presence 负例存在且锚词 ∈ `{"rejects a top-level rtsp sub-config"}` | 设计 §12-P2 | **红**（A′ 未建，但**门已通**可建） |
 | 13 | `notes` 内不得出现与实测相反的 RTP-Info 声明（P4 改写后） | 设计 §3.3.5/G-RTSP-4 | **红**（#8/#10 今日有） |
 
 **红项汇总**：**6 条红**（#4/#5/#8/#11/#12/#13）——按任务书要求**如实标红，不申报"今日已过"**。**绿项 7 条**。

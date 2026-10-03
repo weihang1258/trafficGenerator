@@ -349,7 +349,7 @@ ceil(x/MSS) 对 x=0 也取 1（空载荷仍发一帧，`segmentByMSS` 口径 `pl
 |---:|---|---|---|---|
 | N-12 | `pop3_t024_mss_reject` | `tcp.mss=100`（<536） | `out of range [536,65535]` | `layers/complete.go:325`（registry `mss` `Min:536`，`registry.go:68`） |
 | N-13 | `pop3_t034_bad_ip_reject` | `ip.dst="not-an-ip"` | `invalid IP address: not-an-ip` | 框架 ip 层门 |
-| N-14 | `pop3_t035_presence_reject` | `layers:[…]` **与**顶层 `pop3:{}` 并存 | `no longer accepts a top-level pop3 sub-config` | `strategy_convert.go:8839`（`CheckProtoFlat` pop3 分支） |
+| N-14 | `pop3_t035_presence_reject` | `layers:[…]` **与**顶层 `pop3:{}` 并存 | `rejects a top-level pop3 sub-config` | `strategy_convert.go:8839`（`CheckProtoFlat` pop3 分支） |
 | N-15 | `pop3_t036_static_pinned_reject` | 显式标量四元组 + `flows=2` + 无动态逃生 | `layers pin a static four-tuple but flows > 1` | `schema/semantic.go:285`（`checkLayerChainStaticCopy`） |
 
 **锚词口径**：`error_contains` 是**子串**判定；15 例逐条命中上表（机读实测，§9.2）。
@@ -452,7 +452,7 @@ ceil(x/MSS) 对 x=0 也取 1（空载荷仍发一帧，`segmentByMSS` 口径 `pl
 | `pop3_t019_apop_bad_digest_reject` | `APOP digest` | `:198` | A |
 | `pop3_t024_mss_reject` | `out of range [536,65535]` | `complete.go:325` | B |
 | `pop3_t034_bad_ip_reject` | `invalid IP address: not-an-ip` | 框架 ip 层 | B |
-| `pop3_t035_presence_reject` | `no longer accepts a top-level pop3 sub-config` | `strategy_convert.go:8839` | B |
+| `pop3_t035_presence_reject` | `rejects a top-level pop3 sub-config` | `strategy_convert.go:8839` | B |
 | `pop3_t036_static_pinned_reject` | `static` | `semantic.go:285` | B |
 | `pop3_t042_maildrop_no_mailbox_reject` | `EmitMailDrop=true but Mailbox is nil` | `:153` | A |
 | `pop3_t043_maildrop_msgnum_range_reject` | `out of range` | `:156` | A |
@@ -646,7 +646,7 @@ RFC §9 命令表 12 项 × 3 列（正例 / `-ERR` 台词 / validator 真拦）
 
 ### 11.7 与现有逻辑的冲突点
 
-- `CheckProtoFlat`（`strategy_convert.go:8625` 起）**已有 pop3 分支**（`:8837-8841`，锚词 `no longer accepts a top-level pop3 sub-config`）——与 opcua 的"无分支"不同，**本协议 presence 门已落**（t035 有例）。
+- `CheckProtoFlat`（`strategy_convert.go:8625` 起）**已有 pop3 分支**（`:8837-8841`，锚词 `rejects a top-level pop3 sub-config`）——与 opcua 的"无分支"不同，**本协议 presence 门已落**（t035 有例）。
 - **顶层未知键通用门仍缺**：游离顶层键（如 `{layers:[…], bogus: 1}`）今日**不判死**（`CheckProtoFlat` 只查五键 + 各协议子映射白名单）→ **不建该负例**（建了会真绿 = 假通过），登记 G-POP3-9（框架面，等 unknown-key 白名单）。
 - 动态 allowlist（`internal/core/layer_dyn.go` 头部）：`pop3` **零命中**实测（`grep -c` = 0）→ 业务字段动态对象即拒；四元组 `ip`/`tcp` 全开。见 §12.12。
 - registry `pop3` 有 Fields 3 键 → 层内 `banner`/`commands`/`mailbox` 今日可住；`POP3Config` 的 **MSS 无层内键**（走 `tcp.mss`），**无孤儿键**。

@@ -167,7 +167,7 @@
 
 | ID | 故障输入（机读实测） | JSON `error_contains` | 代码文案（逐字） | 门 |
 |---|---|---|---|---|
-| `mpls_vn_presence` | `spec_json` 顶层 `"mpls": {}`（**空 map，与层内配置并存**） | `top-level mpls sub-config` | `protocol mpls no longer accepts a top-level mpls sub-config (move it into the mpls layer of an [ip,mpls] layers chain)` | `CheckProtoFlat`（`strategy_convert.go:8947-8951`） |
+| `mpls_vn_presence` | `spec_json` 顶层 `"mpls": {}`（**空 map，与层内配置并存**） | `top-level mpls sub-config` | `protocol mpls rejects a top-level mpls sub-config (move it into the mpls layer of an [ip,mpls] layers chain)` | `CheckProtoFlat`（`strategy_convert.go:8947-8951`） |
 | `mpls_vn_static_port` | `mpls` 层**静态**端口（12345/80）+ `flows=2`；`ip` 层**空 map**（对门无贡献的最小证明形） | `static four-tuple` | `layers pin a static four-tuple but flows > 1: every flow would emit identical addresses/ports (static copy). …` | `checkLayerChainStaticCopy`（`schema/semantic.go:285`；mpls 已入扫描名单 `:214`） |
 
 **两例的"必死"性质（与 opcua 对照）**：mpls **有** presence 分支与静态复制扩扫（**与 opcua 的 G-OPCUA-1 情形相反**）——两例今日**真能判死**（实跑 create-time 拒，无落盘），**不是假通过**。

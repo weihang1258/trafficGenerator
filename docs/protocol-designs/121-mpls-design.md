@@ -451,7 +451,7 @@ for pkt := range ch {
 
 | # | 负例 ID | 故障输入 | 门 | 锚词 | 代码位置 |
 |---:|---|---|---|---|---|
-| N-1 | `mpls_vn_presence` | `spec_json` 顶层出现 `"mpls": {}`（**空 map 也死**） | `CheckProtoFlat` presence | `top-level mpls sub-config` | `strategy_convert.go:8947-8951`（逐字：`protocol mpls no longer accepts a top-level mpls sub-config (move it into the mpls layer of an [ip,mpls] layers chain)`） |
+| N-1 | `mpls_vn_presence` | `spec_json` 顶层出现 `"mpls": {}`（**空 map 也死**） | `CheckProtoFlat` presence | `top-level mpls sub-config` | `strategy_convert.go:8947-8951`（逐字：`protocol mpls rejects a top-level mpls sub-config (move it into the mpls layer of an [ip,mpls] layers chain)`） |
 | N-2 | `mpls_vn_static_port` | `mpls` 层**静态**端口 + `flows=2`（层链 `[ip{}, mpls{ports}]`） | `checkLayerChainStaticCopy` | `static four-tuple` | `schema/semantic.go:285`（mpls 已入扫描名单，`:214`） |
 
 **N-2 的形状说明**：`ip` 层写成**空 map**（`{}`）——空 ip 层对静态复制门**无贡献**（无 `src`/`dst` 标量），使唯一触发源锁定为 `mpls` 层的静态端口，这是"最小证明形"（h323 T-3 同构）。

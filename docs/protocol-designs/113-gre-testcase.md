@@ -246,7 +246,7 @@
 
 | # | ID | 故障输入（机读实测） | JSON `error_contains` | 代码文案（逐字） | 代码位置 | 拒绝阶段 |
 |---:|---|---|---|---|---|---|
-| N-1 | `gre_neg_flat` | `spec_json` 含顶层 `count:2`（层链 + 旧键混用） | `no longer accepts flat config field count` | `protocol gre no longer accepts flat config field count (use a layers chain: …)` | `strategy_convert.go:8632-8636` | 建策略期 400 |
+| N-1 | `gre_neg_flat` | `spec_json` 含顶层 `count:2`（层链 + 旧键混用） | `rejects flat config field count` | `protocol gre rejects flat config field count (use a layers chain: …)` | `strategy_convert.go:8632-8636` | 建策略期 400 |
 | N-2 | `gre_neg_static_copy` | `strategy_fc{flows:2}` + 链上四元组全静态标量 | `static four-tuple` | `layers pin a static four-tuple but flows > 1: every flow would emit identical addresses/ports (static copy). …` | `schema/semantic.go:285` | 建策略期 400 |
 | N-3 | `gre_neg_dyn_key` | `gre{key:{strategy:"list", list:[100]}}` | `does not support dynamic` | `layers[1](gre).key does not support dynamic` | `validate_layers.go:1004` | 建策略期 400 |
 | N-4 | `gre_neg_inner_dyn` | 内层 `ip{src:{strategy:"list", list:["30.0.0.1","30.0.0.2"]}}` | `inner ip layer does not support dynamic` | `layers[2](ip).src: inner ip layer does not support dynamic (tunnel inner addresses are static; vary the outer ip layer instead)` | `validate_layers.go:1333`（**+ `layer_dyn.go:121` worker 兜底，同锚词**） | 建策略期 400 + worker 侧 |
@@ -437,7 +437,7 @@ RFC 2784 + RFC 2890（设计 §3 逐字段）+ IEEE 802.1Q §3（VLAN tag）+ RF
 | 3 | **非负例** `spec_json` 顶层键 == `{layers}`（**零游离键**；负例 `gre_neg_flat` 的 `count` 是判死对象，**白名单例外须显式列出**） | 设计 §12.1 |
 | 4 | 14 正例 `min_packets` ∈ `{1,2,9,18}` 且与链形一致（`[ip,gre,ip,udp,dns]`→1 或 2；`[ip,gre,ip,tcp,http]`→9 或 18） | 本契约 §3 |
 | 5 | 7 负例 `expect` 键 == `{expect_error, error_contains}`（**严格两键，无 `notes`**） | 本契约 §4 |
-| 6 | 负例 `error_contains` ∈ 代码锚词集 `{"no longer accepts flat config field count", "static four-tuple", "does not support dynamic", "inner ip layer does not support dynamic", "must be the same IP version"}` | 设计 §7 |
+| 6 | 负例 `error_contains` ∈ 代码锚词集 `{"rejects flat config field count", "static four-tuple", "does not support dynamic", "inner ip layer does not support dynamic", "must be the same IP version"}` | 设计 §7 |
 | 7 | `gre_neg_flat` 的 `spec_json` 含顶层 `count`（**唯一允许含旧键的例**，且该键是判死对象） | 设计 §12.1 |
 | 8 | 正例 `frames` 断言的 `offset` ∈ `{12,14,22,34,38,42,46,58,78,98}`（本协议全部合法偏移集，VLAN +4 档已含） | 本契约 §3 |
 | 9 | 每正例至少一条断言落在 GRE 头或其内层（`gre.*` field 或 frames offset ≥34） | 本契约 §3 |

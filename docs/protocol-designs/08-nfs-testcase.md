@@ -95,7 +95,7 @@
 
 | # | 红例 | 形状 | 期望锚词 | 现状 |
 |---|---|---|---|---|
-| ① | presence 负例（层链 + 顶层空子映射并存 = 判死，非残留） | `{"layers":[{"tcp":{}},{"nfs":{}}],"nfs":{}}` | 含 `top-level`（`no longer accepts a top-level nfs sub-config`） | 已落码：`nfs_neg_presence_top_level_nfs`（P6 修轮机核在案）/**0 缺** ⇒ 随 G-NFS-1 补 |
+| ① | presence 负例（层链 + 顶层空子映射并存 = 判死，非残留） | `{"layers":[{"tcp":{}},{"nfs":{}}],"nfs":{}}` | 含 `top-level`（`rejects a top-level nfs sub-config`） | 已落码：`nfs_neg_presence_top_level_nfs`（P6 修轮机核在案）/**0 缺** ⇒ 随 G-NFS-1 补 |
 | ② | 白名单外游离键判死（CORE_MEMORY §1.11–§1.13） | 顶层 `src_mac`（`checkLayerFlatConflict` 混用门）/ `ttl` 越界（`ValidateConfigRanges` shape 门）/ `count`（CheckProtoFlat） | 真实错误串原文（见 §5 修订行） | 已落码：`nfs_neg_stray_src_mac` / `nfs_neg_stray_ttl` / `nfs_neg_flat_count`（P6 修轮 M2 复形；门 2-1 豁免按锚词点名键名逐键覆盖）/**0 缺** ⇒ 随 G-NFS-1 补 |
 | ③ | 一切负例 `expect_error` 带错误锚词 | 30 例 | 各例真实错误串片段 | 已满足（30/30 机核） |
 | ④ | 收官自查行「非负例顶层键 = 0」 | 全文件扫描（`group_id` 为框架流绑定键，smb_tpos16x/gbt_t117 先例） | 已达成（`check_nfs` 顶层残留行 + 门 2-1 双绿） |

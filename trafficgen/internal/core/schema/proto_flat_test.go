@@ -19,25 +19,25 @@ func TestProtoFlatRejection(t *testing.T) {
 			name:     "sip flat src_ip",
 			protocol: "sip",
 			config:   map[string]any{"src_ip": "10.0.0.1", "sip": map[string]any{}},
-			wantSub:  "no longer accepts flat config field src_ip",
+			wantSub:  "rejects flat config field src_ip",
 		},
 		{
 			name:     "sip flat count",
 			protocol: "sip",
 			config:   map[string]any{"count": float64(1)},
-			wantSub:  "no longer accepts flat config field count",
+			wantSub:  "rejects flat config field count",
 		},
 		{
 			name:     "smb flat src_port",
 			protocol: "smb",
 			config:   map[string]any{"src_port": float64(12345)},
-			wantSub:  "no longer accepts flat config field src_port",
+			wantSub:  "rejects flat config field src_port",
 		},
 		{
 			name:     "mqtt flat dst_ip",
 			protocol: "mqtt",
 			config:   map[string]any{"dst_ip": "20.0.0.1"},
-			wantSub:  "no longer accepts flat config field dst_ip",
+			wantSub:  "rejects flat config field dst_ip",
 		},
 	}
 	for _, tc := range cases {
@@ -75,7 +75,7 @@ func TestProtoFlatBeatsStaticCopyMessage(t *testing.T) {
 	if len(errs) == 0 {
 		t.Fatal("want rejection")
 	}
-	if got := errs[0].Message; !strings.Contains(got, "no longer accepts flat config field") {
+	if got := errs[0].Message; !strings.Contains(got, "rejects flat config field") {
 		t.Fatalf("first error must be the flat rejection, got %q", got)
 	}
 }
@@ -103,7 +103,7 @@ func TestProtoFlat_FTPMessageLocked(t *testing.T) {
 	if len(errs) == 0 {
 		t.Fatal("want rejection")
 	}
-	if got := errs[0].Message; !strings.Contains(got, "protocol ftp no longer accepts flat config field src_ip") {
+	if got := errs[0].Message; !strings.Contains(got, "protocol ftp rejects flat config field src_ip") {
 		t.Fatalf("ftp message must stay locked, got %q", got)
 	}
 }
@@ -118,7 +118,7 @@ func TestProtoFlat_TopHTTPSubConfigRejected(t *testing.T) {
 			if len(errs) == 0 {
 				t.Fatalf("want top-level http rejection for %s, got clean", proto)
 			}
-			if !strings.Contains(errs.Error(), "no longer accepts a top-level http sub-config") {
+			if !strings.Contains(errs.Error(), "rejects a top-level http sub-config") {
 				t.Fatalf("want top-http anchor, got %v", errs)
 			}
 		})
@@ -138,7 +138,7 @@ func TestProtoFlat_TopRawWrapSubConfigRejected(t *testing.T) {
 			if len(errs) == 0 {
 				t.Fatalf("want top-level %s rejection (layers+sub-config mix), got clean", proto)
 			}
-			if !strings.Contains(errs.Error(), "no longer accepts a top-level "+proto+" sub-config") {
+			if !strings.Contains(errs.Error(), "rejects a top-level "+proto+" sub-config") {
 				t.Fatalf("want top-"+proto+" anchor, got %v", errs)
 			}
 		})

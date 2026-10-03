@@ -1819,8 +1819,8 @@ v1.0/v1.1 修复 39 项审计问题，但深度对抗审计发现 26 项新问�
 
 | # | 负例形状 | 目标锚词 | 目标用例 |
 |---|---|---|---|
-| ① | **层链 + 顶层空子映射并存**（判死负例，非残留）：`{"layers":[{"ip":{}},{"tcp":{}},{"doip":{}}],"doip":{}}` | `no longer accepts a top-level doip sub-config` | **`doip_neg_flat_toplevel`**（**今天不成立**：`CheckProtoFlat` `strategy_convert.go:8273-8517` 无 `doip` 分支 → **G-DOIP-5**） |
-| ② | 白名单外游离键（§1.11）：顶层 `src_ip`/`dst_ip`/`src_port`/`dst_port`/`count`/`dst_mac`/`tcp` 任一 | 前五键走通用文案 `no longer accepts flat config field <k>`（`strategy_convert.go:8286-8293`）；`dst_mac`/`tcp` 无对应检查 → 同 **G-DOIP-5** 族 | **`doip_neg_flat_field`** |
+| ① | **层链 + 顶层空子映射并存**（判死负例，非残留）：`{"layers":[{"ip":{}},{"tcp":{}},{"doip":{}}],"doip":{}}` | `rejects a top-level doip sub-config` | **`doip_neg_flat_toplevel`**（**今天不成立**：`CheckProtoFlat` `strategy_convert.go:8273-8517` 无 `doip` 分支 → **G-DOIP-5**） |
+| ② | 白名单外游离键（§1.11）：顶层 `src_ip`/`dst_ip`/`src_port`/`dst_port`/`count`/`dst_mac`/`tcp` 任一 | 前五键走通用文案 `rejects flat config field <k>`（`strategy_convert.go:8286-8293`）；`dst_mac`/`tcp` 无对应检查 → 同 **G-DOIP-5** 族 | **`doip_neg_flat_field`** |
 | ③ | 全部负例 `expect_error` 带错误锚词（方案 §2 链级红例清单③） | 见 testcase §4 逐行锚词 | `doip_neg_activation_denied`…`doip_neg_ack_code_reserved` |
 | ④ | 收官自查行「**非负例顶层键 = 0**」 | 程序化扫描：正例 `spec_json` 顶层键 ⊆ {`layers`,`flow_control`,`group_id`,`tuples`,`output`} | §18.5 自查命令 |
 
@@ -1879,8 +1879,8 @@ v1.0/v1.1 修复 39 项审计问题，但深度对抗审计发现 26 项新问�
 |---|---|---|---|
 | E1 | 层内未知键 | `layers: layer "doip": unknown field "x"` | `complete.go:282-296` |
 | E2 | 层内字段写动态对象 | `<where> does not support dynamic` | `validate_layers.go:355-370` |
-| E3 | 顶层 `doip` 子映射（`doip_tcp_diag_uds_read_write_did` 后） | `no longer accepts a top-level doip sub-config` → 文案以 `CheckProtoFlat` 新分支为准 | `strategy_convert.go:8273+`（**新增**） |
-| E4 | 顶层 `src_ip` 等旧键 | `no longer accepts flat config field src_ip` | `strategy_convert.go:8286-8293`（既有） |
+| E3 | 顶层 `doip` 子映射（`doip_tcp_diag_uds_read_write_did` 后） | `rejects a top-level doip sub-config` → 文案以 `CheckProtoFlat` 新分支为准 | `strategy_convert.go:8273+`（**新增**） |
+| E4 | 顶层 `src_ip` 等旧键 | `rejects flat config field src_ip` | `strategy_convert.go:8286-8293`（既有） |
 | E5 | `discovery`/`entity_status`/`power_mode` 非 nil | `doip: discovery (UDP) is not supported on the layer chain (tcp only)` | `layer_gen.go:288-296` |
 | E6 | 激活失败（RC 0x00–0x07、0x11 无确认） | `doip: activation failed (response_code 0xNN) is not supported on the layer chain (tcp layer takes over teardown)` | `layer_gen.go:297-306` |
 | E7 | `messages` 无 `activation` | `doip: Messages require Activation (diagnostic messages need routing activation first)` | `doip.go:138-140` |

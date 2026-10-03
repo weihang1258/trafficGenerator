@@ -133,7 +133,7 @@ func TestPIMChain_PresenceRejected(t *testing.T) {
 	if msg == "" {
 		t.Fatal(`CheckProtoFlat(pim, {layers, pim:{}}) = "", want top-level pim presence rejection`)
 	}
-	if !strings.Contains(msg, "no longer accepts a top-level pim sub-config") {
+	if !strings.Contains(msg, "rejects a top-level pim sub-config") {
 		t.Fatalf("anchor mismatch: %q", msg)
 	}
 }

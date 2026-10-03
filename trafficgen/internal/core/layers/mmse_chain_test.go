@@ -178,8 +178,8 @@ func TestMMSEChain_FlatPresenceRejected(t *testing.T) {
 	if msg == "" {
 		t.Fatal(`CheckProtoFlat(mmse, {layers, mmse:{}}) = "", want top-level mmse presence rejection`)
 	}
-	if !strings.Contains(msg, "no longer accepts a top-level mmse sub-config") {
-		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `no longer accepts a top-level mmse sub-config`", msg)
+	if !strings.Contains(msg, "rejects a top-level mmse sub-config") {
+		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `rejects a top-level mmse sub-config`", msg)
 	}
 }
 

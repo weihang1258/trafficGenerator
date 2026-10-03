@@ -169,7 +169,7 @@
 
 ### 4.3 未入用例的拒绝分支（A′ 立项，不得冒充已覆盖）
 
-`invalid source IP` / `invalid destination IP` / `invalid AltPath.SrcIP`（分支 1/2/3）/ AltPath.DstIP IPv6 与不可解析（分支 6/7）/ 同族约束两分支（分支 5/8）/ `sctp.fragment_size=%d is below minimum`（**分支 9 层内不可达**——registry V9 [16,1e6] 先拦，1–15 落 V9、显式 0 过 V9 且 planner 跳过、负值落 V9 not-a-number）；**顶层 sctp presence 判死**（`no longer accepts a top-level sctp sub-config`，今日已接线无用例）。全部 G-SCTP-14/G-SCTP-7。
+`invalid source IP` / `invalid destination IP` / `invalid AltPath.SrcIP`（分支 1/2/3）/ AltPath.DstIP IPv6 与不可解析（分支 6/7）/ 同族约束两分支（分支 5/8）/ `sctp.fragment_size=%d is below minimum`（**分支 9 层内不可达**——registry V9 [16,1e6] 先拦，1–15 落 V9、显式 0 过 V9 且 planner 跳过、负值落 V9 not-a-number）；**顶层 sctp presence 判死**（`rejects a top-level sctp sub-config`，今日已接线无用例）。全部 G-SCTP-14/G-SCTP-7。
 
 ## 5. 覆盖与对账
 

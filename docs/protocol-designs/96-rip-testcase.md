@@ -338,7 +338,7 @@ ID 前缀即 T 编号（§2 表末行）：`rip_tposN_*` ≡ T-POS-N；`rip_tedg
 | 10 | SrcPort 不静态默认化 | `chain_planner.go:913` 含 `case "rip":`（保持 0） | 绿 |
 | 11 | isRIPChain 豁免 | `chain_planner_util.go:161` 含 `isRIPChain` 且 `applySpecToChain` ip 分支引用 | 绿 |
 | 12 | generated schema rip 条目同代 | `layers.generated.json` 的 `rip.depends_on == ["udp"]` | 绿 |
-| 13 | CheckProtoFlat 顶层 rip presence 判死（G-RIP-3 落码后） | `strategy_convert.go` 含 `protocol rip no longer accepts a top-level rip sub-config` | **红**（`grep -c` = 0；探针 presence 形 errs=0） |
+| 13 | CheckProtoFlat 顶层 rip presence 判死（G-RIP-3 落码后） | `strategy_convert.go` 含 `protocol rip rejects a top-level rip sub-config` | **红**（`grep -c` = 0；探针 presence 形 errs=0） |
 | 14 | 顶层 rip presence 零残留（非负例） | 无「有 `layers` + 顶层 `rip` dict + 非 `expect_error`」的例；存量 **52 例命中** | **红**（待代码阶段收敛） |
 | 15 | 正例顶层键白名单（§1.11/§1.13 判据：非负例顶层键 = 0） | 非负例顶层键 ⊆ `{layers, strategy_fc, ttl, flow_control, output, output_config, group_id}`；存量 **178 处残留**（`count` 52 / `rip` 52 / `src_port` 52 / `dst_ip` 12 / `src_ip` 5 / `dst_port` 5） | **红**（待代码阶段收敛） |
 | 16 | 命令 × 版本 × 认证矩阵 | cases 中命令/版本/认证取值组合 ⊇ 设计 §10.2 已覆 7 格 | 绿（除 `rip_ripng_request` 立项） |

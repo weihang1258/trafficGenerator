@@ -95,7 +95,7 @@ func TestDRDAChain_PresenceAndStrayTopLevelKeys(t *testing.T) {
 	}
 	if msg := core.CheckProtoFlat("drda", cfg); msg == "" {
 		t.Fatal("CheckProtoFlat(drda, {layers, drda:{}}) = \"\", want top-level drda presence rejection")
-	} else if !strings.Contains(msg, "no longer accepts a top-level drda sub-config") {
+	} else if !strings.Contains(msg, "rejects a top-level drda sub-config") {
 		t.Fatalf("CheckProtoFlat msg = %q", msg)
 	}
 	for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port", "count"} {

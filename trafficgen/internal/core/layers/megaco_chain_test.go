@@ -57,8 +57,8 @@ func TestMegacoChain_FlatPresenceRejected(t *testing.T) {
 	if msg == "" {
 		t.Fatal(`CheckProtoFlat(megaco, {layers, megaco:{}}) = "", want top-level megaco presence rejection`)
 	}
-	if !strings.Contains(msg, "no longer accepts a top-level megaco sub-config") {
-		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `no longer accepts a top-level megaco sub-config`", msg)
+	if !strings.Contains(msg, "rejects a top-level megaco sub-config") {
+		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `rejects a top-level megaco sub-config`", msg)
 	}
 }
 

@@ -13,7 +13,7 @@ func TestMapToFlowSpec_TopTFTPSubConfigRejected(t *testing.T) {
 	}, "tftp")
 	found := false
 	for _, e := range spec.ValidationErrors {
-		if containsSub(e, "no longer accepts a top-level tftp sub-config") {
+		if containsSub(e, "rejects a top-level tftp sub-config") {
 			found = true
 		}
 	}
@@ -24,7 +24,7 @@ func TestMapToFlowSpec_TopTFTPSubConfigRejected(t *testing.T) {
 	spec = mapToFlowSpec(map[string]any{"tftp": map[string]any{}}, "tftp")
 	found = false
 	for _, e := range spec.ValidationErrors {
-		if containsSub(e, "no longer accepts a top-level tftp sub-config") {
+		if containsSub(e, "rejects a top-level tftp sub-config") {
 			found = true
 		}
 	}

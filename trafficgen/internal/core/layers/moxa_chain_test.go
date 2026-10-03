@@ -102,7 +102,7 @@ func TestMOXAChain_PresenceAndStrayTopLevelKeys(t *testing.T) {
 	}
 	if msg := core.CheckProtoFlat("moxa", cfg); msg == "" {
 		t.Fatal("CheckProtoFlat(moxa, {layers, moxa:{}}) = \"\", want presence rejection")
-	} else if !strings.Contains(msg, "no longer accepts a top-level moxa sub-config") {
+	} else if !strings.Contains(msg, "rejects a top-level moxa sub-config") {
 		t.Fatalf("CheckProtoFlat msg = %q", msg)
 	}
 	// 层链形状（无顶层 moxa 子映射）不触发。
@@ -112,7 +112,7 @@ func TestMOXAChain_PresenceAndStrayTopLevelKeys(t *testing.T) {
 	// 白名单外游离顶层键判死（rtmfp 先例锚词逐字）。
 	for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port", "count"} {
 		bad := map[string]interface{}{"layers": layersArr, k: 1}
-		if msg := core.CheckProtoFlat("moxa", bad); !strings.Contains(msg, "no longer accepts flat config field "+k) {
+		if msg := core.CheckProtoFlat("moxa", bad); !strings.Contains(msg, "rejects flat config field "+k) {
 			t.Fatalf("CheckProtoFlat(moxa, {layers, %s}) = %q", k, msg)
 		}
 	}

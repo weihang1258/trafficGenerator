@@ -40,7 +40,7 @@
 
 | 形状 | create | 说明 |
 |---|---|---|
-| 存量：`layers` 空壳 + 五键 + 顶层 `pcep` | ❌ **400 ×24/24** | `protocol pcep no longer accepts flat config field src_ip …`（`:8632`） |
+| 存量：`layers` 空壳 + 五键 + 顶层 `pcep` | ❌ **400 ×24/24** | `protocol pcep rejects flat config field src_ip …`（`:8632`） |
 | `layers` 空壳 + 顶层 `pcep`（**去五键**） | ✅ 24/24 可用 | `spec.PCEP` 已填、可出包（引擎路径 `MapToFlowSpec` `ValidationErrors` 空） |
 | 仅顶层 `pcep`（无 `layers`） | ✅ 24/24 可用 | 同上 |
 | 纯层链 `[ip,tcp,pcep]` 带 `events` | ❌ 0/24 | `layers: layer "pcep": unknown field "events"`（`complete.go:291-293`） |
@@ -604,7 +604,7 @@ print('全24例残留', sum(len(set(c['spec_json'])-WL) for c in d))
 ```go
 // A 存量 = layers空壳 + 五键 + 顶层 pcep
 schema.ValidateStrategy("synth","pcep",spec,nil)   // → reject 24/24
-core.CheckProtoFlat("pcep", spec)                  // → "protocol pcep no longer accepts flat config field src_ip (…)"
+core.CheckProtoFlat("pcep", spec)                  // → "protocol pcep rejects flat config field src_ip (…)"
 // B layers空壳 + 顶层 pcep（去五键）  → accept 24/24
 // C 仅顶层 pcep（无 layers）          → accept 24/24
 // D 纯层链 [ip,tcp,pcep] 带 events    → reject 0/24 ; firstErr "layers: layer "pcep": unknown field "events""

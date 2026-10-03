@@ -45,8 +45,8 @@ func TestDNSChain_FlatPresenceRejected(t *testing.T) {
 	if msg := core.CheckProtoFlat("dns", cfg); msg == "" {
 		t.Fatal("CheckProtoFlat(dns, {layers, dns:{}}) = \"\", want top-level dns presence rejection")
 	}
-	if msg := core.CheckProtoFlat("dns", cfg); !strings.Contains(msg, "no longer accepts a top-level dns sub-config") {
-		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `no longer accepts a top-level dns sub-config`", msg)
+	if msg := core.CheckProtoFlat("dns", cfg); !strings.Contains(msg, "rejects a top-level dns sub-config") {
+		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `rejects a top-level dns sub-config`", msg)
 	}
 }
 

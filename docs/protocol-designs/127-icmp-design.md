@@ -232,7 +232,7 @@ legacy Plan 产 reply 时已完成 L3 地址换向并置 `Direction="down"`（ic
 |---:|---|---|---|---|
 | N-1 | `icmp_t5_neg_type` | `icmp.type=3` | 层 validator（layer_gen.go:64-66，translate 后判） | `icmp type must be 8 (Echo Request) or 0 (Echo Reply), got 3` |
 | N-2 | `icmp_t6_neg_code` | `icmp.code=1` | 层 validator（:67-69） | `icmp code must be 0 for Echo, got 1` |
-| N-3 | `icmp_t7_neg_presence` | 层链 + 顶层 `icmp:{}` 并存 | **create-time**：schema.ValidateStrategy → `CheckProtoFlat` rawWrapChains（semantic.go:130 → strategy_convert.go:9100/9107-9111；batch 路径 convert.go:166 同门） | `no longer accepts a top-level icmp` |
+| N-3 | `icmp_t7_neg_presence` | 层链 + 顶层 `icmp:{}` 并存 | **create-time**：schema.ValidateStrategy → `CheckProtoFlat` rawWrapChains（semantic.go:130 → strategy_convert.go:9100/9107-9111；batch 路径 convert.go:166 同门） | `rejects a top-level icmp` |
 | N-4 | `icmp_t8_neg_static_copy` | ip 层显式标量 + `strategy_fc flows=2` | **create-time**：schema.ValidateStrategy → `checkLayerChainStaticCopy`（semantic.go:142→:285；仅 fc.Type=flows 且 >1 触发） | `static four-tuple` |
 
 **N-3/N-4 的引擎直调缝（今日探针实证，G-ICMP-4）**：`MapToFlowSpec` 对 icmp **无** ValidationErrors 分支（顶层 `icmp` 子映射在 universal 段 :455 先于 translate 填 `spec.ICMP`，层配置被静默顶掉——F1 混搭缝同构），`ChainPlanner` 无 static-copy 背 door；故离线链执行器（直调 `Engine.SubmitTask`）实测 t7/t8 失守。生产 MCP 路径（strategy create 过 schema 门）两门均在，存量 0 行（D-ICMP-1 P6 清库对账平）风险低——**登记不修，等框架级引擎侧门**。

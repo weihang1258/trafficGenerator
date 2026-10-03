@@ -13,7 +13,7 @@ func TestMapToFlowSpec_TopGBT32960SubConfigRejected(t *testing.T) {
 	}, "gbt32960")
 	n := 0
 	for _, e := range spec.ValidationErrors {
-		if containsSub(e, "no longer accepts a top-level gbt32960 sub-config") {
+		if containsSub(e, "rejects a top-level gbt32960 sub-config") {
 			n++
 		}
 	}
@@ -24,7 +24,7 @@ func TestMapToFlowSpec_TopGBT32960SubConfigRejected(t *testing.T) {
 	spec = mapToFlowSpec(map[string]any{"gbt32960": map[string]any{}}, "gbt32960")
 	n = 0
 	for _, e := range spec.ValidationErrors {
-		if containsSub(e, "no longer accepts a top-level gbt32960 sub-config") {
+		if containsSub(e, "rejects a top-level gbt32960 sub-config") {
 			n++
 		}
 	}

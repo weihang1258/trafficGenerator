@@ -489,7 +489,7 @@ RFC 6120/6121 定义的非法转移，在本实现的配置面逐条判定如下
 
 ### 12-P2 判死负例形状（链级红例必含清单①③④）
 
-- ① presence 形状 `{"layers":[…],"xmpp":{}}` 今日**会被拒**（`CheckProtoFlat` rawWrapChains 含 xmpp，`strategy_convert.go:9098`，锚词 `protocol xmpp no longer accepts a top-level xmpp sub-config (move it into the xmpp layer of a [ip,xmpp] layers chain)`）→ **能力在案但零用例**：P4 可建该负例（与 opcua/thrift 的"建了会假绿"相反——本协议判死已接线，建例即真红），A′ 立项 G-XMPP-6。② 白名单外游离键判死（`unknown field`）今日**无通用门** → 不建（G-XMPP-6，与 moxa G-MOXA-2 同款）。③ 2 负例每条带锚词（已齐，§7）。④ 收官自查「非负例顶层键 = 0」**今日已成立**（§12.1）。
+- ① presence 形状 `{"layers":[…],"xmpp":{}}` 今日**会被拒**（`CheckProtoFlat` rawWrapChains 含 xmpp，`strategy_convert.go:9098`，锚词 `protocol xmpp rejects a top-level xmpp sub-config (move it into the xmpp layer of a [ip,xmpp] layers chain)`）→ **能力在案但零用例**：P4 可建该负例（与 opcua/thrift 的"建了会假绿"相反——本协议判死已接线，建例即真红），A′ 立项 G-XMPP-6。② 白名单外游离键判死（`unknown field`）今日**无通用门** → 不建（G-XMPP-6，与 moxa G-MOXA-2 同款）。③ 2 负例每条带锚词（已齐，§7）。④ 收官自查「非负例顶层键 = 0」**今日已成立**（§12.1）。
 
 ### 12.3 §3 强制展开：五件套
 

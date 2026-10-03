@@ -10920,7 +10920,7 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "no longer accepts a top-level nfs sub-config"
+   "error_contains": "rejects a top-level nfs sub-config"
   }
  },
  {
@@ -10947,7 +10947,7 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "no longer accepts flat config field count"
+   "error_contains": "rejects flat config field count"
   }
  },
  {

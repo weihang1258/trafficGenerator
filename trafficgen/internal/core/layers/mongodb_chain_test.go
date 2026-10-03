@@ -271,7 +271,7 @@ func TestMongoDBChain_PresenceRejected(t *testing.T) {
 	if msg == "" {
 		t.Fatal("CheckProtoFlat(mongodb, {layers, mongodb:{}}) = \"\", want presence rejection")
 	}
-	if !strings.Contains(msg, "no longer accepts a top-level mongodb sub-config") {
+	if !strings.Contains(msg, "rejects a top-level mongodb sub-config") {
 		t.Fatalf("CheckProtoFlat msg = %q", msg)
 	}
 }

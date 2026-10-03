@@ -281,7 +281,7 @@ DATA 阶段的语义：客户端发 `DATA` → 服务端回 `354` → 客户端�
 
 | # | 负例 ID | 故障输入 | 锚词（`error_contains`） | 归属门 | 代码行 |
 |---:|---|---|---|---|---|
-| N-1 | `smtp_t002_top_smtp_presence_reject` | 层链 + 顶层 `smtp:{}` 并存 | `no longer accepts a top-level smtp sub-config` | 框架 `CheckProtoFlat` | `strategy_convert.go:8830-8833` |
+| N-1 | `smtp_t002_top_smtp_presence_reject` | 层链 + 顶层 `smtp:{}` 并存 | `rejects a top-level smtp sub-config` | 框架 `CheckProtoFlat` | `strategy_convert.go:8830-8833` |
 | N-2 | `smtp_t019_bad_srcip_reject` | `ip.dst = "not-an-ip"` | `invalid IP address: not-an-ip` | 框架 ip 层 | `convert.go:55` |
 | N-3 | `smtp_t020_mss_reject` | `tcp.mss = 100` | `out of range [536,65535]` | 框架 tcp 层 V9 范围门 | `layers/complete.go:325` |
 | N-4 | `smtp_t021_boundary_reject` | multipart + `boundary` 71 字符 | `Boundary` | smtp planner | `mime.go:344` |
@@ -586,7 +586,7 @@ smtp planner 4 种拒绝（`planner.go:87`/`:92`/`:99` + `mime.go:344`/`:347`/`:
 
 **结论**：本协议存量 **42/43 顶层零残留**——§1 门的动作 = ①**无旧键可删**；②收官自查行「**非负例**顶层键 = 0」**今日即成立**（机读实测：唯一带顶层键的例是判死负例）；③A′ 新增例全部沿用纯 layers 形。
 
-**presence 负例形状（必点名，设计 §12-P2）**：`smtp_t002_top_smtp_presence_reject` 的 `spec_json` = **层链 + 顶层空子映射并存**（`{"layers":[ip,tcp,smtp], "smtp":{}}`）——这是**判死负例**，不是旧键残留。锚词 `no longer accepts a top-level smtp sub-config`（`strategy_convert.go:8832`），**空 map 也死**（与 mqtt/dns/cwmp 同款）。
+**presence 负例形状（必点名，设计 §12-P2）**：`smtp_t002_top_smtp_presence_reject` 的 `spec_json` = **层链 + 顶层空子映射并存**（`{"layers":[ip,tcp,smtp], "smtp":{}}`）——这是**判死负例**，不是旧键残留。锚词 `rejects a top-level smtp sub-config`（`strategy_convert.go:8832`），**空 map 也死**（与 mqtt/dns/cwmp 同款）。
 
 目标形状样例见 §2（顶层仅 `layers`）。
 

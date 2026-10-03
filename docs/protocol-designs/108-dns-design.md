@@ -286,7 +286,7 @@ wire   = 07 'example' 03 'com' 00             # 13 字节
 
 | # | 负例 ID | 故障输入 | 代码锚词 | 代码行 | 拒绝层 |
 |---:|---|---|---|---|---|
-| N-1 | `dns_neg_flat` | 顶层 `dns` 子映射 presence（**空 map 也死**） | `no longer accepts a top-level dns sub-config` | `strategy_convert.go:8650-8654` | CheckProtoFlat（schema 400） |
+| N-1 | `dns_neg_flat` | 顶层 `dns` 子映射 presence（**空 map 也死**） | `rejects a top-level dns sub-config` | `strategy_convert.go:8650-8654` | CheckProtoFlat（schema 400） |
 | N-2 | `dns_neg_static_copy` | `flows=2` + 全静态四元组 | `static four-tuple` | `complete.go` 静态复制门 | ValidateLayers |
 | N-3 | `dns_neg_tcp` | 层内 `transport:"tcp"` | `tcp transport not supported` | `layer_gen.go:114` | 层校验器（`RegisterLayerValidator`） |
 | N-4 | `dns_neg_rcode` | `response_code:16`（4 位上限 15） | `out of range [0,15]` | `complete.go:325`（V9 范围门，schema `Max:15`） | ValidateLayers |

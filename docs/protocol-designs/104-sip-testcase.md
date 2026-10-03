@@ -386,7 +386,7 @@
 
 | ID | 故障输入 | JSON `error_contains` | 代码文案（逐字） | 代码行 |
 |---|---|---|---|---|
-| `sip_flat_presence` | 顶层 `"sip": {}`（空 map） | `top-level sip sub-config` | `protocol sip no longer accepts a top-level sip sub-config (move it into the sip layer of an [ip,sip] layers chain)` | `strategy_convert.go:8970` |
+| `sip_flat_presence` | 顶层 `"sip": {}`（空 map） | `top-level sip sub-config` | `protocol sip rejects a top-level sip sub-config (move it into the sip layer of an [ip,sip] layers chain)` | `strategy_convert.go:8970` |
 | `sip_flat_static_port` | `[ip{}, sip{src_port:12001,dst_port:5060}]` + `flows=2` | `static four-tuple` | `layers pin a static four-tuple but flows > 1: every flow would emit identical addresses/ports (static copy). Write the varying field as a dynamic object inside its layer (ip.src/ip.dst, tcp/udp src_port/dst_port)` | `semantic.go:285` |
 | `sip_neg_sessions_dialog_mutex` | `sip{dialog:[…], sessions:[…]}` | `sip: sessions and dialog are mutually exclusive` | `sip: sessions and dialog are mutually exclusive (use sessions for the multi-session shape, dialog for the single-dialog shorthand)` | `semantic.go:311` + `sip.go:110` |
 | `sip_neg_sessions_empty` | `sip{sessions: []}` | 同 N-3 | 同 N-3 | `semantic.go:314` |

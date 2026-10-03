@@ -480,7 +480,7 @@ banner?（1 帧，down）
 | N-1 | `imap_t050_utf8_off_reject` | `allow_utf8_mailbox=false` + `cmd` 含 `日本語` | `imap: Commands[%d].Cmd %q contains non-ASCII bytes; set AllowUTF8Mailbox=true or encode as Modified UTF-7 per RFC 3501 §5.1.3 (C-IMAP-1.7)` | `planner.go:194` |
 | N-2 | `imap_t053_mss_reject` | `tcp.mss = 100` | `layers: layer %q field %q = %v invalid: out of range [%d,%d]`（tcp 层 schema 门，`mss` Min 536 Max 65535） | `complete.go:325` + `registry.go:68` |
 | N-3 | `imap_t063_bad_ip_reject` | `ip.dst = "not-an-ip"` | `invalid IP address: not-an-ip`（框架 `core.ParseIP`） | `convert.go:55` |
-| N-4 | `imap_t064_presence_reject` | 层链 + **顶层 `imap: {}` 并存** | `protocol imap no longer accepts a top-level imap sub-config (move it into the imap layer of an [ip,tcp,imap] layers chain)` | `strategy_convert.go:8893` |
+| N-4 | `imap_t064_presence_reject` | 层链 + **顶层 `imap: {}` 并存** | `protocol imap rejects a top-level imap sub-config (move it into the imap layer of an [ip,tcp,imap] layers chain)` | `strategy_convert.go:8893` |
 | N-5 | `imap_t065_static_pinned_reject` | 显式标量四元组 + `flows=2` + 无动态逃生 | `layers pin a static four-tuple but flows > 1: every flow would emit identical addresses/ports (static copy). …` | `schema/semantic.go:285` |
 | N-6 | `imap_t072_tag_space_reject` | `tag: "A 001"` | `imap: Commands[%d].Tag %q contains SP/CRLF (RFC 9051 §2.2.1)` | `planner.go:179` |
 | N-7 | `imap_t066_tag_toolong_reject` | `tag` 257 字节 | `imap: Commands[%d].Tag length %d exceeds max %d (RFC 9051 §2.2.1)` | `planner.go:174` |
@@ -921,7 +921,7 @@ banner?（1 帧，down）
 
 ### 12-P2 判死负例形状（链级红例必含清单①③④）
 
-- ① **presence 形状** `{"layers":[…],"imap":{}}` **今日会被拒**——`CheckProtoFlat` **有 imap 分支**（`strategy_convert.go:8889-8894`，`grep` 实测存在），锚词 `protocol imap no longer accepts a top-level imap sub-config`。**`imap_t064_presence_reject` 即此形状**（`{"layers":[…],"imap":{}}`，机读实测），且**空 map 也死**（代码 `v != nil` 判定，`{}` 非 nil）→ **已建例且真红** ✓
+- ① **presence 形状** `{"layers":[…],"imap":{}}` **今日会被拒**——`CheckProtoFlat` **有 imap 分支**（`strategy_convert.go:8889-8894`，`grep` 实测存在），锚词 `protocol imap rejects a top-level imap sub-config`。**`imap_t064_presence_reject` 即此形状**（`{"layers":[…],"imap":{}}`，机读实测），且**空 map 也死**（代码 `v != nil` 判定，`{}` 非 nil）→ **已建例且真红** ✓
 - ② 白名单外游离键判死（`unknown field`）：**今日无通用门** → 不建该负例（建了会真绿 = 假通过）→ 缺口 G-IMAP-16。
 - ③ 19 负例**每条带锚词**（已齐，§7）。
 - ④ 收官自查「非负例顶层键 = 0」**今日已成立**（§12.1）。

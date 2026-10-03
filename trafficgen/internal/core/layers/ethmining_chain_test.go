@@ -187,18 +187,18 @@ func TestEthminingChain_PresenceAndStrayTopLevelKeys(t *testing.T) {
 	if msg == "" {
 		t.Fatal("CheckProtoFlat(ethmining, {layers, ethmining:{}}) = \"\", want presence rejection")
 	}
-	if !strings.Contains(msg, "no longer accepts a top-level ethmining sub-config") {
+	if !strings.Contains(msg, "rejects a top-level ethmining sub-config") {
 		t.Fatalf("CheckProtoFlat msg = %q", msg)
 	}
 	spec := core.MapToFlowSpec(cfg, "ethmining")
 	joined := strings.Join(spec.ValidationErrors, "; ")
-	if !strings.Contains(joined, "no longer accepts a top-level ethmining sub-config") {
+	if !strings.Contains(joined, "rejects a top-level ethmining sub-config") {
 		t.Fatalf("presence must be wired into ValidationErrors (存量行启动执法), got %q", joined)
 	}
 	// 白名单外游离键（flat 五键）逐键判死。
 	for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port", "count"} {
 		bad := map[string]interface{}{"layers": cfg["layers"], k: 1}
-		if got := core.CheckProtoFlat("ethmining", bad); !strings.Contains(got, "no longer accepts flat config field "+k) {
+		if got := core.CheckProtoFlat("ethmining", bad); !strings.Contains(got, "rejects flat config field "+k) {
 			t.Fatalf("CheckProtoFlat(ethmining, {layers, %s}) = %q, want flat-field rejection", k, got)
 		}
 	}

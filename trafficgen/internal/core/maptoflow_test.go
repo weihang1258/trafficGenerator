@@ -3266,7 +3266,7 @@ func TestMapToFlowSpec_TopHTTPSubConfigRejected(t *testing.T) {
 			}, proto)
 			found := false
 			for _, e := range spec.ValidationErrors {
-				if containsSub(e, "no longer accepts a top-level http sub-config") {
+				if containsSub(e, "rejects a top-level http sub-config") {
 					found = true
 				}
 			}
@@ -3278,7 +3278,7 @@ func TestMapToFlowSpec_TopHTTPSubConfigRejected(t *testing.T) {
 	// 非 http 族：tftp 顶层 http 不走此门（V20 门仍在 planner 侧）。
 	spec := mapToFlowSpec(map[string]any{"http": map[string]any{"method": "GET"}}, "tftp")
 	for _, e := range spec.ValidationErrors {
-		if containsSub(e, "no longer accepts a top-level http sub-config") {
+		if containsSub(e, "rejects a top-level http sub-config") {
 			t.Fatalf("non-family tftp must not hit top-http gate, got %v", spec.ValidationErrors)
 		}
 	}

@@ -11,7 +11,7 @@
 
 用例从设计 §3（线格式）、§5（事务）、§7（错误锚词）逐项派生。**一个用例只验证一个协议行为**。依据链：首先是 v2fly 官方 VMess/Mux.Cool 规范（本协议无 RFC，规范语义以 v2fly 开发者文档为准，设计 §3.8 已钉差异），其次是设计文档具体化决策——**凡实现偏离 spec 处（G-VMESS-2/3），断言以实现为权威并显式标注"实现口径"**，不得写 spec 原文当断言。
 
-**存量形状基线（2026-09-29 机读实测）**：1/1 例顶层键 = `{expect,id,proto,spec_json,summary}`；`spec_json` 顶层 = **`{count,dst_ip,dst_port,src_ip,src_port,vmess}`（扁平 6 键，无 layers）**——判死提交 `0417be5` 后 schema 层 400（锚词 `no longer accepts flat config field src_ip`，本车道探针实测）→ **存量 1 例今日不可创建**；`expect` 键 = `{fields×8, frames×1, has_handshake, has_payload, negotiated, notes×3, packet_count, terminates}`。
+**存量形状基线（2026-09-29 机读实测）**：1/1 例顶层键 = `{expect,id,proto,spec_json,summary}`；`spec_json` 顶层 = **`{count,dst_ip,dst_port,src_ip,src_port,vmess}`（扁平 6 键，无 layers）**——判死提交 `0417be5` 后 schema 层 400（锚词 `rejects flat config field src_ip`，本车道探针实测）→ **存量 1 例今日不可创建**；`expect` 键 = `{fields×8, frames×1, has_handshake, has_payload, negotiated, notes×3, packet_count, terminates}`。
 
 **目标形状基线（P4 落地后）**：全部例 `spec_json` 顶层仅 `{layers}`（+ 可选 `flow_control`）；层链 `[ip,tcp,vmess]`；10 正例带 `packet_count`；负例 `expect` 严格 `{expect_error, error_contains}` 两键。⚠️ 纯层链今日不可跑（`vmess` 层 Fields 空 + 无 translate 分支，G-VMESS-4）——目标形状是 **P4 接线后**的可提交形状。
 
@@ -104,7 +104,7 @@
 | 43 | `vmess_neg_udp_on_chain` | command=2 | `not supported on the layer chain` | layer_gen.go:214 |
 | 44 | `vmess_neg_empty_layer` | `[tcp,vmess{}]` 纯层链空配置 | `VmessConfig is required` | planner.go:181 |
 
-**负例纯净性**：每例 `expect` 严格 `{expect_error, error_contains}` 两键；执行期零成功包。形状级拒绝（扁平五键 `no longer accepts flat config field`、层内 unknown field）属 schema 面不设协议负例（§1 形状基线；G-VMESS-5 presence 不可建）。
+**负例纯净性**：每例 `expect` 严格 `{expect_error, error_contains}` 两键；执行期零成功包。形状级拒绝（扁平五键 `rejects flat config field`、层内 unknown field）属 schema 面不设协议负例（§1 形状基线；G-VMESS-5 presence 不可建）。
 
 ## 5. 覆盖与对账（存量口径）
 
@@ -152,7 +152,7 @@ v2fly 官方 VMess/Mux.Cool 规范（设计 §3.8 差异表已校准）+ D-VMESS
 
 ### 8.1 存量实测面（2026-09-29）
 
-`cases/vmess.json` 1 例：正例带 `packet_count=11`（公式 ✓）；**spec_json 顶层扁平 6 键**（schema 400，探针实测锚词 `no longer accepts flat config field src_ip`）；expect 8 键含 `notes`；8 条 fields + 1 条 frames 与公式/发射序**全部自洽**（帧长 61/18/54/18、flags 序、版本字节——仅 notes 文案失实）。
+`cases/vmess.json` 1 例：正例带 `packet_count=11`（公式 ✓）；**spec_json 顶层扁平 6 键**（schema 400，探针实测锚词 `rejects flat config field src_ip`）；expect 8 键含 `notes`；8 条 fields + 1 条 frames 与公式/发射序**全部自洽**（帧长 61/18/54/18、flags 序、版本字节——仅 notes 文案失实）。
 
 ### 8.2 现状矛盾点（P4 前诚实登记）
 

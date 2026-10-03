@@ -264,7 +264,7 @@ radius 层**无自有状态机**：UDP 无连接、无握手/挥手/保活/重�
 | N-7 | `radius_neg_vsa_len` | VSA value 248B | 同上（`%d`=247） | `:171` | task-time |
 | N-8 | `radius_neg_format` | `format:"dword"` | `radius %s[%d]: unknown format %q (allowed: string, ipv4, uint32, hex)` | `:189` | task-time |
 | N-9 | `radius_neg_coa` | `code:43`（RFC 5176 CoA-Request） | `radius: invalid request code %d (allowed: 1, 3, 4, 11, 12)` | `:117` | task-time |
-| N-10 | `radius_flat_presence` | `{layers:[ip,radius{}], radius:{}}` 并存 | `protocol radius no longer accepts a top-level radius sub-config (move it into the radius layer of an [ip,radius] layers chain)` | `strategy_convert.go:8977` | **create-time** |
+| N-10 | `radius_flat_presence` | `{layers:[ip,radius{}], radius:{}}` 并存 | `protocol radius rejects a top-level radius sub-config (move it into the radius layer of an [ip,radius] layers chain)` | `strategy_convert.go:8977` | **create-time** |
 | N-11 | `radius_flat_static_port` | `[ip{},radius{src_port,dst_port}]` + `flows=2` | `layers pin a static four-tuple but flows > 1: …` | `schema/semantic.go:285` | **create-time** |
 
 **负例原子性**：每例单一故障注入。**N-6/N-7 同锚词面**（同一 `:171` 分支的 253/247 两个上界，两例分锚词后缀区分）；**N-2/N-9 同锚词面**（同一 `:117` 分支，假码 42 与现网真码 43 各一例）。

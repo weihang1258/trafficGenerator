@@ -13,7 +13,7 @@ func TestMapToFlowSpec_TopMQTTSubConfigRejected(t *testing.T) {
 	}, "mqtt")
 	found := false
 	for _, e := range spec.ValidationErrors {
-		if containsSub(e, "no longer accepts a top-level mqtt sub-config") {
+		if containsSub(e, "rejects a top-level mqtt sub-config") {
 			found = true
 		}
 	}
@@ -24,7 +24,7 @@ func TestMapToFlowSpec_TopMQTTSubConfigRejected(t *testing.T) {
 	spec = mapToFlowSpec(map[string]any{"mqtt": map[string]any{}}, "mqtt")
 	found = false
 	for _, e := range spec.ValidationErrors {
-		if containsSub(e, "no longer accepts a top-level mqtt sub-config") {
+		if containsSub(e, "rejects a top-level mqtt sub-config") {
 			found = true
 		}
 	}

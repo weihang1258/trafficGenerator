@@ -106,12 +106,12 @@ func TestS7Chain_LayerToPayloadPlan(t *testing.T) {
 // 面；mapToFlowSpec 记 ValidationErrors = 存量行启动 error 面）。
 func TestS7Chain_PresenceAndStrayTopLevelKeys(t *testing.T) {
 	t.Run("top_level_empty_s7_map", func(t *testing.T) {
-		if got := core.CheckProtoFlat("s7", map[string]interface{}{"s7": map[string]interface{}{}}); !strings.Contains(got, "no longer accepts a top-level s7") {
+		if got := core.CheckProtoFlat("s7", map[string]interface{}{"s7": map[string]interface{}{}}); !strings.Contains(got, "rejects a top-level s7") {
 			t.Fatalf("presence: %q", got)
 		}
 		spec := core.MapToFlowSpec(map[string]interface{}{"s7": map[string]interface{}{}}, "s7")
 		joined := strings.Join(spec.ValidationErrors, "; ")
-		if !strings.Contains(joined, "no longer accepts a top-level s7") {
+		if !strings.Contains(joined, "rejects a top-level s7") {
 			t.Fatalf("presence wired: %q", joined)
 		}
 	})
@@ -119,11 +119,11 @@ func TestS7Chain_PresenceAndStrayTopLevelKeys(t *testing.T) {
 		key  string
 		want string
 	}{
-		{"src_ip", "no longer accepts flat config field src_ip"},
-		{"dst_ip", "no longer accepts flat config field dst_ip"},
-		{"src_port", "no longer accepts flat config field src_port"},
-		{"dst_port", "no longer accepts flat config field dst_port"},
-		{"count", "no longer accepts flat config field count"},
+		{"src_ip", "rejects flat config field src_ip"},
+		{"dst_ip", "rejects flat config field dst_ip"},
+		{"src_port", "rejects flat config field src_port"},
+		{"dst_port", "rejects flat config field dst_port"},
+		{"count", "rejects flat config field count"},
 	} {
 		t.Run("flat_"+tc.key, func(t *testing.T) {
 			if got := core.CheckProtoFlat("s7", map[string]interface{}{tc.key: "x"}); !strings.Contains(got, tc.want) {

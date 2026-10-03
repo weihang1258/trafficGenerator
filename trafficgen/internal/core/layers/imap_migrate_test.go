@@ -58,8 +58,8 @@ func TestIMAPChain_FlatPresenceRejected(t *testing.T) {
 	if msg := core.CheckProtoFlat("imap", cfg); msg == "" {
 		t.Fatal("CheckProtoFlat(imap, {layers, imap:{}}) = \"\", want top-level imap presence rejection")
 	}
-	if msg := core.CheckProtoFlat("imap", cfg); !strings.Contains(msg, "no longer accepts a top-level imap sub-config") {
-		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `no longer accepts a top-level imap sub-config`", msg)
+	if msg := core.CheckProtoFlat("imap", cfg); !strings.Contains(msg, "rejects a top-level imap sub-config") {
+		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `rejects a top-level imap sub-config`", msg)
 	}
 }
 

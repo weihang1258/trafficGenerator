@@ -453,8 +453,8 @@ func TestProcessBatchTask_FTPFlatRejected(t *testing.T) {
 	if !strings.Contains(got, "validation") {
 		t.Errorf("error = %q, want message mentioning 'validation'", got)
 	}
-	if !strings.Contains(got, "no longer accepts") {
-		t.Errorf("error = %q, want the flat-deletion message substring 'no longer accepts'", got)
+	if !strings.Contains(got, "rejects flat config field") {
+		t.Errorf("error = %q, want the flat-deletion message substring 'rejects flat config field'", got)
 	}
 }
 

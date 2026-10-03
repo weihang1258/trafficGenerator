@@ -257,7 +257,7 @@ if !closeAlreadyEmitted { /* 发隐式 CLOSE 对 */ }
  "expect":{"packet_count":24}}
 ```
 
-该形状**今日经 MCP 必被拒**：`src_ip` 命中扁平键判死（`strategy_convert.go:8280-8285` 锚词 `protocol smb no longer accepts flat config field src_ip`），且无 `layers` → 亦不被链套件（`layer_chain_suite_test.go:92-96` 只收含 `layers` 的条目）采纳。P5 必须改写为过渡形后重跑（去向见 testcase §5 存量审计）。
+该形状**今日经 MCP 必被拒**：`src_ip` 命中扁平键判死（`strategy_convert.go:8280-8285` 锚词 `protocol smb rejects flat config field src_ip`），且无 `layers` → 亦不被链套件（`layer_chain_suite_test.go:92-96` 只收含 `layers` 的条目）采纳。P5 必须改写为过渡形后重跑（去向见 testcase §5 存量审计）。
 
 **目标形状样例（业务键住层，今天跑不通，需先补 G-PROBE-SMB-1）**：见 §2 第二段。**今日可跑样例**：见 §2 第一段。两形**不得并用**（同例同时写顶层 `smb` 与 `layers[].smb` 业务键＝双头，判死）。
 
@@ -290,7 +290,7 @@ if !closeAlreadyEmitted { /* 发隐式 CLOSE 对 */ }
 
 | 编号 | 负例 ID | 故障输入 | 目标 `error_contains`（实读锚词） | 锚词出处 |
 |---|---|---|---|---|
-| 10 | `probe_neg_flat_keys` | 顶层 `src_ip`（存量例形状） | `no longer accepts flat config field src_ip` | `strategy_convert.go:8282-8283`（`CheckProtoFlat`，函数体 `8273-8483`；策略建改经 `api/rest/strategy_handler.go:30` → `schema.ValidateStrategy` → `schema/semantic.go:131` 进入） |
+| 10 | `probe_neg_flat_keys` | 顶层 `src_ip`（存量例形状） | `rejects flat config field src_ip` | `strategy_convert.go:8282-8283`（`CheckProtoFlat`，函数体 `8273-8483`；策略建改经 `api/rest/strategy_handler.go:30` → `schema.ValidateStrategy` → `schema/semantic.go:131` 进入） |
 | 11 | `probe_neg_layers_flat_mix` | `layers` + 顶层 `src_port` 并存 | `config mixes layers with flat four-tuple field src_port` | `schema/semantic.go:186-190` |
 | 12 | `probe_neg_static_copy` | `layers` 内静态标量四元组 + `flow_control.flows=2` | `layers pin a static four-tuple but flows > 1` | `schema/semantic.go:285` |
 
@@ -386,7 +386,7 @@ if !closeAlreadyEmitted { /* 发隐式 CLOSE 对 */ }
 | 立项号 | 缺口 | 去向 |
 |---|---|---|
 | **G-PROBE-SMB-1** | 层内 smb 业务键无消费面：`translateTerminalConfig` 无 `case "smb"`（实读全 case 列表），写了不报错但不生效——目标形不可达 | **归 #50 smb 车道**（同文件同 switch 的协议本地块，与 convert switch 同为预期合并冲突点）；probe 侧只做形状切换与复跑 |
-| **G-PROBE-SMB-2** | presence 判死锚缺失：`CheckProtoFlat`（`strategy_convert.go:8273+`）与 `ValidateProtocolSubConfigs`（`validate.go:63+`）均无 `smb` 分支 → 「层链 + 顶层空 smb 子映射并存」无锚可断言 | 归 #50 车道补 presence 判死（文案同族：`protocol smb no longer accepts a top-level smb sub-config (move it into the smb layer of a [ip,tcp,smb] layers chain)`）；补前本族不建该负例 |
+| **G-PROBE-SMB-2** | presence 判死锚缺失：`CheckProtoFlat`（`strategy_convert.go:8273+`）与 `ValidateProtocolSubConfigs`（`validate.go:63+`）均无 `smb` 分支 → 「层链 + 顶层空 smb 子映射并存」无锚可断言 | 归 #50 车道补 presence 判死（文案同族：`protocol smb rejects a top-level smb sub-config (move it into the smb layer of a [ip,tcp,smb] layers chain)`）；补前本族不建该负例 |
 | **G-PROBE-SMB-3** | INDEX 编号上限：`INDEX.md` §6.3 规定 NN 00–77 且已占满，本族取顺延号 78 | **主线程集成动作**：登记 INDEX（修订 §6.3 或补顺延号条款） |
 | **G-PROBE-SMB-4** | 覆盖率台账口径：诊断族不进反查分母，需在 smb 反查块显式声明 | 归 #50 车道（`coverage_gate.py` `check_smb` 块内声明） |
 | **G-PROBE-SMB-5** | 现网核对缺证据：真客户端（Windows/`smbclient`）探测首会话形态未核对 | P4 前置确认项（确认方式＝抓一份现网 445 首会话 pcap，比首 3 包）；不挡开工 |

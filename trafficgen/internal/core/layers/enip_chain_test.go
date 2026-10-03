@@ -210,7 +210,7 @@ func TestENIPChain_PresenceRejected(t *testing.T) {
 	if msg == "" {
 		t.Fatal("CheckProtoFlat(enip, {layers, enip:{}}) = \"\", want presence rejection")
 	}
-	if !strings.Contains(msg, "no longer accepts a top-level enip sub-config") {
+	if !strings.Contains(msg, "rejects a top-level enip sub-config") {
 		t.Fatalf("CheckProtoFlat msg = %q", msg)
 	}
 }

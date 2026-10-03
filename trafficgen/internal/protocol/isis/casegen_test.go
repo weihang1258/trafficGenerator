@@ -160,13 +160,13 @@ func TestGenerateISISCases(t *testing.T) {
 			"isis_neg_presence_top_level_isis",
 			"presence 判死：层链 + 顶层空 isis 子映射并存（M5①）",
 			`[{"eth":{"src_mac":"`+isisCaseSrcMAC+`"}},{"isis":{}}]`,
-			"no longer accepts a top-level isis sub-config",
+			"rejects a top-level isis sub-config",
 		),
 		redCase(
 			"isis_neg_stray_src_ip",
 			"白名单外游离键判死：layers + 顶层 src_ip（M5②，1.11–1.13）",
 			`[{"eth":{"src_mac":"`+isisCaseSrcMAC+`"}},{"isis":{}}]`,
-			"no longer accepts flat config field src_ip",
+			"rejects flat config field src_ip",
 		),
 		redCase(
 			"isis_neg_tcp_carrier",

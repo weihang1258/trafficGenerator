@@ -344,7 +344,7 @@ tls 层**无自有状态机**——它是"读层 config → 注入固定握手�
 
 | # | 负例 ID | 故障输入 | 代码锚词 | 代码位置 |
 |---:|---|---|---|---|
-| N-1 | `tls-neg-flat` | 顶层 `src_ip`（与层链混用） | `no longer accepts flat config field src_ip` | `strategy_convert.go:8634` |
+| N-1 | `tls-neg-flat` | 顶层 `src_ip`（与层链混用） | `rejects flat config field src_ip` | `strategy_convert.go:8634` |
 | N-2 | `tls-neg-static-copy` | `flows=2` + 全静态标量四元组 | `layers pin a static four-tuple but flows > 1` | `schema/semantic.go:285` |
 | N-3 | `tls-neg-dyn-closed-version` | `tls.version` 写动态对象 | `does not support dynamic` | `validate_layers.go:1004` |
 | N-4 | `tls-cert-neg-dyn-keytype` | `tls.cert.key_type` 写动态对象 | `does not support dynamic` | `validate_layers.go:1046` |

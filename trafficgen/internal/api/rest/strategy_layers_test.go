@@ -122,7 +122,7 @@ func TestStrategyCreate_FlatConfigStillWorks(t *testing.T) {
 	if w.Code != 400 {
 		t.Fatalf("status=%d, body=%s (want 400 flat-deletion)", w.Code, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), "no longer accepts flat config field") {
+	if !strings.Contains(w.Body.String(), "rejects flat config field") {
 		t.Fatalf("body=%s (want flat-deletion guidance)", w.Body.String())
 	}
 }

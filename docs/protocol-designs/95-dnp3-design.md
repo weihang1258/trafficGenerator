@@ -38,7 +38,7 @@
 
 | 路径 | 实测 | 证据 |
 |---|---|---|
-| MCP / 建策略 | **存量 70/70 全部 400** | `schema/semantic.go:130` 调 `core.CheckProtoFlat`——该调用位于 layers 分支（`:109-120`）**之后且无条件**；`CheckProtoFlat`（`strategy_convert.go:8625+`）对 `src_ip`/`dst_ip`/`src_port`/`dst_port`/`count` 任一出现即返 400。存量 70/70 带 `src_ip`+`dst_ip` → 全红，文案 `protocol dnp3 no longer accepts flat config field src_ip`。**本车道实测复现：70 rejected / 0 accepted** |
+| MCP / 建策略 | **存量 70/70 全部 400** | `schema/semantic.go:130` 调 `core.CheckProtoFlat`——该调用位于 layers 分支（`:109-120`）**之后且无条件**；`CheckProtoFlat`（`strategy_convert.go:8625+`）对 `src_ip`/`dst_ip`/`src_port`/`dst_port`/`count` 任一出现即返 400。存量 70/70 带 `src_ip`+`dst_ip` → 全红，文案 `protocol dnp3 rejects flat config field src_ip`。**本车道实测复现：70 rejected / 0 accepted** |
 | 离线 suite | **根本不跑 dnp3** | `layer_chain_suite_test.go:70` 的 `chainSuiteProtos` 白名单**不含 dnp3**；且 29 例无 `layers` 键被 `:138` 跳过（41 例有 layers 但同带顶层四元组，剥离 layers 后直传 `MapToFlowSpec`，**绕过 `CheckProtoFlat`**，属套件内部旁路、非生产路径） |
 
 **结论**："legacy flat 路径"**今日已不存在**（Step 1 全协议扁平判死关闭）。**存量 70 例今日既非绿也非红——它们不可执行**；其 `packet_count`/frames 断言仅为**历史实测值**（旧版本遗留），待代码阶段层链内化后**重新校准**（§9.31 先跑后钉）。
@@ -280,8 +280,8 @@ dnp3 层无自有状态（`layer_gen.go:43-67` 纯函数驱动）：握手/seq-a
 | N-20 | `dnp3_t75_fc215_reserved_rejected` | `app_func_code=215` | `FC=215` |
 | N-21 | `dnp3_t27_udp_transport` | `transport="udp"`（层链） | `transport=udp is not supported on the layer chain` |
 | N-22 | `dnp3_t31_multi_outstation_3` 等 8 例 | `multi_outstation`（层链） | `multi_outstation is not supported on the layer chain` |
-| N-23 | `dnp3_neg_presence`（**待代码阶段建例**） | 层链 + 顶层空 `dnp3` 子映射并存 | `no longer accepts a top-level dnp3 sub-config` |
-| N-24 | `dnp3_neg_stray_src_ip`（**待代码阶段建例**） | 层链 + 顶层 `src_ip` | `no longer accepts flat config field src_ip` |
+| N-23 | `dnp3_neg_presence`（**待代码阶段建例**） | 层链 + 顶层空 `dnp3` 子映射并存 | `rejects a top-level dnp3 sub-config` |
+| N-24 | `dnp3_neg_stray_src_ip`（**待代码阶段建例**） | 层链 + 顶层 `src_ip` | `rejects flat config field src_ip` |
 
 **负例原子性**：每例单一故障注入；单次执行不得混注。**N-1…N-20 为存量已落地负例**（`cases/dnp3.json` 20 例，其中 T6/T8 锚词为空须补正，G-DNP3-9）；**N-21/N-22 为层链能力边界**（诚实边界传导，§1；存量 T27 与 8 例 multi 今日**两条路径均不可执行**——扁平入口已判死、层链生成器显式拒绝，故今日既非正例也非红例，G-DNP3-11）；**N-23/N-24 待代码阶段建例**（G-DNP3-2）。
 

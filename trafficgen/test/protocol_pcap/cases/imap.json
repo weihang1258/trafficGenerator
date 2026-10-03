@@ -4628,7 +4628,7 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "no longer accepts a top-level imap sub-config",
+   "error_contains": "rejects a top-level imap sub-config",
    "notes": [
     "D-IMAP-1 §5 新锚词；failing 先行①"
    ]

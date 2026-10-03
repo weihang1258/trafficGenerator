@@ -110,7 +110,7 @@ func TestDamengChain_PresenceRejected(t *testing.T) {
 	if msg == "" {
 		t.Fatal("CheckProtoFlat(dameng, {layers, dameng:{}}) = \"\", want presence rejection")
 	}
-	if !strings.Contains(msg, "no longer accepts a top-level dameng sub-config") {
+	if !strings.Contains(msg, "rejects a top-level dameng sub-config") {
 		t.Fatalf("CheckProtoFlat msg = %q", msg)
 	}
 }

@@ -203,7 +203,7 @@
 
 | ID | 故障输入（机读实测） | JSON `error_contains` | 代码文案（逐字） | 代码行 |
 |---|---|---|---|---|
-| `ngap_flat_presence` | `spec_json` 顶层含 `"ngap": {}`（**空 map 也死**） | `top-level ngap sub-config` | `protocol ngap no longer accepts a top-level ngap sub-config (move it into the ngap layer of an [ip,ngap] layers chain)` | `strategy_convert.go:8954-8958` |
+| `ngap_flat_presence` | `spec_json` 顶层含 `"ngap": {}`（**空 map 也死**） | `top-level ngap sub-config` | `protocol ngap rejects a top-level ngap sub-config (move it into the ngap layer of an [ip,ngap] layers chain)` | `strategy_convert.go:8954-8958` |
 | `ngap_flat_static_port` | `layers=[{ip:{}},{ngap:{src_port:12345,dst_port:38412}}]` + `strategy_fc={flows:2}` | `static four-tuple` | `layers pin a static four-tuple but flows > 1: every flow would emit identical addresses/ports (static copy). …` | `schema/semantic.go:285` |
 
 - **#2 的对照价值**：注入形状 `{"layers":[…],"ngap":{}}` 是**判死负例的故障注入本身**（非残留）——presence 门今日**真绿**（`CheckProtoFlat` 有 ngap 分支，设计 §12-P2 ①）。

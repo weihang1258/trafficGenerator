@@ -91,8 +91,8 @@ func TestDoIPChain_PresenceTopLevelDoIP(t *testing.T) {
 	if msg == "" {
 		t.Fatal("CheckProtoFlat(doip, {layers, doip:{}}) = \"\", want top-level doip presence rejection")
 	}
-	if !strings.Contains(msg, "no longer accepts a top-level doip sub-config") {
-		t.Fatalf("CheckProtoFlat msg = %q, want anchor %q", msg, "no longer accepts a top-level doip sub-config")
+	if !strings.Contains(msg, "rejects a top-level doip sub-config") {
+		t.Fatalf("CheckProtoFlat msg = %q, want anchor %q", msg, "rejects a top-level doip sub-config")
 	}
 }
 
@@ -106,7 +106,7 @@ func TestDoIPChain_StrayFlatFields(t *testing.T) {
 		bad := map[string]interface{}{"layers": layersRaw, k: 1}
 		if msg := core.CheckProtoFlat("doip", bad); msg == "" {
 			t.Fatalf("CheckProtoFlat(doip, {layers, %s}) = \"\", want flat-field rejection", k)
-		} else if !strings.Contains(msg, "no longer accepts flat config field "+k) {
+		} else if !strings.Contains(msg, "rejects flat config field "+k) {
 			t.Fatalf("CheckProtoFlat msg = %q, want flat-field anchor for %s", msg, k)
 		}
 	}

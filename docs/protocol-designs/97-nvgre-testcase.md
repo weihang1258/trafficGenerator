@@ -217,7 +217,7 @@ CASE_PROTO=nvgre go test ./test/protocol_pcap/ -run TestProtocolPcapDrive -count
 RESULT: 0 pass, 6 fail, 14 error (of 20)
   nvgre    0/20
 ```
-- 14 正例 = `error`（submit 被拒），拒因 `protocol nvgre no longer accepts flat config field src_ip`。
+- 14 正例 = `error`（submit 被拒），拒因 `protocol nvgre rejects flat config field src_ip`。
 - 6 负例 = **`fail`——被拒但错误文本不含 `flags`/`vsid`/`inner`/`family`/`length`/`isolation`**，harness 报 `rejected but error "..." does not contain "flags"` 等 6 条（锚词**全部失守**，非正确红）。
 
 **结论**：负例今日**不是"正确红"而是"红在锚词不匹配"**——真正的风险面（锚词全失守）在此，**不得**反向解读为"假绿风险已排除"。
@@ -262,7 +262,7 @@ RESULT: 0 pass, 6 fail, 14 error (of 20)
 | 5 | 6 负例锚词**设计值**各命中 `layer_gen.go` 错误字面值 | **绿**（§4 已逐条对码——**仅指设计值**；运行时锚词全失守见 #8） |
 | 6 | presence 负例存在且锚词含 `top-level` | **红**（G-NVGRE-2：CheckProtoFlat 无 nvgre 分支，建了会假绿，故未建） |
 | 7 | 20 例 ID 与 testcase §2 顺序一致 | **绿** |
-| 8 | **存量 20/20 例今日可跑（非全红）** | **红（最严重）**——20/20 submit 一律被 `CheckProtoFlat` 拒（`protocol nvgre no longer accepts flat config field src_ip`），**非负例与负例同等**；实跑 `RESULT: 0 pass, 6 fail, 14 error (of 20)` |
+| 8 | **存量 20/20 例今日可跑（非全红）** | **红（最严重）**——20/20 submit 一律被 `CheckProtoFlat` 拒（`protocol nvgre rejects flat config field src_ip`），**非负例与负例同等**；实跑 `RESULT: 0 pass, 6 fail, 14 error (of 20)` |
 | 9 | 结果产物 `docs/protocol-pcap-test/nvgre.md` 非过期（末次提交晚于判死提交 `0417be5`） | **红**（G-NVGRE-9：末次提交 `c0bf5ec` 2026-08-31 早于 `0417be5` 2026-09-13；且声称 20/20 pass 与今日 0/20 **方向相反**） |
 
 **红项合计 5 行**（#1/#2/#6/#8/#9）：#1/#2/#6/#8 由 G-NVGRE-1/G-NVGRE-2 代码阶段收敛；**#9 由 G-NVGRE-9 收敛（P5 重跑套件后重生成该产物）**。**#8 是当前最严重项**：它不是"待迁移"，而是**存量已全量失效**（负例的 6 条 `fail` 更是锚词失守，非正确红）。**#9 是它的产物面镜像**——套件全红，但 tracked 结果文档仍写 20/20 pass，**该文档不得作为"套件可跑"依据**（同 pcep G-PCEP-11 口径）。

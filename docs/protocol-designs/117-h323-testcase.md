@@ -218,7 +218,7 @@ flows=M      = M × 每流包数
 
 | # | ID | 故障输入（机读实测） | JSON `error_contains` | 代码文案（逐字） | 代码行 | 阶段 |
 |---:|---|---|---|---|---|---|
-| 1 | `h323_vn_presence` | 顶层 `h323:{}` + 层内 `h323:{}` | `top-level h323 sub-config` | `protocol h323 no longer accepts a top-level h323 sub-config (move it into the h323 layer of an [ip,h323] layers chain)` | `strategy_convert.go:8942` | **create-time** |
+| 1 | `h323_vn_presence` | 顶层 `h323:{}` + 层内 `h323:{}` | `top-level h323 sub-config` | `protocol h323 rejects a top-level h323 sub-config (move it into the h323 layer of an [ip,h323] layers chain)` | `strategy_convert.go:8942` | **create-time** |
 | 2 | `h323_vn_static_port` | 层内 `{src_port:12345, dst_port:1720}` + `ip:{}` + `flows=2` | `static four-tuple` | 静态复制拒绝（`checkLayerChainStaticCopy`，扫描列表已扩含 h323） | `schema/semantic.go` | **create-time** |
 | 3 | `h323_neg_role` | `role: "gatekeeper"` + `src_port:12345` | `invalid role` | `h323: invalid role %q (must be caller or callee)` | `h323.go:125` | **task-time**（`.neg.pcap`） |
 | 4 | `h323_neg_scenario` | `scenario: "bogus"` + `src_port:12345` | `invalid scenario` | `h323: invalid scenario %q (must be full, tunnel_only, ras_only, or data_only)` | `h323.go:135` | task-time |

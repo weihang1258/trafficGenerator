@@ -63,8 +63,8 @@ func TestHL7Chain_FlatPresenceRejected(t *testing.T) {
 	if msg == "" {
 		t.Fatal(`CheckProtoFlat(hl7, {layers, hl7:{}}) = "", want top-level hl7 presence rejection`)
 	}
-	if !strings.Contains(msg, "no longer accepts a top-level hl7 sub-config") {
-		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `no longer accepts a top-level hl7 sub-config`", msg)
+	if !strings.Contains(msg, "rejects a top-level hl7 sub-config") {
+		t.Fatalf("CheckProtoFlat msg = %q, want sub-anchor `rejects a top-level hl7 sub-config`", msg)
 	}
 }
 

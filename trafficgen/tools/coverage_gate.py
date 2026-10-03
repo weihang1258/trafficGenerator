@@ -1265,7 +1265,7 @@ def check_s7(cases):
     rows.append(("strategy_convert case s7（存量兼容路径）",
                  'case "s7":' in sc and "parseSubconfigJSON[*S7Config]" in sc, "在案"))
     rows.append(("CheckProtoFlat 顶层 s7 子映射 presence 判死",
-                 "protocol s7 no longer accepts a top-level s7 sub-config" in sc, "在案"))
+                 "protocol s7 rejects a top-level s7 sub-config" in sc, "在案"))
     rows.append(("mapToFlowSpec 顶层 s7 → ValidationErrors（在库旧策略执法）",
                  'if protocol == "s7" {' in sc, "在案"))
     vl = (tg / "internal" / "core" / "layers" / "complete.go").read_text()
@@ -1431,7 +1431,7 @@ def check_dameng(cases):
     rows.append(("main.go ChainPlanner(dameng) 接线", 'NewChainPlanner("dameng")' in mn, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat presence 判死顶层 dameng",
-                 "no longer accepts a top-level dameng sub-config" in sc, "在案"))
+                 "rejects a top-level dameng sub-config" in sc, "在案"))
     rows.append(("strategy_convert 存量兼容块记 ValidationErrors",
                  'if protocol == "dameng" {' in sc, "在案"))
     rows.append(("mapToFlowSpec 5236 缺省端口（flat 兼容面）",
@@ -1545,7 +1545,7 @@ def check_mms(cases):
                  "internal/protocol/mms" in mn and 'NewChainPlanner("mms")' in mn, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat 顶层 mms 子映射 presence 判死",
-                 "protocol mms no longer accepts a top-level mms sub-config" in sc, "在案"))
+                 "protocol mms rejects a top-level mms sub-config" in sc, "在案"))
     rows.append(("mapToFlowSpec 顶层 mms → ValidationErrors（在库旧策略执法）",
                  'if protocol == "mms" {' in sc, "在案"))
     cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
@@ -1616,7 +1616,7 @@ def check_mms(cases):
                               for l in mfl if isinstance(l, dict) for v in (l.get("ip") or {}).values())
     rows.append(("多流例（flows=2 + ip.src 层内动态 + 逐流源端口 12345/12346）", mf_ok,
                  "mms_multiflow" if mf_ok else "形状不符"))
-    anchors = {"no longer accepts a top-level mms", "no longer accepts flat config field src_ip",
+    anchors = {"rejects a top-level mms", "rejects flat config field src_ip",
                "sequence.loop is not supported", "datatype", "name", "domain",
                "multiSession[0].enableWrite is not supported", "members is not supported"}
     got = {(c.get("expect") or {}).get("error_contains", "") for c in cases}
@@ -1666,7 +1666,7 @@ def check_ospf(cases):
     # 「行为成立」。改为断言各块**特有体**。
     _presence_ospf = ('if protocol == "ospf" {\n'
                       '\t\tif v, ok := cfg["ospf"]; ok && v != nil {\n'
-                      '\t\t\treturn "protocol ospf no longer accepts a top-level ospf sub-config')
+                      '\t\t\treturn "protocol ospf rejects a top-level ospf sub-config')
     _mapfs_ospf = ('if protocol == "ospf" {\n'
                    '\t\tif v, ok := cfg["ospf"]; ok && v != nil {\n'
                    '\t\t\tspec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))')
@@ -1787,7 +1787,7 @@ def check_ospf(cases):
         "ospf_neg_area": "area",
         "ospf_neg_router_id": "router",
         "ospf_ipv6_rfc5340_boundary": "rfc5340",
-        "ospf_neg_presence_top_level_ospf": "no longer accepts a top-level ospf sub-config",
+        "ospf_neg_presence_top_level_ospf": "rejects a top-level ospf sub-config",
         "ospf_neg_stray_src_mac": "src_mac",
         "ospf_neg_carrier_tcp": "carrier",
         "ospf_neg_carrier_missing_ip": "carrier",
@@ -1803,7 +1803,7 @@ def check_ospf(cases):
         "length": "wire_fault declared_length",
         "area": "wire_fault area_id",
         "router": "invalid router_id",
-        "no longer accepts a top-level ospf sub-config": "no longer accepts a top-level ospf sub-config",
+        "rejects a top-level ospf sub-config": "rejects a top-level ospf sub-config",
         "src_mac": "flat four-tuple field",
         "carrier": "carrier is not supported",
     }
@@ -1864,7 +1864,7 @@ def check_sstp(cases):
     rows.append(("strategy_convert case sstp + 443 缺省端口",
                  'case "sstp":' in sc and "setDefaultDstPort(&spec, cfg, 443)" in sc, "在案"))
     rows.append(("strategy_convert presence 判死顶层 sstp",
-                 "no longer accepts a top-level sstp sub-config" in sc, "在案"))
+                 "rejects a top-level sstp sub-config" in sc, "在案"))
 
     # 2. 行为面（header 原语/builder/planner 关键件）。
     kb = (tg / "internal" / "core" / "sstp.go").read_text()
@@ -1963,7 +1963,7 @@ def check_smb(cases):
                  'case "smb":' in sc and "parseSMBConfig" in sc
                  and "spec.DstPort = 139" in sc, "在案"))
     rows.append(("CheckProtoFlat 顶层 smb 子映射 presence 判死",
-                 "protocol smb no longer accepts a top-level smb sub-config" in sc, "在案"))
+                 "protocol smb rejects a top-level smb sub-config" in sc, "在案"))
     cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
     rows.append(("chain_planner smb 端口缺省（netbios→139/余→445）",
                  'case "smb":' in cp and 'spec.SMB.Transport == "netbios"' in cp, "在案"))
@@ -2064,7 +2064,7 @@ def check_amqp(cases):
     rows.append(("strategy_convert case amqp + 5672 缺省端口",
                  'case "amqp":' in sc and "setDefaultDstPort(&spec, cfg, 5672)" in sc, "在案"))
     rows.append(("CheckProtoFlat 顶层 amqp 子映射 presence 判死",
-                 "protocol amqp no longer accepts a top-level amqp sub-config" in sc, "在案"))
+                 "protocol amqp rejects a top-level amqp sub-config" in sc, "在案"))
     rows.append(("mapToFlowSpec 存量背 door（ValidationErrors）",
                  'if protocol == "amqp" {' in sc and 'cfg["amqp"]' in sc
                  and "CheckProtoFlat(protocol, cfg)" in sc, "在案"))
@@ -2138,8 +2138,8 @@ def check_amqp(cases):
     code_anchors = set(re.findall(r'amqp: ([a-z ]+?)(?:[.:\\]|")', pl))
     code_anchors |= {"protocol", "frame", "handshake", "channel", "body", "session",
                      "presence", "flat", "carrier",
-                     "no longer accepts a top-level amqp sub-config",
-                     "no longer accepts flat config field src_ip"}
+                     "rejects a top-level amqp sub-config",
+                     "rejects flat config field src_ip"}
     bad_a = [f"{c.get('id')}:{ec}" for c in neg
              for ec in [(c.get("expect") or {}).get("error_contains", "")]
              if ec not in code_anchors and not any(a in ec for a in
@@ -2270,7 +2270,7 @@ def check_tftp(cases):
     rows.append(("core/tftp.go ParseTFTPConfigFromMap 导出（dns/http 先例）",
                  "func ParseTFTPConfigFromMap" in cf, "在案"))
     rows.append(("CheckProtoFlat 顶层 tftp 子映射 presence 判死",
-                 "protocol tftp no longer accepts a top-level tftp sub-config" in sc, "在案"))
+                 "protocol tftp rejects a top-level tftp sub-config" in sc, "在案"))
     cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
     rows.append(("chain_planner tftp 目的端口缺省 69",
                  'case "tftp":' in cp and "spec.DstPort = 69" in cp, "在案"))
@@ -2392,7 +2392,7 @@ def check_nfs(cases):
                  'case "nfs":' in sc and "setDefaultDstPort(&spec, cfg, 2049)" in sc
                  and 'spec.Metadata[NFSMetadataKey]' not in sc, "在案"))
     rows.append(("CheckProtoFlat presence 判死顶层 nfs",
-                 "no longer accepts a top-level nfs sub-config" in sc, "在案"))
+                 "rejects a top-level nfs sub-config" in sc, "在案"))
     rows.append(("ValidationErrors 覆盖在库旧策略顶层 nfs",
                  'protocol == "nfs"' in sc, "在案"))
 
@@ -2468,7 +2468,7 @@ def check_nfs(cases):
     anchors = {"version must be 3 or 4", "multi-stream expansion is not supported on the layer chain",
                "NFSv4 requires TCP", "UDP RPC message exceeds 65507", "MOUNT v3 procedure out of range",
                "attrmask contains NFSv4.1+ attributes", "layers: layer",
-               "no longer accepts a top-level nfs sub-config", "no longer accepts flat config field count",
+               "rejects a top-level nfs sub-config", "rejects flat config field count",
                "flat four-tuple field src_mac", "ttl 300 invalid (must be 0-255)", "static copy"}
     got = {(c.get("expect") or {}).get("error_contains") for c in neg}
     missing = sorted(a for a in anchors if not any(a in (g or "") for g in got))
@@ -2500,7 +2500,7 @@ def check_cql(cases):
                  and '"wire_fault"' in reg_block, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat presence 判死顶层 cql",
-                 "no longer accepts a top-level cql sub-config" in sc, "在案"))
+                 "rejects a top-level cql sub-config" in sc, "在案"))
     rows.append(("ValidationErrors 覆盖在库旧策略顶层 cql",
                  'if protocol == "cql" {' in sc, "在案"))
     vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
@@ -2589,7 +2589,7 @@ def check_cql(cases):
     rows.append(("result_kind 键清零（G-CQL-4）", "result_kind" not in json.dumps(cases), "零残留"))
 
     # 4. 锚词面。
-    anchors = {"no longer accepts a top-level cql sub-config", "no longer accepts flat config field",
+    anchors = {"rejects a top-level cql sub-config", "rejects flat config field",
                "unknown field", "version", "opcode", "length",
                "state", "limit", "tcp", "CQL_VERSION", "envelope", "beta"}
     got = {(c.get("expect") or {}).get("error_contains") for c in neg}
@@ -2635,7 +2635,7 @@ def check_doip(cases):
                  all(f'"{k}"' not in reg_block for k in ("vin", "eid", "gid")), "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat 顶层 doip 子映射 presence 判死",
-                 "protocol doip no longer accepts a top-level doip sub-config" in sc, "在案"))
+                 "protocol doip rejects a top-level doip sub-config" in sc, "在案"))
     rows.append(("mapToFlowSpec 顶层 doip → ValidationErrors（在库旧策略执法）",
                  'if protocol == "doip" {' in sc, "在案"))
     rows.append(("strategy_convert case doip + 13400 缺省端口",
@@ -2698,9 +2698,9 @@ def check_doip(cases):
 
     # 4. 锚词面（30 负例：值域 22 + 链级 6 + presence/游离 2 类）。
     for needle, name in [
-        ("no longer accepts a top-level doip sub-config", "presence 判死"),
-        ("no longer accepts flat config field src_ip", "游离键 src_ip"),
-        ("no longer accepts flat config field count", "游离键 count"),
+        ("rejects a top-level doip sub-config", "presence 判死"),
+        ("rejects flat config field src_ip", "游离键 src_ip"),
+        ("rejects flat config field count", "游离键 count"),
         ("carrier", "udp 载体"),
         ("discovery (UDP vehicle discovery) is not supported", "discovery 链上不可达"),
         ("entity_status (UDP entity status) is not supported", "entity_status 链上不可达"),
@@ -2775,7 +2775,7 @@ def check_enip(cases):
     rows.append(("strategy_convert case enip + 44818 缺省端口",
                  'case "enip":' in sc and "setDefaultDstPort(&spec, cfg, 44818)" in sc, "在案"))
     rows.append(("CheckProtoFlat 顶层 enip 子映射 presence 判死",
-                 "protocol enip no longer accepts a top-level enip sub-config" in sc, "在案"))
+                 "protocol enip rejects a top-level enip sub-config" in sc, "在案"))
     rows.append(("mapToFlowSpec 顶层 enip → ValidationErrors（在库旧策略执法）",
                  'if protocol == "enip" {' in sc, "在案"))
     cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
@@ -2872,7 +2872,7 @@ def check_cflow(cases):
                  'case "cflow":' in sc and "setDefaultDstPort(&spec, cfg, 2055)" in sc
                  and 'parseSubconfigJSON[*CFlowConfig](&spec, sub, "cflow"' not in sc, "在案"))
     rows.append(("CheckProtoFlat presence 判死顶层 cflow",
-                 "no longer accepts a top-level cflow sub-config" in sc, "在案"))
+                 "rejects a top-level cflow sub-config" in sc, "在案"))
     rows.append(("mapToFlowSpec 顶层 cflow → ValidationErrors（在库旧策略执法）",
                  'if protocol == "cflow" {' in sc, "在案"))
     vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
@@ -2976,8 +2976,8 @@ def check_cflow(cases):
 
     # 4. 锚词面（12 负例：7 契约 + 1 presence + 2 载体 + 2 游离/未知键）。
     anchors = {"version", "template", "length", "field", "address", "udp", "checksum",
-               "no longer accepts a top-level cflow sub-config",
-               "no longer accepts flat config field count",
+               "rejects a top-level cflow sub-config",
+               "rejects flat config field count",
                "carrier", "layers: layer"}
     got = {(c.get("expect") or {}).get("error_contains") for c in neg}
     missing = sorted(a for a in anchors if not any(a in (g or "") for g in got))
@@ -3014,7 +3014,7 @@ def check_bgp(cases):
     rows.append(("main.go ChainPlanner(bgp) 接线", 'NewChainPlanner("bgp")' in mn, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("G-BGP-6 CheckProtoFlat presence 判死顶层 bgp",
-                 "no longer accepts a top-level bgp sub-config" in sc, "在案"))
+                 "rejects a top-level bgp sub-config" in sc, "在案"))
     rows.append(("strategy_convert 存量兼容块记 ValidationErrors",
                  'if protocol == "bgp" {' in sc, "在案"))
     rows.append(("mapToFlowSpec 179 缺省端口（flat 兼容面）",
@@ -3090,7 +3090,7 @@ def check_bgp(cases):
     anchors = {"tcp", "profile", "marker", "length", "type", "version", "as",
                "state", "address", "exactly two", "last", "error_code", "identifier",
                "next_hop", "4096", "hold_time", "top-level",
-               "no longer accepts flat config field count", "src_mac", "static four-tuple"}
+               "rejects flat config field count", "src_mac", "static four-tuple"}
     got = {(c.get("expect") or {}).get("error_contains") for c in neg}
     missing = sorted(a for a in anchors if a not in got)
     rows.append((f"负例锚词覆盖 {len(anchors)} 族", not missing, missing or "全覆盖"))
@@ -3144,7 +3144,7 @@ MCP_VALIDATOR_ANCHORS = [
     (".step=", "通知 Step 越界拒"),
     ("error.code=", "错误码越界拒"),
     ("mixed auto and explicit id assignment", "id 混用拒"),
-    ("no longer accepts a top-level mcp sub-config", "顶层 mcp presence 拒"),
+    ("rejects a top-level mcp sub-config", "顶层 mcp presence 拒"),
     ("static four-tuple", "静态复制拒"),
 ]
 MCP_COMMERCIAL = ["claude", "cursor", "flowb"]
@@ -4179,7 +4179,7 @@ def check_icmp(cases):
     for needle, name in [
         ("icmp type must be 8 (Echo Request) or 0 (Echo Reply), got 3", "T-5 type 锚"),
         ("icmp code must be 0 for Echo, got 1", "T-6 code 锚"),
-        ("no longer accepts a top-level icmp", "T-7 presence 锚"),
+        ("rejects a top-level icmp", "T-7 presence 锚"),
         ("static four-tuple", "T-8 静态复制锚"),
     ]:
         rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
@@ -4228,7 +4228,7 @@ def check_cwmp(cases):
 
     # 3. 负例锚词（validator/B6 §7 契约 + 判死门文案）。
     for needle, name in [
-        ("no longer accepts a top-level cwmp sub-config", "presence 判死锚"),
+        ("rejects a top-level cwmp sub-config", "presence 判死锚"),
         ("unknown field", "V9 未知字段锚"),
         ("not six uppercase hex digits", "validator device_id 锚（oui 域具体文案，L4 升级）"),
         ("correlation|no pending|invalid", "correlation/id 族锚"),
@@ -4622,7 +4622,7 @@ def check_arp(cases):
         ("out of range [1,2]", "T-5 V9 区间锚"),
         ("invalid sender_ip", "T-6 sender_ip 锚"),
         ("must not have an ip/transport carrier", "T-7 carrier 锚"),
-        ("no longer accepts a top-level arp", "T-8 presence 锚"),
+        ("rejects a top-level arp", "T-8 presence 锚"),
         ("static four-tuple", "T-12 静态复制锚"),
     ]:
         rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
@@ -4668,7 +4668,7 @@ MCP_VALIDATOR_ANCHORS = [
     (".step=", "通知 Step 越界拒"),
     ("error.code=", "错误码越界拒"),
     ("mixed auto and explicit id assignment", "id 混用拒"),
-    ("no longer accepts a top-level mcp sub-config", "顶层 mcp presence 拒"),
+    ("rejects a top-level mcp sub-config", "顶层 mcp presence 拒"),
     ("static four-tuple", "静态复制拒"),
 ]
 MCP_COMMERCIAL = ["claude", "cursor", "flowb"]
@@ -4790,7 +4790,7 @@ def check_a2a(cases):
                  "internal/protocol/a2a" in mn and 'NewChainPlanner("a2a")' in mn, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat 顶层 a2a 子映射 presence 判死",
-                 "no longer accepts a top-level a2a sub-config" in sc, "在案"))
+                 "rejects a top-level a2a sub-config" in sc, "在案"))
     rg = (tg / "internal" / "core" / "layers" / "registry.go").read_text()
     rows.append(("registry a2a 行在册", 'Name: "a2a"' in rg, "在案"))
 
@@ -4865,7 +4865,7 @@ def check_modbus(cases):
                  "internal/protocol/modbus" in mn and 'NewChainPlanner("modbus")' in mn, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat 顶层 modbus 子映射 presence 判死",
-                 "no longer accepts a top-level modbus sub-config" in sc, "在案"))
+                 "rejects a top-level modbus sub-config" in sc, "在案"))
     rows.append(("registry modbus FieldContract tcp.dst_port = 502",
                  '"tcp.dst_port": "502"' in reg_block, "在案"))
 
@@ -4919,7 +4919,7 @@ def check_dnp3(cases):
                  "internal/protocol/dnp3" in mn and 'NewChainPlanner("dnp3")' in mn, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat 顶层 dnp3 子映射 presence 判死",
-                 "no longer accepts a top-level dnp3 sub-config" in sc, "在案"))
+                 "rejects a top-level dnp3 sub-config" in sc, "在案"))
 
     WL = {"layers", "strategy_fc", "ttl", "flow_control", "output",
           "output_config", "group_id"}
@@ -4983,7 +4983,7 @@ def check_rip(cases):
                  "internal/protocol/rip" in mn and 'NewChainPlanner("rip")' in mn, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat 顶层 rip presence 判死（G-RIP-3）",
-                 "no longer accepts a top-level rip sub-config" in sc, "在案"))
+                 "rejects a top-level rip sub-config" in sc, "在案"))
     cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
     rows.append(("chain_planner rip 目的端口不静态默认化",
                  'case "rip":' in cp and "spec.DstPort = 0" in cp, "在案"))
@@ -5038,7 +5038,7 @@ def check_nvgre(cases):
                  "internal/protocol/nvgre" in mn and 'NewChainPlanner("nvgre")' in mn, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat 顶层 nvgre presence 判死（G-NVGRE-2）",
-                 "no longer accepts a top-level nvgre sub-config" in sc, "在案"))
+                 "rejects a top-level nvgre sub-config" in sc, "在案"))
 
     WL = {"layers", "strategy_fc", "ttl", "flow_control", "output",
           "output_config", "group_id"}
@@ -5100,7 +5100,7 @@ def check_pcep(cases):
                  "internal/protocol/pcep" in mn and 'NewChainPlanner("pcep")' in mn, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat 顶层 pcep 子映射 presence 判死（G-PCEP-1a）",
-                 "no longer accepts a top-level pcep sub-config" in sc, "在案"))
+                 "rejects a top-level pcep sub-config" in sc, "在案"))
 
     WL = {"layers", "strategy_fc", "ttl", "flow_control", "output",
           "output_config", "group_id"}
@@ -5266,7 +5266,7 @@ def check_someip(cases):
                  "internal/protocol/someip" in mn and 'NewChainPlanner("someip")' in mn, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat 顶层 someip presence 判死",
-                 "no longer accepts a top-level someip sub-config" in sc, "在案"))
+                 "rejects a top-level someip sub-config" in sc, "在案"))
 
     WL = {"layers", "strategy_fc", "ttl", "flow_control", "output",
           "output_config", "group_id"}
@@ -5393,7 +5393,7 @@ def check_thrift(cases):
                  "internal/protocol/thrift" in mn and 'NewChainPlanner("thrift")' in mn, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat 顶层 thrift presence 判死（G-THRIFT-2）",
-                 "no longer accepts a top-level thrift sub-config" in sc, "在案"))
+                 "rejects a top-level thrift sub-config" in sc, "在案"))
     rows.append(("strategy_convert thrift 目的端口缺省 9090",
                  re.search(r'setDefaultDstPort\(&spec, cfg, 9090\)', sc) is not None, "在案"))
     pl = (tg / "internal" / "protocol" / "thrift" / "planner.go").read_text()
@@ -5465,7 +5465,7 @@ MCP_VALIDATOR_ANCHORS = [
     (".step=", "通知 Step 越界拒"),
     ("error.code=", "错误码越界拒"),
     ("mixed auto and explicit id assignment", "id 混用拒"),
-    ("no longer accepts a top-level mcp sub-config", "顶层 mcp presence 拒"),
+    ("rejects a top-level mcp sub-config", "顶层 mcp presence 拒"),
     ("static four-tuple", "静态复制拒"),
 ]
 MCP_COMMERCIAL = ["claude", "cursor", "flowb"]
@@ -6500,7 +6500,7 @@ def check_icmp(cases):
     for needle, name in [
         ("icmp type must be 8 (Echo Request) or 0 (Echo Reply), got 3", "T-5 type 锚"),
         ("icmp code must be 0 for Echo, got 1", "T-6 code 锚"),
-        ("no longer accepts a top-level icmp", "T-7 presence 锚"),
+        ("rejects a top-level icmp", "T-7 presence 锚"),
         ("static four-tuple", "T-8 静态复制锚"),
     ]:
         rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
@@ -6547,7 +6547,7 @@ def check_hds(cases):
                  "internal/protocol/hds" in mn and 'NewChainPlanner("hds")' in mn, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat presence 判死顶层 hds（自键）",
-                 "no longer accepts a top-level hds sub-config" in sc, "在案"))
+                 "rejects a top-level hds sub-config" in sc, "在案"))
     rows.append(("mapToFlowSpec 存量兼容块记 ValidationErrors",
                  'if protocol == "hds" {' in sc, "在案"))
     pl_src = (tg / "internal" / "protocol" / "hds" / "planner.go").read_text()
@@ -6566,7 +6566,7 @@ def check_hds(cases):
                  "http|http_flv|hls|hds|gbt|getwork|doh|onvif)" in vt
                  and "D-HDS-1（G-HDS-1）" in vt, "在案"))
     rows.append(("顶层 hds presence 判死（config 面唯一执法，负例锚逐字）",
-                 "no longer accepts a top-level hds sub-config" in sc, "在案"))
+                 "rejects a top-level hds sub-config" in sc, "在案"))
 
     # 2. 行为面（生成器/变换器/构建器关键件）。
     rows.append(("终结层事件流（每 session 一 body 事件 EmitMsg）",
@@ -6669,8 +6669,8 @@ def check_hds(cases):
         got = (c.get("expect", {}) or {}).get("error_contains") if c else None
         rows.append((name, got == want, got or "无用例"))
     for needle, name in [
-        ("no longer accepts a top-level hds sub-config", "presence 判死锚（逐字）"),
-        ("no longer accepts flat config field count", "游离 count 锚（逐字）"),
+        ("rejects a top-level hds sub-config", "presence 判死锚（逐字）"),
+        ("rejects flat config field count", "游离 count 锚（逐字）"),
         ("requires the http carrier layer", "载体拒绝锚"),
     ]:
         rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
@@ -6723,7 +6723,7 @@ def check_cwmp(cases):
 
     # 3. 负例锚词（validator/B6 §7 契约 + 判死门文案）。
     for needle, name in [
-        ("no longer accepts a top-level cwmp sub-config", "presence 判死锚"),
+        ("rejects a top-level cwmp sub-config", "presence 判死锚"),
         ("unknown field", "V9 未知字段锚"),
         ("not six uppercase hex digits", "validator device_id 锚（oui 域具体文案，L4 升级）"),
         ("correlation|no pending|invalid", "correlation/id 族锚"),
@@ -7117,7 +7117,7 @@ def check_arp(cases):
         ("out of range [1,2]", "T-5 V9 区间锚"),
         ("invalid sender_ip", "T-6 sender_ip 锚"),
         ("must not have an ip/transport carrier", "T-7 carrier 锚"),
-        ("no longer accepts a top-level arp", "T-8 presence 锚"),
+        ("rejects a top-level arp", "T-8 presence 锚"),
         ("static four-tuple", "T-12 静态复制锚"),
     ]:
         rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
@@ -7369,7 +7369,7 @@ def check_stratum(cases):
                  'case "stratum":' in sc
                  and 'parseSubconfigJSON[*StratumConfig](&spec, sub, "stratum"' not in sc, "在案"))
     rows.append(("CheckProtoFlat presence 判死顶层 stratum（G-ST-4）",
-                 "no longer accepts a top-level stratum sub-config" in sc, "在案"))
+                 "rejects a top-level stratum sub-config" in sc, "在案"))
     rows.append(("mapToFlowSpec 顶层 stratum → ValidationErrors（在库旧策略执法）",
                  'if protocol == "stratum" {' in sc, "在案"))
     vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
@@ -7600,7 +7600,7 @@ def check_ntlm(cases):
                  'case "ntlm":' in sc and "parseSubconfigJSON[*NTLMConfig]" in sc
                  and "port := uint16(445)" in sc and "port = 80" in sc, "在案"))
     rows.append(("CheckProtoFlat 顶层 ntlm 子映射 presence 判死",
-                 "protocol ntlm no longer accepts a top-level ntlm sub-config" in sc, "在案"))
+                 "protocol ntlm rejects a top-level ntlm sub-config" in sc, "在案"))
     cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
     rows.append(("chain_planner ntlm 目的端口按 profile 缺省",
                  'case "ntlm":' in cp and 'spec.NTLM.Profile == "http-negotiate"' in cp, "在案"))
@@ -7738,7 +7738,7 @@ def check_tds(cases):
                  'Name: "tds"' in rg and 'TransportOn: []string{"tcp"}' in rg, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat presence 判死顶层 tds",
-                 "no longer accepts a top-level tds sub-config" in sc, "在案"))
+                 "rejects a top-level tds sub-config" in sc, "在案"))
     rows.append(("strategy_convert 存量兼容块记 ValidationErrors",
                  'if protocol == "tds" {' in sc, "在案"))
 
@@ -7822,7 +7822,7 @@ def check_drda(cases):
                  'case "drda":' in sc and "setDefaultDstPort(&spec, cfg, 446)" in sc
                  and "parseSubconfigJSON[*DRDAConfig]" not in sc, "在案"))
     rows.append(("CheckProtoFlat presence 判死顶层 drda",
-                 "no longer accepts a top-level drda sub-config" in sc, "在案"))
+                 "rejects a top-level drda sub-config" in sc, "在案"))
     rows.append(("mapToFlowSpec 顶层 drda → ValidationErrors（在库旧策略执法）",
                  'if protocol == "drda" {' in sc, "在案"))
 
@@ -7938,7 +7938,7 @@ def check_tns(cases):
     # mapToFlowSpec 块体是 `spec.ValidationErrors = append(...)`。
     _presence_tns = ('if protocol == "tns" {\n'
                      '\t\tif v, ok := cfg["tns"]; ok && v != nil {\n'
-                     '\t\t\treturn "protocol tns no longer accepts a top-level tns sub-config')
+                     '\t\t\treturn "protocol tns rejects a top-level tns sub-config')
     _mapfs_tns = ('if protocol == "tns" {\n'
                   '\t\tif v, ok := cfg["tns"]; ok && v != nil {\n'
                   '\t\t\tspec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))')
@@ -8105,7 +8105,7 @@ def check_spnego(cases):
                  'case "spnego":' in sc and "parseSubconfigJSON[*SPNEGOConfig]" in sc
                  and "portS := uint16(445)" in sc and "portS = 80" in sc, "在案"))
     rows.append(("CheckProtoFlat 顶层 spnego 子映射 presence 判死",
-                 "protocol spnego no longer accepts a top-level spnego sub-config" in sc, "在案"))
+                 "protocol spnego rejects a top-level spnego sub-config" in sc, "在案"))
     cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
     rows.append(("chain_planner spnego 目的端口按 profile 缺省",
                  'case "spnego":' in cp and 'spec.SPNEGO.Profile' in cp and '"http"' in cp, "在案"))
@@ -8264,7 +8264,7 @@ def check_gbt32960(cases):
     rows.append(("strategy_convert 扁平解析导出（单一真相）",
                  "func ParseGBT32960ConfigFromMap" in sc, "在案"))
     rows.append(("CheckProtoFlat 顶层 gbt32960 子映射 presence 判死",
-                 "protocol gbt32960 no longer accepts a top-level gbt32960 sub-config" in sc, "在案"))
+                 "protocol gbt32960 rejects a top-level gbt32960 sub-config" in sc, "在案"))
     rows.append(("mapToFlowSpec 顶层 gbt32960 → ValidationErrors（在库旧策略执法）",
                  'if protocol == "gbt32960" {' in sc, "在案"))
     cp = (tg / "internal" / "core" / "layers" / "chain_planner.go").read_text()
@@ -8353,8 +8353,8 @@ def check_gbt32960(cases):
 
     # 4. 锚词面（45 负例 = 42 validator + 1 presence + 2 游离键）。
     for needle, name in [
-        ("no longer accepts a top-level gbt32960 sub-config", "presence 判死"),
-        ("no longer accepts flat config field src_ip", "游离键 src_ip"),
+        ("rejects a top-level gbt32960 sub-config", "presence 判死"),
+        ("rejects flat config field src_ip", "游离键 src_ip"),
         ("invalid Role", "V1 Role"), ("VIN length 18 exceeds 17", "V2 VIN 超长"),
         ("non-ASCII", "V3 VIN 非 ASCII"), ("I/O/Q not allowed", "V3b VIN I/O/Q"),
         ("VIN is required", "V4 VIN 必需"), ("SIM length 21 exceeds 20", "V5 SIM 超长"),
@@ -8416,7 +8416,7 @@ def check_igmp(cases):
     rows.append(("translate case igmp（层 config → spec.IGMP）", 'case "igmp":' in tr, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat 顶层 igmp 子映射 presence 判死",
-                 "protocol igmp no longer accepts a top-level igmp sub-config" in sc, "在案"))
+                 "protocol igmp rejects a top-level igmp sub-config" in sc, "在案"))
     rows.append(("mapToFlowSpec 顶层 igmp → ValidationErrors（在库旧策略执法）",
                  'if protocol == "igmp" {' in sc, "在案"))
     vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
@@ -8583,7 +8583,7 @@ def check_pim(cases):
     # 2. 守卫（P4 新增三面：presence / 游离键 / 载体）。
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat 顶层 pim 子映射 presence 判死（空 map 也死）",
-                 "protocol pim no longer accepts a top-level pim sub-config" in sc, "在案"))
+                 "protocol pim rejects a top-level pim sub-config" in sc, "在案"))
     rows.append(("mapToFlowSpec 顶层 pim → ValidationErrors（在库旧策略执法）",
                  'if protocol == "pim" {' in sc, "在案"))
     vl = (tg / "internal" / "core" / "layers" / "validate_layers.go").read_text()
@@ -8711,7 +8711,7 @@ def check_pim(cases):
     rows.append(("7 锚词均命中 planner.go 已落码文案", not miss, miss or "7/7 命中"))
     # 链级红例锚词 ∈ 代码锚词集（presence/游离/载体）。锚词是**子串**断言
     #（case 侧只要求命中片段），文案可能由字符串拼接产生（CheckProtoFlat
-    # 的 flat 键文案是 "protocol "+protocol+" no longer accepts flat config
+    # 的 flat 键文案是 "protocol "+protocol+" rejects flat config
     # field "+k）——按 rtmfp/tftp 先例的骨架口径（去数字 + 逐词命中）判，
     # 不做整句字面量相等。
     chain_code = sc + vl + blk
@@ -8724,8 +8724,8 @@ def check_pim(cases):
         return len(words) >= 3 and all(w in chain_code for w in words)
 
     chain_anchors = {
-        "pim_neg_top_pim_presence_reject": "no longer accepts a top-level pim sub-config",
-        "pim_neg_stray_top_src_ip": "no longer accepts flat config field src_ip",
+        "pim_neg_top_pim_presence_reject": "rejects a top-level pim sub-config",
+        "pim_neg_stray_top_src_ip": "rejects flat config field src_ip",
         "pim_neg_carrier_udp": "carrier",
         "pim_neg_carrier_missing_ip": "carrier",
     }
@@ -8818,7 +8818,7 @@ def check_rtmfp(cases):
                  "internal/protocol/rtmfp" in mn and 'NewChainPlanner("rtmfp")' in mn, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat 顶层 rtmfp 子映射 presence 判死",
-                 "protocol rtmfp no longer accepts a top-level rtmfp sub-config" in sc, "在案"))
+                 "protocol rtmfp rejects a top-level rtmfp sub-config" in sc, "在案"))
     rows.append(("strategy_convert 在库旧策略 compat（ValidationErrors）",
                  sc.count('CheckProtoFlat(protocol, cfg)') >= 14
                  and 'if protocol == "rtmfp"' in sc, "在案"))
@@ -8983,7 +8983,7 @@ def check_isis(cases):
 
     # 2. 守卫面。
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
-    # presence 文案由 rawWrapChains 表在运行时拼出（"no longer accepts a
+    # presence 文案由 rawWrapChains 表在运行时拼出（"rejects a
     # top-level <proto> sub-config"），源码里没有 isis 字面量——按表项查。
     rows.append(("CheckProtoFlat presence 判死顶层 isis 子映射（rawWrapChains 表项）",
                  re.search(r'"isis":\s*"\[eth,isis\]"', sc) is not None, "在案"))
@@ -9106,8 +9106,8 @@ def check_isis(cases):
     # 负例锚词覆盖（15 负例锚词逐字 = cases 表值）。
     anchors = {"profile", "system", "state", "address", "area", "carrier",
                "header", "level", "length", "tlv", "checksum",
-               "no longer accepts a top-level isis sub-config",
-               "no longer accepts flat config field src_ip",
+               "rejects a top-level isis sub-config",
+               "rejects flat config field src_ip",
                "must not have an ip/transport carrier"}
     got = {(c.get("expect") or {}).get("error_contains") for c in neg}
     missing = sorted(a for a in anchors if a not in got)
@@ -9177,7 +9177,7 @@ def check_coap(cases):
                  "internal/protocol/coap" in mn and 'NewChainPlanner("coap")' in mn, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("G-COAP-1② CheckProtoFlat presence 判死顶层 coap",
-                 "no longer accepts a top-level coap sub-config" in sc, "在案"))
+                 "rejects a top-level coap sub-config" in sc, "在案"))
     # C1（gen-review）：原判据是裸子串 `if protocol == "coap" {`，与
     # CheckProtoFlat 的 presence 分支共用 → 删掉 mapToFlowSpec 执法块门仍全绿
     # （MUT7 实证），被点名的「在库旧策略执法口」实际无机器门。改为断言
@@ -9324,7 +9324,7 @@ def check_coap(cases):
     missing_a = sorted(a for a in anchors if a not in got)
     rows.append((f"负例锚词覆盖 {len(anchors)} 族", not missing_a, missing_a or "全覆盖"))
     for needle, name in [
-        ("no longer accepts a top-level coap sub-config", "presence 判死锚词"),
+        ("rejects a top-level coap sub-config", "presence 判死锚词"),
         ("coap layer config decode", "翻译解码锚词"),
     ]:
         hit = needle in blob or needle in sc or needle in tr
@@ -9368,7 +9368,7 @@ def check_ethmining(cases):
     rows.append(("FlowMeta.ETHMining 字段", re.search(r"ETHMining\s+\*core\.ETHMiningConfig", gen) is not None, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat 顶层 ethmining 子映射 presence 判死",
-                 "protocol ethmining no longer accepts a top-level ethmining sub-config" in sc, "在案"))
+                 "protocol ethmining rejects a top-level ethmining sub-config" in sc, "在案"))
     rows.append(("mapToFlowSpec 顶层 ethmining → ValidationErrors（在库旧策略执法）",
                  'if protocol == "ethmining" {' in sc, "在案"))
     rows.append(("mapToFlowSpec 目的端口缺省 4444（bgp 范式；通用默认 80 不得漏上线）",
@@ -9560,7 +9560,7 @@ def check_moxa(cases):
                  "internal/protocol/moxa" in mn and 'NewChainPlanner("moxa")' in mn, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat 顶层 moxa 子映射 presence 判死（G-MOXA-2 落码）",
-                 "protocol moxa no longer accepts a top-level moxa sub-config" in sc, "在案"))
+                 "protocol moxa rejects a top-level moxa sub-config" in sc, "在案"))
     rows.append(("strategy_convert 在库旧策略 compat（ValidationErrors）",
                  sc.count('CheckProtoFlat(protocol, cfg)') >= 14
                  and 'if protocol == "moxa"' in sc, "在案"))
@@ -9744,7 +9744,7 @@ def check_mongodb(cases):
                  "spec.DstPort = mongodbPort" in cp and "const mongodbPort = 27017" in cp, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat 顶层 mongodb 子映射 presence 判死",
-                 "protocol mongodb no longer accepts a top-level mongodb sub-config" in sc, "在案"))
+                 "protocol mongodb rejects a top-level mongodb sub-config" in sc, "在案"))
     rows.append(("mapToFlowSpec 顶层 mongodb → ValidationErrors（在库旧策略执法）",
                  'if protocol == "mongodb" {' in sc, "在案"))
     rows.append(("flat 兼容路径端口缺省 27017", "setDefaultDstPort(&spec, cfg, 27017)" in sc, "在案"))
@@ -9921,7 +9921,7 @@ def check_iec104(cases):
     # append 三行）。
     _presence_ie = ('if protocol == "iec104" {\n'
                     '\t\tif v, ok := cfg["iec104"]; ok && v != nil {\n'
-                    '\t\t\treturn "protocol iec104 no longer accepts a top-level iec104 sub-config')
+                    '\t\t\treturn "protocol iec104 rejects a top-level iec104 sub-config')
     _compat_ie = ('if protocol == "iec104" {\n'
                   '\t\tif v, ok := cfg["iec104"]; ok && v != nil {\n'
                   '\t\t\tspec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))')
@@ -9995,7 +9995,7 @@ def check_iec104(cases):
     # 4. 锚词面（§9 四行 + M5 三条）。
     anchors = {"control", "unknown type_id", "APDU too long", "IOA",
                "top-level iec104 sub-config",
-               "no longer accepts flat config field count", "src_mac", "carrier",
+               "rejects flat config field count", "src_mac", "carrier",
                "dst_port must be 2404"}
     got = {(c.get("expect") or {}).get("error_contains") for c in neg}
     missing = sorted(a for a in anchors if a not in got)
@@ -10073,7 +10073,7 @@ def check_postgresql(cases):
                  "internal/protocol/postgresql" in mn and 'NewChainPlanner("postgresql")' in mn, "在案"))
     sc = (tg / "internal" / "core" / "strategy_convert.go").read_text()
     rows.append(("CheckProtoFlat presence 判死顶层 postgresql（G-PG-6 关闭）",
-                 "no longer accepts a top-level postgresql sub-config" in sc, "在案"))
+                 "rejects a top-level postgresql sub-config" in sc, "在案"))
     rows.append(("mapToFlowSpec 顶层 postgresql -> ValidationErrors（在库旧策略执法）",
                  'if protocol == "postgresql" {' in sc, "在案"))
 

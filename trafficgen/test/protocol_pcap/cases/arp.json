@@ -354,7 +354,7 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "no longer accepts a top-level arp"
+   "error_contains": "rejects a top-level arp"
   }
  },
  {

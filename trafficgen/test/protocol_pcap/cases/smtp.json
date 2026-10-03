@@ -190,7 +190,7 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "no longer accepts a top-level smtp sub-config",
+   "error_contains": "rejects a top-level smtp sub-config",
    "notes": [
     "D-SMTP-1 §5 新锚词；mqtt/dns 先例同构"
    ]

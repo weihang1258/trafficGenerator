@@ -266,7 +266,7 @@
 
 | # | ID | 故障输入（机读实测） | JSON `error_contains` | 代码文案（逐字） | 代码行 | 拒绝层 |
 |---:|---|---|---|---|---|---|
-| N-1 | `dns_neg_flat` | `{layers:[…{dns:{}}], dns:{}}`（**空 map 也死**） | `no longer accepts a top-level dns sub-config` | `protocol dns no longer accepts a top-level dns sub-config (move it into the dns layer of an [ip,udp,dns] layers chain)` | `strategy_convert.go:8650-8654` | CheckProtoFlat（schema 400） |
+| N-1 | `dns_neg_flat` | `{layers:[…{dns:{}}], dns:{}}`（**空 map 也死**） | `rejects a top-level dns sub-config` | `protocol dns rejects a top-level dns sub-config (move it into the dns layer of an [ip,udp,dns] layers chain)` | `strategy_convert.go:8650-8654` | CheckProtoFlat（schema 400） |
 | N-2 | `dns_neg_static_copy` | `flows=2` + 全静态四元组 | `static four-tuple` | `layers pin a static four-tuple but flows > 1` | 静态复制门 | ValidateLayers |
 | N-3 | `dns_neg_tcp` | 层内 `transport:"tcp"` | `tcp transport not supported` | `dns: tcp transport not supported by the layer chain yet (udp only; tcp deferred)` | `layer_gen.go:114` | 层校验器 |
 | N-4 | `dns_neg_rcode` | `response_code:16`（4 位上限 15） | `out of range [0,15]` | `layers: layer "dns" field "response_code" = 16 invalid: out of range [0,15]` | `complete.go:325`（V9 范围门） | ValidateLayers |
@@ -434,7 +434,7 @@ RFC 1035/6891/4033/4034/3596/2782/3401/7766（设计 §10）+ D-DNS-1（设计 �
 | 2 | 23 正例 `spec_json` 顶层键 = `{layers}`（**本协议非负例零游离键**）；3 例在 case 顶层追加 `strategy_fc` | 本契约 §1；设计 §12.1 |
 | 3 | 23 正例 `packet_count`/`min_packets` == `1 + (is_response ? 1 : 0)`（`is_response` 由层内 spec 推出） | 设计 §9 公式 |
 | 4 | 6 负例 `expect` 键集合 == `{expect_error, error_contains}`（**今日即成立**） | 本契约 §4 |
-| 5 | 负例 `error_contains` ∈ 代码锚词集 `{"no longer accepts a top-level dns sub-config", "static four-tuple", "tcp transport not supported", "out of range [0,15]", "query_name (domain) is required", "exceeds max 63 octets"}` | 设计 §7 |
+| 5 | 负例 `error_contains` ∈ 代码锚词集 `{"rejects a top-level dns sub-config", "static four-tuple", "tcp transport not supported", "out of range [0,15]", "query_name (domain) is required", "exceeds max 63 octets"}` | 设计 §7 |
 | 6 | 非负例 `spec_json` 顶层游离键计数 == 0（**今日已成立**） | 设计 §12.1 |
 | 7 | 每正例至少一条 `dns.*` 字段断言（**23/23 成立**） | 本契约 §3 |
 | 8 | 层形恒 `[ip,udp,dns]`（29/29，含 2 个 v6 例地址住 `layers[0].ip`） | 本契约 §1 |

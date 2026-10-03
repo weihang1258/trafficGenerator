@@ -3307,7 +3307,7 @@ v2.0.0 是**不兼容重写**：
 | 文件 | 动作 |
 |---|---|
 | `trafficgen/internal/core/layers/chain_planner_translate.go` | 新增 `case "smb"`：把 `layers[i].smb` 的 34 键严格解码为 `core.SMBConfig` 回填 `spec.SMB`（层配置赢，`Meta.SMB` 随之取值；参照 dns/mqtt 层配置回填族） |
-| `trafficgen/internal/core/strategy_convert.go` | `CheckProtoFlat` 增 `case "smb"`：顶层 `smb` 子映射 presence（含空 map）→ 判死（锚词 "no longer accepts a top-level smb sub-config"，与 http 族文案同构） |
+| `trafficgen/internal/core/strategy_convert.go` | `CheckProtoFlat` 增 `case "smb"`：顶层 `smb` 子映射 presence（含空 map）→ 判死（锚词 "rejects a top-level smb sub-config"，与 http 族文案同构） |
 | `trafficgen/internal/protocol/smb/layer_gen.go` | 配置缺失错误文案保持；若放开业务动态（§14.12 候选行）需读 `req.Meta.FlowIndex` 逐流解析 |
 | `trafficgen/internal/core/layer_dyn.go` | 仅在放开业务动态时新增 `"smb"` allowlist 行（本期**不动**） |
 | `trafficgen/test/protocol_pcap/cases/smb.json` | 279 例全量改写为纯 layers 形（清单见 `07-smb-testcase.md` §4）+ 新增判死负例 + 补 41 个未覆盖设计点 + 拆分 34 个合并例 → **P6 实况：279 改写已闭（`012bf48`，链路径全量重钉）；判死负例 = `smb_terr195a`（§3.4）+ 链级红例（`smb_chain_test.go`）；41 零命中按 testcase §6.1 逐点重分类（P6 补 17 原子例，非改写存量 ID）；34 合并例拆分 + 13 对取一待 team-lead 裁定（ID 集变更，testcase §6.2⑤/§6.3）** |

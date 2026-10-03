@@ -245,7 +245,7 @@ func TestSMBChain_PresenceAndStrayTopLevelKeys(t *testing.T) {
 	}
 	if msg := core.CheckProtoFlat("smb", cfg); msg == "" {
 		t.Fatal("CheckProtoFlat(smb, {layers, smb:{}}) = \"\", want presence rejection")
-	} else if !strings.Contains(msg, "no longer accepts a top-level smb sub-config") {
+	} else if !strings.Contains(msg, "rejects a top-level smb sub-config") {
 		t.Fatalf("CheckProtoFlat msg = %q", msg)
 	}
 	for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port", "count"} {
@@ -337,7 +337,7 @@ func TestSMBChain_ProbeRouting(t *testing.T) {
 func TestSMBChain_ProbeNegativeAnchors(t *testing.T) {
 	if msg := core.CheckProtoFlat("smb", map[string]interface{}{
 		"layers": smbLayers(map[string]interface{}{}, nil), "src_ip": smbCli,
-	}); !strings.Contains(msg, "no longer accepts flat config field src_ip") {
+	}); !strings.Contains(msg, "rejects flat config field src_ip") {
 		t.Fatalf("flat anchor msg = %q", msg)
 	}
 	if _, errs := schema.ValidateStrategy("synth", "smb", map[string]any{

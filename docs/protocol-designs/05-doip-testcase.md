@@ -98,8 +98,8 @@
 | 20 | `doip_neg_udp_phase_discovery` | 层内 `discovery` 非空 | `discovery` 且 `not supported` | `layer_gen.go:289` |
 | 21 | `doip_neg_udp_phase_entity_status` | 层内 `entity_status` 非空 | `entity_status` 且 `not supported` | `layer_gen.go:292` |
 | 22 | `doip_neg_udp_phase_power_mode` | 层内 `power_mode` 非空 | `power_mode` 且 `not supported` | `layer_gen.go:295` |
-| 23 | `doip_neg_flat_toplevel` | `layers` + 顶层 `doip:{}` 并存 | `no longer accepts a top-level doip sub-config` | **P5 待落地**（G-DOIP-5） |
-| 24 | `doip_neg_flat_field` | 顶层 `src_ip`（等七键） | `no longer accepts flat config field` | `strategy_convert.go:8286-8293` |
+| 23 | `doip_neg_flat_toplevel` | `layers` + 顶层 `doip:{}` 并存 | `rejects a top-level doip sub-config` | **P5 待落地**（G-DOIP-5） |
+| 24 | `doip_neg_flat_field` | 顶层 `src_ip`（等七键） | `rejects flat config field` | `strategy_convert.go:8286-8293` |
 | 25 | `doip_neg_activation_type_reserved` | `activation_type`=0x02 | `ActivationType must be 0x00, 0x01, or 0xE0-0xFF` | `doip.go:126` |
 | 26 | `doip_neg_response_code_reserved` | `response_code`=0x12 | `ResponseCode must be 0x00-0x07, 0x10, or 0x11` | `doip.go:132` |
 | 27 | `doip_neg_nack_code_reserved` | `NackCode`=0x00/0x01/0x09 | `NackCode must be 0x02-0x08` | `doip.go:166` |
