@@ -20,21 +20,21 @@ import (
 // only `action` is always required. The LLM fills in whichever fields the
 // chosen action needs (documented per-field below).
 type managePcapsInput struct {
-	Action       string                   `json:"action" jsonschema:"operation: import|list|get|delete|list_flows|get_flow|list_packets|list_packets_by_asset|get_packet|get_packet_payload|get_stream|get_body|search|match_preview|extract|download|reparse"`
-	ID           string                   `json:"id,omitempty" jsonschema:"asset id (required for all actions except import/list)"`
-	FilePath     string                   `json:"file_path,omitempty" jsonschema:"local file path (import only)"`
-	FlowID       string                   `json:"flow_id,omitempty" jsonschema:"flow id (get_flow/list_packets/get_stream/get_body)"`
-	PacketID     string                   `json:"packet_id,omitempty" jsonschema:"packet id (get_packet/get_packet_payload)"`
-	Direction    string                   `json:"direction,omitempty" jsonschema:"stream direction: c2s|s2c (get_stream/get_body)"`
-	Offset       int64                    `json:"offset,omitempty" jsonschema:"byte offset within stream (get_stream, optional)"`
-	Limit        int64                    `json:"limit,omitempty" jsonschema:"byte length to read (get_stream, optional)"`
-	Filters      map[string]interface{}   `json:"filters,omitempty" jsonschema:"search/match_preview/extract filter object (action-specific shape)"`
-	ExtractRules map[string]interface{}   `json:"extract_rules,omitempty" jsonschema:"extract request {packet_ids, fields} -- fields are layer field names: src_ip, dst_ip, src_port, dst_port, seq, ack, tcp_flags, window, ttl, protocol (NOT model field names like SrcIP/TimestampUs); use get_packet to see available fields"`
-	Matcher      map[string]interface{}   `json:"matcher,omitempty" jsonschema:"match_preview FlowMatcher object"`
-	Force        bool                     `json:"force,omitempty" jsonschema:"force delete even if referenced (delete)"`
-	Page         int                      `json:"page,omitempty" jsonschema:"page number (list/list_flows/list_packets, default 1)"`
-	Size         int                      `json:"size,omitempty" jsonschema:"page size (list/list_flows/list_packets, default 20/50)"`
-	Status       string                   `json:"status,omitempty" jsonschema:"filter by asset status (list)"`
+	Action       string                 `json:"action" jsonschema:"operation: import|list|get|delete|list_flows|get_flow|list_packets|list_packets_by_asset|get_packet|get_packet_payload|get_stream|get_body|search|match_preview|extract|download|reparse"`
+	ID           string                 `json:"id,omitempty" jsonschema:"asset id (required for all actions except import/list)"`
+	FilePath     string                 `json:"file_path,omitempty" jsonschema:"absolute server-side file path (import only). Remote client without a server-local path? Upload and register in one step instead: curl -X POST <this MCP connection's scheme://host[:port]>/uploads/pcaps -H 'X-MCP-Key: <your configured key>' -F file=@./local.pcap — the response JSON's ID is the asset id for list_flows/get_packet/extract"`
+	FlowID       string                 `json:"flow_id,omitempty" jsonschema:"flow id (get_flow/list_packets/get_stream/get_body)"`
+	PacketID     string                 `json:"packet_id,omitempty" jsonschema:"packet id (get_packet/get_packet_payload)"`
+	Direction    string                 `json:"direction,omitempty" jsonschema:"stream direction: c2s|s2c (get_stream/get_body)"`
+	Offset       int64                  `json:"offset,omitempty" jsonschema:"byte offset within stream (get_stream, optional)"`
+	Limit        int64                  `json:"limit,omitempty" jsonschema:"byte length to read (get_stream, optional)"`
+	Filters      map[string]interface{} `json:"filters,omitempty" jsonschema:"search/match_preview/extract filter object (action-specific shape)"`
+	ExtractRules map[string]interface{} `json:"extract_rules,omitempty" jsonschema:"extract request {packet_ids, fields} -- fields are layer field names: src_ip, dst_ip, src_port, dst_port, seq, ack, tcp_flags, window, ttl, protocol (NOT model field names like SrcIP/TimestampUs); use get_packet to see available fields"`
+	Matcher      map[string]interface{} `json:"matcher,omitempty" jsonschema:"match_preview FlowMatcher object"`
+	Force        bool                   `json:"force,omitempty" jsonschema:"force delete even if referenced (delete)"`
+	Page         int                    `json:"page,omitempty" jsonschema:"page number (list/list_flows/list_packets, default 1)"`
+	Size         int                    `json:"size,omitempty" jsonschema:"page size (list/list_flows/list_packets, default 20/50)"`
+	Status       string                 `json:"status,omitempty" jsonschema:"filter by asset status (list)"`
 }
 
 type managePcapsOutput struct {
@@ -45,8 +45,8 @@ type managePcapsOutput struct {
 func (s *Server) registerPcapTools() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
-			Name:        "flowb_manage_pcaps",
-			Description: "Manage PCAP assets: import/list/get/delete, parse flows/packets, search/extract, download. 17 actions covering the full PCAP lifecycle. Task-generated pcaps are auto-registered here (files up to 64MB; get_task_progress returns the pcap_asset_id) so you can inspect flows/packets and download without extra steps. action=download returns file_path (local/stdio) or an unauthenticated download_url (HTTP) for the pcap file.",
+			Name:         "flowb_manage_pcaps",
+			Description:  "Manage PCAP assets: import/list/get/delete, parse flows/packets, search/extract, download. 17 actions covering the full PCAP lifecycle. Task-generated pcaps are auto-registered here (files up to 64MB; get_task_progress returns the pcap_asset_id) so you can inspect flows/packets and download without extra steps. action=download returns file_path (local/stdio) or an unauthenticated download_url (HTTP) for the pcap file.",
 			OutputSchema: manageOutputSchema(),
 		},
 		s.handleManagePcaps,

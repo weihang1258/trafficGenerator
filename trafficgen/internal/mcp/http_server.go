@@ -99,6 +99,11 @@ func NewHTTPServer(s *Server, listen string, apiKey string, corsOrigins []string
 		rest.ServePcapPublic(s.db, w, r)
 	})))
 
+	// Pcap upload + registration in one step (multipart "file"): the write
+	// counterpart of the download links above — same port, but keyed (X-MCP-Key
+	// inside the CORS wrapper), since uploads must not be unauthenticated.
+	mux.Handle("/uploads/pcaps", corsMiddleware(corsOrigins, apiKeyMiddleware(apiKey, http.HandlerFunc(s.uploadPcapHandler))))
+
 	hs := &HTTPServer{
 		srv: &http.Server{
 			Addr:         listen,
