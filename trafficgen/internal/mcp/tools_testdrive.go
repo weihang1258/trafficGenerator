@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/trafficgen/trafficgen/internal/api/rest"
@@ -94,7 +95,7 @@ func (s *Server) registerTestDriveTools() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
 			Name:        "flowb_run_protocol_suite",
-			Description: "Load all (or one protocol's) cases from a cases JSON directory and drive each through flowb_run_protocol_case, aggregating the verdicts. Returns total/pass/fail/error counts plus per-case results. NIC capture (real wire) is enabled per-case via nic_capture when output_type=port_group.",
+			Description: "Load all (or one protocol's) cases from a cases JSON directory and drive each through flowb_run_protocol_case, aggregating the verdicts. Returns total/pass/fail/error counts plus per-case results. Responses above 64 KB are auto-exported: the reply becomes a small receipt {written_to, bytes, export_id, download_url} — fetch with curl and read the file locally. NIC capture (real wire) is enabled per-case via nic_capture when output_type=port_group.",
 		},
 		s.handleRunProtocolSuite,
 	)
@@ -645,6 +646,31 @@ type suiteResult struct {
 	Fail    int             `json:"fail"`
 	Error   int             `json:"error"`
 	PerCase []runCaseOutput `json:"per_case,omitempty"`
+	// Export carries the {written_to, bytes, export_id, download_url}
+	// receipt when the per-case detail exceeded the inline threshold
+	// (auto-export, user ruling 2026-10-03); PerCase is then nil — the
+	// full JSON (summary included) is in the file behind the link.
+	Export map[string]interface{} `json:"export,omitempty"`
+}
+
+// exportSuiteDetail moves per-case detail into a server-managed export
+// when the marshaled suite result would flood the model context. The
+// summary counters stay inline either way.
+func (s *Server) exportSuiteDetail(res *suiteResult) {
+	raw, err := json.Marshal(res)
+	if err != nil || len(raw) <= maxInlineResponseBytes {
+		return
+	}
+	receipt, werr := writeExportFile("protocol_suite-"+uuid.NewString()[:8]+".json", raw)
+	if werr != nil {
+		return // degrade to inline rather than fail a finished suite run
+	}
+	var m map[string]interface{}
+	if json.Unmarshal(receipt, &m) != nil {
+		return
+	}
+	res.Export = m
+	res.PerCase = nil
 }
 
 func (s *Server) handleRunProtocolSuite(ctx context.Context, req *mcp.CallToolRequest, in suiteInput) (*mcp.CallToolResult, suiteResult, error) {
@@ -779,6 +805,7 @@ func (s *Server) handleRunProtocolSuite(ctx context.Context, req *mcp.CallToolRe
 	}
 	s.auditLog(req, "flowb_run_protocol_suite", time.Since(start), "success",
 		fmt.Sprintf("total=%d pass=%d fail=%d error=%d", res.Total, res.Pass, res.Fail, res.Error))
+	s.exportSuiteDetail(&res)
 	return nil, res, nil
 }
 

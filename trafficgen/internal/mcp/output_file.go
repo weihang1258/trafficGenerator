@@ -23,12 +23,19 @@ import (
 // server paths stay unreadable. stdio clients read written_to directly and
 // get no URL (transport rule).
 
-const maxExportEntries = 256
+var maxExportEntries = 256 // var：测试缩小驱逐窗口
 
 // exportsRoot is the server-managed directory for remote/auto exports,
-// relative to the process working directory — same convention as the
-// sqlite DB (./data). Tests repoint it at a temp dir.
-var exportsRoot = filepath.Join("data", "exports")
+// resolved absolute at startup (stdio receipts hand written_to to a
+// same-host client, which cannot know the server process cwd). Tests
+// repoint it at a temp dir.
+var exportsRoot = func() string {
+	abs, err := filepath.Abs(filepath.Join("data", "exports"))
+	if err != nil {
+		return filepath.Join("data", "exports")
+	}
+	return abs
+}()
 
 // maxInlineResponseBytes is the auto-export threshold (user ruling
 // 2026-10-03): data-fetch responses above it become server-managed
@@ -51,7 +58,15 @@ func registerExport(path string) string {
 	exportRegistry.order = append(exportRegistry.order, id)
 	if len(exportRegistry.order) > maxExportEntries {
 		for _, old := range exportRegistry.order[:len(exportRegistry.order)-maxExportEntries] {
+			p := exportRegistry.paths[old]
 			delete(exportRegistry.paths, old)
+			// The link is gone either way — remove the backing file too so
+			// auto-export cannot grow data/exports without bound. Only
+			// server-managed paths are ours to delete; stdio receipts that
+			// name a model-chosen absolute path outside exportsRoot stay.
+			if strings.HasPrefix(p, exportsRoot+string(filepath.Separator)) {
+				os.Remove(p)
+			}
 		}
 		exportRegistry.order = exportRegistry.order[len(exportRegistry.order)-maxExportEntries:]
 	}
@@ -174,3 +189,7 @@ func ServeExportPublic(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="export-`+id[:8]+`.json"`)
 	http.ServeFile(w, r, path)
 }
+
+// autoExportNote is appended to tool descriptions whose payloads can be
+// bulk (CORE_MEMORY §13.27: descriptions change with the behavior).
+const autoExportNote = " Responses above 64 KB are auto-exported: the reply becomes a small receipt {written_to, bytes, export_id, download_url} — fetch with curl and read the file locally."

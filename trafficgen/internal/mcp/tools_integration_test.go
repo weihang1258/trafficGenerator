@@ -1442,7 +1442,29 @@ func TestMCP_GenerateTraffic_PadMinFrame_True_ExplicitON(t *testing.T) {
 // layer name appears in the list view. The tool's list is the only surface
 // through which an LLM discovers layer names, so the registry must be
 // complete or layer-chain configs cannot be written.
+// inlineOrExported unwraps an egress payload: bulk responses above the
+// inline threshold arrive as export receipts (2026-10-03 auto-export) —
+// the original JSON lives in written_to; read it back so tests keep
+// asserting the real payload, not the receipt.
+func inlineOrExported(t *testing.T, data interface{}) []byte {
+	t.Helper()
+	b := asRaw(data)
+	var m map[string]interface{}
+	if err := json.Unmarshal(b, &m); err == nil {
+		if _, ok := m["export_id"]; ok {
+			wt, _ := m["written_to"].(string)
+			rb, err := os.ReadFile(wt)
+			if err != nil {
+				t.Fatalf("read export %q: %v", wt, err)
+			}
+			return rb
+		}
+	}
+	return b
+}
+
 func TestMCP_QueryLayers_ListAll(t *testing.T) {
+	withTempExports(t)
 	env := setupMCPTest(t)
 	defer env.cleanup()
 
@@ -1453,9 +1475,10 @@ func TestMCP_QueryLayers_ListAll(t *testing.T) {
 	if out.Action != "query_layers" {
 		t.Errorf("action = %q, want query_layers", out.Action)
 	}
+	// 全量注册表 ~67KB，超 64KB 阈值：按新契约经导出回执解包后断言原载荷。
 	var views []map[string]interface{}
-	if err := json.Unmarshal(asRaw(out.Data), &views); err != nil {
-		t.Fatalf("list data not a JSON array: %s (err: %v)", string(asRaw(out.Data)), err)
+	if err := json.Unmarshal(inlineOrExported(t, out.Data), &views); err != nil {
+		t.Fatalf("list data not a JSON array: %s", string(asRaw(out.Data))[:200])
 	}
 	if len(views) == 0 {
 		t.Fatal("list view is empty")
@@ -1636,8 +1659,8 @@ func TestMCP_QueryLayers_CreateStrategyWithLayers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("query_layers (list): %v", err)
 	}
-	if !strings.Contains(string(asRaw(lout.Data)), `"name":"tcp"`) {
-		t.Fatalf("registry list does not teach the tcp layer: %s", string(asRaw(lout.Data)))
+	if !strings.Contains(string(inlineOrExported(t, lout.Data)), `"name":"tcp"`) {
+		t.Fatalf("registry list does not teach the tcp layer")
 	}
 
 	_, out, err := env.srv.handleManageStrategies(context.Background(), nil, manageStrategiesInput{

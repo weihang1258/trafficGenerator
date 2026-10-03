@@ -121,7 +121,7 @@ func (s *Server) registerLayerTools() {
 			Description: "Query the layer-chain layer registry + verified examples. " +
 				"action=schema (default): list every layer with category, dependencies, and configurable fields with defaults; pass 'layer' for one layer's full field table. " +
 				"action=examples: verified per-protocol layer-chain configs (from the tested case corpus) — pass 'protocol' (e.g. modbus) to get copy-paste-ready configs; ALWAYS fetch examples for the target protocol before composing a new task config. " +
-				"Live view of the same registry dumped to schemas/v1/generated/layers.generated.json.",
+				"Live view of the same registry dumped to schemas/v1/generated/layers.generated.json." + autoExportNote,
 			OutputSchema: manageOutputSchema(),
 		},
 		s.handleQueryLayers,
@@ -196,5 +196,8 @@ func (s *Server) handleQueryLayers(ctx context.Context, req *mcp.CallToolRequest
 	// rawData round-trips the marshaled view through interface{}: the SDK
 	// marshals the output struct itself, and a json.RawMessage would be
 	// re-encoded as base64. interface{} preserves the JSON payload.
-	return nil, queryLayersOutput{Action: action, Data: rawData(raw)}, nil
+	// schema/examples with no layer/protocol filter dump the whole
+	// registry (~MB) — above the inline threshold the payload becomes a
+	// server-managed export with a download link (user ruling 2026-10-03).
+	return nil, queryLayersOutput{Action: action, Data: rawData(s.maybeExport("query_layers_"+action, raw))}, nil
 }

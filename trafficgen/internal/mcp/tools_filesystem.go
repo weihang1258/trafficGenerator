@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -41,7 +42,7 @@ func (s *Server) registerFilesystemTool() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
 			Name:        "flowb_manage_filesystem",
-			Description: "Manage the trafficgen content-addressed filesystem: upload/read/delete/mkdir/rmdir/list/query files and directories. upload writes a file from a JSON-described source (literal text, fill byte, random bytes, or another filesystem/disk file). read returns file bytes base64-encoded (binary-safe). delete removes a file (last reference deletes the backing blob). mkdir creates a directory (idempotent). rmdir removes a directory (recursive=true to delete non-empty). list lists entries in a directory. query returns metadata (size, mtime, sha256, is_dir) for a path.",
+			Description: "Manage the trafficgen content-addressed filesystem: upload/read/delete/mkdir/rmdir/list/query files and directories. upload writes a file from a JSON-described source (literal text, fill byte, random bytes, or another filesystem/disk file). read returns file bytes base64-encoded (binary-safe). delete removes a file (last reference deletes the backing blob). mkdir creates a directory (idempotent). rmdir removes a directory (recursive=true to delete non-empty). list lists entries in a directory. query returns metadata (size, mtime, sha256, is_dir) for a path." + autoExportNote,
 			OutputSchema: manageOutputSchema(),
 		},
 		s.handleManageFilesystem,
@@ -181,5 +182,13 @@ func (s *Server) handleManageFilesystem(ctx context.Context, req *mcp.CallToolRe
 	}
 
 	s.auditLog(req, "flowb_manage_filesystem", duration, "success", "")
-	return nil, manageFilesystemOutput{Action: in.Action, Data: result}, nil
+	// read/list of large content would flood the model context (a whole
+	// file arrives base64-inline); above the inline threshold the payload
+	// becomes a server-managed export with a download link (user ruling
+	// 2026-10-03 — every MCP contract assumes a remote client).
+	raw, merr := json.Marshal(result)
+	if merr != nil {
+		return nil, manageFilesystemOutput{}, &jsonrpc.Error{Code: jsonrpc.CodeInternalError, Message: "encode result: " + merr.Error()}
+	}
+	return nil, manageFilesystemOutput{Action: in.Action, Data: rawData(s.maybeExport("filesystem_"+in.Action, raw))}, nil
 }

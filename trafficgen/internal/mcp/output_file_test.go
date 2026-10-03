@@ -1,8 +1,10 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -270,4 +272,113 @@ func mustRaw(t *testing.T, v interface{}) json.RawMessage {
 		t.Fatal(err)
 	}
 	return b
+}
+
+// ---- 阈值边界 / 降级 / 驱逐 / 接线（隔离复审缺口项）----
+
+// 恰好 65536 内联，65537 转导出（"above 64 KB" 逐字节钉死）。
+func TestAutoExportExactBoundary(t *testing.T) {
+	withTempExports(t)
+	srv := newTransportTestServer(t)
+	if got := srv.maybeExport("a", bigPayload(65536)); len(got) != 65536 {
+		t.Errorf("65536 bytes must stay inline, got %d", len(got))
+	}
+	receipt := srv.maybeExport("b", bigPayload(65537))
+	if len(receipt) >= 65537 || !json.Valid(receipt) {
+		t.Fatalf("65537 bytes must export, got %d-byte payload", len(receipt))
+	}
+}
+
+// 导出写失败（目录不可建）降级内联返回原数据，不报错。
+func TestAutoExportDegradesToInlineOnWriteFailure(t *testing.T) {
+	blocked := filepath.Join(t.TempDir(), "blocker")
+	if err := os.WriteFile(blocked, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old := exportsRoot
+	exportsRoot = filepath.Join(blocked, "sub", "exports") // 父亲是文件，MkdirAll 必败
+	t.Cleanup(func() { exportsRoot = old })
+	srv := newTransportTestServer(t)
+	data := bigPayload(70000)
+	if got := srv.maybeExport("a", data); string(got) != string(data) {
+		t.Errorf("write failure must degrade to inline original data")
+	}
+}
+
+// 注册表驱逐时删除受管文件（磁盘有界），exportsRoot 外的 stdio 路径不删。
+func TestEvictionDeletesManagedFileOnly(t *testing.T) {
+	withTempExports(t)
+	oldMax := maxExportEntries
+	maxExportEntries = 2
+	t.Cleanup(func() { maxExportEntries = oldMax })
+
+	if err := os.MkdirAll(exportsRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	managed := filepath.Join(exportsRoot, "managed.json")
+	external := filepath.Join(t.TempDir(), "external.json")
+	for _, p := range []string{managed, external} {
+		if err := os.WriteFile(p, []byte("{}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	i1 := registerExport(managed)
+	registerExport(external)
+	registerExport(filepath.Join(exportsRoot, "third.json")) // 第 3 次注册挤出 managed
+	if _, err := os.Stat(managed); !os.IsNotExist(err) {
+		t.Errorf("evicted managed file must be removed, err=%v", err)
+	}
+	if _, err := os.Stat(external); err != nil {
+		t.Errorf("external stdio path must survive eviction: %v", err)
+	}
+	if _, ok := exportRegistry.paths[i1]; ok {
+		t.Errorf("evicted id must leave the registry")
+	}
+}
+
+// suite 超限：PerCase 转导出、summary 计数保持内联。
+func TestSuiteDetailAutoExport(t *testing.T) {
+	withTempExports(t)
+	srv := newTransportTestServer(t)
+	res := suiteResult{Total: 200, Pass: 200}
+	for i := 0; i < 200; i++ {
+		res.PerCase = append(res.PerCase, runCaseOutput{
+			CaseID: fmt.Sprintf("case_%04d_of_a_protocol_with_long_name", i),
+			Status: "pass",
+			Reason: strings.Repeat("x", 500),
+		})
+	}
+	srv.exportSuiteDetail(&res)
+	if res.Export == nil {
+		t.Fatalf("oversized suite must carry an export receipt")
+	}
+	if res.PerCase != nil {
+		t.Errorf("PerCase must be nil after export")
+	}
+	if res.Total != 200 || res.Pass != 200 {
+		t.Errorf("summary counters must stay inline: %+v", res)
+	}
+	if u, _ := res.Export["download_url"].(string); !strings.HasPrefix(u, "/downloads/exports/") {
+		t.Errorf("receipt download_url = %v", u)
+	}
+
+	small := suiteResult{Total: 1, Pass: 1, PerCase: []runCaseOutput{{CaseID: "c", Status: "pass"}}}
+	srv.exportSuiteDetail(&small)
+	if small.Export != nil || small.PerCase == nil {
+		t.Errorf("small suite must stay inline")
+	}
+}
+
+// 接线：query_layers 无 protocol 过滤的 examples（~310KB）自动转导出。
+func TestQueryLayersExamplesAutoExportWiring(t *testing.T) {
+	withTempExports(t)
+	srv := newTransportTestServer(t)
+	_, out, err := srv.handleQueryLayers(httpCtx(), nil, queryLayersInput{Action: "examples"})
+	if err != nil {
+		t.Fatalf("query_layers examples: %v", err)
+	}
+	b, _ := json.Marshal(out.Data)
+	if !bytes.Contains(b, []byte(`"export_id"`)) || !bytes.Contains(b, []byte(`"download_url"`)) {
+		t.Errorf("310KB examples payload must become a receipt, got %d bytes: %.200s", len(b), b)
+	}
 }

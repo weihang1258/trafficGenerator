@@ -49,8 +49,14 @@ func taskDataForTransport(ctx context.Context, raw json.RawMessage) interface{} 
 			if u, ok := m["download_url"].(string); ok && u != "" {
 				full := abs(u)
 				m["download_url"] = full
+				// Suggest an extension matching the artifact: export
+				// receipts carry JSON, pcap links carry capture files.
+				name := "out.pcap"
+				if strings.Contains(u, "/downloads/exports/") {
+					name = "out.json"
+				}
 				m["download_howto"] = "Fetch with a plain GET — no authentication needed. " +
-					"e.g. curl -o out.pcap " + full
+					"e.g. curl -o " + name + " " + full
 			}
 			if items, ok := m["items"].([]interface{}); ok {
 				for _, e := range items {
