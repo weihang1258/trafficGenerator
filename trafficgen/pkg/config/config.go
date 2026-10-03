@@ -300,7 +300,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("mcp.api_key", "")
 	v.SetDefault("mcp.transports.stdio", true)
 	v.SetDefault("mcp.transports.http.enabled", false)
-	v.SetDefault("mcp.transports.http.listen", "0.0.0.0:8081")
+	v.SetDefault("mcp.transports.http.listen", "0.0.0.0:8086")
 	v.SetDefault("mcp.transports.http.cors_origins", []string{"http://localhost:*", "http://127.0.0.1:*"})
 	v.SetDefault("mcp.max_wait_timeout_seconds", 3600)
 	v.SetDefault("mcp.audit_log", true)

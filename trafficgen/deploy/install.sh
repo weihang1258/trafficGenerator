@@ -68,6 +68,7 @@ fi
 # ---- 2. 安装二进制 ----------------------------------------------------------
 mkdir -p "$INSTALL_DIR/bin"
 install -m 0755 "$SRC_DIR/trafficgen" "$INSTALL_DIR/bin/trafficgen"
+install -m 0755 "$SRC_DIR/uninstall.sh" "$INSTALL_DIR/uninstall.sh"
 INSTALLED=$("$INSTALL_DIR/bin/trafficgen" -version)
 
 # ---- 3. 系统用户与数据目录 --------------------------------------------------
@@ -130,7 +131,7 @@ IP=${IP:-127.0.0.1}
 log "──────────────────────────────────────────────────────"
 log "✅ $INSTALLED 安装完成，服务已启动（开机自启）"
 log ""
-log "   MCP 端点 :  http://$IP:8081/mcp"
+log "   MCP 端点 :  http://$IP:8086/mcp"
 log "   API Key  :  $API_KEY   （客户端请求头 X-MCP-Key）"
 log ""
 log "   常用命令 :  systemctl status|restart|stop $SERVICE"

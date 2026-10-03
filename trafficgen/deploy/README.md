@@ -39,7 +39,7 @@ curl -fsSL http://<服务器>/install.sh | sudo bash
 
 ```
 ✅ trafficgen v1.1.0 安装完成，服务已启动（开机自启）
-   MCP 端点 :  http://192.168.1.10:8081/mcp
+   MCP 端点 :  http://192.168.1.10:8086/mcp
    API Key  :  3fa9c1…   （客户端请求头 X-MCP-Key）
 ```
 
@@ -59,13 +59,13 @@ curl -fsSL http://<服务器>/install.sh | sudo bash
 
 ## 客户端接入（MCP）
 
-服务端点为 `http://<主机IP>:8081/mcp`，鉴权请求头 `X-MCP-Key: <API Key>`
+服务端点为 `http://<主机IP>:8086/mcp`，鉴权请求头 `X-MCP-Key: <API Key>`
 （Key 在安装结束打印；忘了可查看配置文件 `sudo cat /etc/trafficgen/config.yaml | grep api_key`）。
 
 **Claude Code：**
 
 ```bash
-claude mcp add --transport http trafficgen http://<主机IP>:8081/mcp \
+claude mcp add --transport http trafficgen http://<主机IP>:8086/mcp \
   --header "X-MCP-Key: <API Key>"
 ```
 
@@ -76,7 +76,7 @@ claude mcp add --transport http trafficgen http://<主机IP>:8081/mcp \
   "mcpServers": {
     "trafficgen": {
       "type": "http",
-      "url": "http://<主机IP>:8081/mcp",
+      "url": "http://<主机IP>:8086/mcp",
       "headers": { "X-MCP-Key": "<API Key>" }
     }
   }
@@ -93,7 +93,7 @@ claude mcp add --transport http trafficgen http://<主机IP>:8081/mcp \
 
 | 想改什么 | 改哪里 |
 |---|---|
-| MCP 端口 | `mcp.transports.http.listen`（默认 `0.0.0.0:8081`；仅本机用改 `127.0.0.1:8081`） |
+| MCP 端口 | `mcp.transports.http.listen`（默认 `0.0.0.0:8086`；仅本机用改 `127.0.0.1:8086`） |
 | API Key | `mcp.api_key`（任意长随机串；为空则服务拒绝启动） |
 | 日志级别 | `logging.level`（`debug`/`info`/`warn`/`error`） |
 | 换 PostgreSQL | `database.type: "postgres"` 并填 `database.postgres` 段 |
@@ -130,7 +130,7 @@ sudo /opt/trafficgen/uninstall.sh --purge   # 连配置、数据、pcap 产物�
 | 现象 | 排查 |
 |---|---|
 | 服务起不来 | `journalctl -u trafficgen -n 50 --no-pager`；最常见：`api_key` 为空（MCP HTTP 强制要求） |
-| 客户端连不上 | 端口监听 `ss -tlnp \| grep 8081`；防火墙 `sudo firewall-cmd --add-port=8081/tcp --permanent && sudo firewall-cmd --reload` |
+| 客户端连不上 | 端口监听 `ss -tlnp \| grep 8086`；防火墙 `sudo firewall-cmd --add-port=8086/tcp --permanent && sudo firewall-cmd --reload` |
 | 401/鉴权失败 | 请求头 `X-MCP-Key` 与配置 `mcp.api_key` 是否一致 |
 | 磁盘涨满 | pcap 产物在 `/var/lib/trafficgen`，清理后 `sudo systemctl restart trafficgen` |
 | 升级版本 | 重新跑新包的 `install.sh` 即可：替换二进制、保留配置与数据、自动重启 |

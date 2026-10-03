@@ -24,7 +24,7 @@ mcp:
     stdio: false
     http:
       enabled: true
-      listen: "0.0.0.0:8081"   # MCP 端点 http://<host>:8081/mcp；仅本机使用改 127.0.0.1:8081
+      listen: "0.0.0.0:8086"   # MCP 端点 http://<host>:8086/mcp；仅本机使用改 127.0.0.1:8086
       cors_origins:
         - "http://localhost:*"
         - "http://127.0.0.1:*"
