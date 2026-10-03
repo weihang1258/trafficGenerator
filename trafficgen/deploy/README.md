@@ -19,11 +19,19 @@ cd trafficgen-v1.1.0-linux-amd64
 sudo ./install.sh
 ```
 
-### 方式二：在线一条命令
+### 方式二：在线一条命令（内网 HTTP 服务器）
+
+把发布产物（`dist/` 里的 `install.sh`、`trafficgen-vX.Y.Z-linux-amd64.tar.gz`、
+`SHA256SUMS` 三个文件）放到任意可匿名访问的 HTTP 服务器（nginx、minio、OSS、
+内网镜像均可；调试时可在仓库 `trafficgen/` 下 `make serve-dist` 直接托管）：
 
 ```bash
-curl -fsSL <发布地址>/install.sh | sudo bash -s -- <发布地址> v1.1.0
+curl -fsSL http://<服务器>/install.sh | sudo bash
 ```
+
+零参数：下载地址与版本号已在 `make dist` 时烧入脚本（可用环境变量
+`TRAFFICGEN_RELEASE_BASE` 或 `bash -s -- <base> <版本号>` 覆盖）。脚本自动
+下载 tarball、SHA256 校验、解压安装。
 
 安装脚本自动完成：安装到 `/opt/trafficgen` → 创建 `trafficgen` 系统用户 →
 生成 `/etc/trafficgen/config.yaml`（**自动生成随机 API Key 并打印**）→

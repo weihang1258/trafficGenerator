@@ -4,16 +4,34 @@
 # 用法一（离线，推荐）：tar 包解开后在包目录内执行
 #   sudo ./install.sh
 #
-# 用法二（在线）：从发布地址直接拉取
-#   curl -fsSL <release-base>/trafficgen-vX.Y.Z-linux-amd64.tar.gz | 不可行时：
-#   curl -fsSL <release-base>/install.sh | sudo bash -s -- <release-base> <版本号>
-#   例：curl -fsSL https://example.com/install.sh | sudo bash -s -- \
-#         https://github.com/weihang1258/trafficGenerator/releases/download v1.1.0
+# 用法二（在线一条命令）：从任意 HTTP 静态服务器（nginx/minio/oss/内网镜像）
+# 拉取发布目录中的 install.sh 执行，零参数——下载地址与版本号在 make dist
+# 时已烧入脚本：
+#   curl -fsSL http://<服务器>/trafficgen/install.sh | sudo bash
+#
+#   也可显式指定其他发布 base / 版本（或用环境变量 TRAFFICGEN_RELEASE_BASE）：
+#   curl -fsSL <base>/install.sh | sudo bash -s -- <base> <版本号如 v1.1.0>
+#
+# 发布目录需含（make dist 产物）：trafficgen-<版本>-linux-amd64.tar.gz、
+# SHA256SUMS、install.sh。注意：私有仓库的 GitHub releases 匿名不可下，
+# 在线安装需将产物放到可匿名访问的 HTTP 服务器。
 #
 # 脚本行为：装 /opt/trafficgen → 建 trafficgen 系统用户与 /var/lib/trafficgen
 # 数据目录 → 生成 /etc/trafficgen/config.yaml（自动随机 api_key，已存在则保留）
 # → 注册并启动 systemd 服务 → 打印 MCP 端点与密钥。
 set -euo pipefail
+
+INSTALL_DIR=/opt/trafficgen
+DATA_DIR=/var/lib/trafficgen
+CONF_DIR=/etc/trafficgen
+CONF_FILE=$CONF_DIR/config.yaml
+SERVICE=trafficgen
+SERVICE_USER=trafficgen
+
+# 在线模式默认值：base 可被环境变量或第一个参数覆盖；版本号由 make dist
+# 烧入（源码直跑时为占位符，走在线分支会提示显式传参）。
+DEFAULT_BASE="${TRAFFICGEN_RELEASE_BASE:-https://github.com/weihang1258/trafficGenerator/releases/download}"
+DEFAULT_VERSION="__RELEASE_VERSION__"
 
 INSTALL_DIR=/opt/trafficgen
 DATA_DIR=/var/lib/trafficgen
@@ -32,15 +50,15 @@ command -v systemctl >/dev/null || die "未找到 systemctl：本脚本依赖 sy
 [ "$(uname -m)" = "x86_64" ] || die "v1 仅支持 x86_64，当前 $(uname -m)"
 
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
-BASE_URL="${1:-}"
-VERSION="${2:-}"
+BASE_URL="${1:-$DEFAULT_BASE}"
+VERSION="${2:-$DEFAULT_VERSION}"
 
 # ---- 1. 取得发布文件（本地包目录或在线下载）---------------------------------
 if [ -x "$SRC_DIR/trafficgen" ]; then
     log "使用本地发布包：$SRC_DIR"
 else
-    [ -n "$BASE_URL" ] && [ -n "$VERSION" ] || die \
-        "当前目录没有 trafficgen 二进制。请在解包后的目录内运行，或传入 <发布base> <版本号>（如 v1.1.0）"
+    [ -n "$BASE_URL" ] && [ -n "$VERSION" ] && [ "$VERSION" != "__RELEASE_VERSION__" ] || die \
+        "当前目录没有 trafficgen 二进制，且在线模式缺少发布地址/版本。请在解包后的目录内运行，或显式传入 <发布base> <版本号>（如 v1.1.0），或设 TRAFFICGEN_RELEASE_BASE"
     ARCH=linux-amd64
     TARBALL="trafficgen-${VERSION}-${ARCH}.tar.gz"
     TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT

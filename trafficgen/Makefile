@@ -109,11 +109,20 @@ dist: build-release
 	rm -rf $(DIST_DIR)/$(PKG_NAME)
 	mkdir -p $(DIST_DIR)/$(PKG_NAME)
 	cp $(BUILD_DIR)/trafficgen $(DIST_DIR)/$(PKG_NAME)/
-	cp deploy/config.yaml.example deploy/install.sh deploy/uninstall.sh deploy/README.md $(DIST_DIR)/$(PKG_NAME)/
+	cp deploy/config.yaml.example deploy/uninstall.sh deploy/README.md $(DIST_DIR)/$(PKG_NAME)/
+	# install.sh 烧入发布版本号：curl | sudo bash 零参数在线安装（可被
+	# TRAFFICGEN_RELEASE_BASE / 显式参数覆盖）。源码副本保留占位符。
+	sed "s/__RELEASE_VERSION__/$(VERSION)/" deploy/install.sh > $(DIST_DIR)/$(PKG_NAME)/install.sh
 	chmod 0755 $(DIST_DIR)/$(PKG_NAME)/trafficgen $(DIST_DIR)/$(PKG_NAME)/install.sh $(DIST_DIR)/$(PKG_NAME)/uninstall.sh
 	tar -czf $(DIST_DIR)/$(PKG_NAME).tar.gz -C $(DIST_DIR) $(PKG_NAME)
 	cd $(DIST_DIR) && sha256sum $(PKG_NAME).tar.gz > SHA256SUMS
-	@echo "=== dist: $(DIST_DIR)/$(PKG_NAME).tar.gz (+ SHA256SUMS) ==="
+	cp $(DIST_DIR)/$(PKG_NAME)/install.sh $(DIST_DIR)/install.sh
+	@echo "=== dist: $(DIST_DIR)/$(PKG_NAME).tar.gz (+ SHA256SUMS + install.sh) ==="
+
+# serve-dist 起一个临时 HTTP 服务器托管发布产物（在线安装的服务端调试）：
+#   curl -fsSL http://<本机IP>:9000/install.sh | sudo bash
+serve-dist:
+	cd $(DIST_DIR) && python3 -m http.server 9000
 
 clean-dist:
 	rm -rf $(DIST_DIR)
