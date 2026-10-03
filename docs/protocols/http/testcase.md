@@ -117,7 +117,7 @@ HTTP 语义正例覆盖方法 GET/POST/PUT/DELETE/HEAD，状态 200/201/301/404/
 
 设计 §4 的 HTTP 语义面由 59 正例逐项覆盖：消息默认值/版本 2、请求方法 5、状态 6、body 编码 8、头与连接 7、多事务/流水线 2、MSS 4、IPv4/IPv6/TTL/端口 6、文件源 3、动态字段 6；以上为行为分类，不对字段重复做跨表加总。动态字段 6 个的实际正例形状是：`uri` fixed/list/pattern，`body`/`response_body`/`body_b64`/`response_body_b64` 各 list，`response_status_code` fixed/list/inc/rand；HTTP 字符串字段的 inc/rand 以及 method 等关闭字段的动态对象没有正例，拒绝格见 §4。设计 §6 的 8 个拒绝面由 8 负例一一覆盖。机器层面对账：67 ID/67 JSON 顺序、59 正/8 负、65 `{layers}`/1 `{layers,src_ip}`/1 `{http,layers}`、59 正包数与 8 负无包数，均由临时 Python 机读确认。
 
-没有 pcap、NIC 或 tshark 复跑证据，不能把 JSON 机器契约写成“测试通过”；执行状态为待 P5 重跑。
+2026-10-03 复跑证据（b094d7e 空 body `Content-Length: 0` 修复后，dev 8087 实例）：suite 67/67；http 族 sweep（http_flv/hls/hds/gbt/getwork/cwmp/doh/onvif）565/565；NIC 实发（enp135s0f0np0，`http_dyn_sport_fixed` 等 5 例代表性子集）5/5。动态字段仍按集合比较口径；负例错误输出在 suite 内逐条断言锚词。
 
 ## 6. P3 固定动作
 
@@ -128,7 +128,7 @@ HTTP 语义正例覆盖方法 GET/POST/PUT/DELETE/HEAD，状态 200/201/301/404/
 
 ## 7. 执行建议
 
-先跑 `http_get_baseline` 校准 packet 4/8、Host、版本和 9 包公式；再跑 keep-alive/pipelined 与三种 MSS 例；随后跑编码、状态、IPv6/TTL、文件源；最后跑动态正例与 8 负例。负例必须检查 task error 和锚词，不能只断言无 panic。P5 需对正例保留 packet_count/fields/frames，对动态字段按集合比较，并单独保存负例错误输出；在此之前写“待 P5 重跑”。
+先跑 `http_get_baseline` 校准 packet 4/8、Host、版本和 9 包公式；再跑 keep-alive/pipelined 与三种 MSS 例；随后跑编码、状态、IPv6/TTL、文件源；最后跑动态正例与 8 负例。负例必须检查 task error 和锚词，不能只断言无 panic。P5 需对正例保留 packet_count/fields/frames，对动态字段按集合比较，并单独保存负例错误输出（2026-10-03 已按此口径复跑，见 §5）。
 
 ## 8. 存量审计
 
@@ -173,3 +173,4 @@ HTTP 语义正例覆盖方法 GET/POST/PUT/DELETE/HEAD，状态 200/201/301/404/
 
 - v1.1.0（2026-09-30）：补三源测试点清单、逐条去向、三类场景、§3.15 审计、性能执行边界与 P5 缺口；修正配套设计路径；自审 2 轮，末轮 clean。
 - v1.1.2（2026-10-01）：按机器 JSON 重数动态业务字段为 6 个（原文误写 12），更新配套设计版本与依赖口径；未改 JSON、未运行任何测试。自审 2 轮，末轮 clean。
+- v1.1.3（2026-10-03）：空 body 响应写 `Content-Length: 0`（b094d7e，用户 Wireshark 不可解析裁定）；`http_resp_empty_no_content_type` 的 response.code packet 8→5、两个动态 body_list 例 content_length 增 "0"；suite/NIC/族 sweep 复跑通过，§5 回填证据。自审 2 轮，末轮 clean。

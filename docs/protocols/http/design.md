@@ -57,7 +57,7 @@ HTTP 是 TCP 终结层，推荐链为 `[ip,tcp,http]`，目的端口缺省 80；
 
 ## 5. 规范与实现依据
 
-规范基线为 RFC 7230（消息语法、头、Content-Length/Transfer-Encoding）、RFC 7231（方法、状态码）、RFC 9112 §6.3.2（pipelining）、RFC 879（MSS）以及 IPv4/IPv6/TCP 载体规范。实现依据为 `internal/protocol/http/http.go` 的 `Planner.Validate`、`Planner.Plan`、`segmentByMSS`、`buildHTTPRequestBody`、`buildHTTPResponseBody`、`resolveRequestBody`/`resolveResponseBody`；层接线依据 `layer_gen.go`、registry 和 translate 分支。机器行为依据 67 条 `http.json`（未声称 pcap/NIC 已复跑）。
+规范基线为 RFC 7230（消息语法、头、Content-Length/Transfer-Encoding）、RFC 7231（方法、状态码）、RFC 9112 §6.3.2（pipelining）、RFC 879（MSS）以及 IPv4/IPv6/TCP 载体规范。实现依据为 `internal/protocol/http/http.go` 的 `Planner.Validate`、`Planner.Plan`、`segmentByMSS`、`buildHTTPRequestBody`、`buildHTTPResponseBody`、`resolveRequestBody`/`resolveResponseBody`；层接线依据 `layer_gen.go`、registry 和 translate 分支。机器行为依据 67 条 `http.json`（2026-10-03 套件 67/67、http 族 sweep 565/565、NIC 实发 5/5 复跑通过，b094d7e 空 body CL:0 修复后）。
 
 ## 6. 依赖、注册和错误边界
 
