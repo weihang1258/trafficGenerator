@@ -1265,9 +1265,10 @@ func TestBuildHTTPResponse_ResponseBodyCustom(t *testing.T) {
 	}
 }
 
-// TestBuildHTTPResponse_EmptyBodyNoContentLength verifies that empty
-// ResponseBody -> no Content-Length and no Content-Type default.
-func TestBuildHTTPResponse_EmptyBodyNoContentLength(t *testing.T) {
+// TestBuildHTTPResponse_EmptyBodyNoContentTypeDefault verifies that
+// empty ResponseBody -> Content-Length: 0 (keep-alive framing, RFC
+// 7230 §3.3.3) and no Content-Type default.
+func TestBuildHTTPResponse_EmptyBodyNoContentTypeDefault(t *testing.T) {
 	// 2026-10-03 反转：旧断言"空 body 不写 Content-Length"钉住的是协议
 	// 无效行为——keep-alive 响应无 CL 时边界只能靠连接关闭（RFC 7230
 	// §3.3.3），Wireshark 实测逐条解不出（用户报告）。现在空 body 必须

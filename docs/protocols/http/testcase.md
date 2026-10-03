@@ -90,7 +90,7 @@ JSON 顺序是唯一编号依据；summary 中已有 T-HTTP-1…T-HTTP-72（历�
 
 ## 3. 正例断言
 
-所有正例都有 `packet_count` 和 `fields`。基线 `http_get_baseline`：packet 4 为 `GET / HTTP/1.1`、Host `198.51.100.20`，packet 8 响应 200，且 expect 明确 `has_handshake=true`、`terminates=true`、`directional=true`。请求/响应字段按 JSON 的 packet 索引断言，不能把请求字段移到响应帧。
+所有正例都有 `packet_count` 和 `fields`。基线 `http_get_baseline`：packet 4 为 `GET / HTTP/1.1`、Host `198.51.100.20`，packet 5 响应 200（v1.1.3 前为 packet 8，空 body 响应增 `Content-Length: 0` 后前移），且 expect 明确 `has_handshake=true`、`terminates=true`、`directional=true`。请求/响应字段按 JSON 的 packet 索引断言，不能把请求字段移到响应帧。
 
 动态例使用集合断言而非硬编码顺序：端口 rand 的 `distinct_values` 是 `43006,43008,43001,43004`；端口 list 是 `43100,43101`；inc wrap 是 `43300,43301,43302`；源 IP rand 是 `10.1.0.2,10.1.0.4,10.1.0.5`；URI list/pattern 分别是 `/a,/b` 与 `/u1,/u2`；状态 list/inc/rand 分别是 `200,404`、`200,201`、`200,201`。JSON 中 `None` 是动态字段集合断言的占位，不是字面线值。
 
@@ -104,12 +104,12 @@ HTTP 语义正例覆盖方法 GET/POST/PUT/DELETE/HEAD，状态 200/201/301/404/
 |---|---|---|
 |`http_dyn_pattern_reject`|`pattern strategy is not supported`|TCP src_port 使用 pattern|
 |`http_neg_bad_mss`|`mss`|TCP MSS=100|
-|`http_neg_flat_src_ip`|`no longer accepts flat config field src_ip`|顶层 `src_ip` 与 layers 并存|
+|`http_neg_flat_src_ip`|`rejects flat config field src_ip`|顶层 `src_ip` 与 layers 并存|
 |`http_neg_static_copy`|`static four-tuple`|flows=2 且静态四元组|
 |`http_neg_missing_carrier_gbt`|`requires the http carrier layer`|`[ip,tcp,gbt]` 无 http|
 |`http_neg_dyn_uri_inc`|`not supported for string field`|URI 使用 inc|
 |`http_neg_dyn_closed_method`|`does not support dynamic`|method 使用 list|
-|`http_neg_top_http`|`no longer accepts a top-level http sub-config`|顶层 http 与 layers 并存|
+|`http_neg_top_http`|`rejects a top-level http sub-config`|顶层 http 与 layers 并存|
 
 8/8 的 expect 键形严格为 `{expect_error,error_contains}`；负例不设 packet_count、fields 或 frames。
 
@@ -128,7 +128,7 @@ HTTP 语义正例覆盖方法 GET/POST/PUT/DELETE/HEAD，状态 200/201/301/404/
 
 ## 7. 执行建议
 
-先跑 `http_get_baseline` 校准 packet 4/8、Host、版本和 9 包公式；再跑 keep-alive/pipelined 与三种 MSS 例；随后跑编码、状态、IPv6/TTL、文件源；最后跑动态正例与 8 负例。负例必须检查 task error 和锚词，不能只断言无 panic。P5 需对正例保留 packet_count/fields/frames，对动态字段按集合比较，并单独保存负例错误输出（2026-10-03 已按此口径复跑，见 §5）。
+先跑 `http_get_baseline` 校准 packet 4/5、Host、版本和 9 包公式；再跑 keep-alive/pipelined 与三种 MSS 例；随后跑编码、状态、IPv6/TTL、文件源；最后跑动态正例与 8 负例。负例必须检查 task error 和锚词，不能只断言无 panic。P5 需对正例保留 packet_count/fields/frames，对动态字段按集合比较，并单独保存负例错误输出（2026-10-03 已按此口径复跑，见 §5）。
 
 ## 8. 存量审计
 
@@ -161,7 +161,7 @@ HTTP 语义正例覆盖方法 GET/POST/PUT/DELETE/HEAD，状态 200/201/301/404/
 | 层地址/端口及 HTTP 业务动态 fixed/list/inc/rand/pattern | `http_dyn_sport_*`, `http_dyn_sip_rand`, `http_dyn_uri_*`, `http_dyn_body_list`, `http_dyn_respbody_list`, `http_dyn_status_*`, `http_dyn_body_b64_list`, `http_dyn_respbody_b64_list` | 已覆；拒绝格见负例 |
 | pattern 端口、过小 MSS、flat 键、静态复制、缺 carrier、业务动态禁用 | `http_dyn_pattern_reject`, `http_neg_bad_mss`, `http_neg_flat_src_ip`, `http_neg_static_copy`, `http_neg_missing_carrier_gbt`, `http_neg_dyn_uri_inc`, `http_neg_dyn_closed_method`, `http_neg_top_http` | 8/8 负例 |
 
-三类场景：数据边界由 body 空值、base64 非法、MSS 下界、未知状态码和动态回绕覆盖；业务流程由握手→请求→响应→挥手、keep-alive 三事务、pipelined 和拒绝分支覆盖；现网行为由 Host、Connection、Content-Length、chunked、gzip 组合例覆盖。多会话/多流/多事务审计：多事务为同连接 `transactions=3`，多流的流数由 19 条 `strategy_fc.type=flows`（其中 17 条正例、2 条负例）表达、具体四元组变化由动态策略表达，控制/数据派生流不适用；无长保活时间戳断言，登记 G-HTTP-4。
+三类场景：数据边界由 body 空值、base64 非法、MSS 下界、未知状态码和动态回绕覆盖；业务流程由握手→请求→响应→挥手、keep-alive 三事务、pipelined 和拒绝分支覆盖；现网行为由 Host、Connection、Content-Length、chunked、gzip 组合例覆盖。多会话/多流/多事务审计：多事务为同连接 `transactions=3`，多流的流数由 19 条 `strategy_fc.type=flows`（其中 17 条正例、2 条负例）表达、具体四元组变化由动态策略表达，控制/数据派生流不适用；无长保活时间戳断言，登记 G-HTTP-4。已知潜在缺口 G-HTTP-5：空 body 的 204/1xx 响应现也写 `Content-Length: 0`，RFC 7230 §3.3.2 禁止 204/1xx 携带 CL；当前 67 例无 204/1xx 状态码，待此类状态入 cases 时一并约束（文档先行）。
 
 存量 67/67 逐条收编，未删除、未虚构 ID；59 正例均有 `packet_count` 与 `fields`，8 负例均为严格错误键形。按规范逻辑点对账：**9 个业务/数据逻辑组，9 组有用例；67 个机器 ID，67 个有去向**。反查只证明清单内项目已登记，不能替代 P5 的真实 pcap/NIC 执行。
 
