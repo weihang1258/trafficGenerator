@@ -105,45 +105,38 @@ func TestManagePcaps_ExtractRulesSchemaMentionsLayerFields(t *testing.T) {
 	}
 }
 
-// TestManageStrategies_ConfigSchemaMentionsL2L3Defaults verifies the Config
-// description mentions the L2/L3 field defaults so LLMs know:
-//   - packets carry trafficgen markers (02:00:00:00:00:0x MAC, 0x20 TOS)
-//   - defaults are overridable; explicit 0 is honored
-//   - the tcpdump filter expression for finding trafficgen packets
-//
-// Per CLAUDE.md testing policy §1: every default is a spec row needing a
-// schema-level test so LLM calls don't regress to sending zero-valued MACs.
-func TestManageStrategies_ConfigSchemaMentionsL2L3Defaults(t *testing.T) {
+// TestManageStrategies_ConfigSchema_PointsToLayerSchemaForDefaults verifies
+// the Config description routes default discovery to flowb_query_layers.
+// The old text inlined flat-era defaults (src_mac=02:00:00:00:00:01,
+// dscp=0x08, ip_flags=DF, tcpdump filter) — flat syntax the engine now
+// rejects, so repeating it taught LLMs a format that fails by construction.
+// Defaults still exist and remain discoverable via action=schema (ip layer
+// mac/dscp fields carry the same engine defaults); the test asserts both the
+// pointer and the absence of flat advertisement.
+func TestManageStrategies_ConfigSchema_PointsToLayerSchemaForDefaults(t *testing.T) {
 	got := fieldSchemaDescription(t, "manageStrategiesInput", "Config")
-	if !strings.Contains(got, "02:00:00:00:00:01") {
-		t.Errorf("manageStrategiesInput.Config jsonschema = %q; must mention default src_mac '02:00:00:00:00:01'", got)
+	if !strings.Contains(got, "action=schema lists fields/types/defaults/depends_on") {
+		t.Errorf("manageStrategiesInput.Config jsonschema = %q; must point defaults discovery at flowb_query_layers action=schema", got)
 	}
-	if !strings.Contains(got, "0x08") {
-		t.Errorf("manageStrategiesInput.Config jsonschema = %q; must mention default dscp '0x08' (CS1)", got)
-	}
-	if !strings.Contains(got, "DF") {
-		t.Errorf("manageStrategiesInput.Config jsonschema = %q; must mention default flags=DF", got)
-	}
-	if !strings.Contains(got, "0x20") {
-		t.Errorf("manageStrategiesInput.Config jsonschema = %q; must mention TOS byte 0x20 (for tcpdump filter)", got)
-	}
-	if !strings.Contains(got, "tcpdump") {
-		t.Errorf("manageStrategiesInput.Config jsonschema = %q; must mention tcpdump filter", got)
+	for _, banned := range []string{"(2) flat", "src_mac=02:00:00:00:00:01", "dscp=0x08", "ip_flags=DF"} {
+		if strings.Contains(got, banned) {
+			t.Errorf("manageStrategiesInput.Config jsonschema advertises rejected flat syntax %q: %s", banned, got)
+		}
 	}
 }
 
-// TestGenerateTraffic_ConfigSchemaMentionsL2L3Defaults verifies the same
-// hint is present on the workflow tool's Config field.
-func TestGenerateTraffic_ConfigSchemaMentionsL2L3Defaults(t *testing.T) {
+// TestGenerateTraffic_ConfigSchema_PointsToLayerSchemaForDefaults verifies
+// the same contract on the workflow tool's Config field (see the strategy
+// variant above for rationale).
+func TestGenerateTraffic_ConfigSchema_PointsToLayerSchemaForDefaults(t *testing.T) {
 	got := fieldSchemaDescription(t, "generateTrafficInput", "Config")
-	if !strings.Contains(got, "02:00:00:00:00:01") {
-		t.Errorf("generateTrafficInput.Config jsonschema = %q; must mention default src_mac '02:00:00:00:00:01'", got)
+	if !strings.Contains(got, "action=schema lists fields/types/defaults/depends_on") {
+		t.Errorf("generateTrafficInput.Config jsonschema = %q; must point defaults discovery at flowb_query_layers action=schema", got)
 	}
-	if !strings.Contains(got, "0x08") {
-		t.Errorf("generateTrafficInput.Config jsonschema = %q; must mention default dscp '0x08' (CS1)", got)
-	}
-	if !strings.Contains(got, "DF") {
-		t.Errorf("generateTrafficInput.Config jsonschema = %q; must mention default flags=DF", got)
+	for _, banned := range []string{"(2) flat", "src_mac=02:00:00:00:00:01", "ip_flags=DF"} {
+		if strings.Contains(got, banned) {
+			t.Errorf("generateTrafficInput.Config jsonschema advertises rejected flat syntax %q: %s", banned, got)
+		}
 	}
 }
 
@@ -160,15 +153,22 @@ func TestManageStrategies_ConfigSchemaMentionsLayerChainFormat(t *testing.T) {
 	}
 }
 
-// TestManageStrategies_ConfigSchemaKeepsLegacyDefaults verifies the flat
-// format defaults survived the layer-chain description addition (a regression
-// guard on the existing hints, which LLM calls depend on).
-func TestManageStrategies_ConfigSchemaKeepsLegacyDefaults(t *testing.T) {
+// TestManageStrategies_ConfigSchema_NoFlatAdvertisement inverts the former
+// "keeps legacy flat defaults" guard: the engine rejects top-level flat
+// fields (core.CheckProtoFlat), so the description must never advertise
+// them. group_id remains a legal top-level key and stays documented.
+func TestManageStrategies_ConfigSchema_NoFlatAdvertisement(t *testing.T) {
 	got := fieldSchemaDescription(t, "manageStrategiesInput", "Config")
-	for _, want := range []string{"src_ip=10.0.0.1", "dst_ip=20.0.0.1", "src_port=12345", "dst_port=80", "group_id", "tcpdump"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("manageStrategiesInput.Config jsonschema = %q; must keep legacy hint %q", got, want)
+	for _, banned := range []string{"(2) flat", "src_ip=10.0.0.1", "dst_ip=20.0.0.1", "src_port=12345", "dst_port=80 (DNS 53)"} {
+		if strings.Contains(got, banned) {
+			t.Errorf("manageStrategiesInput.Config jsonschema advertises rejected flat syntax %q: %s", banned, got)
 		}
+	}
+	if !strings.Contains(got, "group_id") {
+		t.Errorf("manageStrategiesInput.Config jsonschema = %q; must keep group_id hint (legal top-level key)", got)
+	}
+	if !strings.Contains(got, "are rejected") {
+		t.Errorf("manageStrategiesInput.Config jsonschema = %q; must state flat fields are rejected", got)
 	}
 }
 

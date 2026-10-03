@@ -8660,11 +8660,22 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if cfg == nil {
 		return ""
 	}
+	// 一次性收集全部非法 flat 键——首错即返回会迫使调用方逐键试错
+	//（LLM 每轮往返只消掉一个 unknown）。单键文案逐字不变（多处测试
+	// 钉死 substring），多键聚合为单句列出全部键。
+	var flat []string
 	for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port", "count"} {
 		if v, ok := cfg[k]; ok && v != nil {
-			return "protocol " + protocol + " no longer accepts flat config field " + k +
-				" (use a layers chain: ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports, flow_control for the flow count)"
+			flat = append(flat, k)
 		}
+	}
+	if len(flat) == 1 {
+		return "protocol " + protocol + " no longer accepts flat config field " + flat[0] +
+			" (use a layers chain: ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports, flow_control for the flow count)"
+	}
+	if len(flat) > 1 {
+		return "protocol " + protocol + " no longer accepts flat config fields " + strings.Join(flat, ", ") +
+			" (use a layers chain: ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports, flow_control for the flow count)"
 	}
 	if protocol == "ams" {
 		if v, ok := cfg["ams"]; ok && v != nil {

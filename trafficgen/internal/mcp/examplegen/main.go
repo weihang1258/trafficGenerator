@@ -1,11 +1,12 @@
 // Command examplegen derives per-protocol LLM examples from the verified
 // cases corpus (test/protocol_pcap/cases/*.json) into an embeddable JSON.
 //
-// 选择规则（每协议 ≤2 条）：
+// 选择规则（每协议 ≤5 条，贪心字段多样性）：
 //  1. simplest：层最少、字段键总数最少的正例（expect_error=false）——
 //     LLM 拿来即用的最小可跑配置；
-//  2. flow_example：flow_control.flows > 1 的正例（多流语义展示），
-//     与 simplest 不同条时才收录。
+//  2. 逐轮挑"相对已收录带来最多新协议层键"的用例（多流例带新键自然
+//     入选），直到无新键或达上限（≤5）——headers/body/transactions 等常用
+//     定制字段必须在示例里可见（LLM 实测反馈，详见 main_test）。
 //
 // 单条 config 超 6KB 跳过（控制内嵌体积与 LLM 上下文）。示例来自 cases
 // 全量 sweep 验证过的真值——LLM 复制形状即可一次调用成功，无需试错。
@@ -39,8 +40,8 @@ type example struct {
 }
 
 type envelope struct {
-	Generated int                `json:"generated"`
-	Protocols map[string][]exam  `json:"protocols"`
+	Generated int               `json:"generated"`
+	Protocols map[string][]exam `json:"protocols"`
 }
 type exam = example
 
@@ -107,15 +108,73 @@ func Generate(casesDir string) ([]byte, error) {
 			sj, _ := complexity(exs[j].Config)
 			return si < sj
 		})
+		// 每协议 ≤4 条，贪心补充多样性：每轮挑"相对已收录集合带来最多
+		// 新协议层键"的用例，直到无新键或达上限。仅挑 simplest 会把
+		// headers/body/transactions 等常用定制字段全部隐藏——LLM 写非
+		// 默认配置被迫再查 schema（用户实测反馈）。多流例若带新键自然
+		// 入选，flow_control 注记在收录时统一附加。
 		var picked []exam
-		if len(exs) > 0 {
-			exs[0].FlowControl = flowNote(exs[0].Config) // simplest 的多流注记保留
-			picked = append(picked, exs[0])
+		seen := map[string]bool{}
+		pick := func(e exam) {
+			if seen[e.CaseID] {
+				return
+			}
+			seen[e.CaseID] = true
+			e.FlowControl = flowNote(e.Config)
+			picked = append(picked, e)
 		}
-		for _, e := range exs[1:] {
-			if n := flowNote(e.Config); n != "" {
-				picked = append(picked, e)
+		protoKeys := func(cfg json.RawMessage) map[string]bool {
+			keys := map[string]bool{}
+			var m struct {
+				Layers []map[string]json.RawMessage `json:"layers"`
+			}
+			if json.Unmarshal(cfg, &m) != nil {
+				return keys
+			}
+			// 协议层 = 最内层（层链有序，外层为 ip/tcp 等脚手架）；
+			// 多样性比较的是层内字段键，不是层名。
+			if len(m.Layers) > 0 {
+				var inner map[string]json.RawMessage
+				for _, v := range m.Layers[len(m.Layers)-1] {
+					if json.Unmarshal(v, &inner) == nil {
+						for k := range inner {
+							keys[k] = true
+						}
+					}
+				}
+			}
+			return keys
+		}
+		covered := map[string]bool{}
+		if len(exs) > 0 {
+			pick(exs[0]) // simplest 的多流注记由 pick 统一附加
+			for k := range protoKeys(exs[0].Config) {
+				covered[k] = true
+			}
+		}
+		for len(picked) < 5 {
+			best, bestNew := -1, 0
+			for i, e := range exs[1:] {
+				if seen[e.CaseID] {
+					continue
+				}
+				newKeys := 0
+				for k := range protoKeys(e.Config) {
+					if !covered[k] {
+						newKeys++
+					}
+				}
+				if newKeys > bestNew {
+					best, bestNew = i, newKeys
+				}
+			}
+			if best < 0 {
 				break
+			}
+			e := exs[1+best]
+			pick(e)
+			for k := range protoKeys(e.Config) {
+				covered[k] = true
 			}
 		}
 		out[proto] = picked

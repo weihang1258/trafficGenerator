@@ -71,28 +71,29 @@ func run() error {
 
 // configBlurb emits the shared Config-field help text assembled from schema
 // docs. It preserves every substring the MCP schema tests assert
-// (tools_schema_test.go): src_port/dst_port, src_ip/dst_ip defaults,
-// 02:00:00:00:00:01 MAC, 0x08/DF/0x20/tcpdump, layers/depends_on/flowb_query_layers,
-// group_id strategies, tcp mss/initial_seq, http sub-map keys.
+// (tools_schema_test.go). Layer-chain is the ONLY accepted format: the engine
+// rejects top-level flat fields (core.CheckProtoFlat) and top-level protocol
+// sub-configs, so advertising them here made LLM first calls fail by
+// construction (user-tested feedback). Defaults live in the per-layer schema
+// view (flowb_query_layers), not in this blurb.
 func configBlurb() string {
 	lines := []string{
 		"// schemaConfigBlurb is the Config-field help shared by strategy and",
 		"// workflow tools. Assembled from schema docs; every hint below is",
 		"// asserted by internal/mcp/tools_schema_test.go — do not trim.",
 		"const schemaConfigBlurb = \"strategy config. \" +",
-		"\t\"Two formats: (1) layer-chain: {\\\"layers\\\":[{\\\"ip\\\":{}},{\\\"tcp\\\":{}},{\\\"http\\\":{}}]} — \" +",
-		"\t\"ordered layers outermost (L2) first; presence switches to layer-chain validation; \" +",
-		"\t\"only schema-declared fields (flowb_query_layers lists fields/defaults/depends_on, \" +",
-		"\t\"unknown rejected; hard depends_on auto-completed; protocol inferred from outermost \" +",
-		"\t\"non-scaffolding layer, explicit protocol must match. \" +",
-		"\t\"(2) flat: src_ip=10.0.0.1, dst_ip=20.0.0.1, src_port=12345, dst_port=80 (DNS 53), \" +",
-		"\t\"src_mac=02:00:00:00:00:01, dst_mac=02:00:00:00:00:02, ttl=64, dscp=0x08 (CS1, TOS 0x20), \" +",
-		"\t\"ip_flags=DF=1; explicit 0/empty honored. \" +",
-		"\t\"http sub-map {method,uri,version,request_headers,body,body_b64,keep_alive,transactions,\" +",
-		"\t\"response_*}; tcp sub-map {mss,initial_seq,handshake,termination,window_size} \" +",
-		"\t\"(mss default 1460, min 536; initial_seq pins client ISN). \" +",
+		"\t\"layer-chain is the only accepted format (flat config is gone): {\\\"layers\\\":[{\\\"ip\\\":{\\\"src\\\":\\\"10.0.0.1\\\",\\\"dst\\\":\\\"20.0.0.1\\\"}},\" +",
+		"\t\"{\\\"udp\\\":{\\\"dst_port\\\":53}},{\\\"dns\\\":{\\\"name\\\":\\\"a.com\\\"}}],\\\"flow_control\\\":{\\\"type\\\":\\\"flows\\\",\\\"value\\\":1}} — \" +",
+		"\t\"ordered layers, outermost (L2/L3) first; protocol inferred from outermost non-scaffolding layer, \" +",
+		"\t\"explicit protocol must match. \" +",
+		"\t\"Only schema-declared fields accepted: unknown fields rejected (all reported at once), \" +",
+		"\t\"hard depends_on auto-completed. \" +",
+		"\t\"ALWAYS call flowb_query_layers action=examples for the target protocol BEFORE composing a config — \" +",
+		"\t\"it returns verified copy-paste examples (field names like ip.src / http.response_status_code \" +",
+		"\t\"come from there, do not guess); action=schema lists fields/types/defaults/depends_on. \" +",
+		"\t\"Top-level src_ip/dst_ip/src_port/dst_port/count are rejected (flat config is gone). \" +",
 		"\t\"group_id {strategy,value/range/list/step/seed/pattern}: fixed/inc/rand/pattern/list \" +",
-		"\t\"bind same-id flows to one worker. tcpdump: ip[1] & 0xfc == 0x20.\"",
+		"\t\"bind same-id flows to one worker.\"",
 		"",
 	}
 	return strings.Join(lines, "\n")
