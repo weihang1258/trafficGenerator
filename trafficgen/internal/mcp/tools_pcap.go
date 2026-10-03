@@ -35,6 +35,7 @@ type managePcapsInput struct {
 	Page         int                    `json:"page,omitempty" jsonschema:"page number (list/list_flows/list_packets, default 1)"`
 	Size         int                    `json:"size,omitempty" jsonschema:"page size (list/list_flows/list_packets, default 20/50)"`
 	Status       string                 `json:"status,omitempty" jsonschema:"filter by asset status (list)"`
+	OutputPath   string                 `json:"output_path,omitempty" jsonschema:"optional absolute server-side path — write the FULL result to this file instead of returning it inline (use for large results: long lists, extract tables, stream bodies); the response becomes a small receipt {written_to, bytes, export_id, download_url}"`
 }
 
 type managePcapsOutput struct {
@@ -159,9 +160,17 @@ func (s *Server) handleManagePcaps(ctx context.Context, req *mcp.CallToolRequest
 		s.auditLog(req, "flowb_manage_pcaps", duration, "error", err.Error())
 		return nil, managePcapsOutput{}, err
 	}
+	if in.OutputPath != "" {
+		written, werr := s.applyOutputPath(ctx, in.OutputPath, resp.Data)
+		if werr != nil {
+			s.auditLog(req, "flowb_manage_pcaps", duration, "error", werr.Error())
+			return nil, managePcapsOutput{}, werr
+		}
+		resp.Data = written
+	}
 
 	s.auditLog(req, "flowb_manage_pcaps", duration, "success", "")
-	return nil, managePcapsOutput{Action: in.Action, Data: rawData(resp.Data)}, nil
+	return nil, managePcapsOutput{Action: in.Action, Data: taskDataForTransport(ctx, resp.Data)}, nil
 }
 
 // handlePcapImport reads a local file via ImportFromPath (bypasses multipart).

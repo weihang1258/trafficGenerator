@@ -91,6 +91,11 @@ func NewHTTPServer(s *Server, listen string, apiKey string, corsOrigins []string
 		rest.ServePcapPublic(s.db, w, r)
 	})))
 
+	// Exported tool results (output_path receipts): GET /downloads/exports/<uuid>
+	// serves only files registered at write time — arbitrary server paths are
+	// unreachable (uuid = capability token, same as the links above).
+	mux.Handle("/downloads/exports/", corsMiddleware(corsOrigins, http.HandlerFunc(ServeExportPublic)))
+
 	// Pcap upload + registration in one step (multipart "file"): the write
 	// counterpart of the download links above — same port, and deliberately
 	// UNAUTHENTICATED like them: the MCP API key is never exposed to the

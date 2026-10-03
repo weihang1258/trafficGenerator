@@ -26,6 +26,7 @@ type manageStrategiesInput struct {
 	Protocol    string                 `json:"protocol,omitempty" jsonschema:"protocol name (for synth); 123 protocols supported — see flowb_query_layers"`
 	Config      map[string]interface{} `json:"config,omitempty" jsonschema:"strategy config. layer-chain is the only accepted format (flat config is gone): {\"layers\":[{\"ip\":{\"src\":\"10.0.0.1\",\"dst\":\"20.0.0.1\"}},{\"udp\":{\"dst_port\":53}},{\"dns\":{\"name\":\"a.com\"}}],\"flow_control\":{\"type\":\"flows\",\"value\":1}} — ordered layers, outermost (L2/L3) first; protocol inferred from outermost non-scaffolding layer, explicit protocol must match. Only schema-declared fields accepted: unknown fields rejected (all reported at once), hard depends_on auto-completed. ALWAYS call flowb_query_layers action=examples for the target protocol BEFORE composing a config — it returns verified copy-paste examples (field names like ip.src / http.response_status_code come from there, do not guess); action=schema lists fields/types/defaults/depends_on. Top-level src_ip/dst_ip/src_port/dst_port/count are rejected (flat config is gone). group_id {strategy,value/range/list/step/seed/pattern}: fixed/inc/rand/pattern/list bind same-id flows to one worker."`
 	FlowControl *flowControlInput      `json:"flow_control,omitempty" jsonschema:"optional strategy-level flow control"`
+	OutputPath  string                 `json:"output_path,omitempty" jsonschema:"optional absolute server-side path — write the FULL result to this file instead of returning it inline (large list); response becomes a small receipt"`
 }
 
 type manageStrategiesOutput struct {
@@ -93,7 +94,14 @@ func (s *Server) handleManageStrategies(ctx context.Context, req *mcp.CallToolRe
 	}
 
 	s.auditLog(req, "flowb_manage_strategies", duration, "success", "")
-	return nil, manageStrategiesOutput{Action: in.Action, Data: rawData(resp.Data)}, nil
+	if in.OutputPath != "" {
+		written, werr := s.applyOutputPath(ctx, in.OutputPath, resp.Data)
+		if werr != nil {
+			return nil, manageStrategiesOutput{}, werr
+		}
+		resp.Data = written
+	}
+	return nil, manageStrategiesOutput{Action: in.Action, Data: taskDataForTransport(ctx, resp.Data)}, nil
 }
 
 // mustMarshal is a convenience that never fails for map[string]interface{}

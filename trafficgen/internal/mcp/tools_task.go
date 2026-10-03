@@ -32,6 +32,7 @@ type manageTasksInput struct {
 	SortBy       string                 `json:"sort_by,omitempty" jsonschema:"sort column: created_at|updated_at|name|status|progress"`
 	SortOrder    string                 `json:"sort_order,omitempty" jsonschema:"ascending|descending (default descending)"`
 	StartTime    int64                  `json:"start_time,omitempty" jsonschema:"history filter: unix seconds"`
+	OutputPath   string                 `json:"output_path,omitempty" jsonschema:"optional absolute server-side path — write the FULL result to this file instead of returning it inline (large list/history); response becomes a small receipt"`
 	EndTime      int64                  `json:"end_time,omitempty" jsonschema:"history filter: unix seconds"`
 }
 
@@ -123,5 +124,12 @@ func (s *Server) handleManageTasks(ctx context.Context, req *mcp.CallToolRequest
 	}
 
 	s.auditLog(req, "flowb_manage_tasks", duration, "success", "")
+	if in.OutputPath != "" {
+		written, werr := s.applyOutputPath(ctx, in.OutputPath, resp.Data)
+		if werr != nil {
+			return nil, manageTasksOutput{}, werr
+		}
+		resp.Data = written
+	}
 	return nil, manageTasksOutput{Action: in.Action, Data: taskDataForTransport(ctx, resp.Data)}, nil
 }
