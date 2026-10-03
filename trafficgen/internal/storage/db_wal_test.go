@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -50,5 +51,24 @@ func sqlClose(t *testing.T, db *DB) {
 	// db.DB 是内嵌的 *gorm.DB 字段；.DB() 才是取 database/sql 句柄的方法。
 	if sqlDB, err := db.DB.DB(); err == nil {
 		_ = sqlDB.Close()
+	}
+}
+
+// TestSQLiteCreatesParentDir 钉住发布体验契约：配置的 SQLite 路径父目录
+// 不存在时自动创建（systemd 首次启动、手工解包直跑都不踩 SQLITE_CANTOPEN
+// ——gorm 误报为 "out of memory (14)"，实为无法打开文件）。
+func TestSQLiteCreatesParentDir(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "does", "not", "exist", "test.db")
+	db, err := NewDB(&config.DatabaseConfig{
+		Type:   "sqlite",
+		SQLite: config.SQLiteConfig{Path: dbPath},
+	})
+	if err != nil {
+		t.Fatalf("open sqlite with missing parent dirs: %v", err)
+	}
+	defer sqlClose(t, db)
+	if _, err := os.Stat(dbPath); err != nil {
+		t.Errorf("db file not created at %s: %v", dbPath, err)
 	}
 }

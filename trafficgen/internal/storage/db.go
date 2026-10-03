@@ -4,6 +4,8 @@ package storage
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -56,6 +58,14 @@ func NewDBWithAdmin(cfg *config.DatabaseConfig, adminCfg *config.AdminConfig) (*
 		dsn := cfg.GetDSN()
 		db, err = gorm.Open(postgres.Open(dsn), gormConfig)
 	case "sqlite":
+		// 首次启动（systemd 新装、解包直跑）时 data/ 子目录尚不存在：
+		// SQLITE_CANTOPEN 会被 gorm 误报为 "out of memory (14)"。
+		// 打开前自建父目录，发布包默认配置才能开箱即用。
+		if dir := filepath.Dir(cfg.SQLite.Path); dir != "" && dir != "." {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return nil, fmt.Errorf("create sqlite dir %s: %w", dir, err)
+			}
+		}
 		db, err = gorm.Open(sqlite.Open(sqliteDSN(cfg.SQLite.Path)), gormConfig)
 	default:
 		return nil, fmt.Errorf("unsupported database type: %s", cfg.Type)

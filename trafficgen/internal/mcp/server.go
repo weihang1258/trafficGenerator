@@ -2,8 +2,13 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
+
+	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/storage"
@@ -94,14 +99,25 @@ func NewServer(cfg *config.MCPConfig, engine *core.Engine, db *storage.DB, iface
 // validateServiceAccount looks up the configured service account username in
 // the users table and resolves it to the actual user.ID (UUID). The handler
 // layer keys off user.ID for data isolation, so we must inject the UUID, not
-// the username. Returns error if the user doesn't exist or is disabled --
-// we refuse to start rather than auto-creating (avoiding password logging).
+// the username.
+//
+// 全新数据库（v1 发布包首次启动）users 表为空：自动补建服务账号——密码
+// 来自配置文件 mcp.service_account_password（不进日志，旧实现"拒绝
+// auto-create 以免 password logging"的顾虑在配置驱动下不成立），幂等
+// （仅 ErrRecordNotFound 时建，升级/手建场景零影响）。已存在但 disabled
+// 仍拒绝启动：禁用语义优先于自动补建。
 func (s *Server) validateServiceAccount() error {
 	var user storage.UserModel
 	if err := s.db.Where("username = ?", s.serviceUsername).First(&user).Error; err != nil {
-		return fmt.Errorf("mcp service account %q not found in users table "+
-			"(create an enabled user with this username first, or set mcp.service_user_id to an existing user): %w",
-			s.serviceUsername, err)
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("lookup mcp service account %q: %w", s.serviceUsername, err)
+		}
+		if err := s.createServiceAccount(); err != nil {
+			return err
+		}
+		if err := s.db.Where("username = ?", s.serviceUsername).First(&user).Error; err != nil {
+			return fmt.Errorf("mcp service account %q missing after auto-create: %w", s.serviceUsername, err)
+		}
 	}
 	if !user.Enabled {
 		return fmt.Errorf("mcp service account %q is disabled; enable it before starting MCP server",
@@ -112,6 +128,37 @@ func (s *Server) validateServiceAccount() error {
 	if user.Role != "" {
 		s.serviceUserRole = user.Role
 	}
+	return nil
+}
+
+// createServiceAccount 补建 MCP 服务账号：用户名/角色取配置，密码 bcrypt
+// 自配置的 ServiceAccountPassword（为空拒绝——与服务拒绝空 api_key 同理）。
+func (s *Server) createServiceAccount() error {
+	if s.config.ServiceAccountPassword == "" {
+		return fmt.Errorf("mcp service account %q does not exist and mcp.service_account_password is empty; "+
+			"set a password so the account can be created", s.serviceUsername)
+	}
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(s.config.ServiceAccountPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hash mcp service account password: %w", err)
+	}
+	role := s.serviceUserRole
+	if role == "" {
+		role = "user"
+	}
+	account := &storage.UserModel{
+		ID:           uuid.New().String(),
+		Username:     s.serviceUsername,
+		PasswordHash: string(passwordHash),
+		Email:        s.serviceUsername + "@service.local",
+		Role:         role,
+		Enabled:      true,
+	}
+	if err := s.db.Create(account).Error; err != nil {
+		return fmt.Errorf("create mcp service account %q: %w", s.serviceUsername, err)
+	}
+	zap.L().Info("created mcp service account",
+		zap.String("username", s.serviceUsername), zap.String("role", role))
 	return nil
 }
 

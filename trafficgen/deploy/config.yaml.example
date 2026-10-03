@@ -16,7 +16,8 @@ mcp:
   enabled: true
   service_user_id: "mcp-service"
   service_user_role: "user"
-  service_account_password: "flowb-mcp-change-me"
+  # 服务账号密码：全新库首次启动时据此自动创建 mcp-service 账号（不进日志）。
+  service_account_password: "__MCP_SVC_PASSWORD__"
   # MCP over HTTP 的鉴权密钥。客户端以 X-MCP-Key 请求头携带。
   api_key: "__MCP_API_KEY__"
   transports:

@@ -72,7 +72,9 @@ if [ -f "$CONF_FILE" ]; then
     API_KEY=$(awk '/^[[:space:]]*api_key:/ {print $2; exit}' "$CONF_FILE")
 else
     API_KEY=$(openssl rand -hex 24 2>/dev/null || head -c 48 /dev/urandom | od -An -tx1 | tr -d ' \n')
-    sed "s/__MCP_API_KEY__/$API_KEY/" "$SRC_DIR/config.yaml.example" > "$CONF_FILE"
+    SVC_PW=$(openssl rand -hex 16 2>/dev/null || head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
+    sed -e "s/__MCP_API_KEY__/$API_KEY/" -e "s/__MCP_SVC_PASSWORD__/$SVC_PW/" \
+        "$SRC_DIR/config.yaml.example" > "$CONF_FILE"
     chmod 0600 "$CONF_FILE"
     chown root:"$SERVICE_USER" "$CONF_FILE"
 fi
