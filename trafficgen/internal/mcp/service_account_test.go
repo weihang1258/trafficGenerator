@@ -15,9 +15,9 @@ import (
 )
 
 // TestNewServerAutoCreatesServiceAccount 钉住 v1 发布契约：全新数据库
-//（users 表为空）时，NewServer 自动创建 enabled 的 MCP 服务账号——
+// （users 表为空）时，NewServer 自动创建 enabled 的 MCP 服务账号——
 // 安装脚本无法预建用户（密码是 bcrypt），不自动建号则发布包开箱即 fatal
-//（"service account not found in users table"）。
+// （"service account not found in users table"）。
 //
 // 行为面：
 //   - 用户名/角色取 cfg.ServiceUserID/ServiceUserRole，密码 bcrypt 自
