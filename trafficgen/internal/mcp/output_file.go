@@ -25,6 +25,18 @@ import (
 
 const maxExportEntries = 256
 
+// exportsRoot is the server-managed directory for remote/auto exports,
+// relative to the process working directory — same convention as the
+// sqlite DB (./data). Tests repoint it at a temp dir.
+var exportsRoot = filepath.Join("data", "exports")
+
+// maxInlineResponseBytes is the auto-export threshold (user ruling
+// 2026-10-03): data-fetch responses above it become server-managed
+// exports answered with a receipt instead of flooding the model context
+// (~64 KB JSON ≈ 15-20K tokens; client tool-output truncation sits well
+// below the sizes that hurt). Var, not const: tests swap it.
+var maxInlineResponseBytes = 64 << 10
+
 var exportRegistry = struct {
 	mu    sync.Mutex
 	paths map[string]string
@@ -46,17 +58,64 @@ func registerExport(path string) string {
 	return id
 }
 
-// applyOutputPath writes data to outPath (model-specified absolute server
-// path, parents auto-created) and returns the small receipt payload. The
-// receipt carries download_url so the transport adapter (taskDataForTransport)
-// rewrites it to an absolute URL over HTTP and strips it for stdio — same
-// rule as every other artifact reference.
+// sanitizeExportName reduces an arbitrary model-supplied output_path to a
+// bare file name. Remote models cannot know server paths (user ruling
+// 2026-10-03), so over HTTP the value is only a naming hint; traversal
+// strings reduce to their basename and pathological names are rejected.
+func sanitizeExportName(name string) (string, error) {
+	base := filepath.Base(strings.TrimSpace(name))
+	if base == "" || base == "." || base == ".." || base == string(filepath.Separator) {
+		return "", fmt.Errorf("output_path needs a usable file name (got %q)", name)
+	}
+	return base, nil
+}
+
+func exportReceipt(target string, data json.RawMessage) json.RawMessage {
+	id := registerExport(target)
+	receipt, _ := json.Marshal(map[string]interface{}{
+		"written_to":   target,
+		"bytes":        len(data),
+		"export_id":    id,
+		"download_url": "/downloads/exports/" + id,
+		"note":         "full result written to the file; fetch via download_url (HTTP) or read written_to directly (local)",
+	})
+	return receipt
+}
+
+// writeExportFile stores data under exportsRoot as name and returns the
+// receipt. Callers keep names unique (uuid prefix) so a later same-name
+// export can never clobber an earlier receipt's download link.
+func writeExportFile(name string, data json.RawMessage) (json.RawMessage, error) {
+	target := filepath.Join(exportsRoot, name)
+	if err := os.MkdirAll(exportsRoot, 0o755); err != nil {
+		return nil, fmt.Errorf("create exports dir: %w", err)
+	}
+	if err := os.WriteFile(target, data, 0o644); err != nil {
+		return nil, fmt.Errorf("write export file: %w", err)
+	}
+	return exportReceipt(target, data), nil
+}
+
+// applyOutputPath writes data to a file per the transport: HTTP clients are
+// remote — ANY outPath is a file-name hint resolved into exportsRoot (short
+// uuid prefix keeps same-name exports distinct); stdio clients share this
+// host and must name an absolute, clean path. The receipt carries
+// download_url so the transport adapter (taskDataForTransport) rewrites it
+// to an absolute URL over HTTP and strips it for stdio — same rule as every
+// other artifact reference.
 func (s *Server) applyOutputPath(ctx context.Context, outPath string, data json.RawMessage) (json.RawMessage, error) {
 	if outPath == "" {
 		return data, nil
 	}
+	if _, isHTTP := ctx.Value(httpTransportKey{}).(string); isHTTP {
+		name, err := sanitizeExportName(outPath)
+		if err != nil {
+			return nil, err
+		}
+		return writeExportFile(uuid.NewString()[:8]+"-"+name, data)
+	}
 	if !filepath.IsAbs(outPath) {
-		return nil, fmt.Errorf("output_path must be an absolute server-side path (got %q)", outPath)
+		return nil, fmt.Errorf("output_path must be an absolute path — stdio shares this host's filesystem (got %q)", outPath)
 	}
 	clean := filepath.Clean(outPath)
 	if clean != outPath {
@@ -68,15 +127,23 @@ func (s *Server) applyOutputPath(ctx context.Context, outPath string, data json.
 	if err := os.WriteFile(clean, data, 0o644); err != nil {
 		return nil, fmt.Errorf("write output file: %w", err)
 	}
-	id := registerExport(clean)
-	receipt, _ := json.Marshal(map[string]interface{}{
-		"written_to":   clean,
-		"bytes":        len(data),
-		"export_id":    id,
-		"download_url": "/downloads/exports/" + id,
-		"note":         "full result written to the file; fetch via download_url (HTTP) or read written_to directly (local)",
-	})
-	return receipt, nil
+	return exportReceipt(clean, data), nil
+}
+
+// maybeExport applies the auto-export threshold to an inline response:
+// above maxInlineResponseBytes the payload moves into a server-managed
+// export (label names the tool_action for the file), below it the payload
+// passes through untouched. A write failure degrades to inline — the fetch
+// itself is healthy; the export is a courtesy, not a reason to fail.
+func (s *Server) maybeExport(label string, data json.RawMessage) json.RawMessage {
+	if len(data) <= maxInlineResponseBytes {
+		return data
+	}
+	receipt, err := writeExportFile(label+"-"+uuid.NewString()[:8]+".json", data)
+	if err != nil {
+		return data
+	}
+	return receipt
 }
 
 // ServeExportPublic serves GET /downloads/exports/<uuid> for files registered

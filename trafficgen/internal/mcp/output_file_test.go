@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -131,4 +132,142 @@ func TestManageTasksOutputPath(t *testing.T) {
 	if _, err := os.Stat(out); err != nil {
 		t.Errorf("file missing: %v", err)
 	}
+}
+
+// ---- 远程优先 + 自动导出阈值（用户裁定 2026-10-03）----
+// HTTP 模式的模型不可能知道服务器路径：任何 output_path 都只当文件名，
+// 服务端自管目录落盘；未指定时响应超过 maxInlineResponseBytes 自动转
+// 文件（省 token），小响应原样内联。stdio 同机，绝对路径语义不变。
+
+func withTempExports(t *testing.T) {
+	t.Helper()
+	old := exportsRoot
+	exportsRoot = filepath.Join(t.TempDir(), "exports")
+	t.Cleanup(func() { exportsRoot = old })
+}
+
+func httpCtx() context.Context {
+	return context.WithValue(context.Background(), httpTransportKey{}, "http://10.10.10.35:8086")
+}
+
+func bigPayload(n int) json.RawMessage {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = byte('a' + i%26)
+	}
+	return json.RawMessage(b)
+}
+
+// 未指定 output_path：超阈值自动转导出文件，回执带绝对 download_url。
+func TestAutoExportOversizedResponseHTTP(t *testing.T) {
+	withTempExports(t)
+	srv := newTransportTestServer(t)
+	receipt := srv.maybeExport("list_flows", bigPayload(70000))
+	var m map[string]interface{}
+	if err := json.Unmarshal(receipt, &m); err != nil {
+		t.Fatalf("oversized response must become an export receipt, got: %s", receipt)
+	}
+	if _, ok := m["export_id"].(string); !ok {
+		t.Fatalf("oversized response must become an export receipt: %v", m)
+	}
+	wt, _ := m["written_to"].(string)
+	if !strings.HasPrefix(wt, exportsRoot) || !strings.Contains(filepath.Base(wt), "list_flows-") {
+		t.Errorf("written_to = %q, want under %s with label prefix", wt, exportsRoot)
+	}
+	// 绝对化发生在工具出口的 taskDataForTransport 组合，这里过同一组合。
+	adapted := taskDataForTransport(httpCtx(), receipt).(map[string]interface{})
+	u, _ := adapted["download_url"].(string)
+	if !strings.HasPrefix(u, "http://10.10.10.35:8086/downloads/exports/") {
+		t.Errorf("download_url = %q, want absolute link with request base", u)
+	}
+	if b, err := os.ReadFile(wt); err != nil || len(b) != 70000 {
+		t.Errorf("export file: %d bytes, err %v, want 70000", len(b), err)
+	}
+}
+
+// 阈值内原样内联（不写文件）。
+func TestAutoExportUnderThresholdInline(t *testing.T) {
+	withTempExports(t)
+	srv := newTransportTestServer(t)
+	data := json.RawMessage(`{"items":[]}`)
+	before := len(exportRegistry.paths) // 注册表是包级全局，前后对账防跨测试污染
+	got := srv.maybeExport("list_flows", data)
+	if string(got) != string(data) {
+		t.Errorf("small response must stay inline, got %s", got)
+	}
+	if n := len(exportRegistry.paths); n != before {
+		t.Errorf("no export must be registered for inline data: %d -> %d", before, n)
+	}
+}
+
+// stdio：同样自动转文件（同机读 written_to），download_url 被剥除。
+func TestAutoExportStdioStripsURL(t *testing.T) {
+	withTempExports(t)
+	srv := newTransportTestServer(t)
+	receipt := srv.maybeExport("list", bigPayload(70000))
+	adapted := taskDataForTransport(context.Background(), receipt)
+	m := adapted.(map[string]interface{})
+	if _, has := m["download_url"]; has {
+		t.Errorf("stdio receipt must not carry download_url: %v", m)
+	}
+	if _, ok := m["written_to"]; !ok {
+		t.Errorf("stdio receipt must keep written_to: %v", m)
+	}
+}
+
+// HTTP 下 output_path 任意值（含相对路径/遍历串）只取文件名，服务端落盘。
+func TestOutputPathHTTPAcceptsAnyName(t *testing.T) {
+	withTempExports(t)
+	srv := newTransportTestServer(t)
+	for _, in := range []string{
+		"data/exports/flows_47373108.json", // 用户实测被拒的那条调用
+		"../../etc/passwd",
+		"/var/data/x.json",
+	} {
+		_, outData, err := srv.handleManagePcaps(httpCtx(), nil, managePcapsInput{
+			Action: "list", OutputPath: in,
+		})
+		if err != nil {
+			t.Fatalf("output_path %q: %v", in, err)
+		}
+		m := outData.Data.(map[string]interface{})
+		wt, _ := m["written_to"].(string)
+		if wt == "" || strings.Contains(wt, "..") || filepath.Dir(wt) != exportsRoot {
+			t.Errorf("output_path %q: written_to = %q, want managed file under %s", in, wt, exportsRoot)
+		}
+		if u, _ := m["download_url"].(string); !strings.HasPrefix(u, "http://") {
+			t.Errorf("output_path %q: download_url = %q, want absolute", in, u)
+		}
+	}
+}
+
+// 无可用文件名的输入在 HTTP 下也拒绝；同名导出互不覆盖。
+func TestOutputPathHTTPEdgeNames(t *testing.T) {
+	withTempExports(t)
+	srv := newTransportTestServer(t)
+	for _, bad := range []string{"..", ".", "/", "  "} {
+		if _, _, err := srv.handleManagePcaps(httpCtx(), nil, managePcapsInput{
+			Action: "list", OutputPath: bad,
+		}); err == nil {
+			t.Errorf("output_path %q must be rejected", bad)
+		}
+	}
+	_, d1, _ := srv.handleManagePcaps(httpCtx(), nil, managePcapsInput{
+		Action: "list", OutputPath: "flows.json"})
+	_, d2, _ := srv.handleManagePcaps(httpCtx(), nil, managePcapsInput{
+		Action: "list", OutputPath: "flows.json"})
+	w1 := d1.Data.(map[string]interface{})["written_to"]
+	w2 := d2.Data.(map[string]interface{})["written_to"]
+	if w1 == w2 {
+		t.Errorf("same-name exports must not clobber: %v", w1)
+	}
+}
+
+func mustRaw(t *testing.T, v interface{}) json.RawMessage {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }

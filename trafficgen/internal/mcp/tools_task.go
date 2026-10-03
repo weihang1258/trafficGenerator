@@ -32,7 +32,7 @@ type manageTasksInput struct {
 	SortBy       string                 `json:"sort_by,omitempty" jsonschema:"sort column: created_at|updated_at|name|status|progress"`
 	SortOrder    string                 `json:"sort_order,omitempty" jsonschema:"ascending|descending (default descending)"`
 	StartTime    int64                  `json:"start_time,omitempty" jsonschema:"history filter: unix seconds"`
-	OutputPath   string                 `json:"output_path,omitempty" jsonschema:"optional absolute server-side path — write the FULL result to this file instead of returning it inline (large list/history); response becomes a small receipt"`
+	OutputPath   string                 `json:"output_path,omitempty" jsonschema:"optional — force the FULL result into a file instead of returning it inline (large lists, extracts, stream bodies); the response becomes a small receipt {written_to, bytes, export_id, download_url}. Remote (HTTP): give just a file name like 'flows.json' — the server stores it and the receipt carries a ready download_url. Local (stdio): give an absolute path on this host. Without output_path, responses above 64 KB are auto-exported the same way, so huge results never flood the conversation"`
 	EndTime      int64                  `json:"end_time,omitempty" jsonschema:"history filter: unix seconds"`
 }
 
@@ -131,5 +131,5 @@ func (s *Server) handleManageTasks(ctx context.Context, req *mcp.CallToolRequest
 		}
 		resp.Data = written
 	}
-	return nil, manageTasksOutput{Action: in.Action, Data: taskDataForTransport(ctx, resp.Data)}, nil
+	return nil, manageTasksOutput{Action: in.Action, Data: taskDataForTransport(ctx, s.maybeExport(in.Action, resp.Data))}, nil
 }
