@@ -83,6 +83,17 @@ claude mcp add --transport http trafficgen http://<主机IP>:8086/mcp \
 }
 ```
 
+**拿到生成的 pcap**：任务完成后，`flowb_get_task_progress` 的返回里直接带
+`download_url`（如 `/downloads/tasks/<任务ID>/pcap`），在 MCP 端点上拼接即可
+**免鉴权 curl 下载**：
+
+```bash
+curl -O -J http://<主机IP>:8086/downloads/tasks/<任务ID>/pcap
+```
+
+写配置前先调 `flowb_query_layers`（`action=examples&protocol=<协议>`）取该协议
+**已验证的完整配置示例**，复制修改即可一次调用成功。
+
 接入后即可用自然语言下发任务，例如：*“用 modbus 协议生成 100 个事务的流量，
 写到 pcap 文件”*。可用工具包括流量生成（`flowb_generate_traffic`）、任务管理、
 策略管理、端口组管理、pcap 资产管理等（`tools/list` 可枚举全部）。
