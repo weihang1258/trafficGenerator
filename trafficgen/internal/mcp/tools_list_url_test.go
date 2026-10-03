@@ -137,3 +137,34 @@ func TestUploadEndpointNoAuth(t *testing.T) {
 		t.Errorf("GET status = %d, want 405", getResp.StatusCode)
 	}
 }
+
+// 提示注入必须无状态：SDK 的 tools/list 返回注册时共享的 Tool 指针，
+// 直接 += 会把提示累积写回共享状态（第二次拉取翻倍）。连续两次拉取，
+// 第二次的提示必须恰好一次。
+func TestToolsListHintNotAccumulated(t *testing.T) {
+	env := setupMCPTest(t)
+	ts, session := newHTTPTestServer(t, env, "test-key", nil)
+	defer ts.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	count := func() int {
+		res, err := session.ListTools(ctx, nil)
+		if err != nil {
+			t.Fatalf("list tools: %v", err)
+		}
+		for _, tl := range res.Tools {
+			if tl.Name == "flowb_manage_pcaps" {
+				return strings.Count(tl.Description, "/uploads/pcaps")
+			}
+		}
+		t.Fatal("manage_pcaps missing")
+		return 0
+	}
+	if n := count(); n != 1 {
+		t.Fatalf("first tools/list: hint count = %d, want 1", n)
+	}
+	if n := count(); n != 1 {
+		t.Fatalf("second tools/list: hint count = %d, want 1 (shared Tool state must not accumulate)", n)
+	}
+}

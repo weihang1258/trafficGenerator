@@ -64,7 +64,7 @@ func (s *Server) registerWorkflowTools() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
 			Name:         "flowb_wait_for_task",
-			Description:  "Block until a task reaches a terminal state (completed/stopped/error) or timeout. Returns the final task state. Default timeout 60s, max 300s. Use for short tasks; long-running tasks should poll flowb_get_task_progress instead.",
+			Description:  "Block until a task reaches a terminal state (completed/stopped/error) or timeout. Returns the final task state — for pcap tasks it includes the artifact reference: download_url plus download_howto (unauthenticated fetch, HTTP) or output_config.pcap_path (stdio), and pcap_asset_id once auto-registered. Default timeout 60s, max 300s. Use for short tasks; long-running tasks should poll flowb_get_task_progress instead.",
 			OutputSchema: dataOnlyOutputSchema(),
 		},
 		s.handleWaitForTask,

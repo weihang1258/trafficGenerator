@@ -117,11 +117,17 @@ func (s *Server) toolsListTransportHints(next mcp.MethodHandler) mcp.MethodHandl
 		if !ok {
 			return res, err
 		}
-		for _, tl := range ltr.Tools {
-			if tl.Name == "flowb_manage_pcaps" {
-				tl.Description += "\n\nRemote upload (client file, no server-local path): register a pcap in one step — " +
-					"curl -X POST " + base + "/uploads/pcaps -F file=@./your.pcap ; " +
-					"the response JSON's ID is the asset id for list_flows/get_packet/extract. No auth header needed."
+		hint := "\n\nRemote upload (client file, no server-local path): register a pcap in one step — " +
+			"curl -X POST " + base + "/uploads/pcaps -F file=@./your.pcap ; " +
+			"the response JSON's ID is the asset id for list_flows/get_packet/extract. No auth header needed."
+		for i, tl := range ltr.Tools {
+			// Replace with a copy: ltr.Tools holds the registered shared
+			// *mcp.Tool, so in-place += would accumulate the hint across
+			// successive tools/list calls (state leak + duplication).
+			if tl != nil && tl.Name == "flowb_manage_pcaps" {
+				patched := *tl
+				patched.Description = tl.Description + hint
+				ltr.Tools[i] = &patched
 			}
 		}
 		return res, nil

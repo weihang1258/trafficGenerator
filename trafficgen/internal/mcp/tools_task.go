@@ -43,8 +43,8 @@ type manageTasksOutput struct {
 func (s *Server) registerTaskTools() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
-			Name:        "flowb_manage_tasks",
-			Description: "Manage traffic tasks: create/create_batch/list/get/start/stop/delete/history. Use the 'action' field to select the operation.",
+			Name:         "flowb_manage_tasks",
+			Description:  "Manage traffic tasks: create/create_batch/list/get/start/stop/delete/history. Use the 'action' field to select the operation. Task responses carry the pcap artifact reference: download_url plus download_howto (HTTP) or output_config.pcap_path (stdio), and pcap_asset_id once auto-registered.",
 			OutputSchema: manageOutputSchema(),
 		},
 		s.handleManageTasks,
