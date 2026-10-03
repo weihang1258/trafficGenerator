@@ -56,8 +56,9 @@ else
     TARBALL="trafficgen-${VERSION}-${ARCH}.tar.gz"
     TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
     log "下载 $BASE_URL/$VERSION/$TARBALL"
-    curl -fsSL -o "$TMP/$TARBALL" "$BASE_URL/$VERSION/$TARBALL"
-    curl -fsSL -o "$TMP/SHA256SUMS" "$BASE_URL/$VERSION/SHA256SUMS" || warn "无 SHA256SUMS，跳过校验"
+    # curl 必须带超时：下载地址不可达时无超时会永久挂死（实机安装测出）。
+    curl -fsSL --connect-timeout 10 --max-time 300 -o "$TMP/$TARBALL" "$BASE_URL/$VERSION/$TARBALL"
+    curl -fsSL --connect-timeout 10 --max-time 60 -o "$TMP/SHA256SUMS" "$BASE_URL/$VERSION/SHA256SUMS" || warn "无 SHA256SUMS，跳过校验"
     [ -f "$TMP/SHA256SUMS" ] && (cd "$TMP" && grep "$TARBALL" SHA256SUMS | sha256sum -c - >/dev/null) \
         || die "SHA256 校验失败，文件可能被篡改"
     tar -xzf "$TMP/$TARBALL" -C "$TMP"
