@@ -46,7 +46,7 @@ func (s *Server) registerPcapTools() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
 			Name:        "flowb_manage_pcaps",
-			Description: "Manage PCAP assets: import/list/get/delete, parse flows/packets, search/extract, download. 17 actions covering the full PCAP lifecycle.",
+			Description: "Manage PCAP assets: import/list/get/delete, parse flows/packets, search/extract, download. 17 actions covering the full PCAP lifecycle. Task-generated pcaps are auto-registered here (files up to 64MB; get_task_progress returns the pcap_asset_id) so you can inspect flows/packets and download without extra steps. action=download returns file_path (local/stdio) or an unauthenticated download_url (HTTP) for the pcap file.",
 			OutputSchema: manageOutputSchema(),
 		},
 		s.handleManagePcaps,
@@ -227,12 +227,18 @@ func (s *Server) handlePcapDownload(ctx context.Context, h *rest.PcapHandler, id
 		return nil, &jsonrpc.Error{Code: jsonrpc.CodeInternalError, Message: "parse asset: " + err.Error()}
 	}
 
+	// download_url → the unauthenticated capability link
+	// (/downloads/pcaps/<id>/download). taskDataForTransport rewrites it to
+	// an absolute URL over HTTP (client-fetchable as-is) and strips it for
+	// stdio (same-host clients read file_path directly).
 	data, _ := json.Marshal(map[string]interface{}{
 		"file_path":         asset.StoragePath,
 		"file_size":         asset.FileSize,
 		"original_filename": asset.OriginalFilename,
+		"download_url":      "/downloads/pcaps/" + id + "/download",
 	})
-	return &backendResponse{Code: 0, Data: data}, nil
+	adapted, _ := json.Marshal(taskDataForTransport(ctx, data))
+	return &backendResponse{Code: 0, Data: adapted}, nil
 }
 
 // handlePcapBinary calls a binary-returning handler (get_packet_payload) and

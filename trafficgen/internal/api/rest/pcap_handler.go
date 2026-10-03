@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -121,27 +122,36 @@ func (h *PcapHandler) Import(c *gin.Context) {
 		return
 	}
 
+	if err := h.finalizeImport(asset); err != nil {
+		BadRequest(c, err.Error())
+		return
+	}
+	Success(c, asset)
+}
+
+// finalizeImport parses the asset's pcap file, stores flows/packets and
+// finalizes the asset row. Shared by multipart Import and ImportFromPath
+// (task auto-registration) — single parse/store truth. On error the asset
+// row is marked status=error and the message is returned.
+func (h *PcapHandler) finalizeImport(asset *storage.PcapAssetModel) error {
 	// Parse (synchronous for v1; async is an optimization for large pcaps).
-	analysis, err := pcapparser.Parse(pcapPath, &pcapparser.Options{
-		PcapAssetID:  assetID,
-		UserID:       userID,
-		PayloadsPath: payloadsPath,
+	analysis, err := pcapparser.Parse(asset.StoragePath, &pcapparser.Options{
+		PcapAssetID:  asset.ID,
+		UserID:       asset.UserID,
+		PayloadsPath: asset.PayloadsPath,
 	})
 	if err != nil {
-		h.repo.UpdateAssetStatus(assetID, "error", "parse: "+err.Error())
-		BadRequest(c, "parse failed: "+err.Error())
-		return
+		h.repo.UpdateAssetStatus(asset.ID, "error", "parse: "+err.Error())
+		return errors.New("parse failed: " + err.Error())
 	}
 	// Store flows + packets.
 	if err := h.repo.CreateFlows(analysis.Flows); err != nil {
-		h.repo.UpdateAssetStatus(assetID, "error", "store flows: "+err.Error())
-		InternalError(c, "store flows: "+err.Error())
-		return
+		h.repo.UpdateAssetStatus(asset.ID, "error", "store flows: "+err.Error())
+		return errors.New("store flows: " + err.Error())
 	}
 	if err := h.repo.CreatePackets(analysis.Packets); err != nil {
-		h.repo.UpdateAssetStatus(assetID, "error", "store packets: "+err.Error())
-		InternalError(c, "store packets: "+err.Error())
-		return
+		h.repo.UpdateAssetStatus(asset.ID, "error", "store packets: "+err.Error())
+		return errors.New("store packets: " + err.Error())
 	}
 	// Finalize asset stats.
 	asset.Status = "ready"
@@ -153,10 +163,96 @@ func (h *PcapHandler) Import(c *gin.Context) {
 	asset.ProtocolDist = analysis.ProtocolDistJSON()
 	asset.ParserVersion = pcapparser.ParserVersion
 	if err := h.repo.UpdateAsset(asset); err != nil {
-		InternalError(c, "finalize asset: "+err.Error())
+		return errors.New("finalize asset: " + err.Error())
+	}
+	return nil
+}
+
+// PcapAutoImportMaxBytes caps auto-registration of task-generated pcaps
+// (AutoRegisterTaskPcap). Importing parses the whole file into flows/packets
+// rows — a multi-hundred-MB file would stall the task-completion callback,
+// so oversized products are skipped with a reason and a manual-import
+// pointer instead. Var so tests can shrink it.
+var PcapAutoImportMaxBytes int64 = 64 << 20 // 64MB
+
+// AutoRegisterTaskPcap links a completed pcap task's product into the asset
+// library. Oversized files are NOT auto-registered (the parse would stall
+// the completion callback): the task gets a note explaining why, with a
+// ready-to-run flowb_manage_pcaps import pointer for the user/LLM to accept
+// the wait explicitly. Idempotent: tasks already carrying an asset id or a
+// note are left untouched.
+func AutoRegisterTaskPcap(db *storage.DB, p *PcapHandler, task *storage.TaskModel) {
+	if task == nil || p == nil || task.OutputType != "pcap" || task.Status != "completed" {
 		return
 	}
-	Success(c, asset)
+	if task.PcapAssetID != "" || task.PcapAssetNote != "" {
+		return
+	}
+	var oc struct {
+		PcapPath string `json:"pcap_path"`
+	}
+	json.Unmarshal([]byte(task.OutputConfig), &oc)
+	if oc.PcapPath == "" {
+		return
+	}
+	fi, err := os.Stat(oc.PcapPath)
+	if err != nil {
+		task.PcapAssetNote = "auto-register skipped: pcap file missing (" + oc.PcapPath + ")"
+		db.Model(task).Updates(map[string]interface{}{"pcap_asset_note": task.PcapAssetNote})
+		return
+	}
+	if fi.Size() > PcapAutoImportMaxBytes {
+		task.PcapAssetNote = fmt.Sprintf(
+			"auto-register skipped: pcap %.1fMB exceeds the %.0fMB auto-import threshold (parsing it would stall this task's completion). "+
+				"Register it explicitly if the wait is acceptable: flowb_manage_pcaps {\"action\":\"import\",\"file_path\":\"%s\"}",
+			float64(fi.Size())/(1<<20), float64(PcapAutoImportMaxBytes)/(1<<20), oc.PcapPath)
+		db.Model(task).Updates(map[string]interface{}{"pcap_asset_note": task.PcapAssetNote})
+		return
+	}
+	asset, err := p.ImportFromPath(task.UserID, oc.PcapPath)
+	if err != nil {
+		task.PcapAssetNote = "auto-register failed: " + err.Error() +
+			" — you can retry via flowb_manage_pcaps {\"action\":\"import\",\"file_path\":\"" + oc.PcapPath + "\"}"
+		db.Model(task).Updates(map[string]interface{}{"pcap_asset_note": task.PcapAssetNote})
+		return
+	}
+	task.PcapAssetID = asset.ID
+	db.Model(task).Updates(map[string]interface{}{"pcap_asset_id": task.PcapAssetID})
+}
+
+// ServePcapPublic serves an asset file without authentication:
+// GET /downloads/pcaps/<asset id>/download — the asset UUID is the
+// capability token (same model as task pcap links). Only status=ready
+// assets resolve; anything else (unknown, still importing, missing file)
+// is a uniform 404. Shared by the gin route and the MCP HTTP mux.
+func ServePcapPublic(db *storage.DB, w http.ResponseWriter, r *http.Request) {
+	const prefix = "/downloads/pcaps/"
+	path := r.URL.Path
+	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, "/download") {
+		http.NotFound(w, r)
+		return
+	}
+	id := strings.TrimSuffix(strings.TrimPrefix(path, prefix), "/download")
+	if id == "" || id != filepath.Base(id) {
+		http.NotFound(w, r)
+		return
+	}
+	var asset storage.PcapAssetModel
+	if err := db.Where("id = ?", id).First(&asset).Error; err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if asset.Status != "ready" {
+		http.NotFound(w, r)
+		return
+	}
+	if _, err := os.Stat(asset.StoragePath); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "application/vnd.tcpdump.pcap")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+asset.OriginalFilename+`"`)
+	http.ServeFile(w, r, asset.StoragePath)
 }
 
 // List returns the user's pcap assets (paginated).

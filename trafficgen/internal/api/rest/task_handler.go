@@ -182,10 +182,26 @@ type TaskHandler struct {
 	db                 *storage.DB
 	engine             *core.Engine
 	wsHub              *websocket.Hub
+	pcap               *PcapHandler // optional; enables task pcap auto-registration
 	failedTasks        map[string]string // engineTaskID -> errorMessage
 	failMu             sync.Mutex
 	lastProgressUpdate map[string]time.Time // parentTaskID -> last DB update time
 	progressMu         sync.Mutex
+}
+
+// SetPcapHandler enables task pcap auto-registration: on every completed
+// pcap task the product is registered into the asset library (size-capped).
+// The REST server wires its own pair; MCP-created TaskHandlers (callbacks
+// disabled) never complete tasks and leave this unset.
+func (h *TaskHandler) SetPcapHandler(p *PcapHandler) { h.pcap = p }
+
+// maybeAutoRegisterPcap runs after a task outcome save; AutoRegisterTaskPcap
+// applies its own guards (pcap output, completed, not yet registered).
+func (h *TaskHandler) maybeAutoRegisterPcap(task *storage.TaskModel) {
+	if h.pcap == nil {
+		return
+	}
+	AutoRegisterTaskPcap(h.db, h.pcap, task)
 }
 
 // startSubmitHook is a test-only hook. When non-nil it is invoked after
@@ -391,9 +407,12 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 		}
 
 		h.releasePortGroupPorts(&task)
+		// Unregister closes the output writers (pcap fsync) — the file is
+		// only final after this, so auto-registration must come later.
 		h.engine.UnregisterOutputWriter(taskID)
 		h.engine.UnregisterDualWriter(taskID)
 		h.engine.CleanupTaskFlowControl(taskID)
+		h.maybeAutoRegisterPcap(&task)
 		return
 	}
 
@@ -471,6 +490,10 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 		// Clean up task-level flow control state (parent rate bucket +
 		// shared flow counter). Safe no-op when no ceiling was set.
 		h.engine.CleanupTaskFlowControl(taskID)
+
+		// Unregister closes the output writers (pcap fsync) — the file is
+		// only final after this, so auto-registration must come later.
+		h.maybeAutoRegisterPcap(&task)
 	}
 }
 
@@ -610,11 +633,16 @@ type TaskResponse struct {
 	Stats        *TaskStatsResponse   `json:"stats,omitempty"`
 	// DownloadURL 对 pcap 任务返回公开下载直链（相对路径，无鉴权——任务
 	// UUID 即能力凭证）；port_group 任务为空。
-	DownloadURL string              `json:"download_url,omitempty"`
-	CreatedAt   int64               `json:"created_at"`
-	UpdatedAt   int64               `json:"updated_at"`
-	StartedAt   *int64              `json:"started_at,omitempty"`
-	CompletedAt *int64              `json:"completed_at,omitempty"`
+	DownloadURL string `json:"download_url,omitempty"`
+	// PcapAssetID：pcap 产物自动注册进资产库后的资产 id（超阈值/失败时为
+	// 空）。PcapAssetNote：已注册时为 flowb_manage_pcaps 使用提示；未注册
+	// 时为原因 + 主动注册指引。
+	PcapAssetID   string `json:"pcap_asset_id,omitempty"`
+	PcapAssetNote string `json:"pcap_asset_note,omitempty"`
+	CreatedAt     int64  `json:"created_at"`
+	UpdatedAt     int64  `json:"updated_at"`
+	StartedAt     *int64 `json:"started_at,omitempty"`
+	CompletedAt   *int64 `json:"completed_at,omitempty"`
 }
 
 // Create creates a new task (idempotent).
@@ -1061,6 +1089,7 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		task.CompletedAt = &now
 		h.db.Save(&task)
 		log.Printf("task %s reconciled stale status -> %s before restart", task.ID, task.Status)
+		h.maybeAutoRegisterPcap(&task)
 	}
 
 	// Optimistic lock: atomically set status to prevent concurrent starts
@@ -1670,6 +1699,16 @@ func convertTaskToResponse(t *storage.TaskModel) TaskResponse {
 	}
 	if t.OutputType == "pcap" {
 		response.DownloadURL = "/downloads/tasks/" + t.ID + "/pcap"
+		response.PcapAssetID = t.PcapAssetID
+		if t.PcapAssetNote != "" {
+			response.PcapAssetNote = t.PcapAssetNote
+		} else if t.PcapAssetID != "" {
+			// 已注册：响应层补默认提示语（DB 只存跳过/失败原因），提醒
+			// LLM 该 pcap 可以直接做报文查看/分析/下载。
+			response.PcapAssetNote = "pcap auto-registered into the asset library (id " + t.PcapAssetID +
+				") — inspect and analyze it via flowb_manage_pcaps: list_flows / list_packets / get_packet / " +
+				"extract / get_packet_payload; download via its download action"
+		}
 	}
 
 	if t.StartedAt != nil {

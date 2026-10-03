@@ -105,6 +105,9 @@ func (s *Server) setupRoutes() {
 	settingsHandler := NewSettingsHandler(s.db, s.engine)
 	userHandler := NewUserHandler(s.db)
 	pcapHandler := NewPcapHandler(s.db, "")
+	// Task pcap auto-registration: completed pcap products are imported into
+	// the asset library (size-capped) by the REST server's completion callback.
+	taskHandler.SetPcapHandler(pcapHandler)
 
 	// Health endpoints (no auth required)
 	s.router.GET("/health", systemHandler.HealthCheck)
@@ -123,6 +126,11 @@ func (s *Server) setupRoutes() {
 	// Public download links (no auth — task UUID is the capability token):
 	// generated pcap files, for external clients' curl convenience.
 	s.router.GET("/downloads/tasks/:id/pcap", pcapHandler.DownloadByTask)
+	// Public pcap asset downloads (no auth — asset UUID is the capability
+	// token): imported assets and auto-registered task products.
+	s.router.GET("/downloads/pcaps/:id/download", func(c *gin.Context) {
+		ServePcapPublic(s.db, c.Writer, c.Request)
+	})
 
 	// Auth routes (no auth required)
 	authGroup := s.router.Group("/api/v1/auth")

@@ -23,10 +23,15 @@ type TaskModel struct {
 	Status       string    `gorm:"size:32;not null;index"` // "pending", "running", "stopped", "completed", "error"
 	Progress     float64   `gorm:"default:0"`
 	ErrorMessage string    `gorm:"size:1024"`
-	CreatedAt    time.Time `gorm:"autoCreateTime"`
-	UpdatedAt    time.Time `gorm:"autoUpdateTime"`
-	StartedAt    *time.Time
-	CompletedAt  *time.Time
+	// pcap 产物自动注册资产库的结果（AutoRegisterTaskPcap 回填）：
+	// PcapAssetID=注册成功的资产 id；PcapAssetNote=跳过/失败原因（超阈值
+	// 时含主动注册指引），注册成功时留空（响应层会补默认提示语）。
+	PcapAssetID   string `gorm:"size:64;index"`
+	PcapAssetNote string `gorm:"size:1024"`
+	CreatedAt     time.Time `gorm:"autoCreateTime"`
+	UpdatedAt     time.Time `gorm:"autoUpdateTime"`
+	StartedAt     *time.Time
+	CompletedAt   *time.Time
 }
 
 // TableName returns the table name.

@@ -42,14 +42,14 @@ func (s *Server) registerWorkflowTools() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
 			Name:        "flowb_generate_traffic",
-			Description: "One-shot workflow: create strategy + create task + start task. Returns task_id and strategy_id. Most common way to generate traffic.",
+			Description: "One-shot workflow: create strategy + create task + start task. Returns task_id and strategy_id. Most common way to generate traffic. Completed pcap tasks are auto-registered into the asset library (up to 64MB) — flowb_get_task_progress then returns pcap_asset_id, and flowb_manage_pcaps lists/analyzes/downloads the file (list_flows, get_packet, extract).",
 		},
 		s.handleGenerateTraffic,
 	)
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
 			Name:         "flowb_get_task_progress",
-			Description:  "Get a task's current progress: status, progress percentage, and live stats (packets_sent, bytes_sent, current_pps, current_bps). Poll this to monitor a running task. For completed pcap tasks over HTTP the response carries download_url plus download_howto (exact curl instructions to fetch the file unauthenticated); over stdio it carries output_config.pcap_path (local absolute path).",
+			Description:  "Get a task's current progress: status, progress percentage, and live stats (packets_sent, bytes_sent, current_pps, current_bps). Poll this to monitor a running task. For completed pcap tasks over HTTP the response carries download_url plus download_howto (exact curl instructions to fetch the file unauthenticated); over stdio it carries output_config.pcap_path (local absolute path). Also returns pcap_asset_id once the product is auto-registered into the asset library (<=64MB) — analyze it via flowb_manage_pcaps.",
 			OutputSchema: dataOnlyOutputSchema(),
 		},
 		s.handleGetTaskProgress,

@@ -3,12 +3,14 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/core/layers"
+	"github.com/trafficgen/trafficgen/internal/api/rest"
 	"github.com/trafficgen/trafficgen/internal/replay"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/config"
@@ -135,5 +137,47 @@ func TestTaskDataForTransportShapes(t *testing.T) {
 	// stdio 形态也不得泄漏指引字段。
 	if _, has := m["download_howto"]; has {
 		t.Errorf("stdio single task: download_howto present, want stripped")
+	}
+}
+
+// manage_pcaps download action 与任务直链同口径：stdio 给 file_path（同宿
+// 直接读），HTTP 给绝对 download_url（资产 UUID 即能力凭证）。
+func TestPcapDownloadActionTransportAdapted(t *testing.T) {
+	srv := newTransportTestServer(t)
+	assetDir := t.TempDir()
+	pcapFile := assetDir + "/asset.pcap"
+	if err := os.WriteFile(pcapFile, []byte("pcap-bytes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	asset := &storage.PcapAssetModel{
+		ID: "asset-44444444", UserID: srv.serviceUserID, Name: "asset.pcap",
+		OriginalFilename: "asset.pcap", StoragePath: pcapFile,
+		FileSize: 10, Status: "ready",
+	}
+	if err := srv.db.Create(asset).Error; err != nil {
+		t.Fatal(err)
+	}
+	h := rest.NewPcapHandler(srv.db, assetDir)
+
+	resp, err := srv.handlePcapDownload(context.Background(), h, "asset-44444444")
+	if err != nil {
+		t.Fatalf("download(stdio): %v", err)
+	}
+	m := rawData(resp.Data).(map[string]interface{})
+	if m["file_path"] != pcapFile {
+		t.Errorf("stdio file_path = %v", m["file_path"])
+	}
+	if _, has := m["download_url"]; has {
+		t.Errorf("stdio download action carries download_url; want path-only")
+	}
+
+	httpCtx := context.WithValue(context.Background(), httpTransportKey{}, "http://h:1")
+	respH, err := srv.handlePcapDownload(httpCtx, h, "asset-44444444")
+	if err != nil {
+		t.Fatalf("download(http): %v", err)
+	}
+	mH := rawData(respH.Data).(map[string]interface{})
+	if got, _ := mH["download_url"].(string); got != "http://h:1/downloads/pcaps/asset-44444444/download" {
+		t.Errorf("http download_url = %q", got)
 	}
 }

@@ -90,6 +90,15 @@ func NewHTTPServer(s *Server, listen string, apiKey string, corsOrigins []string
 		rest.ServeTaskPcapPublic(s.db, w, r)
 	})))
 
+	// Public pcap asset downloads (no API key — the asset UUID is the
+	// capability token): imported assets and auto-registered task products
+	// are fetchable through the MCP port too, so flowb_manage_pcaps
+	// action=download's link works with the host:port the client already
+	// uses.
+	mux.Handle("/downloads/pcaps/", corsMiddleware(corsOrigins, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rest.ServePcapPublic(s.db, w, r)
+	})))
+
 	hs := &HTTPServer{
 		srv: &http.Server{
 			Addr:         listen,
