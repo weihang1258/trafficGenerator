@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/trafficgen/trafficgen/internal/core"
@@ -87,7 +88,8 @@ func TestGetTaskProgressStdioPath(t *testing.T) {
 		t.Errorf("output_config.pcap_path missing or wrong: %v", m["output_config"])
 	}
 
-	// 同一任务走 HTTP ctx：download_url 必须保留。
+	// 同一任务走 HTTP ctx：download_url 必须保留，且带下载方法指引
+	//（模型读到相对路径时无需二次猜测怎么取文件）。
 	_, outH, err := srv.handleGetTaskProgress(
 		context.WithValue(context.Background(), httpTransportKey{}, true), nil, getTaskProgressInput{TaskID: id})
 	if err != nil {
@@ -96,6 +98,10 @@ func TestGetTaskProgressStdioPath(t *testing.T) {
 	mH := outH.Data.(map[string]interface{})
 	if got, _ := mH["download_url"].(string); got != "/downloads/tasks/"+id+"/pcap" {
 		t.Errorf("http response download_url = %q", got)
+	}
+	howto, _ := mH["download_howto"].(string)
+	if !strings.Contains(howto, id) || !strings.Contains(howto, "curl") {
+		t.Errorf("http response download_howto missing/unactionable: %q", howto)
 	}
 }
 
@@ -124,5 +130,9 @@ func TestTaskDataForTransportShapes(t *testing.T) {
 	httpCtx := context.WithValue(context.Background(), httpTransportKey{}, true)
 	if _, has := taskDataForTransport(httpCtx, raw).(map[string]interface{})["download_url"]; !has {
 		t.Errorf("http single task: download_url stripped, want kept")
+	}
+	// stdio 形态也不得泄漏指引字段。
+	if _, has := m["download_howto"]; has {
+		t.Errorf("stdio single task: download_howto present, want stripped")
 	}
 }

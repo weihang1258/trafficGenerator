@@ -49,7 +49,7 @@ func (s *Server) registerWorkflowTools() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
 			Name:         "flowb_get_task_progress",
-			Description:  "Get a task's current progress: status, progress percentage, and live stats (packets_sent, bytes_sent, current_pps, current_bps). Poll this to monitor a running task. For pcap tasks the response carries the artifact reference: output_config.pcap_path (absolute path, local/stdio clients) or download_url (unauthenticated HTTP link, remote clients).",
+			Description:  "Get a task's current progress: status, progress percentage, and live stats (packets_sent, bytes_sent, current_pps, current_bps). Poll this to monitor a running task. For completed pcap tasks over HTTP the response carries download_url plus download_howto (exact curl instructions to fetch the file unauthenticated); over stdio it carries output_config.pcap_path (local absolute path).",
 			OutputSchema: dataOnlyOutputSchema(),
 		},
 		s.handleGetTaskProgress,

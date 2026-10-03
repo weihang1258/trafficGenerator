@@ -31,6 +31,16 @@ type httpTransportKey struct{}
 func taskDataForTransport(ctx context.Context, raw json.RawMessage) interface{} {
 	v := rawData(raw)
 	if ctx.Value(httpTransportKey{}) != nil {
+		// Single-task payloads: annotate the link with exact fetch
+		// instructions — the model sees a relative URL and must know how
+		// to turn it into a download without guessing the base address.
+		if m, ok := v.(map[string]interface{}); ok {
+			if u, ok := m["download_url"].(string); ok && u != "" {
+				m["download_howto"] = "Prefix this relative URL with the address of this MCP server " +
+					"(the host:port your client connects to, e.g. http://10.0.0.1:8086) and fetch it with a " +
+					"plain GET — no authentication needed. e.g. curl -o out.pcap http://<server>:<port>" + u
+			}
+		}
 		return v
 	}
 	switch t := v.(type) {
