@@ -1,0 +1,185 @@
+# HDS（Adobe HTTP Dynamic Streaming，Adobe HTTP 动态流）测试用例契约
+
+> 版本：v1.1.0（D/T/C 文档审查版，2026-10-01）
+> 日期：2026-09-27
+> 配套设计：`docs/protocols/hds/design.md` v1.1.0（P1 矩阵 §10/三路对照 §11/门1表 §12/D-HDS-1 §13）
+> 机器契约：`trafficgen/test/protocol_pcap/cases/hds.json`（25 例已落地可执行）
+> 状态：P3 固定动作（§3.15/A′/B′/9.52/3.14/三源回指）已落盘 §8；`hds` 层已注册已实现（47 基线的 `unknown layer` 占位已作废）；本文断言以 `cases/hds.json` 实测形状为准，不宣称 suite 已跑（G-HDS-4）。
+
+## 1. 测试原则和注册状态
+
+用例从设计 §2–§8 逐项派生，共 25 个唯一 ID：15 个正例和 10 个负例。本文 §2 按覆盖语义分组；JSON 数组顺序为机器执行顺序，ID 集合与正负计数必须一致。47 基线的第 18 ID（`hds_neg_unregistered`，`unknown layer` 占位）因注册完成而作废，不继承——当前 JSON 无占位，25 例全部是可执行语义用例。
+
+HDS 是 HTTP/TCP 应用层 body 变换器族（设计 §2）：断言通道为已注册 `http.*`/`tcp.*`/`ip.*` 字段 + frames hex（P4 补）；tshark 无专用 HDS dissector，不自创 `hds.*` 字段名（P4 前 `tshark -G fields` 实证，G-HDS-4）。无 VLAN/IP/TCP options 时 HTTP 载荷起点 IPv4 offset 54（14+20+20）；IPv6 同住 `ip` 层，偏移不断言（`hds_ipv6` 当前无 `ipv6.nxt` 断言，弱点已登记，P4 补）。
+
+动态值（session  URI 变体、Base64 bootstrap、fragment body）以 fixture 精确断言为主；跨流递增/随机面待 P4 动态清单落地后补 presence/nonzero/distinct/same_as。
+
+## 2. 原子用例索引
+
+| # | ID | 类型 | 覆盖 | 约定包数 |
+|---:|---|---|---|---:|
+| 1 | `hds_manifest_ipv4` | 正 | IPv4/TCP/HTTP GET、F4M root/media | 9 |
+| 2 | `hds_bootstrap_abst` | 正 | Base64 短路 bootstrap、abst 头（形状） | 9 |
+| 3 | `hds_asrt_segment_runs` | 正 | 双 fragment bootstrap 响应 200（run 字节不断言） | 9 |
+| 4 | `hds_afrt_fragment_runs` | 正 | 同上（timestamp/duration 不断言） | 9 |
+| 5 | `hds_fragment_f4f` | 正 | F4F URI、200、`video/f4f`（mdat 字节不断言） | 9 |
+| 6 | `hds_manifest_bootstrap_fragment` | 正 | 三 session 串行顺序（包 4/5/6/8 URI 序） | 13 |
+| 7 | `hds_keepalive_fragments` | 正 | 同连接双 fragment GET/response 边界 | 11 |
+| 8 | `hds_multi_session` | 正 | 双 manifest session 串行（同 4-tuple，真隔离待 G-HDS-3） | 11 |
+| 9 | `hds_ipv6` | 正 | IPv6，应用字节语义不变 | 9 |
+| 10 | `hds_mss_reassembly` | 正 | mss=536 跨段（response 在包 6，`min_packets: 8`） | ≥8 |
+| 11 | `hds_live_update` | 正 | 双 bootstrap session 同 URI（单调扩展不断言） | 11 |
+| 12 | `hds_vod_end` | 正 | recorded 形状（FIN 语义不断言） | 9 |
+| 13 | `hds_boundary_box` | 正 | 单字节 body 最小形状（size 公式不断言） | 9 |
+| 14 | `hds_neg_manifest` | 负 | 空 id/stream_type/media → `manifest` | — |
+| 15 | `hds_neg_bootstrap` | 负 | bootstrap session 无 media → `bootstrap` | — |
+| 16 | `hds_neg_fragment` | 负 | fragment session 无 fragments → `fragment` | — |
+| 17 | `hds_neg_session_state` | 负 | 未知 kind → `unknown`（真跨 session 串用待 G-HDS-3） | — |
+| 18 | `hds_bootstrap_generated` | 正 | 无 inline Base64 的生成式 bootstrap | 9 |
+| 19 | `hds_non_default_port` | 正 | HTTP HDS 显式 8080 端口 | 9 |
+| 20 | `hds_neg_sessions_empty` | 负 | 空 sessions → `sessions` | — |
+| 21 | `hds_neg_bootstrap_base64` | 负 | 非法 bootstrap Base64 → `bootstrap base64 decode` | — |
+| 22 | `hds_neg_presence_top_level_hds` | 负 | 层链与顶层 hds 共存 → top-level hds | — |
+| 23 | `hds_neg_stray_src_mac` | 负 | 顶层游离 src_mac → `src_mac` | — |
+| 24 | `hds_neg_flat_count` | 负 | 顶层 flat count → `count` | — |
+| 25 | `hds_neg_carrier_no_http` | 负 | 缺 HTTP carrier → `requires the http carrier layer` | — |
+
+包数规律（一 session 一 GET 一 200 = +2 包）：单 session 9；双 session 11；三 session 13；MSS 例 `min_packets: 8`（response 包 6 = 分段证据）。`src_port` 41000–41024 按用例序列分配（正负例各自覆盖连续端口区间，#22–#25 为链级红例），`dst_port` 正例全 80（#19 为 8080），顶层 `http` 子映射 0 个正例。
+
+## 3. 正例逐项断言契约
+
+1. **`hds_manifest_ipv4`**：IPv4/TCP/41000→80，单 manifest session。断言包 4 `http.request.method=GET`、包 4 `http.request.uri=/live/channel.f4m`、包 5 `http.response.code=200`，`packet_count=9`。
+2. **`hds_bootstrap_abst`**：单 bootstrap session（fixture Base64 解码为 127B `abst` 盒，内嵌 `asrt`+`afrt`，已实证）。断言包 4 method/uri（`/live/channel.bootstrap`）、包 5 code 200，`packet_count=9`。run 表字节不断言（设计 G-HDS-1）。
+3. **`hds_asrt_segment_runs`**：双 fragment fixture 的单 bootstrap session。断言包 4 method、包 5 code 200，`packet_count=9`。segment 起点/单调性不断言（该 fixture 走 Base64 短路；无 inline Base64 的生成式 bootstrap 已由 #18 覆盖，但 asrt/afrt 逐字段 PCAP 断言仍属 G-HDS-1）。
+4. **`hds_afrt_fragment_runs`**：同 #3 形状。断言包 4 method、包 5 code 200，`packet_count=9`。timestamp/duration/discontinuity 不断言（实现无 indicator 字节，G-HDS-3）。
+5. **`hds_fragment_f4f`**：单 fragment session。断言包 4 method/uri（`/live/channel/Seg1-Frag1`）、包 5 code 200、`http.content_type=video/f4f`，`packet_count=9`。mdat 字节仍待 frames 断言（G-HDS-1/G-HDS-4）。
+6. **`hds_manifest_bootstrap_fragment`**：三 session 串行（manifest→bootstrap→fragment）。断言包 4 URI（f4m）、包 5 code 200、包 6 URI（bootstrap）、包 8 URI（Seg1-Frag1），`packet_count=13`。顺序由数组序保证，错序不拒（G-HDS-2）。
+7. **`hds_keepalive_fragments`**：同连接双 fragment（Frag1/Frag2）。断言包 4/6 两 URI、包 5/7 两 code 200，`packet_count=11`。各自 Content-Length/body 边界独立（变换器恒 keep-alive）。
+8. **`hds_multi_session`**：双 manifest session（`/live/session_a.f4m`、`/live/session_b.f4m`，同 4-tuple 串行）。断言包 4/6 两 URI、包 5/7 两 code 200，`packet_count=11`。真 4-tuple 隔离待 G-HDS-3。
+9. **`hds_ipv6`**：IPv6 地址 fixture 的单 manifest session。断言包 4 URI、包 5 code 200，`packet_count=9`。`ipv6.nxt`/地址族/偏移 74 不断言（弱点，P4 补）。
+10. **`hds_mss_reassembly`**：`tcp.mss=536` 单 manifest session。断言包 4 URI、包 6（非包 5）code 200——一位后移即跨段证据，`min_packets: 8`。重组后 XML 完整性不断言（P4 frames 补）。
+11. **`hds_live_update`**：双 bootstrap session 同 URI。断言包 4/6 两 URI、包 5/7 两 code 200，`packet_count=11`。run 表单调扩展不断言（G-HDS-3）。
+12. **`hds_vod_end`**：`stream_type=recorded` 单 manifest session。断言包 4 URI、包 5 code 200，`packet_count=9`。FIN 终止语义不断言（keep-alive 恒置覆盖配置值，G-HDS-3）。
+13. **`hds_boundary_box`**：单字节 body（`X`）fragment session。断言包 4 URI、包 5 code 200，`packet_count=9`。size=8+payload 公式不断言（G-HDS-2）。
+
+## 4. 负例契约
+
+每个负例必须在 planner/validator 失败并传播为 task error；不能产生成功 PCAP 或假成功。执行期 `expect` 键集合严格为 `{"expect_error", "error_contains"}`（25 例全量审计：10 负例零混入包结构断言）：
+
+| ID | 故障输入 | 目标 `error_contains` |
+|---|---|---|
+| `hds_neg_manifest` | 空 id/stream_type/media 的 manifest session | `manifest` |
+| `hds_neg_bootstrap` | 无 media 的 bootstrap session | `bootstrap` |
+| `hds_neg_fragment` | 无 fragments 的 fragment session | `fragment` |
+| `hds_neg_session_state` | 未知 kind（`unknown`） | `unknown` |
+
+`sessions` 空（`sessions is required`）、非法 Base64（`bootstrap base64 decode`）已分别由 #20/#21 覆盖；链级红例（缺 http 载体/顶层 hds presence/游离键/flat count）由 #22–#25 覆盖。合法的三 kind、live/recorded 字面、Base64 双形态、keep-alive 串行由正例覆盖，不能误报为负例。
+
+## 5. 三方一致性和静态检查
+
+1. 设计 §8 的 25 个 ID、本文 §2、`cases/hds.json` 数组为同一组 ID、同一类型和同一计数：15 正例 + 10 负例。本文按覆盖语义分组；JSON 数组顺序仅用于机器执行。
+2. 15 正例均有 `packet_count`（#10 为 `min_packets`）+ `http.request.*`/`http.response.code` 字段；10 负例 `expect` 只有 `expect_error`、`error_contains`。
+3. F4M/abst/asrt/afrt/mdat 的父子长度、run 单调、timescale 一致、引用交叉当前不断言；缺口已入 G-HDS-2/3，不冒充覆盖。
+4. manifest→bootstrap→fragment 顺序仅由 sessions 数组序表达；validator 无顺序检查，错序 fixture 归 G-HDS-2。
+5. `live`/`recorded` 为字面透传；`recorded` 无终止行为差（G-HDS-3）。
+6. IPv4/IPv6 以地址字面区分（同住 `ip` 层）；多 session 以同连接串行为准，不依赖全局交织包序。
+7. `python3 -m json.tool trafficgen/test/protocol_pcap/cases/hds.json` 通过；15 个正例顶层键仅 `layers`+`flow_control`，10 个负例的违规键/缺载体形状均为故意判死输入。
+
+## 6. 实现后执行建议
+
+迁层 cases 已落盘；下一步先跑全量（`CASE_PROTO=hds` 全量非增量）拿实际 pcap，再钉 frames（先跑后钉，不照抄 §3 包数）；URI/MSS/双 session 包号按落盘 pcap（tshark）复核。真实 suite 运行前，不把 translate/schema/运行时链路或 frames 断言写成已验证。`tshark -G fields` 实证字段名（禁 `hds.*` 自创）；盒字节走 frames hex（abst 头 `0000007f 61627374` 起，127B fixture 基线已实证）。
+
+## 7. 修订记录
+
+- v1.0.0（2026-09-27）：P1–P3 产物。由 47 基线重建：25 ID（占位删除）逐例断言契约 + 弱断言登记（asrt/afrt/mdat 无 frames、ipv6 无地址族断言、size 公式无）+ §8 P3 固定动作。47 基线三方 ID/顺序/覆盖已逐条核对（结论见 p123 报告）。
+
+## 8. P3 固定动作（CORE_MEMORY §3.15/§9.52/§9.14/覆盖审计要求面）
+
+### 8.1 §3.15 三项逐项一例或立项（无例无项即缺口）
+
+| # | 三项 | 本协议对照 | 用例/立项 |
+|---|---|---|---|
+| ① | 同连接/同流内的多轮操作 | 三 session 串行（#6）+ 双 fragment（#7） | 已覆：#6/#7 |
+| ② | 非正常结束 | 10 个配置/链级负例覆盖输入拒绝 | 已覆：#16/#17/#20–#25；FIN/RST mid-transaction + 服务端 abort→G-HDS-3 |
+| ③ | 长保活 | keep-alive 双 fragment（#7）+ 双 bootstrap 轮询形状（#11） | 已覆：#7/#11（恒置语义） |
+
+无空项。②的服务端主动面进 B′（G-HDS-3），不删用例。
+
+### 8.2 A′/B′ 两分类表（要求面反推：数据/业务/现网/多流四类审计）
+
+A′（现有引擎可构建→25 ID 内已覆或 P4 fixture 可建）：
+
+| 面 | 要求点 | 去向 |
+|---|---|---|
+| 数据 | 三 kind 分支/三 Content-Type/双地址族/MSS 分段/最小形状 | #1/#2/#5/#9/#10/#13 已覆（形状层） |
+| 业务 | 三阶段串行/keep-alive 多事务/双 session | #6/#7/#8 已覆（顺序层） |
+| 现网 | 明文 GET .f4m/内联 bootstrap/片段寻址 | #1/#2/#5 已覆（形状层） |
+| 多流 | 同连接多 session/N/A 真并发 | #6–#8/#11 已覆串行面；真并发→G-HDS-3 |
+
+B′（引擎结构缺口→G-HDS-2/3/4 登记）：G-HDS-2（validator/断言语义鸿沟 11 点）、G-HDS-3（状态/连接语义 6 点）、G-HDS-4（规范复核 + 字段实证，确认项）。G-HDS-1 为 P4 必含，不进 B′。
+
+### 8.3 9.52 对账两行 + 清单出处声明
+
+- 清单出处声明：本清单来源=规范/官方文档反推（Adobe HDS spec + 2014-05 Errata + RFC 9112/9110 + design §10 矩阵），非引擎能力面反推。
+- 对账两行：规范逻辑点总数=42（design §10.2 矩阵 30 格 + §10.3 变体 12 行）；用例覆盖数=20 点（矩阵 13 格 + 变体 7 行，25 ID 形状层），P4 必含 8 点（G-HDS-1 迁层 scope），B′ 立项 14 点（G-HDS-2/3；G-HDS-4 为确认项不计覆盖点），合计 42 无遗漏。反查 25/25 绿≠覆盖全，此对账为覆盖审计有效口径。
+
+### 8.4 3.14 豁免边界审计
+
+`sessions[]` 显式声明不豁免（本协议有 keep-alive 长连接 + 多 session，sessions[] 必写，design §12.3）。真多流并发缺（#8 同 4-tuple 串行）→ G-HDS-3，不豁免逃逸；单 body 多盒（abst 嵌 asrt/afrt）→ #2 形状已覆。两项均有去向，无豁免逃逸。
+
+### 8.5 三源回指行
+
+Adobe HDS spec（F4M/bootstrap/fragment/寻址）+ Errata（afrt 约束）+ RFC 9112/9110（HTTP 载体）→ D-HDS-1（design §16）→ `test/protocol_pcap/cases/hds.json`（25 例）。ID 权威=本文 §2（15 正+10 负）；对账 25=15+10。
+
+### 8.6 断言契约核对结论（与 design §8 一致）
+
+本文 §2 的 25 ID 与 `cases/hds.json` 逐 ID、逐序、逐类型核对一致（15 正 + 10 负；单 session 9 包、双 session 11 包、三 session 13 包、MSS 用 `min_packets`）。存量审计（9.14）：47 基线 `hds_neg_unregistered` 占位作废（注册完成），新增的生成式 bootstrap、非默认端口及链级负例均逐条列入 §2。断言通道：fields 用 `http.request.method/uri` + `http.response.code`；动态面与 frames 弱点回指设计缺口。
+
+
+## 9. 层链迁移审计（T1-T6，2026-09-30）
+
+| ID | 测试审计结论 | 证据 |
+|---|---|---|
+| T1 | 25 条 ID 唯一且 JSON 可解析。 | `hds.json` 机读校验。 |
+| T2 | 15 条正例使用 `[ip,tcp,http,hds]` 严格层链。 | 全量 `spec_json.layers` 审计。 |
+| T3 | 10 条负例保留故意错误输入与错误锚词。 | `expect_error`/`error_contains` 审计。 |
+| T4 | 正例地址只在 ip 层、端口只在 tcp 层、数量只在 `flow_control`；无顶层旧字段。 | 全量顶层键审计。 |
+| T5 | `flow_control` 属策略封包，不混入协议层；负例 `count` 仅用于验证拒绝。 | `hds_neg_flat_count`。 |
+| T6 | 层链迁移不改变协议字段、断言或负例语义。 | 对照归档契约逐 ID 核对。 |
+
+### 9.1 迁移状态与缺口
+
+- 已迁移：15 个正例已是严格层链目标形；10 个负例保留用于验证层链和顶层白名单守卫。
+- 特殊负例：`hds_neg_presence_top_level_hds`、`hds_neg_stray_src_mac`、`hds_neg_flat_count`、`hds_neg_carrier_no_http` 故意保留违规形状，不得清洗。
+- 缺口：D-GAP-1~3 由设计 §16.2 登记；translate/schema/运行时链路和没有真实 suite/pcap 证据的断言均不计入已验收覆盖。
+
+## 10. 执行边界
+
+本轮仅完成文档、JSON 解析、形状及契约对账；未运行 suite、服务或 MCP，真实 PCAP/NIC 证据仍按 G-HDS-4 登记。
+
+## 11. D/T/C 审查结论（2026-10-01）
+
+| ID | 结论 | 证据/去向 |
+|---|---|---|
+| T1 | JSON 25 条唯一可解析，ID、顺序、正负计数与本文索引一致。 | §2；`python3 -m json.tool`。 |
+| T2 | 15 正例使用 `[ip,tcp,http,hds]`，地址/端口/数量归属正确；10 负例保留故意违规形状。 | §9 T1–T6；全量 spec_json 审计。 |
+| T3 | 负例严格使用 `expect_error`/`error_contains`，没有混入包结构断言；稳定锚词逐例保留。 | §4；10 个负例。 |
+| T4 | 规范/设计条目已反推到 manifest、bootstrap、fragment、keep-alive、多 session、IPv6、MSS、生成式 bootstrap 和非默认端口用例。 | §2–§3；D-HDS-1/G-HDS-1。 |
+| T5 | 历史 `hds_neg_unregistered` 占位因已注册作废；新增 8 例和链级红例均有去向，不把缺口冒充覆盖。 | §1、§8.6；旧归档逐条对账。 |
+| T6 | 未运行 suite/服务/MCP；本次仅完成文档、JSON 解析、形状及对账检查，真实 PCAP 仍待后续阶段。 | §6；D-GAP-1。 |
+
+### 11.1 C1–C6 覆盖审计
+
+| ID | 结论 |
+|---|---|
+| C1 | 25 条 ID 唯一，15 正 + 10 负，JSON 可解析。 |
+| C2 | 正例严格层链和顶层白名单通过；故意 presence、游离键、flat count、缺 carrier 负例保留。 |
+| C3 | 地址族、MSS、端口、生成式 bootstrap 与多阶段业务形状均有明确用例号。 |
+| C4 | 负例覆盖配置拒绝路径；每例均有稳定错误锚词。 |
+| C5 | 断言通道使用 `http.*`/`tcp.*`/`ip.*` 和预留 frames；未实现字段语义均回指 G-HDS-2/3/4。 |
+| C6 | 规范逻辑点 42 = 已覆盖 20 + P4 必含 8 + B′ 14；这是覆盖审计对账，不等于 suite 全绿。 |
+
+## 12. 自审结论
+
+两轮自审：第一轮逐条对照旧归档、design §10–§18、CORE_MEMORY §3.15/§9 和 25 条 JSON；第二轮复核 ID 顺序、15/10 计数、断言契约、D/T/C 对账与未运行边界，末轮干净。
+
