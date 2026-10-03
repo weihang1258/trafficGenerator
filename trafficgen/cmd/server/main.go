@@ -216,9 +216,14 @@ import (
 )
 
 var (
-	configPath = flag.String("config", "", "Path to configuration file")
-	fsRoot     = flag.String("fs-root", "", "Filesystem root override (default: data/filesystem)")
-	version    = "1.0.0"
+	configPath   = flag.String("config", "", "Path to configuration file")
+	fsRoot       = flag.String("fs-root", "", "Filesystem root override (default: data/filesystem)")
+	showVersion  = flag.Bool("version", false, "Print version and exit")
+	// version 由构建期 ldflags 注入（-X main.version=vX.Y.Z）；
+	// 源码直跑时为 dev。发布物必须带真实版本号（Makefile dist）。
+	version = "dev"
+	commit  = "unknown"
+	date    = "unknown"
 )
 
 // Application holds all application components.
@@ -254,6 +259,11 @@ type Application struct {
 
 func main() {
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("trafficgen %s (commit=%s, built=%s)\n", version, commit, date)
+		return
+	}
 
 	// Ensure pcap output directory exists
 	os.MkdirAll("pcap", 0755)
