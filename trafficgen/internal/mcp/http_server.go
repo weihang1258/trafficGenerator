@@ -64,7 +64,14 @@ func NewHTTPServer(s *Server, listen string, apiKey string, corsOrigins []string
 	// preflight would 401 and browsers would block all cross-origin requests.
 	// With CORS outermost: preflight gets 204 + CORS headers; actual POST/GET
 	// still goes through apiKeyMiddleware which enforces X-MCP-Key.
-	mux.Handle("/mcp", corsMiddleware(corsOrigins, apiKeyMiddleware(apiKey, streamHandler)))
+	// Tag the request context with the serving transport so tool handlers can
+	// adapt responses: HTTP (remote) clients get download_url on task payloads,
+	// stdio (same-host) clients get the raw output_config.pcap_path instead.
+	// The go-sdk propagates the HTTP request context into the tool handler.
+	tagged := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		streamHandler.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), httpTransportKey{}, true)))
+	})
+	mux.Handle("/mcp", corsMiddleware(corsOrigins, apiKeyMiddleware(apiKey, tagged)))
 
 	// Public pcap download links (no API key — the task UUID is the
 	// capability token): mounted on the MCP port too, so an LLM client can

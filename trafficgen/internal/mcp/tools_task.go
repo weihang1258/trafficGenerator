@@ -123,5 +123,5 @@ func (s *Server) handleManageTasks(ctx context.Context, req *mcp.CallToolRequest
 	}
 
 	s.auditLog(req, "flowb_manage_tasks", duration, "success", "")
-	return nil, manageTasksOutput{Action: in.Action, Data: rawData(resp.Data)}, nil
+	return nil, manageTasksOutput{Action: in.Action, Data: taskDataForTransport(ctx, resp.Data)}, nil
 }

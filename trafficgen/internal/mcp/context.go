@@ -3,6 +3,7 @@ package mcp
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,39 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 )
+
+// httpTransportKey marks tool-call contexts served over the Streamable HTTP
+// transport. The HTTP server injects it via middleware; stdio never does, so
+// absence means the client runs on this host.
+type httpTransportKey struct{}
+
+// taskDataForTransport adapts a REST task payload to the calling transport.
+//
+// stdio clients run on this host: output_config.pcap_path is the direct
+// artifact reference, while the relative download_url cannot be resolved
+// without a server host:port — it is stripped (pre-direct-link behavior).
+// HTTP clients are remote: download_url (the unauthenticated capability
+// link set by rest.convertTaskToResponse for pcap tasks) is the useful
+// handle and is kept. Handles both a single task object and a list of tasks.
+func taskDataForTransport(ctx context.Context, raw json.RawMessage) interface{} {
+	v := rawData(raw)
+	if ctx.Value(httpTransportKey{}) != nil {
+		return v
+	}
+	switch t := v.(type) {
+	case map[string]interface{}:
+		delete(t, "download_url")
+		// List responses are {items:[task...], total, ...}: strip per item.
+		if items, ok := t["items"].([]interface{}); ok {
+			for _, e := range items {
+				if m, ok := e.(map[string]interface{}); ok {
+					delete(m, "download_url")
+				}
+			}
+		}
+	}
+	return v
+}
 
 // callHandler invokes a gin handler with service account context and returns
 // the parsed backend response. The caller inspects resp.Code (0 == success,

@@ -49,7 +49,7 @@ func (s *Server) registerWorkflowTools() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
 			Name:         "flowb_get_task_progress",
-			Description:  "Get a task's current progress: status, progress percentage, and live stats (packets_sent, bytes_sent, current_pps, current_bps). Poll this to monitor a running task.",
+			Description:  "Get a task's current progress: status, progress percentage, and live stats (packets_sent, bytes_sent, current_pps, current_bps). Poll this to monitor a running task. For pcap tasks the response carries the artifact reference: output_config.pcap_path (absolute path, local/stdio clients) or download_url (unauthenticated HTTP link, remote clients).",
 			OutputSchema: dataOnlyOutputSchema(),
 		},
 		s.handleGetTaskProgress,
@@ -128,7 +128,7 @@ func (s *Server) handleGetTaskProgress(ctx context.Context, req *mcp.CallToolReq
 		return nil, getTaskProgressOutput{}, err
 	}
 	s.auditLog(req, "flowb_get_task_progress", time.Since(start), "success", "")
-	return nil, getTaskProgressOutput{Data: rawData(resp.Data)}, nil
+	return nil, getTaskProgressOutput{Data: taskDataForTransport(ctx, resp.Data)}, nil
 }
 
 // stopAllTasksInput is the input for flowb_stop_all_tasks.
@@ -259,11 +259,11 @@ func (s *Server) handleWaitForTask(ctx context.Context, req *mcp.CallToolRequest
 		switch task.Status {
 		case "completed", "stopped", "error", "failed":
 			s.auditLog(req, "flowb_wait_for_task", time.Since(start), "success", "terminal="+task.Status)
-			return nil, waitForTaskOutput{Data: rawData(resp.Data)}, nil
+			return nil, waitForTaskOutput{Data: taskDataForTransport(ctx, resp.Data)}, nil
 		}
 		if time.Now().After(deadline) {
 			s.auditLog(req, "flowb_wait_for_task", time.Since(start), "error", "timeout status="+task.Status)
-			return nil, waitForTaskOutput{Data: rawData(resp.Data)}, &jsonrpc.Error{
+			return nil, waitForTaskOutput{Data: taskDataForTransport(ctx, resp.Data)}, &jsonrpc.Error{
 				Code:    jsonrpc.CodeInternalError,
 				Message: fmt.Sprintf("timeout after %ds (last status: %s)", timeout, task.Status),
 			}
