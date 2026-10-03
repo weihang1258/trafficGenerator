@@ -1268,10 +1268,14 @@ func TestBuildHTTPResponse_ResponseBodyCustom(t *testing.T) {
 // TestBuildHTTPResponse_EmptyBodyNoContentLength verifies that empty
 // ResponseBody -> no Content-Length and no Content-Type default.
 func TestBuildHTTPResponse_EmptyBodyNoContentLength(t *testing.T) {
+	// 2026-10-03 反转：旧断言"空 body 不写 Content-Length"钉住的是协议
+	// 无效行为——keep-alive 响应无 CL 时边界只能靠连接关闭（RFC 7230
+	// §3.3.3），Wireshark 实测逐条解不出（用户报告）。现在空 body 必须
+	// 写 Content-Length: 0；无 Content-Type 默认值的行为保留。
 	cfg := &core.HTTPConfig{ResponseBody: ""}
 	result := buildHTTPResponse(cfg)
-	if strings.Contains(result, "Content-Length") {
-		t.Errorf("result=%q, should not contain Content-Length when body empty", result)
+	if !strings.Contains(result, "Content-Length: 0") {
+		t.Errorf("result=%q, bodyless response must carry Content-Length: 0 (keep-alive framing)", result)
 	}
 	if strings.Contains(result, "Content-Type") {
 		t.Errorf("result=%q, should not contain Content-Type when body empty", result)
@@ -1282,9 +1286,9 @@ func TestBuildHTTPResponse_EmptyBodyNoContentLength(t *testing.T) {
 // headers override defaults (Content-Type, Content-Length, Connection).
 func TestBuildHTTPResponse_ResponseHeadersOverride(t *testing.T) {
 	cfg := &core.HTTPConfig{
-		ResponseBody:      "x",
-		KeepAlive:         true,
-		ResponseHeaders:   map[string]string{
+		ResponseBody: "x",
+		KeepAlive:    true,
+		ResponseHeaders: map[string]string{
 			"Content-Type":   "application/json",
 			"Content-Length": "999",
 			"Connection":     "close",
@@ -1420,9 +1424,9 @@ func TestBuildHTTPResponse_GzipContentEncodingUserOverride(t *testing.T) {
 }
 
 // TestBuildHTTPResponse_GzipEmptyBodySkipsCompression verifies that
-// ResponseContentEncoding=gzip with an empty body does not emit Content-Encoding
-// or Content-Length (matches the empty-body defaulting rule for the
-// non-gzip path).
+// ResponseContentEncoding=gzip with an empty body does not emit
+// Content-Encoding; Content-Length: 0 is still emitted (keep-alive framing,
+// see the reversed empty-body test above).
 func TestBuildHTTPResponse_GzipEmptyBodySkipsCompression(t *testing.T) {
 	cfg := &core.HTTPConfig{
 		ResponseBody:            "",
@@ -1432,8 +1436,8 @@ func TestBuildHTTPResponse_GzipEmptyBodySkipsCompression(t *testing.T) {
 	if strings.Contains(result, "Content-Encoding:") {
 		t.Errorf("result=%q, should not emit Content-Encoding when body empty", result)
 	}
-	if strings.Contains(result, "Content-Length:") {
-		t.Errorf("result=%q, should not emit Content-Length when body empty", result)
+	if !strings.Contains(result, "Content-Length: 0") {
+		t.Errorf("result=%q, bodyless response must carry Content-Length: 0", result)
 	}
 }
 
@@ -1632,14 +1636,14 @@ func TestHTTPPlan_ResponsePayloadWithCustomHeaders(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
 	spec.HTTP = &core.HTTPConfig{
-		Method:              "GET",
-		URI:                 "/",
-		Transactions:        1,
-		KeepAlive:           false,
-		ResponseBody:        `{"ok":true}`,
-		ResponseStatusCode:  201,
-		ResponseStatusText:  "Created",
-		ResponseHeaders:     map[string]string{"Content-Type": "application/json"},
+		Method:             "GET",
+		URI:                "/",
+		Transactions:       1,
+		KeepAlive:          false,
+		ResponseBody:       `{"ok":true}`,
+		ResponseStatusCode: 201,
+		ResponseStatusText: "Created",
+		ResponseHeaders:    map[string]string{"Content-Type": "application/json"},
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 
@@ -1801,10 +1805,10 @@ func TestHTTPPlan_MSSExactMultiple(t *testing.T) {
 	// >= MinMSS=536 per RFC 879, so use 536 with a 1072-byte (2*536) body.
 	testutil.EnsureTCP(&spec).MSS = 536
 	spec.HTTP = &core.HTTPConfig{
-		Method:        "GET",
-		URI:           "/",
-		ResponseBody:  strings.Repeat("B", 1072), // 2 * 536
-		Transactions:  1,
+		Method:       "GET",
+		URI:          "/",
+		ResponseBody: strings.Repeat("B", 1072), // 2 * 536
+		Transactions: 1,
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	total := len(cfgs)
@@ -1867,10 +1871,10 @@ func TestHTTPPlan_MSSZeroUsesDefault(t *testing.T) {
 	spec := validHTTPSpec()
 	testutil.EnsureTCP(&spec).MSS = 0
 	spec.HTTP = &core.HTTPConfig{
-		Method:        "GET",
-		URI:           "/",
-		ResponseBody:  strings.Repeat("X", 2900), // 2*1460=2920, so 2900 -> 2 segments (1460 + 1440)
-		Transactions:  1,
+		Method:       "GET",
+		URI:          "/",
+		ResponseBody: strings.Repeat("X", 2900), // 2*1460=2920, so 2900 -> 2 segments (1460 + 1440)
+		Transactions: 1,
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	total := len(cfgs)
@@ -1917,10 +1921,10 @@ func TestHTTPPlan_MSSUserOverrideInSYN(t *testing.T) {
 	spec := validHTTPSpec()
 	testutil.EnsureTCP(&spec).MSS = 536 // RFC 879 minimum
 	spec.HTTP = &core.HTTPConfig{
-		Method:        "GET",
-		URI:           "/",
-		ResponseBody:  "x",
-		Transactions:  1,
+		Method:       "GET",
+		URI:          "/",
+		ResponseBody: "x",
+		Transactions: 1,
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	syn := cfgs[0]
@@ -1971,10 +1975,10 @@ func TestHTTPPlan_MSSMaxUint16(t *testing.T) {
 	spec := validHTTPSpec()
 	testutil.EnsureTCP(&spec).MSS = 65535
 	spec.HTTP = &core.HTTPConfig{
-		Method:        "GET",
-		URI:           "/",
-		ResponseBody:  "x",
-		Transactions:  1,
+		Method:       "GET",
+		URI:          "/",
+		ResponseBody: "x",
+		Transactions: 1,
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	// SYN must carry MSS=65535.
@@ -2569,9 +2573,9 @@ func TestBuildHTTPRequest_GzipWithUserContentLength(t *testing.T) {
 // and returned "application/gzip" instead of the original content type.
 func TestBuildHTTPRequest_GzipPreservesContentType(t *testing.T) {
 	cfg := &core.HTTPConfig{
-		Method:                "POST",
-		URI:                   "/upload",
-		Body:                  "<html><body>hello</body></html>",
+		Method:                 "POST",
+		URI:                    "/upload",
+		Body:                   "<html><body>hello</body></html>",
 		RequestContentEncoding: "gzip",
 	}
 	result := buildHTTPRequest(cfg, "10.0.0.2")

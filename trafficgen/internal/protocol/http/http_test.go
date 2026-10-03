@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/trafficgen/trafficgen/internal/core"
@@ -139,4 +140,21 @@ func containsStringHelper(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// 无 body 的 keep-alive 响应必须自带 Content-Length: 0（RFC 7230 §3.3.3：
+// 无 CL/chunked 时响应边界只能靠连接关闭——keep-alive 流上客户端与
+// Wireshark 都无法定界逐条响应，用户实测 Wireshark 全部解不出）。
+func TestBuildHTTPResponse_EmptyBodyHasContentLength(t *testing.T) {
+	config := &core.HTTPConfig{Version: "HTTP/1.1", ResponseStatusCode: 200, KeepAlive: true}
+	resp := buildHTTPResponse(config)
+	if !strings.Contains(resp, "Content-Length: 0\r\n") {
+		t.Errorf("bodyless keep-alive response missing Content-Length: 0:\n%q", resp)
+	}
+	// 有 body 时 CL 仍按 body 长度。
+	config2 := &core.HTTPConfig{Version: "HTTP/1.1", ResponseStatusCode: 200, ResponseBody: "hello"}
+	resp2 := buildHTTPResponse(config2)
+	if !strings.Contains(resp2, "Content-Length: 5\r\n") {
+		t.Errorf("body response CL wrong:\n%q", resp2)
+	}
 }

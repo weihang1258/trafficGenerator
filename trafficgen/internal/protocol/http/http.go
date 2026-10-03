@@ -785,7 +785,12 @@ func buildHTTPResponseBody(config *core.HTTPConfig, body []byte) string {
 		sb.WriteString(fmt.Sprintf("Content-Type: %s\r\n", contentType))
 	}
 	// Content-Length is suppressed when chunked is active (RFC 7230 §3.3.3).
-	if !isChunked && len(body) > 0 && !hasHeader(config.ResponseHeaders, "Content-Length") {
+	// Bodyless responses still get "Content-Length: 0": without it a
+	// keep-alive response has no framing (boundary = connection close), so
+	// clients and Wireshark cannot delimit successive responses on the
+	// stream — user-tested: every response after the first dissected as
+	// "TCP segment of a reassembled PDU" until FIN.
+	if !isChunked && !hasHeader(config.ResponseHeaders, "Content-Length") {
 		sb.WriteString(fmt.Sprintf("Content-Length: %d\r\n", len(body)))
 	}
 	if contentEncoding != "" && len(body) > 0 && !hasHeader(config.ResponseHeaders, "Content-Encoding") {
