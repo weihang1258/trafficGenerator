@@ -27,7 +27,12 @@ func newHTTPTestServer(t *testing.T, env *testMCPEnv, apiKey string, corsOrigins
 		&mcp.StreamableHTTPOptions{SessionTimeout: 30 * time.Minute},
 	)
 	mux := http.NewServeMux()
-	mux.Handle("/mcp", corsMiddleware(corsOrigins, apiKeyMiddleware(apiKey, streamHandler)))
+	// Same tagging as NewHTTPServer: tools/list URL injection and absolute
+	// download links derive from this context value.
+	tagged := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		streamHandler.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), httpTransportKey{}, transportBaseFromRequest(r))))
+	})
+	mux.Handle("/mcp", corsMiddleware(corsOrigins, apiKeyMiddleware(apiKey, tagged)))
 	ts := httptest.NewServer(mux)
 
 	httpClient := &http.Client{

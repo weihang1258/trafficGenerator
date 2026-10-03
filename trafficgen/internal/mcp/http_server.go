@@ -70,15 +70,7 @@ func NewHTTPServer(s *Server, listen string, apiKey string, corsOrigins []string
 	// honoring X-Forwarded-Proto behind a reverse proxy. The go-sdk
 	// propagates the HTTP request context into the tool handler.
 	tagged := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		scheme := "http"
-		if r.TLS != nil {
-			scheme = "https"
-		}
-		if fp := r.Header.Get("X-Forwarded-Proto"); fp != "" {
-			scheme = fp
-		}
-		base := scheme + "://" + r.Host
-		streamHandler.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), httpTransportKey{}, base)))
+		streamHandler.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), httpTransportKey{}, transportBaseFromRequest(r))))
 	})
 	mux.Handle("/mcp", corsMiddleware(corsOrigins, apiKeyMiddleware(apiKey, tagged)))
 
@@ -100,9 +92,11 @@ func NewHTTPServer(s *Server, listen string, apiKey string, corsOrigins []string
 	})))
 
 	// Pcap upload + registration in one step (multipart "file"): the write
-	// counterpart of the download links above — same port, but keyed (X-MCP-Key
-	// inside the CORS wrapper), since uploads must not be unauthenticated.
-	mux.Handle("/uploads/pcaps", corsMiddleware(corsOrigins, apiKeyMiddleware(apiKey, http.HandlerFunc(s.uploadPcapHandler))))
+	// counterpart of the download links above — same port, and deliberately
+	// UNAUTHENTICATED like them: the MCP API key is never exposed to the
+	// client-side model, so a keyed upload could never be called by it. The
+	// returned asset UUID is the capability token, same model as downloads.
+	mux.Handle("/uploads/pcaps", corsMiddleware(corsOrigins, http.HandlerFunc(s.uploadPcapHandler)))
 
 	hs := &HTTPServer{
 		srv: &http.Server{

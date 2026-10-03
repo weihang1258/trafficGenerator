@@ -22,7 +22,7 @@ import (
 type managePcapsInput struct {
 	Action       string                 `json:"action" jsonschema:"operation: import|list|get|delete|list_flows|get_flow|list_packets|list_packets_by_asset|get_packet|get_packet_payload|get_stream|get_body|search|match_preview|extract|download|reparse"`
 	ID           string                 `json:"id,omitempty" jsonschema:"asset id (required for all actions except import/list)"`
-	FilePath     string                 `json:"file_path,omitempty" jsonschema:"absolute server-side file path (import only). Remote client without a server-local path? Upload and register in one step instead: curl -X POST <this MCP connection's scheme://host[:port]>/uploads/pcaps -H 'X-MCP-Key: <your configured key>' -F file=@./local.pcap — the response JSON's ID is the asset id for list_flows/get_packet/extract"`
+	FilePath     string                 `json:"file_path,omitempty" jsonschema:"absolute server-side file path (import only); over HTTP this tool's description carries the concrete upload URL for remote clients"`
 	FlowID       string                 `json:"flow_id,omitempty" jsonschema:"flow id (get_flow/list_packets/get_stream/get_body)"`
 	PacketID     string                 `json:"packet_id,omitempty" jsonschema:"packet id (get_packet/get_packet_payload)"`
 	Direction    string                 `json:"direction,omitempty" jsonschema:"stream direction: c2s|s2c (get_stream/get_body)"`

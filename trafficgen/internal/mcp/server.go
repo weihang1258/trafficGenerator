@@ -84,6 +84,10 @@ func NewServer(cfg *config.MCPConfig, engine *core.Engine, db *storage.DB, iface
 		Name:    "flowB",
 		Version: "1.0.0",
 	}, nil)
+	// Transport-aware tool descriptions: over HTTP, tools/list gets concrete
+	// request-derived URLs injected (the client-side model never sees its own
+	// connection config, so descriptions must never carry assembly examples).
+	s.mcpServer.AddReceivingMiddleware(s.toolsListTransportHints)
 
 	s.registerTools()
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // httpTransportKey carries the request's own origin (scheme://host[:port],
@@ -79,6 +80,52 @@ func taskDataForTransport(ctx context.Context, raw json.RawMessage) interface{} 
 		}
 	}
 	return v
+}
+
+// transportBaseFromRequest derives the request's own origin
+// (scheme://host[:port]) — what the client connected to is exactly what it
+// can reach. Scheme: TLS state, honoring X-Forwarded-Proto behind a reverse
+// proxy. Used by the HTTP middleware to tag tool-call contexts.
+func transportBaseFromRequest(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	if fp := r.Header.Get("X-Forwarded-Proto"); fp != "" {
+		scheme = fp
+	}
+	return scheme + "://" + r.Host
+}
+
+// toolsListTransportHints rewrites tools/list results for the HTTP
+// transport: the client-side model never sees its own MCP connection
+// config, so the upload hint must carry the concrete request-derived URL
+// (scheme://host[:port] from the tagged request context), never an
+// assembly example. stdio has no HTTP endpoint to point at and gets no
+// hint — same-host clients use import's file_path.
+func (s *Server) toolsListTransportHints(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+		res, err := next(ctx, method, req)
+		if err != nil || method != "tools/list" {
+			return res, err
+		}
+		base, _ := ctx.Value(httpTransportKey{}).(string)
+		if base == "" {
+			return res, err
+		}
+		ltr, ok := res.(*mcp.ListToolsResult)
+		if !ok {
+			return res, err
+		}
+		for _, tl := range ltr.Tools {
+			if tl.Name == "flowb_manage_pcaps" {
+				tl.Description += "\n\nRemote upload (client file, no server-local path): register a pcap in one step — " +
+					"curl -X POST " + base + "/uploads/pcaps -F file=@./your.pcap ; " +
+					"the response JSON's ID is the asset id for list_flows/get_packet/extract. No auth header needed."
+			}
+		}
+		return res, nil
+	}
 }
 
 // callHandler invokes a gin handler with service account context and returns
