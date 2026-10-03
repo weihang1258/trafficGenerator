@@ -146,7 +146,7 @@ func queryLayersPayload(in queryLayersInput) (string, interface{}, error) {
 			}
 			data = withTunnelInner(reg, schema, buildLayerSchemaView(schema))
 		}
-		return "schema", data, nil
+		return "query_layers", data, nil
 	case "examples":
 		var env struct {
 			Generated int                      `json:"generated"`

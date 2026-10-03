@@ -13,7 +13,7 @@ import (
 //   - examples：cases 语料派生的已验证配置——LLM 复制即用，免试错
 func TestQueryLayersSchemaAction(t *testing.T) {
 	action, data, err := queryLayersPayload(queryLayersInput{})
-	if err != nil || action != "schema" {
+	if err != nil || action != "query_layers" {
 		t.Fatalf("default action = %s, err %v", action, err)
 	}
 	views, ok := data.([]layerSchemaView)
