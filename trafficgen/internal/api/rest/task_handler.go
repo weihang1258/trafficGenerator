@@ -608,10 +608,13 @@ type TaskResponse struct {
 	ErrorMessage string               `json:"error_message,omitempty"`
 	Progress     float64              `json:"progress"`
 	Stats        *TaskStatsResponse   `json:"stats,omitempty"`
-	CreatedAt    int64                `json:"created_at"`
-	UpdatedAt    int64                `json:"updated_at"`
-	StartedAt    *int64               `json:"started_at,omitempty"`
-	CompletedAt  *int64               `json:"completed_at,omitempty"`
+	// DownloadURL 对 pcap 任务返回公开下载直链（相对路径，无鉴权——任务
+	// UUID 即能力凭证）；port_group 任务为空。
+	DownloadURL string              `json:"download_url,omitempty"`
+	CreatedAt   int64               `json:"created_at"`
+	UpdatedAt   int64               `json:"updated_at"`
+	StartedAt   *int64              `json:"started_at,omitempty"`
+	CompletedAt *int64              `json:"completed_at,omitempty"`
 }
 
 // Create creates a new task (idempotent).
@@ -1664,6 +1667,9 @@ func convertTaskToResponse(t *storage.TaskModel) TaskResponse {
 		Progress:     t.Progress,
 		CreatedAt:    t.CreatedAt.Unix(),
 		UpdatedAt:    t.UpdatedAt.Unix(),
+	}
+	if t.OutputType == "pcap" {
+		response.DownloadURL = "/downloads/tasks/" + t.ID + "/pcap"
 	}
 
 	if t.StartedAt != nil {

@@ -120,6 +120,10 @@ func (s *Server) setupRoutes() {
 		s.router.GET(s.config.Metrics.Path, gin.WrapH(promhttp.Handler()))
 	}
 
+	// Public download links (no auth — task UUID is the capability token):
+	// generated pcap files, for external clients' curl convenience.
+	s.router.GET("/downloads/tasks/:id/pcap", pcapHandler.DownloadByTask)
+
 	// Auth routes (no auth required)
 	authGroup := s.router.Group("/api/v1/auth")
 	{

@@ -783,6 +783,37 @@ func (h *PcapHandler) Download(c *gin.Context) {
 	c.FileAttachment(asset.StoragePath, asset.OriginalFilename)
 }
 
+// DownloadByTask 公开下载直链（无鉴权）：任务 UUID 即能力凭证。
+// GET /downloads/tasks/:id/pcap —— 仅 output_type=pcap 的任务可下；
+// 从任务 output_config.pcap_path 直读文件（路径由任务创建时经 API
+// 校验写入 DB，请求侧不可控，无遍历面）。文件未生成/已清理 → 404。
+func (h *PcapHandler) DownloadByTask(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		NotFound(c, "missing task id")
+		return
+	}
+	var task storage.TaskModel
+	if err := h.db.Where("id = ?", id).First(&task).Error; err != nil {
+		NotFound(c, "task not found")
+		return
+	}
+	if task.OutputType != "pcap" {
+		NotFound(c, "task has no downloadable pcap output")
+		return
+	}
+	var outputConfig OutputConfigRequest
+	if err := json.Unmarshal([]byte(task.OutputConfig), &outputConfig); err != nil || outputConfig.PcapPath == "" {
+		NotFound(c, "task has no pcap path")
+		return
+	}
+	if _, err := os.Stat(outputConfig.PcapPath); err != nil {
+		NotFound(c, "pcap file not available")
+		return
+	}
+	c.FileAttachment(outputConfig.PcapPath, filepath.Base(outputConfig.PcapPath))
+}
+
 // layersLinkType converts the stored int link type to gopacket layers.LinkType.
 func layersLinkType(lt int) layers.LinkType {
 	return layers.LinkType(lt)
