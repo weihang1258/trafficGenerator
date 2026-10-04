@@ -20,7 +20,7 @@ import (
 // only `action` is always required. The LLM fills in whichever fields the
 // chosen action needs (documented per-field below).
 type managePcapsInput struct {
-	Action       string                 `json:"action" jsonschema:"operation: import|list|get|delete|list_flows|get_flow|list_packets|list_packets_by_asset|get_packet|get_packet_payload|get_stream|get_body|search|match_preview|extract|download|reparse"`
+	Action       string                 `json:"action" jsonschema:"operation — packet-level inspection ladder (spot the flow, then drill to bytes): list (assets) | list_flows (per-flow stats; find the suspicious flow) | list_packets (packets of one flow, needs flow_id; page with page/size) | list_packets_by_asset | get_packet (full header fields of one packet, needs packet_id) | get_packet_payload (raw bytes of one packet, needs packet_id) | get_stream (reassembled byte stream, needs flow_id + direction c2s|s2c, optional offset/limit) | get_body (like get_stream) | get_flow | search | match_preview | extract (batch field extraction across packets) | import | get | delete | reparse | download"`
 	ID           string                 `json:"id,omitempty" jsonschema:"asset id (required for all actions except import/list)"`
 	FilePath     string                 `json:"file_path,omitempty" jsonschema:"absolute server-side file path (import only); over HTTP this tool's description carries the concrete upload URL for remote clients"`
 	FlowID       string                 `json:"flow_id,omitempty" jsonschema:"flow id (get_flow/list_packets/get_stream/get_body)"`
@@ -28,12 +28,12 @@ type managePcapsInput struct {
 	Direction    string                 `json:"direction,omitempty" jsonschema:"stream direction: c2s|s2c (get_stream/get_body)"`
 	Offset       int64                  `json:"offset,omitempty" jsonschema:"byte offset within stream (get_stream, optional)"`
 	Limit        int64                  `json:"limit,omitempty" jsonschema:"byte length to read (get_stream, optional)"`
-	Filters      map[string]interface{} `json:"filters,omitempty" jsonschema:"search/match_preview/extract filter object (action-specific shape)"`
-	ExtractRules map[string]interface{} `json:"extract_rules,omitempty" jsonschema:"extract request {packet_ids, fields} -- fields are layer field names: src_ip, dst_ip, src_port, dst_port, seq, ack, tcp_flags, window, ttl, protocol (NOT model field names like SrcIP/TimestampUs); use get_packet to see available fields"`
-	Matcher      map[string]interface{} `json:"matcher,omitempty" jsonschema:"match_preview FlowMatcher object"`
+	Filters      map[string]interface{} `json:"filters,omitempty" jsonschema:"search filter object — keys bind by EXACT spelling (snake_case like src_ip is silently ignored and becomes a wildcard): {flow_filter:{Protocol:'tcp|udp|icmp|arp', SrcIP, DstIP, SrcPort, DstPort, L7Type, L7Method, L7Host, L7QueryName}, packet_filter:{Direction:'c2s|s2c', TimeStartUs, TimeEndUs, L4Protocol, AnomalyFlag:'truncated|oversize|undersize'}, payload:{Contains:'text or hex-decoded via Encoding', Encoding:'ascii|hex'}, scope, limit, offset} — real example: {'flow_filter':{'DstPort':80},'payload':{'Contains':'GET /admin','Encoding':'ascii'},'limit':20}"`
+	ExtractRules map[string]interface{} `json:"extract_rules,omitempty" jsonschema:"extract request — real example: {'packet_ids':['<id1>','<id2>'],'fields':['src_ip','dst_port','tcp_flags']} (max 500 packet_ids); fields are layer field names: src_ip, dst_ip, src_port, dst_port, seq, ack, tcp_flags, window, ttl, protocol (NOT model field names like SrcIP/TimestampUs); use get_packet first to see available fields"`
+	Matcher      map[string]interface{} `json:"matcher,omitempty" jsonschema:"match_preview flow matcher: {Protocol:'tcp|udp|icmp|arp|any', SrcIP:'exact or CIDR', SrcPort, DstIP, DstPort} — 0/empty = any; real example: {'Protocol':'tcp','DstPort':80}"`
 	Force        bool                   `json:"force,omitempty" jsonschema:"force delete even if referenced (delete)"`
-	Page         int                    `json:"page,omitempty" jsonschema:"page number (list/list_flows/list_packets, default 1)"`
-	Size         int                    `json:"size,omitempty" jsonschema:"page size (list/list_flows/list_packets, default 20/50)"`
+	Page        int                    `json:"page,omitempty" jsonschema:"page number (list/list_flows/list_packets); pagination is optional — omit page/size for the FULL result"`
+	Size        int                    `json:"size,omitempty" jsonschema:"omit page/size (or size=0) → FULL result; give size to cap a page (assets max 200, flows/packets max 500) and page to navigate — full pulls are safe, over 64 KB auto-exports to a file with a download link"`
 	Status       string                 `json:"status,omitempty" jsonschema:"filter by asset status (list)"`
 	OutputPath   string                 `json:"output_path,omitempty" jsonschema:"optional — force the FULL result into a file instead of returning it inline (large lists, extracts, stream bodies); the response becomes a small receipt {written_to, bytes, export_id, download_url}. Remote (HTTP): give just a file name like 'flows.json' — the server stores it and the receipt carries a ready download_url. Local (stdio): give an absolute path on this host. Without output_path, responses above 64 KB are auto-exported the same way, so huge results never flood the conversation"`
 }
@@ -47,7 +47,7 @@ func (s *Server) registerPcapTools() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
 			Name:         "flowb_manage_pcaps",
-			Description:  "Manage PCAP assets: import/list/get/delete, parse flows/packets, search/extract, download. 17 actions covering the full PCAP lifecycle. Task-generated pcaps are auto-registered here (files up to 64MB; get_task_progress returns the pcap_asset_id) so you can inspect flows/packets and download without extra steps. action=download returns file_path (local/stdio) or an unauthenticated download_url (HTTP) for the pcap file.",
+			Description:  "Manage PCAP assets and drill from flows down to packet bytes. Task-generated pcaps auto-register here (files up to 64MB; get_task_progress returns pcap_asset_id) — analysis needs no extra steps. Actions (required args in braces): list {} (assets) | get {id} | delete {id} | import {file_path:'absolute server path'} (over remote HTTP this description carries the one-step upload command) | list_flows {id} (per-flow stats: rates, counts, flags — spot the suspicious flow) | get_flow {id, flow_id} | list_packets {id, flow_id} (packets of one flow) | list_packets_by_asset {id} | get_packet {id, packet_id} (full header fields) | get_packet_payload {id, packet_id} (raw bytes, base64) | get_stream {id, flow_id, direction:'c2s'|'s2c', offset?, limit?} (reassembled stream bytes) | get_body {id, flow_id, direction} (HTTP bodies) | search {id, filters:{flow_filter:{DstPort:80}, payload:{Contains:'GET /',Encoding:'ascii'}, limit:20}} | match_preview {id, matcher:{Protocol:'tcp',DstPort:80}} | extract {id, extract_rules:{packet_ids:[..], fields:['src_ip','tcp_flags']}} | download {id} (file_path locally, unauthenticated download_url over HTTP) | reparse {id}. Flow stats cannot show malformed payloads — when a flow looks wrong ALWAYS continue to list_packets → get_packet → get_stream within this same tool",
 			OutputSchema: manageOutputSchema(),
 		},
 		s.handleManagePcaps,
@@ -313,14 +313,15 @@ func buildPcapListQuery(in managePcapsInput) url.Values {
 	if in.Page > 0 {
 		q.Set("page", strconv.Itoa(in.Page))
 	}
+	// 翻页可选（用户裁定 2026-10-04）：size 省略或 0 = 全量拉取，REST 侧
+	// size=0 不加 LIMIT；给 size 才是分页。
 	if in.Size > 0 {
 		q.Set("size", strconv.Itoa(in.Size))
+	} else {
+		q.Set("size", "0")
 	}
 	if in.Status != "" {
 		q.Set("status", in.Status)
-	}
-	if len(q) == 0 {
-		return nil
 	}
 	return q
 }
@@ -331,11 +332,12 @@ func buildPcapPageQuery(in managePcapsInput, defaultSize int) url.Values {
 	if in.Page > 0 {
 		q.Set("page", strconv.Itoa(in.Page))
 	}
+	// 翻页可选（用户裁定 2026-10-04）：size 省略或 0 = 全量拉取。
+	// defaultSize 是旧签名遗留，分页默认已由 REST 层持有。
 	if in.Size > 0 {
 		q.Set("size", strconv.Itoa(in.Size))
-	}
-	if len(q) == 0 {
-		return nil
+	} else {
+		q.Set("size", "0")
 	}
 	return q
 }

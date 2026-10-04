@@ -284,8 +284,12 @@ func (r *TaskRepository) List(page, size int, status, protocol string) ([]TaskMo
 		return nil, 0, err
 	}
 
-	offset := (page - 1) * size
-	if err := query.Order("created_at DESC").Offset(offset).Limit(size).Find(&tasks).Error; err != nil {
+	// size == 0 = 全量拉取（用户裁定 2026-10-04）。
+	if size > 0 {
+		if err := query.Order("created_at DESC").Offset((page - 1) * size).Limit(size).Find(&tasks).Error; err != nil {
+			return nil, 0, err
+		}
+	} else if err := query.Order("created_at DESC").Find(&tasks).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -353,8 +357,12 @@ func (r *StrategyRepository) List(page, size int) ([]StrategyModel, int64, error
 		return nil, 0, err
 	}
 
-	offset := (page - 1) * size
-	if err := r.db.Order("created_at DESC").Offset(offset).Limit(size).Find(&strategies).Error; err != nil {
+	// size == 0 = 全量拉取（用户裁定 2026-10-04）。
+	if size > 0 {
+		if err := r.db.Order("created_at DESC").Offset((page - 1) * size).Limit(size).Find(&strategies).Error; err != nil {
+			return nil, 0, err
+		}
+	} else if err := r.db.Order("created_at DESC").Find(&strategies).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -394,8 +402,12 @@ func (r *HistoryRepository) List(page, size int, startTime, endTime time.Time) (
 		return nil, 0, err
 	}
 
-	offset := (page - 1) * size
-	if err := query.Order("created_at DESC").Offset(offset).Limit(size).Find(&histories).Error; err != nil {
+	// size == 0 = 全量拉取（用户裁定 2026-10-04）。
+	if size > 0 {
+		if err := query.Order("created_at DESC").Offset((page - 1) * size).Limit(size).Find(&histories).Error; err != nil {
+			return nil, 0, err
+		}
+	} else if err := query.Order("created_at DESC").Find(&histories).Error; err != nil {
 		return nil, 0, err
 	}
 

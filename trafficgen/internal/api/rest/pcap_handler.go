@@ -264,8 +264,12 @@ func (h *PcapHandler) List(c *gin.Context) {
 	if page < 1 {
 		page = 1
 	}
-	if size < 1 || size > 200 {
-		size = 20
+	if size < 0 || size > 200 {
+		if size > 200 {
+			size = 200 // 超限收敛到上限，不静默回默认
+		} else {
+			size = 20 // 负数回默认；0 = 全量（不加 LIMIT）
+		}
 	}
 	status := c.Query("status")
 	assets, total, err := h.repo.ListAssets(userID, page, size, status)
@@ -337,8 +341,12 @@ func (h *PcapHandler) ListFlows(c *gin.Context) {
 	if page < 1 {
 		page = 1
 	}
-	if size < 1 || size > 500 {
-		size = 50
+	if size < 0 || size > 500 {
+		if size > 500 {
+			size = 500 // 超限收敛到上限，不静默回默认
+		} else {
+			size = 50 // 负数回默认；0 = 全量（不加 LIMIT）
+		}
 	}
 	flows, total, err := h.repo.ListFlowsByAsset(asset.ID, auth.GetUserID(c), page, size)
 	if err != nil {
@@ -365,8 +373,12 @@ func (h *PcapHandler) ListPackets(c *gin.Context) {
 	if page < 1 {
 		page = 1
 	}
-	if size < 1 || size > 500 {
-		size = 50
+	if size < 0 || size > 500 {
+		if size > 500 {
+			size = 500 // 超限收敛到上限，不静默回默认
+		} else {
+			size = 50 // 负数回默认；0 = 全量（不加 LIMIT）
+		}
 	}
 	// Verify the flow belongs to this asset (user-scoped query).
 	flow, err := h.repo.GetFlow(flowID, userID)
@@ -398,8 +410,12 @@ func (h *PcapHandler) ListPacketsByAsset(c *gin.Context) {
 	if page < 1 {
 		page = 1
 	}
-	if size < 1 || size > 500 {
-		size = 50
+	if size < 0 || size > 500 {
+		if size > 500 {
+			size = 500 // 超限收敛到上限，不静默回默认
+		} else {
+			size = 50 // 负数回默认；0 = 全量（不加 LIMIT）
+		}
 	}
 	packets, total, err := h.repo.ListPacketsByAsset(asset.ID, auth.GetUserID(c), page, size)
 	if err != nil {

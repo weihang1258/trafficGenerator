@@ -26,8 +26,8 @@ type manageTasksInput struct {
 	OutputType   string                 `json:"output_type,omitempty" jsonschema:"output type: port_group or pcap (for create/create_batch)"`
 	OutputConfig *outputConfigInput     `json:"output_config,omitempty" jsonschema:"output configuration (for create/create_batch)"`
 	FlowControl  *flowControlInput      `json:"flow_control,omitempty" jsonschema:"optional task-level flow control (for create)"`
-	Page         int                    `json:"page,omitempty" jsonschema:"page number for list/history (1-based)"`
-	Size         int                    `json:"size,omitempty" jsonschema:"page size for list/history (default 20, max 100)"`
+	Page         int                    `json:"page,omitempty" jsonschema:"page number for list/history; pagination is optional — omit page/size for the FULL result"`
+	Size         int                    `json:"size,omitempty" jsonschema:"omit page/size (or size=0) → FULL result; give size to cap a page (max 100) and page to navigate — full pulls are safe, over 64 KB auto-exports to a file with a download link"`
 	Status       string                 `json:"status,omitempty" jsonschema:"status filter for list/history"`
 	SortBy       string                 `json:"sort_by,omitempty" jsonschema:"sort column: created_at|updated_at|name|status|progress"`
 	SortOrder    string                 `json:"sort_order,omitempty" jsonschema:"ascending|descending (default descending)"`

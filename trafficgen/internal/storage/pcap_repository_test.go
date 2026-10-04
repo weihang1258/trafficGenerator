@@ -753,3 +753,54 @@ func TestPcapRepository_DeleteAsset_NotFound(t *testing.T) {
 		t.Errorf("DeleteAsset(nonexistent): %v, want nil", err)
 	}
 }
+// TestPcapRepository_FullPull_SizeZero: size=0 = 全量拉取（用户裁定
+// 2026-10-04，翻页可选）——三个列表方法都不得加 LIMIT。
+func TestPcapRepository_FullPull_SizeZero(t *testing.T) {
+	db, _ := newTestDB(t)
+	repo := NewPcapRepository(db)
+	asset := assetFixture("user1", "cap", "h")
+	asset.Status = "ready"
+	repo.CreateAsset(asset)
+
+	for i := 0; i < 7; i++ {
+		f := flowFixture(asset.ID, "user1", "k"+string(rune('A'+i)))
+		f.FirstTsUs = int64(1000 + i*100)
+		repo.CreateFlows([]FlowModel{f})
+	}
+	fl := flowFixture(asset.ID, "user1", "pk")
+	fl.FirstTsUs = 900
+	repo.CreateFlows([]FlowModel{fl})
+
+	// ListFlowsByAsset size=0 → 全部 8 条（分页时单页最多 500，这里走全量分支）。
+	items, total, err := repo.ListFlowsByAsset(asset.ID, "user1", 1, 0)
+	if err != nil {
+		t.Fatalf("flows full pull: %v", err)
+	}
+	if total != 8 || len(items) != 8 {
+		t.Fatalf("flows full pull: total=%d items=%d, want 8/8", total, len(items))
+	}
+
+	// ListPacketsByAsset size=0 → 全部（造 3 包验证）。
+	var pkts []PacketModel
+	for i := 0; i < 3; i++ {
+		p := packetFixture(asset.ID, fl.ID, "user1", i, int64(100+i))
+		pkts = append(pkts, p)
+	}
+	repo.CreatePackets(pkts)
+	items2, total2, err := repo.ListPacketsByAsset(asset.ID, "user1", 1, 0)
+	if err != nil {
+		t.Fatalf("packets full pull: %v", err)
+	}
+	if total2 != 3 || len(items2) != 3 {
+		t.Fatalf("packets full pull: total=%d items=%d, want 3/3", total2, len(items2))
+	}
+
+	// 分页语义不受影响：size=3 仍只回 3 条。
+	items3, _, err := repo.ListFlowsByAsset(asset.ID, "user1", 1, 3)
+	if err != nil {
+		t.Fatalf("paged: %v", err)
+	}
+	if len(items3) != 3 {
+		t.Fatalf("paged items = %d, want 3", len(items3))
+	}
+}

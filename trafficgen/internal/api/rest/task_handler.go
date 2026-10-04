@@ -941,8 +941,8 @@ func (h *TaskHandler) List(c *gin.Context) {
 	if p, err := strconv.Atoi(c.DefaultQuery("page", "1")); err == nil && p > 0 {
 		page = p
 	}
-	if s, err := strconv.Atoi(c.DefaultQuery("size", "20")); err == nil && s > 0 {
-		size = s
+	if s, err := strconv.Atoi(c.DefaultQuery("size", "20")); err == nil && s >= 0 {
+		size = s // 0 = 全量（用户裁定 2026-10-04）
 		if size > 100 {
 			size = 100
 		}
@@ -975,7 +975,10 @@ func (h *TaskHandler) List(c *gin.Context) {
 
 	// Pagination
 	offset := (page - 1) * size
-	query = query.Offset(offset).Limit(size)
+	// size == 0 = 全量拉取（用户裁定 2026-10-04）。
+	if size > 0 {
+		query = query.Offset(offset).Limit(size)
+	}
 
 	var tasks []storage.TaskModel
 	if err := query.Find(&tasks).Error; err != nil {
@@ -1601,8 +1604,8 @@ func (h *TaskHandler) History(c *gin.Context) {
 	if p, err := strconv.Atoi(c.DefaultQuery("page", "1")); err == nil && p > 0 {
 		page = p
 	}
-	if s, err := strconv.Atoi(c.DefaultQuery("size", "20")); err == nil && s > 0 {
-		size = s
+	if s, err := strconv.Atoi(c.DefaultQuery("size", "20")); err == nil && s >= 0 {
+		size = s // 0 = 全量（用户裁定 2026-10-04）
 		if size > 100 {
 			size = 100
 		}
@@ -1647,7 +1650,10 @@ func (h *TaskHandler) History(c *gin.Context) {
 
 	// Pagination
 	offset := (page - 1) * size
-	query = query.Offset(offset).Limit(size)
+	// size == 0 = 全量拉取（用户裁定 2026-10-04）。
+	if size > 0 {
+		query = query.Offset(offset).Limit(size)
+	}
 
 	var tasks []storage.TaskModel
 	if err := query.Find(&tasks).Error; err != nil {
