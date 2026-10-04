@@ -1,6 +1,8 @@
 package rest
 
 import (
+	"go.uber.org/zap"
+	"strings"
 	"context"
 	"fmt"
 	"net/http"
@@ -294,7 +296,20 @@ func (s *Server) Start() error {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	return s.httpServer.ListenAndServe()
+	// Bounded bind retry: during a same-box restart the old process may
+	// still hold the port for a few seconds while shutting down; a single
+	// ListenAndServe used to fatal the whole service for that window
+	// (2026-10-04: twice left the box's dev instance down until manual
+	// restart). Retry up to ~15s, then fail for real.
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		err := s.httpServer.ListenAndServe()
+		if err == nil || !strings.Contains(err.Error(), "bind: address already in use") || time.Now().After(deadline) {
+			return err
+		}
+		zap.L().Warn("REST port busy during restart; retrying", zap.String("addr", addr), zap.Error(err))
+		time.Sleep(500 * time.Millisecond)
+	}
 }
 
 // Shutdown gracefully shuts down the server.

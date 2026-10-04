@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"net"
 	"context"
 	"crypto/subtle"
 	"errors"
@@ -122,6 +123,22 @@ func (h *HTTPServer) Start(ctx context.Context) error {
 	zap.L().Info("starting mcp http server",
 		zap.String("listen", h.srv.Addr),
 	)
+	// Bounded bind retry: a same-box restart races the old process's
+	// graceful shutdown — the port can stay held for a few seconds and a
+	// bare ListenAndServe fatals the whole service for that window
+	// (2026-10-04, twice). Retry bind failures up to ~15s.
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		bindErr := listenOnce(h)
+		if bindErr == nil || !strings.Contains(bindErr.Error(), "bind: address already in use") || time.Now().After(deadline) {
+			if bindErr != nil {
+				return bindErr
+			}
+			break
+		}
+		zap.L().Warn("MCP port busy during restart; retrying", zap.String("listen", h.srv.Addr), zap.Error(bindErr))
+		time.Sleep(500 * time.Millisecond)
+	}
 	errCh := make(chan error, 1)
 	go func() {
 		if err := h.srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -230,4 +247,13 @@ func matchesPattern(patterns []corsPattern, origin string) bool {
 		}
 	}
 	return false
+}
+
+// listenOnce probes whether the listener can bind without starting to serve.
+func listenOnce(h *HTTPServer) error {
+	ln, err := net.Listen("tcp", h.srv.Addr)
+	if err != nil {
+		return err
+	}
+	return ln.Close()
 }
