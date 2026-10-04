@@ -19,7 +19,7 @@ type flowControlInput struct {
 }
 
 type manageStrategiesInput struct {
-	Action      string                 `json:"action" jsonschema:"operation: create|list|get|update|delete|list_tasks"`
+	Action      string                 `json:"action" jsonschema:"operation: create|list|get|update|delete|list_tasks — update is a FULL replace: it requires config (create-shaped body), not partial fields"`
 	ID          string                 `json:"id,omitempty" jsonschema:"strategy id (for get/update/delete/list_tasks)"`
 	Name        string                 `json:"name,omitempty" jsonschema:"strategy name (for create/update)"`
 	Mode        string                 `json:"mode,omitempty" jsonschema:"synth or replay (default synth)"`

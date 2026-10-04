@@ -21,7 +21,7 @@ type generateTrafficInput struct {
 	StrategyFlowControl *flowControlInput      `json:"strategy_flow_control,omitempty" jsonschema:"optional strategy-level flow control"`
 	TaskFlowControl     *flowControlInput      `json:"task_flow_control,omitempty" jsonschema:"optional task-level flow control (aggregate ceiling)"`
 	OutputType          string                 `json:"output_type" jsonschema:"output type: port_group or pcap"`
-	OutputConfig        *outputConfigInput     `json:"output_config" jsonschema:"output configuration"`
+	OutputConfig        *outputConfigInput     `json:"output_config" jsonschema:"REQUIRED — for output_type=pcap give {'pcap_path':'/abs/out.pcap'} (remote HTTP: any file name works, the server places it and returns the link); for output_type=port_group give {'port_group_id':'<uuid>'}"`
 }
 
 // generateTrafficOutput is the workflow result returned to the LLM.
@@ -290,7 +290,7 @@ type replayPcapInput struct {
 	StrategyFlowControl *flowControlInput        `json:"strategy_flow_control,omitempty" jsonschema:"optional strategy-level flow control (replay only supports type=time)"`
 	TaskFlowControl     *flowControlInput        `json:"task_flow_control,omitempty" jsonschema:"optional task-level flow control (aggregate ceiling)"`
 	OutputType          string                   `json:"output_type" jsonschema:"output type: port_group or pcap"`
-	OutputConfig        *outputConfigInput       `json:"output_config" jsonschema:"output configuration"`
+	OutputConfig        *outputConfigInput       `json:"output_config" jsonschema:"REQUIRED — replay: {'pcap_path':'<asset-relative-or-abs>'} or as required by the replay output type; dual-port replay adds {'interface2':'<iface>'}"`
 }
 
 func (s *Server) handleReplayPcap(ctx context.Context, req *mcp.CallToolRequest, in replayPcapInput) (*mcp.CallToolResult, generateTrafficOutput, error) {
