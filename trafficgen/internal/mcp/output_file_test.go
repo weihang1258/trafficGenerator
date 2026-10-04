@@ -382,3 +382,25 @@ func TestQueryLayersExamplesAutoExportWiring(t *testing.T) {
 		t.Errorf("310KB examples payload must become a receipt, got %d bytes: %.200s", len(b), b)
 	}
 }
+
+// 导出回执透传 total（P3：回执形态 vs items 形态的信息对齐）。
+func TestExportReceiptCarriesTotal(t *testing.T) {
+	withTempExports(t)
+	srv := newTransportTestServer(t)
+	payload := json.RawMessage(`{"total":57,"items":[` + strings.Repeat(`{"x":1},`, 5000) + `{"x":1}]}`)
+	receipt := srv.maybeExport("list_flows", payload)
+	var m map[string]interface{}
+	if err := json.Unmarshal(receipt, &m); err != nil {
+		t.Fatalf("receipt: %v", err)
+	}
+	if n, _ := m["total"].(float64); n != 57 {
+		t.Errorf("receipt total = %v, want 57", m["total"])
+	}
+	// 无 total 的载荷不得带该键。
+	r2 := srv.maybeExport("other", bigPayload(70000))
+	var m2 map[string]interface{}
+	json.Unmarshal(r2, &m2)
+	if _, has := m2["total"]; has {
+		t.Errorf("payload without total must not gain one")
+	}
+}

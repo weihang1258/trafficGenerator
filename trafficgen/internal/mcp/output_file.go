@@ -87,13 +87,23 @@ func sanitizeExportName(name string) (string, error) {
 
 func exportReceipt(target string, data json.RawMessage) json.RawMessage {
 	id := registerExport(target)
-	receipt, _ := json.Marshal(map[string]interface{}{
+	m := map[string]interface{}{
 		"written_to":   target,
 		"bytes":        len(data),
 		"export_id":    id,
 		"download_url": "/downloads/exports/" + id,
 		"note":         "full result written to the file; fetch via download_url (HTTP) or read written_to directly (local)",
-	})
+	}
+	// List-shaped payloads carry their row count in "total" — surface it in
+	// the receipt so the caller knows the file's size without fetching it
+	// (client audit 2026-10-05: receipt vs items shape confusion).
+	var probe struct {
+		Total int64 `json:"total"`
+	}
+	if json.Unmarshal(data, &probe) == nil && probe.Total > 0 {
+		m["total"] = probe.Total
+	}
+	receipt, _ := json.Marshal(m)
 	return receipt
 }
 
