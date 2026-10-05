@@ -326,10 +326,12 @@ func (h *PcapHandler) Delete(c *gin.Context) {
 		InternalError(c, "delete asset: "+err.Error())
 		return
 	}
+	// P1-10：回执带 id/deleted，不返回裸 null——调用方需要可核对的对象。
+	receipt := map[string]interface{}{"id": asset.ID, "deleted": true}
 	if isCancelImport {
-		SuccessWithMessage(c, "import cancelled, asset and partial files removed", nil)
+		SuccessWithMessage(c, "import cancelled, asset and partial files removed", receipt)
 	} else {
-		SuccessWithMessage(c, "asset deleted", nil)
+		SuccessWithMessage(c, "asset deleted", receipt)
 	}
 }
 
@@ -654,13 +656,14 @@ func (h *PcapHandler) Reparse(c *gin.Context) {
 // explicit check is kept as a second layer.
 func (h *PcapHandler) getOwnedAsset(c *gin.Context) (*storage.PcapAssetModel, bool) {
 	userID := auth.GetUserID(c)
-	asset, err := h.repo.GetAsset(c.Param("id"), userID)
+	id := c.Param("id")
+	asset, err := h.repo.GetAsset(id, userID)
 	if err != nil {
-		NotFound(c, "pcap asset")
+		NotFound(c, "pcap asset not found: "+id+" (wrong id, not yours, or already deleted — flowb_manage_pcaps action=list to see available assets)")
 		return nil, false
 	}
 	if asset.UserID != userID {
-		NotFound(c, "pcap asset") // don't reveal existence to other users
+		NotFound(c, "pcap asset not found: "+id+" (wrong id, not yours, or already deleted — flowb_manage_pcaps action=list to see available assets)") // don't reveal existence to other users
 		return nil, false
 	}
 	return asset, true

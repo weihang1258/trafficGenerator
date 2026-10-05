@@ -32,7 +32,7 @@ func (s *Server) registerPortGroupTools() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
 			Name:        "flowb_manage_port_groups",
-			Description: "Manage port groups: create/list/get/delete. Port groups bind interfaces for traffic output.",
+			Description: "Manage port groups: create/list/get/delete. Port groups bind interfaces for traffic output. create is idempotent on the FULL ports config (interface + weight, order-insensitive): resubmitting the identical config returns the EXISTING group (message 'port group already exists'); a different weight means a DIFFERENT group. The name you pass is never used — the group is always named port_group_<hash8> and every response echoes that actual name.",
 			OutputSchema: manageOutputSchema(),
 		},
 		s.handleManagePortGroups,

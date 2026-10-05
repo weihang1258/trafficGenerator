@@ -40,8 +40,9 @@ func TestSQLiteWALPragmas(t *testing.T) {
 	if err := db.Raw("PRAGMA busy_timeout").Scan(&timeout).Error; err != nil {
 		t.Fatalf("read busy_timeout: %v", err)
 	}
-	if timeout != 5000 {
-		t.Errorf("busy_timeout = %d, want 5000", timeout)
+	// NEW-P2-20 加固：10s（8 路并发批次下 5s 不够宽容）。
+	if timeout != 10000 {
+		t.Errorf("busy_timeout = %d, want 10000", timeout)
 	}
 }
 

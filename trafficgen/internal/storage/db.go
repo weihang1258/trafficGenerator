@@ -32,12 +32,16 @@ func NewDB(cfg *config.DatabaseConfig) (*DB, error) {
 
 // sqliteDSN 把配置的 SQLite 路径补上 WAL/busy_timeout pragma（v1 发布项）。
 // MCP 客户端高频轮询（读）与任务状态写并发：默认 DELETE 日志模式写阻塞读、
-// 锁放大，journal_mode=WAL 读写不互斥；busy_timeout 让锁竞争等待 5s 而非
+// 锁放大，journal_mode=WAL 读写不互斥；busy_timeout 让锁竞争等待 10s 而非
 // 立即 SQLITE_BUSY。pragma 经 DSN 传给驱动——连接池每条新连接都继承
 // （打开后补执行 PRAGMA 只影响单连接）。路径自带查询串（用户自管 DSN）
 // 时用 & 续接，不重复加 ?。
 func sqliteDSN(path string) string {
-	const pragma = "_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
+	// _txlock=immediate：gorm 显式事务默认 BEGIN DEFERRED，"先读后写"在并发
+	// 下的锁升级失败会**立即**返回 SQLITE_BUSY、不受 busy_timeout 保护
+	//（NEW-P2-20：8 路并发批次 3 失败）。IMMEDIATE 让事务一开就拿写锁、
+	// 排队全程受 busy_timeout 保护。库内事务均为写事务，只读事务无此路径。
+	const pragma = "_pragma=journal_mode(WAL)&_pragma=busy_timeout(10000)&_txlock=immediate"
 	if strings.Contains(path, "?") {
 		return path + "&" + pragma
 	}
