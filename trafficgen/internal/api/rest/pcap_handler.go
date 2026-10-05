@@ -196,9 +196,15 @@ func AutoRegisterTaskPcap(db *storage.DB, p *PcapHandler, task *storage.TaskMode
 	if oc.PcapPath == "" {
 		return
 	}
+	// P2-17：指引路径必须是绝对路径——import 校验拒绝相对路径，而这里给
+	// 出的曾是任务配置原文（可能相对），照指引补注册必然再失败一轮。
+	absPath := oc.PcapPath
+	if abs, err := filepath.Abs(oc.PcapPath); err == nil {
+		absPath = abs
+	}
 	fi, err := os.Stat(oc.PcapPath)
 	if err != nil {
-		task.PcapAssetNote = "auto-register skipped: pcap file missing (" + oc.PcapPath + ")"
+		task.PcapAssetNote = "auto-register skipped: pcap file missing (" + absPath + ")"
 		db.Model(task).Updates(map[string]interface{}{"pcap_asset_note": task.PcapAssetNote})
 		return
 	}
@@ -206,14 +212,14 @@ func AutoRegisterTaskPcap(db *storage.DB, p *PcapHandler, task *storage.TaskMode
 		task.PcapAssetNote = fmt.Sprintf(
 			"auto-register skipped: pcap %.1fMB exceeds the %.0fMB auto-import threshold (parsing it would stall this task's completion). "+
 				"Register it explicitly if the wait is acceptable: flowb_manage_pcaps {\"action\":\"import\",\"file_path\":\"%s\"}",
-			float64(fi.Size())/(1<<20), float64(PcapAutoImportMaxBytes)/(1<<20), oc.PcapPath)
+			float64(fi.Size())/(1<<20), float64(PcapAutoImportMaxBytes)/(1<<20), absPath)
 		db.Model(task).Updates(map[string]interface{}{"pcap_asset_note": task.PcapAssetNote})
 		return
 	}
 	asset, err := p.ImportFromPath(task.UserID, oc.PcapPath)
 	if err != nil {
 		task.PcapAssetNote = "auto-register failed: " + err.Error() +
-			" — you can retry via flowb_manage_pcaps {\"action\":\"import\",\"file_path\":\"" + oc.PcapPath + "\"}"
+			" — you can retry via flowb_manage_pcaps {\"action\":\"import\",\"file_path\":\"" + absPath + "\"}"
 		db.Model(task).Updates(map[string]interface{}{"pcap_asset_note": task.PcapAssetNote})
 		return
 	}

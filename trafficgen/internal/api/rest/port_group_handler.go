@@ -78,9 +78,13 @@ func (h *PortGroupHandler) Create(c *gin.Context) {
 	// Check if port group already exists
 	var existingPortGroup storage.PortGroupModel
 	if err := h.db.Where("name = ?", name).First(&existingPortGroup).Error; err == nil {
-		// Port group exists, return existing ID
+		// Port group exists, return existing ID + the ACTUAL hash-derived
+		// name (P2-18: the requested name is never used — silently dropping
+		// it while hiding the real name left callers believing they had
+		// created a new group under their name).
 		Success(c, map[string]string{
 			"id":      existingPortGroup.ID,
+			"name":    existingPortGroup.Name,
 			"message": "port group already exists",
 		})
 		return
