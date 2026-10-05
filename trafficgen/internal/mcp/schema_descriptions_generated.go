@@ -151,5 +151,9 @@ const schemaConfigBlurb = "strategy config. " +
 	"it returns verified copy-paste examples (field names like ip.src / http.response_status_code " +
 	"come from there, do not guess); action=schema lists fields/types/defaults/depends_on. " +
 	"Top-level src_ip/dst_ip/src_port/dst_port/count are rejected (flat config is gone). " +
-	"group_id {strategy,value/range/list/step/seed/pattern}: fixed/inc/rand/pattern/list " +
-	"bind same-id flows to one worker."
+	"group_id binds same-id flows to one worker, e.g. {\"strategy\":\"fixed\",\"value\":7} | " +
+	"{\"strategy\":\"inc\",\"range\":[1024,2048],\"step\":1} | " +
+	"{\"strategy\":\"rand\",\"range\":[1,254],\"seed\":42} | " +
+	"{\"strategy\":\"list\",\"list\":[3,4]} | " +
+	"{\"strategy\":\"pattern\",\"pattern\":\"host{n}\",\"n_range\":[1,100]} " +
+	"(range is a two-element array [lo,hi])."

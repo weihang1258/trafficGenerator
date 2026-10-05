@@ -94,9 +94,12 @@ func configBlurb() string {
 		"\t\"it returns verified copy-paste examples (field names like ip.src / http.response_status_code \" +",
 		"\t\"come from there, do not guess); action=schema lists fields/types/defaults/depends_on. \" +",
 		"\t\"Top-level src_ip/dst_ip/src_port/dst_port/count are rejected (flat config is gone). \" +",
-		"\t\"group_id {strategy,value/range/list/step/seed/pattern}: fixed/inc/rand/pattern/list \" +",
-		"\t\"bind same-id flows to one worker.\"",
-		"",
+		"\t\"group_id binds same-id flows to one worker, e.g. {\\\"strategy\\\":\\\"fixed\\\",\\\"value\\\":7} | \" +",
+		"\t\"{\\\"strategy\\\":\\\"inc\\\",\\\"range\\\":[1024,2048],\\\"step\\\":1} | \" +",
+		"\t\"{\\\"strategy\\\":\\\"rand\\\",\\\"range\\\":[1,254],\\\"seed\\\":42} | \" +",
+		"\t\"{\\\"strategy\\\":\\\"list\\\",\\\"list\\\":[3,4]} | \" +",
+		"\t\"{\\\"strategy\\\":\\\"pattern\\\",\\\"pattern\\\":\\\"host{n}\\\",\\\"n_range\\\":[1,100]} \" +",
+		"\t\"(range is a two-element array [lo,hi]).\"",
 	}
 	return strings.Join(lines, "\n")
 }

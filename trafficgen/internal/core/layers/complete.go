@@ -394,7 +394,7 @@ func (r *Registry) validateChain(chain []Layer) error {
 		if i == len(chain)-1 {
 			switch schema.Category {
 			case CategoryTransport:
-				return errf("layers: layer chain must end with a terminal layer, got %q (transport)", l.Name)
+				return errf("layers: layer chain must end with a terminal layer, got %q (transport) — layers are ordered outermost (L2/L3) first: e.g. [{\"ip\":{...}},{\"tcp\":{...}},{\"http\":{...}}]; the APPLICATION layer is last", l.Name)
 			case CategoryTunnel:
 				return errf("layers: layer chain must end with a terminal layer, got %q (tunnel)", l.Name)
 			case CategoryL2:
