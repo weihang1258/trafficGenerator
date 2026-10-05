@@ -178,3 +178,19 @@ func TestEmbeddedFlowControlShorthand(t *testing.T) {
 		t.Errorf("shorthand {\"flows\":2} must normalize to flows:2, got %q", stored)
 	}
 }
+
+// 隔离复审 #2：负 loop 在 strategy create 时即拒（此前拖到 task start 的
+// Plan 才报，ValidateReplaySpec 现与 planner 同文案）。
+func TestReplayNegativeLoopRejectedAtCreate(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, r, _ := newStrategyTestServer(t)
+	stratUser(r, "u1", "alice")
+	r.POST("/strategies", h.Create)
+	w := postStrategy(t, r, `{"name":"neg-loop","mode":"replay","config":{"pcap_asset_id":"ast1","loop":-3}}`)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("negative loop must 400 at create, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "loop must be") {
+		t.Errorf("rejection must carry the canonical loop text, got: %s", w.Body.String())
+	}
+}

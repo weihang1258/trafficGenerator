@@ -280,7 +280,9 @@ func (h *StrategyHandler) List(c *gin.Context) {
 
 	// P1-5（2026-10-05 客户端复测）：taskCount 改单条 GROUP BY 聚合——此前
 	// 每条策略跑一次 EXISTS(json_each) COUNT 子查询，2875 条 = N+1，全量
-	// list 实测 66s（客户端 30-60s 超时的根因）。task.strategy_ids 是 JSON
+	// list 实测 66s（客户端 30-60s 超时的根因）。NULLIF 挡 batch 任务
+	// 的空 strategy_ids（json_each('') 报 malformed JSON，会让整个 List 500）。
+	// task.strategy_ids 是 JSON
 	// 数组，json_each 展开后按策略 id 分组计数，一次查询出全部计数。
 	type sidCount struct {
 		// 列名取 strategy_id（gorm Scan 按命名策略映射字段，SID→sid 对不上）。
@@ -288,7 +290,7 @@ func (h *StrategyHandler) List(c *gin.Context) {
 		N          int64
 	}
 	var counts []sidCount
-	if err := h.db.Raw(`SELECT je.value AS strategy_id, COUNT(*) AS n FROM tasks t, json_each(t.strategy_ids) je WHERE t.user_id = ? GROUP BY je.value`, userID).Scan(&counts).Error; err != nil {
+	if err := h.db.Raw(`SELECT je.value AS strategy_id, COUNT(*) AS n FROM tasks t, json_each(NULLIF(t.strategy_ids,'')) je WHERE t.user_id = ? GROUP BY je.value`, userID).Scan(&counts).Error; err != nil {
 		InternalError(c, "failed to count strategy tasks: "+err.Error())
 		return
 	}

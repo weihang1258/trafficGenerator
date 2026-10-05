@@ -56,3 +56,40 @@ func TestStrategyListTaskCounts(t *testing.T) {
 		t.Errorf("task counts: s1=%d (want 2) s2=%d (want 1)", got[id1], got[id2])
 	}
 }
+
+// D1（隔离复审 D1，2026-10-05）：batch 任务的 strategy_ids 落库为空串
+// （task_handler.go 明文 "StrategyIDs empty"）——json_each('') 报 malformed
+// JSON，会让含任一 batch 任务的用户整个 List 500。NULLIF 防 + 本测试钉定。
+func TestStrategyListWithBatchEmptyStrategyIDs(t *testing.T) {
+	h, r, db := newStrategyTestServer(t)
+	stratUser(r, "u1", "alice")
+	r.GET("/strategies", h.List)
+
+	id1 := createTestStrategy(t, db, "u1", "d1-s1", "dns")
+	// batch 任务形状：StrategyIDs 空串（CreateBatch 的落库形状）。
+	if err := db.Create(&storage.TaskModel{
+		ID: "task-batch", UserID: "u1", Name: "batch", StrategyIDs: "", Status: "completed",
+	}).Error; err != nil {
+		t.Fatalf("seed batch task: %v", err)
+	}
+	req := httptest.NewRequest("GET", "/strategies", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list with batch (empty strategy_ids) task must not 500: %d %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data []struct {
+			ID        string `json:"id"`
+			TaskCount int    `json:"task_count"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	for _, s := range resp.Data {
+		if s.ID == id1 && s.TaskCount != 0 {
+			t.Errorf("batch task must not count toward any strategy, got %d", s.TaskCount)
+		}
+	}
+}

@@ -197,6 +197,7 @@ func ValidateBatchSpec(batch BatchSpec) error {
 func ValidateReplaySpec(specJSON json.RawMessage) error {
 	var spec struct {
 		PcapAssetID string `json:"pcap_asset_id"`
+		Loop        *int   `json:"loop,omitempty"`
 		Speed       struct {
 			Mode       string  `json:"mode"`
 			Multiplier float64 `json:"multiplier"`
@@ -207,6 +208,11 @@ func ValidateReplaySpec(specJSON json.RawMessage) error {
 	}
 	if err := json.Unmarshal(specJSON, &spec); err != nil {
 		return fmt.Errorf("invalid replay spec JSON: %w", err)
+	}
+	// 负 loop 在 strategy create 时即拒（此前要到 task start 的 Plan 才报），
+	// 与 P1-13 的 planner 侧拒绝同一文案。
+	if spec.Loop != nil && *spec.Loop < 0 {
+		return fmt.Errorf("loop must be >= 0 (0 = infinite, omit for a single pass), got %d", *spec.Loop)
 	}
 	if spec.PcapAssetID == "" {
 		return fmt.Errorf("replay spec missing pcap_asset_id")
