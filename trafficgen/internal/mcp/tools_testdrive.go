@@ -86,17 +86,21 @@ type runCaseOutput struct {
 }
 
 func (s *Server) registerTestDriveTools() {
+	// 内部测试标记（用户指令 2026-10-06）：这两个工具只服务协议回归用例
+	// 驱动，远程 LLM 客户端按描述选工具——描述前部必须带双语标记，正常
+	// 业务场景指向业务工具。契约由 TestTestDriveToolsMarkedInternalTest 钉定。
+	const internalTestMark = "[INTERNAL TEST ONLY / 内部测试专用 — protocol regression driver, NOT for normal client scenarios / 客户端正常业务场景勿用，生成流量请用 flowb_generate_traffic] "
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
 			Name:        "flowb_run_protocol_case",
-			Description: "Drive one protocol test case: generate traffic (strategy+task+start), poll to terminal, then verify the output (pcap file or NIC capture) with tshark assertions. Returns a pass/fail/error verdict with failure details. For expect_error cases the tool asserts the generation/task is REJECTED (error message must contain error_contains).",
+			Description: internalTestMark + "Drive one protocol test case: generate traffic (strategy+task+start), poll to terminal, then verify the output (pcap file or NIC capture) with tshark assertions. Returns a pass/fail/error verdict with failure details. For expect_error cases the tool asserts the generation/task is REJECTED (error message must contain error_contains).",
 		},
 		s.handleRunProtocolCase,
 	)
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
 			Name:        "flowb_run_protocol_suite",
-			Description: "Load all (or one protocol's) cases from a cases JSON directory and drive each through flowb_run_protocol_case, aggregating the verdicts. Returns total/pass/fail/error counts plus per-case results. Responses above 64 KB are auto-exported: the reply becomes a small receipt {written_to, bytes, export_id, download_url} — fetch with curl and read the file locally. NIC capture (real wire) is enabled per-case via nic_capture when output_type=port_group.",
+			Description: internalTestMark + "Load all (or one protocol's) cases from a cases JSON directory and drive each through flowb_run_protocol_case, aggregating the verdicts. Returns total/pass/fail/error counts plus per-case results. Responses above 64 KB are auto-exported: the reply becomes a small receipt {written_to, bytes, export_id, download_url} — fetch with curl and read the file locally. NIC capture (real wire) is enabled per-case via nic_capture when output_type=port_group.",
 		},
 		s.handleRunProtocolSuite,
 	)

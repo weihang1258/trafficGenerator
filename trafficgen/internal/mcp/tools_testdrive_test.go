@@ -752,3 +752,45 @@ func TestRunCaseSchemaAllowsCaseIDOnly(t *testing.T) {
 		}
 	}
 }
+
+// 内部测试标记契约（用户指令 2026-10-06）：测试用工具必须在 tools/list 的
+// Description 前部明确标记"内部测试专用，客户端正常业务场景勿用"——远程
+// LLM 客户端只看描述选工具，标记缺失就会把回归驱动当业务入口。
+func TestTestDriveToolsMarkedInternalTest(t *testing.T) {
+	srv := newTransportTestServer(t)
+	ctx := context.Background()
+	ct, st := mcp.NewInMemoryTransports()
+	go func() { _ = srv.mcpServer.Run(ctx, st) }()
+	sc, err := mcp.NewClient(&mcp.Implementation{Name: "t", Version: "0"}, nil).Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer sc.Close()
+	resp, err := sc.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatalf("list tools: %v", err)
+	}
+	const marker = "INTERNAL TEST ONLY"
+	descriptions := map[string]string{}
+	for _, tl := range resp.Tools {
+		descriptions[tl.Name] = tl.Description
+	}
+	for _, name := range []string{"flowb_run_protocol_case", "flowb_run_protocol_suite"} {
+		d, ok := descriptions[name]
+		if !ok {
+			t.Fatalf("%s not advertised", name)
+		}
+		if !strings.Contains(d, marker) {
+			t.Errorf("%s description must carry %q marker, got: %s", name, marker, d)
+		}
+		if !strings.Contains(d, "客户端正常") {
+			t.Errorf("%s description must carry the Chinese 客户端正常业务场景勿用 notice, got: %s", name, d)
+		}
+	}
+	// 业务工具不得被误标（标记只属于测试工具面）。
+	for _, name := range []string{"flowb_generate_traffic", "flowb_manage_pcaps"} {
+		if d := descriptions[name]; strings.Contains(d, marker) {
+			t.Errorf("business tool %s must NOT carry the internal-test marker", name)
+		}
+	}
+}
