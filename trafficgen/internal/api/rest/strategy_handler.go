@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net"
 	"regexp"
 
@@ -101,6 +102,20 @@ func (h *StrategyHandler) Create(c *gin.Context) {
 		mode = "synth"
 	}
 
+	// P0-1（2026-10-05 客户端复测）：内嵌 config.flow_control 必须生效——
+	// 层链 config 是唯一配置真相，此前该键全仓库无消费者，flows=2000/bps=
+	// 50000 的声明全部静默走 flows:1 缺省（P0-2 的"coerce"同源）。顶层参数
+	// 显式给定时覆盖内嵌；形状错误在此报，type/value 语义交给 schemaGate
+	// （与顶层同一 canonical 文案）。ReplaySpec 无内嵌 flow_control。
+	if req.FlowControl == nil && mode != "replay" {
+		fc, err := embeddedFlowControl(req.Config)
+		if err != nil {
+			BadRequest(c, err.Error())
+			return
+		}
+		req.FlowControl = fc
+	}
+
 	// Set default flow control for synth only (replay leaves nil unless caller
 	// explicitly sets one - and only time is accepted then).
 	if req.FlowControl == nil && mode != "replay" {
@@ -115,6 +130,31 @@ func (h *StrategyHandler) Create(c *gin.Context) {
 		return
 	}
 	h.createSynthStrategy(c, userID, mode, &req)
+}
+
+// embeddedFlowControl extracts config["flow_control"] so the embedded key
+// takes effect (P0-1: the layer-chain config is the single source of truth).
+// Returns (nil, nil) when the key is absent or explicit null; a non-object
+// value is a shape error reported here. Type/value semantics stay with the
+// schema gate, which already owns the canonical wording for the top-level
+// parameter — an embedded invalid value fails with that same text.
+func embeddedFlowControl(config map[string]interface{}) (*FlowControlRequest, error) {
+	raw, ok := config["flow_control"]
+	if !ok || raw == nil {
+		return nil, nil
+	}
+	obj, ok := raw.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("config.flow_control must be an object {\"type\":\"flows|bps|time\",\"value\":N}")
+	}
+	fc := &FlowControlRequest{}
+	if t, ok := obj["type"].(string); ok {
+		fc.Type = t
+	}
+	if v, ok := obj["value"].(float64); ok {
+		fc.Value = v
+	}
+	return fc, nil
 }
 
 // createReplayStrategy validates + persists a replay-mode strategy. Skips all
@@ -342,6 +382,18 @@ func (h *StrategyHandler) Update(c *gin.Context) {
 
 	if mode == "" {
 		mode = "synth"
+	}
+
+	// P0-1: same embedded extraction as Create — a full replace carries a
+	// fresh config whose embedded flow_control must take effect when the
+	// top-level parameter is omitted. Synth only (ReplaySpec has none).
+	if req.FlowControl == nil && mode != "replay" {
+		fc, err := embeddedFlowControl(req.Config)
+		if err != nil {
+			BadRequest(c, err.Error())
+			return
+		}
+		req.FlowControl = fc
 	}
 
 	// Unified schema gate (same entry as create paths: shape + full semantics,

@@ -61,6 +61,7 @@ func setupIntegrationTest(t *testing.T) (*gin.Engine, *storage.DB, *core.Engine,
 	r := gin.New()
 	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
 	r.POST("/strategies", sh.Create)
+	r.PUT("/strategies/:id", sh.Update)
 	r.POST("/tasks", h.Create)
 	r.POST("/tasks/:id/start", h.Start)
 	r.POST("/tasks/:id/stop", h.Stop)
