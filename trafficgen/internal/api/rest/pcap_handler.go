@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"unicode/utf8"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -945,4 +946,161 @@ func ServeTaskPcapPublic(db *storage.DB, w http.ResponseWriter, r *http.Request)
 // layersLinkType converts the stored int link type to gopacket layers.LinkType.
 func layersLinkType(lt int) layers.LinkType {
 	return layers.LinkType(lt)
+}
+
+// extractBulkMaxPackets caps asset-wide bulk extraction (memory bound on the
+// in-memory results slice; full-fidelity analysis of bigger pcaps belongs on
+// the downloaded pcap file). Var: tests shrink it.
+var extractBulkMaxPackets = 20000
+
+// streamsBulkMaxFlows caps asset-wide stream extraction the same way.
+var streamsBulkMaxFlows = 5000
+
+// ExtractBulk runs the per-packet field extraction over a WHOLE flow or the
+// WHOLE asset — no packet_ids enumeration needed (client audit 2026-10-05:
+// per-ID loops make full analysis impractical). The MCP layer's 64 KB
+// auto-export turns large results into a download link automatically.
+// POST /api/v1/pcaps/:id/extract_bulk {flow_id?, fields:[...]}
+func (h *PcapHandler) ExtractBulk(c *gin.Context) {
+	asset, ok := h.getOwnedAsset(c)
+	if !ok {
+		return
+	}
+	if !h.requireReady(c, asset) {
+		return
+	}
+	var req struct {
+		FlowID string   `json:"flow_id"`
+		Fields []string `json:"fields"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		BadRequest(c, "invalid extract_bulk request: "+err.Error())
+		return
+	}
+	userID := auth.GetUserID(c)
+	linkType := layersLinkType(asset.LinkType)
+
+	var packets []storage.PacketModel
+	var total int64
+	if req.FlowID != "" {
+		flow, err := h.repo.GetFlow(req.FlowID, userID)
+		if err != nil || flow.PcapAssetID != asset.ID {
+			BadRequest(c, "flow not found in this asset")
+			return
+		}
+		// size=0 = full pull (no LIMIT).
+		packets, total, err = h.repo.ListPacketsByFlow(req.FlowID, userID, 1, 0)
+		if err != nil {
+			InternalError(c, "list flow packets: "+err.Error())
+			return
+		}
+	} else {
+		var err error
+		packets, total, err = h.repo.ListPacketsByAsset(asset.ID, userID, 1, 0)
+		if err != nil {
+			InternalError(c, "list packets: "+err.Error())
+			return
+		}
+		if len(packets) > extractBulkMaxPackets {
+			BadRequest(c, fmt.Sprintf(
+				"asset has %d packets; asset-wide extraction is capped at %d — extract per flow (flow_id) or download the pcap for local analysis",
+				total, extractBulkMaxPackets))
+			return
+		}
+	}
+
+	results := make([]gin.H, 0, len(packets))
+	for _, pkt := range packets {
+		records, err := pcapparser.ParsePacket(asset.StoragePath, pkt.RawOffset, pkt.Length, linkType)
+		if err != nil {
+			results = append(results, gin.H{"packet_id": pkt.ID, "error": err.Error()})
+			continue
+		}
+		fields := gin.H{}
+		for _, rec := range records {
+			for _, want := range req.Fields {
+				if v, ok := rec.Fields[want]; ok {
+					fields[want] = v
+				}
+			}
+		}
+		results = append(results, gin.H{"packet_id": pkt.ID, "fields": fields})
+	}
+	Success(c, gin.H{"total": total, "extracted": len(results), "items": results})
+}
+
+// ExtractStreams returns the reassembled c2s/s2c stream text for one flow or
+// for EVERY flow of the asset (client audit 2026-10-05: per-flow calls make
+// full analysis impractical). Text is best-effort UTF-8; binary streams are
+// mangled in text form — full fidelity stays on the downloaded pcap file.
+// POST /api/v1/pcaps/:id/streams_bulk {flow_id?}
+func (h *PcapHandler) ExtractStreams(c *gin.Context) {
+	asset, ok := h.getOwnedAsset(c)
+	if !ok {
+		return
+	}
+	if !h.requireReady(c, asset) {
+		return
+	}
+	var req struct {
+		FlowID string `json:"flow_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		BadRequest(c, "invalid streams_bulk request: "+err.Error())
+		return
+	}
+	userID := auth.GetUserID(c)
+
+	var flows []storage.FlowModel
+	if req.FlowID != "" {
+		flow, err := h.repo.GetFlow(req.FlowID, userID)
+		if err != nil || flow.PcapAssetID != asset.ID {
+			BadRequest(c, "flow not found in this asset")
+			return
+		}
+		flows = append(flows, *flow)
+	} else {
+		var err error
+		flows, _, err = h.repo.ListFlowsByAsset(asset.ID, userID, 1, 0)
+		if err != nil {
+			InternalError(c, "list flows: "+err.Error())
+			return
+		}
+		if len(flows) > streamsBulkMaxFlows {
+			BadRequest(c, fmt.Sprintf(
+				"asset has %d flows; asset-wide stream extraction is capped at %d — extract per flow or download the pcap",
+				len(flows), streamsBulkMaxFlows))
+			return
+		}
+	}
+
+	results := make([]gin.H, 0, len(flows))
+	if len(flows) > 0 && asset.PayloadsPath != "" {
+		f, err := os.Open(asset.PayloadsPath)
+		if err != nil {
+			InternalError(c, "open payloads: "+err.Error())
+			return
+		}
+		defer f.Close()
+		read := func(flow *storage.FlowModel, dir string, off, length int64) {
+			if length <= 0 {
+				return
+			}
+			buf := make([]byte, length)
+			if _, err := f.ReadAt(buf, off); err != nil {
+				results = append(results, gin.H{"flow_id": flow.ID, "direction": dir, "error": err.Error()})
+				return
+			}
+			results = append(results, gin.H{
+				"flow_id": flow.ID, "direction": dir, "length": length,
+				"text": strings.ToValidUTF8(string(buf), string(utf8.RuneError)),
+			})
+		}
+		for i := range flows {
+			fl := &flows[i]
+			read(fl, "c2s", fl.C2SOffset, fl.C2SLength)
+			read(fl, "s2c", fl.S2COffset, fl.S2CLength)
+		}
+	}
+	Success(c, gin.H{"flows": len(flows), "items": results})
 }

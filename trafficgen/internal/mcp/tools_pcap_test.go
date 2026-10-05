@@ -777,3 +777,100 @@ func TestMCP_ManagePcaps_Reparse(t *testing.T) {
 		t.Fatalf("reparse returned non-object: %s", string(asRaw(out.Data)))
 	}
 }
+
+// TestMCP_ManagePcaps_ExtractBulkAndStreams: 全量提取（用户需求 2026-10-05）
+// ——extract_bulk 不需要 packet_ids（flow 级/资产级直接拉），extract_streams
+// 不需要逐流调用。
+func TestMCP_ManagePcaps_ExtractBulkAndStreams(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	aid := importTestPcap(t, env)
+
+	// 取 flow_id
+	_, fl, err := env.srv.handleManagePcaps(context.Background(), nil, managePcapsInput{
+		Action: "list_flows", ID: aid,
+	})
+	if err != nil {
+		t.Fatalf("list_flows: %v", err)
+	}
+	var flows struct {
+		Items []struct {
+			ID string `json:"ID"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(asRaw(fl.Data), &flows); err != nil || len(flows.Items) == 0 {
+		t.Fatalf("flows: %s (err %v)", string(asRaw(fl.Data))[:200], err)
+	}
+	fid := flows.Items[0].ID
+
+	// 1) 流级全量字段提取——无 packet_ids
+	_, out, err := env.srv.handleManagePcaps(context.Background(), nil, managePcapsInput{
+		Action: "extract_bulk", ID: aid, FlowID: fid,
+		ExtractRules: map[string]interface{}{"fields": []interface{}{"src_ip", "dst_port"}},
+	})
+	if err != nil {
+		t.Fatalf("extract_bulk(flow): %v", err)
+	}
+	var bulk struct {
+		Extracted int                      `json:"extracted"`
+		Items     []map[string]interface{} `json:"items"`
+	}
+	if err := json.Unmarshal(asRaw(out.Data), &bulk); err != nil {
+		t.Fatalf("bulk decode: %v (%s)", err, string(asRaw(out.Data))[:200])
+	}
+	if bulk.Extracted != 1 || len(bulk.Items) != 1 {
+		t.Fatalf("extracted = %d items = %d, want 1/1", bulk.Extracted, len(bulk.Items))
+	}
+	flds := bulk.Items[0]["fields"].(map[string]interface{})
+	if flds["src_ip"] != "10.0.0.1" {
+		t.Errorf("bulk src_ip = %v, want 10.0.0.1", flds["src_ip"])
+	}
+
+	// 2) 资产级全量（无 flow_id）
+	_, out, err = env.srv.handleManagePcaps(context.Background(), nil, managePcapsInput{
+		Action: "extract_bulk", ID: aid,
+		ExtractRules: map[string]interface{}{"fields": []interface{}{"src_ip"}},
+	})
+	if err != nil {
+		t.Fatalf("extract_bulk(asset): %v", err)
+	}
+	if err := json.Unmarshal(asRaw(out.Data), &bulk); err != nil {
+		t.Fatalf("asset bulk decode: %v", err)
+	}
+	if bulk.Extracted != 1 {
+		t.Fatalf("asset extracted = %d, want 1", bulk.Extracted)
+	}
+
+	// 3) 流文本全量（单流）
+	_, out, err = env.srv.handleManagePcaps(context.Background(), nil, managePcapsInput{
+		Action: "extract_streams", ID: aid, FlowID: fid,
+	})
+	if err != nil {
+		t.Fatalf("extract_streams(flow): %v", err)
+	}
+	var streams struct {
+		Flows int                      `json:"flows"`
+		Items []map[string]interface{} `json:"items"`
+	}
+	if err := json.Unmarshal(asRaw(out.Data), &streams); err != nil {
+		t.Fatalf("streams decode: %v (%s)", err, string(asRaw(out.Data))[:200])
+	}
+	if streams.Flows != 1 {
+		t.Errorf("streams flows = %d, want 1", streams.Flows)
+	}
+
+	// 4) 资产级流文本（无 flow_id）
+	_, out, err = env.srv.handleManagePcaps(context.Background(), nil, managePcapsInput{
+		Action: "extract_streams", ID: aid,
+	})
+	if err != nil {
+		t.Fatalf("extract_streams(asset): %v", err)
+	}
+	if err := json.Unmarshal(asRaw(out.Data), &streams); err != nil {
+		t.Fatalf("asset streams decode: %v", err)
+	}
+	if streams.Flows != 1 {
+		t.Errorf("asset streams flows = %d, want 1", streams.Flows)
+	}
+}

@@ -20,7 +20,7 @@ import (
 // only `action` is always required. The LLM fills in whichever fields the
 // chosen action needs (documented per-field below).
 type managePcapsInput struct {
-	Action       string                 `json:"action" jsonschema:"operation — packet-level inspection ladder (spot the flow, then drill to bytes): list (assets) | list_flows (per-flow stats; find the suspicious flow) | list_packets (packets of one flow, needs flow_id; page with page/size) | list_packets_by_asset | get_packet (full header fields of one packet, needs packet_id) | get_packet_payload (raw bytes of one packet, needs packet_id) | get_stream (reassembled byte stream, needs flow_id + direction c2s|s2c, optional offset/limit) | get_body (like get_stream) | get_flow | search | match_preview | extract (batch field extraction across packets) | import | get | delete | reparse | download"`
+	Action       string                 `json:"action" jsonschema:"operation — packet-level inspection ladder (spot the flow, then drill to bytes): list (assets) | list_flows (per-flow stats; find the suspicious flow) | list_packets (packets of one flow, needs flow_id; page with page/size) | list_packets_by_asset | get_packet (full header fields of one packet, needs packet_id) | get_packet_payload (raw bytes of one packet, needs packet_id) | get_stream (reassembled byte stream, needs flow_id + direction c2s|s2c, optional offset/limit) | get_body (like get_stream) | get_flow | search | match_preview | extract (batch fields for the given packet_ids) | extract_bulk {id, flow_id?, extract_rules:{fields:[..]}} (WHOLE flow or WHOLE asset — no packet_ids needed; big results auto-export with total) | extract_streams {id, flow_id?} (reassembled stream text for one flow or every flow; auto-exports too) | import | get | delete | reparse | download"`
 	ID           string                 `json:"id,omitempty" jsonschema:"asset id (required for all actions except import/list)"`
 	FilePath     string                 `json:"file_path,omitempty" jsonschema:"absolute server-side file path (import only); over HTTP this tool's description carries the concrete upload URL for remote clients"`
 	FlowID       string                 `json:"flow_id,omitempty" jsonschema:"flow id (get_flow/list_packets/get_stream/get_body)"`
@@ -47,7 +47,7 @@ func (s *Server) registerPcapTools() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
 			Name:         "flowb_manage_pcaps",
-			Description:  "Manage PCAP assets and drill from flows down to packet bytes. Task-generated pcaps auto-register here (files up to 64MB; get_task_progress returns pcap_asset_id) — analysis needs no extra steps. Actions (required args in braces): list {} (assets) | get {id} | delete {id} | import {file_path:'absolute server path'} (over remote HTTP this description carries the one-step upload command) | list_flows {id} (per-flow stats: rates, counts, flags — spot the suspicious flow) | get_flow {id, flow_id} | list_packets {id, flow_id} (packets of one flow) | list_packets_by_asset {id} | get_packet {id, packet_id} (full header fields) | get_packet_payload {id, packet_id} (raw bytes, base64) | get_stream {id, flow_id, direction:'c2s'|'s2c', offset?, limit?} (reassembled stream bytes) | get_body {id, flow_id, direction} (HTTP bodies) | search {id, filters:{flow_filter:{DstPort:80}, payload:{Contains:'GET /',Encoding:'ascii'}, limit:20}} | match_preview {id, matcher:{Protocol:'tcp',DstPort:80}} | extract {id, extract_rules:{packet_ids:[..], fields:['src_ip','tcp_flags']}} | download {id} (file_path locally, unauthenticated download_url over HTTP) | reparse {id}. Flow stats cannot show malformed payloads — when a flow looks wrong ALWAYS continue to list_packets → get_packet → get_stream within this same tool",
+			Description:  "Manage PCAP assets and drill from flows down to packet bytes. Task-generated pcaps auto-register here (files up to 64MB; get_task_progress returns pcap_asset_id) — analysis needs no extra steps. Actions (required args in braces): list {} (assets) | get {id} | delete {id} | import {file_path:'absolute server path'} (over remote HTTP this description carries the one-step upload command) | list_flows {id} (per-flow stats: rates, counts, flags — spot the suspicious flow) | get_flow {id, flow_id} | list_packets {id, flow_id} (packets of one flow) | list_packets_by_asset {id} | get_packet {id, packet_id} (full header fields) | get_packet_payload {id, packet_id} (raw bytes, base64) | get_stream {id, flow_id, direction:'c2s'|'s2c', offset?, limit?} (reassembled stream bytes) | get_body {id, flow_id, direction} (HTTP bodies) | search {id, filters:{flow_filter:{DstPort:80}, payload:{Contains:'GET /',Encoding:'ascii'}, limit:20}} | match_preview {id, matcher:{Protocol:'tcp',DstPort:80}} | extract {id, extract_rules:{packet_ids:[..], fields:['src_ip','tcp_flags']}} | download {id} (file_path locally, unauthenticated download_url over HTTP) | reparse {id}. Flow stats cannot show malformed payloads — when a flow looks wrong ALWAYS continue to list_packets → get_packet → get_stream within this same tool; for WHOLE-flow or WHOLE-asset pulls skip ID enumeration entirely — extract_bulk / extract_streams",
 			OutputSchema: manageOutputSchema(),
 		},
 		s.handleManagePcaps,
@@ -143,6 +143,20 @@ func (s *Server) handleManagePcaps(ctx context.Context, req *mcp.CallToolRequest
 	case "extract":
 		body := mustMarshal(in.ExtractRules)
 		resp, err = s.callHandler(ctx, body, in.ID, nil, h.Extract)
+	case "extract_bulk":
+		// 全量提取（用户需求 2026-10-05）：flow_id 给定=该流全部包；省略=资
+		// 产全部包（REST 侧有上限保护）。不需要先 list_packets 枚举 ID。
+		var fields interface{}
+		if in.ExtractRules != nil {
+			fields = in.ExtractRules["fields"]
+		}
+		body := mustMarshal(map[string]interface{}{"flow_id": in.FlowID, "fields": fields})
+		resp, err = s.callHandler(ctx, body, in.ID, nil, h.ExtractBulk)
+	case "extract_streams":
+		// 流文本全量提取：flow_id 给定=该流双向；省略=资产全部流。超 64KB
+		// 自动转导出文件并回下载链接（统一出口规则）。
+		body := mustMarshal(map[string]interface{}{"flow_id": in.FlowID})
+		resp, err = s.callHandler(ctx, body, in.ID, nil, h.ExtractStreams)
 	case "download":
 		resp, err = s.handlePcapDownload(ctx, h, in.ID)
 	case "reparse":

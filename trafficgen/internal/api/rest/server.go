@@ -269,6 +269,8 @@ func (s *Server) setupRoutes() {
 			pcaps.POST("/:id/search", pcapHandler.Search)
 			pcaps.POST("/:id/match-preview", pcapHandler.MatchPreview)
 			pcaps.POST("/:id/extract", pcapHandler.Extract)
+			pcaps.POST("/:id/extract_bulk", pcapHandler.ExtractBulk)
+			pcaps.POST("/:id/streams_bulk", pcapHandler.ExtractStreams)
 			pcaps.GET("/:id/download", pcapHandler.Download)
 			pcaps.POST("/:id/reparse", pcapHandler.Reparse)
 		}
