@@ -282,14 +282,14 @@ type replayPcapInput struct {
 	TaskName            string                   `json:"task_name" jsonschema:"task name"`
 	PcapAssetID         string                   `json:"pcap_asset_id" jsonschema:"imported pcap asset id to replay"`
 	Loop                *int                     `json:"loop,omitempty" jsonschema:"loop count — omit for a single pass; 0 = infinite (stop the task to end it); N = N passes"`
-	Speed               map[string]interface{}   `json:"speed" jsonschema:"replay speed {mode: original|multiplier|bps (empty=max), multiplier, bps} -- bps must be a string like '1000' or '1g' (NOT a number, or backend rejects with 'cannot unmarshal number into Go struct field .speed.bps of type string'); pps and max are rejected by validateReplaySpec"`
+	Speed               map[string]interface{}   `json:"speed,omitempty" jsonschema:"optional replay speed {mode: original|multiplier|bps (empty=max), multiplier, bps} -- bps must be a string like '1000' or '1g' (NOT a number, or backend rejects with 'cannot unmarshal number into Go struct field .speed.bps of type string'); pps and max are rejected by validateReplaySpec"`
 	Direction           string                   `json:"direction,omitempty" jsonschema:"single|dual (default single)"`
 	ChecksumMode        string                   `json:"checksum_mode,omitempty" jsonschema:"recompute|preserve (default recompute)"`
 	Rewrites            []map[string]interface{} `json:"rewrites,omitempty" jsonschema:"rewrite rules"`
 	FlowScaling         map[string]interface{}   `json:"flow_scaling,omitempty" jsonschema:"optional multi-flow amplification"`
 	StrategyFlowControl *flowControlInput        `json:"strategy_flow_control,omitempty" jsonschema:"optional strategy-level flow control (replay only supports type=time)"`
 	TaskFlowControl     *flowControlInput        `json:"task_flow_control,omitempty" jsonschema:"optional task-level flow control (aggregate ceiling)"`
-	OutputType          string                   `json:"output_type" jsonschema:"output type: port_group or pcap"`
+	OutputType          string                   `json:"output_type,omitempty" jsonschema:"output type: port_group or pcap (default pcap)"`
 	OutputConfig        *outputConfigInput       `json:"output_config" jsonschema:"REQUIRED — replay: {'pcap_path':'<asset-relative-or-abs>'} or as required by the replay output type; dual-port replay adds {'interface2':'<iface>'}"`
 }
 
@@ -298,6 +298,9 @@ func (s *Server) handleReplayPcap(ctx context.Context, req *mcp.CallToolRequest,
 	if in.PcapAssetID == "" {
 		s.auditLog(req, "flowb_replay_pcap", 0, "error", "missing pcap_asset_id")
 		return nil, generateTrafficOutput{}, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: "pcap_asset_id is required"}
+	}
+	if in.OutputType == "" {
+		in.OutputType = "pcap" // schema 放宽 required 后的 handler 兜底默认
 	}
 	stratH := rest.NewStrategyHandler(s.db)
 	taskH := rest.NewTaskHandlerWithCallbacks(s.db, s.engine, nil, false)
