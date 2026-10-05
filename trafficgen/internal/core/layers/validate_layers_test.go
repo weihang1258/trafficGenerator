@@ -63,6 +63,24 @@ func TestValidateLayers_MultiKeyEntryErrorIsActionable(t *testing.T) {
 	}
 }
 
+// P1-3（2026-10-05 客户端复测）：多个未知字段必须一次全报——描述承诺
+// "all reported at once"，此前逐字段 early-return 只报第一个，模型要多轮
+// 试错。单字段保持历史文案形态（cases 的 error_contains 锚词不变）。
+func TestValidateLayerConfigUnknownFieldsAllReported(t *testing.T) {
+	_, err := ValidateLayers(mustRaw(t, `[{"ip":{}},{"tcp":{}},{"http":{"aaa":1,"baz":2,"request_path":"/"}}]`), "")
+	if err == nil {
+		t.Fatal("unknown fields: want error, got nil")
+	}
+	if !strings.Contains(err.Error(), `"aaa"`) || !strings.Contains(err.Error(), `"baz"`) {
+		t.Errorf("all unknown fields must be reported at once, got: %s", err.Error())
+	}
+	// 单字段保持历史形态。
+	_, err = ValidateLayers(mustRaw(t, `[{"ip":{}},{"tcp":{}},{"http":{"foo":1}}]`), "")
+	if err == nil || !strings.Contains(err.Error(), `unknown field "foo"`) {
+		t.Errorf("single unknown field must keep the historic wording, got: %v", err)
+	}
+}
+
 // T18 (V2): duplicated terminal layer → error.
 // 用 s7（无 TransformEvents 标记的终结层）验证 V2：两个 s7 终结层 → 重复。
 // http 是 TransformEvents=true 的特例（见 T18b），不用它测 V2。

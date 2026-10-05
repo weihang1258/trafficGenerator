@@ -166,7 +166,7 @@ func TestAuditFix_LoopTimestampOffset(t *testing.T) {
 		PcapAssetID: assetID,
 		Speed:       ReplaySpeed{Mode: "max"},
 		Direction:   "single",
-		Loop:        2,
+		Loop:        ip(2),
 	}
 	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
@@ -312,7 +312,7 @@ func TestAuditFix_SeqOffsetReRandomizedPerRound(t *testing.T) {
 		PcapAssetID: assetID,
 		Speed:       ReplaySpeed{Mode: "max"},
 		Direction:   "single",
-		Loop:        2,
+		Loop:        ip(2),
 		FlowScaling: &FlowScaling{
 			Count:     2,
 			SrcIP:     core.StrategyConfig{Strategy: "inc", Range: []interface{}{"11.0.0.1", "11.0.0.10"}, Step: 1},
@@ -401,4 +401,34 @@ func TestAuditFix_DirStatusUncertainWarning(t *testing.T) {
 	if count != 3 {
 		t.Errorf("uncertain-flow replay emitted %d packets, want 3 (flow must not be dropped)", count)
 	}
+}
+
+// P1-13（2026-10-05 客户端复测）：loop=0 必须按文档无限循环——v1 把 0 钳成
+// 1 遍（"capped to 1 pass for safety"），1 秒 completed，压测长稳无法表达。
+// 无限由 ctx 取消终止（emit 逐包检查 ctx，任务 stop 同路径）。
+func TestReplayLoopZeroIsInfinite(t *testing.T) {
+	planner, _, assetID, _ := setupReplayAsset(t)
+	spec := ReplaySpec{
+		PcapAssetID: assetID,
+		Speed:       ReplaySpeed{Mode: "max"},
+		Direction:   "single",
+		Loop:        ip(0),
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ch, err := planner.Plan(ctx, spec, "t", "c", "u1", nil)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	n := 0
+	for range ch {
+		n++
+		if n >= 7 { // 3 包/遍：收到第 7 包即已超过 2 遍，证伪"钳 1 遍"
+			cancel()
+		}
+	}
+	if n < 7 {
+		t.Errorf("loop=0 must replay infinitely, got %d packets (one pass = 3)", n)
+	}
+	// 走到这里说明 cancel 后通道已关闭——goroutine 收敛，无悬挂。
 }

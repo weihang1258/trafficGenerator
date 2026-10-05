@@ -1013,22 +1013,25 @@ func TestPlan_OpenPcapFailed(t *testing.T) {
 	}
 }
 
-func TestPlan_LoopZeroCappedToOne(t *testing.T) {
+// P1-13 契约改写：loop 键省略 = 单遍引擎缺省（v1 行为保留）；显式 0 =
+// 无限（由 TestReplayLoopZeroIsInfinite 钉定）。旧钉定 "Loop=0 capped to 1"
+// 与文档矛盾，随 P1-13 修复退役。
+func TestPlan_LoopOmittedDefaultsOnePass(t *testing.T) {
 	planner, _, assetID, _ := setupReplayAsset(t)
-	spec := ReplaySpec{PcapAssetID: assetID, Speed: ReplaySpeed{Mode: "max"}, Loop: 0}
+	spec := ReplaySpec{PcapAssetID: assetID, Speed: ReplaySpeed{Mode: "max"}}
 	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
 	configs := drainTimeout(ch, 1*time.Second)
 	if len(configs) != 3 {
-		t.Errorf("configs = %d, want 3 (Loop=0 capped to 1)", len(configs))
+		t.Errorf("configs = %d, want 3 (loop omitted = single pass)", len(configs))
 	}
 }
 
 func TestPlan_LoopThree(t *testing.T) {
 	planner, _, assetID, _ := setupReplayAsset(t)
-	spec := ReplaySpec{PcapAssetID: assetID, Speed: ReplaySpeed{Mode: "max"}, Loop: 3}
+	spec := ReplaySpec{PcapAssetID: assetID, Speed: ReplaySpeed{Mode: "max"}, Loop: ip(3)}
 	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
@@ -1074,7 +1077,7 @@ func TestPlan_PerRoundCloneRegeneration(t *testing.T) {
 	spec := ReplaySpec{
 		PcapAssetID: assetID,
 		Speed:       ReplaySpeed{Mode: "max"},
-		Loop:        2,
+		Loop:        ip(2),
 		FlowScaling: &FlowScaling{
 			Count:     1,
 			SeqOffset: core.StrategyConfig{Strategy: "fixed", Value: "1000"},
@@ -1216,7 +1219,7 @@ func TestPlan_SerialCtxCancel(t *testing.T) {
 	spec := ReplaySpec{
 		PcapAssetID: assetID,
 		Speed:       ReplaySpeed{Mode: "max"},
-		Loop:        100,
+		Loop:        ip(100),
 		FlowScaling: &FlowScaling{
 			Count:      2,
 			SrcIP:      core.StrategyConfig{Strategy: "inc", Range: []interface{}{"11.0.0.1", "11.0.0.10"}, Step: 1},
@@ -1246,7 +1249,7 @@ func TestPlan_StackCtxCancel(t *testing.T) {
 	spec := ReplaySpec{
 		PcapAssetID: assetID,
 		Speed:       ReplaySpeed{Mode: "max"},
-		Loop:        100,
+		Loop:        ip(100),
 		FlowScaling: &FlowScaling{
 			Count: 2,
 			SrcIP: core.StrategyConfig{Strategy: "inc", Range: []interface{}{"11.0.0.1", "11.0.0.10"}, Step: 1},

@@ -88,6 +88,17 @@ func validateStrategySemantic(mode, protocol string, config map[string]any, fc *
 
 	// Synth path. Flow-control type/value use the exact historic text
 	// (strategy tests assert the "invalid flow_control type" substring).
+
+	// P2-6（2026-10-05 客户端复测）：显式 protocol 非法 → 单因报错并指路，
+	// 层链 mismatch 等后续校验不再叠加（此前双因拼接 "does not match
+	// outermost ...; invalid or missing protocol ..." 让调用方不知改哪处）。
+	// protocol=="" 走最外层推断，推断结果仍由下方 IsAllowedProtocol 兜底；
+	// 合法但与层链不符的协议（如 gre + [tcp,http]）照旧走 V10 mismatch。
+	if protocol != "" && !core.IsAllowedProtocol(protocol) {
+		fail("invalid or missing protocol: %s — unknown protocol; call flowb_query_layers action=examples (no protocol) for the supported list", protocol)
+		return protocol, errs
+	}
+
 	if fc != nil {
 		switch fc.Type {
 		case "flows", "bps", "time":

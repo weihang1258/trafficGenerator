@@ -31,9 +31,10 @@ import (
 // test/protocol_pcap 的 Case schema 一致（pcaptest.Case），output_type /
 // output_config 控制走 pcap 文件还是 port_group 真实发包。
 type runCaseInput struct {
-	Proto          string             `json:"proto" jsonschema:"protocol name (registry name, e.g. tcp/tftp/modbus)"`
-	CaseID         string             `json:"case_id" jsonschema:"case identifier (used in task naming + pcap path)"`
-	SpecJSON       json.RawMessage    `json:"spec_json" jsonschema:"generate_traffic config (strategy config, protocol-specific layers/spec)"`
+	Proto          string             `json:"proto" jsonschema:"protocol name (registry name, e.g. tcp/tftp/modbus); optional when the case resolves from the server's cases corpus"`
+	CaseID         string             `json:"case_id" jsonschema:"case identifier (used in task naming + pcap path); with spec_json omitted the case loads from the server's protocol cases corpus (case_id alone runs a regression case)"`
+	SpecJSON       json.RawMessage    `json:"spec_json" jsonschema:"generate_traffic config (strategy config, protocol-specific layers/spec); OPTIONAL — omit to load the named case from the corpus"`
+	CaseDir        string             `json:"case_dir,omitempty" jsonschema:"override the corpus directory for this lookup (default: mcp.protocol_cases_dir config, then ./cases)"`
 	OutputType     string             `json:"output_type" jsonschema:"output type: pcap or port_group (default pcap)"`
 	OutputConfig   *outputConfigInput `json:"output_config,omitempty" jsonschema:"output configuration (pcap_path for pcap; port_group_id for port_group)"`
 	StrategyFC     *flowControlInput  `json:"strategy_flow_control,omitempty" jsonschema:"optional strategy-level flow control (multi-flow cases)"`
@@ -500,18 +501,42 @@ func (s *Server) handleRunProtocolCase(ctx context.Context, req *mcp.CallToolReq
 	// 前置校验在工具入口集中做，便于 suite 汇总时区分「入参错（error）」
 	// 与用例失败（fail）。
 	switch {
-	case in.Proto == "":
-		s.auditLog(req, "flowb_run_protocol_case", 0, "error", "missing proto")
-		return nil, runCaseOutput{}, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: "proto is required"}
 	case in.CaseID == "":
 		s.auditLog(req, "flowb_run_protocol_case", 0, "error", "missing case_id")
 		return nil, runCaseOutput{}, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: "case_id is required"}
-	case !safeCaseComponent(in.CaseID) || !safeCaseComponent(in.Proto):
+	case !safeCaseComponent(in.CaseID) || (in.Proto != "" && !safeCaseComponent(in.Proto)):
 		s.auditLog(req, "flowb_run_protocol_case", 0, "error", "unsafe path component")
 		return nil, runCaseOutput{}, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: "proto and case_id must be simple path components"}
-	case len(in.SpecJSON) == 0:
-		s.auditLog(req, "flowb_run_protocol_case", 0, "error", "missing spec_json")
-		return nil, runCaseOutput{}, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: "spec_json is required"}
+	}
+	// P1-12（2026-10-05 客户端复测）：spec_json 省略 → 从服务端协议语料按
+	// case_id 解析（此前语料对 MCP 不可达、spec_json 必填，回归入口完全
+	// 不可用）。入参显式给出的字段优先，语料补齐 spec/expect/fc/decode_as。
+	if len(in.SpecJSON) == 0 {
+		cc, err := s.loadCorpusCase(in.CaseDir, in.Proto, in.CaseID)
+		if err != nil {
+			s.auditLog(req, "flowb_run_protocol_case", 0, "error", err.Error())
+			return nil, runCaseOutput{}, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: err.Error()}
+		}
+		if in.Proto == "" {
+			in.Proto = cc.Proto
+		}
+		in.SpecJSON = cc.SpecJSON
+		if len(in.DecodeAs) == 0 {
+			in.DecodeAs = cc.DecodeAs
+		}
+		if in.StrategyFC == nil {
+			in.StrategyFC = fcFromPcaptest(cc.StrategyFC)
+		}
+		if in.TaskFC == nil {
+			in.TaskFC = fcFromPcaptest(cc.TaskFC)
+		}
+		if in.Expect.empty() {
+			in.Expect = expectToInput(cc.Expect)
+		}
+	}
+	if in.Proto == "" {
+		s.auditLog(req, "flowb_run_protocol_case", 0, "error", "missing proto")
+		return nil, runCaseOutput{}, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: "proto is required (or resolvable from the cases corpus via case_id)"}
 	}
 	if in.OutputType != "" && in.OutputType != "pcap" && in.OutputType != "port_group" {
 		s.auditLog(req, "flowb_run_protocol_case", 0, "error", "unsupported output_type")
@@ -693,7 +718,7 @@ func (s *Server) handleRunProtocolSuite(ctx context.Context, req *mcp.CallToolRe
 			return nil, suiteResult{}, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: "port_group output requires output_config.port_group_id"}
 		}
 	}
-	dir := in.CaseDir
+	dir := s.casesDir(in.CaseDir)
 	if dir == "" {
 		dir = "cases"
 	}
@@ -857,4 +882,68 @@ func loadSuiteCases(dir, proto string, maxCases int) ([]pcaptest.Case, error) {
 		}
 	}
 	return out, nil
+}
+
+// casesDir 解析协议语料目录（P1-12）：显式入参 > mcp.protocol_cases_dir
+// 配置 > ./cases（cwd 相对，与 suite 历史缺省一致）。
+func (s *Server) casesDir(explicit string) string {
+	if explicit != "" {
+		return explicit
+	}
+	if s.config != nil && s.config.ProtocolCasesDir != "" {
+		return s.config.ProtocolCasesDir
+	}
+	return "cases"
+}
+
+// loadCorpusCase 从语料目录按 case_id 解析单个用例（proto 可空=全库搜）。
+// 复用 loadSuiteCases 的加载与校验（坏用例整体报错，不静默跳过）。
+func (s *Server) loadCorpusCase(dirOverride, proto, caseID string) (pcaptest.Case, error) {
+	dir := s.casesDir(dirOverride)
+	cases, err := loadSuiteCases(dir, proto, 0)
+	if err != nil {
+		return pcaptest.Case{}, fmt.Errorf("resolve case %q: %w", caseID, err)
+	}
+	for _, c := range cases {
+		if c.ID == caseID {
+			return c, nil
+		}
+	}
+	return pcaptest.Case{}, fmt.Errorf(
+		"case %q not found in corpus dir %s (proto filter %q); list available cases with flowb_run_protocol_suite (dry listing) or pass spec_json explicitly",
+		caseID, dir, proto)
+}
+
+// fcFromPcaptest 反向转换：语料用例的流控 → 工具入参流控。
+func fcFromPcaptest(fc *pcaptest.StrategyFC) *flowControlInput {
+	if fc == nil {
+		return nil
+	}
+	return &flowControlInput{Type: fc.Type, Value: fc.Value}
+}
+
+// expectToInput 反向转换：语料用例的期望 → 工具入参期望（字段一一对应，
+// 与 toPcaptestCase 的正向映射互为镜像——新增字段两边同步）。
+func expectToInput(e pcaptest.Expect) caseExpectInput {
+	return caseExpectInput{
+		PacketCount:   e.PacketCount,
+		MinPackets:    e.MinPackets,
+		Fields:        e.Fields,
+		Frames:        e.Frames,
+		HasHandshake:  e.HasHandshake,
+		HasPayload:    e.HasPayload,
+		Negotiated:    e.Negotiated,
+		Terminates:    e.Terminates,
+		Directional:   e.Directional,
+		Notes:         e.Notes,
+		ExpectError:   e.ExpectError,
+		ErrorContains: e.ErrorContains,
+	}
+}
+
+// empty 报告入参期望是否完全未给（全零值）——未给时语料期望生效。
+func (e caseExpectInput) empty() bool {
+	return e.PacketCount == 0 && e.MinPackets == 0 && len(e.Fields) == 0 && len(e.Frames) == 0 &&
+		!e.HasHandshake && !e.HasPayload && !e.Negotiated && !e.Terminates && !e.Directional &&
+		len(e.Notes) == 0 && !e.ExpectError && e.ErrorContains == ""
 }

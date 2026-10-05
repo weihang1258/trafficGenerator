@@ -18,6 +18,9 @@ import (
 // speed.mode=max are rejected by validateReplaySpec. The audit fix removed
 // pps support; max was already invalid. We pass a VALID asset id so the only
 // failure path is speed validation (not the missing asset).
+// ip returns a pointer to v — replayPcapInput.Loop is *int (P1-13: nil=单遍, 0=无限).
+func ip(v int) *int { return &v }
+
 func TestMCP_ReplayPcap_SpeedMode_Rejected(t *testing.T) {
 	env := setupMCPTest(t)
 	defer env.cleanup()
@@ -43,7 +46,7 @@ func TestMCP_ReplayPcap_SpeedMode_Rejected(t *testing.T) {
 				TaskName:    "replay-" + mode,
 				PcapAssetID: assetID,
 				Speed:       speed,
-				Loop:        1,
+				Loop:        ip(1),
 				OutputType:  "pcap",
 				OutputConfig: &outputConfigInput{
 					PcapPath: env.tmp + "/replay-" + mode + ".pcap",
@@ -93,7 +96,7 @@ func TestMCP_ReplayPcap_SpeedMode_Accepted(t *testing.T) {
 				TaskName:    "replay-" + c.name,
 				PcapAssetID: assetID,
 				Speed:       c.speed,
-				Loop:        1,
+				Loop:        ip(1),
 				OutputType:  "pcap",
 				OutputConfig: &outputConfigInput{
 					PcapPath: env.tmp + "/replay-" + c.name + ".pcap",

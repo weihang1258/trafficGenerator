@@ -18,7 +18,7 @@ func TestReplaySpec_JSONRoundTrip(t *testing.T) {
 			name: "scenario A pure replay",
 			json: `{"pcap_asset_id":"pcap_abc123","speed":{"mode":"original"},"direction":"single","loop":1}`,
 			check: func(s *ReplaySpec, t *testing.T) {
-				if s.PcapAssetID != "pcap_abc123" || s.Speed.Mode != "original" || s.Direction != "single" || s.Loop != 1 {
+				if s.PcapAssetID != "pcap_abc123" || s.Speed.Mode != "original" || s.Direction != "single" || s.Loop == nil || *s.Loop != 1 {
 					t.Errorf("scenario A parsed wrong: %+v", s)
 				}
 			},

@@ -281,7 +281,7 @@ func (s *Server) handleWaitForTask(ctx context.Context, req *mcp.CallToolRequest
 type replayPcapInput struct {
 	TaskName            string                   `json:"task_name" jsonschema:"task name"`
 	PcapAssetID         string                   `json:"pcap_asset_id" jsonschema:"imported pcap asset id to replay"`
-	Loop                int                      `json:"loop,omitempty" jsonschema:"loop count (0=infinite)"`
+	Loop                *int                     `json:"loop,omitempty" jsonschema:"loop count — omit for a single pass; 0 = infinite (stop the task to end it); N = N passes"`
 	Speed               map[string]interface{}   `json:"speed" jsonschema:"replay speed {mode: original|multiplier|bps (empty=max), multiplier, bps} -- bps must be a string like '1000' or '1g' (NOT a number, or backend rejects with 'cannot unmarshal number into Go struct field .speed.bps of type string'); pps and max are rejected by validateReplaySpec"`
 	Direction           string                   `json:"direction,omitempty" jsonschema:"single|dual (default single)"`
 	ChecksumMode        string                   `json:"checksum_mode,omitempty" jsonschema:"recompute|preserve (default recompute)"`
@@ -309,8 +309,8 @@ func (s *Server) handleReplayPcap(ctx context.Context, req *mcp.CallToolRequest,
 	replaySpec := map[string]interface{}{
 		"pcap_asset_id": in.PcapAssetID,
 	}
-	if in.Loop != 0 {
-		replaySpec["loop"] = in.Loop
+	if in.Loop != nil {
+		replaySpec["loop"] = *in.Loop
 	}
 	if in.Speed != nil {
 		replaySpec["speed"] = in.Speed

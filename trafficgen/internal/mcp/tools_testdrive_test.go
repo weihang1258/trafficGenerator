@@ -53,7 +53,6 @@ func TestRunProtocolCase_InvalidParams(t *testing.T) {
 	}{
 		{"missing proto", runCaseInput{Proto: "", CaseID: "c1", SpecJSON: spec, OutputType: "pcap"}},
 		{"missing case_id", runCaseInput{Proto: "arp", CaseID: "", SpecJSON: spec, OutputType: "pcap"}},
-		{"empty spec_json", runCaseInput{Proto: "arp", CaseID: "c2", SpecJSON: nil, OutputType: "pcap"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -65,6 +64,17 @@ func TestRunProtocolCase_InvalidParams(t *testing.T) {
 				t.Errorf("error %q does not mention missing field", err)
 			}
 		})
+	}
+	// P1-12：spec_json 必填契约已退役——空 spec_json 现在走语料解析；
+	// 解析失败时给指路报错，不再是 "spec_json is required"。
+	_, _, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
+		Proto: "arp", CaseID: "c2", SpecJSON: nil, OutputType: "pcap",
+	})
+	if err == nil {
+		t.Fatalf("empty spec_json with unresolvable corpus must error")
+	}
+	if strings.Contains(err.Error(), "spec_json is required") {
+		t.Errorf("retired contract error leaked: %v", err)
 	}
 }
 
@@ -654,5 +664,47 @@ func TestResolvePcapOutputPath(t *testing.T) {
 	}
 	if got := resolvePcapOutputPath(filepath.Join("/tmp", "case.pcap")); got != filepath.Join("/tmp", "case.pcap") {
 		t.Fatalf("absolute path = %q, want unchanged", got)
+	}
+}
+
+// P1-12（2026-10-05 客户端复测）：case_id 唯参即可运行语料回归——spec_json
+// 省略时从语料目录解析（case_dir > mcp.protocol_cases_dir 配置 > ./cases），
+// 期望/流控/decode_as 随语料生效；入参显式字段优先。
+func TestRunProtocolCase_CorpusResolution(t *testing.T) {
+	env := setupTestDriveEnv(t)
+	defer env.cleanup()
+	corpus := "../../test/protocol_pcap/cases"
+
+	// 负例用例仅凭 case_id 运行：生成被拒（mss 校验）→ verdict pass。
+	_, out, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
+		CaseID:  "tcp-validate-mss-too-small",
+		CaseDir: corpus,
+	})
+	if err != nil {
+		t.Fatalf("case_id-only run: %v", err)
+	}
+	if out.Status != "pass" {
+		t.Errorf("negative corpus case must pass on rejection, got %s: %s", out.Status, out.Reason)
+	}
+	if out.Proto != "tcp" {
+		t.Errorf("proto must be filled from the corpus case, got %q", out.Proto)
+	}
+}
+
+// 语料未命中 → 指路报错（旧契约 "spec_json is required" 必须退役）。
+func TestRunProtocolCase_CorpusMissGuidance(t *testing.T) {
+	env := setupTestDriveEnv(t)
+	defer env.cleanup()
+	_, _, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
+		Proto: "arp", CaseID: "no_such_case_anywhere", CaseDir: "../../test/protocol_pcap/cases",
+	})
+	if err == nil {
+		t.Fatal("want corpus-miss error")
+	}
+	if strings.Contains(err.Error(), "spec_json is required") {
+		t.Errorf("old contract error leaked: %v", err)
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("want not-found guidance, got: %v", err)
 	}
 }

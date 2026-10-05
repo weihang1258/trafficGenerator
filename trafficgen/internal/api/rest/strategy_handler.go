@@ -154,6 +154,20 @@ func embeddedFlowControl(config map[string]interface{}) (*FlowControlRequest, er
 	if v, ok := obj["value"].(float64); ok {
 		fc.Value = v
 	}
+	// 语料兼容简写（protocol-pcap cases 惯例，116 例）：{"flows":N} 一键形
+	// 等价 {"type":"flows","value":N}；bps/time 同构。规范形仍为 {type,value}，
+	// 两者都不含 → 落入 schemaGate 的 canonical 拒绝文案。
+	if fc.Type == "" {
+		for _, sh := range []struct{ key, typ string }{{"flows", "flows"}, {"bps", "bps"}, {"time", "time"}} {
+			if v, ok := obj[sh.key]; ok {
+				fc.Type = sh.typ
+				if n, ok := v.(float64); ok {
+					fc.Value = n
+				}
+				break
+			}
+		}
+	}
 	return fc, nil
 }
 
@@ -264,6 +278,25 @@ func (h *StrategyHandler) List(c *gin.Context) {
 		return
 	}
 
+	// P1-5（2026-10-05 客户端复测）：taskCount 改单条 GROUP BY 聚合——此前
+	// 每条策略跑一次 EXISTS(json_each) COUNT 子查询，2875 条 = N+1，全量
+	// list 实测 66s（客户端 30-60s 超时的根因）。task.strategy_ids 是 JSON
+	// 数组，json_each 展开后按策略 id 分组计数，一次查询出全部计数。
+	type sidCount struct {
+		// 列名取 strategy_id（gorm Scan 按命名策略映射字段，SID→sid 对不上）。
+		StrategyID string
+		N          int64
+	}
+	var counts []sidCount
+	if err := h.db.Raw(`SELECT je.value AS strategy_id, COUNT(*) AS n FROM tasks t, json_each(t.strategy_ids) je WHERE t.user_id = ? GROUP BY je.value`, userID).Scan(&counts).Error; err != nil {
+		InternalError(c, "failed to count strategy tasks: "+err.Error())
+		return
+	}
+	taskCounts := make(map[string]int64, len(counts))
+	for _, c := range counts {
+		taskCounts[c.StrategyID] = c.N
+	}
+
 	result := make([]StrategyResponse, len(strategies))
 	for i, s := range strategies {
 		var config map[string]interface{}
@@ -271,11 +304,6 @@ func (h *StrategyHandler) List(c *gin.Context) {
 
 		var flowControl FlowControlRequest
 		json.Unmarshal([]byte(s.FlowControl), &flowControl)
-
-		var taskCount int64
-		h.db.Model(&storage.TaskModel{}).
-			Where("user_id = ? AND EXISTS (SELECT 1 FROM json_each(strategy_ids) WHERE json_each.value = ?)", userID, s.ID).
-			Count(&taskCount)
 
 		result[i] = StrategyResponse{
 			ID:          s.ID,
@@ -285,7 +313,7 @@ func (h *StrategyHandler) List(c *gin.Context) {
 			Protocol:    s.Protocol,
 			Config:      config,
 			FlowControl: &flowControl,
-			TaskCount:   int(taskCount),
+			TaskCount:   int(taskCounts[s.ID]),
 			CreatedAt:   s.CreatedAt.Unix(),
 			UpdatedAt:   s.UpdatedAt.Unix(),
 		}

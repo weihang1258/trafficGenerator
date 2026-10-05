@@ -249,12 +249,16 @@ func (r *PcapRepository) CountReplayReferences(assetID string) (int64, error) {
 // ---------------- FlowModel ----------------
 
 // CreateFlows batch-inserts flow records. gorm CreateInBatches keeps memory
-// bounded for pcaps with many flows.
+// bounded for pcaps with many flows. Batch 500, not 1000: SQLite binds every
+// column of every row in one statement, so wide models (packets ≈40 cols) at
+// 1000 rows blow past the 32766 host-parameter limit — "SQL logic error: too
+// many SQL variables" surfaced only on large registrations (P1-17, 15000-flow
+// task completed but auto-register failed silently).
 func (r *PcapRepository) CreateFlows(flows []FlowModel) error {
 	if len(flows) == 0 {
 		return nil
 	}
-	return r.db.CreateInBatches(flows, 1000).Error
+	return r.db.CreateInBatches(flows, 500).Error
 }
 
 // ListFlowsByAsset lists flows for an asset (scoped to userID) with pagination,
@@ -296,12 +300,13 @@ func (r *PcapRepository) CountFlowsByAsset(assetID, userID string) (int64, error
 // ---------------- PacketModel ----------------
 
 // CreatePackets batch-inserts packet records. Batched to bound memory for large
-// pcaps (1M+ packets).
+// pcaps (1M+ packets); 500 per batch — see CreateFlows for the SQLite host-
+// parameter ceiling (P1-17).
 func (r *PcapRepository) CreatePackets(packets []PacketModel) error {
 	if len(packets) == 0 {
 		return nil
 	}
-	return r.db.CreateInBatches(packets, 1000).Error
+	return r.db.CreateInBatches(packets, 500).Error
 }
 
 // ListPacketsByFlow lists packets for a flow (scoped to userID), ordered by

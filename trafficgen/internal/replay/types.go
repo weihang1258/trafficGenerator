@@ -12,7 +12,10 @@ import (
 // replay, how fast, how to rewrite, and optional multi-flow amplification.
 type ReplaySpec struct {
 	PcapAssetID  string        `json:"pcap_asset_id"`             // references §15 asset
-	Loop         int           `json:"loop"`                      // 0 = infinite
+	// P1-13: nil（键省略）= 单遍（引擎缺省，v1 行为）；显式 0 = 无限（文档
+	// 语义，ctx 取消终止）；N = N 遍。int 无法区分"省略"与"0"，二者语义
+	// 必须不同——省略给无限会让旧调用方的单遍回放静默变成永不完成的任务。
+	Loop         *int          `json:"loop,omitempty"`
 	Speed        ReplaySpeed   `json:"speed"`
 	Direction    string        `json:"direction"`                 // single | dual
 	ChecksumMode string        `json:"checksum_mode"`             // recompute(default) | preserve

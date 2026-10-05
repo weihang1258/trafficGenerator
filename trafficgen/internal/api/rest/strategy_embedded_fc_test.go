@@ -163,3 +163,18 @@ func TestEmbeddedFlowControlOnUpdate(t *testing.T) {
 		t.Errorf("update must store embedded flows=7, got %q", stored)
 	}
 }
+
+// 语料兼容简写 {"flows":N}（protocol-pcap cases 惯例，116 例）等价规范形。
+func TestEmbeddedFlowControlShorthand(t *testing.T) {
+	r, db, _, cleanup := setupIntegrationTest(t)
+	defer cleanup()
+	code, resp := postStrategyBody(t, r, fmt.Sprintf(
+		`{"name":"emb-short","protocol":"dns","config":{"flow_control":{"flows":2},%s}}`, embeddedFCDynChain[1:]))
+	if code != http.StatusCreated && code != http.StatusOK {
+		t.Fatalf("create: %d %s", code, resp)
+	}
+	stored := storedFlowControl(t, db, strategyIDFromBody(t, resp))
+	if !strings.Contains(stored, `"flows"`) || !strings.Contains(stored, "2") {
+		t.Errorf("shorthand {\"flows\":2} must normalize to flows:2, got %q", stored)
+	}
+}

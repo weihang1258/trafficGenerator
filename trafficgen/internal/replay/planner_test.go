@@ -18,6 +18,10 @@ import (
 	"gorm.io/gorm"
 )
 
+// ip returns a pointer to v — ReplaySpec.Loop is *int (P1-13: nil=单遍,
+// 0=无限, N=N 遍; int 无法区分省略与 0).
+func ip(v int) *int { return &v }
+
 // setupReplayAsset builds a pcap, parses it, and stores the asset + flows +
 // packets in a test DB. Returns the planner + asset ID + the original frames.
 func setupReplayAsset(t *testing.T) (*ReplayPlanner, *storage.DB, string, [][]byte) {

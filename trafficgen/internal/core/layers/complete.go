@@ -286,12 +286,28 @@ func (r *Registry) ValidateLayerConfig(l Layer) error {
 		names = append(names, k)
 	}
 	sort.Strings(names)
+	// P1-3（2026-10-05 客户端复测）：未知字段一次全报——工具描述承诺
+	// "all reported at once"，逐字段 early-return 让模型每轮只见第一个，
+	// 多个未知字段要多轮试错。单字段保持历史文案形态（cases 锚词不变）。
+	var unknown []string
+	for _, k := range names {
+		if _, known := s.Fields[k]; !known {
+			unknown = append(unknown, k)
+		}
+	}
+	if len(unknown) > 0 {
+		if len(unknown) == 1 {
+			return errf("layers: layer %q: unknown field %q", l.Name, unknown[0])
+		}
+		quoted := make([]string, len(unknown))
+		for i, k := range unknown {
+			quoted[i] = fmt.Sprintf("%q", k)
+		}
+		return errf("layers: layer %q: %d unknown fields: %s (all reported at once; remove them or check spelling via flowb_query_layers action=schema)", l.Name, len(unknown), strings.Join(quoted, ", "))
+	}
 	for _, k := range names {
 		v := l.Config[k]
-		f, known := s.Fields[k]
-		if !known {
-			return errf("layers: layer %q: unknown field %q", l.Name, k)
-		}
+		f := s.Fields[k] // 已知性由上方预过滤保证
 		// D-FTP-3 step 4: dynamic objects (dynamic_value, has strategy key)
 		// skip scalar V9 — user chain validated+stripped by ValidateLayers;
 		// planner chains carry no dynamic objects (resolved into spec

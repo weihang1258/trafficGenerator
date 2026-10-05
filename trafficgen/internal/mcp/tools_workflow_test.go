@@ -317,7 +317,7 @@ func TestMCP_ReplayPcap_CreatesStrategyAndTask(t *testing.T) {
 		TaskName:    "replay-test",
 		PcapAssetID: assetID,
 		Speed:       map[string]interface{}{"mode": "original"},
-		Loop:        1,
+		Loop:        ip(1),
 		OutputType:  "pcap",
 		OutputConfig: &outputConfigInput{
 			PcapPath: env.tmp + "/replay.pcap",

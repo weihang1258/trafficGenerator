@@ -146,6 +146,9 @@ type MCPConfig struct {
 	APIKey                 string        `mapstructure:"api_key"`
 	Transports             MCPTransports `mapstructure:"transports"`
 	MaxWaitTimeoutSeconds  int           `mapstructure:"max_wait_timeout_seconds"`
+	// ProtocolCasesDir 是协议回归语料目录（cases/*.json，P1-12）：case/
+	// suite 工具 case_id 唯参运行时按 case_dir > 本配置 > ./cases 解析。
+	ProtocolCasesDir     string        `mapstructure:"protocol_cases_dir"`
 	AuditLog               bool          `mapstructure:"audit_log"`
 	MaxSubscriptions       int           `mapstructure:"max_subscriptions"`
 }

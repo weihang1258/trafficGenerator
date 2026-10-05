@@ -76,6 +76,11 @@ func (p *ReplayPlanner) PlanReplay(ctx context.Context, specJSON json.RawMessage
 // (ConfigWorker) drains the channel into the engine pipeline. userID scopes
 // asset/flow/packet reads to the owning user.
 func (p *ReplayPlanner) Plan(ctx context.Context, spec ReplaySpec, taskID, classID, userID string, fc *core.ReplayFC) (<-chan core.PacketConfig, error) {
+	// P1-13：loop 负值同步拒绝（goroutine 内无法报错）；省略=nil=单遍，
+	// 0=无限。无限由 ctx 终止：emit 逐包检查 ctx，任务 stop 走同一取消路径。
+	if spec.Loop != nil && *spec.Loop < 0 {
+		return nil, fmt.Errorf("loop must be >= 0 (0 = infinite, omit for a single pass), got %d", *spec.Loop)
+	}
 	repo := storage.NewPcapRepository(p.db)
 
 	// 1. Load + validate the asset (user-scoped).
@@ -226,9 +231,16 @@ func (p *ReplayPlanner) Plan(ctx context.Context, spec ReplaySpec, taskID, class
 		defer close(out)
 		defer pcapFile.Close()
 
-		loops := spec.Loop
-		if loops == 0 {
-			loops = 1 // v1: 0 (infinite) capped to 1 pass for safety
+		// P1-13（2026-10-05 客户端复测）：显式 0 = 无限（types.go 与工具
+		// 描述同文）——v1 把 0 钳成 1 遍（"capped to 1 pass for safety"），
+		// 与文档矛盾且压测长稳无法表达。省略（nil）保持单遍缺省不变。
+		loops, infinite := 1, false
+		if spec.Loop != nil {
+			if *spec.Loop == 0 {
+				infinite = true
+			} else {
+				loops = *spec.Loop
+			}
 		}
 		// Compute pcap duration from the first/last packet timestamps for loop
 		// timestamp offset (§10): each loop iteration shifts timestamps by
@@ -254,7 +266,7 @@ func (p *ReplayPlanner) Plan(ctx context.Context, spec ReplaySpec, taskID, class
 			stackCloneCount = cloneCount
 		}
 		loopBase := time.Duration(0)
-		for loop := 0; loop < loops; loop++ {
+		for loop := 0; infinite || loop < loops; loop++ {
 			// For each loop iteration, generate fresh clones with new seq offsets
 			// (§10: "每轮重随机 seq 偏移"). Re-generate clones so the seq offset
 			// is re-randomized per round (M5).
