@@ -233,8 +233,40 @@ func (fs *FlowState) setL7(res *L7Result, dir string) {
 	if res == nil {
 		return
 	}
+	oldProto := fs.FlowModel.L7Protocol
 	fs.FlowModel.L7Protocol = res.Protocol
-	if data, err := json.Marshal(res.Metadata); err == nil {
+	if oldProto != "" && oldProto != res.Protocol {
+		// 解析器换判：整体覆盖 + 清旧协议索引列（L7Host 不能残留 TLS SNI
+		// 之类，复审 F4）。
+		fs.FlowModel.L7Method = ""
+		fs.FlowModel.L7Host = ""
+		fs.FlowModel.L7QueryName = ""
+	}
+	// c2s/s2c 各解析一次；同协议第二次调用合并 metadata 而非整体覆盖
+	//（c2s 的 client_id/topic 不被 s2c 的 msg_types 冲掉）。列表键拼接成
+	// 完整会话序，标量键新值胜；协议不同（解析器换判）仍整体覆盖。
+	merged := res.Metadata
+	if oldProto == res.Protocol && fs.FlowModel.L7Metadata != "" {
+		var old map[string]any
+		if json.Unmarshal([]byte(fs.FlowModel.L7Metadata), &old) == nil && len(old) > 0 {
+			for k, v := range merged {
+				if nl, ok := v.([]string); ok {
+					if ol, ok2 := old[k].([]any); ok2 {
+						comb := make([]any, 0, len(ol)+len(nl))
+						comb = append(comb, ol...)
+						for _, s := range nl {
+							comb = append(comb, s)
+						}
+						old[k] = comb
+						continue
+					}
+				}
+				old[k] = v
+			}
+			merged = old
+		}
+	}
+	if data, err := json.Marshal(merged); err == nil {
 		fs.FlowModel.L7Metadata = string(data)
 	}
 	// Denormalized filter columns (§17.3): method/host/queryname as indexed

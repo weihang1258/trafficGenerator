@@ -39,11 +39,14 @@ func NewRegistry() *Registry {
 	r.Register(&httpParser{})
 	r.Register(&dnsParser{})
 	r.Register(&tlsParser{})
+	r.Register(&mqttParser{})
+	r.Register(&ftpParser{})
 	return r
 }
 
-// Register adds a parser (later registrations are tried first, allowing
-// overrides; in practice order is HTTP -> DNS -> TLS).
+// Register adds a parser. Find iterates in registration order and the first
+// CanParse match wins — earlier registrations take precedence (HTTP -> DNS ->
+// TLS -> MQTT -> FTP); append order is load-bearing for port-less probes.
 func (r *Registry) Register(p ProtocolParser) {
 	r.parsers = append(r.parsers, p)
 }
