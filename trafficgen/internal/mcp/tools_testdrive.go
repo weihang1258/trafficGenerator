@@ -31,16 +31,16 @@ import (
 // test/protocol_pcap 的 Case schema 一致（pcaptest.Case），output_type /
 // output_config 控制走 pcap 文件还是 port_group 真实发包。
 type runCaseInput struct {
-	Proto          string             `json:"proto" jsonschema:"protocol name (registry name, e.g. tcp/tftp/modbus); optional when the case resolves from the server's cases corpus"`
+	Proto          string             `json:"proto,omitempty" jsonschema:"protocol name (registry name, e.g. tcp/tftp/modbus); optional when the case resolves from the server's cases corpus"`
 	CaseID         string             `json:"case_id" jsonschema:"case identifier (used in task naming + pcap path); with spec_json omitted the case loads from the server's protocol cases corpus (case_id alone runs a regression case)"`
-	SpecJSON       json.RawMessage    `json:"spec_json" jsonschema:"generate_traffic config (strategy config, protocol-specific layers/spec); OPTIONAL — omit to load the named case from the corpus"`
+	SpecJSON       json.RawMessage    `json:"spec_json,omitempty" jsonschema:"generate_traffic config (strategy config, protocol-specific layers/spec); OPTIONAL — omit to load the named case from the corpus"`
 	CaseDir        string             `json:"case_dir,omitempty" jsonschema:"override the corpus directory for this lookup (default: mcp.protocol_cases_dir config, then ./cases)"`
-	OutputType     string             `json:"output_type" jsonschema:"output type: pcap or port_group (default pcap)"`
+	OutputType     string             `json:"output_type,omitempty" jsonschema:"output type: pcap or port_group (default pcap)"`
 	OutputConfig   *outputConfigInput `json:"output_config,omitempty" jsonschema:"output configuration (pcap_path for pcap; port_group_id for port_group)"`
 	StrategyFC     *flowControlInput  `json:"strategy_flow_control,omitempty" jsonschema:"optional strategy-level flow control (multi-flow cases)"`
 	TaskFC         *flowControlInput  `json:"task_flow_control,omitempty" jsonschema:"optional task-level flow control"`
 	DecodeAs       []string           `json:"decode_as,omitempty" jsonschema:"extra tshark -d decode directives"`
-	Expect         caseExpectInput    `json:"expect" jsonschema:"verification expectations (tshark assertions + behavior)"`
+	Expect         caseExpectInput    `json:"expect,omitempty" jsonschema:"verification expectations (tshark assertions + behavior)"`
 	TimeoutSeconds int                `json:"timeout_s,omitempty" jsonschema:"max wait for terminal state (default 60, max 300)"`
 	// NICCapture 仅 output_type=port_group 时生效；enabled 时工具在发包前
 	// 于 iface 起 tcpdump 抓包、结束后用 VerifyPcap 核对抓到的线上帧。

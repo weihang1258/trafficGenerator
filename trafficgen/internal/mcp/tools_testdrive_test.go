@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/trafficgen/trafficgen/internal/api/rest"
 	"github.com/trafficgen/trafficgen/internal/pcaptest"
 	"github.com/trafficgen/trafficgen/internal/storage"
@@ -706,5 +707,48 @@ func TestRunProtocolCase_CorpusMissGuidance(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "not found") {
 		t.Errorf("want not-found guidance, got: %v", err)
+	}
+}
+
+// P1-12：schema 层不得把 proto/spec_json/output_type/expect 标为 required
+// ——case_id 唯参是契约入口，required 挡在 jsonschema 校验则 handler 放宽
+// 全白搭（线上实测踩中：invopop 把无 omitempty 字段全部标 required）。
+func TestRunCaseSchemaAllowsCaseIDOnly(t *testing.T) {
+	srv := newTransportTestServer(t)
+	ctx := context.Background()
+	ct, st := mcp.NewInMemoryTransports()
+	go func() { _ = srv.mcpServer.Run(ctx, st) }()
+	sc, err := mcp.NewClient(&mcp.Implementation{Name: "t", Version: "0"}, nil).Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer sc.Close()
+	resp, err := sc.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatalf("list tools: %v", err)
+	}
+	var schema interface{}
+	for _, tl := range resp.Tools {
+		if tl.Name == "flowb_run_protocol_case" {
+			schema = tl.InputSchema
+			break
+		}
+	}
+	if schema == nil {
+		t.Fatal("flowb_run_protocol_case not advertised")
+	}
+	b, _ := json.Marshal(schema)
+	var parsed struct {
+		Required []string `json:"required"`
+	}
+	if err := json.Unmarshal(b, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	for _, banned := range []string{"proto", "spec_json", "output_type", "expect"} {
+		for _, r := range parsed.Required {
+			if r == banned {
+				t.Errorf("%q must not be required (case_id-only entry), required=%v", banned, parsed.Required)
+			}
+		}
 	}
 }
