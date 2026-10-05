@@ -84,6 +84,8 @@ func configBlurb() string {
 		"const schemaConfigBlurb = \"strategy config. \" +",
 		"\t\"layer-chain is the only accepted format (flat config is gone): {\\\"layers\\\":[{\\\"ip\\\":{\\\"src\\\":\\\"10.0.0.1\\\",\\\"dst\\\":\\\"20.0.0.1\\\"}},\" +",
 		"\t\"{\\\"udp\\\":{\\\"dst_port\\\":53}},{\\\"dns\\\":{\\\"name\\\":\\\"a.com\\\"}}],\\\"flow_control\\\":{\\\"type\\\":\\\"flows\\\",\\\"value\\\":1}} — \" +",
+		"\t\"EACH layers element must hold EXACTLY ONE layer key (merging layers into one element, e.g. \" +",
+		"\t\"{\\\"layers\\\":[{\\\"ip\\\":{...},\\\"tcp\\\":{...}}]}, is rejected with 'each layer entry must contain exactly one layer name') — \" +",
 		"\t\"ordered layers, outermost (L2/L3) first; protocol inferred from outermost non-scaffolding layer, \" +",
 		"\t\"explicit protocol must match. \" +",
 		"\t\"Only schema-declared fields accepted: unknown fields rejected (all reported at once), \" +",

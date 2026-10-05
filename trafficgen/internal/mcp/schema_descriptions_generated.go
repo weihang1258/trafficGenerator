@@ -141,6 +141,8 @@ var schemaDocsLayers = map[string]string{
 const schemaConfigBlurb = "strategy config. " +
 	"layer-chain is the only accepted format (flat config is gone): {\"layers\":[{\"ip\":{\"src\":\"10.0.0.1\",\"dst\":\"20.0.0.1\"}}," +
 	"{\"udp\":{\"dst_port\":53}},{\"dns\":{\"name\":\"a.com\"}}],\"flow_control\":{\"type\":\"flows\",\"value\":1}} — " +
+	"EACH layers element must hold EXACTLY ONE layer key (merging layers into one element, e.g. " +
+	"{\"layers\":[{\"ip\":{...},\"tcp\":{...}}]}, is rejected with 'each layer entry must contain exactly one layer name') — " +
 	"ordered layers, outermost (L2/L3) first; protocol inferred from outermost non-scaffolding layer, " +
 	"explicit protocol must match. " +
 	"Only schema-declared fields accepted: unknown fields rejected (all reported at once), " +

@@ -3,11 +3,28 @@ package layers
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/trafficgen/trafficgen/internal/core"
 )
+
+// layerEntryShapeError renders the one-key-per-entry violation with the keys
+// actually found, the correct shape, and the way out. The bare "exactly one"
+// message sent a client model into 12 blind retries (2026-10-05): it named no
+// keys, showed no correct form, and never pointed at query_layers.
+func layerEntryShapeError(i int, item map[string]json.RawMessage) error {
+	keys := make([]string, 0, len(item))
+	for k := range item {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return fmt.Errorf("layers[%d]: each layer entry must contain exactly one layer name — got %d keys in one entry (%s); "+
+		"split them into one key per array element, e.g. {\"layers\":[{\"ip\":{...}},{\"tcp\":{...}}]} ordered outermost first; "+
+		"call flowb_query_layers action=examples for a verified copy-paste config",
+		i, len(item), strings.Join(keys, ", "))
+}
 
 // BuildLayersPlanner is the engine's injected layer-planner factory (P2c 层链
 // 驱动生成): parses a raw "layers" config JSON into a per-task ChainPlanner.
@@ -873,7 +890,7 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 	chain := make([]Layer, 0, len(raw))
 	for i, item := range raw {
 		if len(item) != 1 {
-			return nil, fmt.Errorf("layers[%d]: each layer entry must contain exactly one layer name", i)
+			return nil, layerEntryShapeError(i, item)
 		}
 		for name, cfgRaw := range item {
 			var cfg map[string]interface{}
@@ -1282,7 +1299,7 @@ func ValidateLayers(layersJSON json.RawMessage, protocol string) (string, error)
 		// 每项 = { 层名: 配置 }（设计 §3.1：层名即键，值是该层字段配置）。
 		// 一个条目必须恰好一个层（多键 = 一条里塞了两层，拒绝）。
 		if len(item) != 1 {
-			return "", fmt.Errorf("layers[%d]: each layer entry must contain exactly one layer name", i)
+			return "", layerEntryShapeError(i, item)
 		}
 		for name, cfgRaw := range item {
 			var cfg map[string]interface{}

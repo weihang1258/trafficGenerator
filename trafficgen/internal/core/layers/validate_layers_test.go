@@ -42,6 +42,27 @@ func TestValidateLayers_UnknownLayer(t *testing.T) {
 	}
 }
 
+// 失败错误必须可操作（2026-10-05 客户端实测：裸 "exactly one" 让模型盲试
+// 12 次）——多键条目的报错要点名实际键、给出正确形态、指路 query_layers。
+func TestValidateLayers_MultiKeyEntryErrorIsActionable(t *testing.T) {
+	_, err := ValidateLayers(mustRaw(t, `[{"ip":{"src":"10.0.0.1"},"tcp":{"dst_port":80},"http":{}}]`), "")
+	if err == nil {
+		t.Fatal("multi-key entry: want error, got nil")
+	}
+	msg := err.Error()
+	for _, want := range []string{
+		"exactly one layer name",          // 原锚词保留（用例 error_contains 钉它）
+		"3 keys in one entry (http, ip, tcp)", // 点名实际键（排序后）
+		"one key per array element",       // 正确形态
+		`{"layers":[{"ip":{...}}`,         // 形态示例
+		"flowb_query_layers action=examples", // 指路标准示例
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error missing %q:\n%s", want, msg)
+		}
+	}
+}
+
 // T18 (V2): duplicated terminal layer → error.
 // 用 s7（无 TransformEvents 标记的终结层）验证 V2：两个 s7 终结层 → 重复。
 // http 是 TransformEvents=true 的特例（见 T18b），不用它测 V2。
