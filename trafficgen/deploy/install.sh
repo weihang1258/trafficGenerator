@@ -8,7 +8,11 @@
 # 自动安装最新发布版本（无需指定版本号）：
 #   curl -fsSL https://github.com/weihang1258/trafficGenerator/releases/latest/download/install.sh | sudo bash
 #
-#   也可显式指定其他发布 base / 版本（或用环境变量 TRAFFICGEN_RELEASE_BASE）：
+#   指定版本安装 / 回退旧版（重复执行即升级或降级，配置自动保留）：
+#   curl -fsSL <上述地址> | sudo bash -s -- v1.3.0
+#
+#   也可显式指定其他发布 base / 版本（或用环境变量 TRAFFICGEN_RELEASE_BASE、
+#   TRAFFICGEN_VERSION）：
 #   curl -fsSL <base>/install.sh | sudo bash -s -- <base> <版本号如 v1.1.0>
 #
 # 发布目录需含（make dist 产物）：trafficgen-<版本>-linux-amd64.tar.gz、
@@ -59,7 +63,13 @@ if [ -f "$0" ] && [ "$(basename "$0")" = "install.sh" ]; then
     [ -f "$_d/trafficgen" ] && [ -x "$_d/trafficgen" ] && SRC_DIR="$_d"
 fi
 BASE_URL="${1:-$DEFAULT_BASE}"
-VERSION="${2:-}"
+VERSION=""
+# 第一参数形如版本号（v1.3.0）= 指定版本安装，base 用默认 GitHub；
+# 否则第一参数是 base、第二参数是版本；环境变量 TRAFFICGEN_VERSION 兜底。
+case "${1:-}" in
+    v[0-9]*) VERSION="$1"; BASE_URL="$DEFAULT_BASE" ;;
+    *)       VERSION="${2:-${TRAFFICGEN_VERSION:-}}" ;;
+esac
 
 # ---- 1. 取得发布文件（本地包目录或在线下载）---------------------------------
 if [ -n "$SRC_DIR" ]; then
@@ -84,6 +94,18 @@ else
     SRC_DIR=$(find "$TMP" -maxdepth 1 -type d -name 'trafficgen-*' | head -1)
     [ -n "$SRC_DIR" ] && [ -f "$SRC_DIR/trafficgen" ] && [ -x "$SRC_DIR/trafficgen" ] \
         || die "发布包内容异常（缺 trafficgen 二进制）"
+fi
+
+# ---- 1.5 升级场景：停旧服务、记旧版本（覆盖安装 / 版本号升级）----------------
+WAS_INSTALLED=""
+if [ -x "$INSTALL_DIR/bin/trafficgen" ] && [ -f "$INSTALL_DIR/bin/trafficgen" ]; then
+    WAS_INSTALLED=$("$INSTALL_DIR/bin/trafficgen" -version 2>/dev/null || echo "旧版本")
+fi
+if [ -f /etc/systemd/system/${SERVICE}.service ]; then
+    systemctl stop "$SERVICE" || true
+    if [ -n "$WAS_INSTALLED" ]; then
+        log "已停止运行中的服务（原 $WAS_INSTALLED），开始覆盖安装"
+    fi
 fi
 
 # ---- 2. 安装二进制 ----------------------------------------------------------
@@ -151,13 +173,32 @@ systemctl --quiet is-active "$SERVICE" || {
 # ---- 6. 就绪信息 -------------------------------------------------------------
 IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 IP=${IP:-127.0.0.1}
-log "──────────────────────────────────────────────────────"
-log "✅ $INSTALLED 安装完成，服务已启动（开机自启）"
+ACTIVE=$(systemctl is-active "$SERVICE")
+if [ -n "$WAS_INSTALLED" ]; then
+    log "──────────────────────────────────────────────────────"
+    log "✅ 升级完成：$WAS_INSTALLED → $INSTALLED"
+else
+    log "──────────────────────────────────────────────────────"
+    log "✅ $INSTALLED 安装完成（开机自启）"
+fi
 log ""
+log "   当前版本 :  $INSTALLED"
+log "   运行状态 :  $ACTIVE （systemctl status $SERVICE 查看详情）"
 log "   MCP 端点 :  http://$IP:8086/mcp"
 log "   API Key  :  $API_KEY   （客户端请求头 X-MCP-Key）"
 log ""
+log "   日志查询 :  journalctl -u $SERVICE -f      # 实时跟踪"
+log "               journalctl -u $SERVICE -n 100  # 最近 100 行"
 log "   常用命令 :  systemctl status|restart|stop $SERVICE"
-log "   日志     :  journalctl -u $SERVICE -f"
 log "   卸载     :  sudo $INSTALL_DIR/uninstall.sh"
+log ""
+log "   对接 AI 客户端（harness）示例："
+log "     Claude Code :"
+log "       claude mcp add --transport http trafficgen \"http://$IP:8086/mcp\" --header \"X-MCP-Key: $API_KEY\""
+log "     Codex CLI / workbuddy 等：MCP 服务地址 http://$IP:8086/mcp，"
+log "       认证请求头 X-MCP-Key: $API_KEY"
+log "     接入后首跑提示词："
+log "       \"连接 trafficgen 后：1) 查询 dns 协议的配置示例；"
+log "        2) 参照示例生成 100 条 DNS 查询流量保存为 pcap；"
+log "        3) 任务完成后汇报这个 pcap 有多少条流、多少个包。\""
 log "──────────────────────────────────────────────────────"
