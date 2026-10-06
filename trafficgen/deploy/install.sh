@@ -4,17 +4,15 @@
 # 用法一（离线，推荐）：tar 包解开后在包目录内执行
 #   sudo ./install.sh
 #
-# 用法二（在线一条命令）：从任意 HTTP 静态服务器（nginx/minio/oss/内网镜像）
-# 拉取发布目录中的 install.sh 执行，零参数——下载地址与版本号在 make dist
-# 时已烧入脚本：
-#   curl -fsSL http://<服务器>/trafficgen/install.sh | sudo bash
+# 用法二（在线一条命令）：从 GitHub Releases 拉取 install.sh 执行，零参数
+# 自动安装最新发布版本（无需指定版本号）：
+#   curl -fsSL https://github.com/weihang1258/trafficGenerator/releases/latest/download/install.sh | sudo bash
 #
 #   也可显式指定其他发布 base / 版本（或用环境变量 TRAFFICGEN_RELEASE_BASE）：
 #   curl -fsSL <base>/install.sh | sudo bash -s -- <base> <版本号如 v1.1.0>
 #
 # 发布目录需含（make dist 产物）：trafficgen-<版本>-linux-amd64.tar.gz、
-# SHA256SUMS、install.sh。注意：私有仓库的 GitHub releases 匿名不可下，
-# 在线安装需将产物放到可匿名访问的 HTTP 服务器。
+# SHA256SUMS、install.sh。
 #
 # 脚本行为：装 /opt/trafficgen → 建 trafficgen 系统用户与 /var/lib/trafficgen
 # 数据目录 → 生成 /etc/trafficgen/config.yaml（自动随机 api_key，已存在则保留）
@@ -28,8 +26,9 @@ CONF_FILE=$CONF_DIR/config.yaml
 SERVICE=trafficgen
 SERVICE_USER=trafficgen
 
-# 在线模式默认值：base 可被环境变量或第一个参数覆盖；版本号由 make dist
-# 烧入（源码直跑时为占位符，走在线分支会提示显式传参）。
+# 在线模式默认值：base 可被环境变量或第一个参数覆盖；版本号默认自动解析
+# GitHub 最新 release（latest_tag），make dist 烧入值仅作解析失败时的回落
+# （源码直跑时为占位符，走在线分支会提示显式传参）。
 DEFAULT_BASE="${TRAFFICGEN_RELEASE_BASE:-https://github.com/weihang1258/trafficGenerator/releases/download}"
 DEFAULT_VERSION="__RELEASE_VERSION__"
 
@@ -42,9 +41,18 @@ die()  { printf '\033[31m错误：%s\033[0m\n' "$*" >&2; exit 1; }
 command -v systemctl >/dev/null || die "未找到 systemctl：本脚本依赖 systemd"
 [ "$(uname -m)" = "x86_64" ] || die "v1 仅支持 x86_64，当前 $(uname -m)"
 
+# 最新 release 的 tag：releases/latest 302 重定向到 .../tag/<tag>，取尾段。
+# 私有仓库匿名 404 → curl 失败 → 回落烧入版本。
+latest_tag() {
+    local url
+    url=$(curl -fsSL -o /dev/null -w '%{redirect_url}' --connect-timeout 10 --max-time 30 \
+        "${DEFAULT_BASE%/}/latest") && { url=${url##*/}; [ -n "$url" ] && printf '%s' "$url"; }
+}
+
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 BASE_URL="${1:-$DEFAULT_BASE}"
-VERSION="${2:-$DEFAULT_VERSION}"
+VERSION="${2:-}"
+[ -n "$VERSION" ] || VERSION=$(latest_tag) || VERSION="$DEFAULT_VERSION"
 
 # ---- 1. 取得发布文件（本地包目录或在线下载）---------------------------------
 if [ -x "$SRC_DIR/trafficgen" ]; then

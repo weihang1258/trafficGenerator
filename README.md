@@ -28,19 +28,13 @@
 
 ## 安装
 
-Linux x86_64。推荐离线包（单二进制 + systemd，安装即启动）：
+Linux x86_64。一条命令在线安装（自动安装最新版本，需 root + systemd）：
 
 ```bash
-tar xzf trafficgen-vX.Y.Z-linux-amd64.tar.gz
-cd trafficgen-vX.Y.Z-linux-amd64
-sudo ./install.sh
+curl -fsSL https://github.com/weihang1258/trafficGenerator/releases/latest/download/install.sh | sudo bash
 ```
 
-内网 HTTP 服务器在线安装（把发布产物 install.sh / tar.gz / SHA256SUMS 放上任意 HTTP 服务）：
-
-```bash
-curl -fsSL http://<server>/install.sh | sudo bash
-```
+或下载离线包（单二进制 + systemd，解包后安装即启动）：
 
 从源码构建：
 
