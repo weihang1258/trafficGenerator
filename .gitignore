@@ -168,3 +168,6 @@ trafficgen/docs/protocol-pcap-test/*.md
 # testcase docs unified under the roster (docs/protocols/<proto>/testcase.md) — 2026-10-06
 docs/TEST_CASES.md
 docs/mcp-test-matrix.md
+
+# deprecated, superseded by docs/protocols/ + docs/design/ — 2026-10-06
+docs/CODE_DESIGN.md
