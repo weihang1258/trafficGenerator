@@ -251,6 +251,23 @@ func NewTaskHandlerWithCallbacks(db *storage.DB, engine *core.Engine, wsHandler 
 }
 
 // onEngineTaskFailed is called when an engine task fails (planning error, etc.).
+// applyTaskCompletion persists terminal status with column-scoped Updates.
+// 全列 Save 会用回调开始时的旧快照覆盖 onEngineProgress 刚落库的
+// packets_sent/bytes_sent/flows_count（实机日志抓出 rows:1 回零）。
+func (h *TaskHandler) applyTaskCompletion(taskID string, task *storage.TaskModel) {
+	updates := map[string]interface{}{
+		"status":   task.Status,
+		"progress": task.Progress,
+	}
+	if task.CompletedAt != nil {
+		updates["completed_at"] = *task.CompletedAt
+	}
+	if task.ErrorMessage != "" {
+		updates["error_message"] = task.ErrorMessage
+	}
+	h.db.Model(&storage.TaskModel{}).Where("id = ?", taskID).Updates(updates)
+}
+
 func (h *TaskHandler) onEngineTaskFailed(engineTaskID string, errMsg string) {
 	h.failMu.Lock()
 	h.failedTasks[engineTaskID] = errMsg
@@ -281,11 +298,13 @@ func (h *TaskHandler) onEngineOutputError(engineTaskID string, writeErr error) {
 // onEngineProgress is called by the engine when task progress changes (>1% delta).
 // It debounces DB updates to at most once per 2 seconds per parent task.
 func (h *TaskHandler) onEngineProgress(engineTaskID string, progress float64, stats core.TaskStats) {
-	// Extract parent task ID from composite engine task ID "{taskID}-{strategyID}"
-	parts := strings.SplitN(engineTaskID, "-", 2)
+	// Extract parent task ID from composite engine task ID "{taskID}-{strategyID}".
+	// 注意必须取前 36 字符：UUID 本身含连字符，SplitN("-") 会把父任务 ID
+	// 截成第一段（如 "e65bf6fb"），WHERE 永不匹配——progress/stats 的
+	// 落库曾因此整体失效（rows:0，实机日志抓出）。
 	parentTaskID := engineTaskID
-	if len(parts) == 2 {
-		parentTaskID = parts[0]
+	if len(engineTaskID) > 36 {
+		parentTaskID = engineTaskID[:36]
 	}
 
 	// Throttle DB updates: at most once per 2 seconds per parent task.
@@ -314,8 +333,8 @@ func (h *TaskHandler) onEngineProgress(engineTaskID string, progress float64, st
 
 	// Try to find other sub-tasks for the same parent
 	h.engine.RangeTaskStore(func(id string, status *core.TaskStatus) bool {
-		parts2 := strings.SplitN(id, "-", 2)
-		if len(parts2) == 2 && parts2[0] == parentTaskID && id != engineTaskID {
+		// 前缀判定而非 SplitN——UUID 含连字符（同上）。
+		if strings.HasPrefix(id, parentTaskID+"-") && id != engineTaskID {
 			totalProgress += status.Progress
 			subTaskCount++
 			aggPackets += status.Stats.PacketsSent
@@ -400,7 +419,9 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 			task.Progress = 100
 			log.Printf("batch task %s marked as completed in DB", taskID)
 		}
-		h.db.Save(&task)
+		// P2-⑤：Updates 指定列而非 Save 全列——task 是回调开始时的旧快照，
+		// 全列 Save 会把 onEngineProgress 刚落库的实发统计打回 0。
+		h.applyTaskCompletion(taskID, &task)
 
 		if h.wsHub != nil {
 			msgType := websocket.TypeTaskCompleted
@@ -466,7 +487,8 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 			task.Progress = 100
 			log.Printf("task %s marked as completed in DB", taskID)
 		}
-		h.db.Save(&task)
+		// 同 batch 分支：指定列更新，不覆盖实发统计（P2-⑤）。
+		h.applyTaskCompletion(taskID, &task)
 
 		// Broadcast task completion via WebSocket
 		if h.wsHub != nil {

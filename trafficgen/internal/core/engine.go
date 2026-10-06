@@ -849,6 +849,10 @@ func (e *Engine) OnPacketWritten(taskID string) {
 		return
 	}
 	entry.writtenPackets++
+	// P2-⑤：TaskStats 原是死结构（无任何累计点）——实发包数在此激活，
+	// 完成通知与 progress 聚合才有非零 stats。BytesSent/FlowsCount 引擎
+	// 面暂无计数源，保持零值不伪报。
+	entry.status.Stats.PacketsSent++
 	// Skip further processing for stopped tasks
 	if entry.status.Status == "stopped" {
 		e.taskMu.Unlock()
@@ -870,6 +874,13 @@ func (e *Engine) OnPacketWritten(taskID string) {
 		delete(e.layerPlanners, taskID)
 		e.taskMu.Unlock()
 		e.cleanupTaskRateLimiters(taskID)
+		// P2-⑤：最后一批包直接走完成路径，不经中间 progress 分支（那里的
+		// OnProgress 只在 store 内触发）——终态 100% + stats 在这里补一次
+		// 通知（handler 侧 progress>=100 绕过节流落库），否则完成任务永远
+		// 查不到实发统计。
+		if e.OnProgress != nil {
+			e.OnProgress(taskID, 100, entry.status.Stats)
+		}
 		zap.L().Info("task completed (pipeline drained)", zap.String("task_id", taskID))
 		if e.OnTaskComplete != nil {
 			e.OnTaskComplete(taskID)
