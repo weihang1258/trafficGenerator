@@ -183,3 +183,15 @@ trafficgen/docs/protocol-pcap-test/*-spec-mapping.md
 # Local copies archived under local-archive/ (never synced).
 trafficgen/docs/
 local-archive/
+
+# README only at repo root; scattered docs/reports stay local (2026-10-06)
+trafficgen/README.md
+trafficgen/configs/README.md
+trafficgen/deploy/README.md
+trafficgen/deployments/DEPLOYMENT.md
+trafficgen/FUNCTIONAL_TEST_REPORT.md
+trafficgen/*_TEST_REPORT.md
+trafficgen/pkg/filesystem/README.md
+trafficgen/test/integration/*.md
+trafficgen/tools/enum_results/
+trafficgen/tools/test_points/
