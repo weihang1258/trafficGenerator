@@ -42,11 +42,12 @@ command -v systemctl >/dev/null || die "未找到 systemctl：本脚本依赖 sy
 [ "$(uname -m)" = "x86_64" ] || die "v1 仅支持 x86_64，当前 $(uname -m)"
 
 # 最新 release 的 tag：releases/latest 302 重定向到 .../tag/<tag>，取尾段。
-# 私有仓库匿名 404 → curl 失败 → 回落烧入版本。
+# 不能带 -L：跟随重定向后 redirect_url 恒为空，必须只读 302 的 Location。
+# 非 GitHub 的自定义 base 无 latest 端点（404）→ 回落烧入版本。
 latest_tag() {
     local url
-    url=$(curl -fsSL -o /dev/null -w '%{redirect_url}' --connect-timeout 10 --max-time 30 \
-        "${DEFAULT_BASE%/}/latest") && { url=${url##*/}; [ -n "$url" ] && printf '%s' "$url"; }
+    url=$(curl -fsS -o /dev/null -w '%{redirect_url}' --connect-timeout 10 --max-time 30 \
+        "${DEFAULT_BASE%/download}/latest") && { url=${url##*/}; [ -n "$url" ] && printf '%s' "$url"; }
 }
 
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
