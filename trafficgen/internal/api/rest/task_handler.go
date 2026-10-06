@@ -1587,7 +1587,7 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	SuccessWithMessage(c, "task deleted", nil)
+	SuccessWithMessage(c, "task deleted", map[string]interface{}{"id": id, "deleted": true})
 }
 
 // History returns completed task history.

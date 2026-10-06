@@ -197,7 +197,7 @@ func (h *PortGroupHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	SuccessWithMessage(c, "port group deleted", nil)
+	SuccessWithMessage(c, "port group deleted", map[string]interface{}{"id": id, "deleted": true})
 }
 
 // calculatePortsConfigHash calculates a hash for ports configuration.

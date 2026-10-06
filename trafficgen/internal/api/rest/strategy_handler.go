@@ -549,7 +549,8 @@ func (h *StrategyHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	SuccessWithMessage(c, "strategy deleted", nil)
+	// P1-10：回执带 id/deleted，不返回裸 null（与 pcap delete 同契约）。
+	SuccessWithMessage(c, "strategy deleted", map[string]interface{}{"id": id, "deleted": true})
 }
 
 // calculateConfigHash calculates a hash for strategy configuration. mode is

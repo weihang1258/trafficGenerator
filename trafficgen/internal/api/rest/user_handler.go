@@ -186,7 +186,7 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	SuccessWithMessage(c, "user deleted", nil)
+	SuccessWithMessage(c, "user deleted", map[string]interface{}{"id": id, "deleted": true})
 }
 
 // ResetPassword resets a user's password (admin only).
