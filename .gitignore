@@ -171,3 +171,9 @@ docs/mcp-test-matrix.md
 
 # deprecated, superseded by docs/protocols/ + docs/design/ — 2026-10-06
 docs/CODE_DESIGN.md
+
+# protocol-pcap-test: only referenced spec-mappings stay (2026-10-06)
+trafficgen/docs/multiflow-scenarios-pcap.md
+trafficgen/docs/protocol-pcap-test/*-spec-mapping.md
+!trafficgen/docs/protocol-pcap-test/a2a-spec-mapping.md
+!trafficgen/docs/protocol-pcap-test/srv6-spec-mapping.md
