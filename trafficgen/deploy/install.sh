@@ -174,8 +174,9 @@ systemctl --quiet is-active "$SERVICE" || {
 }
 
 # ---- 6. 就绪信息 -------------------------------------------------------------
-IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-IP=${IP:-127.0.0.1}
+# 端点地址直接取配置里的 listen（用户要求：监听什么就打印什么，不猜 IP）。
+LISTEN=$(awk '/^[[:space:]]*listen:/ {gsub(/"/, "", $2); print $2; exit}' "$CONF_FILE" 2>/dev/null)
+LISTEN=${LISTEN:-0.0.0.0:8086}
 ACTIVE=$(systemctl is-active "$SERVICE")
 if [ -n "$WAS_INSTALLED" ]; then
     log "──────────────────────────────────────────────────────"
@@ -187,7 +188,7 @@ fi
 log ""
 log "   当前版本 :  $INSTALLED"
 log "   运行状态 :  $ACTIVE （systemctl status $SERVICE 查看详情）"
-log "   MCP 端点 :  http://$IP:8086/mcp"
+log "   MCP 端点 :  http://$LISTEN/mcp   （listen=$LISTEN；0.0.0.0 表示所有网卡，客户端连 <本机IP>:$LISTEN 里端口）"
 log "   API Key  :  $API_KEY   （客户端请求头 X-MCP-Key）"
 log ""
 log "   日志查询 :  journalctl -u $SERVICE -f      # 实时跟踪"
@@ -197,8 +198,8 @@ log "   卸载     :  sudo $INSTALL_DIR/uninstall.sh"
 log ""
 log "   对接 AI 客户端（harness）示例："
 log "     Claude Code :"
-log "       claude mcp add --transport http trafficgen \"http://$IP:8086/mcp\" --header \"X-MCP-Key: $API_KEY\""
-log "     Codex CLI / workbuddy 等：MCP 服务地址 http://$IP:8086/mcp，"
+log "       claude mcp add --transport http trafficgen \"http://$LISTEN/mcp\" --header \"X-MCP-Key: $API_KEY\""
+log "     Codex CLI / workbuddy 等：MCP 服务地址 http://$LISTEN/mcp，"
 log "       认证请求头 X-MCP-Key: $API_KEY"
 log "     接入后首跑提示词："
 log "       \"连接 trafficgen 后：1) 查询 dns 协议的配置示例；"
