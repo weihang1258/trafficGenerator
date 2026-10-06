@@ -177,3 +177,9 @@ trafficgen/docs/multiflow-scenarios-pcap.md
 trafficgen/docs/protocol-pcap-test/*-spec-mapping.md
 !trafficgen/docs/protocol-pcap-test/a2a-spec-mapping.md
 !trafficgen/docs/protocol-pcap-test/srv6-spec-mapping.md
+
+# trafficgen/docs retired (2026-10-06): result tables regenerate on suite runs,
+# the two spec-mappings were only ever referenced as ABSENT by doc contracts.
+# Local copies archived under local-archive/ (never synced).
+trafficgen/docs/
+local-archive/
