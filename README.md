@@ -34,6 +34,8 @@ Linux x86_64。一条命令在线安装（自动安装最新版本，需 root + 
 curl -fsSL https://github.com/weihang1258/trafficGenerator/releases/latest/download/install.sh | sudo bash
 ```
 
+内网代理环境：`sudo` 默认会清空代理变量，改用 `| sudo -E bash`（保留 `http_proxy`/`https_proxy`）。
+
 或下载离线包（单二进制 + systemd，解包后安装即启动）：
 
 从源码构建：
