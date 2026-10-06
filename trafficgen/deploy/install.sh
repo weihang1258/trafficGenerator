@@ -126,7 +126,8 @@ chown -R "$SERVICE_USER:$SERVICE_USER" "$DATA_DIR"
 mkdir -p "$CONF_DIR"
 if [ -f "$CONF_FILE" ]; then
     warn "检测到已有配置 $CONF_FILE —— 保留不动（升级场景）"
-    API_KEY=$(awk '/^[[:space:]]*api_key:/ {print $2; exit}' "$CONF_FILE")
+    # tr -d '"'：yaml 里 key 值常带双引号，不剥掉会污染就绪输出的示例命令。
+    API_KEY=$(awk '/^[[:space:]]*api_key:/ {print $2; exit}' "$CONF_FILE" | tr -d '"')
 else
     API_KEY=$(openssl rand -hex 24 2>/dev/null || head -c 48 /dev/urandom | od -An -tx1 | tr -d ' \n')
     SVC_PW=$(openssl rand -hex 16 2>/dev/null || head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
