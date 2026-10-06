@@ -158,7 +158,7 @@ func queryLayersPayload(in queryLayersInput) (string, interface{}, error) {
 		envelope := configEnvelopeDoc{
 			Format:       `{"layers":[{outermost}...{innermost}],"flow_control":{"type":"flows","value":N}}`,
 			TopLevelKeys: []string{"layers", "flow_control"},
-			FlowControl:  "flows=N 生成 N 条并发流（N>1 时包级交织，断言请用聚合视角）；省略 = 单流",
+			FlowControl:  "flows=N 生成 N 条并发流（N>1 时包级交织，断言请用聚合视角）；省略 = 单流。flows>1 时四元组必须有变化字段（静态地址/端口 + flows>1 会被拒绝）：把 ip.src、udp/tcp 的 src_port 等写成动态对象，如 {\"strategy\":\"rand\",\"range\":[\"10.0.1.1\",\"10.0.5.254\"]} 或 {\"strategy\":\"inc\",\"range\":[10000,65500]}——先查 action=schema 看字段是否支持 strategy",
 			SeeAlso:      "action=examples&protocol=<proto> 取该协议已验证配置；unknown field 会被严格拒绝",
 		}
 		if in.Proto != "" {
