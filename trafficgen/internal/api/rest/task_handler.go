@@ -956,6 +956,13 @@ func (h *TaskHandler) List(c *gin.Context) {
 		query = query.Where("status = ?", statusFilter)
 	}
 
+	// Name prefix filter (OBS-3 2026-10-06)：大库下 LLM 按前缀检索自己的任务。
+	// LIKE 元字符转义，用户输入按字面前缀匹配。
+	if np := c.Query("name_prefix"); np != "" {
+		esc := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(np)
+		query = query.Where("name LIKE ? ESCAPE '\\'", esc+"%")
+	}
+
 	// Count total
 	var total int64
 	query.Count(&total)

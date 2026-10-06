@@ -29,6 +29,7 @@ type manageTasksInput struct {
 	Page         int                    `json:"page,omitempty" jsonschema:"page number for list/history; pagination is optional — omit page/size for the FULL result"`
 	Size         int                    `json:"size,omitempty" jsonschema:"omit page/size (or size=0) → FULL result; give size to cap a page (max 100) and page to navigate — full pulls are safe, over 64 KB auto-exports to a file with a download link"`
 	Status       string                 `json:"status,omitempty" jsonschema:"status filter for list/history"`
+	NamePrefix   string                 `json:"name_prefix,omitempty" jsonschema:"name prefix filter for list — returns only tasks whose name starts with this literal string (LIKE metacharacters escaped); use it to retrieve your own tasks by naming convention instead of pulling the whole library"`
 	SortBy       string                 `json:"sort_by,omitempty" jsonschema:"sort column: created_at|updated_at|name|status|progress"`
 	SortOrder    string                 `json:"sort_order,omitempty" jsonschema:"ascending|descending (default descending)"`
 	StartTime    int64                  `json:"start_time,omitempty" jsonschema:"history filter: unix seconds"`
@@ -83,11 +84,12 @@ func (s *Server) handleManageTasks(ctx context.Context, req *mcp.CallToolRequest
 		resp, err = s.callHandler(ctx, body, "", nil, h.CreateBatch)
 	case "list":
 		q := buildQuery(map[string]string{
-			"page":       fmt.Sprintf("%d", in.Page),
-			"size":       fmt.Sprintf("%d", in.Size),
-			"status":     in.Status,
-			"sort_by":    in.SortBy,
-			"sort_order": in.SortOrder,
+			"page":        fmt.Sprintf("%d", in.Page),
+			"size":        fmt.Sprintf("%d", in.Size),
+			"status":      in.Status,
+			"name_prefix": in.NamePrefix,
+			"sort_by":     in.SortBy,
+			"sort_order":  in.SortOrder,
 		})
 		resp, err = s.callHandler(ctx, nil, "", q, h.List)
 	case "get":
