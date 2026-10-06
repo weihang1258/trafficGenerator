@@ -188,7 +188,7 @@ fi
 log ""
 log "   当前版本 :  $INSTALLED"
 log "   运行状态 :  $ACTIVE （systemctl status $SERVICE 查看详情）"
-log "   MCP 端点 :  http://$LISTEN/mcp   （listen=$LISTEN；0.0.0.0 表示所有网卡，客户端连 <本机IP>:$LISTEN 里端口）"
+log "   MCP 端点 :  http://$LISTEN/mcp   （0.0.0.0 = 监听所有网卡，客户端用 http://<本机IP>:${LISTEN##*:}/mcp 连接）"
 log "   API Key  :  $API_KEY   （客户端请求头 X-MCP-Key）"
 log ""
 log "   日志查询 :  journalctl -u $SERVICE -f      # 实时跟踪"
