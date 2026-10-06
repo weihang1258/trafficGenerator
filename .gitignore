@@ -195,3 +195,5 @@ trafficgen/pkg/filesystem/README.md
 trafficgen/test/integration/*.md
 trafficgen/tools/enum_results/
 trafficgen/tools/test_points/
+trafficgen/tools/test_point_spec.md
+docs/design/README.md
