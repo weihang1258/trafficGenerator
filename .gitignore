@@ -122,3 +122,31 @@ trafficgen/test/cases-w/
 *.bak-root/
 *.bak-pre-*
 *.bak-root2/
+
+# ---- sync scope ruling (2026-10-06): code + core-memory + design + testcase + cases only ----
+# Python legacy and in-tree python tooling are not synced
+high_performance_traffic_generator.py
+trafficgen/_gen_nmea_cases.py
+trafficgen/tools/*.py
+trafficgen/test/integration/*.py
+trafficgen/test/protocol_pcap/deep_audit.py
+trafficgen/test/protocol_pcap/cases/_gen_*.py
+# generated test artifacts (never synced)
+*.pcap
+*.db
+*.log
+pcap/
+test-screenshots/
+# process / generated documents (not synced)
+CASE_PCAP_MAPPING.md
+docs/HANDOVER_*.md
+docs/IMPLEMENTATION_SUMMARY.md
+docs/mcp-test-results.md
+docs/CODE_REVIEW.md
+docs/engine-handoff-root-testing.md
+docs/engine-implementation-plan.md
+docs/implementation/
+docs/superpowers/
+trafficgen/IMPLEMENTATION_SUMMARY.md
+trafficgen/docs/superpowers/
+trafficgen/docs/protocol-pcap-test/SUMMARY.md
