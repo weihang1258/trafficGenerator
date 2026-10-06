@@ -1251,3 +1251,46 @@ func TestDetectAnomaly_Normal(t *testing.T) {
 		t.Errorf("detectAnomaly normal = %q, want empty", got)
 	}
 }
+
+// P1-11（2026-10-06 客户端复测）：合成流量每流 OutOfOrderCount=3——nextSeq
+// 只加 payloadLen，SYN/FIN 各占 1 个序号未计入，干净流确定性产生 3 次假乱序：
+// c2s 握手 ACK（SYN 占位）+ s2c 握手 ACK（SYN-ACK 占位）+ c2s 挥手末 ACK
+//（FIN 占位）。本测试按真实报文序重放一条干净 TCP 流，必须 0 OOO / 0 retrans。
+func TestRecordTCPStats_CleanFlowNoFalseOOO(t *testing.T) {
+	fs := newTestFlowState("10.0.0.1", 1234, 80)
+	data := make([]byte, 10)
+	// 3-way handshake
+	fs.recordTCPStats(tcpFields(100, flagSYN, nil, 65535), "c2s")
+	fs.recordTCPStats(tcpFields(200, flagSYN|flagACK, nil, 65535), "s2c")
+	fs.recordTCPStats(tcpFields(101, flagACK, nil, 65535), "c2s")
+	// data both ways
+	fs.recordTCPStats(tcpFields(101, flagACK|flagPSH, data, 65535), "c2s")
+	fs.recordTCPStats(tcpFields(201, flagACK|flagPSH, data, 65535), "s2c")
+	// teardown: FIN both ways, then client's final ACK
+	fs.recordTCPStats(tcpFields(111, flagFIN|flagACK, nil, 65535), "c2s")
+	fs.recordTCPStats(tcpFields(211, flagFIN|flagACK, nil, 65535), "s2c")
+	fs.recordTCPStats(tcpFields(112, flagACK, nil, 65535), "c2s")
+	if fs.OutOfOrderCount != 0 {
+		t.Errorf("OutOfOrderCount = %d, want 0 on a perfectly ordered flow (SYN/FIN must consume seq)", fs.OutOfOrderCount)
+	}
+	if fs.RetransCount != 0 {
+		t.Errorf("RetransCount = %d, want 0", fs.RetransCount)
+	}
+}
+
+// 真 seq 空洞仍必须报 OOO——修占位记账不许把检测能力一起修没。
+func TestRecordTCPStats_GenuineGapStillDetected(t *testing.T) {
+	fs := newTestFlowState("10.0.0.1", 1234, 80)
+	fs.recordTCPStats(tcpFields(100, flagSYN, nil, 65535), "c2s")
+	fs.recordTCPStats(tcpFields(101, flagACK|flagPSH, []byte{1, 2, 3, 4}, 65535), "c2s")
+	// 跳到 150：期望位 105，空洞 → OOO。
+	fs.recordTCPStats(tcpFields(150, flagACK|flagPSH, []byte{5}, 65535), "c2s")
+	if fs.OutOfOrderCount != 1 {
+		t.Errorf("OutOfOrderCount = %d, want 1 (genuine seq gap)", fs.OutOfOrderCount)
+	}
+	// 回填空洞（重传 105 起的数据）：seq < nextSeq → retrans。
+	fs.recordTCPStats(tcpFields(105, flagACK|flagPSH, make([]byte, 45), 65535), "c2s")
+	if fs.RetransCount != 1 {
+		t.Errorf("RetransCount = %d, want 1 (overlap below nextSeq)", fs.RetransCount)
+	}
+}

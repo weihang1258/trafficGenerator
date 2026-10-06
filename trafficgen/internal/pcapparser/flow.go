@@ -378,7 +378,15 @@ func (fs *FlowState) recordTCPStats(f packetFields, dir string) {
 	// next-expected seq. A packet whose seq is below the expected position
 	// and whose data overlaps already-seen bytes is a retransmission. A
 	// packet whose seq is past the expected position is out-of-order.
+	// P1-11：SYN 与 FIN 各占 1 个序号——nextSeq 只加 payloadLen 会把干净流
+	// 判出 3 次假乱序（两方向握手 ACK + 挥手末 ACK），必须计入占位。
 	payloadLen := uint32(len(f.payload))
+	if f.tcpSYN {
+		payloadLen++
+	}
+	if f.tcpFIN {
+		payloadLen++
+	}
 	nextSeq := &fs.c2sNextSeq
 	seen := &fs.c2sSeqSeen
 	if dir == "s2c" {
