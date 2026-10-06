@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/trafficgen/trafficgen/internal/api/rest"
 	"github.com/trafficgen/trafficgen/internal/pcaptest"
@@ -567,8 +568,10 @@ func TestRunProtocolCase_ExpectError_StoppedNotPass(t *testing.T) {
 	}
 
 	// 通过 REST stop（而非直接改结果）制造真实 stopped 终态。
+	// OBS-2：用例任务现归内部测试账户所有，stop 须以同一身份调用。
+	stopCtx := withRunAsUser(context.Background(), env.srv.internalTestUserID, env.srv.internalTestUsername)
 	taskH := rest.NewTaskHandlerWithCallbacks(env.db, env.eng, nil, false)
-	if _, stopErr := env.srv.callHandler(context.Background(), nil, task.ID, nil, taskH.Stop); stopErr != nil {
+	if _, stopErr := env.srv.callHandler(stopCtx, nil, task.ID, nil, taskH.Stop); stopErr != nil {
 		t.Fatalf("stop task: %v", stopErr)
 	}
 
@@ -792,5 +795,97 @@ func TestTestDriveToolsMarkedInternalTest(t *testing.T) {
 		if d := descriptions[name]; strings.Contains(d, marker) {
 			t.Errorf("business tool %s must NOT carry the internal-test marker", name)
 		}
+	}
+}
+
+// OBS-2（2026-10-06 客户端反馈）：内部回归产物（策略/任务/资产）全落共享
+// admin 服务账户，客户端 list 看到我们的 b9-tns-*/vnc-v1_* 内部用例名。
+// 回归驱动必须在专用内部账户（flowb-internal-test）下创建产物，与客户端
+// 数据隔离——不是改名脱敏。
+func TestTestDriveArtifactsUnderInternalUser(t *testing.T) {
+	env := setupTestDriveEnv(t)
+	defer env.cleanup()
+	srv := env.srv
+	if err := srv.ensureInternalTestUser(); err != nil {
+		t.Fatalf("ensure internal test user: %v", err)
+	}
+	if srv.internalTestUserID == "" || srv.internalTestUserID == srv.serviceUserID {
+		t.Fatalf("internal test user not distinct: internal=%q service=%q", srv.internalTestUserID, srv.serviceUserID)
+	}
+
+	pcapPath := filepath.Join(env.tmp, "arp-obs2.pcap")
+	_, out, err := srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
+		Proto:        "arp",
+		CaseID:       "arp_obs2",
+		SpecJSON:     json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
+		OutputType:   "pcap",
+		OutputConfig: &outputConfigInput{PcapPath: pcapPath},
+		Expect:       caseExpectInput{PacketCount: 2},
+	})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Status != "pass" {
+		t.Fatalf("status = %q, want pass; reason=%q", out.Status, out.Reason)
+	}
+
+	var task storage.TaskModel
+	if err := env.db.Where("name = ?", "arp-arp_obs2").First(&task).Error; err != nil {
+		t.Fatalf("load created task: %v", err)
+	}
+	if task.UserID != srv.internalTestUserID {
+		t.Errorf("task user_id = %q, want internal test user %q (service %q must stay clean)",
+			task.UserID, srv.internalTestUserID, srv.serviceUserID)
+	}
+	var strat storage.StrategyModel
+	if err := env.db.Where("name = ?", "arp-arp_obs2").First(&strat).Error; err != nil {
+		t.Fatalf("load created strategy: %v", err)
+	}
+	if strat.UserID != srv.internalTestUserID {
+		t.Errorf("strategy user_id = %q, want internal test user %q", strat.UserID, srv.internalTestUserID)
+	}
+}
+
+// 复审 F1（HIGH）：stopRun/cleanupCreatedRun 原以裸 Background（服务账户）
+// 清理，而回归产物现归内部测试账户——用户域 Stop/Delete 全 404，错误路径
+// 产物永久残留。清理身份必须跟随创建 ctx 的 runAs 覆盖；generate_traffic
+//（服务账户产物）的清理不得被误伤。
+func TestCleanupCreatedRunFollowsRunAsIdentity(t *testing.T) {
+	env := setupTestDriveEnv(t)
+	defer env.cleanup()
+	srv := env.srv
+	if err := srv.ensureInternalTestUser(); err != nil {
+		t.Fatalf("ensure internal test user: %v", err)
+	}
+
+	newRun := func(ownerUser, suffix string) genRun {
+		strat := &storage.StrategyModel{ID: uuid.New().String(), UserID: ownerUser, Name: "cln-" + suffix, Protocol: "tcp", Config: `{"layers":[{"ip":{"src":"10.0.0.1","dst":"10.0.0.2"}},{"tcp":{}}]}`}
+		if err := env.db.Create(strat).Error; err != nil {
+			t.Fatalf("seed strategy: %v", err)
+		}
+		task := &storage.TaskModel{ID: uuid.New().String(), UserID: ownerUser, Name: "cln-" + suffix, Status: "running", StrategyIDs: `["` + strat.ID + `"]`}
+		if err := env.db.Create(task).Error; err != nil {
+			t.Fatalf("seed task: %v", err)
+		}
+		return genRun{TaskID: task.ID, StrategyID: strat.ID}
+	}
+	rowExists := func(table, id string) bool {
+		var n int64
+		env.db.Table(table).Where("id = ?", id).Count(&n)
+		return n > 0
+	}
+
+	// 内部账户产物 + runAs ctx → 两行都必须被清掉。
+	internalRun := newRun(srv.internalTestUserID, "internal")
+	srv.cleanupCreatedRun(withRunAsUser(context.Background(), srv.internalTestUserID, srv.internalTestUsername), internalRun)
+	if rowExists("tasks", internalRun.TaskID) || rowExists("strategies", internalRun.StrategyID) {
+		t.Error("internal-user run not cleaned: identity must follow the runAs ctx (was 404 as service user)")
+	}
+
+	// 服务账户产物 + 无 runAs 的普通 ctx → 业务清理路径不得被误伤。
+	serviceRun := newRun(srv.serviceUserID, "service")
+	srv.cleanupCreatedRun(context.Background(), serviceRun)
+	if rowExists("tasks", serviceRun.TaskID) || rowExists("strategies", serviceRun.StrategyID) {
+		t.Error("service-user run not cleaned: plain ctx must keep service identity")
 	}
 }

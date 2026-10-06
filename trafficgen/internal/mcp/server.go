@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 
@@ -32,8 +33,13 @@ type Server struct {
 	serviceUserID   string // actual user.ID (UUID) resolved from config username
 	serviceUsername string
 	serviceUserRole string
-	mcpServer       *mcp.Server
-	filesystem      *filesystem.Filesystem
+	// internalTestUser owns protocol-regression artifacts (strategies/tasks/
+	// assets created by flowb_run_protocol_case/suite) so they never appear in
+	// the service account's lists the client reads (OBS-2 2026-10-06).
+	internalTestUserID   string
+	internalTestUsername string
+	mcpServer            *mcp.Server
+	filesystem           *filesystem.Filesystem
 }
 
 // SetPortScheduler injects the port scheduler. Optional: when nil, the system
@@ -74,6 +80,15 @@ func NewServer(cfg *config.MCPConfig, engine *core.Engine, db *storage.DB, iface
 
 	if err := s.validateServiceAccount(); err != nil {
 		return nil, err
+	}
+
+	// OBS-2：内部回归专用账户。解析失败只降级（回落服务账户）不阻断启动
+	// ——隔离是卫生项，不值得为它拒绝服务。
+	if err := s.ensureInternalTestUser(); err != nil {
+		zap.L().Warn("internal test user unavailable; regression artifacts will share the service account",
+			zap.String("username", internalTestUsername), zap.Error(err))
+		s.internalTestUserID = s.serviceUserID
+		s.internalTestUsername = s.serviceUsername
 	}
 
 	if cfg.ServiceAccountPassword == "flowb-mcp-change-me" {
@@ -169,6 +184,49 @@ func (s *Server) createServiceAccount() error {
 	}
 	zap.L().Info("created mcp service account",
 		zap.String("username", s.serviceUsername), zap.String("role", role))
+	return nil
+}
+
+// internalTestUsername is the fixed name of the regression-owning account.
+// It never authenticates (no api_key/JWT maps to it) — it exists purely to
+// scope testdrive artifacts away from the service account's lists.
+const internalTestUsername = "flowb-internal-test"
+
+// ensureInternalTestUser resolves (or auto-creates) the internal regression
+// account. Password is a discarded random value: the account never logs in.
+func (s *Server) ensureInternalTestUser() error {
+	s.internalTestUsername = internalTestUsername
+	var user storage.UserModel
+	err := s.db.Where("username = ?", internalTestUsername).First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		raw := make([]byte, 24)
+		if _, err := rand.Read(raw); err != nil {
+			return fmt.Errorf("random password for internal test user: %w", err)
+		}
+		hash, err := bcrypt.GenerateFromPassword(raw, bcrypt.DefaultCost)
+		if err != nil {
+			return fmt.Errorf("hash internal test user password: %w", err)
+		}
+		user = storage.UserModel{
+			ID:           uuid.New().String(),
+			Username:     internalTestUsername,
+			PasswordHash: string(hash),
+			Email:        internalTestUsername + "@service.local",
+			Role:         "user",
+			Enabled:      true,
+		}
+		if err := s.db.Create(&user).Error; err != nil {
+			return fmt.Errorf("create internal test user: %w", err)
+		}
+		zap.L().Info("created internal test user for regression artifacts",
+			zap.String("username", internalTestUsername))
+	} else if err != nil {
+		return fmt.Errorf("lookup internal test user: %w", err)
+	}
+	if !user.Enabled {
+		return fmt.Errorf("internal test user %q is disabled", internalTestUsername)
+	}
+	s.internalTestUserID = user.ID
 	return nil
 }
 

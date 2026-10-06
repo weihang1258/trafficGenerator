@@ -189,11 +189,24 @@ func (s *Server) flushPcapWriter(engineTaskID string) {
 	s.engine.UnregisterDualWriter(engineTaskID)
 }
 
-func (s *Server) stopRun(_ context.Context, run genRun) {
+// cleanupCtx derives a 5s-timeout context for cleanup handler calls with the
+// SAME caller identity that created the run: the runAs override when present
+// (testdrive → internal test user), else the service account. Background
+// base is deliberate — cleanup must survive caller cancellation — but the
+// identity must follow the owner or the user-scoped Stop/Delete 404 and
+// orphan the rows (review HIGH, 2026-10-06).
+func (s *Server) cleanupCtx(ctx context.Context) (context.Context, context.CancelFunc) {
+	if v, ok := ctx.Value(runAsKey{}).(runAs); ok && v.id != "" {
+		return context.WithTimeout(withRunAsUser(context.Background(), v.id, v.name), 5*time.Second)
+	}
+	return context.WithTimeout(context.Background(), 5*time.Second)
+}
+
+func (s *Server) stopRun(ctx context.Context, run genRun) {
 	if run.TaskID == "" {
 		return
 	}
-	cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	cleanupCtx, cancel := s.cleanupCtx(ctx)
 	defer cancel()
 	taskH := rest.NewTaskHandlerWithCallbacks(s.db, s.engine, nil, false)
 	_, _ = s.callHandler(cleanupCtx, nil, run.TaskID, nil, taskH.Stop)
@@ -205,13 +218,13 @@ func (s *Server) stopRun(_ context.Context, run genRun) {
 func (s *Server) cleanupCreatedRun(ctx context.Context, run genRun) {
 	if run.TaskID != "" {
 		s.stopRun(ctx, run)
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		cleanupCtx, cancel := s.cleanupCtx(ctx)
 		defer cancel()
 		taskH := rest.NewTaskHandlerWithCallbacks(s.db, s.engine, nil, false)
 		_, _ = s.callHandler(cleanupCtx, nil, run.TaskID, nil, taskH.Delete)
 	}
 	if run.StrategyID != "" {
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		cleanupCtx, cancel := s.cleanupCtx(ctx)
 		defer cancel()
 		strategyH := rest.NewStrategyHandler(s.db)
 		_, _ = s.callHandler(cleanupCtx, nil, run.StrategyID, nil, strategyH.Delete)
@@ -502,6 +515,12 @@ func pcapCountFile(path string) int {
 
 func (s *Server) handleRunProtocolCase(ctx context.Context, req *mcp.CallToolRequest, in runCaseInput) (*mcp.CallToolResult, runCaseOutput, error) {
 	start := time.Now()
+	// OBS-2：回归产物全部落在内部测试账户（flowb-internal-test），不进
+	// 服务账户的客户端可见列表。整个调用链（create/start/poll/cleanup 共享
+	// helper）经 ctx 继承该身份。
+	if s.internalTestUserID != "" {
+		ctx = withRunAsUser(ctx, s.internalTestUserID, s.internalTestUsername)
+	}
 	// 前置校验在工具入口集中做，便于 suite 汇总时区分「入参错（error）」
 	// 与用例失败（fail）。
 	switch {
@@ -704,6 +723,10 @@ func (s *Server) exportSuiteDetail(res *suiteResult) {
 
 func (s *Server) handleRunProtocolSuite(ctx context.Context, req *mcp.CallToolRequest, in suiteInput) (*mcp.CallToolResult, suiteResult, error) {
 	start := time.Now()
+	// OBS-2：与 run_protocol_case 同——整套回归产物落内部测试账户。
+	if s.internalTestUserID != "" {
+		ctx = withRunAsUser(ctx, s.internalTestUserID, s.internalTestUsername)
+	}
 	if in.OutputType == "" {
 		s.auditLog(req, "flowb_run_protocol_suite", 0, "error", "missing output_type")
 		return nil, suiteResult{}, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: "output_type is required"}

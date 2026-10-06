@@ -140,6 +140,35 @@ func (s *Server) toolsListTransportHints(next mcp.MethodHandler) mcp.MethodHandl
 	}
 }
 
+// runAsKey carries a per-request caller-identity override in the context.
+// Set by withRunAsUser; consumed by callerIdentity. Used by the internal
+// regression tools (flowb_run_protocol_case/suite) so their artifacts are
+// created under the dedicated internal test account instead of the service
+// account the client reads (OBS-2 2026-10-06) — no signature changes needed
+// in the shared create/start/poll helpers both business and regression paths
+// go through.
+type runAsKey struct{}
+
+type runAs struct {
+	id, name string
+}
+
+// withRunAsUser returns ctx carrying the identity override.
+func withRunAsUser(ctx context.Context, userID, username string) context.Context {
+	return context.WithValue(ctx, runAsKey{}, runAs{id: userID, name: username})
+}
+
+// callerIdentity resolves the gin-context identity for a handler call: the
+// ctx override when present, else the service account.
+func (s *Server) callerIdentity(ctx context.Context) (id, name, role string) {
+	if ctx != nil {
+		if ra, ok := ctx.Value(runAsKey{}).(runAs); ok && ra.id != "" {
+			return ra.id, ra.name, s.serviceUserRole
+		}
+	}
+	return s.serviceUserID, s.serviceUsername, s.serviceUserRole
+}
+
 // callHandler invokes a gin handler with service account context and returns
 // the parsed backend response. The caller inspects resp.Code (0 == success,
 // 409 == idempotent hit per §8.1) or treats the returned error as an MCP error.
@@ -165,9 +194,10 @@ func (s *Server) callHandler(ctx context.Context, body []byte, id string, query 
 func (s *Server) callHandlerWithParams(ctx context.Context, body []byte, params gin.Params, query url.Values, handler func(*gin.Context)) (resp *backendResponse, err error) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Set("userID", s.serviceUserID)
-	c.Set("username", s.serviceUsername)
-	c.Set("roles", []string{s.serviceUserRole})
+	uid, uname, urole := s.callerIdentity(ctx)
+	c.Set("userID", uid)
+	c.Set("username", uname)
+	c.Set("roles", []string{urole})
 
 	method := "GET"
 	// Declare as io.Reader so a nil body yields a nil interface (not a nil
@@ -249,9 +279,10 @@ func (s *Server) callRawHandler(ctx context.Context, handler func(*gin.Context))
 func (s *Server) callRawHandlerWithParams(ctx context.Context, params gin.Params, query url.Values, handler func(*gin.Context)) (resp *backendResponse, err error) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Set("userID", s.serviceUserID)
-	c.Set("username", s.serviceUsername)
-	c.Set("roles", []string{s.serviceUserRole})
+	uid, uname, urole := s.callerIdentity(ctx)
+	c.Set("userID", uid)
+	c.Set("username", uname)
+	c.Set("roles", []string{urole})
 
 	method := "GET"
 	reqCtx := ctx
