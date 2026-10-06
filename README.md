@@ -1,6 +1,6 @@
 # trafficgen
 
-**MCP 网络流量生成与 pcap 分析服务**——通过统一接口驱动 123 种协议的语义级报文生成：可保存为标准 pcap 文件，或经物理网卡真实发帧；产物自动入库并提供逐流、逐包、逐字节的回读分析。既支持 AI 客户端用自然语言驱动，也提供程序接口，可直接接入自动化测试 harness。
+**MCP 网络流量生成与 pcap 分析服务**——通过统一接口驱动 123 种协议的语义级报文生成：可保存为标准 pcap 文件，或经物理网卡真实发帧；产物自动入库并提供逐流、逐包、逐字节的回读分析。支持 AI 客户端自然语言驱动，可直接接入测试 harness。
 
 ## 它能做什么
 
@@ -67,7 +67,7 @@ database:
 
 ## 使用
 
-### 方式一：AI 客户端（自然语言）
+### AI 客户端（自然语言）
 
 MCP 客户端指向 `http://<host>:8086/mcp`（认证头 `X-MCP-Key`），之后直接用自然语言操作。
 
@@ -102,46 +102,6 @@ MCP 客户端指向 `http://<host>:8086/mcp`（认证头 `X-MCP-Key`），之后
 ```
 
 配置不用手写——先向服务端要目标协议的已验证示例（含全部字段说明），复制后按需改字段即可。
-
-### 方式二：程序接口（对接测试 harness）
-
-任何 MCP 客户端 SDK 均可直连，三步完成"生成→等待→取产物"：
-
-```python
-# pip install mcp
-from mcp import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
-
-async def generate_dns_pcap():
-    async with streamablehttp_client(
-        "http://127.0.0.1:8086/mcp",
-        headers={"X-MCP-Key": "<api_key>"},
-    ) as (read, write, _):
-        async with ClientSession(read, write) as s:
-            await s.initialize()
-            # 1. 生成：配置 = 层链（外层在前）+ 流控制
-            r = await s.call_tool("flowb_generate_traffic", {
-                "task_name": "harness-dns",
-                "protocol": "dns",
-                "config": {"layers": [
-                    {"ip": {"src": "10.0.0.1", "dst": "10.0.0.2"}},
-                    {"udp": {"dst_port": 53}},
-                    {"dns": {"name": "test.example", "query_type": 1}}],
-                    "flow_control": {"type": "flows", "value": 100}},
-                "output_type": "pcap",
-                "output_config": {"pcap_path": "harness-dns.pcap"}})
-            task_id = r.content[0].text  # 含 task_id
-            # 2. 等待终态：flowb_wait_for_task
-            # 3. 取产物：flowb_manage_pcaps（下载 pcap / 直接逐流分析）
-```
-
-能力面即 API 面：配置查询、生成、策略/任务管理、pcap 分析/回放、网卡端口组各有对应工具，接入 harness 时用 MCP 的 `tools/list` 获取全部接口签名与参数 schema——schema 即文档，无需另行查表。
-
-## 文档
-
-- 核心记忆与协议花名册：[`docs/CORE_MEMORY.md`](docs/CORE_MEMORY.md)、[`docs/LAYERCHAIN_INDEX.md`](docs/LAYERCHAIN_INDEX.md)
-- 逐协议设计与用例：[`docs/protocols/`](docs/protocols/)
-- 系统与模块设计：[`docs/design/`](docs/design/)、[`docs/api/openapi.yaml`](docs/api/openapi.yaml)
 
 ## 使用声明
 
