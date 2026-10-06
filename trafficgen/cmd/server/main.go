@@ -491,6 +491,11 @@ func (app *Application) initEngine() error {
 	// FlowMeta.UDP 传播）；事件模型泛化为 MessageEvent，dns/ntp 等终结层
 	// 后续接线。
 	app.engine.RegisterPlanner(layers.NewChainPlanner("udp"))
+	// cwmp 别名 planner（OBS-1 2026-10-06）：cwmp 走 http 族层链、无独立
+	// legacy planner，注册别名使 protocol=cwmp 可解析——生成仍由 config 的
+	// 层链驱动（planner 名只是协议白名单键）。与 query_layers examples 的
+	// 语料面对齐。
+	app.engine.RegisterPlanner(layers.NewChainPlanner("cwmp"))
 	// http 切链式生成器（波 2 方案 A）：[ip→tcp→http] 层链驱动，报文事件流
 	// 经 tcp 层分段，字节与 legacy http.go 一致（126 个 legacy 测试直接调
 	// NewPlanner().Plan 保留回归）。http 包 init 反向注册 http 层生成器。

@@ -65,7 +65,16 @@ func (h *SystemHandler) GetStatus(c *gin.Context) {
 // GetProtocols returns the list of supported protocols.
 // GET /api/v1/system/protocols
 func (h *SystemHandler) GetProtocols(c *gin.Context) {
-	protocols := h.engine.ListProtocols()
+	// OBS-1（2026-10-06）：清单与 query_layers examples 的应用协议面对齐——
+	// 剔除纯传输层 udp（链中载体、无语料用例，仍可作为层配置使用）；tcp 有
+	// 语料用例保留；cwmp 经别名 planner 进入注册面。
+	protocols := make([]string, 0, len(h.engine.ListProtocols()))
+	for _, p := range h.engine.ListProtocols() {
+		if p == "udp" {
+			continue
+		}
+		protocols = append(protocols, p)
+	}
 	sort.Strings(protocols)
 	Success(c, protocols)
 }

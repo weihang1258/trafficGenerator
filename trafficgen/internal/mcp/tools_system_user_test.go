@@ -53,17 +53,17 @@ func TestMCP_QuerySystem_Protocols(t *testing.T) {
 	if err := json.Unmarshal(asRaw(out.Data), &protocols); err != nil {
 		t.Fatalf("protocols returned non-array: %s (err: %v)", string(asRaw(out.Data)), err)
 	}
-	// Backend hard-codes 6 protocols; verify at least tcp/udp present.
-	want := map[string]bool{"tcp": false, "udp": false}
+	// OBS-1（2026-10-06）：清单对齐 query_layers examples 的应用协议面——
+	// 纯传输层 udp 剔除（仍是合法层，只是不作为独立协议列出），tcp 保留。
+	seen := map[string]bool{}
 	for _, p := range protocols {
-		if _, ok := want[p]; ok {
-			want[p] = true
-		}
+		seen[p] = true
 	}
-	for p, found := range want {
-		if !found {
-			t.Errorf("protocols missing %q: %v", p, protocols)
-		}
+	if !seen["tcp"] {
+		t.Errorf("protocols missing %q: %v", "tcp", protocols)
+	}
+	if seen["udp"] {
+		t.Errorf("udp must not be listed (transport-only layer, OBS-1): %v", protocols)
 	}
 }
 
