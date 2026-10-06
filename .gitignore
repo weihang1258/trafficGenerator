@@ -150,3 +150,17 @@ docs/superpowers/
 trafficgen/IMPLEMENTATION_SUMMARY.md
 trafficgen/docs/superpowers/
 trafficgen/docs/protocol-pcap-test/SUMMARY.md
+
+# ---- sync scope tightened (2026-10-06): ONLY core-memory / design / testcase / cases docs ----
+CLAUDE.md
+docs/protocol-designs/
+docs/mcp-usage-guide.md
+docs/deployment/
+docs/operations/
+docs/user/
+trafficgen/VERIFICATION_REPORT.md
+trafficgen/PROJECT_STATUS.md
+trafficgen/PERFORMANCE_TEST_REPORT.md
+trafficgen/SETUP.md
+trafficgen/docs/protocol-pcap-test/*.md
+!trafficgen/docs/protocol-pcap-test/*-spec-mapping.md
