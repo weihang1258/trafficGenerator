@@ -81,4 +81,8 @@ MCP 客户端指向 `http://<host>:8086/mcp`（携带 api_key），然后：
 
 ## License
 
-待定（暂未开源授权）。
+[AGPL-3.0](LICENSE) —— 本仓库以 GNU Affero General Public License v3.0 开源：任何通过网络提供服务或分发的衍生版本，须同样以 AGPL-3.0 开源其源码（第 13 条）。
+
+**商业授权**：需要闭源集成、OEM 嵌入或豁免 AGPL 义务的商业场景，另行联系项目维护者获取商业许可（双重许可，版权人可同时提供）。
+
+第三方依赖均为宽松许可（Apache-2.0 / MIT / BSD），与 AGPL-3.0 兼容，明细见 `trafficgen/go.mod`。
