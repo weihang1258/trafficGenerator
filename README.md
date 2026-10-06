@@ -69,11 +69,37 @@ database:
 
 ### 方式一：AI 客户端（自然语言）
 
-MCP 客户端指向 `http://<host>:8086/mcp`（认证头 `X-MCP-Key`），之后直接用自然语言操作，例如：
+MCP 客户端指向 `http://<host>:8086/mcp`（认证头 `X-MCP-Key`），之后直接用自然语言操作。
 
-> 帮我生成 100 条 DNS 查询流量，保存为 pcap
-> 用 jt808 协议向网卡 enp135s0f0 实发 2000 条注册请求
-> 把刚才的 pcap 里目的端口 53 的流找出来，导出第一条流的完整字节
+**接入各 AI harness**：
+
+- **Claude Code**：
+  ```bash
+  claude mcp add --transport http trafficgen "http://<host>:8086/mcp" --header "X-MCP-Key: <api_key>"
+  ```
+- **Codex CLI**（走 stdio 传输，需在服务端配置中启用 `mcp.transports.stdio: true`）：编辑 `~/.codex/config.toml`：
+  ```toml
+  [mcp_servers.trafficgen]
+  command = "/opt/trafficgen/bin/trafficgen"
+  args = ["-config", "/etc/trafficgen/config.yaml"]
+  ```
+- **workbuddy 等其他 harness**：在其 MCP 设置中添加 HTTP 类型服务，填入地址 `http://<host>:8086/mcp` 与请求头 `X-MCP-Key: <api_key>` 即可。
+
+**首次使用提示词**（接入后直接粘贴，跑通"查配置→生成→看结果"全流程）：
+
+```text
+连接 trafficgen 后按顺序执行：
+1. 查询 dns 协议的配置示例；
+2. 参照示例生成 100 条 DNS 查询流量，保存为 pcap 文件；
+3. 等任务完成后，告诉我这个 pcap 里有多少条流、多少个包。
+```
+
+跑通后可以再试真实发帧与分析类指令：
+
+```text
+用 jt808 协议向端口组 <端口组名> 实发 2000 条注册请求
+把刚才的 pcap 里目的端口 53 的流找出来，导出第一条流的完整字节
+```
 
 配置不用手写——先向服务端要目标协议的已验证示例（含全部字段说明），复制后按需改字段即可。
 
