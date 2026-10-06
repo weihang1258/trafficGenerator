@@ -288,11 +288,15 @@ func (h *TaskHandler) onEngineProgress(engineTaskID string, progress float64, st
 		parentTaskID = parts[0]
 	}
 
-	// Throttle DB updates: at most once per 2 seconds per parent task
+	// Throttle DB updates: at most once per 2 seconds per parent task.
+	// progress>=100 bypasses the throttle: the final OnProgress (engine
+	// forces a notify at 100) must land, otherwise completed tasks lose
+	// their last stats delta and the client can never close the loop on
+	// "how much was actually sent".
 	h.progressMu.Lock()
 	lastUpdate, exists := h.lastProgressUpdate[parentTaskID]
 	now := time.Now()
-	if exists && now.Sub(lastUpdate) < 2*time.Second {
+	if exists && now.Sub(lastUpdate) < 2*time.Second && progress < 100 {
 		h.progressMu.Unlock()
 		return
 	}
@@ -306,6 +310,7 @@ func (h *TaskHandler) onEngineProgress(engineTaskID string, progress float64, st
 	// given the 2-second throttle and 1% granularity.
 	totalProgress := progress
 	subTaskCount := 1
+	aggPackets, aggBytes, aggFlows := stats.PacketsSent, stats.BytesSent, stats.FlowsCount
 
 	// Try to find other sub-tasks for the same parent
 	h.engine.RangeTaskStore(func(id string, status *core.TaskStatus) bool {
@@ -313,17 +318,23 @@ func (h *TaskHandler) onEngineProgress(engineTaskID string, progress float64, st
 		if len(parts2) == 2 && parts2[0] == parentTaskID && id != engineTaskID {
 			totalProgress += status.Progress
 			subTaskCount++
+			aggPackets += status.Stats.PacketsSent
+			aggBytes += status.Stats.BytesSent
+			aggFlows += status.Stats.FlowsCount
 		}
 		return true
 	})
 
 	avgProgress := totalProgress / float64(subTaskCount)
 
-	// Update parent task progress in DB
+	// Update parent task progress + aggregate stats in DB
 	h.db.Model(&storage.TaskModel{}).
 		Where("id = ?", parentTaskID).
 		Updates(map[string]interface{}{
-			"progress": avgProgress,
+			"progress":     avgProgress,
+			"packets_sent": aggPackets,
+			"bytes_sent":   aggBytes,
+			"flows_count":  aggFlows,
 		})
 
 	// Broadcast progress update via WebSocket
@@ -1709,6 +1720,15 @@ func convertTaskToResponse(t *storage.TaskModel) TaskResponse {
 		Progress:     t.Progress,
 		CreatedAt:    t.CreatedAt.Unix(),
 		UpdatedAt:    t.UpdatedAt.Unix(),
+	}
+	// 实发统计：引擎 progress 回调回填（>=100 强制落库）。未运行的任务
+	// 全零 → 保持 nil，不为没跑过的任务伪造 stats。
+	if t.PacketsSent > 0 || t.BytesSent > 0 || t.FlowsCount > 0 {
+		response.Stats = &TaskStatsResponse{
+			PacketsSent: t.PacketsSent,
+			BytesSent:   t.BytesSent,
+			FlowsCount:  t.FlowsCount,
+		}
 	}
 	if t.OutputType == "pcap" {
 		response.DownloadURL = "/downloads/tasks/" + t.ID + "/pcap"

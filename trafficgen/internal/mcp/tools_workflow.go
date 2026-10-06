@@ -21,7 +21,7 @@ type generateTrafficInput struct {
 	StrategyFlowControl *flowControlInput      `json:"strategy_flow_control,omitempty" jsonschema:"optional strategy-level flow control — overrides any flow_control embedded in config; omit it to use the config's own (type: flows|bps|time, value > 0)"`
 	TaskFlowControl     *flowControlInput      `json:"task_flow_control,omitempty" jsonschema:"optional task-level flow control (aggregate ceiling)"`
 	OutputType          string                 `json:"output_type" jsonschema:"output type: port_group or pcap"`
-	OutputConfig        *outputConfigInput     `json:"output_config" jsonschema:"REQUIRED — for output_type=pcap give {'pcap_path':'/abs/out.pcap'} (remote HTTP: any file name works, the server places it and returns the link); for output_type=port_group give {'port_group_id':'<uuid>'}"`
+	OutputConfig        *outputConfigInput     `json:"output_config" jsonschema:"REQUIRED — for output_type=pcap give {'pcap_path':'/abs/out.pcap'} (remote HTTP: any file name works, the server places it and returns the link); for output_type=port_group give {'port_group_id':'<uuid>'}. NIC output has NO direct interface option: traffic to a network interface must go through a port group — first create one with flowb_manage_port_groups (action=create, ports=[{interface:'<nic-name>', weight:1}]) or list existing groups (action=list), then pass its id here"`
 }
 
 // generateTrafficOutput is the workflow result returned to the LLM.

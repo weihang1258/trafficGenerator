@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -22,9 +23,11 @@ import (
 type managePcapsInput struct {
 	Action       string                 `json:"action" jsonschema:"operation — packet-level inspection ladder (spot the flow, then drill to bytes): list (assets) | list_flows (per-flow stats; find the suspicious flow) | list_packets (packets of one flow, needs flow_id; page with page/size) | list_packets_by_asset | get_packet (full header fields of one packet, needs packet_id) | get_packet_payload (raw bytes of one packet, needs packet_id) | get_stream (reassembled byte stream, needs flow_id + direction c2s|s2c, optional offset/limit) | get_body (like get_stream) | get_flow | search | match_preview | extract (batch fields for the given packet_ids) | extract_bulk {id, flow_id?, extract_rules:{fields:[..]}} (WHOLE flow or WHOLE asset — no packet_ids needed; big results auto-export with total) | extract_streams {id, flow_id?} (reassembled stream text for one flow or every flow; auto-exports too) | import | get | delete | reparse | download"`
 	ID           string                 `json:"id,omitempty" jsonschema:"asset id (required for all actions except import/list)"`
+	AssetID      string                 `json:"asset_id,omitempty" jsonschema:"alias for id — tasks return the product as 'pcap_asset_id', so both spellings are accepted here; prefer id"`
 	FilePath     string                 `json:"file_path,omitempty" jsonschema:"absolute server-side file path (import only); over HTTP this tool's description carries the concrete upload URL for remote clients"`
 	FlowID       string                 `json:"flow_id,omitempty" jsonschema:"flow id (get_flow/list_packets/get_stream/get_body)"`
 	PacketID     string                 `json:"packet_id,omitempty" jsonschema:"packet id (get_packet/get_packet_payload)"`
+	Scope        string                 `json:"scope,omitempty" jsonschema:"get_packet_payload: 'frame' returns the FULL frame bytes (Ethernet+IP+L4+payload) — use this for 'export the complete bytes of a flow'; default (omitted) returns just the L7 payload"`
 	Direction    string                 `json:"direction,omitempty" jsonschema:"stream direction: c2s|s2c (get_stream/get_body)"`
 	Offset       int64                  `json:"offset,omitempty" jsonschema:"byte offset within stream (get_stream, optional)"`
 	Limit        int64                  `json:"limit,omitempty" jsonschema:"byte length to read (get_stream, optional)"`
@@ -61,6 +64,11 @@ func (s *Server) handleManagePcaps(ctx context.Context, req *mcp.CallToolRequest
 	// handler and hit the DB, and before per-action code has to repeat the
 	// check. (Pre-fix, several actions passed an empty :id to the REST handler
 	// which 404'd with a less helpful "record not found" message.)
+	// asset_id → id 归一：任务返回字段叫 pcap_asset_id，LLM 顺手传
+	// asset_id 是高频拼写，收作别名而不是报错（P2-④）。
+	if in.ID == "" && in.AssetID != "" {
+		in.ID = in.AssetID
+	}
 	switch in.Action {
 	case "import", "list":
 		// no ID required
@@ -129,7 +137,11 @@ func (s *Server) handleManagePcaps(ctx context.Context, req *mcp.CallToolRequest
 	case "get_packet":
 		resp, err = s.callHandlerWithParams(ctx, nil, gin.Params{{Key: "id", Value: in.ID}, {Key: "pid", Value: in.PacketID}}, nil, h.GetPacket)
 	case "get_packet_payload":
-		resp, err = s.handlePcapBinary(ctx, in.ID, in.PacketID, h.GetPacketPayload)
+		q := url.Values{}
+		if in.Scope != "" {
+			q.Set("scope", in.Scope)
+		}
+		resp, err = s.handlePcapBinary(ctx, in.ID, in.PacketID, q, h.GetPacketPayload)
 	case "get_stream":
 		resp, err = s.handlePcapStreamBinary(ctx, in.ID, in.FlowID, in, h.GetStream)
 	case "get_body":
@@ -267,9 +279,9 @@ func (s *Server) handlePcapDownload(ctx context.Context, h *rest.PcapHandler, id
 // handlePcapBinary calls a binary-returning handler (get_packet_payload) and
 // base64-encodes the result. The handler writes via c.Data(200, octet-stream,
 // buf); we capture the raw bytes and wrap in {payload_base64, length}.
-func (s *Server) handlePcapBinary(ctx context.Context, id, pid string, handler func(*gin.Context)) (*backendResponse, error) {
+func (s *Server) handlePcapBinary(ctx context.Context, id, pid string, q url.Values, handler func(*gin.Context)) (*backendResponse, error) {
 	params := gin.Params{{Key: "id", Value: id}, {Key: "pid", Value: pid}}
-	resp, err := s.callRawHandlerWithParams(ctx, params, nil, handler)
+	resp, err := s.callRawHandlerWithParams(ctx, params, q, handler)
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +305,17 @@ func (s *Server) handlePcapStreamBinary(ctx context.Context, id, flowID string, 
 	if err != nil {
 		return nil, err
 	}
-	return wrapBinaryAsBase64(resp.Data), nil
+	wrapped := wrapBinaryAsBase64(resp.Data)
+	// 空流不再静默（提示词实测 P2-⑥）：UDP 流没有重组流文件（get_stream
+	// 是 TCP 语义），TCP 空流也可能是真空载荷——都指到单包路径。
+	if bytes.Contains(wrapped.Data, []byte(`"length":0`)) {
+		var d map[string]interface{}
+		if json.Unmarshal(wrapped.Data, &d) == nil {
+			d["note"] = "empty stream. UDP flows have no reassembled stream (get_stream is TCP-only) — for 'complete bytes' use list_packets {id, flow_id} then get_packet_payload {id, packet_id, scope:'frame'} per packet; for TCP this direction genuinely carries no payload."
+			wrapped.Data, _ = json.Marshal(d)
+		}
+	}
+	return wrapped, nil
 }
 
 // handlePcapBodyBinary calls get_body with dir query param.

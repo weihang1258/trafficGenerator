@@ -812,7 +812,10 @@ func (h *PcapHandler) GetBody(c *gin.Context) {
 
 // GetPacketPayload returns a single packet's payload via RawOffset (§17.11).
 // GET /api/v1/pcaps/:id/packets/:pid/payload
+// scope=frame returns the FULL frame bytes (Eth+IP+L4+L7) instead of the
+// L7 payload — "export this flow's complete bytes" (提示词实测 P2-⑥).
 func (h *PcapHandler) GetPacketPayload(c *gin.Context) {
+	scope := c.Query("scope")
 	asset, ok := h.getOwnedAsset(c)
 	if !ok {
 		return
@@ -856,7 +859,7 @@ func (h *PcapHandler) GetPacketPayload(c *gin.Context) {
 		InternalError(c, "read packet: "+err.Error())
 		return
 	}
-	if headerLen > 0 && headerLen < len(buf) {
+	if headerLen > 0 && headerLen < len(buf) && scope != "frame" {
 		buf = buf[headerLen:]
 	}
 	c.Data(200, "application/octet-stream", buf)

@@ -11,11 +11,12 @@ import (
 )
 
 // managePortGroupsInput covers the 4 port group actions: create / list / get / delete.
+// 没有自定义 name：组名恒为 port_group_<hash8>（对完整 ports 配置幂等——
+// 同配置重提交返回既有组），自定义名会破坏防重复机制，故不暴露该参数。
 type managePortGroupsInput struct {
-	Action string            `json:"action" jsonschema:"operation: create|list|get|delete"`
-	ID     string            `json:"id,omitempty" jsonschema:"port group id (get/delete)"`
-	Name   string            `json:"name,omitempty" jsonschema:"port group name (create)"`
-	Ports  []portGroupPort   `json:"ports,omitempty" jsonschema:"ports in the group (create)"`
+	Action string          `json:"action" jsonschema:"operation: create|list|get|delete"`
+	ID     string          `json:"id,omitempty" jsonschema:"port group id (get/delete)"`
+	Ports  []portGroupPort `json:"ports,omitempty" jsonschema:"ports in the group (create)"`
 }
 
 type portGroupPort struct {
@@ -32,7 +33,7 @@ func (s *Server) registerPortGroupTools() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
 			Name:        "flowb_manage_port_groups",
-			Description: "Manage port groups: create/list/get/delete. Port groups bind interfaces for traffic output. create is idempotent on the FULL ports config (interface + weight, order-insensitive): resubmitting the identical config returns the EXISTING group (message 'port group already exists'); a different weight means a DIFFERENT group. The name you pass is never used — the group is always named port_group_<hash8> and every response echoes that actual name.",
+			Description: "Manage port groups: create/list/get/delete. Port groups bind interfaces for traffic output. create is idempotent on the FULL ports config (interface + weight, order-insensitive): resubmitting the identical config returns the EXISTING group (message 'port group already exists'); a different weight means a DIFFERENT group. Groups are always named port_group_<hash8> (server-generated from the ports config — there is no custom naming).",
 			OutputSchema: manageOutputSchema(),
 		},
 		s.handleManagePortGroups,
@@ -49,7 +50,6 @@ func (s *Server) handleManagePortGroups(ctx context.Context, req *mcp.CallToolRe
 	switch in.Action {
 	case "create":
 		body := mustMarshal(map[string]interface{}{
-			"name":  in.Name,
 			"ports": in.Ports,
 		})
 		resp, err = s.callHandler(ctx, body, "", nil, h.Create)

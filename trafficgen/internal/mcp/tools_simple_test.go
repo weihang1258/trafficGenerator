@@ -171,7 +171,6 @@ func TestMCP_ManagePortGroups_CRUD(t *testing.T) {
 	// Create
 	_, out, err := env.srv.handleManagePortGroups(context.Background(), nil, managePortGroupsInput{
 		Action: "create",
-		Name:   "pg1",
 		Ports: []portGroupPort{
 			{Interface: "eth0", Weight: 1},
 		},

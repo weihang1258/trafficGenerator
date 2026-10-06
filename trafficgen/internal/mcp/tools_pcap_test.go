@@ -269,6 +269,27 @@ func TestMCP_ManagePcaps_GetPacketPayload(t *testing.T) {
 	if _, err := base64.StdEncoding.DecodeString(payload.PayloadBase64); err != nil {
 		t.Errorf("payload_base64 invalid: %v", err)
 	}
+
+	// P2-⑥：scope=frame 返回整帧字节（Eth+IP+L4+L7），必须严格大于默认
+	// 的 L7 payload（fixture 是带完整协议头的包）。
+	_, outFrame, err := env.srv.handleManagePcaps(context.Background(), nil, managePcapsInput{
+		Action:   "get_packet_payload",
+		ID:       id,
+		PacketID: packetID,
+		Scope:    "frame",
+	})
+	if err != nil {
+		t.Fatalf("get_packet_payload scope=frame: %v", err)
+	}
+	var frame struct {
+		Length int `json:"length"`
+	}
+	if err := json.Unmarshal(asRaw(outFrame.Data), &frame); err != nil {
+		t.Fatalf("scope=frame returned non-object: %s", string(asRaw(outFrame.Data)))
+	}
+	if frame.Length <= payload.Length {
+		t.Errorf("frame bytes (%d) must exceed L7 payload (%d)", frame.Length, payload.Length)
+	}
 }
 
 func TestMCP_ManagePcaps_Download(t *testing.T) {
@@ -590,6 +611,17 @@ func TestMCP_ManagePcaps_GetStream_Empty(t *testing.T) {
 		if decoded, derr := base64.StdEncoding.DecodeString(stream.PayloadBase64); derr == nil {
 			t.Errorf("decoded empty-stream payload (should be JSON envelope bug): %s", decoded)
 		}
+	}
+	// P2-⑥：空流必须带指路 note（UDP 流无重组流，TCP 空流=真空载荷），
+	// 不能让 LLM 对着空 payload_base64 猜。
+	var withNote struct {
+		Note string `json:"note"`
+	}
+	if err := json.Unmarshal(asRaw(out.Data), &withNote); err != nil {
+		t.Fatalf("unmarshal note: %v", err)
+	}
+	if withNote.Note == "" {
+		t.Error("empty stream must carry a guidance note")
 	}
 }
 
