@@ -50,15 +50,23 @@ latest_tag() {
         "${DEFAULT_BASE%/download}/latest") && { url=${url##*/}; [ -n "$url" ] && printf '%s' "$url"; }
 }
 
-SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
+# 本地包模式判定：$0 必须是真实存在的 install.sh 文件，且同目录有 trafficgen
+# 二进制（-f 排除目录——目录也有 x 位，cwd 下恰有 trafficgen 目录时会误判）。
+# curl|bash 管道模式 $0 是 "bash"，恒走在线分支。
+SRC_DIR=""
+if [ -f "$0" ] && [ "$(basename "$0")" = "install.sh" ]; then
+    _d="$(cd "$(dirname "$0")" && pwd)"
+    [ -f "$_d/trafficgen" ] && [ -x "$_d/trafficgen" ] && SRC_DIR="$_d"
+fi
 BASE_URL="${1:-$DEFAULT_BASE}"
 VERSION="${2:-}"
-[ -n "$VERSION" ] || VERSION=$(latest_tag) || VERSION="$DEFAULT_VERSION"
 
 # ---- 1. 取得发布文件（本地包目录或在线下载）---------------------------------
-if [ -x "$SRC_DIR/trafficgen" ]; then
+if [ -n "$SRC_DIR" ]; then
     log "使用本地发布包：$SRC_DIR"
 else
+    # 版本解析只属在线分支：本地包安装可能是离线机器，不值得白等网络超时。
+    [ -n "$VERSION" ] || VERSION=$(latest_tag) || VERSION="$DEFAULT_VERSION"
     [ -n "$BASE_URL" ] && [ -n "$VERSION" ] && [ "$VERSION" != "__RELEASE_VERSION__" ] || die \
         "当前目录没有 trafficgen 二进制，且在线模式缺少发布地址/版本。请在解包后的目录内运行，或显式传入 <发布base> <版本号>（如 v1.1.0），或设 TRAFFICGEN_RELEASE_BASE"
     ARCH=linux-amd64
@@ -71,8 +79,11 @@ else
     [ -f "$TMP/SHA256SUMS" ] && (cd "$TMP" && grep "$TARBALL" SHA256SUMS | sha256sum -c - >/dev/null) \
         || die "SHA256 校验失败，文件可能被篡改"
     tar -xzf "$TMP/$TARBALL" -C "$TMP"
-    SRC_DIR="$TMP/$(ls "$TMP" | grep -v SHA256 | head -1)"
-    [ -x "$SRC_DIR/trafficgen" ] || die "发布包内容异常（缺 trafficgen 二进制）"
+    # 解包目录精确查找：包名固定 trafficgen-<版本>-linux-amd64；
+    # 不能用 ls|grep 兜底——排序会拿到 tarball 文件而非目录。
+    SRC_DIR=$(find "$TMP" -maxdepth 1 -type d -name 'trafficgen-*' | head -1)
+    [ -n "$SRC_DIR" ] && [ -f "$SRC_DIR/trafficgen" ] && [ -x "$SRC_DIR/trafficgen" ] \
+        || die "发布包内容异常（缺 trafficgen 二进制）"
 fi
 
 # ---- 2. 安装二进制 ----------------------------------------------------------
