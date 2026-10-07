@@ -11,7 +11,7 @@ import (
 // TestSQLiteWALPragmas 钉住 SQLite 打开时的 PRAGMA 契约（v1 发布项）：
 //   - journal_mode=WAL：MCP 客户端高频轮询（读）与任务状态写并发，默认
 //     DELETE 模式写阻塞读、锁放大；WAL 读写不互斥。
-//   - busy_timeout=5000：写锁竞争时等 5s 而非立即 SQLITE_BUSY 报错。
+//   - busy_timeout=60000：写锁竞争时等 60s 而非立即 SQLITE_BUSY 报错。
 //
 // 两条都必须经 DSN pragma（glebarez 驱动）在连接建立时生效——不是打开后
 // 补执行（连接池每条新连接都要继承）。
@@ -40,9 +40,11 @@ func TestSQLiteWALPragmas(t *testing.T) {
 	if err := db.Raw("PRAGMA busy_timeout").Scan(&timeout).Error; err != nil {
 		t.Fatalf("read busy_timeout: %v", err)
 	}
-	// NEW-P2-20 加固：10s（8 路并发批次下 5s 不够宽容）。
-	if timeout != 10000 {
-		t.Errorf("busy_timeout = %d, want 10000", timeout)
+	// NEW-P2-20 加固 10s → 2026-10-07 全量套件实测定标 60s：pcap_packets
+	// 行级持久化下 4 路并行套件的批插把 WAL 写锁队列压满，10s 随机过期
+	//（modbus/tftp 13 例随机 BUSY，重跑失败集不同=非确定性竞争）。
+	if timeout != 60000 {
+		t.Errorf("busy_timeout = %d, want 60000", timeout)
 	}
 }
 

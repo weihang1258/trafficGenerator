@@ -41,7 +41,11 @@ func sqliteDSN(path string) string {
 	// 下的锁升级失败会**立即**返回 SQLITE_BUSY、不受 busy_timeout 保护
 	//（NEW-P2-20：8 路并发批次 3 失败）。IMMEDIATE 让事务一开就拿写锁、
 	// 排队全程受 busy_timeout 保护。库内事务均为写事务，只读事务无此路径。
-	const pragma = "_pragma=journal_mode(WAL)&_pragma=busy_timeout(10000)&_txlock=immediate"
+	// busy_timeout 60s（原 10s，2026-10-07 全量套件实测定标）：pcap_packets
+	// 行级持久化使 4 路并行套件的 500 行/批插入把 WAL 写锁队列压满，10s
+	// 等待在尖峰随机过期（modbus/tftp 大套件 13 例随机 BUSY，两次重跑
+	// 失败集不同=非确定性竞争）。60s 让创建请求排队越过 pcap 批插尖峰。
+	const pragma = "_pragma=journal_mode(WAL)&_pragma=busy_timeout(60000)&_txlock=immediate"
 	if strings.Contains(path, "?") {
 		return path + "&" + pragma
 	}
