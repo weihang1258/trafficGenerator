@@ -69,10 +69,12 @@ func (g *DNSGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 	if err := emit(layers.MessageEvent{Up: true, Bytes: queryMsg}); err != nil {
 		return err
 	}
-	// 响应事件：与 legacy dns.go:301 的 IsResponse gate 语义一致——未配置
-	// is_response 时只发查询包（1 包）。响应构建在事件里按 cfg 分派（单
-	// RR/多 RR 路径，dns.go:307-311 同款）。
-	if !cfg.IsResponse {
+	// 响应判定（D-DNS-2 反转，2026-10-07）：缺省即一问一答——"一请求一
+	// 响应才是正常业务"。query_only 显式纯查询（1 事件）；is_response
+	// 沿现状语义（true=一问一答，false=legacy 显式查询）。互斥校验在
+	// validateDNSConfig（Plan/Validate 期同步失败，不拖到 drive 期）。
+	wantResponse := !cfg.QueryOnly
+	if !wantResponse {
 		return nil
 	}
 

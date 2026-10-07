@@ -2234,6 +2234,13 @@ type DNSConfig struct {
 	IsResponse bool   `json:"is_response"` // was "response"
 	ResponseIP string `json:"response_ip,omitempty"`
 
+	// QueryOnly 显式纯查询（1 事件，无响应）。D-DNS-2（2026-10-07 用户
+	// 裁定"一请求一响应才是正常业务"）：缺省即一问一答（查询→响应 2 事
+	// 件，响应回显 TxID）；is_response:true 沿现状（一问一答）；
+	// is_response:false 沿 legacy 显式查询语义。与 IsResponse=true 互斥
+	// （Validate 拒）。
+	QueryOnly bool `json:"query_only,omitempty"`
+
 	// TxID is the 16-bit DNS Transaction ID (RFC 1035 §4.1.1). The client
 	// chooses it; the response MUST echo it. 0 (unset) → planner uses the
 	// historical default 0x1234 for backward compatibility.

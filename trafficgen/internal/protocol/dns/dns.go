@@ -104,6 +104,12 @@ func validateDNSConfig(spec core.FlowSpec) error {
 		return fmt.Errorf("dns rcode %d exceeds the 4-bit field (max 15)", spec.DNS.RCode)
 	}
 
+	// D-DNS-2：query_only（显式纯查询）与 is_response:true（一问一答的
+	// 现状写法）互斥——同时配置是自相矛盾的意图。
+	if spec.DNS.QueryOnly && spec.DNS.IsResponse {
+		return fmt.Errorf("dns: query_only and is_response are mutually exclusive (query_only means query-only packets; is_response means query+response)")
+	}
+
 	// Domain length (RFC 1035 §2.3.4: full name ≤255 octets on the wire;
 	// §3.1: each label ≤63 octets). encodeDomainName writes label-len +
 	// labels + 0x00 with byte(len) truncation — overlong input silently
@@ -314,8 +320,12 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		}
 		packetIndex++
 
-		// DNS Response — context-aware send
-		if spec.DNS.IsResponse {
+		// DNS Response — context-aware send.
+		// D-DNS-2 反转：缺省即一问一答（"一请求一响应才是正常业务"）；
+		// QueryOnly 显式纯查询。IsResponse 沿现状语义（true/false 均仍产
+		// 响应与否由 QueryOnly 决定——legacy IsResponse=false 原为纯查询，
+		// 反转后同样一问一答，与链式生成器逐字节等价）。
+		if !spec.DNS.QueryOnly {
 			var responseMsg []byte
 			// The general response path is used when the spec carries
 			// multiple answer RRs, an authority section, a non-zero rcode,

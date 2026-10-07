@@ -27,7 +27,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ]
   },
@@ -102,7 +104,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ],
    "count": 2
@@ -140,7 +144,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ]
   },
@@ -188,7 +194,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ]
   },
@@ -225,7 +233,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ]
   },
@@ -313,7 +323,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ]
   },
@@ -391,7 +403,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ]
   },
@@ -536,7 +550,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ]
   },
@@ -589,7 +605,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ]
   },
@@ -651,7 +669,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ]
   },
@@ -715,7 +735,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ]
   },
@@ -772,7 +794,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ]
   },
@@ -809,7 +833,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ]
   },
@@ -852,7 +878,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ]
   },
@@ -936,7 +964,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ]
   },
@@ -995,7 +1025,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ]
   },
@@ -1120,7 +1152,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ]
   },
@@ -1164,7 +1198,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ]
   },
@@ -1208,7 +1244,9 @@
      }
     },
     {
-     "dns": {}
+     "dns": {
+      "query_only": true
+     }
     }
    ]
   },

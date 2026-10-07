@@ -62,15 +62,16 @@ func assertByteIdentical(t *testing.T, chain, legacy core.PacketConfig, idx int)
 	}
 }
 
-// TestChainPlanner_DNS_Query verifies the [ip→udp→dns] chain produces one up
-// datagram carrying the DNS query, byte-identical to legacy dns.NewPlanner.
+// TestChainPlanner_DNS_Query verifies the [ip→udp→dns] chain, under the
+// D-DNS-2 default (query+response, "一请求一响应才是正常业务"), produces an
+// up query followed by a down response, byte-identical to legacy dns.NewPlanner.
 func TestChainPlanner_DNS_Query(t *testing.T) {
 	spec := dnsSpec()
 	chain := collectPlanner(t, layers.NewChainPlanner("dns"), spec)
 	legacy := collectPlanner(t, dns.NewPlanner(), spec)
 
-	if len(chain) != 1 {
-		t.Fatalf("chain produced %d packets, want 1", len(chain))
+	if len(chain) != 2 {
+		t.Fatalf("chain produced %d packets, want 2 (query+response default)", len(chain))
 	}
 	if chain[0].Direction != "up" {
 		t.Errorf("direction = %s, want up", chain[0].Direction)
@@ -85,7 +86,45 @@ func TestChainPlanner_DNS_Query(t *testing.T) {
 	if len(chain[0].Payload) < 12 || chain[0].Payload[0] != 0x12 || chain[0].Payload[1] != 0x34 {
 		t.Errorf("payload header = %x, want TxID 0x1234", chain[0].Payload[:4])
 	}
+	// Response: down direction, QR=1 (flags high bit of byte 2).
+	if chain[1].Direction != "down" {
+		t.Errorf("packet 1 direction = %s, want down", chain[1].Direction)
+	}
+	if len(chain[1].Payload) < 4 || chain[1].Payload[2]&0x80 == 0 {
+		t.Errorf("response flags = %x, want QR=1", chain[1].Payload[2:4])
+	}
+	for i := 0; i < 2; i++ {
+		assertByteIdentical(t, chain[i], legacy[i], i)
+	}
+}
+
+// TestChainPlanner_DNS_QueryOnly verifies query_only:true keeps the legacy
+// pure-query shape (single up datagram).
+func TestChainPlanner_DNS_QueryOnly(t *testing.T) {
+	spec := dnsSpec()
+	spec.DNS.QueryOnly = true
+	chain := collectPlanner(t, layers.NewChainPlanner("dns"), spec)
+	legacy := collectPlanner(t, dns.NewPlanner(), spec)
+
+	if len(chain) != 1 {
+		t.Fatalf("chain produced %d packets, want 1 (query_only)", len(chain))
+	}
+	if chain[0].Direction != "up" {
+		t.Errorf("direction = %s, want up", chain[0].Direction)
+	}
 	assertByteIdentical(t, chain[0], legacy[0], 0)
+}
+
+// TestChainPlanner_DNS_QueryOnlyResponseMutex: query_only + is_response is a
+// self-contradictory intent and must be rejected at Validate time.
+func TestChainPlanner_DNS_QueryOnlyResponseMutex(t *testing.T) {
+	spec := dnsSpec()
+	spec.DNS.QueryOnly = true
+	spec.DNS.IsResponse = true
+	p := layers.NewChainPlanner("dns")
+	if _, err := p.Plan(context.Background(), spec); err == nil {
+		t.Fatal("query_only+is_response must be rejected")
+	}
 }
 
 // TestChainPlanner_DNS_QueryResponse verifies IsResponse=true adds the down
@@ -119,6 +158,7 @@ func TestChainPlanner_DNS_QueryResponse(t *testing.T) {
 func TestChainPlanner_DNS_DefaultPorts(t *testing.T) {
 	spec := dnsSpec()
 	spec.DstPort = 0
+	spec.DNS.QueryOnly = true // 端口缺省断言聚焦查询包；响应包端口断言在 Query 测试
 	chain := collectPlanner(t, layers.NewChainPlanner("dns"), spec)
 	legacy := collectPlanner(t, dns.NewPlanner(), spec)
 
@@ -159,12 +199,14 @@ func TestChainPlanner_DNS_MultiQuestion(t *testing.T) {
 }
 
 // TestChainPlanner_DNS_EDNS0 verifies EDNS0 (OPT RR) flows through the chain
-// and matches legacy bytes.
+// and matches legacy bytes. QueryOnly keeps the focus on the single query
+// datagram (the response side carries no OPT by design).
 func TestChainPlanner_DNS_EDNS0(t *testing.T) {
 	spec := dnsSpec()
 	spec.DNS.EDNS0Enabled = true
 	spec.DNS.UDPPayloadSize = 4096
 	spec.DNS.DnssecOK = true
+	spec.DNS.QueryOnly = true
 	chain := collectPlanner(t, layers.NewChainPlanner("dns"), spec)
 	legacy := collectPlanner(t, dns.NewPlanner(), spec)
 

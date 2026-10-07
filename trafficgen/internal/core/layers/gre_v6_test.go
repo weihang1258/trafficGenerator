@@ -27,7 +27,9 @@ func greChain(outerSrc, outerDst, innerSrc, innerDst string, gre map[string]inte
 		{"gre": gre},
 		{"ip": inner},
 		{"udp": {"src_port": float64(12345), "dst_port": float64(80)}},
-		{"dns": {}},
+		// query_only：本组测试断言单包 GRE 封装形状（D-DNS-2 后空 dns 层
+		// 默认一问一答 2 包）。
+		{"dns": {"query_only": true}},
 	}
 	raw, _ := json.Marshal(chain)
 	return raw

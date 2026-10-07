@@ -2131,6 +2131,9 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if v, ok := cfg["is_response"].(bool); ok {
 			spec.DNS.IsResponse = v
 		}
+		if v, ok := cfg["query_only"].(bool); ok {
+			spec.DNS.QueryOnly = v
+		}
 		if v, ok := configString(cfg["response_ip"]); ok {
 			spec.DNS.ResponseIP = v
 		}

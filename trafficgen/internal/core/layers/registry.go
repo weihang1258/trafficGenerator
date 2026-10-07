@@ -148,6 +148,7 @@ func buildDefaultRegistry() {
 			"query_type":       {Type: "uint16", Default: uint16(1), Min: 0, Max: 65535},
 			"txid":             {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 			"is_response":      {Type: "bool", Default: false},
+			"query_only":       {Type: "bool", Default: false}, // D-DNS-2: 显式纯查询；缺省=一问一答
 			"response_ip":      {Type: "string", Default: ""},
 			"edns0_enabled":    {Type: "bool", Default: false},
 			"udp_payload_size": {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535}, // 0=4096 回退沿 legacy
