@@ -36,6 +36,7 @@ import (
 
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/core/layers"
+	"github.com/trafficgen/trafficgen/internal/core/schema"
 	"github.com/trafficgen/trafficgen/internal/output"
 	"github.com/trafficgen/trafficgen/internal/pcaptest"
 	"github.com/trafficgen/trafficgen/internal/replay"
@@ -54,10 +55,10 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ntp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/onvif"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/pop3"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/snmp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/smtp"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/sstp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/snmp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ssdp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/sstp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/syslog"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tls"
 )
@@ -222,7 +223,13 @@ func runChainCase(t *testing.T, c chainSuiteCase, dir string) (pcapPath, errText
 	t.Helper()
 	e, fails := newChainSuiteEngine(t, c.Proto)
 
-	// spec_json: flat config (minus layers, carried on Task.Layers) → FlowSpec.
+	// spec_json → FlowSpec：**带 layers 调 MapToFlowSpec**（生产同构）。
+	// 生产路径 StrategyModelToTask 拿到的 strategy.Config 原样含 layers，
+	// extractLayerSrcDst/MACs/IPTTL/parseLayerDyn 依赖它把层内显式四元组
+	// 反填进 spec（终结层生成器读 Meta.SrcIP/DstIP——如 doh 的 Host 头）。
+	// 此前 harness 先 delete(layers) 再 MapToFlowSpec，与生产分叉：cases
+	// 四元组迁层（06b888e）后 spec 恒拿 flat 缺省 10.0.0.1/20.0.0.1，
+	// doh 三例金向量假红。rawLayers 单独 marshal 供 Task.Layers。
 	var cfg map[string]interface{}
 	if err := json.Unmarshal(c.SpecJSON, &cfg); err != nil {
 		t.Fatalf("%s: parse spec_json: %v", c.ID, err)
@@ -231,7 +238,6 @@ func runChainCase(t *testing.T, c chainSuiteCase, dir string) (pcapPath, errText
 	if v, ok := cfg["layers"]; ok {
 		b, _ := json.Marshal(v)
 		rawLayers = b
-		delete(cfg, "layers")
 	}
 	spec := core.MapToFlowSpec(cfg, c.Proto)
 	// strategy 级流控（flow_control type=flows）→ spec.Count，与
@@ -324,6 +330,22 @@ func TestLayerChainSuite(t *testing.T) {
 	for _, c := range cases {
 		c := c
 		t.Run(c.ID, func(t *testing.T) {
+			if c.Expect.ExpectError {
+				// create-time 语义门先行（复刻真实路径：MCP/REST create 400——
+				// 顶层 presence 判死、static four-tuple 等锚词在策略创建即拒，
+				// 永远到不了生成期；离线 suite 曾绕过此门致负例假红）。
+				var full map[string]any
+				if err := json.Unmarshal(c.SpecJSON, &full); err == nil {
+					var fc *schema.FlowControl
+					if c.StrategyFC != nil {
+						fc = &schema.FlowControl{Type: c.StrategyFC.Type, Value: c.StrategyFC.Value}
+					}
+					if createErr, ve := schema.ValidateStrategy("synth", c.Proto, full, fc); createErr != "" && len(ve) > 0 &&
+						(c.Expect.ErrorContains == "" || strings.Contains(ve.Error(), c.Expect.ErrorContains)) {
+						return // create-time 拒绝命中锚词，负例成立
+					}
+				}
+			}
 			pcapPath, errText := runChainCase(t, c, dir)
 			if c.Expect.ExpectError {
 				if errText == "" {
