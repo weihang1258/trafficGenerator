@@ -110,6 +110,8 @@ dist: build-release
 	mkdir -p $(DIST_DIR)/$(PKG_NAME)
 	cp $(BUILD_DIR)/trafficgen $(DIST_DIR)/$(PKG_NAME)/
 	cp deploy/config.yaml.example deploy/uninstall.sh deploy/README.md $(DIST_DIR)/$(PKG_NAME)/
+	# 发布包必须携带许可证文本（AGPL-3.0，仓库根 LICENSE；v1.3.0 及之前的发布包均缺失）。
+	cp ../LICENSE $(DIST_DIR)/$(PKG_NAME)/
 	# install.sh 烧入发布版本号：curl | sudo bash 零参数在线安装（可被
 	# TRAFFICGEN_RELEASE_BASE / 显式参数覆盖）。源码副本保留占位符。
 	# 只替换赋值行——全局替换会把守卫行里的占位符比较串也换掉，
