@@ -1,67 +1,134 @@
 [
-  {
-    "id": "snmp_smoke_01",
-    "proto": "snmp",
-    "summary": "[chain] 冒烟：SNMPv1 GET 单 OID（1.3.6.1.2.1.1.1.0）。顶层不设端口 → 默认 dst 161（IANA），community=public，共 1 包",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "snmp": {
-            "var_binds": [
-              {
-                "name": "1.3.6.1.2.1.1.1.0"
-              }
-            ]
-          }
-        }
-      ]
+ {
+  "id": "snmp_smoke_01",
+  "proto": "snmp",
+  "summary": "[chain] 冒烟：SNMPv1 GET 单 OID（1.3.6.1.2.1.1.1.0），request_only:true 显式纯请求（D-SNMP-2 保持单包形状）。顶层不设端口 → 默认 dst 161（IANA），community=public，共 1 包",
+  "spec_json": {
+   "layers": [
+    {
+     "udp": {}
     },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "udp.dstport",
-          "value": "161"
-        },
-        {
-          "packet": 1,
-          "field": "snmp.version",
-          "value": "1"
-        },
-        {
-          "packet": 1,
-          "field": "snmp.community",
-          "value": "public"
-        },
-        {
-          "packet": 1,
-          "field": "snmp.get_request_element",
-          "value": "1"
-        },
-        {
-          "packet": 1,
-          "field": "snmp.name",
-          "value": "1.3.6.1.2.1.1.1.0"
-        },
-        {
-          "packet": 1,
-          "field": "snmp.error_status",
-          "value": "0"
-        }
+    {
+     "snmp": {
+      "var_binds": [
+       {
+        "name": "1.3.6.1.2.1.1.1.0"
+       }
       ],
-      "notes": [
-        "RFC 3416 §4.2.1：GetRequest-PDU（tag 0xA0）、varbind 含 OID+value；community 默认 public",
-        "顶层未设端口：dst 默认 161（strategy_convert）、src 保持 flow 默认 12345，不断言",
-        "tshark 探针实测：version=1、community=public、get_request_element=1、name=1.3.6.1.2.1.1.1.0、error_status=0、dstport=161",
-        "layers chain style: [udp,snmp]"
-      ]
+      "request_only": true
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "161"
     },
-    "notes": [
-      "层链改造：顶层 snmp 子映射迁入 layers[].snmp（层链唯一配置真相）；version/community/max_repetitions 缺键默认与 flat 遗留语义一致（v2c/public/1）"
-    ]
+    {
+     "packet": 1,
+     "field": "snmp.version",
+     "value": "1"
+    },
+    {
+     "packet": 1,
+     "field": "snmp.community",
+     "value": "public"
+    },
+    {
+     "packet": 1,
+     "field": "snmp.get_request_element",
+     "value": "1"
+    },
+    {
+     "packet": 1,
+     "field": "snmp.name",
+     "value": "1.3.6.1.2.1.1.1.0"
+    },
+    {
+     "packet": 1,
+     "field": "snmp.error_status",
+     "value": "0"
+    }
+   ],
+   "notes": [
+    "RFC 3416 §4.2.1：GetRequest-PDU（tag 0xA0）、varbind 含 OID+value；community 默认 public",
+    "顶层未设端口：dst 默认 161（strategy_convert）、src 保持 flow 默认 12345，不断言",
+    "tshark 探针实测：version=1、community=public、get_request_element=1、name=1.3.6.1.2.1.1.1.0、error_status=0、dstport=161",
+    "layers chain style: [udp,snmp]"
+   ]
+  },
+  "notes": [
+   "层链改造：顶层 snmp 子映射迁入 layers[].snmp（层链唯一配置真相）；version/community/max_repetitions 缺键默认与 flat 遗留语义一致（v2c/public/1）",
+   "D-SNMP-2 (v1.1.0)：查询型 PDU 缺省一问一答；本例 request_only:true 显式纯请求，包数与断言不变"
+  ]
+ },
+ {
+  "id": "snmp_get_default_transaction",
+  "proto": "snmp",
+  "summary": "[chain] D-SNMP-2 缺省事务：v2c GET 不带任何开关 → 一问一答（request up + response down，同 request-id），共 2 包",
+  "spec_json": {
+   "layers": [
+    {
+     "udp": {
+      "src_port": 40000
+     }
+    },
+    {
+     "snmp": {
+      "version": 1,
+      "var_binds": [
+       {
+        "name": "1.3.6.1.2.1.1.1.0"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "161"
+    },
+    {
+     "packet": 1,
+     "field": "snmp.version",
+     "value": "1"
+    },
+    {
+     "packet": 1,
+     "field": "snmp.get_request_element",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "udp.srcport",
+     "value": "161"
+    },
+    {
+     "packet": 2,
+     "field": "snmp.version",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "snmp.get_response_element",
+     "value": "1"
+    }
+   ],
+   "notes": [
+    "RFC 3416 §4.2：Response-PDU（tag 0xA2）回显 request-id；方向 down 端口对调（响应 src=161）",
+    "D-SNMP-2 (v1.1.0)：默认场景给正常业务——一请求一响应；纯请求用 request_only:true",
+    "tshark 探针钉值：get_response_element=1、响应侧 udp.srcport=161；先跑后钉，勿凭记忆改断言",
+    "layers chain style: [udp,snmp]"
+   ]
   }
+ }
 ]

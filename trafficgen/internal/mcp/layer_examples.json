@@ -114,7 +114,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 11
    },
    {
     "protocol": "a2a",
@@ -171,7 +172,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "a2a",
@@ -251,7 +253,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 11
    }
   ],
   "amqp": [
@@ -289,7 +292,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 8
    },
    {
     "protocol": "amqp",
@@ -376,7 +380,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 16
    },
    {
     "protocol": "amqp",
@@ -495,7 +500,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 20
    }
   ],
   "ams": [
@@ -535,7 +541,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    }
   ],
   "arp": [
@@ -555,7 +562,8 @@
        "arp": {}
       }
      ]
-    }
+    },
+    "packets": 2
    },
    {
     "protocol": "arp",
@@ -578,7 +586,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 2
    },
    {
     "protocol": "arp",
@@ -598,7 +607,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 1
    }
   ],
   "bacnet": [
@@ -637,7 +647,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 2
    },
    {
     "protocol": "bacnet",
@@ -689,10 +700,38 @@
        }
       }
      ]
-    }
+    },
+    "packets": 4
    }
   ],
   "bgp": [
+   {
+    "protocol": "bgp",
+    "case_id": "bgp_connect",
+    "summary": "S1: TCP/179 connect without BGP application events",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345
+       }
+      },
+      {
+       "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": []
+       }
+      }
+     ]
+    },
+    "packets": 7
+   },
    {
     "protocol": "bgp",
     "case_id": "bgp_multi_session",
@@ -776,121 +815,201 @@
        }
       }
      ]
-    }
-   },
+    },
+    "packets": 22
+   }
+  ],
+  "cflow": [
    {
-    "protocol": "bgp",
-    "case_id": "bgp_a_multi_update_rounds",
-    "summary": "A': same connection 3 UPDATE rounds, distinct NLRI",
+    "protocol": "cflow",
+    "case_id": "cflow_v9_multi_exporter",
+    "summary": "NetFlow v9 exporters remain distinct",
     "config": {
      "layers": [
       {
        "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
+        "src": "192.0.2.14",
+        "dst": "198.51.100.14"
        }
       },
       {
-       "tcp": {
-        "src_port": 12345
+       "udp": {
+        "src_port": 40005,
+        "dst_port": 2055
        }
       },
       {
-       "bgp": {
-        "wire_profile": "bgp_rfc4271_ipv4_unicast",
-        "events": [
+       "cflow": {
+        "profile": "netflow_v9_rfc3954",
+        "source_id": 101,
+        "templates": [
          {
-          "kind": "open",
-          "direction": "c2s",
-          "version": 4,
-          "my_as": 64512,
-          "hold_time": 90,
-          "identifier": "192.0.2.1"
-         },
+          "template_id": 256,
+          "fields": [
+           {
+            "element_id": 8,
+            "length": 4
+           },
+           {
+            "element_id": 12,
+            "length": 4
+           }
+          ]
+         }
+        ],
+        "records": [
          {
-          "kind": "open",
-          "direction": "s2c",
-          "version": 4,
-          "my_as": 64513,
-          "hold_time": 90,
-          "identifier": "192.0.2.2"
-         },
-         {
-          "kind": "keepalive",
-          "direction": "c2s"
-         },
-         {
-          "kind": "keepalive",
-          "direction": "s2c"
-         },
-         {
-          "kind": "update",
-          "direction": "c2s",
-          "withdrawn_prefixes": [],
-          "nlri": [
-           "203.0.113.0/24"
-          ],
-          "attributes": {
-           "origin": 0,
-           "as_path": [
-            64512
-           ],
-           "next_hop": "192.0.2.1",
-           "multi_exit_disc": 100,
-           "local_pref": 100,
-           "communities": [
-            "NO_EXPORT"
-           ]
+          "template_id": 256,
+          "record": {
+           "srcaddr": "10.43.1.1",
+           "dstaddr": "10.43.1.2"
           }
-         },
+         }
+        ],
+        "exporters": [
          {
-          "kind": "update",
-          "direction": "c2s",
-          "withdrawn_prefixes": [],
-          "nlri": [
-           "198.51.100.0/24"
+          "source_id": 202,
+          "templates": [
+           {
+            "template_id": 256,
+            "fields": [
+             {
+              "element_id": 8,
+              "length": 4
+             },
+             {
+              "element_id": 12,
+              "length": 4
+             }
+            ]
+           }
           ],
-          "attributes": {
-           "origin": 0,
-           "as_path": [
-            64512
-           ],
-           "next_hop": "192.0.2.1",
-           "multi_exit_disc": 100,
-           "local_pref": 100,
-           "communities": [
-            "NO_EXPORT"
-           ]
-          }
-         },
+          "records": [
+           {
+            "template_id": 256,
+            "record": {
+             "srcaddr": "10.43.1.1",
+             "dstaddr": "10.43.1.2"
+            }
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 2
+   },
+   {
+    "protocol": "cflow",
+    "case_id": "cflow_v9_header_sequence_source",
+    "summary": "NetFlow v9 header sequence and source identity",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.11",
+        "dst": "198.51.100.11"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 40002,
+        "dst_port": 2055
+       }
+      },
+      {
+       "cflow": {
+        "profile": "netflow_v9_rfc3954",
+        "source_id": 168496141,
+        "sequence": 16909060,
+        "sys_uptime": 600,
+        "templates": [
          {
-          "kind": "update",
-          "direction": "c2s",
-          "withdrawn_prefixes": [],
-          "nlri": [
-           "192.0.2.0/24"
-          ],
-          "attributes": {
-           "origin": 0,
-           "as_path": [
-            64512
-           ],
-           "next_hop": "192.0.2.1",
-           "multi_exit_disc": 100,
-           "local_pref": 100,
-           "communities": [
-            "NO_EXPORT"
-           ]
+          "template_id": 256,
+          "fields": [
+           {
+            "element_id": 8,
+            "length": 4
+           },
+           {
+            "element_id": 12,
+            "length": 4
+           }
+          ]
+         }
+        ],
+        "records": [
+         {
+          "template_id": 256,
+          "record": {
+           "srcaddr": "10.43.1.1",
+           "dstaddr": "10.43.1.2"
           }
          }
         ]
        }
       }
      ]
-    }
-   }
-  ],
-  "cflow": [
+    },
+    "packets": 1
+   },
+   {
+    "protocol": "cflow",
+    "case_id": "cflow_ipfix_timeout_options_template",
+    "summary": "IPFIX Options Template with timeout fields",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.24",
+        "dst": "198.51.100.24"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 42005,
+        "dst_port": 4739
+       }
+      },
+      {
+       "cflow": {
+        "profile": "ipfix_rfc7011",
+        "observation_domain_id": 47,
+        "templates": [
+         {
+          "kind": "options",
+          "template_id": 260,
+          "scope_fields": [
+           {
+            "element_id": 138,
+            "length": 8
+           }
+          ],
+          "option_fields": [
+           {
+            "element_id": 36,
+            "length": 2
+           },
+           {
+            "element_id": 37,
+            "length": 2
+           }
+          ]
+         }
+        ],
+        "records": [],
+        "options": {
+         "active_timeout": 60,
+         "inactive_timeout": 15
+        }
+       }
+      }
+     ]
+    },
+    "packets": 1
+   },
    {
     "protocol": "cflow",
     "case_id": "cflow_v9_multi_session",
@@ -970,248 +1089,8 @@
        }
       }
      ]
-    }
-   },
-   {
-    "protocol": "cflow",
-    "case_id": "cflow_ipfix_template_data_ipv4",
-    "summary": "IPFIX template and IPv4 data record",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "192.0.2.20",
-        "dst": "198.51.100.20"
-       }
-      },
-      {
-       "udp": {
-        "src_port": 42000,
-        "dst_port": 4739
-       }
-      },
-      {
-       "cflow": {
-        "profile": "ipfix_rfc7011",
-        "observation_domain_id": 43,
-        "sequence": 1,
-        "templates": [
-         {
-          "template_id": 256,
-          "fields": [
-           {
-            "element_id": 8,
-            "length": 4
-           },
-           {
-            "element_id": 12,
-            "length": 4
-           }
-          ]
-         }
-        ],
-        "records": [
-         {
-          "template_id": 256,
-          "record": {
-           "sourceIPv4Address": "10.43.8.1",
-           "destinationIPv4Address": "10.43.8.2"
-          }
-         }
-        ]
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "cflow",
-    "case_id": "cflow_v9_timeout_sampling",
-    "summary": "NetFlow v9 timeout and sampling metadata",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "192.0.2.12",
-        "dst": "198.51.100.12"
-       }
-      },
-      {
-       "udp": {
-        "src_port": 40003,
-        "dst_port": 2055
-       }
-      },
-      {
-       "cflow": {
-        "profile": "netflow_v9_rfc3954",
-        "source_id": 9,
-        "templates": [
-         {
-          "template_id": 258,
-          "fields": [
-           {
-            "element_id": 22,
-            "length": 4
-           },
-           {
-            "element_id": 21,
-            "length": 4
-           }
-          ]
-         }
-        ],
-        "records": [
-         {
-          "template_id": 258,
-          "record": {
-           "timestart": 100,
-           "timeend": 200
-          }
-         }
-        ],
-        "options": {
-         "active_timeout": 60,
-         "inactive_timeout": 15,
-         "sampling_interval": 1000
-        }
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "cflow",
-    "case_id": "cflow_v9_multi_exporter",
-    "summary": "NetFlow v9 exporters remain distinct",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "192.0.2.14",
-        "dst": "198.51.100.14"
-       }
-      },
-      {
-       "udp": {
-        "src_port": 40005,
-        "dst_port": 2055
-       }
-      },
-      {
-       "cflow": {
-        "profile": "netflow_v9_rfc3954",
-        "source_id": 101,
-        "templates": [
-         {
-          "template_id": 256,
-          "fields": [
-           {
-            "element_id": 8,
-            "length": 4
-           },
-           {
-            "element_id": 12,
-            "length": 4
-           }
-          ]
-         }
-        ],
-        "records": [
-         {
-          "template_id": 256,
-          "record": {
-           "srcaddr": "10.43.1.1",
-           "dstaddr": "10.43.1.2"
-          }
-         }
-        ],
-        "exporters": [
-         {
-          "source_id": 202,
-          "templates": [
-           {
-            "template_id": 256,
-            "fields": [
-             {
-              "element_id": 8,
-              "length": 4
-             },
-             {
-              "element_id": 12,
-              "length": 4
-             }
-            ]
-           }
-          ],
-          "records": [
-           {
-            "template_id": 256,
-            "record": {
-             "srcaddr": "10.43.1.1",
-             "dstaddr": "10.43.1.2"
-            }
-           }
-          ]
-         }
-        ]
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "cflow",
-    "case_id": "cflow_v9_header_sequence_source",
-    "summary": "NetFlow v9 header sequence and source identity",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "192.0.2.11",
-        "dst": "198.51.100.11"
-       }
-      },
-      {
-       "udp": {
-        "src_port": 40002,
-        "dst_port": 2055
-       }
-      },
-      {
-       "cflow": {
-        "profile": "netflow_v9_rfc3954",
-        "source_id": 168496141,
-        "sequence": 16909060,
-        "sys_uptime": 600,
-        "templates": [
-         {
-          "template_id": 256,
-          "fields": [
-           {
-            "element_id": 8,
-            "length": 4
-           },
-           {
-            "element_id": 12,
-            "length": 4
-           }
-          ]
-         }
-        ],
-        "records": [
-         {
-          "template_id": 256,
-          "record": {
-           "srcaddr": "10.43.1.1",
-           "dstaddr": "10.43.1.2"
-          }
-         }
-        ]
-       }
-      }
-     ]
-    }
+    },
+    "packets": 2
    }
   ],
   "coap": [
@@ -1249,7 +1128,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 2
    },
    {
     "protocol": "coap",
@@ -1300,7 +1180,8 @@
      "flow_control": {
       "flows": 2
      }
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "coap",
@@ -1340,7 +1221,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 2
    },
    {
     "protocol": "coap",
@@ -1376,7 +1258,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 5
    },
    {
     "protocol": "coap",
@@ -1427,10 +1310,51 @@
        }
       }
      ]
-    }
+    },
+    "packets": 4
    }
   ],
   "cql": [
+   {
+    "protocol": "cql",
+    "case_id": "cql_v4_startup_ready",
+    "summary": "S1: CQL v4 STARTUP then READY",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 9042
+       }
+      },
+      {
+       "cql": {
+        "wire_profile": "cql_v4",
+        "events": [
+         {
+          "kind": "startup",
+          "direction": "c2s",
+          "options": {
+           "CQL_VERSION": "3.0.0"
+          }
+         },
+         {
+          "kind": "ready",
+          "direction": "s2c"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 9
+   },
    {
     "protocol": "cql",
     "case_id": "cql_multi_session",
@@ -1489,57 +1413,8 @@
        }
       }
      ]
-    }
-   },
-   {
-    "protocol": "cql",
-    "case_id": "cql_ipv6",
-    "summary": "S7: IPv6 CQL v4 startup/query transport",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "2001:db8::1",
-        "dst": "2001:db8::2"
-       }
-      },
-      {
-       "tcp": {
-        "src_port": 12345,
-        "dst_port": 9042
-       }
-      },
-      {
-       "cql": {
-        "wire_profile": "cql_v4",
-        "events": [
-         {
-          "kind": "startup",
-          "direction": "c2s",
-          "options": {
-           "CQL_VERSION": "3.0.0"
-          }
-         },
-         {
-          "kind": "ready",
-          "direction": "s2c"
-         },
-         {
-          "kind": "query",
-          "direction": "c2s",
-          "query": "SELECT 1",
-          "consistency": 1,
-          "query_flags": 0
-         },
-         {
-          "kind": "result",
-          "direction": "s2c"
-         }
-        ]
-       }
-      }
-     ]
-    }
+    },
+    "packets": 18
    }
   ],
   "cwmp": [
@@ -1600,7 +1475,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 11
    },
    {
     "protocol": "cwmp",
@@ -1691,7 +1567,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 23
    },
    {
     "protocol": "cwmp",
@@ -1782,10 +1659,101 @@
        }
       }
      ]
-    }
+    },
+    "packets": 22
    }
   ],
   "dameng": [
+   {
+    "protocol": "dameng",
+    "case_id": "dameng_connect",
+    "summary": "S1: TCP 5236 connect event",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345
+       }
+      },
+      {
+       "dameng": {
+        "wire_profile": "dm8_profile_pending",
+        "events": [
+         {
+          "kind": "connect",
+          "direction": "c2s",
+          "profile": "connect_default"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 8
+   },
+   {
+    "protocol": "dameng",
+    "case_id": "dameng_length_boundary",
+    "summary": "S5: profile minimum non-empty payload boundary",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345
+       }
+      },
+      {
+       "dameng": {
+        "wire_profile": "length_boundary",
+        "events": [
+         {
+          "kind": "connect",
+          "direction": "c2s",
+          "profile": "connect_default"
+         },
+         {
+          "kind": "auth_request",
+          "direction": "c2s",
+          "profile": "auth_default"
+         },
+         {
+          "kind": "auth_response",
+          "direction": "s2c",
+          "profile": "auth_default",
+          "result": "success"
+         },
+         {
+          "kind": "sql_request",
+          "direction": "c2s",
+          "profile": "sql_select_default",
+          "sql": "SELECT 1"
+         },
+         {
+          "kind": "sql_response",
+          "direction": "s2c",
+          "profile": "sql_select_default",
+          "result": "success"
+         }
+        ],
+        "payload_size": "profile_minimum_nonempty"
+       }
+      }
+     ]
+    },
+    "packets": 12
+   },
    {
     "protocol": "dameng",
     "case_id": "dameng_multi_session",
@@ -1853,63 +1821,8 @@
        }
       }
      ]
-    }
-   },
-   {
-    "protocol": "dameng",
-    "case_id": "dameng_length_boundary",
-    "summary": "S5: profile minimum non-empty payload boundary",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "tcp": {
-        "src_port": 12345
-       }
-      },
-      {
-       "dameng": {
-        "wire_profile": "length_boundary",
-        "events": [
-         {
-          "kind": "connect",
-          "direction": "c2s",
-          "profile": "connect_default"
-         },
-         {
-          "kind": "auth_request",
-          "direction": "c2s",
-          "profile": "auth_default"
-         },
-         {
-          "kind": "auth_response",
-          "direction": "s2c",
-          "profile": "auth_default",
-          "result": "success"
-         },
-         {
-          "kind": "sql_request",
-          "direction": "c2s",
-          "profile": "sql_select_default",
-          "sql": "SELECT 1"
-         },
-         {
-          "kind": "sql_response",
-          "direction": "s2c",
-          "profile": "sql_select_default",
-          "result": "success"
-         }
-        ],
-        "payload_size": "profile_minimum_nonempty"
-       }
-      }
-     ]
-    }
+    },
+    "packets": 20
    }
   ],
   "dcerpc": [
@@ -1990,7 +1903,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 11
    }
   ],
   "dhcp": [
@@ -2011,7 +1925,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 4
    }
   ],
   "dhcpv6": [
@@ -2042,14 +1957,15 @@
        }
       }
      ]
-    }
+    },
+    "packets": 4
    }
   ],
   "dnp3": [
    {
     "protocol": "dnp3",
-    "case_id": "dnp3_t21_reset_link",
-    "summary": "T21: reset_link 场景（master, TCP）→ 握手3 + ResetLink(C0)+ACK(00) + 挥手4 = 9 包",
+    "case_id": "dnp3_t48_iin_already_executing",
+    "summary": "T48: IINAlreadyExecuting=true → 响应 IIN byte2=0x04 (AlreadyExecuting bit)",
     "config": {
      "layers": [
       {
@@ -2067,11 +1983,21 @@
         "transport": "tcp",
         "src_addr": 1,
         "dst_addr": 1024,
-        "scenario": "reset_link"
+        "scenario": "read_class0",
+        "app_seq": 0,
+        "iin_already_executing": true,
+        "objects": [
+         {
+          "object_type": 60,
+          "variation": 1,
+          "qualifier": 6
+         }
+        ]
        }
       }
      ]
-    }
+    },
+    "packets": 13
    },
    {
     "protocol": "dnp3",
@@ -2108,7 +2034,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "dnp3",
@@ -2158,7 +2085,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "dnp3",
@@ -2189,12 +2117,13 @@
        }
       }
      ]
-    }
+    },
+    "packets": 11
    },
    {
     "protocol": "dnp3",
-    "case_id": "dnp3_t41_fcb_zero_only",
-    "summary": "T41 LinkFCB=1 但 FCV=0: wire 上 FCB 强制为 0",
+    "case_id": "dnp3_t42_fcb_toggle",
+    "summary": "T42 LinkFCB=1+FCV=1: read_class0 请求帧 FCB=1, 响应帧 FCB=0",
     "config": {
      "layers": [
       {
@@ -2211,20 +2140,21 @@
       {
        "dnp3": {
         "transport": "tcp",
-        "scenario": "reset_link",
+        "scenario": "read_class0",
         "link_fcb": 1,
-        "link_fcv": 0
+        "link_fcv": 1
        }
       }
      ]
-    }
+    },
+    "packets": 0
    }
   ],
   "dns": [
    {
     "protocol": "dns",
-    "case_id": "dns_txt_response",
-    "summary": "TXT响应(T-DNS-22):问example.com TXT→答文本",
+    "case_id": "dns_srv_response",
+    "summary": "SRV响应(T-DNS-25):问_sip._tcp.example.com SRV→答priority/weight/port/target",
     "config": {
      "layers": [
       {
@@ -2241,20 +2171,24 @@
       },
       {
        "dns": {
-        "name": "example.com",
-        "query_type": 16,
+        "name": "_sip._tcp.example.com",
+        "query_type": 33,
         "is_response": true,
         "answers": [
          {
-          "name": "example.com",
-          "type": 16,
-          "text": "hello-world"
+          "name": "_sip._tcp.example.com",
+          "type": 33,
+          "priority": 10,
+          "weight": 20,
+          "port": 5060,
+          "target": "sip.example.com"
          }
         ]
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "dns",
@@ -2296,7 +2230,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "dns",
@@ -2326,7 +2261,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "dns",
@@ -2357,11 +2293,13 @@
           "name": "b.com",
           "type": 28
          }
-        ]
+        ],
+        "query_only": true
        }
       }
      ]
-    }
+    },
+    "packets": 1
    },
    {
     "protocol": "dns",
@@ -2385,11 +2323,13 @@
        "dns": {
         "name": "example.com",
         "query_type": 1,
-        "edns0_enabled": true
+        "edns0_enabled": true,
+        "query_only": true
        }
       }
      ]
-    }
+    },
+    "packets": 1
    }
   ],
   "doh": [
@@ -2443,7 +2383,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "doh",
@@ -2485,7 +2426,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "doh",
@@ -2562,7 +2504,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 18
    }
   ],
   "doip": [
@@ -2595,7 +2538,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "doip",
@@ -2649,7 +2593,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 14
    },
    {
     "protocol": "doip",
@@ -2681,7 +2626,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 10
    },
    {
     "protocol": "doip",
@@ -2709,14 +2655,15 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    }
   ],
   "drda": [
    {
     "protocol": "drda",
-    "case_id": "drda_multi_session",
-    "summary": "T-DRDA-008/S8：两条独立 TCP 会话，各自 correlator 从 1 开始",
+    "case_id": "drda_excsat",
+    "summary": "T-DRDA-001/S1：TCP 446 与 EXCSAT→EXCSATRD 关联建立",
     "config": {
      "layers": [
       {
@@ -2733,26 +2680,16 @@
       {
        "drda": {
         "association": "excsat",
-        "ccsid": 1208,
-        "sessions": [
-         {
-          "id": "s1",
-          "src_port": 12345,
-          "correlator_start": 1
-         },
-         {
-          "id": "s2",
-          "src_port": 12346,
-          "correlator_start": 1
-         }
-        ]
+        "correlator_start": 1,
+        "ccsid": 1208
        }
       }
      ],
      "flow_control": {
       "flows": 1
      }
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "drda",
@@ -2790,7 +2727,8 @@
      "flow_control": {
       "flows": 1
      }
-    }
+    },
+    "packets": 15
    },
    {
     "protocol": "drda",
@@ -2830,7 +2768,8 @@
      "flow_control": {
       "flows": 1
      }
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "drda",
@@ -2872,7 +2811,50 @@
      "flow_control": {
       "flows": 1
      }
-    }
+    },
+    "packets": 17
+   },
+   {
+    "protocol": "drda",
+    "case_id": "drda_multi_session",
+    "summary": "T-DRDA-008/S8：两条独立 TCP 会话，各自 correlator 从 1 开始",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345
+       }
+      },
+      {
+       "drda": {
+        "association": "excsat",
+        "ccsid": 1208,
+        "sessions": [
+         {
+          "id": "s1",
+          "src_port": 12345,
+          "correlator_start": 1
+         },
+         {
+          "id": "s2",
+          "src_port": 12346,
+          "correlator_start": 1
+         }
+        ]
+       }
+      }
+     ],
+     "flow_control": {
+      "flows": 1
+     }
+    },
+    "packets": 18
    }
   ],
   "dtls": [
@@ -2981,7 +2963,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 12
    }
   ],
   "edp": [
@@ -3021,7 +3004,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "edp",
@@ -3091,7 +3075,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 22
    }
   ],
   "enip": [
@@ -3131,7 +3116,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 8
    }
   ],
   "ethmining": [
@@ -3173,7 +3159,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "ethmining",
@@ -3240,14 +3227,15 @@
        }
       }
      ]
-    }
+    },
+    "packets": 15
    }
   ],
   "fins": [
    {
     "protocol": "fins",
-    "case_id": "fins_sessions_two",
-    "summary": "T-020: 多会话 sessions=2 双流（各 DM D100 读 1 字），每流 SID 独立从 0x01 递增、跨流不串号；聚合断言 + 每流独立 src_port",
+    "case_id": "fins_sessions_three",
+    "summary": "T-021: 多会话 sessions=3 聚合断言（omron.sid DistinctValues={0x01}；端口全集不作断言，调度无关）",
     "config": {
      "layers": [
       {
@@ -3258,14 +3246,14 @@
       },
       {
        "udp": {
-        "src_port": 1245,
+        "src_port": 1246,
         "dst_port": 9600
        }
       },
       {
        "fins": {
         "transport": "udp",
-        "sessions": 2,
+        "sessions": 3,
         "commands": [
          {
           "command": 257,
@@ -3277,7 +3265,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "fins",
@@ -3328,7 +3317,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 6
    },
    {
     "protocol": "fins",
@@ -3370,14 +3360,15 @@
        }
       }
      ]
-    }
+    },
+    "packets": 4
    }
   ],
   "ftp": [
    {
     "protocol": "ftp",
-    "case_id": "ftp_dyn_banner_fixed",
-    "summary": "会话 banner fixed 常量",
+    "case_id": "ftp_multiflow_data",
+    "summary": "多流×数据通道组合：flows=3 每流 PASV+RETR 含独立数据通道（端口逐流隔离）",
     "config": {
      "layers": [
       {
@@ -3391,34 +3382,53 @@
            {
             "commands": [
              {
+              "cmd": "PASS p",
+              "response": "230"
+             },
+             {
+              "cmd": "PASV",
+              "response": "227 Entering Passive Mode (20,0,0,1,195,106)"
+             },
+             {
+              "cmd": "RETR /f.bin",
+              "response": "150",
+              "emit_data_channel": true
+             },
+             {
+              "cmd": "",
+              "response": "226"
+             },
+             {
               "cmd": "QUIT",
               "response": "221"
              }
-            ]
+            ],
+            "data_channel": {
+             "mode": "passive",
+             "direction": "down",
+             "payload": "DATA"
+            }
            }
           ],
           "src_port": {
            "strategy": "inc",
            "range": [
-            33600,
-            33602
+            12345,
+            12347
            ]
-          },
-          "banner": {
-           "strategy": "fixed",
-           "value": "220 fixed banner"
           }
          }
         ]
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "ftp",
-    "case_id": "ftp_appe",
-    "summary": "RFC 959 §4.1.3 APPE 追加存储：150→数据→226（被动上传）",
+    "case_id": "ftp_stou",
+    "summary": "RFC 959 §4.1.3 STOU 唯一存储：125 已开数据连接变体 + 上传",
     "config": {
      "layers": [
       {
@@ -3451,11 +3461,11 @@
          },
          {
           "cmd": "PASV",
-          "response": "227 Entering Passive Mode (20,0,0,1,195,91)"
+          "response": "227 Entering Passive Mode (20,0,0,1,195,90)"
          },
          {
-          "cmd": "APPE /log.txt",
-          "response": "150 Opening data connection",
+          "cmd": "STOU",
+          "response": "125 Data connection already open",
           "emit_data_channel": true
          },
          {
@@ -3470,12 +3480,13 @@
         "data_channel": {
          "mode": "passive",
          "direction": "up",
-         "payload": "APPEND-DATA"
+         "payload": "UNIQUE-DATA"
         }
        }
       }
      ]
-    }
+    },
+    "packets": 29
    }
   ],
   "gbt": [
@@ -3527,7 +3538,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "gbt",
@@ -3600,7 +3612,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 18
    }
   ],
   "gbt32960": [
@@ -3628,7 +3641,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 11
    },
    {
     "protocol": "gbt32960",
@@ -3652,7 +3666,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 14
    },
    {
     "protocol": "gbt32960",
@@ -3687,7 +3702,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 17
    },
    {
     "protocol": "gbt32960",
@@ -3715,7 +3731,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 11
    },
    {
     "protocol": "gbt32960",
@@ -3743,59 +3760,26 @@
        }
       }
      ]
-    }
+    },
+    "packets": 11
    }
   ],
   "geneve": [
    {
     "protocol": "geneve",
-    "case_id": "geneve_ipv4_outer_ipv4_inner",
-    "summary": "IPv4 outer/UDP 6081 + Ethernet/IPv4 inner: fixed 8-byte base header, VNI 5000",
+    "case_id": "geneve_options_multiple",
+    "summary": "three datagrams with empty / single / multi option chains, OptLen accumulates",
     "config": {
      "layers": [
       {
        "ip": {
-        "src": "192.0.2.10",
-        "dst": "198.51.100.10"
+        "src": "192.0.2.80",
+        "dst": "198.51.100.80"
        }
       },
       {
        "udp": {
-        "src_port": 40110,
-        "dst_port": 6081
-       }
-      },
-      {
-       "geneve": {
-        "vni": 5000,
-        "inner": {
-         "src_mac": "02:00:00:00:31:01",
-         "dst_mac": "02:00:00:00:31:02",
-         "ether_type": "ipv4",
-         "src_ip": "10.31.0.1",
-         "dst_ip": "10.31.0.2",
-         "payload_b64": "Z2VuZXZlLWlubmVyLTAx"
-        }
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "geneve",
-    "case_id": "geneve_vni_boundary",
-    "summary": "VNI=0 and VNI=0xffffff 24-bit boundary datagrams",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "192.0.2.50",
-        "dst": "198.51.100.50"
-       }
-      },
-      {
-       "udp": {
-        "src_port": 40150,
+        "src_port": 40180,
         "dst_port": 6081
        }
       },
@@ -3803,32 +3787,62 @@
        "geneve": {
         "datagrams": [
          {
-          "vni": 0,
+          "vni": 100,
           "inner": {
-           "src_mac": "02:00:00:00:35:01",
-           "dst_mac": "02:00:00:00:35:02",
+           "src_mac": "02:00:00:00:38:01",
+           "dst_mac": "02:00:00:00:38:02",
            "ether_type": "ipv4",
-           "src_ip": "10.35.0.1",
-           "dst_ip": "10.35.0.2",
+           "src_ip": "10.38.0.1",
+           "dst_ip": "10.38.0.2",
            "payload_b64": "YQ=="
           }
          },
          {
-          "vni": 16777215,
+          "vni": 200,
+          "options": [
+           {
+            "class": 258,
+            "type": 3
+           }
+          ],
           "inner": {
-           "src_mac": "02:00:00:00:35:03",
-           "dst_mac": "02:00:00:00:35:04",
+           "src_mac": "02:00:00:00:38:03",
+           "dst_mac": "02:00:00:00:38:04",
            "ether_type": "ipv4",
-           "src_ip": "10.35.0.3",
-           "dst_ip": "10.35.0.4",
+           "src_ip": "10.38.0.3",
+           "dst_ip": "10.38.0.4",
            "payload_b64": "Yg=="
+          }
+         },
+         {
+          "vni": 300,
+          "options": [
+           {
+            "class": 258,
+            "type": 5,
+            "data_b64": "AQIDBA=="
+           },
+           {
+            "class": 259,
+            "type": 6,
+            "data_b64": "BQYHCAkKCww="
+           }
+          ],
+          "inner": {
+           "src_mac": "02:00:00:00:38:05",
+           "dst_mac": "02:00:00:00:38:06",
+           "ether_type": "ipv4",
+           "src_ip": "10.38.0.5",
+           "dst_ip": "10.38.0.6",
+           "payload_b64": "Yw=="
           }
          }
         ]
        }
       }
      ]
-    }
+    },
+    "packets": 3
    },
    {
     "protocol": "geneve",
@@ -3869,7 +3883,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 1
    }
   ],
   "getwork": [
@@ -3919,7 +3934,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "getwork",
@@ -3988,7 +4004,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 18
    }
   ],
   "gnutella": [
@@ -4028,14 +4045,15 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    }
   ],
   "goose": [
    {
     "protocol": "goose",
-    "case_id": "goose_heartbeat",
-    "summary": "T-GSE-S1-01/02 static heartbeat: 3 frames, stNum constant 1, sqNum 1/2/3 incrementing, appid 0x1000, confRev 1, TAL 500, numDatSetEntries 3, no IP (L2-direct 0x88b8)",
+    "case_id": "goose_no_ip",
+    "summary": "T-GSE-S6-01 no-IP proof: frame carries ethernet 0x88b8 directly (no IPv4 0x0800 / IPv6 0x86dd), APDU 0x61 starts at byte 22 - GOOSE is L2-terminated",
     "config": {
      "layers": [
       {
@@ -4050,36 +4068,25 @@
         "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
         "tal_ms": 500,
         "appid": 4096,
-        "test": false,
-        "nds_com": false,
-        "vlan_enabled": false,
         "dst_mac": "01:0c:cd:01:02:03",
         "data": [
          {
           "name": "pos",
           "type": "int32",
           "value": 1234
-         },
-         {
-          "name": "tm",
-          "type": "binary_time"
-         },
-         {
-          "name": "rate",
-          "type": "int32",
-          "value": 5678
          }
         ],
         "count": 3
        }
       }
      ]
-    }
+    },
+    "packets": 3
    },
    {
     "protocol": "goose",
-    "case_id": "goose_vlan",
-    "summary": "T-GSE-S4-01 VLAN: TPID 0x8100 + TCI 0x8064 (prio 4 / id 100), EtherType 0x88b8 shifted +4, APDU at offset 26",
+    "case_id": "goose_combo_flags",
+    "summary": "T-GOOSE-28 组合流 A: test=true+nds_com=true+VLAN 同帧三动作（9.11 ≥3）",
     "config": {
      "layers": [
       {
@@ -4090,98 +4097,29 @@
       {
        "goose": {
         "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-        "conf_rev": 1,
         "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
         "tal_ms": 500,
+        "conf_rev": 1,
         "appid": 4096,
+        "dst_mac": "01:0c:cd:01:02:03",
+        "count": 2,
+        "data": [
+         {
+          "name": "pos",
+          "type": "int32",
+          "value": 1
+         }
+        ],
+        "test": true,
+        "nds_com": true,
         "vlan_enabled": true,
         "vlan_id": 100,
-        "vlan_priority": 4,
-        "dst_mac": "01:0c:cd:01:02:03",
-        "data": [
-         {
-          "name": "pos",
-          "type": "int32",
-          "value": 1
-         }
-        ],
-        "count": 2
+        "vlan_priority": 4
        }
       }
      ]
-    }
-   },
-   {
-    "protocol": "goose",
-    "case_id": "goose_retransmit",
-    "summary": "T-GSE-S2-01 fast retransmit: 1 heartbeat(sqNum=1) + event + 5 fast retransmits (stNum=2 sqNum=0..5), then heartbeat resumes with sqNum=6; content byte-identical across retransmit frames",
-    "config": {
-     "layers": [
-      {
-       "eth": {
-        "src_mac": "aa:bb:cc:dd:ee:01"
-       }
-      },
-      {
-       "goose": {
-        "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-        "conf_rev": 1,
-        "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-        "tal_ms": 500,
-        "appid": 4096,
-        "dst_mac": "01:0c:cd:01:02:03",
-        "data": [
-         {
-          "name": "pos",
-          "type": "int32",
-          "value": 1234
-         }
-        ],
-        "event_seq": [
-         {
-          "data_idx": 0,
-          "delay_ms": 5,
-          "retransmits": 5
-         }
-        ],
-        "count": 8
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "goose",
-    "case_id": "goose_goid",
-    "summary": "T-GOOSE-21: go_id 显式值（§3.4 可选键，0x83 段写显式串非 gocbRef 回填）",
-    "config": {
-     "layers": [
-      {
-       "eth": {
-        "src_mac": "aa:bb:cc:dd:ee:01"
-       }
-      },
-      {
-       "goose": {
-        "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-        "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-        "tal_ms": 500,
-        "conf_rev": 1,
-        "appid": 4096,
-        "dst_mac": "01:0c:cd:01:02:03",
-        "count": 1,
-        "data": [
-         {
-          "name": "pos",
-          "type": "int32",
-          "value": 1
-         }
-        ],
-        "go_id": "test-goid"
-       }
-      }
-     ]
-    }
+    },
+    "packets": 2
    },
    {
     "protocol": "goose",
@@ -4214,7 +4152,82 @@
        }
       }
      ]
-    }
+    },
+    "packets": 3
+   },
+   {
+    "protocol": "goose",
+    "case_id": "goose_dataset_change",
+    "summary": "T-GSE-S2-02 dataset change: heartbeat stNum=1 sqNum=1 then event frame stNum=2 sqNum=0 (RESET, not 1), retransmits sqNum 0..2 then heartbeat",
+    "config": {
+     "layers": [
+      {
+       "eth": {
+        "src_mac": "aa:bb:cc:dd:ee:01"
+       }
+      },
+      {
+       "goose": {
+        "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+        "conf_rev": 1,
+        "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+        "tal_ms": 500,
+        "appid": 4096,
+        "dst_mac": "01:0c:cd:01:02:03",
+        "data": [
+         {
+          "name": "pos",
+          "type": "int32",
+          "value": 1234
+         }
+        ],
+        "event_seq": [
+         {
+          "data_idx": 0,
+          "delay_ms": 5,
+          "retransmits": 2
+         }
+        ],
+        "count": 5
+       }
+      }
+     ]
+    },
+    "packets": 5
+   },
+   {
+    "protocol": "goose",
+    "case_id": "goose_start_stnum",
+    "summary": "T-GOOSE-23: start_stnum=10 非零起点（stNum=10 恒，sqNum 1/2；§10.1 override 已实现）",
+    "config": {
+     "layers": [
+      {
+       "eth": {
+        "src_mac": "aa:bb:cc:dd:ee:01"
+       }
+      },
+      {
+       "goose": {
+        "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+        "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+        "tal_ms": 500,
+        "conf_rev": 1,
+        "appid": 4096,
+        "dst_mac": "01:0c:cd:01:02:03",
+        "count": 2,
+        "data": [
+         {
+          "name": "pos",
+          "type": "int32",
+          "value": 1
+         }
+        ],
+        "start_stnum": 10
+       }
+      }
+     ]
+    },
+    "packets": 2
    }
   ],
   "gre": [
@@ -4248,10 +4261,13 @@
        }
       },
       {
-       "dns": {}
+       "dns": {
+        "query_only": true
+       }
       }
      ]
-    }
+    },
+    "packets": 0
    }
   ],
   "grpc": [
@@ -4280,7 +4296,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    }
   ],
   "gtp": [
@@ -4306,14 +4323,15 @@
        "gtp": {}
       }
      ]
-    }
+    },
+    "packets": 1
    }
   ],
   "h323": [
    {
     "protocol": "h323",
-    "case_id": "h323_smoke_01",
-    "summary": "冒烟：full 场景呼叫周期（握手+Q.931 十消息+挥手），地址住 ip 层、端口住 h323 层",
+    "case_id": "h323_scenario_tunnel",
+    "summary": "T-H323-8: tunnel_only 场景（12 包=3+6+3，无 FACILITY 隧道面）",
     "config": {
      "layers": [
       {
@@ -4324,12 +4342,13 @@
       },
       {
        "h323": {
-        "src_port": 12345,
-        "dst_port": 1720
+        "scenario": "tunnel_only",
+        "src_port": 12345
        }
       }
      ]
-    }
+    },
+    "packets": 12
    },
    {
     "protocol": "h323",
@@ -4352,7 +4371,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 32
    },
    {
     "protocol": "h323",
@@ -4376,7 +4396,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 8
    },
    {
     "protocol": "h323",
@@ -4400,28 +4421,48 @@
        }
       }
      ]
-    }
+    },
+    "packets": 10
    },
    {
     "protocol": "h323",
-    "case_id": "h323_role_callee",
-    "summary": "T-H323-15: role=callee（握手恒 client 发起；Q.931 面方向翻转）",
+    "case_id": "h323_port_dyn",
+    "summary": "T-H323-14: h323.src_port 动态 inc+flows=2（逐流端口池，决策 E1）",
     "config": {
      "layers": [
       {
        "ip": {
-        "src": "10.0.0.1",
+        "src": {
+         "strategy": "inc",
+         "range": [
+          "10.0.1.1",
+          "10.0.1.2"
+         ],
+         "step": 1
+        },
         "dst": "20.0.0.1"
        }
       },
       {
        "h323": {
-        "role": "callee",
-        "src_port": 12345
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          30000,
+          30001
+         ],
+         "step": 1
+        },
+        "dst_port": 1720
        }
       }
-     ]
-    }
+     ],
+     "group_id": {
+      "strategy": "fixed",
+      "value": "h323-port-dyn"
+     }
+    },
+    "packets": 32
    }
   ],
   "hds": [
@@ -4491,7 +4532,8 @@
      "flow_control": {
       "flows": 1
      }
-    }
+    },
+    "packets": 9
    }
   ],
   "hl7": [
@@ -4560,7 +4602,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "hl7",
@@ -4646,7 +4689,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 18
    }
   ],
   "hls": [
@@ -4690,7 +4734,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "hls",
@@ -4749,7 +4794,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "hls",
@@ -4807,7 +4853,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "hls",
@@ -4844,7 +4891,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "hls",
@@ -4887,14 +4935,15 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    }
   ],
   "http": [
    {
     "protocol": "http",
-    "case_id": "http_keepalive_multi_transactions",
-    "summary": "keep-alive 3 事务：同连接 3 对请求/响应（T-HTTP-9）",
+    "case_id": "http_get_baseline",
+    "summary": "GET 基线：单事务请求/响应，Host 自动、Connection close（T-HTTP-7）",
     "config": {
      "layers": [
       {
@@ -4905,21 +4954,20 @@
       },
       {
        "tcp": {
-        "src_port": 40012,
+        "src_port": 40010,
         "dst_port": 80
        }
       },
       {
        "http": {
         "method": "GET",
-        "uri": "/keep",
-        "version": "1.1",
-        "transactions": 3,
-        "keep_alive": true
+        "uri": "/",
+        "version": "1.1"
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "http",
@@ -4950,7 +4998,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "http",
@@ -4981,7 +5030,39 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
+   },
+   {
+    "protocol": "http",
+    "case_id": "http_keepalive_multi_transactions",
+    "summary": "keep-alive 3 事务：同连接 3 对请求/响应（T-HTTP-9）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.10",
+        "dst": "198.51.100.20"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 40012,
+        "dst_port": 80
+       }
+      },
+      {
+       "http": {
+        "method": "GET",
+        "uri": "/keep",
+        "version": "1.1",
+        "transactions": 3,
+        "keep_alive": true
+       }
+      }
+     ]
+    },
+    "packets": 13
    },
    {
     "protocol": "http",
@@ -5011,37 +5092,8 @@
        }
       }
      ]
-    }
-   },
-   {
-    "protocol": "http",
-    "case_id": "http_gzip_response",
-    "summary": "响应 gzip：Content-Encoding 存在（T-HTTP-12）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "192.0.2.10",
-        "dst": "198.51.100.20"
-       }
-      },
-      {
-       "tcp": {
-        "src_port": 40015,
-        "dst_port": 80
-       }
-      },
-      {
-       "http": {
-        "method": "GET",
-        "uri": "/gz",
-        "version": "1.1",
-        "response_body": "hello-gzip-body",
-        "response_content_encoding": "gzip"
-       }
-      }
-     ]
-    }
+    },
+    "packets": 13
    }
   ],
   "http_flv": [
@@ -5068,7 +5120,8 @@
        "http_flv": {}
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "http_flv",
@@ -5103,7 +5156,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    }
   ],
   "icmp": [
@@ -5123,7 +5177,8 @@
        "icmp": {}
       }
      ]
-    }
+    },
+    "packets": 2
    },
    {
     "protocol": "icmp",
@@ -5145,7 +5200,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 2
    },
    {
     "protocol": "icmp",
@@ -5177,7 +5233,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 4
    }
   ],
   "icmpv6": [
@@ -5197,7 +5254,8 @@
        "icmpv6": {}
       }
      ]
-    }
+    },
+    "packets": 2
    },
    {
     "protocol": "icmpv6",
@@ -5220,7 +5278,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 1
    },
    {
     "protocol": "icmpv6",
@@ -5249,7 +5308,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 3
    }
   ],
   "iec104": [
@@ -5311,95 +5371,11 @@
      "flow_control": {
       "flows": 1
      }
-    }
+    },
+    "packets": 13
    }
   ],
   "igmp": [
-   {
-    "protocol": "igmp",
-    "case_id": "igmp_v1_general_query",
-    "summary": "v1 General Query",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "dst": "224.0.0.1",
-        "src": "192.0.2.10",
-        "ttl": 1
-       }
-      },
-      {
-       "igmp": {
-        "group": "0.0.0.0",
-        "kind": "query",
-        "max_response_time": 0,
-        "profile": "v1"
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "igmp",
-    "case_id": "igmp_v3_general_query",
-    "summary": "v3 General Query (MRC/QRV/QQIC)",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "dst": "224.0.0.1",
-        "src": "192.0.2.10",
-        "ttl": 1
-       }
-      },
-      {
-       "igmp": {
-        "group": "0.0.0.0",
-        "kind": "query",
-        "max_response_code": 10,
-        "profile": "v3",
-        "qqic": 125,
-        "qrv": 2,
-        "s_flag": 0,
-        "sources": []
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "igmp",
-    "case_id": "igmp_v3_include_record",
-    "summary": "v3 MODE_IS_INCLUDE Group Record",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "dst": "224.0.0.22",
-        "src": "192.0.2.10",
-        "ttl": 1
-       }
-      },
-      {
-       "igmp": {
-        "group": "239.1.1.1",
-        "kind": "report",
-        "profile": "v3",
-        "records": [
-         {
-          "group": "239.1.1.1",
-          "record_type": "mode_is_include",
-          "sources": [
-           "198.51.100.1",
-           "198.51.100.2"
-          ]
-         }
-        ]
-       }
-      }
-     ]
-    }
-   },
    {
     "protocol": "igmp",
     "case_id": "igmp_profile_matrix",
@@ -5443,7 +5419,100 @@
        }
       }
      ]
-    }
+    },
+    "packets": 3
+   },
+   {
+    "protocol": "igmp",
+    "case_id": "igmp_v3_general_query",
+    "summary": "v3 General Query (MRC/QRV/QQIC)",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "224.0.0.1",
+        "src": "192.0.2.10",
+        "ttl": 1
+       }
+      },
+      {
+       "igmp": {
+        "group": "0.0.0.0",
+        "kind": "query",
+        "max_response_code": 10,
+        "profile": "v3",
+        "qqic": 125,
+        "qrv": 2,
+        "s_flag": 0,
+        "sources": []
+       }
+      }
+     ]
+    },
+    "packets": 1
+   },
+   {
+    "protocol": "igmp",
+    "case_id": "igmp_v3_change_records",
+    "summary": "v3 mode-change records (empty + single source)",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "224.0.0.22",
+        "src": "192.0.2.10",
+        "ttl": 1
+       }
+      },
+      {
+       "igmp": {
+        "group": "239.1.1.1",
+        "kind": "report",
+        "profile": "v3",
+        "records": [
+         {
+          "group": "239.1.1.1",
+          "record_type": "change_to_include_mode",
+          "sources": []
+         },
+         {
+          "group": "239.1.1.2",
+          "record_type": "change_to_exclude_mode",
+          "sources": [
+           "198.51.100.3"
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 1
+   },
+   {
+    "protocol": "igmp",
+    "case_id": "igmp_v1_general_query",
+    "summary": "v1 General Query",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "224.0.0.1",
+        "src": "192.0.2.10",
+        "ttl": 1
+       }
+      },
+      {
+       "igmp": {
+        "group": "0.0.0.0",
+        "kind": "query",
+        "max_response_time": 0,
+        "profile": "v1"
+       }
+      }
+     ]
+    },
+    "packets": 1
    }
   ],
   "ike": [
@@ -5462,7 +5531,8 @@
        "ike": {}
       }
      ]
-    }
+    },
+    "packets": 4
    }
   ],
   "ike_nat_t": [
@@ -5488,60 +5558,29 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    }
   ],
   "imap": [
    {
     "protocol": "imap",
-    "case_id": "imap_t001_default_session",
-    "summary": "T-001: 默认会话冒烟",
+    "case_id": "imap_t078_default_twoflow",
+    "summary": "T-078: 全缺省双流放行",
     "config": {
      "layers": [
       {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
+       "ip": {}
       },
       {
-       "tcp": {
-        "src_port": 14000,
-        "dst_port": 143
-       }
+       "tcp": {}
       },
       {
-       "imap": {
-        "banner": "* OK IMAP ready",
-        "commands": [
-         {
-          "tag": "A001",
-          "cmd": "LOGIN alice secret",
-          "responses": [
-           "A001 OK LOGIN completed"
-          ]
-         },
-         {
-          "tag": "A002",
-          "cmd": "LIST \"\" \"*\"",
-          "responses": [
-           "* LIST (\\Inbox) \"\" INBOX",
-           "A002 OK LIST completed"
-          ]
-         },
-         {
-          "tag": "A003",
-          "cmd": "LOGOUT",
-          "responses": [
-           "* BYE Logging out",
-           "A003 OK LOGOUT completed"
-          ]
-         }
-        ]
-       }
+       "imap": {}
       }
      ]
-    }
+    },
+    "packets": 14
    },
    {
     "protocol": "imap",
@@ -5592,7 +5631,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "imap",
@@ -5658,7 +5698,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "imap",
@@ -5710,108 +5751,11 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    }
   ],
   "isis": [
-   {
-    "protocol": "isis",
-    "case_id": "isis_l1_iih_llc",
-    "summary": "LLC L1 LAN IIH with Area TLV",
-    "config": {
-     "layers": [
-      {
-       "eth": {
-        "src_mac": "02:00:00:00:10:01"
-       }
-      },
-      {
-       "isis": {
-        "holding_timer": 30,
-        "lan_id": "01020304050601",
-        "level": "l1",
-        "pdu_type": "lan_hello",
-        "priority": 100,
-        "system_id": "0102.0304.0506",
-        "tlvs": [
-         {
-          "type": 1,
-          "value_hex": "03 49 00 01"
-         }
-        ],
-        "wire_profile": "iso10589_llc"
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "isis",
-    "case_id": "isis_l1_lsp_ipv4",
-    "summary": "L1 LSP with Area and IPv4 interface TLVs",
-    "config": {
-     "layers": [
-      {
-       "eth": {
-        "src_mac": "02:00:00:00:10:01"
-       }
-      },
-      {
-       "isis": {
-        "address_profile": "ipv4_basic",
-        "checksum_mode": "auto",
-        "level": "l1",
-        "lsp_id": "0102030405060000",
-        "pdu_type": "lsp",
-        "remaining_lifetime": 120,
-        "sequence": 1,
-        "system_id": "0102.0304.0506",
-        "tlvs": [
-         {
-          "type": 1,
-          "value_hex": "03 49 00 01"
-         },
-         {
-          "type": 132,
-          "value_hex": "c0 00 02 01"
-         }
-        ],
-        "wire_profile": "iso10589_llc"
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "isis",
-    "case_id": "isis_l1_csnp",
-    "summary": "L1 CSNP with one LSP Entry",
-    "config": {
-     "layers": [
-      {
-       "eth": {
-        "src_mac": "02:00:00:00:10:01"
-       }
-      },
-      {
-       "isis": {
-        "end_lsp_id": "010203040506ffff",
-        "level": "l1",
-        "pdu_type": "csnp",
-        "start_lsp_id": "0102030405060000",
-        "system_id": "0102.0304.0506",
-        "tlvs": [
-         {
-          "type": 9,
-          "value_hex": "00 78 01 02 03 04 05 06 00 00 00 00 00 01 00 01"
-         }
-        ],
-        "wire_profile": "iso10589_llc"
-       }
-      }
-     ]
-    }
-   },
    {
     "protocol": "isis",
     "case_id": "isis_neighbor_up_sequence",
@@ -5898,7 +5842,109 @@
        }
       }
      ]
-    }
+    },
+    "packets": 4
+   },
+   {
+    "protocol": "isis",
+    "case_id": "isis_l1_lsp_tlv_order",
+    "summary": "L1 LSP preserves standard TLV order",
+    "config": {
+     "layers": [
+      {
+       "eth": {
+        "src_mac": "02:00:00:00:10:01"
+       }
+      },
+      {
+       "isis": {
+        "address_profile": "ipv4_basic",
+        "checksum_mode": "auto",
+        "level": "l1",
+        "lsp_id": "0102030405060000",
+        "pdu_type": "lsp",
+        "remaining_lifetime": 120,
+        "sequence": 2,
+        "system_id": "0102.0304.0506",
+        "tlvs": [
+         {
+          "type": 1,
+          "value_hex": "03 49 00 01"
+         },
+         {
+          "type": 132,
+          "value_hex": "c0 00 02 01"
+         }
+        ],
+        "wire_profile": "iso10589_ethertype"
+       }
+      }
+     ]
+    },
+    "packets": 1
+   },
+   {
+    "protocol": "isis",
+    "case_id": "isis_l2_iih_ethertype",
+    "summary": "EtherType L2 LAN IIH",
+    "config": {
+     "layers": [
+      {
+       "eth": {
+        "src_mac": "02:00:00:00:10:01"
+       }
+      },
+      {
+       "isis": {
+        "holding_timer": 45,
+        "lan_id": "0a0b0c0d0e0f02",
+        "level": "l2",
+        "pdu_type": "lan_hello",
+        "priority": 64,
+        "system_id": "0a0b.0c0d.0e0f",
+        "tlvs": [
+         {
+          "type": 1,
+          "value_hex": "03 49 00 02"
+         }
+        ],
+        "wire_profile": "iso10589_ethertype"
+       }
+      }
+     ]
+    },
+    "packets": 1
+   },
+   {
+    "protocol": "isis",
+    "case_id": "isis_l1_csnp",
+    "summary": "L1 CSNP with one LSP Entry",
+    "config": {
+     "layers": [
+      {
+       "eth": {
+        "src_mac": "02:00:00:00:10:01"
+       }
+      },
+      {
+       "isis": {
+        "end_lsp_id": "010203040506ffff",
+        "level": "l1",
+        "pdu_type": "csnp",
+        "start_lsp_id": "0102030405060000",
+        "system_id": "0102.0304.0506",
+        "tlvs": [
+         {
+          "type": 9,
+          "value_hex": "00 78 01 02 03 04 05 06 00 00 00 00 00 01 00 01"
+         }
+        ],
+        "wire_profile": "iso10589_llc"
+       }
+      }
+     ]
+    },
+    "packets": 1
    }
   ],
   "jt808": [
@@ -5935,7 +5981,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 10
    },
    {
     "protocol": "jt808",
@@ -5975,7 +6022,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "jt808",
@@ -6004,7 +6052,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 7
    },
    {
     "protocol": "jt808",
@@ -6051,7 +6100,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 10
    },
    {
     "protocol": "jt808",
@@ -6078,7 +6128,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 7
    }
   ],
   "jt809": [
@@ -6109,7 +6160,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 8
    },
    {
     "protocol": "jt809",
@@ -6140,7 +6192,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 7
    },
    {
     "protocol": "jt809",
@@ -6169,7 +6222,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 7
    },
    {
     "protocol": "jt809",
@@ -6198,7 +6252,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 7
    },
    {
     "protocol": "jt809",
@@ -6228,14 +6283,15 @@
        }
       }
      ]
-    }
+    },
+    "packets": 8
    }
   ],
   "jtt905": [
    {
     "protocol": "jtt905",
-    "case_id": "jtt905_t4_heartbeat_pair",
-    "summary": "T-4 心跳对：0x0002 空体+SN 递增+0x8001 应答自动绑最近上行",
+    "case_id": "jtt905_t1_baseline",
+    "summary": "T-1 基线关联：自动会话 签到→应答→心跳→应答→签退→应答；3 握手+6 消息+3 挥手=12 帧；MsgId 序 0B03/8001/0002/8001/0B04/8001",
     "config": {
      "layers": [
       {
@@ -6247,20 +6303,13 @@
       {
        "jtt905": {
         "isu_id": "103456789012",
-        "initial_sn": 50,
-        "procedures": [
-         {
-          "type": "heartbeat"
-         },
-         {
-          "type": "center_general_response"
-         }
-        ],
-        "platform_initial_sn": 60
+        "initial_sn": 100,
+        "heartbeat_count": 1
        }
       }
      ]
-    }
+    },
+    "packets": 12
    },
    {
     "protocol": "jtt905",
@@ -6305,12 +6354,13 @@
        }
       }
      ]
-    }
+    },
+    "packets": 7
    },
    {
     "protocol": "jtt905",
-    "case_id": "jtt905_t1_baseline",
-    "summary": "T-1 基线关联：自动会话 签到→应答→心跳→应答→签退→应答；3 握手+6 消息+3 挥手=12 帧；MsgId 序 0B03/8001/0002/8001/0B04/8001",
+    "case_id": "jtt905_t4_heartbeat_pair",
+    "summary": "T-4 心跳对：0x0002 空体+SN 递增+0x8001 应答自动绑最近上行",
     "config": {
      "layers": [
       {
@@ -6322,12 +6372,21 @@
       {
        "jtt905": {
         "isu_id": "103456789012",
-        "initial_sn": 100,
-        "heartbeat_count": 1
+        "initial_sn": 50,
+        "procedures": [
+         {
+          "type": "heartbeat"
+         },
+         {
+          "type": "center_general_response"
+         }
+        ],
+        "platform_initial_sn": 60
        }
       }
      ]
-    }
+    },
+    "packets": 8
    },
    {
     "protocol": "jtt905",
@@ -6363,7 +6422,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 7
    }
   ],
   "kerberos": [
@@ -6419,7 +6479,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 4
    }
   ],
   "l2tp": [
@@ -6435,7 +6496,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 8
    }
   ],
   "ldap": [
@@ -6455,7 +6517,8 @@
        "ldap": {}
       }
      ]
-    }
+    },
+    "packets": 13
    },
    {
     "protocol": "ldap",
@@ -6485,7 +6548,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 17
    },
    {
     "protocol": "ldap",
@@ -6507,7 +6571,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 12
    },
    {
     "protocol": "ldap",
@@ -6528,7 +6593,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 12
    },
    {
     "protocol": "ldap",
@@ -6549,10 +6615,122 @@
        }
       }
      ]
-    }
+    },
+    "packets": 12
    }
   ],
   "ldp": [
+   {
+    "protocol": "ldp",
+    "case_id": "ldp_label_release_ipv4",
+    "summary": "S7: IPv4 /24 Label Release after Mapping",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.1",
+        "dst": "192.0.2.2"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 50000,
+        "dst_port": 646
+       }
+      },
+      {
+       "ldp": {
+        "wire_profile": "ldp_rfc5036_ipv4_basic",
+        "carrier": "tcp_session",
+        "events": [
+         {
+          "kind": "initialization",
+          "direction": "c2s",
+          "message_id": 10,
+          "lsr_id": "192.0.2.1",
+          "receiver_lsr_id": "192.0.2.2"
+         },
+         {
+          "kind": "initialization",
+          "direction": "s2c",
+          "message_id": 20,
+          "lsr_id": "192.0.2.2",
+          "receiver_lsr_id": "192.0.2.1"
+         },
+         {
+          "kind": "label_mapping",
+          "direction": "c2s",
+          "message_id": 13,
+          "fec": "203.0.113.0/24",
+          "label": 74565
+         },
+         {
+          "kind": "label_release",
+          "direction": "c2s",
+          "message_id": 14,
+          "fec": "203.0.113.0/24",
+          "label": 74565
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 11
+   },
+   {
+    "protocol": "ldp",
+    "case_id": "ldp_label_mapping_ipv4",
+    "summary": "S4: IPv4 /24 Label Mapping with Generic Label",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.1",
+        "dst": "192.0.2.2"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 50000,
+        "dst_port": 646
+       }
+      },
+      {
+       "ldp": {
+        "wire_profile": "ldp_rfc5036_ipv4_basic",
+        "carrier": "tcp_session",
+        "events": [
+         {
+          "kind": "initialization",
+          "direction": "c2s",
+          "message_id": 10,
+          "lsr_id": "192.0.2.1",
+          "receiver_lsr_id": "192.0.2.2"
+         },
+         {
+          "kind": "initialization",
+          "direction": "s2c",
+          "message_id": 20,
+          "lsr_id": "192.0.2.2",
+          "receiver_lsr_id": "192.0.2.1"
+         },
+         {
+          "kind": "label_mapping",
+          "direction": "c2s",
+          "message_id": 13,
+          "fec": "203.0.113.0/24",
+          "label": 74565
+         }
+        ],
+        "label_control": "independent",
+        "label_advertisement": "downstream_unsolicited"
+       }
+      }
+     ]
+    },
+    "packets": 10
+   },
    {
     "protocol": "ldp",
     "case_id": "ldp_tcp_multi_session",
@@ -6642,96 +6820,8 @@
        }
       }
      ]
-    }
-   },
-   {
-    "protocol": "ldp",
-    "case_id": "ldp_label_mapping_ipv4",
-    "summary": "S4: IPv4 /24 Label Mapping with Generic Label",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "192.0.2.1",
-        "dst": "192.0.2.2"
-       }
-      },
-      {
-       "tcp": {
-        "src_port": 50000,
-        "dst_port": 646
-       }
-      },
-      {
-       "ldp": {
-        "wire_profile": "ldp_rfc5036_ipv4_basic",
-        "carrier": "tcp_session",
-        "events": [
-         {
-          "kind": "initialization",
-          "direction": "c2s",
-          "message_id": 10,
-          "lsr_id": "192.0.2.1",
-          "receiver_lsr_id": "192.0.2.2"
-         },
-         {
-          "kind": "initialization",
-          "direction": "s2c",
-          "message_id": 20,
-          "lsr_id": "192.0.2.2",
-          "receiver_lsr_id": "192.0.2.1"
-         },
-         {
-          "kind": "label_mapping",
-          "direction": "c2s",
-          "message_id": 13,
-          "fec": "203.0.113.0/24",
-          "label": 74565
-         }
-        ],
-        "label_control": "independent",
-        "label_advertisement": "downstream_unsolicited"
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "ldp",
-    "case_id": "ldp_udp_targeted_hello",
-    "summary": "S9: targeted UDP/646 Hello with transport address",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "192.0.2.1",
-        "dst": "192.0.2.2"
-       }
-      },
-      {
-       "udp": {
-        "src_port": 646,
-        "dst_port": 646
-       }
-      },
-      {
-       "ldp": {
-        "wire_profile": "ldp_rfc5036_ipv4_basic",
-        "carrier": "udp_discovery",
-        "events": [
-         {
-          "kind": "hello",
-          "direction": "c2s",
-          "message_id": 1,
-          "hold_time": 15,
-          "targeted": true
-         }
-        ],
-        "targeted": true
-       }
-      }
-     ]
-    }
+    },
+    "packets": 22
    },
    {
     "protocol": "ldp",
@@ -6801,14 +6891,91 @@
        }
       }
      ]
-    }
+    },
+    "packets": 12
+   },
+   {
+    "protocol": "ldp",
+    "case_id": "ldp_udp_targeted_hello",
+    "summary": "S9: targeted UDP/646 Hello with transport address",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.1",
+        "dst": "192.0.2.2"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 646,
+        "dst_port": 646
+       }
+      },
+      {
+       "ldp": {
+        "wire_profile": "ldp_rfc5036_ipv4_basic",
+        "carrier": "udp_discovery",
+        "events": [
+         {
+          "kind": "hello",
+          "direction": "c2s",
+          "message_id": 1,
+          "hold_time": 15,
+          "targeted": true
+         }
+        ],
+        "targeted": true
+       }
+      }
+     ]
+    },
+    "packets": 1
    }
   ],
   "mcp": [
    {
     "protocol": "mcp",
-    "case_id": "mcp_t041_stdio_state_failed",
-    "summary": "T-041/§7.15: state failed 终态，最终响应 isError=true + _meta.state=failed",
+    "case_id": "mcp_tpos1_stdio_initialize",
+    "summary": "T-POS-1/§6.2: stdio 单会话默认流程（initialize→tools/list→tools/call→shutdown），13 包，行分隔 JSON",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 8081
+       }
+      },
+      {
+       "mcp": {
+        "transport": "stdio",
+        "requests": [
+         {
+          "method": "tools/list"
+         },
+         {
+          "method": "tools/call",
+          "params": {
+           "name": "ping"
+          }
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 14
+   },
+   {
+    "protocol": "mcp",
+    "case_id": "mcp_t039_stdio_state_complete",
+    "summary": "T-039/§7.15: state 完整流 submitted→working→completed，progress 通知 + _meta.state=completed 终态",
     "config": {
      "layers": [
       {
@@ -6842,144 +7009,12 @@
            "content": [
             {
              "type": "text",
-             "text": "task failed"
+             "text": "task done"
             }
            ],
-           "isError": true,
+           "isError": false,
            "_meta": {
-            "state": "failed"
-           }
-          }
-         }
-        ],
-        "state": {
-         "initial": "submitted",
-         "final": "failed"
-        }
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "mcp",
-    "case_id": "mcp_t089_sampling_gated",
-    "summary": "T-MCP-89/§5.4: sampling 未声明能力 -32601（t063 subscribe 对称面）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "tcp": {
-        "src_port": 12345,
-        "dst_port": 8081
-       }
-      },
-      {
-       "mcp": {
-        "transport": "stdio",
-        "requests": [
-         {
-          "method": "sampling/createMessage"
-         }
-        ],
-        "responses": [
-         {
-          "id": 2,
-          "error": {
-           "code": -32601,
-           "message": "Method not found",
-           "data": {
-            "method": "sampling/createMessage"
-           }
-          }
-         }
-        ],
-        "client_capabilities": {},
-        "server_capabilities": {}
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "mcp",
-    "case_id": "mcp_t037_streamable_basic_auth",
-    "summary": "T-037/§7.14: Basic 认证头，Authorization: Basic \u003cbase64(user:pass)\u003e",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "tcp": {
-        "src_port": 12345,
-        "dst_port": 8081
-       }
-      },
-      {
-       "mcp": {
-        "transport": "streamable",
-        "session_id": "c1d2e3f40516273849506a7b8c9d0e1f",
-        "auth": {
-         "schemes": [
-          "Basic"
-         ],
-         "credentials": "dXNlcjpwYXNz"
-        }
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "mcp",
-    "case_id": "mcp_t085_longtask_full",
-    "summary": "T-MCP-85/§7.15: 长任务全程 submitted→working→input_required→completed",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "tcp": {
-        "src_port": 12345,
-        "dst_port": 8081
-       }
-      },
-      {
-       "mcp": {
-        "transport": "stdio",
-        "requests": [
-         {
-          "id": 2,
-          "method": "tools/call",
-          "params": {
-           "name": "long_task",
-           "_meta": {
-            "progressToken": 2,
-            "state": "submitted"
-           }
-          }
-         },
-         {
-          "id": 3,
-          "method": "tools/call",
-          "params": {
-           "name": "long_task",
-           "_meta": {
-            "progressToken": 2,
-            "state": "working"
+            "state": "completed"
            }
           }
          }
@@ -6989,49 +7024,9 @@
           "step": 0,
           "method": "notifications/progress",
           "params": {
-           "progressToken": 2,
-           "progress": 30,
-           "total": 100,
-           "message": "working"
-          }
-         },
-         {
-          "step": 1,
-          "method": "notifications/progress",
-          "params": {
-           "progressToken": 2,
-           "progress": 80,
-           "total": 100,
-           "message": "almost"
-          }
-         }
-        ],
-        "responses": [
-         {
-          "id": 2,
-          "result": {
-           "content": [
-            {
-             "type": "text",
-             "text": "ack"
-            }
-           ],
-           "isError": false
-          }
-         },
-         {
-          "id": 3,
-          "result": {
-           "content": [
-            {
-             "type": "text",
-             "text": "done"
-            }
-           ],
-           "isError": false,
-           "_meta": {
-            "state": "completed"
-           }
+           "progressToken": 42,
+           "progress": 50,
+           "total": 100
           }
          }
         ],
@@ -7042,12 +7037,47 @@
        }
       }
      ]
-    }
+    },
+    "packets": 13
    },
    {
     "protocol": "mcp",
-    "case_id": "mcp_t046_stdio_context_id_chain",
-    "summary": "T-046/§7.17: contextId 贯穿调用链——config 接受 + 请求/响应显式注入 _meta.contextId",
+    "case_id": "mcp_t036_http_sse_bearer_auth",
+    "summary": "T-036/§7.14: Bearer 认证头，Authorization: Bearer \u003ctoken\u003e",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 8081
+       }
+      },
+      {
+       "mcp": {
+        "transport": "http_sse",
+        "session_id": "b1c2d3e4f50617283940a5b6c7d8e9f0",
+        "auth": {
+         "schemes": [
+          "Bearer"
+         ],
+         "credentials": "eyJhbGciOiJIUzI1NiJ9.test_token"
+        }
+       }
+      }
+     ]
+    },
+    "packets": 19
+   },
+   {
+    "protocol": "mcp",
+    "case_id": "mcp_t086_stdio_roots_gated",
+    "summary": "T-086/§5.4: client 声明 roots，server 未声明 → roots/list 被拒绝 -32601 Method not found",
     "config": {
      "layers": [
       {
@@ -7065,31 +7095,28 @@
       {
        "mcp": {
         "transport": "stdio",
-        "context_id": "ctx-9",
+        "client_capabilities": {
+         "roots": {
+          "listChanged": true
+         }
+        },
+        "server_capabilities": {
+         "tools": {}
+        },
         "requests": [
          {
-          "id": 2,
-          "method": "tools/call",
-          "params": {
-           "name": "ping",
-           "_meta": {
-            "contextId": "ctx-9"
-           }
-          }
+          "id": 9,
+          "method": "roots/list"
          }
         ],
         "responses": [
          {
-          "id": 2,
-          "result": {
-           "content": [
-            {
-             "type": "text",
-             "text": "pong"
-            }
-           ],
-           "_meta": {
-            "contextId": "ctx-9"
+          "id": 9,
+          "error": {
+           "code": -32601,
+           "message": "Method not found",
+           "data": {
+            "method": "roots/list"
            }
           }
          }
@@ -7097,7 +7124,41 @@
        }
       }
      ]
-    }
+    },
+    "packets": 12
+   },
+   {
+    "protocol": "mcp",
+    "case_id": "mcp_t011_stdio_protocol_version_downgrade",
+    "summary": "T-011/§7.1: initialize 协议版本降级，客户端 2025-06-18 → 服务端响应 2024-11-05",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 8081
+       }
+      },
+      {
+       "mcp": {
+        "transport": "stdio",
+        "protocol_version": "2025-06-18",
+        "requests": [
+         {
+          "method": "ping"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 12
    }
   ],
   "mdns": [
@@ -7129,7 +7190,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 1
    }
   ],
   "megaco": [
@@ -7219,7 +7281,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 2
    },
    {
     "protocol": "megaco",
@@ -7282,7 +7345,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 1
    },
    {
     "protocol": "megaco",
@@ -7345,7 +7409,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 1
    },
    {
     "protocol": "megaco",
@@ -7408,7 +7473,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 1
    },
    {
     "protocol": "megaco",
@@ -7471,7 +7537,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 1
    }
   ],
   "mms": [
@@ -7496,7 +7563,8 @@
        "mms": {}
       }
      ]
-    }
+    },
+    "packets": 7
    },
    {
     "protocol": "mms",
@@ -7535,7 +7603,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "mms",
@@ -7566,7 +7635,58 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
+   },
+   {
+    "protocol": "mms",
+    "case_id": "mms_multi_session",
+    "summary": "MMS multi-session: two independent TCP associations each complete CR/CC",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.88",
+        "dst": "198.51.100.88"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 102
+       }
+      },
+      {
+       "mms": {
+        "objects": [
+         {
+          "domain": "IED1",
+          "name": "GGIO1.SPCSO1.stVal",
+          "datatype": "boolean"
+         }
+        ],
+        "enableRead": true,
+        "multiSession": [
+         {
+          "objects": [
+           {
+            "domain": "IED2",
+            "name": "MMXU1.TotW.mag.f",
+            "datatype": "integer",
+            "value": 5
+           }
+          ]
+         }
+        ],
+        "sequence": {
+         "steps": [
+          "read"
+         ]
+        }
+       }
+      }
+     ]
+    },
+    "packets": 18
    },
    {
     "protocol": "mms",
@@ -7610,45 +7730,8 @@
        }
       }
      ]
-    }
-   },
-   {
-    "protocol": "mms",
-    "case_id": "mms_information_report",
-    "summary": "MMS InformationReport: server-push UnconfirmedPDU (a3), no response frame",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "192.0.2.88",
-        "dst": "198.51.100.88"
-       }
-      },
-      {
-       "tcp": {
-        "dst_port": 102
-       }
-      },
-      {
-       "mms": {
-        "objects": [
-         {
-          "domain": "IED1",
-          "name": "GGIO1.SPCSO1.stVal",
-          "datatype": "boolean",
-          "value": true
-         }
-        ],
-        "enableInformationReport": true,
-        "sequence": {
-         "steps": [
-          "report"
-         ]
-        }
-       }
-      }
-     ]
-    }
+    },
+    "packets": 0
    }
   ],
   "mmse": [
@@ -7732,7 +7815,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "mmse",
@@ -7845,7 +7929,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 18
    }
   ],
   "modbus": [
@@ -7885,7 +7970,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "modbus",
@@ -7925,7 +8011,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 8
    },
    {
     "protocol": "modbus",
@@ -7977,10 +8064,56 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    }
   ],
   "mongodb": [
+   {
+    "protocol": "mongodb",
+    "case_id": "mongodb_op_insert_single",
+    "summary": "S2-①: OP_INSERT 单消息（原子，自 write_ops 拆分）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345
+       }
+      },
+      {
+       "mongodb": {
+        "messages": [
+         {
+          "request_id": 110,
+          "response_to": 0,
+          "opcode": "OP_INSERT",
+          "namespace": "test.users",
+          "flags": 0,
+          "documents": [
+           {
+            "x": 1
+           },
+           {
+            "_id": "a"
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ],
+     "flow_control": {
+      "flows": 1
+     }
+    },
+    "packets": 8
+   },
    {
     "protocol": "mongodb",
     "case_id": "mongodb_multi_session",
@@ -8070,51 +8203,8 @@
      "flow_control": {
       "flows": 1
      }
-    }
-   },
-   {
-    "protocol": "mongodb",
-    "case_id": "mongodb_op_insert_single",
-    "summary": "S2-①: OP_INSERT 单消息（原子，自 write_ops 拆分）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "tcp": {
-        "src_port": 12345
-       }
-      },
-      {
-       "mongodb": {
-        "messages": [
-         {
-          "request_id": 110,
-          "response_to": 0,
-          "opcode": "OP_INSERT",
-          "namespace": "test.users",
-          "flags": 0,
-          "documents": [
-           {
-            "x": 1
-           },
-           {
-            "_id": "a"
-           }
-          ]
-         }
-        ]
-       }
-      }
-     ],
-     "flow_control": {
-      "flows": 1
-     }
-    }
+    },
+    "packets": 18
    }
   ],
   "moxa": [
@@ -8145,37 +8235,11 @@
        }
       }
      ]
-    }
+    },
+    "packets": 8
    }
   ],
   "mpls": [
-   {
-    "protocol": "mpls",
-    "case_id": "mpls_single_label_ipv4",
-    "summary": "冒烟：单标签栈（label 100/TTL 64）内层 IPv4/UDP 单帧；地址 ip 层、端口 mpls 层（存量等价迁移）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "mpls": {
-        "src_port": 12345,
-        "dst_port": 80,
-        "labels": [
-         {
-          "label": 100
-         }
-        ],
-        "inner_payload": "probe"
-       }
-      }
-     ]
-    }
-   },
    {
     "protocol": "mpls",
     "case_id": "mpls_frames_multi",
@@ -8201,7 +8265,36 @@
        }
       }
      ]
-    }
+    },
+    "packets": 3
+   },
+   {
+    "protocol": "mpls",
+    "case_id": "mpls_single_label_ipv4",
+    "summary": "冒烟：单标签栈（label 100/TTL 64）内层 IPv4/UDP 单帧；地址 ip 层、端口 mpls 层（存量等价迁移）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "mpls": {
+        "src_port": 12345,
+        "dst_port": 80,
+        "labels": [
+         {
+          "label": 100
+         }
+        ],
+        "inner_payload": "probe"
+       }
+      }
+     ]
+    },
+    "packets": 0
    },
    {
     "protocol": "mpls",
@@ -8228,7 +8321,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 1
    },
    {
     "protocol": "mpls",
@@ -8255,7 +8349,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 1
    },
    {
     "protocol": "mpls",
@@ -8282,7 +8377,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 1
    }
   ],
   "mqtt": [
@@ -8309,7 +8405,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 10
    },
    {
     "protocol": "mqtt",
@@ -8370,7 +8467,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 17
    },
    {
     "protocol": "mqtt",
@@ -8401,7 +8499,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 11
    },
    {
     "protocol": "mqtt",
@@ -8426,7 +8525,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 10
    },
    {
     "protocol": "mqtt",
@@ -8457,7 +8557,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    }
   ],
   "mysql": [
@@ -8483,14 +8584,15 @@
        "mysql": {}
       }
      ]
-    }
+    },
+    "packets": 0
    }
   ],
   "nfs": [
    {
     "protocol": "nfs",
-    "case_id": "nfs_t176_v3_sessions1_step0",
-    "summary": "T-176: sessions=1 step=0 → Validate 通过",
+    "case_id": "nfs_t001_v3_null_mount",
+    "summary": "T-001/T-021: NFSv3 NULL (proc=0) 无 Program 显式 → 自动插入 MOUNT(proc1) + NULL + UMOUNT(proc3)，3 次 RPC 往返；TCP 3-way + 6 数据帧 + 3 挥手 = 12 包",
     "config": {
      "layers": [
       {
@@ -8499,18 +8601,16 @@
       {
        "nfs": {
         "version": 3,
-        "sessions": 1,
-        "sessions_src_port_step": 0,
         "ops": [
          {
-          "program": 100003,
           "procedure": 0
          }
         ]
        }
       }
      ]
-    }
+    },
+    "packets": 13
    },
    {
     "protocol": "nfs",
@@ -8572,7 +8672,34 @@
       "strategy": "fixed",
       "value": "nfs-composite"
      }
-    }
+    },
+    "packets": 63
+   },
+   {
+    "protocol": "nfs",
+    "case_id": "nfs_t176_v3_sessions1_step0",
+    "summary": "T-176: sessions=1 step=0 → Validate 通过",
+    "config": {
+     "layers": [
+      {
+       "tcp": {}
+      },
+      {
+       "nfs": {
+        "version": 3,
+        "sessions": 1,
+        "sessions_src_port_step": 0,
+        "ops": [
+         {
+          "program": 100003,
+          "procedure": 0
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 9
    },
    {
     "protocol": "nfs",
@@ -8602,7 +8729,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 13
    },
    {
     "protocol": "nfs",
@@ -8626,58 +8754,53 @@
        }
       }
      ]
-    }
-   },
-   {
-    "protocol": "nfs",
-    "case_id": "nfs_t067_v4_minorversion0",
-    "summary": "T-067: minorversion=0 显式 → body minorversion=00000000",
-    "config": {
-     "layers": [
-      {
-       "tcp": {}
-      },
-      {
-       "nfs": {
-        "version": 4,
-        "minorversion": 0,
-        "ops": [
-         {
-          "procedure": 1,
-          "compound_ops": [
-           {
-            "opcode": 24
-           }
-          ]
-         }
-        ]
-       }
-      }
-     ]
-    }
+    },
+    "packets": 2
    }
   ],
   "ngap": [
    {
     "protocol": "ngap",
-    "case_id": "ngap_sctp_setup_basic",
-    "summary": "冒烟：SCTP 4路握手+NGSetup对+3路拆链=最小9包（存量等价迁移）",
+    "case_id": "ngap_port_dyn",
+    "summary": "T-NGAP-15: ngap.src_port 动态 inc+flows=2（E1 逐流端口池，2 流×9=18 包）",
     "config": {
      "layers": [
       {
        "ip": {
-        "src": "10.0.0.1",
+        "src": {
+         "strategy": "inc",
+         "range": [
+          "10.0.1.1",
+          "10.0.1.2"
+         ],
+         "step": 1
+        },
         "dst": "20.0.0.1"
        }
       },
       {
        "ngap": {
-        "src_port": 12345,
-        "dst_port": 38412
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          20000,
+          20001
+         ],
+         "step": 1
+        },
+        "dst_port": {
+         "strategy": "fixed",
+         "value": 38412
+        }
        }
       }
-     ]
-    }
+     ],
+     "group_id": {
+      "strategy": "fixed",
+      "value": "ngap-port-dyn"
+     }
+    },
+    "packets": 18
    },
    {
     "protocol": "ngap",
@@ -8708,7 +8831,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "ngap",
@@ -8752,7 +8876,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "ngap",
@@ -8777,7 +8902,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "ngap",
@@ -8799,7 +8925,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    }
   ],
   "nmea": [
@@ -8872,7 +8999,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "nmea",
@@ -8997,7 +9125,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 18
    },
    {
     "protocol": "nmea",
@@ -9050,7 +9179,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 5
    }
   ],
   "ntlm": [
@@ -9097,7 +9227,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 11
    },
    {
     "protocol": "ntlm",
@@ -9143,7 +9274,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 11
    },
    {
     "protocol": "ntlm",
@@ -9208,7 +9340,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 15
    },
    {
     "protocol": "ntlm",
@@ -9268,7 +9401,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 11
    },
    {
     "protocol": "ntlm",
@@ -9319,56 +9453,49 @@
        }
       }
      ]
-    }
+    },
+    "packets": 11
    }
   ],
   "ntp": [
    {
     "protocol": "ntp",
+    "case_id": "ntp_client_default_transaction",
+    "summary": "[chain] D-NTP-2 缺省事务：NTPv4 client 不带任何开关 → 一问一答（request Mode=3 up + server response Mode=4 down，OriginTS 回显请求 TransmitTS），共 2 包",
+    "config": {
+     "layers": [
+      {
+       "udp": {
+        "src_port": 40000
+       }
+      },
+      {
+       "ntp": {}
+      }
+     ]
+    },
+    "packets": 2
+   },
+   {
+    "protocol": "ntp",
     "case_id": "ntp_smoke_01",
-    "summary": "[chain] 冒烟：NTPv4 client 请求（空配置）。顶层不设端口 → 默认 dst 123（IANA），VN=4/Mode=3/Stratum=0，共 1 包",
+    "summary": "[chain] 冒烟：NTPv4 client 请求（空配置 + request_only:true 显式纯请求，D-NTP-2 保持单包形状）。顶层不设端口 → 默认 dst 123（IANA），VN=4/Mode=3/Stratum=0，共 1 包",
     "config": {
      "layers": [
       {
        "udp": {}
       },
       {
-       "ntp": {}
+       "ntp": {
+        "request_only": true
+       }
       }
      ]
-    }
+    },
+    "packets": 1
    }
   ],
   "nvgre": [
-   {
-    "protocol": "nvgre",
-    "case_id": "nvgre_basic_ipv4_inner_ipv4",
-    "summary": "outer IPv4/47 GRE + TEB + inner Ethernet/IPv4: flags 0x2000, protocol 0x6558, key, inner MAC/EtherType/IP",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "192.0.2.10",
-        "dst": "198.51.100.10"
-       }
-      },
-      {
-       "nvgre": {
-        "vsid": 1000,
-        "flow_id": 1,
-        "inner": {
-         "src_mac": "02:aa:00:00:00:01",
-         "dst_mac": "02:bb:00:00:00:01",
-         "ether_type": "ipv4",
-         "src_ip": "172.16.1.1",
-         "dst_ip": "172.16.1.2",
-         "payload_b64": "bnZncmUtaW5uZXItMDE="
-        }
-       }
-      }
-     ]
-    }
-   },
    {
     "protocol": "nvgre",
     "case_id": "nvgre_multi_vsid",
@@ -9426,7 +9553,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 3
    },
    {
     "protocol": "nvgre",
@@ -9456,7 +9584,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 1
    }
   ],
   "ocsp": [
@@ -9496,7 +9625,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 10
    },
    {
     "protocol": "ocsp",
@@ -9547,7 +9677,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "ocsp",
@@ -9595,7 +9726,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "ocsp",
@@ -9641,7 +9773,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "ocsp",
@@ -9687,7 +9820,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    }
   ],
   "onvif": [
@@ -9735,7 +9869,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "onvif",
@@ -9779,7 +9914,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "onvif",
@@ -9844,50 +9980,77 @@
        }
       }
      ]
-    }
+    },
+    "packets": 18
    }
   ],
   "opcua": [
    {
     "protocol": "opcua",
-    "case_id": "opcua_multi_session",
-    "summary": "Three logical sessions interleave one Read each on one secure channel",
+    "case_id": "opcua_hello_ack",
+    "summary": "OPC UA transport handshake: HEL/ACK with an empty EndpointUrl",
     "config": {
      "layers": [
       {
        "tcp": {
         "dst_port": 4840,
-        "initial_seq": 1200000
+        "initial_seq": 100000
        }
       },
       {
        "opcua": {
         "security_mode": "none",
-        "sessions": 3,
-        "read": [
-         {
-          "node_ids": [
-           "ns=1;i=1001"
-          ],
-          "attribute_id": 13
-         }
-        ],
         "close": true
        }
       }
      ]
-    }
+    },
+    "packets": 13
    },
    {
     "protocol": "opcua",
-    "case_id": "opcua_denied",
-    "summary": "Write an unauthorized node and return BadUserAccessDenied 0x801F0000",
+    "case_id": "opcua_bad_node",
+    "summary": "Read an unknown node and return BadNodeIdUnknown 0x80340000",
     "config": {
      "layers": [
       {
        "tcp": {
         "dst_port": 4840,
-        "initial_seq": 1000000
+        "initial_seq": 900000
+       }
+      },
+      {
+       "opcua": {
+        "security_mode": "none",
+        "read": [
+         {
+          "node_ids": [
+           "ns=0;i=9999"
+          ],
+          "attribute_id": 13
+         }
+        ],
+        "error_inject": {
+         "op": "bad_node",
+         "node": "ns=0;i=9999"
+        },
+        "close": true
+       }
+      }
+     ]
+    },
+    "packets": 15
+   },
+   {
+    "protocol": "opcua",
+    "case_id": "opcua_write",
+    "summary": "Write one node Value attribute and return a service response",
+    "config": {
+     "layers": [
+      {
+       "tcp": {
+        "dst_port": 4840,
+        "initial_seq": 500000
        }
       },
       {
@@ -9901,14 +10064,12 @@
           "attribute_id": 13
          }
         ],
-        "error_inject": {
-         "op": "denied"
-        },
         "close": true
        }
       }
      ]
-    }
+    },
+    "packets": 15
    },
    {
     "protocol": "opcua",
@@ -9937,7 +10098,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 15
    },
    {
     "protocol": "opcua",
@@ -9968,7 +10130,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 23
    }
   ],
   "openvpn": [
@@ -9988,7 +10151,8 @@
      "flow_control": {
       "flows": 1
      }
-    }
+    },
+    "packets": 0
    }
   ],
   "openwire": [
@@ -10029,175 +10193,11 @@
        }
       }
      ]
-    }
+    },
+    "packets": 8
    }
   ],
   "ospf": [
-   {
-    "protocol": "ospf",
-    "case_id": "ospf_hello_dr_bdr",
-    "summary": "T-OSPF-S1: Hello with mask, timers, priority, DR/BDR and one neighbor (24B header + 20B body + 4B neighbor) ｜ pending-suite（先跑后钉：断言/包数沿 D-OSPF-1 §7 契约值，P5 suite 复核）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "dst": "224.0.0.5",
-        "src": "10.0.0.1",
-        "ttl": 1
-       }
-      },
-      {
-       "ospf": {
-        "area_id": "0.0.0.0",
-        "auth_type": 0,
-        "backup_designated_router": "10.0.0.3",
-        "checksum_mode": "auto",
-        "dead_interval": 40,
-        "designated_router": "10.0.0.2",
-        "hello_interval": 10,
-        "neighbors": [
-         "2.2.2.2"
-        ],
-        "network_mask": "255.255.255.0",
-        "options": 2,
-        "packet_type": "hello",
-        "priority": 1,
-        "profile": "rfc2328_ipv4",
-        "router_id": "1.1.1.1",
-        "version": 2
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "ospf",
-    "case_id": "ospf_dbd_master",
-    "summary": "T-OSPF-S3: Database Description master with I/M/MS bits and one Router-LSA header ｜ pending-suite（先跑后钉：断言/包数沿 D-OSPF-1 §7 契约值，P5 suite 复核）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "dst": "224.0.0.5",
-        "src": "10.0.0.1",
-        "ttl": 1
-       }
-      },
-      {
-       "ospf": {
-        "area_id": "0.0.0.0",
-        "auth_type": 0,
-        "checksum_mode": "auto",
-        "dd_sequence": 100,
-        "flags": {
-         "init": true,
-         "master": true,
-         "more": true
-        },
-        "interface_mtu": 1500,
-        "lsa_headers": [
-         {
-          "advertising_router": "1.1.1.1",
-          "age": 1,
-          "checksum_mode": "auto",
-          "length": 36,
-          "link_state_id": "1.1.1.1",
-          "lsa_type": 1,
-          "sequence": "0x80000001"
-         }
-        ],
-        "options": 2,
-        "packet_type": "db_description",
-        "profile": "rfc2328_ipv4",
-        "router_id": "1.1.1.1",
-        "version": 2
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "ospf",
-    "case_id": "ospf_lsr_router_lsa",
-    "summary": "T-OSPF-S5: Link State Request asks for a Router-LSA by type, LSID and advertising Router ID ｜ pending-suite（先跑后钉：断言/包数沿 D-OSPF-1 §7 契约值，P5 suite 复核）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "dst": "224.0.0.5",
-        "src": "10.0.0.1",
-        "ttl": 1
-       }
-      },
-      {
-       "ospf": {
-        "area_id": "0.0.0.0",
-        "auth_type": 0,
-        "checksum_mode": "auto",
-        "packet_type": "link_state_request",
-        "profile": "rfc2328_ipv4",
-        "requests": [
-         {
-          "advertising_router": "1.1.1.1",
-          "link_state_id": "1.1.1.1",
-          "lsa_type": 1
-         }
-        ],
-        "router_id": "2.2.2.2",
-        "version": 2
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "ospf",
-    "case_id": "ospf_lsu_router_lsa",
-    "summary": "T-OSPF-S7: Link State Update carries one basic Router-LSA with one link ｜ pending-suite（先跑后钉：断言/包数沿 D-OSPF-1 §7 契约值，P5 suite 复核）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "dst": "224.0.0.5",
-        "src": "10.0.0.1",
-        "ttl": 1
-       }
-      },
-      {
-       "ospf": {
-        "area_id": "0.0.0.0",
-        "auth_type": 0,
-        "checksum_mode": "auto",
-        "lsas": [
-         {
-          "advertising_router": "1.1.1.1",
-          "age": 1,
-          "checksum_mode": "auto",
-          "flags": 0,
-          "length": 36,
-          "link_state_id": "1.1.1.1",
-          "links": [
-           {
-            "link_data": "255.255.255.0",
-            "link_id": "10.0.0.2",
-            "link_type": 2,
-            "metric": 10
-           }
-          ],
-          "lsa_type": 1,
-          "options": 0,
-          "sequence": "0x80000001"
-         }
-        ],
-        "packet_type": "link_state_update",
-        "profile": "rfc2328_ipv4",
-        "router_id": "1.1.1.1",
-        "version": 2
-       }
-      }
-     ]
-    }
-   },
    {
     "protocol": "ospf",
     "case_id": "ospf_neighbor_full_exchange",
@@ -10322,7 +10322,177 @@
        }
       }
      ]
-    }
+    },
+    "packets": 6
+   },
+   {
+    "protocol": "ospf",
+    "case_id": "ospf_hello_dr_bdr",
+    "summary": "T-OSPF-S1: Hello with mask, timers, priority, DR/BDR and one neighbor (24B header + 20B body + 4B neighbor) ｜ pending-suite（先跑后钉：断言/包数沿 D-OSPF-1 §7 契约值，P5 suite 复核）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "224.0.0.5",
+        "src": "10.0.0.1",
+        "ttl": 1
+       }
+      },
+      {
+       "ospf": {
+        "area_id": "0.0.0.0",
+        "auth_type": 0,
+        "backup_designated_router": "10.0.0.3",
+        "checksum_mode": "auto",
+        "dead_interval": 40,
+        "designated_router": "10.0.0.2",
+        "hello_interval": 10,
+        "neighbors": [
+         "2.2.2.2"
+        ],
+        "network_mask": "255.255.255.0",
+        "options": 2,
+        "packet_type": "hello",
+        "priority": 1,
+        "profile": "rfc2328_ipv4",
+        "router_id": "1.1.1.1",
+        "version": 2
+       }
+      }
+     ]
+    },
+    "packets": 1
+   },
+   {
+    "protocol": "ospf",
+    "case_id": "ospf_dbd_master",
+    "summary": "T-OSPF-S3: Database Description master with I/M/MS bits and one Router-LSA header ｜ pending-suite（先跑后钉：断言/包数沿 D-OSPF-1 §7 契约值，P5 suite 复核）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "224.0.0.5",
+        "src": "10.0.0.1",
+        "ttl": 1
+       }
+      },
+      {
+       "ospf": {
+        "area_id": "0.0.0.0",
+        "auth_type": 0,
+        "checksum_mode": "auto",
+        "dd_sequence": 100,
+        "flags": {
+         "init": true,
+         "master": true,
+         "more": true
+        },
+        "interface_mtu": 1500,
+        "lsa_headers": [
+         {
+          "advertising_router": "1.1.1.1",
+          "age": 1,
+          "checksum_mode": "auto",
+          "length": 36,
+          "link_state_id": "1.1.1.1",
+          "lsa_type": 1,
+          "sequence": "0x80000001"
+         }
+        ],
+        "options": 2,
+        "packet_type": "db_description",
+        "profile": "rfc2328_ipv4",
+        "router_id": "1.1.1.1",
+        "version": 2
+       }
+      }
+     ]
+    },
+    "packets": 1
+   },
+   {
+    "protocol": "ospf",
+    "case_id": "ospf_lsr_router_lsa",
+    "summary": "T-OSPF-S5: Link State Request asks for a Router-LSA by type, LSID and advertising Router ID ｜ pending-suite（先跑后钉：断言/包数沿 D-OSPF-1 §7 契约值，P5 suite 复核）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "224.0.0.5",
+        "src": "10.0.0.1",
+        "ttl": 1
+       }
+      },
+      {
+       "ospf": {
+        "area_id": "0.0.0.0",
+        "auth_type": 0,
+        "checksum_mode": "auto",
+        "packet_type": "link_state_request",
+        "profile": "rfc2328_ipv4",
+        "requests": [
+         {
+          "advertising_router": "1.1.1.1",
+          "link_state_id": "1.1.1.1",
+          "lsa_type": 1
+         }
+        ],
+        "router_id": "2.2.2.2",
+        "version": 2
+       }
+      }
+     ]
+    },
+    "packets": 1
+   },
+   {
+    "protocol": "ospf",
+    "case_id": "ospf_lsu_router_lsa",
+    "summary": "T-OSPF-S7: Link State Update carries one basic Router-LSA with one link ｜ pending-suite（先跑后钉：断言/包数沿 D-OSPF-1 §7 契约值，P5 suite 复核）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "224.0.0.5",
+        "src": "10.0.0.1",
+        "ttl": 1
+       }
+      },
+      {
+       "ospf": {
+        "area_id": "0.0.0.0",
+        "auth_type": 0,
+        "checksum_mode": "auto",
+        "lsas": [
+         {
+          "advertising_router": "1.1.1.1",
+          "age": 1,
+          "checksum_mode": "auto",
+          "flags": 0,
+          "length": 36,
+          "link_state_id": "1.1.1.1",
+          "links": [
+           {
+            "link_data": "255.255.255.0",
+            "link_id": "10.0.0.2",
+            "link_type": 2,
+            "metric": 10
+           }
+          ],
+          "lsa_type": 1,
+          "options": 0,
+          "sequence": "0x80000001"
+         }
+        ],
+        "packet_type": "link_state_update",
+        "profile": "rfc2328_ipv4",
+        "router_id": "1.1.1.1",
+        "version": 2
+       }
+      }
+     ]
+    },
+    "packets": 1
    }
   ],
   "pcep": [
@@ -10370,19 +10540,20 @@
        }
       }
      ]
-    }
+    },
+    "packets": 10
    }
   ],
   "pim": [
    {
     "protocol": "pim",
-    "case_id": "pim_sm_hello_holdtime",
-    "summary": "PIM-SM Hello with explicit Holdtime and interval",
+    "case_id": "pim_sm_joinprune_retransmit",
+    "summary": "PIM-SM explicit Join/Prune retransmission",
     "config": {
      "layers": [
       {
        "ip": {
-        "dst": "224.0.0.13",
+        "dst": "192.0.2.254",
         "src": "192.0.2.1",
         "ttl": 1
        }
@@ -10393,69 +10564,74 @@
         "events": [
          {
           "direction": "c2s",
-          "dr_priority": 10,
-          "generation_id": "0x01020304",
-          "hello_interval": 30,
-          "holdtime": 105,
-          "kind": "hello"
+          "groups": [
+           {
+            "group": "232.1.1.3",
+            "joined_sources": [
+             {
+              "source": "198.51.100.14"
+             }
+            ],
+            "pruned_sources": []
+           }
+          ],
+          "holdtime": 180,
+          "kind": "join_prune",
+          "state": "upstream_join",
+          "upstream_neighbor": "192.0.2.254"
+         },
+         {
+          "direction": "c2s",
+          "groups": [
+           {
+            "group": "232.1.1.3",
+            "joined_sources": [
+             {
+              "source": "198.51.100.14"
+             }
+            ],
+            "pruned_sources": []
+           }
+          ],
+          "holdtime": 180,
+          "kind": "join_prune",
+          "retransmission": true,
+          "state": "upstream_join",
+          "upstream_neighbor": "192.0.2.254"
          }
         ],
         "profile": "pim_sm_rfc7761_ipv4"
        }
       }
      ]
-    }
+    },
+    "packets": 2
    }
   ],
   "pop3": [
    {
     "protocol": "pop3",
-    "case_id": "pop3_t023_auth",
-    "summary": "T-023: AUTH 三机制",
+    "case_id": "pop3_t046_default_twoflow",
+    "summary": "T-046: 全缺省双流放行",
     "config": {
      "layers": [
       {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
+       "ip": {}
       },
       {
-       "tcp": {
-        "src_port": 13000,
-        "dst_port": 110
-       }
+       "tcp": {}
       },
       {
-       "pop3": {
-        "banner": "+OK POP3 server ready",
-        "commands": [
-         {
-          "cmd": "AUTH PLAIN",
-          "response": "+ Ready for authentication"
-         },
-         {
-          "cmd": "AUTH LOGIN",
-          "response": "+ VXNlcm5hbWU6"
-         },
-         {
-          "cmd": "AUTH CRAM-MD5",
-          "response": "+ PDEyMzQ1 poseidon"
-         },
-         {
-          "cmd": "QUIT",
-          "response": "+OK bye"
-         }
-        ]
-       }
+       "pop3": {}
       }
      ]
-    }
+    },
+    "packets": 14
    },
    {
     "protocol": "pop3",
-    "case_id": "pop3_t025_two_retr",
-    "summary": "T-025: 同连接两 RETR",
+    "case_id": "pop3_t026_abort_no_quit",
+    "summary": "T-026: RETR 后无 QUIT 断线",
     "config": {
      "layers": [
       {
@@ -10478,10 +10654,6 @@
           {
            "uid": "u1",
            "body": "a"
-          },
-          {
-           "uid": "u2",
-           "body": "b"
           }
          ]
         },
@@ -10498,24 +10670,44 @@
           "cmd": "RETR 1",
           "emit_mail_drop": true,
           "msg_num": 1
-         },
-         {
-          "cmd": "RETR 2",
-          "emit_mail_drop": true,
-          "msg_num": 2
-         },
-         {
-          "cmd": "QUIT",
-          "response": "+OK bye"
          }
         ]
        }
       }
      ]
-    }
+    },
+    "packets": 0
    }
   ],
   "postgresql": [
+   {
+    "protocol": "postgresql",
+    "case_id": "kingbase_connect",
+    "summary": "postgresql dialect=kingbase — S1: TCP 54321 connect and normal termination",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345
+       }
+      },
+      {
+       "postgresql": {
+        "dialect": "kingbase",
+        "wire_profile": "kingbase_es_v8_pg_compatible",
+        "events": []
+       }
+      }
+     ]
+    },
+    "packets": 7
+   },
    {
     "protocol": "postgresql",
     "case_id": "kingbase_multi_session",
@@ -10598,41 +10790,15 @@
        }
       }
      ]
-    }
-   },
-   {
-    "protocol": "postgresql",
-    "case_id": "kingbase_connect",
-    "summary": "postgresql dialect=kingbase — S1: TCP 54321 connect and normal termination",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "tcp": {
-        "src_port": 12345
-       }
-      },
-      {
-       "postgresql": {
-        "dialect": "kingbase",
-        "wire_profile": "kingbase_es_v8_pg_compatible",
-        "events": []
-       }
-      }
-     ]
-    }
+    },
+    "packets": 22
    }
   ],
   "pppoe": [
    {
     "protocol": "pppoe",
-    "case_id": "pppoe_sessions_derived_ids",
-    "summary": "T-12 sessions[3] 全空项：每项独立生命周期，派生 SessionID 1/2/3（DefaultSessionID+i 逐会话递增，9.40 非流序号共享），3 个 PADT",
+    "case_id": "pppoe_lifecycle_full",
+    "summary": "T-1 全生命周期（smoke 改写，等价覆盖+PADT 重校准 7→8）：[ip,pppoe{}] 空业务面→PADI/PADO/PADR/PADS(缺省ID1)/LCP req/ack/1×IPv4 data/PADT(0xa7,ID回显,up)。RFC 2516 §5+§5.6",
     "config": {
      "layers": [
       {
@@ -10642,16 +10808,11 @@
        }
       },
       {
-       "pppoe": {
-        "sessions": [
-         {},
-         {},
-         {}
-        ]
-       }
+       "pppoe": {}
       }
      ]
-    }
+    },
+    "packets": 8
    },
    {
     "protocol": "pppoe",
@@ -10674,7 +10835,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 4
    },
    {
     "protocol": "pppoe",
@@ -10696,7 +10858,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 10
    },
    {
     "protocol": "pppoe",
@@ -10723,12 +10886,13 @@
        }
       }
      ]
-    }
+    },
+    "packets": 8
    },
    {
     "protocol": "pppoe",
-    "case_id": "pppoe_data_direction_down",
-    "summary": "T-7 data_direction=down：数据帧 MAC/IP 全换向（server→client），ip.src=20.0.0.1；LCP/PADT 方向不变",
+    "case_id": "pppoe_padt_suppressed",
+    "summary": "T-2 padt=false 抑制终止帧：7 帧（无 0xa7），帧序与 T-1 前 7 帧一致。RFC 2516 §5.6 拆断语义反向面",
     "config": {
      "layers": [
       {
@@ -10739,20 +10903,19 @@
       },
       {
        "pppoe": {
-        "skip_discovery": true,
-        "session_id": 3,
-        "data_direction": "down"
+        "padt": false
        }
       }
      ]
-    }
+    },
+    "packets": 7
    }
   ],
   "pptp": [
    {
     "protocol": "pptp",
-    "case_id": "pptp_full_session_ref",
-    "summary": "T-1 full 会话（smoke 改写，参考 pcap 逐字节）：SCCRQ/SCCRP/OCRQ/OCRP/SLI×5/CCRQ+CCDN 合并/CCDN/StopRQ/StopRP",
+    "case_id": "pptp_calls_two",
+    "summary": "T-7 calls=2 多 call 并发：OCRQ/OCRP 两轮+SLI 逐 call",
     "config": {
      "layers": [
       {
@@ -10762,10 +10925,14 @@
        }
       },
       {
-       "pptp": {}
+       "pptp": {
+        "calls": 2,
+        "scenario": "control_only"
+       }
       }
      ]
-    }
+    },
+    "packets": 31
    },
    {
     "protocol": "pptp",
@@ -10789,7 +10956,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 33
    },
    {
     "protocol": "pptp",
@@ -10811,7 +10979,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 21
    },
    {
     "protocol": "pptp",
@@ -10832,7 +11001,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 21
    },
    {
     "protocol": "pptp",
@@ -10858,14 +11028,15 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    }
   ],
   "radius": [
    {
     "protocol": "radius",
-    "case_id": "radius_code3",
-    "summary": "T-RADIUS-7 请求码 3 枚举格（requestCodes 含 3=legacy 合同，无 auto→显式 response_code:3=Access-Reject）",
+    "case_id": "radius_smoke_01",
+    "summary": "冒烟（改写）：[ip,radius] 空业务面→1 轮 req(up)/rsp(down) 2 包。端口显式化 12345/1812（worker/缺省显式化，mpls 轮先例）；code1→2 auto、id 0 复刻、length 26/20、authenticator nonzero 全保留等价",
     "config": {
      "layers": [
       {
@@ -10877,13 +11048,12 @@
       {
        "radius": {
         "src_port": 12345,
-        "dst_port": 1812,
-        "code": 3,
-        "response_code": 3
+        "dst_port": 1812
        }
       }
      ]
-    }
+    },
+    "packets": 2
    },
    {
     "protocol": "radius",
@@ -10939,7 +11109,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 2
    },
    {
     "protocol": "radius",
@@ -10963,7 +11134,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 6
    },
    {
     "protocol": "radius",
@@ -10986,7 +11158,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 2
    }
   ],
   "rdp": [
@@ -11006,7 +11179,8 @@
      "flow_control": {
       "flows": 1
      }
-    }
+    },
+    "packets": 0
    }
   ],
   "redis": [
@@ -11035,14 +11209,15 @@
      "flow_control": {
       "flows": 1
      }
-    }
+    },
+    "packets": 0
    }
   ],
   "rip": [
    {
     "protocol": "rip",
-    "case_id": "rip_tpos25_md5_authdatalen20",
-    "summary": "T-POS-25: MD5 AuthDataLen=20 passthrough, trailer 24B, digest placeholder 20B 0xAA, 68B payload",
+    "case_id": "rip_tpos1_request_full",
+    "summary": "T-POS-1: scenario request_full, v2 multicast -\u003e 2 packets (Request 01 02 00 00 + auto Response 02 02 00 00 with 5 default routes), same 4-tuple",
     "config": {
      "layers": [
       {
@@ -11051,52 +11226,15 @@
       {
        "rip": {
         "version": "v2",
+        "command": "request",
+        "scenario": "request_full",
         "multicast": true,
-        "routes": [
-         {
-          "afi": 2,
-          "ip_addr": "10.0.0.0",
-          "subnet_mask": "255.255.0.0",
-          "metric": 1
-         }
-        ],
-        "auth": {
-         "type": "md5",
-         "key_id": 1,
-         "auth_data_len": 20,
-         "sequence_number": 12345
-        }
+        "routes": []
        }
       }
      ]
-    }
-   },
-   {
-    "protocol": "rip",
-    "case_id": "rip_tpos13_triggered",
-    "summary": "T-POS-13: triggered update -\u003e Response only (no Request preamble), rounds=1, metric 16",
-    "config": {
-     "layers": [
-      {
-       "udp": {}
-      },
-      {
-       "rip": {
-        "version": "v2",
-        "command": "response",
-        "triggered_update": true,
-        "routes": [
-         {
-          "afi": 2,
-          "ip_addr": "10.0.0.0",
-          "subnet_mask": "255.0.0.0",
-          "metric": 16
-         }
-        ]
-       }
-      }
-     ]
-    }
+    },
+    "packets": 2
    },
    {
     "protocol": "rip",
@@ -11142,7 +11280,50 @@
        }
       }
      ]
-    }
+    },
+    "packets": 1
+   },
+   {
+    "protocol": "rip",
+    "case_id": "rip_tpos16_3_routers",
+    "summary": "T-POS-16: 3 routers each with own SrcIP, src ports 52001-52003, same multicast dst 224.0.0.9",
+    "config": {
+     "layers": [
+      {
+       "udp": {}
+      },
+      {
+       "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+         {
+          "afi": 2,
+          "ip_addr": "10.0.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         }
+        ],
+        "routers": [
+         {
+          "src_ip": "10.0.0.2"
+         },
+         {
+          "src_ip": "10.0.0.3"
+         },
+         {
+          "src_ip": "10.0.0.4"
+         }
+        ]
+       }
+      }
+     ],
+     "group_id": {
+      "strategy": "fixed",
+      "value": "rip-tpos16"
+     }
+    },
+    "packets": 3
    },
    {
     "protocol": "rip",
@@ -11169,12 +11350,13 @@
        }
       }
      ]
-    }
+    },
+    "packets": 3
    },
    {
     "protocol": "rip",
-    "case_id": "rip_tpos1_request_full",
-    "summary": "T-POS-1: scenario request_full, v2 multicast -\u003e 2 packets (Request 01 02 00 00 + auto Response 02 02 00 00 with 5 default routes), same 4-tuple",
+    "case_id": "rip_tpos27_auth_25_routes",
+    "summary": "T-POS-27: simple auth + 25 routes -\u003e 524B payload (auth entry + 25 RTE) in a single packet",
     "config": {
      "layers": [
       {
@@ -11183,14 +11365,168 @@
       {
        "rip": {
         "version": "v2",
-        "command": "request",
-        "scenario": "request_full",
         "multicast": true,
-        "routes": []
+        "routes": [
+         {
+          "afi": 2,
+          "ip_addr": "10.0.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.1.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.2.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.3.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.4.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.5.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.6.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.7.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.8.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.9.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.10.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.11.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.12.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.13.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.14.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.15.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.16.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.17.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.18.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.19.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.20.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.21.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.22.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.23.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         },
+         {
+          "afi": 2,
+          "ip_addr": "10.24.0.0",
+          "subnet_mask": "255.255.0.0",
+          "metric": 1
+         }
+        ],
+        "auth": {
+         "type": "simple",
+         "password": "secret123"
+        }
        }
       }
      ]
-    }
+    },
+    "packets": 2
    }
   ],
   "rtmfp": [
@@ -11242,7 +11578,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 4
    },
    {
     "protocol": "rtmfp",
@@ -11306,7 +11643,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 7
    }
   ],
   "rtmp": [
@@ -11326,7 +11664,8 @@
        "rtmp": {}
       }
      ]
-    }
+    },
+    "packets": 20
    },
    {
     "protocol": "rtmp",
@@ -11362,7 +11701,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "rtmp",
@@ -11383,7 +11723,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    }
   ],
   "rtsp": [
@@ -11413,7 +11754,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "rtsp",
@@ -11469,7 +11811,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    }
   ],
   "s7": [
@@ -11512,7 +11855,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 13
    },
    {
     "protocol": "s7",
@@ -11553,7 +11897,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 13
    }
   ],
   "sctp": [
@@ -11576,7 +11921,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 7
    },
    {
     "protocol": "sctp",
@@ -11599,7 +11945,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 7
    },
    {
     "protocol": "sctp",
@@ -11627,7 +11974,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 14
    },
    {
     "protocol": "sctp",
@@ -11651,7 +11999,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 11
    },
    {
     "protocol": "sctp",
@@ -11673,7 +12022,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 5
    }
   ],
   "shadowsocks": [
@@ -11695,81 +12045,48 @@
      "flow_control": {
       "flows": 1
      }
-    }
+    },
+    "packets": 0
    }
   ],
   "sip": [
    {
     "protocol": "sip",
-    "case_id": "sip_sessions_two_dialogs",
-    "summary": "T-SIP-58: 双会话独立面（§3.1-3.3：独立 call_id/独立四元组/独立生命周期；2×(3+2+4)=18 包）",
+    "case_id": "sip_port_dyn",
+    "summary": "T-SIP-17: sip.src_port 动态 inc+flows=2（E1 逐流端口池，2 流×12=24 包）",
     "config": {
      "layers": [
       {
        "ip": {
-        "src": "10.0.0.1",
+        "src": {
+         "strategy": "inc",
+         "range": [
+          "10.0.1.1",
+          "10.0.1.2"
+         ],
+         "step": 1
+        },
         "dst": "20.0.0.1"
        }
       },
       {
        "sip": {
-        "sessions": [
-         {
-          "dialog": [
-           {
-            "method": "OPTIONS",
-            "uri": "sip:callee@20.0.0.1"
-           },
-           {
-            "status_code": 200,
-            "status_text": "OK"
-           }
-          ],
-          "src_port": 22001,
-          "call_id": "sess-a@10.0.0.1"
-         },
-         {
-          "dialog": [
-           {
-            "method": "OPTIONS",
-            "uri": "sip:callee@20.0.0.1"
-           },
-           {
-            "status_code": 200,
-            "status_text": "OK"
-           }
-          ],
-          "src_port": 22002,
-          "call_id": "sess-b@10.0.0.1"
-         }
-        ]
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "sip",
-    "case_id": "sip_medias_interleave",
-    "summary": "T-SIP-73: interleave 交错调度（WP-B：T=4 G=3→gap 2/1/1；RTP 与信令帧序钉死=§3.12 写死可复现；14 包）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "sip": {
-        "src_port": 12001,
-        "dst_port": 5060,
-        "interleave": true,
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          20000,
+          20001
+         ],
+         "step": 1
+        },
+        "dst_port": {
+         "strategy": "fixed",
+         "value": 5060
+        },
         "dialog": [
          {
           "method": "INVITE",
-          "uri": "sip:callee@20.0.0.1",
-          "emit_media": true
+          "uri": "sip:callee@20.0.0.1"
          },
          {
           "status_code": 200,
@@ -11778,18 +12095,25 @@
          {
           "method": "ACK",
           "uri": "sip:callee@20.0.0.1"
-         }
-        ],
-        "medias": [
+         },
          {
-          "direction": "up",
-          "frames": 4
+          "method": "BYE",
+          "uri": "sip:callee@20.0.0.1"
+         },
+         {
+          "status_code": 200,
+          "status_text": "OK"
          }
         ]
        }
       }
-     ]
-    }
+     ],
+     "group_id": {
+      "strategy": "fixed",
+      "value": "sip-port-dyn"
+     }
+    },
+    "packets": 24
    },
    {
     "protocol": "sip",
@@ -11913,7 +12237,52 @@
        }
       }
      ]
-    }
+    },
+    "packets": 42
+   },
+   {
+    "protocol": "sip",
+    "case_id": "sip_medias_interleave",
+    "summary": "T-SIP-73: interleave 交错调度（WP-B：T=4 G=3→gap 2/1/1；RTP 与信令帧序钉死=§3.12 写死可复现；14 包）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "sip": {
+        "src_port": 12001,
+        "dst_port": 5060,
+        "interleave": true,
+        "dialog": [
+         {
+          "method": "INVITE",
+          "uri": "sip:callee@20.0.0.1",
+          "emit_media": true
+         },
+         {
+          "status_code": 200,
+          "status_text": "OK"
+         },
+         {
+          "method": "ACK",
+          "uri": "sip:callee@20.0.0.1"
+         }
+        ],
+        "medias": [
+         {
+          "direction": "up",
+          "frames": 4
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 14
    },
    {
     "protocol": "sip",
@@ -11951,7 +12320,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    }
   ],
   "smb": [
@@ -11980,7 +12350,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 25
    },
    {
     "protocol": "smb",
@@ -12013,7 +12384,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 27
    },
    {
     "protocol": "smb",
@@ -12042,7 +12414,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 25
    },
    {
     "protocol": "smb",
@@ -12068,7 +12441,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 29
    },
    {
     "protocol": "smb",
@@ -12092,33 +12466,29 @@
        }
       }
      ]
-    }
+    },
+    "packets": 29
    }
   ],
   "smtp": [
    {
     "protocol": "smtp",
-    "case_id": "smtp-basic-session",
-    "summary": "SMTP (端口 25) 冒烟：完整 TCP 握手 + HELO/MAIL/RCPT/DATA/QUIT 命令对话 + 终止",
+    "case_id": "smtp_t024_default_twoflow",
+    "summary": "T-024: 全缺省双流（静态复制门反例：无显式标量不触发，src_port保底+1）",
     "config": {
      "layers": [
       {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
+       "ip": {}
       },
       {
-       "tcp": {
-        "src_port": 12345,
-        "dst_port": 25
-       }
+       "tcp": {}
       },
       {
        "smtp": {}
       }
      ]
-    }
+    },
+    "packets": 40
    },
    {
     "protocol": "smtp",
@@ -12173,7 +12543,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "smtp",
@@ -12209,14 +12580,40 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    }
   ],
   "snmp": [
    {
     "protocol": "snmp",
+    "case_id": "snmp_get_default_transaction",
+    "summary": "[chain] D-SNMP-2 缺省事务：v2c GET 不带任何开关 → 一问一答（request up + response down，同 request-id），共 2 包",
+    "config": {
+     "layers": [
+      {
+       "udp": {
+        "src_port": 40000
+       }
+      },
+      {
+       "snmp": {
+        "version": 1,
+        "var_binds": [
+         {
+          "name": "1.3.6.1.2.1.1.1.0"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 2
+   },
+   {
+    "protocol": "snmp",
     "case_id": "snmp_smoke_01",
-    "summary": "[chain] 冒烟：SNMPv1 GET 单 OID（1.3.6.1.2.1.1.1.0）。顶层不设端口 → 默认 dst 161（IANA），community=public，共 1 包",
+    "summary": "[chain] 冒烟：SNMPv1 GET 单 OID（1.3.6.1.2.1.1.1.0），request_only:true 显式纯请求（D-SNMP-2 保持单包形状）。顶层不设端口 → 默认 dst 161（IANA），community=public，共 1 包",
     "config": {
      "layers": [
       {
@@ -12228,11 +12625,13 @@
          {
           "name": "1.3.6.1.2.1.1.1.0"
          }
-        ]
+        ],
+        "request_only": true
        }
       }
      ]
-    }
+    },
+    "packets": 1
    }
   ],
   "socks5": [
@@ -12258,7 +12657,8 @@
        "socks5": {}
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "socks5",
@@ -12291,7 +12691,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    }
   ],
   "someip": [
@@ -12331,7 +12732,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 2
    },
    {
     "protocol": "someip",
@@ -12380,7 +12782,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 4
    },
    {
     "protocol": "someip",
@@ -12422,7 +12825,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 2
    }
   ],
   "spnego": [
@@ -12473,7 +12877,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "spnego",
@@ -12543,7 +12948,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 11
    },
    {
     "protocol": "spnego",
@@ -12596,7 +13002,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "spnego",
@@ -12655,14 +13062,15 @@
        }
       }
      ]
-    }
+    },
+    "packets": 10
    }
   ],
   "srv6": [
    {
     "protocol": "srv6",
-    "case_id": "srv6_bnd10_tlv_value_255",
-    "summary": "BND-10: TLV value 255 字节边界通过（Length 字节=0xFF），SRH 281B 尾部 PadN 1B → 288",
+    "case_id": "srv6_tpos9_frames",
+    "summary": "Frames=5: 5 包 SRH 相同，Hop Limit 递减，每包 DstIP=SegmentList[0]",
     "config": {
      "layers": [
       {
@@ -12674,276 +13082,15 @@
       {
        "srv6": {
         "segment_list": [
-         "2001:db8:a::1"
+         "2001:db8:a::1",
+         "2001:db8:b::1"
         ],
-        "tlv": [
-         {
-          "type": 200,
-          "value": [
-           0,
-           1,
-           2,
-           3,
-           4,
-           5,
-           6,
-           7,
-           8,
-           9,
-           10,
-           11,
-           12,
-           13,
-           14,
-           15,
-           16,
-           17,
-           18,
-           19,
-           20,
-           21,
-           22,
-           23,
-           24,
-           25,
-           26,
-           27,
-           28,
-           29,
-           30,
-           31,
-           32,
-           33,
-           34,
-           35,
-           36,
-           37,
-           38,
-           39,
-           40,
-           41,
-           42,
-           43,
-           44,
-           45,
-           46,
-           47,
-           48,
-           49,
-           50,
-           51,
-           52,
-           53,
-           54,
-           55,
-           56,
-           57,
-           58,
-           59,
-           60,
-           61,
-           62,
-           63,
-           64,
-           65,
-           66,
-           67,
-           68,
-           69,
-           70,
-           71,
-           72,
-           73,
-           74,
-           75,
-           76,
-           77,
-           78,
-           79,
-           80,
-           81,
-           82,
-           83,
-           84,
-           85,
-           86,
-           87,
-           88,
-           89,
-           90,
-           91,
-           92,
-           93,
-           94,
-           95,
-           96,
-           97,
-           98,
-           99,
-           100,
-           101,
-           102,
-           103,
-           104,
-           105,
-           106,
-           107,
-           108,
-           109,
-           110,
-           111,
-           112,
-           113,
-           114,
-           115,
-           116,
-           117,
-           118,
-           119,
-           120,
-           121,
-           122,
-           123,
-           124,
-           125,
-           126,
-           127,
-           128,
-           129,
-           130,
-           131,
-           132,
-           133,
-           134,
-           135,
-           136,
-           137,
-           138,
-           139,
-           140,
-           141,
-           142,
-           143,
-           144,
-           145,
-           146,
-           147,
-           148,
-           149,
-           150,
-           151,
-           152,
-           153,
-           154,
-           155,
-           156,
-           157,
-           158,
-           159,
-           160,
-           161,
-           162,
-           163,
-           164,
-           165,
-           166,
-           167,
-           168,
-           169,
-           170,
-           171,
-           172,
-           173,
-           174,
-           175,
-           176,
-           177,
-           178,
-           179,
-           180,
-           181,
-           182,
-           183,
-           184,
-           185,
-           186,
-           187,
-           188,
-           189,
-           190,
-           191,
-           192,
-           193,
-           194,
-           195,
-           196,
-           197,
-           198,
-           199,
-           200,
-           201,
-           202,
-           203,
-           204,
-           205,
-           206,
-           207,
-           208,
-           209,
-           210,
-           211,
-           212,
-           213,
-           214,
-           215,
-           216,
-           217,
-           218,
-           219,
-           220,
-           221,
-           222,
-           223,
-           224,
-           225,
-           226,
-           227,
-           228,
-           229,
-           230,
-           231,
-           232,
-           233,
-           234,
-           235,
-           236,
-           237,
-           238,
-           239,
-           240,
-           241,
-           242,
-           243,
-           244,
-           245,
-           246,
-           247,
-           248,
-           249,
-           250,
-           251,
-           252,
-           253,
-           254
-          ]
-         }
-        ],
-        "seg_type": "end",
-        "payload_protocol": "udp"
+        "frames": 5
        }
       }
      ]
-    }
+    },
+    "packets": 5
    },
    {
     "protocol": "srv6",
@@ -12982,39 +13129,46 @@
        }
       }
      ]
-    }
+    },
+    "packets": 1
    },
    {
     "protocol": "srv6",
-    "case_id": "srv6_tpos3_reduced",
-    "summary": "S3: Reduced SRH（2 段，省略第一段 S1，SL=1 LE=0，wire 仅 1 项 S2，DstIP=S1）",
+    "case_id": "srv6_mf04_down_multi_flow",
+    "summary": "MF-04: 10 流 Direction=down（每流反转 + MAC/IP/Port swap，DstIP=原 List[0]）",
     "config": {
      "layers": [
       {
        "ip": {
-        "src": "2001:db8::a",
-        "dst": "2001:db8::2"
+        "src": "2001:db8::1",
+        "dst": {
+         "strategy": "fixed",
+         "value": "2001:db8::2"
+        }
        }
       },
       {
        "srv6": {
-        "src_ipv6": "2001:db8:1::1",
         "segment_list": [
          "2001:db8:a::1",
-         "2001:db8:b::1"
+         "2001:db8:b::1",
+         "2001:db8:c::1"
         ],
-        "reduced": true,
+        "direction": "down",
+        "inner_src_port": 3333,
+        "inner_dst_port": 4444,
         "seg_type": "end",
         "payload_protocol": "udp"
        }
       }
      ]
-    }
+    },
+    "packets": 10
    },
    {
     "protocol": "srv6",
-    "case_id": "srv6_tpos6_nested_ipv6",
-    "summary": "S6: End.DX6 嵌套 IPv6（外层 SRH NH=41 + 内层 IPv6 40B + UDP 8B + payload 8B），终节点 SL=0",
+    "case_id": "srv6_tpos11_icmpv6",
+    "summary": "S16: ICMPv6 内层（SRH NH=58，Echo Request Type=128 ID=1 Seq=1，数据 8B）",
     "config": {
      "layers": [
       {
@@ -13025,80 +13179,22 @@
       },
       {
        "srv6": {
-        "src_ipv6": "2001:db8::1",
-        "dst_ipv6": "2001:db8::2",
         "segment_list": [
          "2001:db8::2"
         ],
-        "seg_type": "end.dx6",
-        "payload_protocol": "ipv6",
-        "inner_payload": [
-         96,
-         0,
-         0,
-         0,
-         0,
-         16,
-         17,
-         64,
-         252,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         10,
-         252,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         11,
-         48,
-         57,
-         0,
-         53,
-         0,
-         16,
-         6,
-         117,
-         49,
-         50,
-         51,
-         52,
-         53,
-         54,
-         55,
-         56
-        ]
+        "seg_type": "end",
+        "payload_protocol": "icmpv6",
+        "inner_payload": "12345678"
        }
       }
      ]
-    }
+    },
+    "packets": 1
    },
    {
     "protocol": "srv6",
-    "case_id": "srv6_tpos9_frames",
-    "summary": "Frames=5: 5 包 SRH 相同，Hop Limit 递减，每包 DstIP=SegmentList[0]",
+    "case_id": "srv6_tpos20_reduced_hmac",
+    "summary": "P-17: Reduced SRH + HMAC TLV（D bit=1，reduced DA verification disabled）",
     "config": {
      "layers": [
       {
@@ -13113,11 +13209,57 @@
          "2001:db8:a::1",
          "2001:db8:b::1"
         ],
-        "frames": 5
+        "reduced": true,
+        "tlv": [
+         {
+          "type": 5,
+          "value": [
+           128,
+           0,
+           0,
+           0,
+           0,
+           1,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0
+          ]
+         }
+        ]
        }
       }
      ]
-    }
+    },
+    "packets": 1
    }
   ],
   "ssdp": [
@@ -13137,7 +13279,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 2
    }
   ],
   "ssh": [
@@ -13166,10 +13309,65 @@
      "flow_control": {
       "flows": 1
      }
-    }
+    },
+    "packets": 0
    }
   ],
   "sstp": [
+   {
+    "protocol": "sstp",
+    "case_id": "sstp_https_tls_handshake",
+    "summary": "TCP/443 + TLS 握手 + application-data 载体（无密钥只断言 TLS）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "dst": "198.51.100.57",
+        "src": "192.0.2.57"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 443,
+        "src_port": 45057
+       }
+      },
+      {
+       "tls": {
+        "role": "client",
+        "sni": "sstp.example.test",
+        "version": "tls1.3"
+       }
+      },
+      {
+       "sstp": {
+        "events": [
+         {
+          "attributes": [
+           {
+            "id": 1
+           }
+          ],
+          "direction": "c2s",
+          "expect": "ack",
+          "kind": "call_connect_request"
+         },
+         {
+          "attributes": [
+           {
+            "id": 4
+           }
+          ],
+          "direction": "s2c",
+          "kind": "call_connect_ack"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 16
+   },
    {
     "protocol": "sstp",
     "case_id": "sstp_call_connect_nak",
@@ -13229,76 +13427,8 @@
        }
       }
      ]
-    }
-   },
-   {
-    "protocol": "sstp",
-    "case_id": "sstp_ppp_ipv6",
-    "summary": "C=0 PPP IPv6：ff 03 00 57 + IPv6 头（version/payload length/Next Header 59）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "dst": "198.51.100.57",
-        "src": "192.0.2.57"
-       }
-      },
-      {
-       "tcp": {
-        "dst_port": 443,
-        "src_port": 45057
-       }
-      },
-      {
-       "tls": {
-        "role": "client",
-        "sni": "sstp.example.test",
-        "version": "tls1.3"
-       }
-      },
-      {
-       "sstp": {
-        "events": [
-         {
-          "attributes": [
-           {
-            "id": 1
-           }
-          ],
-          "direction": "c2s",
-          "kind": "call_connect_request"
-         },
-         {
-          "attributes": [
-           {
-            "id": 4
-           }
-          ],
-          "direction": "s2c",
-          "kind": "call_connect_ack"
-         },
-         {
-          "attributes": [
-           {
-            "id": 3
-           }
-          ],
-          "direction": "c2s",
-          "kind": "call_connected"
-         },
-         {
-          "direction": "c2s",
-          "kind": "ppp_data",
-          "ppp": {
-           "payload_len": 60,
-           "protocol": "ipv6"
-          }
-         }
-        ]
-       }
-      }
-     ]
-    }
+    },
+    "packets": 16
    }
   ],
   "stratum": [
@@ -13342,7 +13472,8 @@
      "flow_control": {
       "flows": 1
      }
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "stratum",
@@ -13515,14 +13646,15 @@
      "flow_control": {
       "flows": 1
      }
-    }
+    },
+    "packets": 45
    }
   ],
   "stun": [
    {
     "protocol": "stun",
-    "case_id": "stun_auth_attributes",
-    "summary": "Binding request authentication context attributes",
+    "case_id": "stun_retransmission",
+    "summary": "UDP retransmission repeats the same transaction",
     "config": {
      "layers": [
       {
@@ -13545,29 +13677,102 @@
          {
           "kind": "request",
           "direction": "c2s",
-          "attributes": [
-           {
-            "type": "username",
-            "value": "alice"
-           },
-           {
-            "type": "realm",
-            "value": "example.org"
-           },
-           {
-            "type": "nonce",
-            "value": "server-nonce"
-           }
-          ]
+          "retransmit": false
+         },
+         {
+          "kind": "request",
+          "direction": "c2s",
+          "retransmit": true
+         },
+         {
+          "kind": "success",
+          "direction": "s2c"
          }
         ]
        }
       }
      ]
-    }
+    },
+    "packets": 3
    }
   ],
   "sv": [
+   {
+    "protocol": "sv",
+    "case_id": "sv_mac_dyn_inc",
+    "summary": "MAC dynamic inc multi-flow + wrap: flows=3 over range-of-2, flow3 wraps to :01",
+    "config": {
+     "layers": [
+      {
+       "eth": {
+        "src_mac": {
+         "strategy": "inc",
+         "range": [
+          "aa:00:00:00:00:01",
+          "aa:00:00:00:00:02"
+         ],
+         "step": 1
+        }
+       }
+      },
+      {
+       "sv": {
+        "sv_id": "xxxxMUnn01",
+        "appid": 16384,
+        "conf_rev": 1,
+        "samples_per_cycle": 80,
+        "data": [
+         {
+          "name": "I_A",
+          "type": "int32",
+          "inst_mag": 100
+         }
+        ],
+        "count": 1
+       }
+      }
+     ]
+    },
+    "packets": 3
+   },
+   {
+    "protocol": "sv",
+    "case_id": "sv_vlan",
+    "summary": "802.1Q VLAN on SV: vlan_id 100, priority 4 -\u003e TCI 0x8064 inserted before EtherType 0x88ba",
+    "config": {
+     "layers": [
+      {
+       "eth": {
+        "src_mac": "aa:bb:cc:dd:ee:03"
+       }
+      },
+      {
+       "sv": {
+        "sv_id": "xxxxMUnn01",
+        "appid": 16384,
+        "conf_rev": 1,
+        "samples_per_cycle": 4000,
+        "smp_synch": 2,
+        "smp_rate": 4000,
+        "period_us": 250,
+        "double_send": false,
+        "vlan_enabled": true,
+        "vlan_id": 100,
+        "vlan_priority": 4,
+        "data": [
+         {
+          "name": "I_A",
+          "type": "int32",
+          "quality": 0
+         }
+        ],
+        "count": 1
+       }
+      }
+     ]
+    },
+    "packets": 0
+   },
    {
     "protocol": "sv",
     "case_id": "sv_smp_seq",
@@ -13637,44 +13842,8 @@
        }
       }
      ]
-    }
-   },
-   {
-    "protocol": "sv",
-    "case_id": "sv_vlan",
-    "summary": "802.1Q VLAN on SV: vlan_id 100, priority 4 -\u003e TCI 0x8064 inserted before EtherType 0x88ba",
-    "config": {
-     "layers": [
-      {
-       "eth": {
-        "src_mac": "aa:bb:cc:dd:ee:03"
-       }
-      },
-      {
-       "sv": {
-        "sv_id": "xxxxMUnn01",
-        "appid": 16384,
-        "conf_rev": 1,
-        "samples_per_cycle": 4000,
-        "smp_synch": 2,
-        "smp_rate": 4000,
-        "period_us": 250,
-        "double_send": false,
-        "vlan_enabled": true,
-        "vlan_id": 100,
-        "vlan_priority": 4,
-        "data": [
-         {
-          "name": "I_A",
-          "type": "int32",
-          "quality": 0
-         }
-        ],
-        "count": 1
-       }
-      }
-     ]
-    }
+    },
+    "packets": 3
    },
    {
     "protocol": "sv",
@@ -13712,7 +13881,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 1
    }
   ],
   "swarm": [
@@ -13766,7 +13936,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 2
    },
    {
     "protocol": "swarm",
@@ -13810,7 +13981,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 11
    }
   ],
   "syslog": [
@@ -13827,14 +13999,15 @@
        "syslog": {}
       }
      ]
-    }
+    },
+    "packets": 1
    }
   ],
   "tcp": [
    {
     "protocol": "tcp",
-    "case_id": "tcp-handshake-basic",
-    "summary": "TCP 完整握手 + 数据 + 终止（默认配置，MSS 1460）",
+    "case_id": "tcp-window-size-applies",
+    "summary": "TCP 自定义窗口大小 4096 应用于握手双向（SYN 与 SYN-ACK 均填 winSize，非默认 65535）",
     "config": {
      "layers": [
       {
@@ -13845,59 +14018,39 @@
       },
       {
        "tcp": {
-        "src_port": 12345,
-        "dst_port": 80
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "tcp",
-    "case_id": "tcp-data-segments",
-    "summary": "TCP 大载荷按 MSS 分片（6000 字节 body → 5 段 PSH-ACK）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "tcp": {
-        "src_port": 12345,
-        "dst_port": 8080,
-        "handshake": true,
-        "termination": true,
-        "payload": "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "tcp",
-    "case_id": "tcp-zero-window-custom-mss",
-    "summary": "TCP 自定义 MSS 536 与窗口",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "tcp": {
-        "src_port": 20000,
-        "dst_port": 81,
-        "mss": 536,
+        "src_port": 30000,
+        "dst_port": 82,
         "window_size": 4096
        }
       }
      ]
-    }
+    },
+    "packets": 7
+   },
+   {
+    "protocol": "tcp",
+    "case_id": "tcp-no-handshake-direct-data",
+    "summary": "TCP 无握手直发数据：handshake=false 跳过 SYN 握手，数据段 PSH-ACK 直发 + 对端 ACK",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 22222,
+        "dst_port": 82,
+        "handshake": false,
+        "termination": false,
+        "payload": "hello-direct-data"
+       }
+      }
+     ]
+    },
+    "packets": 2
    },
    {
     "protocol": "tcp",
@@ -13919,7 +14072,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 7
    },
    {
     "protocol": "tcp",
@@ -13942,7 +14096,32 @@
        }
       }
      ]
-    }
+    },
+    "packets": 6
+   },
+   {
+    "protocol": "tcp",
+    "case_id": "tcp-zero-window-custom-mss",
+    "summary": "TCP 自定义 MSS 536 与窗口",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 20000,
+        "dst_port": 81,
+        "mss": 536,
+        "window_size": 4096
+       }
+      }
+     ]
+    },
+    "packets": 0
    }
   ],
   "tds": [
@@ -13979,7 +14158,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 13
    },
    {
     "protocol": "tds",
@@ -14021,7 +14201,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 13
    },
    {
     "protocol": "tds",
@@ -14063,7 +14244,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 13
    },
    {
     "protocol": "tds",
@@ -14099,7 +14281,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 13
    },
    {
     "protocol": "tds",
@@ -14157,30 +14340,53 @@
        }
       }
      ]
-    }
+    },
+    "packets": 15
    }
   ],
   "telnet": [
    {
     "protocol": "telnet",
-    "case_id": "telnet_basic_session",
-    "summary": "冒烟：TCP 3握手+defaultDialog 6事件+4挥手=13包（存量等价迁移）",
+    "case_id": "telnet_port_dyn",
+    "summary": "T-TELNET-16: telnet.src_port 动态 inc+flows=2（E1 逐流端口池，2 流×13=26 包）",
     "config": {
      "layers": [
       {
        "ip": {
-        "src": "10.0.0.1",
+        "src": {
+         "strategy": "inc",
+         "range": [
+          "10.0.1.1",
+          "10.0.1.2"
+         ],
+         "step": 1
+        },
         "dst": "20.0.0.1"
        }
       },
       {
        "telnet": {
-        "src_port": 12345,
-        "dst_port": 23
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          20000,
+          20001
+         ],
+         "step": 1
+        },
+        "dst_port": {
+         "strategy": "fixed",
+         "value": 23
+        }
        }
       }
-     ]
-    }
+     ],
+     "group_id": {
+      "strategy": "fixed",
+      "value": "telnet-port-dyn"
+     }
+    },
+    "packets": 26
    },
    {
     "protocol": "telnet",
@@ -14207,7 +14413,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "telnet",
@@ -14232,7 +14439,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "telnet",
@@ -14258,7 +14466,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "telnet",
@@ -14286,14 +14495,15 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    }
   ],
   "tftp": [
    {
     "protocol": "tftp",
-    "case_id": "tftp-rrq-short-aa100",
-    "summary": "T-001/S1: RRQ octet 单块（pattern 循环填满 512B，禁用自动追加）→ DATA#1 → ACK#1，3 包",
+    "case_id": "tftp-rrq-allzero-options-no-oack",
+    "summary": "T-067: 全零选项（blksize=0+timeout=0+tsize 双 0+windowsize=0）→ RRQ 无选项、无 OACK → DATA#1(512B) → 自动追加 DATA#2(0B)，5 包",
     "config": {
      "layers": [
       {
@@ -14304,38 +14514,7 @@
       },
       {
        "udp": {
-        "src_port": 49152,
-        "dst_port": 69
-       }
-      },
-      {
-       "tftp": {
-        "mode": "read",
-        "filename": "config.txt",
-        "transfer_mode": "octet",
-        "blocks_count": 1,
-        "data_payload_pattern": "AA",
-        "auto_append_final_block": false
-       }
-      }
-     ]
-    }
-   },
-   {
-    "protocol": "tftp",
-    "case_id": "tftp-rrq-all4opts-tidchange",
-    "summary": "T-205: 全选项 + TID 变更（OACK 旧 TID 60000 → DATA#3 起新 TID 61000 + ERROR(5)）+ 自动追加，13 包",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.100",
-        "dst": "10.0.0.1"
-       }
-      },
-      {
-       "udp": {
-        "src_port": 49222,
+        "src_port": 49274,
         "dst_port": 69
        }
       },
@@ -14344,20 +14523,20 @@
         "mode": "read",
         "filename": "a.bin",
         "transfer_mode": "octet",
-        "blksize": 512,
-        "timeout": 5,
-        "server_tsize": 1024,
-        "windowsize": 2,
-        "blocks_count": 4,
-        "data_payload_pattern": "AA",
-        "server_tid": 60000,
-        "server_tid_change": true,
-        "server_tid_change_at_block": 3,
-        "server_tid_new": 61000
+        "blksize": 0,
+        "timeout": 0,
+        "client_tsize": 0,
+        "server_tsize": 0,
+        "windowsize": 0,
+        "blocks_count": 1,
+        "data_payload_pattern": [
+         255
+        ]
        }
       }
      ]
-    }
+    },
+    "packets": 5
    },
    {
     "protocol": "tftp",
@@ -14391,12 +14570,13 @@
        }
       }
      ]
-    }
+    },
+    "packets": 4
    },
    {
     "protocol": "tftp",
-    "case_id": "tftp-rrq-finalzero-no-dup-append",
-    "summary": "T-019: FinalBlockZero + 自动追加不重复（client_tsize=1024, blocks_count=2, 末块显式 0B）→ 7 包，无 DATA#3",
+    "case_id": "tftp-rrq-tid-change-12pkts",
+    "summary": "T-110/T-111/T-112/S9: TID 变更迁移完整序列（60000→61000@块3）+ ERROR(5) 不终止 + 自动追加，12 包",
     "config": {
      "layers": [
       {
@@ -14407,30 +14587,31 @@
       },
       {
        "udp": {
-        "src_port": 49252,
+        "src_port": 49176,
         "dst_port": 69
        }
       },
       {
        "tftp": {
         "mode": "read",
-        "filename": "edgezero.bin",
+        "filename": "x.bin",
         "transfer_mode": "octet",
-        "client_tsize": 1024,
-        "blocks_count": 2,
-        "final_block_zero": true,
-        "data_payload_pattern": [
-         255
-        ]
+        "blocks_count": 4,
+        "data_payload_pattern": "AA",
+        "server_tid": 60000,
+        "server_tid_change": true,
+        "server_tid_change_at_block": 3,
+        "server_tid_new": 61000
        }
       }
      ]
-    }
+    },
+    "packets": 12
    },
    {
     "protocol": "tftp",
-    "case_id": "tftp-rrq-include-oack-empty",
-    "summary": "T-016/T-064: IncludeOACK=true 无选项 → 空 OACK `00 06`（2 字节）+ ACK#0 + 自动追加，7 包",
+    "case_id": "tftp-rrq-include-oack-wrq-empty",
+    "summary": "T-189: 无选项 + IncludeOACK=true（WRQ 空 OACK `00 06`）",
     "config": {
      "layers": [
       {
@@ -14441,22 +14622,56 @@
       },
       {
        "udp": {
-        "src_port": 49179,
+        "src_port": 49309,
         "dst_port": 69
        }
       },
       {
        "tftp": {
-        "mode": "read",
-        "filename": "o.bin",
+        "mode": "write",
+        "filename": "e189.dat",
         "transfer_mode": "octet",
+        "include_oack": true,
         "blocks_count": 1,
         "data_payload_pattern": "AA",
-        "include_oack": true
+        "auto_append_final_block": false
        }
       }
      ]
-    }
+    },
+    "packets": 4
+   },
+   {
+    "protocol": "tftp",
+    "case_id": "tftp-final-block-zero",
+    "summary": "T-018: FinalBlockZero 显式 0 字节末块（blocks_count=2，跳过自动追加），5 包",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.100",
+        "dst": "10.0.0.1"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 49172,
+        "dst_port": 69
+       }
+      },
+      {
+       "tftp": {
+        "mode": "read",
+        "filename": "explicitterm.bin",
+        "transfer_mode": "octet",
+        "blocks_count": 2,
+        "final_block_zero": true,
+        "data_payload_pattern": "FF"
+       }
+      }
+     ]
+    },
+    "packets": 5
    }
   ],
   "thrift": [
@@ -14514,7 +14729,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    }
   ],
   "tls": [
@@ -14543,7 +14759,8 @@
        "http": {}
       }
      ]
-    }
+    },
+    "packets": 0
    },
    {
     "protocol": "tls",
@@ -14574,10 +14791,57 @@
        }
       }
      ]
-    }
+    },
+    "packets": 0
    }
   ],
   "tns": [
+   {
+    "protocol": "tns",
+    "case_id": "tns_header_fields",
+    "summary": "S7/T-TNS-S7: complete public header fields and DATA flags (层链形 D-TNS-1)",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345
+       }
+      },
+      {
+       "tns": {
+        "events": [
+         {
+          "type": "CONNECT",
+          "direction": "c2s"
+         },
+         {
+          "type": "ACCEPT",
+          "direction": "s2c"
+         },
+         {
+          "type": "DATA",
+          "direction": "c2s",
+          "data_flags": 0
+         },
+         {
+          "type": "DATA",
+          "direction": "s2c",
+          "data_flags": 0
+         }
+        ],
+        "checksum_mode": "disabled"
+       }
+      }
+     ]
+    },
+    "packets": 11
+   },
    {
     "protocol": "tns",
     "case_id": "tns_multi_session",
@@ -14626,52 +14890,8 @@
        }
       }
      ]
-    }
-   },
-   {
-    "protocol": "tns",
-    "case_id": "tns_header_fields",
-    "summary": "S7/T-TNS-S7: complete public header fields and DATA flags (层链形 D-TNS-1)",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "tcp": {
-        "src_port": 12345
-       }
-      },
-      {
-       "tns": {
-        "events": [
-         {
-          "type": "CONNECT",
-          "direction": "c2s"
-         },
-         {
-          "type": "ACCEPT",
-          "direction": "s2c"
-         },
-         {
-          "type": "DATA",
-          "direction": "c2s",
-          "data_flags": 0
-         },
-         {
-          "type": "DATA",
-          "direction": "s2c",
-          "data_flags": 0
-         }
-        ],
-        "checksum_mode": "disabled"
-       }
-      }
-     ]
-    }
+    },
+    "packets": 18
    }
   ],
   "vmess": [
@@ -14703,7 +14923,8 @@
      "flow_control": {
       "flows": 1
      }
-    }
+    },
+    "packets": 11
    }
   ],
   "vnc": [
@@ -14750,7 +14971,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 33
    },
    {
     "protocol": "vnc",
@@ -14802,7 +15024,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 33
    },
    {
     "protocol": "vnc",
@@ -14855,7 +15078,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 33
    },
    {
     "protocol": "vnc",
@@ -14903,7 +15127,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 38
    },
    {
     "protocol": "vnc",
@@ -14924,10 +15149,91 @@
        }
       }
      ]
-    }
+    },
+    "packets": 17
    }
   ],
   "vxlan": [
+   {
+    "protocol": "vxlan",
+    "case_id": "vxlan_multi_vni",
+    "summary": "four same-outer-tuple datagrams with distinct VNIs and paired inner fixtures",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.80",
+        "dst": "198.51.100.80"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 40080,
+        "dst_port": 4789
+       }
+      },
+      {
+       "vxlan": {
+        "inner": {
+         "src_mac": "02:00:00:00:18:01",
+         "dst_mac": "02:00:00:00:18:02",
+         "ether_type": "ipv4",
+         "src_ip": "10.80.0.1",
+         "dst_ip": "10.80.0.2",
+         "payload_b64": "bXVsdGktMDA="
+        },
+        "datagrams": [
+         {
+          "vni": 100,
+          "inner": {
+           "src_mac": "02:00:00:00:18:01",
+           "dst_mac": "02:00:00:00:18:02",
+           "ether_type": "ipv4",
+           "src_ip": "10.80.0.1",
+           "dst_ip": "10.80.0.2",
+           "payload_b64": "bXVsdGktMDA="
+          }
+         },
+         {
+          "vni": 200,
+          "inner": {
+           "src_mac": "02:00:00:00:18:03",
+           "dst_mac": "02:00:00:00:18:04",
+           "ether_type": "ipv4",
+           "src_ip": "10.80.0.3",
+           "dst_ip": "10.80.0.4",
+           "payload_b64": "bXVsdGktMDE="
+          }
+         },
+         {
+          "vni": 300,
+          "inner": {
+           "src_mac": "02:00:00:00:18:05",
+           "dst_mac": "02:00:00:00:18:06",
+           "ether_type": "ipv4",
+           "src_ip": "10.80.0.5",
+           "dst_ip": "10.80.0.6",
+           "payload_b64": "bXVsdGktMDI="
+          }
+         },
+         {
+          "vni": 400,
+          "inner": {
+           "src_mac": "02:00:00:00:18:07",
+           "dst_mac": "02:00:00:00:18:08",
+           "ether_type": "ipv4",
+           "src_ip": "10.80.0.7",
+           "dst_ip": "10.80.0.8",
+           "payload_b64": "bXVsdGktMDM="
+          }
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 4
+   },
    {
     "protocol": "vxlan",
     "case_id": "vxlan_ipv4_outer_ipv4_inner",
@@ -14961,56 +15267,8 @@
        }
       }
      ]
-    }
-   },
-   {
-    "protocol": "vxlan",
-    "case_id": "vxlan_vni_boundary",
-    "summary": "VNI=0 and VNI=0xffffff 24-bit boundary datagrams",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "192.0.2.50",
-        "dst": "198.51.100.50"
-       }
-      },
-      {
-       "udp": {
-        "src_port": 40050,
-        "dst_port": 4789
-       }
-      },
-      {
-       "vxlan": {
-        "datagrams": [
-         {
-          "vni": 0,
-          "inner": {
-           "src_mac": "02:00:00:00:15:01",
-           "dst_mac": "02:00:00:00:15:02",
-           "ether_type": "ipv4",
-           "src_ip": "10.50.0.1",
-           "dst_ip": "10.50.0.2",
-           "payload_b64": "YQ=="
-          }
-         },
-         {
-          "vni": 16777215,
-          "inner": {
-           "src_mac": "02:00:00:00:15:03",
-           "dst_mac": "02:00:00:00:15:04",
-           "ether_type": "ipv4",
-           "src_ip": "10.50.0.3",
-           "dst_ip": "10.50.0.4",
-           "payload_b64": "Yg=="
-          }
-         }
-        ]
-       }
-      }
-     ]
-    }
+    },
+    "packets": 1
    }
   ],
   "wireguard": [
@@ -15036,7 +15294,8 @@
      "flow_control": {
       "flows": 1
      }
-    }
+    },
+    "packets": 3
    }
   ],
   "xmpp": [
@@ -15056,7 +15315,8 @@
        "xmpp": {}
       }
      ]
-    }
+    },
+    "packets": 19
    },
    {
     "protocol": "xmpp",
@@ -15079,7 +15339,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 19
    },
    {
     "protocol": "xmpp",
@@ -15100,7 +15361,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 19
    },
    {
     "protocol": "xmpp",
@@ -15120,7 +15382,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 21
    },
    {
     "protocol": "xmpp",
@@ -15140,7 +15403,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 18
    }
   ],
   "xmrmining": [
@@ -15176,7 +15440,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 9
    },
    {
     "protocol": "xmrmining",
@@ -15216,7 +15481,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 10
    },
    {
     "protocol": "xmrmining",
@@ -15281,7 +15547,8 @@
        }
       }
      ]
-    }
+    },
+    "packets": 24
    }
   ]
  }
