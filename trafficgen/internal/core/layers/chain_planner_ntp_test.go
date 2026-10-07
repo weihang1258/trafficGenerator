@@ -69,16 +69,21 @@ func assertNTPIdentical(t *testing.T, chain, legacy core.PacketConfig, idx int) 
 	}
 }
 
-// TestChainPlanner_NTP_Client verifies the [ip→udp→ntp] chain emits one up
-// datagram carrying the NTP client request (Mode=3), byte-identical to the
-// legacy ntp.NewPlanner (modulo IPID/timestamps).
+// TestChainPlanner_NTP_Client verifies the [ip→udp→ntp] chain emits the NTP
+// client request up datagram plus the D-NTP-2 缺省事务 server response down
+// datagram, byte-identical to the legacy ntp.NewPlanner (modulo
+// IPID/timestamps).
 func TestChainPlanner_NTP_Client(t *testing.T) {
 	spec := ntpSpec()
 	chain := collectPlanner(t, layers.NewChainPlanner("ntp"), spec)
 	legacy := collectPlanner(t, ntp.NewPlanner(), spec)
 
-	if len(chain) != 1 {
-		t.Fatalf("chain produced %d packets, want 1", len(chain))
+	// D-NTP-2 缺省事务：client 一问一答 = 2 包。
+	if len(chain) != 2 {
+		t.Fatalf("chain produced %d packets, want 2 (request+response)", len(chain))
+	}
+	if chain[1].Direction != "down" {
+		t.Errorf("response direction = %s, want down", chain[1].Direction)
 	}
 	if chain[0].Direction != "up" {
 		t.Errorf("direction = %s, want up", chain[0].Direction)
@@ -120,11 +125,11 @@ func TestChainPlanner_NTP_ClientResponse(t *testing.T) {
 	if chain[1].L2.SrcMAC != "11:22:33:44:55:66" || chain[1].L2.DstMAC != "aa:bb:cc:dd:ee:ff" {
 		t.Errorf("response MACs = %s→%s, want swapped", chain[1].L2.SrcMAC, chain[1].L2.DstMAC)
 	}
-	// Response is built from the same cfg (Mode stays 3 — legacy
-	// buildServerResponse does not rewrite the mode byte; only the explicit
-	// ModeServer mode emits 0x24). Assert the OriginTS echo instead.
-	if chain[1].Payload[0] != 0x23 {
-		t.Errorf("response header byte 0 = 0x%02x, want 0x23 (Mode=3 preserved)", chain[1].Payload[0])
+	// D-NTP-2 线故障修复：响应必须 Mode=4（legacy 曾复用 cfg.Mode=3，线上
+	// 是一串 client 请求而非 server 应答——套件 tshark 实证后修复，
+	// buildServerResponse 强制 ModeServer）。断言 OriginTS 回显。
+	if chain[1].Payload[0] != 0x24 {
+		t.Errorf("response header byte 0 = 0x%02x, want 0x24 (VN=4, Mode=4 server)", chain[1].Payload[0])
 	}
 	if !bytes.Equal(chain[0].Payload[40:48], chain[1].Payload[24:32]) {
 		t.Errorf("response OriginTS (24:32) does not echo request TransmitTS (40:48)")
@@ -228,19 +233,30 @@ func TestChainPlanner_NTP_Control(t *testing.T) {
 	chain := collectPlanner(t, layers.NewChainPlanner("ntp"), spec)
 	legacy := collectPlanner(t, ntp.NewPlanner(), spec)
 
-	if len(chain) != 2 {
-		t.Fatalf("chain produced %d packets, want 2", len(chain))
+	// D-NTP-2 缺省事务：RepeatCount=2 → 2×(request+response) = 4 包，
+	// 序 up/down/up/down，seq 7/7/8/8（响应回显同 Sequence）。
+	if len(chain) != 4 {
+		t.Fatalf("chain produced %d packets, want 4", len(chain))
+	}
+	for i, dir := range []string{"up", "down", "up", "down"} {
+		if chain[i].Direction != dir {
+			t.Errorf("packet %d direction = %s, want %s", i, chain[i].Direction, dir)
+		}
 	}
 	// Control header: byte 1 = R(0)|E(0)|M(0)|OpCode(2) → 0x02; seq at 2-3.
 	if chain[0].Payload[0]&0x07 != 6 {
 		t.Errorf("control mode byte = 0x%02x, want Mode=6", chain[0].Payload[0])
 	}
-	seq0 := uint16(chain[0].Payload[2])<<8 | uint16(chain[0].Payload[3])
-	seq1 := uint16(chain[1].Payload[2])<<8 | uint16(chain[1].Payload[3])
-	if seq0 != 7 || seq1 != 8 {
-		t.Errorf("control sequences = %d/%d, want 7/8", seq0, seq1)
+	seqs := [4]uint16{
+		uint16(chain[0].Payload[2])<<8 | uint16(chain[0].Payload[3]),
+		uint16(chain[1].Payload[2])<<8 | uint16(chain[1].Payload[3]),
+		uint16(chain[2].Payload[2])<<8 | uint16(chain[2].Payload[3]),
+		uint16(chain[3].Payload[2])<<8 | uint16(chain[3].Payload[3]),
 	}
-	for i := 0; i < 2; i++ {
+	if seqs != [4]uint16{7, 7, 8, 8} {
+		t.Errorf("control sequences = %v, want [7 7 8 8] (response echoes request seq)", seqs)
+	}
+	for i := 0; i < 4; i++ {
 		assertNTPIdentical(t, chain[i], legacy[i], i)
 	}
 }
@@ -253,8 +269,9 @@ func TestChainPlanner_NTP_DefaultPorts(t *testing.T) {
 	spec.DstPort = 0
 	chain := collectPlanner(t, layers.NewChainPlanner("ntp"), spec)
 
-	if len(chain) != 1 {
-		t.Fatalf("chain produced %d packets, want 1", len(chain))
+	// D-NTP-2 缺省事务：缺省 client = 2 包；端口断言只看请求包。
+	if len(chain) != 2 {
+		t.Fatalf("chain produced %d packets, want 2 (request+response)", len(chain))
 	}
 	if chain[0].L4.DstPort != 123 {
 		t.Errorf("dst port = %d, want 123 (defaulted)", chain[0].L4.DstPort)

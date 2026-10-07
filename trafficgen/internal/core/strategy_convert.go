@@ -1257,6 +1257,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				MAC:            getByteSlice(sub, "mac"),
 				Extensions:     parseNTPExtensions(sub["extensions"]),
 				IsResponse:     getBool(sub, "is_response", false),
+				RequestOnly:    getBool(sub, "request_only", false),
 				PollInterval:   getInt(sub, "poll_interval"),
 				RepeatCount:    getInt(sub, "repeat_count"),
 				Sequence:       uint16(getIntDefault(sub, "sequence", 0)),

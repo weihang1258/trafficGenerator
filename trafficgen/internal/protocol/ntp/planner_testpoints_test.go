@@ -211,6 +211,7 @@ func TestNTP_1_15_Mode6Control(t *testing.T) {
 		Sequence:    1,
 		RequestCode: 1,
 		ControlData: make([]byte, 10),
+		RequestOnly: true, // D-NTP-2：布局单测只看请求形状
 	}
 	cfgs := drain(mustPlan(t, NewPlanner(), spec))
 	if len(cfgs) != 1 {
@@ -254,6 +255,7 @@ func TestNTP_1_15a_Mode6ControlByte0Layout(t *testing.T) {
 				Sequence:      1,
 				RequestCode:   1,
 				ControlData:   make([]byte, 4),
+				RequestOnly:   true, // D-NTP-2：byte0 布局单测只看请求形状
 			}
 			cfgs := drain(mustPlan(t, NewPlanner(), spec))
 			if len(cfgs) != 1 {
@@ -670,12 +672,15 @@ func TestNTP_1_47_ExtensionsOne(t *testing.T) {
 // ============================================================================
 
 func TestNTP_2_1_ClientRequestEmits(t *testing.T) {
-	// Mode=3 default: 1 packet (request)
+	// Mode=3 default（D-NTP-2 缺省事务）：2 包 = request up + response down。
 	spec := validNTPSpec()
 	spec.NTP = &core.NTPConfig{Mode: ModeClient, Version: 4}
 	cfgs := drain(mustPlan(t, NewPlanner(), spec))
-	if len(cfgs) != 1 {
-		t.Errorf("len=%d, want 1 (Mode=3 default: 1 request)", len(cfgs))
+	if len(cfgs) != 2 {
+		t.Errorf("len=%d, want 2 (Mode=3 default: request+response)", len(cfgs))
+	}
+	if cfgs[0].Direction != "up" || cfgs[1].Direction != "down" {
+		t.Errorf("directions = %s/%s, want up/down", cfgs[0].Direction, cfgs[1].Direction)
 	}
 }
 
@@ -710,12 +715,12 @@ func TestNTP_2_4_BroadcastRepeat(t *testing.T) {
 }
 
 func TestNTP_2_5_SymmetricActiveEmits(t *testing.T) {
-	// Mode=1 + RepeatCount=3 -> 3 packets
+	// Mode=1 + RepeatCount=3（D-NTP-2 缺省事务）→ 3×(packet+peer reply) = 6 包。
 	spec := validNTPSpec()
 	spec.NTP = &core.NTPConfig{Mode: ModeSymmetricActive, Version: 4, RepeatCount: 3}
 	cfgs := drain(mustPlan(t, NewPlanner(), spec))
-	if len(cfgs) != 3 {
-		t.Errorf("len=%d, want 3", len(cfgs))
+	if len(cfgs) != 6 {
+		t.Errorf("len=%d, want 6 (3 x packet+reply)", len(cfgs))
 	}
 }
 
@@ -1143,8 +1148,9 @@ func TestNTP_6_4_NoGoroutineLeakBasic(t *testing.T) {
 			spec := validNTPSpec()
 			spec.NTP = &core.NTPConfig{Mode: ModeClient, Version: 4}
 			cfgs := drain(mustPlan(t, p, spec))
-			if len(cfgs) != 1 {
-				t.Errorf("iteration %d: got %d configs", i, len(cfgs))
+			// D-NTP-2 缺省事务：client 一问一答 = 2 包。
+			if len(cfgs) != 2 {
+				t.Errorf("iteration %d: got %d configs, want 2", i, len(cfgs))
 			}
 		}
 		close(done)

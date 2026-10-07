@@ -183,6 +183,7 @@ func buildDefaultRegistry() {
 			"mac":             {Type: "list"},
 			"extensions":      {Type: "list"},
 			"is_response":     {Type: "bool"},
+			"request_only":    {Type: "bool", Default: false}, // D-NTP-2: 显式纯请求；client/symmetric/control 缺省一问一答（同 dns query_only 语义）
 			"poll_interval":   {Type: "int"},
 			"repeat_count":    {Type: "int"},
 			"sequence":        {Type: "string"},

@@ -6170,13 +6170,15 @@ type NTPConfig struct {
 	MAC        []byte   `json:"mac,omitempty"`
 	Extensions []NTPExt `json:"extensions,omitempty"`
 
-	// Behavior controls. IsResponse=true in client mode (Mode=3) emits a
-	// server response after the request; in symmetric modes (Mode=1/2) emits
-	// the peer-to-peer reply; in control mode (Mode=6) emits the control
-	// response. RepeatCount overrides FlowSpec.Count for multi-packet modes
+	// Behavior controls. v1.1.0 D-NTP-2 缺省事务反转：client（Mode=3）/
+	// symmetric（Mode=1/2）/ control（Mode=6）缺省一问一答；server（4）/
+	// broadcast（5）/ private（7）天然单发恒单包。IsResponse 保留为显式
+	// 带响应开关（与新缺省重叠，形状不变；与 RequestOnly 互斥，Validate 拒）。
+	// RepeatCount overrides FlowSpec.Count for multi-packet modes
 	// (broadcast, symmetric, control sequences). PollInterval is informational
 	// only (the planner does not sleep; pacing is the worker's job).
 	IsResponse   bool `json:"is_response,omitempty"`
+	RequestOnly  bool `json:"request_only,omitempty"` // D-NTP-2: true 显式纯请求（仅对有应答语义的模式有意义）
 	PollInterval int  `json:"poll_interval,omitempty"`
 	RepeatCount  int  `json:"repeat_count,omitempty"`
 

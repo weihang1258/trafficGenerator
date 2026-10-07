@@ -1,67 +1,118 @@
 [
-  {
-    "id": "ntp_smoke_01",
-    "proto": "ntp",
-    "summary": "[chain] 冒烟：NTPv4 client 请求（空配置）。顶层不设端口 → 默认 dst 123（IANA），VN=4/Mode=3/Stratum=0，共 1 包",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "ntp": {}
-        }
-      ]
+ {
+  "id": "ntp_smoke_01",
+  "proto": "ntp",
+  "summary": "[chain] 冒烟：NTPv4 client 请求（空配置 + request_only:true 显式纯请求，D-NTP-2 保持单包形状）。顶层不设端口 → 默认 dst 123（IANA），VN=4/Mode=3/Stratum=0，共 1 包",
+  "spec_json": {
+   "layers": [
+    {
+     "udp": {}
     },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "udp.dstport",
-          "value": "123"
-        },
-        {
-          "packet": 1,
-          "field": "ntp.flags.vn",
-          "value": "4"
-        },
-        {
-          "packet": 1,
-          "field": "ntp.flags.mode",
-          "value": "3"
-        },
-        {
-          "packet": 1,
-          "field": "ntp.flags.li",
-          "value": "0"
-        },
-        {
-          "packet": 1,
-          "field": "ntp.stratum",
-          "value": "0"
-        },
-        {
-          "packet": 1,
-          "field": "ntp.ppoll",
-          "value": "6"
-        },
-        {
-          "packet": 1,
-          "field": "ntp.xmt",
-          "nonzero": true
-        }
-      ],
-      "notes": [
-        "RFC 5905 §7.3：LI/VN/Mode 首字节、Stratum、Poll 为固定头字段；client 请求 Mode=3、VN=4",
-        "顶层未设端口：dst 默认 123（strategy_convert）、src 保持 flow 默认 12345，不断言；随机传输时间戳（ntp.xmt 动态）不断言具体值",
-        "ntp.xmt nonzero：请求必须携带当前时间戳（探针实测非零）；refid/rootdelay/org 空配置恒 0（客户端未同步，探针实测）故不断言",
-        "tshark 探针实测：vn=4、mode=3、li=0、stratum=0、ppoll=6、dstport=123",
-        "layers chain style: [udp,ntp]"
-      ]
+    {
+     "ntp": {
+      "request_only": true
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "123"
     },
-    "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ntp 子映射迁入 layers[].ntp"
-    ]
+    {
+     "packet": 1,
+     "field": "ntp.flags.vn",
+     "value": "4"
+    },
+    {
+     "packet": 1,
+     "field": "ntp.flags.mode",
+     "value": "3"
+    },
+    {
+     "packet": 1,
+     "field": "ntp.flags.li",
+     "value": "0"
+    },
+    {
+     "packet": 1,
+     "field": "ntp.stratum",
+     "value": "0"
+    },
+    {
+     "packet": 1,
+     "field": "ntp.ppoll",
+     "value": "6"
+    },
+    {
+     "packet": 1,
+     "field": "ntp.xmt",
+     "nonzero": true
+    }
+   ],
+   "notes": [
+    "RFC 5905 §7.3：LI/VN/Mode 首字节、Stratum、Poll 为固定头字段；client 请求 Mode=3、VN=4",
+    "顶层未设端口：dst 默认 123（strategy_convert）、src 保持 flow 默认 12345，不断言；随机传输时间戳（ntp.xmt 动态）不断言具体值",
+    "ntp.xmt nonzero：请求必须携带当前时间戳（探针实测非零）；refid/rootdelay/org 空配置恒 0（客户端未同步，探针实测）故不断言",
+    "tshark 探针实测：vn=4、mode=3、li=0、stratum=0、ppoll=6、dstport=123",
+    "layers chain style: [udp,ntp]"
+   ]
+  },
+  "notes": [
+   "层链改造：扁平四元组并入 ip/udp 层，顶层 ntp 子映射迁入 layers[].ntp",
+   "D-NTP-2 (v1.1.0)：client/symmetric/control 缺省一问一答；本例 request_only:true 显式纯请求，包数与断言不变"
+  ]
+ },
+ {
+  "id": "ntp_client_default_transaction",
+  "proto": "ntp",
+  "summary": "[chain] D-NTP-2 缺省事务：NTPv4 client 不带任何开关 → 一问一答（request Mode=3 up + server response Mode=4 down，OriginTS 回显请求 TransmitTS），共 2 包",
+  "spec_json": {
+   "layers": [
+    {
+     "udp": {
+      "src_port": 40000
+     }
+    },
+    {
+     "ntp": {}
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "123"
+    },
+    {
+     "packet": 1,
+     "field": "ntp.flags.mode",
+     "value": "3"
+    },
+    {
+     "packet": 2,
+     "field": "udp.srcport",
+     "value": "123"
+    },
+    {
+     "packet": 2,
+     "field": "ntp.flags.mode",
+     "value": "4"
+    }
+   ],
+   "notes": [
+    "RFC 5905 §7.3/§8：client↔server 交换；响应 Origin timestamp = 请求 Transmit timestamp（时间值运行期生成，不硬编码断言）",
+    "D-NTP-2 (v1.1.0)：默认场景给正常业务——一请求一响应；纯请求用 request_only:true；server/broadcast/private 天然单发",
+    "tshark 探针钉值：响应侧 udp.srcport=123、ntp.flags.mode=4；先跑后钉，勿凭记忆改断言",
+    "layers chain style: [udp,ntp]"
+   ]
   }
+ }
 ]

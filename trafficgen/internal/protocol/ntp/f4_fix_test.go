@@ -25,6 +25,7 @@ func TestF4_ControlModeByte0_StandardLayout(t *testing.T) {
 		Sequence:    1,
 		RequestCode: 1,
 		ControlData: []byte{0x01, 0x02},
+		RequestOnly: true, // D-NTP-2：布局单测只看请求形状
 	}
 	cfgs := drain(mustPlan(t, NewPlanner(), spec))
 	if len(cfgs) != 1 {
@@ -55,6 +56,7 @@ func TestF4_ControlModeByte0_Version3(t *testing.T) {
 		Version:     3,
 		Sequence:    1,
 		RequestCode: 1,
+		RequestOnly: true, // D-NTP-2：布局单测只看请求形状
 	}
 	cfgs := drain(mustPlan(t, NewPlanner(), spec))
 	if len(cfgs) != 1 {

@@ -39,6 +39,8 @@ func TestNTP_Control_RFC1305_HeaderLayout(t *testing.T) {
 		AssociationID:  42,
 		Offset:         0,
 		ControlData:    []byte{0xDE, 0xAD, 0xBE, 0xEF},
+		// D-NTP-2：布局单测只看请求形状，显式纯请求保持单包。
+		RequestOnly:    true,
 	}
 	cfgs := drain(mustPlan(t, NewPlanner(), spec))
 	if len(cfgs) != 1 {

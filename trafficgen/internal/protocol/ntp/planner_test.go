@@ -67,6 +67,22 @@ func TestPlanner_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "request_only and is_response mutually exclusive (D-NTP-2)",
+			spec: core.FlowSpec{
+				SrcIP:   "192.168.1.1",
+				DstIP:   "192.168.1.2",
+				SrcPort: 12345,
+				DstPort: 123,
+				NTP: &core.NTPConfig{
+					Mode:        ModeClient,
+					Version:     4,
+					RequestOnly: true,
+					IsResponse:  true,
+				},
+			},
+			wantErr: true,
+		},
+		{
 			name: "invalid source IP",
 			spec: core.FlowSpec{
 				SrcIP:   "not-an-ip",
@@ -269,9 +285,10 @@ func TestPlanner_Plan(t *testing.T) {
 		configs = append(configs, c)
 	}
 
-	// Default client mode without IsResponse emits exactly 1 request packet.
-	if len(configs) != 1 {
-		t.Fatalf("Expected 1 config, got %d", len(configs))
+	// D-NTP-2 缺省事务：默认 client 一问一答 = 2 包（request up + response
+	// down，响应 OriginTS 回显请求 TransmitTS）。
+	if len(configs) != 2 {
+		t.Fatalf("Expected 2 configs (request+response), got %d", len(configs))
 	}
 
 	cfg := configs[0]

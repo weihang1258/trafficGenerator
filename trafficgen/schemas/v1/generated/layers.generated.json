@@ -3739,6 +3739,10 @@
         "request_code": {
           "type": "uint16"
         },
+        "request_only": {
+          "type": "bool",
+          "default": false
+        },
         "root_delay": {
           "type": "uint32"
         },

@@ -150,6 +150,13 @@ func validateNTPConfig(spec core.FlowSpec) error {
 		return fmt.Errorf("ntp: Mode 0 reserved (must be 1-7 per RFC 5905 §7.3)")
 	}
 
+	// D-NTP-2：显式纯请求与显式带响应不能并存（缺省已是有应答模式的一问
+	// 一答；server/broadcast/private 天然单发，is_response 在这些模式下无
+	// 响应可带，与 request_only 组合同样无意义，一并拒绝）。
+	if cfg.RequestOnly && cfg.IsResponse {
+		return fmt.Errorf("ntp: request_only and is_response are mutually exclusive (request_only emits the request alone; client/symmetric/control default already pairs a response)")
+	}
+
 	// Stratum is 0-16. 0=unspecified/KoD, 1=primary, 2-15=secondary, 16=unsync.
 	if cfg.Stratum > 16 {
 		return fmt.Errorf("ntp: Stratum %d invalid (must be 0-16 per RFC 5905 §7.3)", cfg.Stratum)
@@ -306,7 +313,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				if !emit("up", spec.SrcIP, spec.DstIP, spec.SrcMAC, spec.DstMAC, effectiveSrcPort, effectiveDstPort, payload) {
 					return
 				}
-				if cfg.IsResponse {
+				// D-NTP-2 缺省事务：client 缺省一问一答，request_only 抑制。
+				if wantResponse(&cfg) {
 					respPayload := buildServerResponse(&cfg, now, requestTransmitTS)
 					if !emit("down", spec.DstIP, spec.SrcIP, spec.DstMAC, spec.SrcMAC, effectiveDstPort, effectiveSrcPort, respPayload) {
 						return
@@ -350,7 +358,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				if !emit(dir, spec.SrcIP, spec.DstIP, spec.SrcMAC, spec.DstMAC, effectiveSrcPort, effectiveDstPort, payload) {
 					return
 				}
-				if cfg.IsResponse {
+				// D-NTP-2 缺省事务：symmetric 缺省 peer 反向回复，request_only 抑制。
+				if wantResponse(&cfg) {
 					peerCfg := cfg
 					peerCfg.Mode = ModeSymmetricPassive
 					if cfg.Mode == ModeSymmetricPassive {
@@ -380,7 +389,9 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				if !emit("up", spec.SrcIP, spec.DstIP, spec.SrcMAC, spec.DstMAC, effectiveSrcPort, effectiveDstPort, payload) {
 					return
 				}
-				if cfg.IsResponse {
+				// D-NTP-2 缺省事务：control 缺省同 Sequence 的 R-bit 响应，
+				// request_only 抑制。
+				if wantResponse(&cfg) {
 					respPayload := buildControlResponse(&cfg, seq)
 					if !emit("down", spec.DstIP, spec.SrcIP, spec.DstMAC, spec.SrcMAC, effectiveDstPort, effectiveSrcPort, respPayload) {
 						return
@@ -447,7 +458,13 @@ func buildServerResponse(cfg *core.NTPConfig, now time.Time, requestTransmit tim
 	if txTS.IsZero() {
 		txTS = now
 	}
-	return buildNTPPacket(cfg, cfg.RefTimestamp, originTS, receiveTS, txTS)
+	// 响应必须是 Mode=4（server）：D-NTP-2 套件 tshark 实证 legacy 缺陷——
+	// client 模式（Mode=3）配 IsResponse/缺省事务时，响应包复用 cfg.Mode=3，
+	// 线上是一串 client 请求而非 server 应答。server 模式（Mode=4）调用方
+	// 强制后输出不变（恒等）。
+	respCfg := *cfg
+	respCfg.Mode = ModeServer
+	return buildNTPPacket(&respCfg, cfg.RefTimestamp, originTS, receiveTS, txTS)
 }
 
 // buildBroadcast builds a Mode=5 broadcast packet. Origin=0, Receive=0,

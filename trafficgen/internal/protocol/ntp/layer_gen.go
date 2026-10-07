@@ -30,6 +30,24 @@ type NTPGenerator struct{}
 // Name returns "ntp".
 func (g *NTPGenerator) Name() string { return "ntp" }
 
+// wantResponse reports whether the current mode pairs its packet with a
+// peer response by default (D-NTP-2)：client/symmetric/control 有应答语义
+// 缺省一问一答，`request_only:true` 显式抑制；server/broadcast/private
+// 天然单发恒 false（server 本就是响应角色，broadcast 无单播应答，private
+// 无定义应答语义）。is_response 不再 gate 事件数（Go bool 无法区分缺省与
+// 显式 false，dns D-DNS-2 同款裁定；互斥在 Validate 拒）。
+func wantResponse(cfg *core.NTPConfig) bool {
+	if cfg.RequestOnly {
+		return false
+	}
+	switch cfg.Mode {
+	case ModeClient, ModeSymmetricActive, ModeSymmetricPassive, ModeControl:
+		return true
+	default:
+		return false
+	}
+}
+
 // Generate produces NTP message events in mode order (mirrors planner.go
 // Plan 的 mode switch + repeat 循环)。
 func (g *NTPGenerator) Generate(ctx context.Context, req *layers.GenRequest) error {
@@ -80,7 +98,8 @@ func (g *NTPGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 			if err := emit(layers.MessageEvent{Up: true, Bytes: payload}); err != nil {
 				return err
 			}
-			if cfg.IsResponse {
+			// D-NTP-2 缺省事务：client 缺省一问一答，request_only 抑制。
+			if wantResponse(cfg) {
 				respPayload := buildServerResponse(cfg, now, txTS)
 				if err := emit(layers.MessageEvent{Up: false, Bytes: respPayload}); err != nil {
 					return err
@@ -137,7 +156,8 @@ func (g *NTPGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 			if err := emit(layers.MessageEvent{Up: up, Bytes: payload}); err != nil {
 				return err
 			}
-			if cfg.IsResponse {
+			// D-NTP-2 缺省事务：symmetric 缺省 peer 反向回复，request_only 抑制。
+			if wantResponse(cfg) {
 				peerCfg := *cfg
 				peerCfg.Mode = ModeSymmetricPassive
 				if cfg.Mode == ModeSymmetricPassive {
@@ -169,7 +189,9 @@ func (g *NTPGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 			if err := emit(layers.MessageEvent{Up: true, Bytes: payload}); err != nil {
 				return err
 			}
-			if cfg.IsResponse {
+			// D-NTP-2 缺省事务：control 缺省同 Sequence 的 R-bit 响应，
+			// request_only 抑制。
+			if wantResponse(cfg) {
 				respPayload := buildControlResponse(cfg, seq)
 				if err := emit(layers.MessageEvent{Up: false, Bytes: respPayload}); err != nil {
 					return err
