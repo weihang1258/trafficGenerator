@@ -22,8 +22,12 @@ type SNMPGenerator struct{}
 // Name returns "snmp".
 func (g *SNMPGenerator) Name() string { return "snmp" }
 
-// Generate produces SNMP message events: one request/trap (up) per iteration,
-// plus one response (down) when IsResponse — mirrors planner.go Plan 的
+// Generate produces SNMP message events. v1.1.0 D-SNMP-2 缺省事务反转：
+// 查询型 PDU（Get/GetNext/Set/GetBulk/Inform）缺省一问一答（request up +
+// response down，同 request-id）；`request_only:true` 显式纯请求；trap 型
+// PDU（TrapV1/TrapV2）恒单发（RFC 1157 §4.1.6 / RFC 3416 陷阱无响应语义）。
+// `is_response` 不再 gate 事件数（Go bool 无法区分缺省与显式 false，dns
+// D-DNS-2 同款裁定），互斥由 Validate 拒绝。Mirrors planner.go Plan 的
 // repeat 循环 + request-id 递增。
 func (g *SNMPGenerator) Generate(ctx context.Context, req *layers.GenRequest) error {
 	cfg := req.Meta.SNMP
@@ -72,7 +76,7 @@ func (g *SNMPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 		if err := emit(layers.MessageEvent{Up: true, Bytes: buildRequest(reqID)}); err != nil {
 			return err
 		}
-		if cfg.IsResponse {
+		if wantResponse(cfg) {
 			if err := emit(layers.MessageEvent{Up: false, Bytes: buildResponse(reqID)}); err != nil {
 				return err
 			}
@@ -90,6 +94,19 @@ func (g *SNMPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 
 // GenEvents marks this generator as a message event producer.
 func (g *SNMPGenerator) GenEvents() layers.EventGenerator { return g }
+
+// wantResponse reports whether the generator emits a response after the
+// request: 查询型 PDU 缺省一问一答（D-SNMP-2），`request_only:true` 抑制，
+// trap 型 PDU 恒不响应（无应答语义，互斥在 Validate 拒）。
+func wantResponse(cfg *core.SNMPConfig) bool {
+	return !cfg.RequestOnly && !isTrapPDU(cfg.PDUType)
+}
+
+// isTrapPDU reports the unacknowledged trap PDU types (TrapV1=4, TrapV2=5).
+// Inform (6) is a query-type for this purpose: RFC 3416 §4.2.7 它有 Response。
+func isTrapPDU(pduType uint8) bool {
+	return pduType == PDUTrapV1 || pduType == PDUSNMPv2Trap
+}
 
 // EmitEvent is the EventGenerator interface method, present only to satisfy
 // the producer marker; events flow through GenRequest.EmitMsg, so calling

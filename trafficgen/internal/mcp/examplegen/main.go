@@ -31,6 +31,7 @@ type caseFile struct {
 	SpecJSON json.RawMessage `json:"spec_json"`
 	Expect   struct {
 		ExpectError bool `json:"expect_error"`
+		PacketCount int  `json:"packet_count"`
 	} `json:"expect"`
 }
 
@@ -40,6 +41,7 @@ type example struct {
 	Summary     string          `json:"summary"`
 	Config      json.RawMessage `json:"config"`
 	FlowControl string          `json:"flow_control_note,omitempty"`
+	Packets     int             `json:"packets"` // 事务档判定输入：缺省事务例（无 opt-out 键且 ≥2 包）
 }
 
 type envelope struct {
@@ -82,6 +84,46 @@ func multiFlowValue(cfg json.RawMessage) int {
 		return m.FlowControl.Value
 	}
 	return 0
+}
+
+// txTier：事务例档（排序用）。语料自证不逐协议硬编码——两路信号任一命中
+// 即事务档：① config 携带响应/事务语义键（txSignal）；② **缺省事务例**：
+// 正例 expect.packet_count ≥ 2 且 config 不带纯请求 opt-out 键（query_only/
+// request_only）。②覆盖 D-DNS-2/D-SNMP-2/D-NTP-2 反转后的缺省一问一答例
+// （如 snmp_get_default_transaction、ntp_client_default_transaction）——
+// 它们不带任何显式响应键，靠包数自证；opt-out 键排除多流纯查询例
+//（dns flows=2 查询例包数同为 2，但配置声明了 query_only）。
+func txTier(e exam) bool {
+	if txSignal(e.Config) {
+		return true
+	}
+	return e.Packets >= 2 && !hasOptOutKey(e.Config)
+}
+
+// hasOptOutKey reports whether the config carries an explicit one-sided
+// switch (query_only / request_only) in any layer config.
+func hasOptOutKey(cfg json.RawMessage) bool {
+	var m struct {
+		Layers []map[string]json.RawMessage `json:"layers"`
+	}
+	if json.Unmarshal(cfg, &m) != nil {
+		return false
+	}
+	for _, layer := range m.Layers {
+		for _, raw := range layer {
+			var fields map[string]json.RawMessage
+			if json.Unmarshal(raw, &fields) != nil {
+				continue
+			}
+			if _, ok := fields["query_only"]; ok {
+				return true
+			}
+			if _, ok := fields["request_only"]; ok {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // txSignal：config 是否携带响应/事务语义（is_response、response_code、
@@ -150,6 +192,7 @@ func Generate(casesDir string) ([]byte, error) {
 			protos[c.Proto] = append(protos[c.Proto], exam{
 				Protocol: c.Proto, CaseID: c.ID, Summary: c.Summary,
 				Config: c.SpecJSON, FlowControl: flowNote(c.SpecJSON),
+				Packets: c.Expect.PacketCount,
 			})
 		}
 	}
@@ -158,7 +201,7 @@ func Generate(casesDir string) ([]byte, error) {
 		// 排序：事务例档优先，同档内 complexity 升序。simplest 规则只在
 		// 同档内生效——含响应语义的例永远排在纯请求例之前。
 		sort.Slice(exs, func(i, j int) bool {
-			if ti, tj := txSignal(exs[i].Config), txSignal(exs[j].Config); ti != tj {
+			if ti, tj := txTier(exs[i]), txTier(exs[j]); ti != tj {
 				return ti
 			}
 			si, _ := complexity(exs[i].Config)

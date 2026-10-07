@@ -236,6 +236,16 @@ func validateSNMPConfig(spec core.FlowSpec) error {
 		return fmt.Errorf("snmp: PDUType %d not in supported list (allowed: 0=Get, 1=GetNext, 2=Set, 3=GetBulk, 4=TrapV1, 5=TrapV2, 6=Inform)", cfg.PDUType)
 	}
 
+	// Rule 5.0 (D-SNMP-2): 互斥与 trap 响应线故障。request_only 显式纯请求
+	// 与 is_response 显式带响应不能并存；trap 型 PDU 无应答语义（RFC 1157
+	// §4.1.6 / RFC 3416），is_response 曾静默产出假 0xA2 响应，现显式拒。
+	if cfg.RequestOnly && cfg.IsResponse {
+		return fmt.Errorf("snmp: request_only and is_response are mutually exclusive (request_only emits the request alone; default already pairs query PDUs with a response)")
+	}
+	if cfg.IsResponse && isTrapPDU(cfg.PDUType) {
+		return fmt.Errorf("snmp: is_response is not valid with trap PDU types (traps are unacknowledged; allowed query types: 0=Get, 1=GetNext, 2=Set, 3=GetBulk, 6=Inform)")
+	}
+
 	// Rule 5.1: v1 Trap (PDUType=4) field validation (RFC 1157 §4.1.6).
 	if cfg.PDUType == PDUTrapV1 {
 		// GenericTrap must be 0-6 (RFC 1157 §4.1.6: coldStart(0),
@@ -301,10 +311,12 @@ func validateSNMPConfig(spec core.FlowSpec) error {
 	return nil
 }
 
-// Plan generates packet configs for an SNMP flow. The planner emits 1 packet
-// (request or trap) by default, plus 1 response packet if IsResponse=true.
-// PollInterval/RepeatCount control repetition; ctx cancellation halts the
-// goroutine between packets.
+// Plan generates packet configs for an SNMP flow. v1.1.0 D-SNMP-2 缺省事务
+// 反转：查询型 PDU（Get/GetNext/Set/GetBulk/Inform）缺省一问一答（request up
+// + 同 request-id 的 response down）；`request_only:true` 显式纯请求；trap
+// 型 PDU（TrapV1/TrapV2）恒单发（陷阱无响应语义）。`is_response` 不再 gate
+// 事件数（互斥由 Validate 拒绝）。PollInterval/RepeatCount control
+// repetition; ctx cancellation halts the goroutine between packets.
 func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.PacketConfig, error) {
 	if err := p.Validate(spec); err != nil {
 		return nil, err
@@ -398,8 +410,9 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			reqPayload := buildRequest(reqID)
 			emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, effectiveDstPort, reqPayload)
 
-			// Optional response (down, Agent->Manager).
-			if spec.SNMP.IsResponse {
+			// Optional response (down, Agent->Manager)：查询型 PDU 缺省
+			// 一问一答（D-SNMP-2），request_only 抑制；trap 恒单发。
+			if wantResponse(spec.SNMP) {
 				if err := ctx.Err(); err != nil {
 					return
 				}

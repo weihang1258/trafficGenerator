@@ -152,6 +152,61 @@ func TestPlanner_Validate(t *testing.T) {
 			errSub:  "PDUType 8 not in supported list",
 		},
 		{
+			name: "request_only and is_response mutually exclusive (D-SNMP-2)",
+			spec: core.FlowSpec{
+				SrcIP: "192.168.1.1", DstIP: "192.168.1.2",
+				SrcPort: 12345, DstPort: 161,
+				SNMP: &core.SNMPConfig{
+					Version:     VersionSNMPv2c,
+					Community:   "public",
+					PDUType:     PDUGetRequest,
+					RequestOnly: true,
+					IsResponse:  true,
+					VarBinds: []core.SNMPVarBind{
+						{Name: "1.3.6.1.2.1.1.1.0", Type: TagNull},
+					},
+				},
+			},
+			wantErr: true,
+			errSub:  "request_only and is_response are mutually exclusive",
+		},
+		{
+			name: "is_response with trap PDU rejected (D-SNMP-2, traps unacknowledged)",
+			spec: core.FlowSpec{
+				SrcIP: "192.168.1.1", DstIP: "192.168.1.2",
+				SrcPort: 12345, DstPort: 162,
+				SNMP: &core.SNMPConfig{
+					Version:    VersionSNMPv2c,
+					Community:  "public",
+					PDUType:    PDUSNMPv2Trap,
+					IsResponse: true,
+					VarBinds: []core.SNMPVarBind{
+						{Name: "1.3.6.1.2.1.1.6.3", Type: TagNull},
+						{Name: "1.3.6.1.6.3.1.1.5.3", Type: TagOID},
+					},
+				},
+			},
+			wantErr: true,
+			errSub:  "is_response is not valid with trap PDU types",
+		},
+		{
+			name: "trap without response flag emits single datagram (D-SNMP-2)",
+			spec: core.FlowSpec{
+				SrcIP: "192.168.1.1", DstIP: "192.168.1.2",
+				SrcPort: 12345, DstPort: 162,
+				SNMP: &core.SNMPConfig{
+					Version:   VersionSNMPv2c,
+					Community: "public",
+					PDUType:   PDUSNMPv2Trap,
+					VarBinds: []core.SNMPVarBind{
+						{Name: "1.3.6.1.2.1.1.6.3", Type: TagNull},
+						{Name: "1.3.6.1.6.3.1.1.5.3", Type: TagOID},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
 			name: "v3 priv without auth rejected",
 			spec: core.FlowSpec{
 				SrcIP: "192.168.1.1", DstIP: "192.168.1.2",
@@ -281,8 +336,9 @@ func TestPlanner_Plan(t *testing.T) {
 		configs = append(configs, cfg)
 	}
 
-	if len(configs) != 1 {
-		t.Fatalf("Expected 1 config, got %d", len(configs))
+	// D-SNMP-2 缺省事务：查询型 PDU（Get）一问一答 = 2 包。
+	if len(configs) != 2 {
+		t.Fatalf("Expected 2 configs (request+response), got %d", len(configs))
 	}
 
 	cfg := configs[0]
@@ -297,6 +353,17 @@ func TestPlanner_Plan(t *testing.T) {
 	}
 	if cfg.Payload[0] != TagSequence {
 		t.Errorf("Payload[0] = 0x%02x, want 0x30 (SEQUENCE)", cfg.Payload[0])
+	}
+
+	// Response packet (down, Agent->Manager)：方向与端口对调，
+	// 同 request-id 关联（此处校方向/端口可观察面；PDU tag 0xA2 由
+	// buildPDU 单测与套件 tshark 断言承担）。
+	resp := configs[1]
+	if resp.Direction != "down" {
+		t.Errorf("response Direction = %q, want down", resp.Direction)
+	}
+	if resp.L4.SrcPort != 161 || resp.L4.DstPort != cfg.L4.SrcPort {
+		t.Errorf("response ports = %d->%d, want 161->%d (swapped)", resp.L4.SrcPort, resp.L4.DstPort, cfg.L4.SrcPort)
 	}
 }
 

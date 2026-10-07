@@ -1431,6 +1431,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				MaxRepetitions:           uint8(getIntDefault(sub, "max_repetitions", 1)),
 				VarBinds:                 parseSNMPVarBinds(sub["var_binds"]),
 				IsResponse:               getBool(sub, "is_response", false),
+				RequestOnly:              getBool(sub, "request_only", false),
 				ResponseError:            uint8(getInt(sub, "response_error")),
 				ResponseErrorIndex:       uint8(getInt(sub, "response_error_index")),
 				ResponseValues:           parseSNMPVarBinds(sub["response_values"]),

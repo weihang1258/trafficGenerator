@@ -930,8 +930,9 @@ func TestScenario_GetSysDescr(t *testing.T) {
 		{Name: "1.3.6.1.2.1.1.1.0", Type: TagNull},
 	}
 	cfgs := mustPlan(t, p, spec)
-	if len(cfgs) != 1 {
-		t.Fatalf("expected 1 packet, got %d", len(cfgs))
+	// D-SNMP-2 缺省事务：Get 一问一答 = 2 包；请求在首包，此处断言请求形状。
+	if len(cfgs) != 2 {
+		t.Fatalf("expected 2 packets (request+response), got %d", len(cfgs))
 	}
 	// Payload starts with SEQUENCE.
 	if cfgs[0].Payload[0] != TagSequence {
@@ -1181,8 +1182,9 @@ func TestConcurrent_PlanUniqueRequestIDs(t *testing.T) {
 			spec := validSNMPSpec()
 			spec.SNMP.RequestID = uint32(idx + 1) // unique per goroutine
 			cfgs := mustPlan(t, p, spec)
-			if len(cfgs) != 1 {
-				t.Errorf("goroutine %d: expected 1 packet, got %d", idx, len(cfgs))
+			// D-SNMP-2 缺省事务：Get 一问一答 = 2 包/goroutine。
+			if len(cfgs) != 2 {
+				t.Errorf("goroutine %d: expected 2 packets (request+response), got %d", idx, len(cfgs))
 			}
 		}(i)
 	}

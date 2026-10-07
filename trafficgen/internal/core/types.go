@@ -7638,7 +7638,8 @@ type SNMPConfig struct {
 	VarBinds       []SNMPVarBind `json:"var_binds"`       // variable bindings (变量绑定)
 
 	// Response / trap config (响应/陷阱配置).
-	IsResponse         bool          `json:"is_response"`          // emit Response PDU after request
+	IsResponse         bool          `json:"is_response"`          // 显式带响应（v1.1.0 起与查询型 PDU 缺省事务重叠，形状不变；与 request_only/trap PDU 互斥）
+	RequestOnly        bool          `json:"request_only"`         // D-SNMP-2: true 显式纯请求（1 datagram）；缺省查询型 PDU 一问一答，trap 型恒单发
 	ResponseError      uint8         `json:"response_error"`       // Response error-status (0=noError)
 	ResponseErrorIndex uint8         `json:"response_error_index"` // Response error-index
 	ResponseValues     []SNMPVarBind `json:"response_values"`      // Response varbinds (overrides VarBinds)

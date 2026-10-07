@@ -5320,6 +5320,10 @@
         "request_id": {
           "type": "uint32"
         },
+        "request_only": {
+          "type": "bool",
+          "default": false
+        },
         "response_error": {
           "type": "uint8"
         },

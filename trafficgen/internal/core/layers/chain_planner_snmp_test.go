@@ -91,16 +91,17 @@ func assertSNMPIdentical(t *testing.T, chain, legacy core.PacketConfig, idx int)
 	}
 }
 
-// TestChainPlanner_SNMP_Get verifies the [ip→udp→snmp] chain emits one up
-// datagram carrying the v2c GetRequest, byte-identical to legacy
-// snmp.NewPlanner (modulo IPID/request-id).
+// TestChainPlanner_SNMP_Get verifies the [ip→udp→snmp] chain emits the v2c
+// GetRequest up datagram plus the D-SNMP-2 缺省事务 response down datagram,
+// byte-identical to legacy snmp.NewPlanner (modulo IPID/request-id).
 func TestChainPlanner_SNMP_Get(t *testing.T) {
 	spec := snmpSpec()
 	chain := collectPlanner(t, layers.NewChainPlanner("snmp"), spec)
 	legacy := collectPlanner(t, snmp.NewPlanner(), spec)
 
-	if len(chain) != 1 {
-		t.Fatalf("chain produced %d packets, want 1", len(chain))
+	// D-SNMP-2 缺省事务：查询型 PDU 一问一答 = 2 包。
+	if len(chain) != 2 {
+		t.Fatalf("chain produced %d packets, want 2 (request+response)", len(chain))
 	}
 	if chain[0].Direction != "up" {
 		t.Errorf("direction = %s, want up", chain[0].Direction)
@@ -119,7 +120,9 @@ func TestChainPlanner_SNMP_Get(t *testing.T) {
 	if chain[0].Payload[2] != 0x02 || chain[0].Payload[3] != 0x01 || chain[0].Payload[4] != 0x01 {
 		t.Errorf("version INTEGER = %x, want 02 01 01 (v2c)", chain[0].Payload[2:5])
 	}
-	assertSNMPIdentical(t, chain[0], legacy[0], 0)
+	for i := range chain {
+		assertSNMPIdentical(t, chain[i], legacy[i], i)
+	}
 }
 
 // TestChainPlanner_SNMP_GetResponse verifies IsResponse adds the down
@@ -169,8 +172,9 @@ func TestChainPlanner_SNMP_GetBulk(t *testing.T) {
 	chain := collectPlanner(t, layers.NewChainPlanner("snmp"), spec)
 	legacy := collectPlanner(t, snmp.NewPlanner(), spec)
 
-	if len(chain) != 1 {
-		t.Fatalf("chain produced %d packets, want 1", len(chain))
+	// D-SNMP-2 缺省事务：GetBulk 一问一答 = 2 包。
+	if len(chain) != 2 {
+		t.Fatalf("chain produced %d packets, want 2 (request+response)", len(chain))
 	}
 	// GetBulk PDU tag 0xA5; non-repeaters=1, max-repetitions=5 INTEGERs.
 	if !bytes.Contains(chain[0].Payload, []byte{0xA5}) {
@@ -179,7 +183,9 @@ func TestChainPlanner_SNMP_GetBulk(t *testing.T) {
 	if !bytes.Contains(chain[0].Payload, []byte{0x02, 0x01, 0x01, 0x02, 0x01, 0x05}) {
 		t.Errorf("payload missing non-repeaters/max-repetitions INTEGERs 01 05")
 	}
-	assertSNMPIdentical(t, chain[0], legacy[0], 0)
+	for i := range chain {
+		assertSNMPIdentical(t, chain[i], legacy[i], i)
+	}
 }
 
 // TestChainPlanner_SNMP_TrapV2 verifies the v2c Trap path (PDU tag 0xA7)
@@ -273,15 +279,23 @@ func TestChainPlanner_SNMP_Repeat(t *testing.T) {
 	chain := collectPlanner(t, layers.NewChainPlanner("snmp"), spec)
 	legacy := collectPlanner(t, snmp.NewPlanner(), spec)
 
-	if len(chain) != 2 {
-		t.Fatalf("chain produced %d packets, want 2", len(chain))
+	// D-SNMP-2 缺省事务：RepeatCount=2 → 2×(request+response) = 4 包，
+	// 序 up/down/up/down，request-id 100/101（响应回显同 id）。
+	if len(chain) != 4 {
+		t.Fatalf("chain produced %d packets, want 4", len(chain))
+	}
+	for i, dir := range []string{"up", "down", "up", "down"} {
+		if chain[i].Direction != dir {
+			t.Errorf("packet %d direction = %s, want %s", i, chain[i].Direction, dir)
+		}
 	}
 	// Request-id INTEGER (BER): scan for the 02 tag, read the length byte,
 	// decode the value; the first INTEGER whose value fits uint32 is the
 	// request-id (version comes first but is a 1-byte value 0/1/3). We look
 	// for the value 100/101 by decoding every INTEGER and matching.
-	for i := 0; i < 2; i++ {
-		want := uint32(100 + i)
+	// 请求在偶数位（0/2），响应（奇数位）回显同 id。
+	for _, i := range []int{0, 2} {
+		want := uint32(100 + i/2)
 		found := false
 		for j := 0; j+2 < len(chain[i].Payload); j++ {
 			if chain[i].Payload[j] != 0x02 {
@@ -303,6 +317,8 @@ func TestChainPlanner_SNMP_Repeat(t *testing.T) {
 		if !found {
 			t.Errorf("packet %d request-id = not found, want %d", i, want)
 		}
+	}
+	for i := range chain {
 		assertSNMPIdentical(t, chain[i], legacy[i], i)
 	}
 }

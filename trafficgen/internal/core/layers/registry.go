@@ -215,6 +215,7 @@ func buildDefaultRegistry() {
 			"max_repetitions":            {Type: "uint8"},
 			"var_binds":                  {Type: "list"},
 			"is_response":                {Type: "bool"},
+			"request_only":               {Type: "bool", Default: false}, // D-SNMP-2: 显式纯请求；缺省查询型 PDU 一问一答，trap 恒单发（同 dns query_only 语义）
 			"response_error":             {Type: "uint8"},
 			"response_error_index":       {Type: "uint8"},
 			"response_values":            {Type: "list"},
