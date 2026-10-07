@@ -1135,11 +1135,15 @@ func validateMPLSConfig(mpls *MPLSConfig, config PacketConfig, effectiveEtherTyp
 // layout (IHL+TOS+TotalLen+IPID+Flags+FragOffset+TTL+Protocol+HeaderChecksum
 // +SrcIP+DstIP); IPv6 uses a 40-byte fixed header (Version+TrafficClass+
 // FlowLabel+PayloadLength+NextHeader+HopLimit+SrcIP+DstIP) per RFC 8200.
-// The effective EtherType is resolved from L2.EtherType (0 → IPv4 default).
+// The effective EtherType is resolved from L2.EtherType (0 → derive from
+// the packet's L3 source address; unparseable/empty falls back to IPv4).
+// 不得无条件缺省 IPv4：层链事件路径 L3 在 ip 层回填、L2.EtherType 在
+// finalEmit 预填（D-DNS-2 存量红根因——预填发生在回填前，v6 链被钉死
+// 0x0800），builder 必须按回填后的 L3 地址判族兜底。
 func (b *Builder) writeL3(dst []byte, config PacketConfig, payloadLen int) {
 	effectiveEtherType := config.L2.EtherType
 	if effectiveEtherType == 0 {
-		effectiveEtherType = EtherTypeIPv4
+		effectiveEtherType = EtherTypeFor(config.L3.SrcIP)
 	}
 	if effectiveEtherType == EtherTypeIPv6 {
 		b.writeL3v6(dst, config, payloadLen)

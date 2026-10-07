@@ -1548,7 +1548,9 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 					if pkt.L2.DstMAC == "" {
 						pkt.L2.DstMAC = multicastDstMAC(pkt.L3.DstIP)
 					}
-					if pkt.L2.EtherType == 0 {
+					if pkt.L2.EtherType == 0 && pkt.L3.SrcIP != "" {
+						// 层链事件路径此处早于 ip 层的 L3 回填——L3 空时**不预填**
+						// （抢填 0x0800 会把 v6 链钉死；builder 按回填后 L3 判族）。
 						pkt.L2.EtherType = core.EtherTypeFor(pkt.L3.SrcIP)
 					}
 					if spec.TOS != 0 {

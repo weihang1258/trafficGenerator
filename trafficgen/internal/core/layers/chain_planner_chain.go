@@ -375,20 +375,30 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 			// 反之对象直接进生成器报 "cannot convert"。isDynObject 判定在
 			// 注入前：对象层值 + 空 spec 值（flowIndex 尚未解析/直接 Plan）
 			// 时仍删对象，避免对象捅进生成器。
+			// spec 值注入判定（D-DNS-2 sweep 存量红修复）：flat 面
+			// MapToFlowSpec 对空 cfg 填 DefaultSrcIP/DefaultDstIP——那是
+			// **缺省填充不是用户意图**，不得顶掉链层显式值（全局原则
+			// "手动值 > 默认值"；suite 实测 v6 链层地址被顶成 v4 缺省，
+			// ipv6.version 空）。spec 值只在"非缺省"或"链层无显式值"时
+			// 注入；链层显式值 + spec 缺省值并存 → 链层赢。
+			userSrc, hasUserSrc := l.Config["src"]
+			userDst, hasUserDst := l.Config["dst"]
+			userSrcScalar := hasUserSrc && !isDynObject(userSrc)
+			userDstScalar := hasUserDst && !isDynObject(userDst)
 			if v, has := l.Config["src"]; has && isDynObject(v) {
 				if spec.SrcIP != "" {
 					cfg["src"] = spec.SrcIP
 				} else {
 					delete(cfg, "src")
 				}
-			} else if spec.SrcIP != "" {
+			} else if spec.SrcIP != "" && !(spec.SrcIP == core.DefaultSrcIP && userSrcScalar) {
 				cfg["src"] = spec.SrcIP
-			} else {
+			} else if !userSrcScalar {
 				delete(cfg, "src")
 			}
-			if spec.DstIP != "" {
+			if spec.DstIP != "" && !(spec.DstIP == core.DefaultDstIP && userDstScalar) {
 				cfg["dst"] = spec.DstIP
-			} else {
+			} else if !userDstScalar {
 				// 波 5c：rip 链 spec.DstIP 为空时不删 schema 默认——RIP 生成器
 				// 按版本推导默认目标（v1/v2→224.0.0.9、ng→FF02::9），事件级
 				// 覆盖后 ip 层 dst 覆盖被标记跳过，schema 默认只服务最终回退。

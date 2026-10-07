@@ -337,7 +337,12 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 			if pkt.L2.SrcMAC == "" {
 				pkt.L2.SrcMAC = spec.SrcMAC
 			}
-			pkt.L2.EtherType = core.EtherTypeFor(pkt.L3.SrcIP)
+			// 无条件赋值曾把 v6 链钉死 0x0800：此处早于 ip 层的 L3 回填，
+			// L3 空时 EtherTypeFor("")=IPv4 缺省。L3 未回填就不填——builder
+			// 按回填后的 L3.SrcIP 判族（D-DNS-2 存量红根因）。
+			if pkt.L3.SrcIP != "" {
+				pkt.L2.EtherType = core.EtherTypeFor(pkt.L3.SrcIP)
+			}
 		} else {
 			// 隧道链（gre）：GREGenerator 已把 wire GRE 配置写进 L2.GRE，
 			// l2For 全量重建会覆盖它——重建前先保留，装配后再恢复
@@ -346,6 +351,13 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 			pkt.L2 = l2For(pkt.Direction, spec)
 			if gre != nil {
 				pkt.L2.GRE = gre
+			}
+			// EtherType 按实际 L3 地址判族：l2For 用 spec.SrcIP 派生，flat
+			// 缺省 spec（10.0.0.1，非用户意图）会把链层 v6 顶成 0x0800
+			// （D-DNS-2 存量红：suite 路径 v6 链 ipv6.version 空）。此时
+			// L3 已由 ip 层回填（req.Emit 前回填），地址可信。
+			if pkt.L2.EtherType == 0 || pkt.L3.SrcIP != "" {
+				pkt.L2.EtherType = core.EtherTypeFor(pkt.L3.SrcIP)
 			}
 			// 方向相关 src/dst 交换 + flow 级字段。IPID 已由 ip 层生成器写入
 			// （每次 Emit 前写入并自增），这里只换 IP 不换 ID。
