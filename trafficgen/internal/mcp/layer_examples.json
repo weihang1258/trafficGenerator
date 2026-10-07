@@ -1181,7 +1181,7 @@
       "flows": 2
      }
     },
-    "packets": 0
+    "packets": 4
    },
    {
     "protocol": "coap",
@@ -1964,8 +1964,8 @@
   "dnp3": [
    {
     "protocol": "dnp3",
-    "case_id": "dnp3_t48_iin_already_executing",
-    "summary": "T48: IINAlreadyExecuting=true → 响应 IIN byte2=0x04 (AlreadyExecuting bit)",
+    "case_id": "dnp3_t21_reset_link",
+    "summary": "T21: reset_link 场景（master, TCP）→ 握手3 + ResetLink(C0)+ACK(00) + 挥手4 = 9 包",
     "config": {
      "layers": [
       {
@@ -1983,21 +1983,12 @@
         "transport": "tcp",
         "src_addr": 1,
         "dst_addr": 1024,
-        "scenario": "read_class0",
-        "app_seq": 0,
-        "iin_already_executing": true,
-        "objects": [
-         {
-          "object_type": 60,
-          "variation": 1,
-          "qualifier": 6
-         }
-        ]
+        "scenario": "reset_link"
        }
       }
      ]
     },
-    "packets": 13
+    "packets": 9
    },
    {
     "protocol": "dnp3",
@@ -2035,7 +2026,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 4
    },
    {
     "protocol": "dnp3",
@@ -2122,8 +2113,8 @@
    },
    {
     "protocol": "dnp3",
-    "case_id": "dnp3_t42_fcb_toggle",
-    "summary": "T42 LinkFCB=1+FCV=1: read_class0 请求帧 FCB=1, 响应帧 FCB=0",
+    "case_id": "dnp3_t41_fcb_zero_only",
+    "summary": "T41 LinkFCB=1 但 FCV=0: wire 上 FCB 强制为 0",
     "config": {
      "layers": [
       {
@@ -2140,14 +2131,14 @@
       {
        "dnp3": {
         "transport": "tcp",
-        "scenario": "read_class0",
+        "scenario": "reset_link",
         "link_fcb": 1,
-        "link_fcv": 1
+        "link_fcv": 0
        }
       }
      ]
     },
-    "packets": 0
+    "packets": 4
    }
   ],
   "dns": [
@@ -2188,7 +2179,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 2
    },
    {
     "protocol": "dns",
@@ -2231,7 +2222,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 2
    },
    {
     "protocol": "dns",
@@ -2262,7 +2253,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 2
    },
    {
     "protocol": "dns",
@@ -3266,7 +3257,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 6
    },
    {
     "protocol": "fins",
@@ -3423,7 +3414,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 60
    },
    {
     "protocol": "ftp",
@@ -4233,6 +4224,42 @@
   "gre": [
    {
     "protocol": "gre",
+    "case_id": "gre_sequence_multi",
+    "summary": "sequence 多帧递增（T-GRE-8）：内层 [tcp,http] 9 帧（3握手+2数据+4挥手），S 位置位逐帧序号 0→8",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "gre": {
+        "sequence": true
+       }
+      },
+      {
+       "ip": {
+        "src": "192.168.1.1",
+        "dst": "192.168.1.2"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 80
+       }
+      },
+      {
+       "http": {}
+      }
+     ]
+    },
+    "packets": 9
+   },
+   {
+    "protocol": "gre",
     "case_id": "gre_key",
     "summary": "key K 位与值（T-GRE-10）：key=0x12345678，K 位置位（flags 0x2000）",
     "config": {
@@ -4267,7 +4294,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 1
    }
   ],
   "grpc": [
@@ -4297,14 +4324,14 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 13
    }
   ],
   "gtp": [
    {
     "protocol": "gtp",
-    "case_id": "gtp_smoke_01",
-    "summary": "冒烟：GTP-U T-PDU（空配置默认数据面，mode=u）。顶层不设端口 → 内外层均默认 2152（IANA），GTP 头 v1/TEID=0，共 1 包",
+    "case_id": "gtp_c_echo_transaction",
+    "summary": "[chain] GTP-C Echo Request/Response 事务（TS 29.060 §7.1 type 1/2）：S flag + Sequence 7 双包回显（事务关联键），方向 down 响应地址对调，共 2 包",
     "config": {
      "layers": [
       {
@@ -4315,23 +4342,39 @@
       },
       {
        "udp": {
-        "src_port": 2152,
-        "dst_port": 2152
+        "src_port": 2123,
+        "dst_port": 2123
        }
       },
       {
-       "gtp": {}
+       "gtp": {
+        "mode": "c",
+        "teid": 0,
+        "sequence_present": true,
+        "scenarios": [
+         {
+          "message_type": 1,
+          "direction": "up",
+          "sequence": 7
+         },
+         {
+          "message_type": 2,
+          "direction": "down",
+          "sequence": 7
+         }
+        ]
+       }
       }
      ]
     },
-    "packets": 1
+    "packets": 2
    }
   ],
   "h323": [
    {
     "protocol": "h323",
-    "case_id": "h323_scenario_tunnel",
-    "summary": "T-H323-8: tunnel_only 场景（12 包=3+6+3，无 FACILITY 隧道面）",
+    "case_id": "h323_smoke_01",
+    "summary": "冒烟：full 场景呼叫周期（握手+Q.931 十消息+挥手），地址住 ip 层、端口住 h323 层",
     "config": {
      "layers": [
       {
@@ -4342,13 +4385,13 @@
       },
       {
        "h323": {
-        "scenario": "tunnel_only",
-        "src_port": 12345
+        "src_port": 12345,
+        "dst_port": 1720
        }
       }
      ]
     },
-    "packets": 12
+    "packets": 15
    },
    {
     "protocol": "h323",
@@ -4426,43 +4469,25 @@
    },
    {
     "protocol": "h323",
-    "case_id": "h323_port_dyn",
-    "summary": "T-H323-14: h323.src_port 动态 inc+flows=2（逐流端口池，决策 E1）",
+    "case_id": "h323_role_callee",
+    "summary": "T-H323-15: role=callee（握手恒 client 发起；Q.931 面方向翻转）",
     "config": {
      "layers": [
       {
        "ip": {
-        "src": {
-         "strategy": "inc",
-         "range": [
-          "10.0.1.1",
-          "10.0.1.2"
-         ],
-         "step": 1
-        },
+        "src": "10.0.0.1",
         "dst": "20.0.0.1"
        }
       },
       {
        "h323": {
-        "src_port": {
-         "strategy": "inc",
-         "range": [
-          30000,
-          30001
-         ],
-         "step": 1
-        },
-        "dst_port": 1720
+        "role": "callee",
+        "src_port": 12345
        }
       }
-     ],
-     "group_id": {
-      "strategy": "fixed",
-      "value": "h323-port-dyn"
-     }
+     ]
     },
-    "packets": 32
+    "packets": 16
    }
   ],
   "hds": [
@@ -4795,7 +4820,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 6
    },
    {
     "protocol": "hls",
@@ -4892,7 +4917,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 6
    },
    {
     "protocol": "hls",
@@ -4936,7 +4961,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 6
    }
   ],
   "http": [
@@ -5538,6 +5563,31 @@
   "ike_nat_t": [
    {
     "protocol": "ike_nat_t",
+    "case_id": "ike_nat_t_default_dialog",
+    "summary": "[chain] 缺省事务：空 ike_nat_t 层（无 dialog）→ planner 缺省产出完整两交换 IKE_SA_INIT req/resp + IKE_AUTH req/resp（up/down/up/down），共 4 包（RFC 7296 §1.2 每交换即 request→response 对）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 500,
+        "dst_port": 500
+       }
+      },
+      {
+       "ike_nat_t": {}
+      }
+     ]
+    },
+    "packets": 4
+   },
+   {
+    "protocol": "ike_nat_t",
     "case_id": "ike_nat_t_sa_init_header_only",
     "summary": "smoke: IKEv2 SA_INIT initiator header-only message (no payloads) over UDP 500; tshark auto-parses isakmp; no Non-ESP marker since dst != 4500",
     "config": {
@@ -5559,7 +5609,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 1
    }
   ],
   "imap": [
@@ -7640,6 +7690,48 @@
    },
    {
     "protocol": "mms",
+    "case_id": "mms_no_associate",
+    "summary": "MMS negative: noAssociate=true skips four-way association, service frames only",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.88",
+        "dst": "198.51.100.88"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 102
+       }
+      },
+      {
+       "mms": {
+        "objects": [
+         {
+          "domain": "IED1",
+          "name": "GGIO1.SPCSO1.stVal",
+          "datatype": "boolean",
+          "value": true
+         }
+        ],
+        "enableRead": true,
+        "association": {
+         "noAssociate": true
+        },
+        "sequence": {
+         "steps": [
+          "read"
+         ]
+        }
+       }
+      }
+     ]
+    },
+    "packets": 5
+   },
+   {
+    "protocol": "mms",
     "case_id": "mms_multi_session",
     "summary": "MMS multi-session: two independent TCP associations each complete CR/CC",
     "config": {
@@ -7687,51 +7779,6 @@
      ]
     },
     "packets": 18
-   },
-   {
-    "protocol": "mms",
-    "case_id": "mms_write_success",
-    "summary": "MMS Write: write full variable list, response success list (80 01 00 each)",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "192.0.2.88",
-        "dst": "198.51.100.88"
-       }
-      },
-      {
-       "tcp": {
-        "dst_port": 102
-       }
-      },
-      {
-       "mms": {
-        "objects": [
-         {
-          "domain": "IED1",
-          "name": "GGIO1.SPCSO1.stVal",
-          "datatype": "boolean",
-          "value": false
-         },
-         {
-          "domain": "IED1",
-          "name": "MMXU1.TotW.mag.f",
-          "datatype": "integer",
-          "value": 100
-         }
-        ],
-        "enableWrite": true,
-        "sequence": {
-         "steps": [
-          "write"
-         ]
-        }
-       }
-      }
-     ]
-    },
-    "packets": 0
    }
   ],
   "mmse": [
@@ -8065,14 +8112,14 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 22
    }
   ],
   "mongodb": [
    {
     "protocol": "mongodb",
-    "case_id": "mongodb_op_insert_single",
-    "summary": "S2-①: OP_INSERT 单消息（原子，自 write_ops 拆分）",
+    "case_id": "mongodb_query_reply",
+    "summary": "S1: OP_QUERY followed by OP_REPLY with responseTo correlation",
     "config": {
      "layers": [
       {
@@ -8090,17 +8137,28 @@
        "mongodb": {
         "messages": [
          {
-          "request_id": 110,
+          "request_id": 100,
           "response_to": 0,
-          "opcode": "OP_INSERT",
+          "opcode": "OP_QUERY",
           "namespace": "test.users",
           "flags": 0,
+          "skip": 0,
+          "return_count": 1,
+          "query": {
+           "x": 1
+          }
+         },
+         {
+          "request_id": 101,
+          "response_to": 100,
+          "opcode": "OP_REPLY",
+          "flags": 0,
+          "cursor_id": 0,
+          "starting_from": 0,
+          "returned": 1,
           "documents": [
            {
             "x": 1
-           },
-           {
-            "_id": "a"
            }
           ]
          }
@@ -8112,7 +8170,7 @@
       "flows": 1
      }
     },
-    "packets": 8
+    "packets": 9
    },
    {
     "protocol": "mongodb",
@@ -8294,7 +8352,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 1
    },
    {
     "protocol": "mpls",
@@ -8585,7 +8643,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 9
    }
   ],
   "nfs": [
@@ -8761,46 +8819,25 @@
   "ngap": [
    {
     "protocol": "ngap",
-    "case_id": "ngap_port_dyn",
-    "summary": "T-NGAP-15: ngap.src_port 动态 inc+flows=2（E1 逐流端口池，2 流×9=18 包）",
+    "case_id": "ngap_sctp_setup_basic",
+    "summary": "冒烟：SCTP 4路握手+NGSetup对+3路拆链=最小9包（存量等价迁移）",
     "config": {
      "layers": [
       {
        "ip": {
-        "src": {
-         "strategy": "inc",
-         "range": [
-          "10.0.1.1",
-          "10.0.1.2"
-         ],
-         "step": 1
-        },
+        "src": "10.0.0.1",
         "dst": "20.0.0.1"
        }
       },
       {
        "ngap": {
-        "src_port": {
-         "strategy": "inc",
-         "range": [
-          20000,
-          20001
-         ],
-         "step": 1
-        },
-        "dst_port": {
-         "strategy": "fixed",
-         "value": 38412
-        }
+        "src_port": 12345,
+        "dst_port": 38412
        }
       }
-     ],
-     "group_id": {
-      "strategy": "fixed",
-      "value": "ngap-port-dyn"
-     }
+     ]
     },
-    "packets": 18
+    "packets": 9
    },
    {
     "protocol": "ngap",
@@ -8832,7 +8869,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 16
    },
    {
     "protocol": "ngap",
@@ -8877,7 +8914,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 9
    },
    {
     "protocol": "ngap",
@@ -8903,7 +8940,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 10
    },
    {
     "protocol": "ngap",
@@ -8926,7 +8963,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 9
    }
   ],
   "nmea": [
@@ -10152,7 +10189,7 @@
       "flows": 1
      }
     },
-    "packets": 0
+    "packets": 12
    }
   ],
   "openwire": [
@@ -11180,7 +11217,7 @@
       "flows": 1
      }
     },
-    "packets": 0
+    "packets": 27
    }
   ],
   "redis": [
@@ -11210,7 +11247,7 @@
       "flows": 1
      }
     },
-    "packets": 0
+    "packets": 8
    }
   ],
   "rip": [
@@ -12046,47 +12083,36 @@
       "flows": 1
      }
     },
-    "packets": 0
+    "packets": 9
    }
   ],
   "sip": [
    {
     "protocol": "sip",
-    "case_id": "sip_port_dyn",
-    "summary": "T-SIP-17: sip.src_port 动态 inc+flows=2（E1 逐流端口池，2 流×12=24 包）",
+    "case_id": "sip_basic_dialog",
+    "summary": "冒烟：TCP 3握手+五消息dialog(INVITE/200/ACK/BYE/200)+4挥手=12包（存量等价迁移）",
     "config": {
      "layers": [
       {
        "ip": {
-        "src": {
-         "strategy": "inc",
-         "range": [
-          "10.0.1.1",
-          "10.0.1.2"
-         ],
-         "step": 1
-        },
+        "src": "10.0.0.1",
         "dst": "20.0.0.1"
        }
       },
       {
        "sip": {
-        "src_port": {
-         "strategy": "inc",
-         "range": [
-          20000,
-          20001
-         ],
-         "step": 1
-        },
-        "dst_port": {
-         "strategy": "fixed",
-         "value": 5060
-        },
+        "src_port": 12001,
+        "dst_port": 5060,
         "dialog": [
          {
           "method": "INVITE",
-          "uri": "sip:callee@20.0.0.1"
+          "uri": "sip:callee@20.0.0.1",
+          "headers": [
+           "From: \u003csip:caller@10.0.0.1\u003e",
+           "To: \u003csip:callee@20.0.0.1\u003e",
+           "Call-ID: sip1@10.0.0.1",
+           "CSeq: 1 INVITE"
+          ]
          },
          {
           "status_code": 200,
@@ -12107,138 +12133,9 @@
         ]
        }
       }
-     ],
-     "group_id": {
-      "strategy": "fixed",
-      "value": "sip-port-dyn"
-     }
-    },
-    "packets": 24
-   },
-   {
-    "protocol": "sip",
-    "case_id": "sip_conf_burst_3party",
-    "summary": "T-SIP-87: 复合大场景——三方会议建立风暴（9.50：多会话+多事务+多流关联+异常分支+NAT 五类交织单例）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "sip": {
-        "nat": {
-         "rport": true
-        },
-        "sessions": [
-         {
-          "src_port": 22001,
-          "call_id": "party-a@10.0.0.1",
-          "dialog": [
-           {
-            "method": "INVITE",
-            "uri": "sip:conf@20.0.0.1",
-            "emit_media": true
-           },
-           {
-            "status_code": 200,
-            "status_text": "OK"
-           },
-           {
-            "method": "ACK",
-            "uri": "sip:conf@20.0.0.1"
-           },
-           {
-            "method": "INVITE",
-            "uri": "sip:conf@20.0.0.1"
-           },
-           {
-            "status_code": 200,
-            "status_text": "OK"
-           },
-           {
-            "method": "ACK",
-            "uri": "sip:conf@20.0.0.1"
-           },
-           {
-            "method": "BYE",
-            "uri": "sip:conf@20.0.0.1"
-           },
-           {
-            "status_code": 200,
-            "status_text": "OK"
-           }
-          ],
-          "medias": [
-           {
-            "direction": "up",
-            "frames": 2,
-            "src_port": 30004
-           },
-           {
-            "direction": "down",
-            "frames": 2,
-            "src_port": 30005,
-            "dst_port": 30006
-           }
-          ]
-         },
-         {
-          "src_port": 22002,
-          "call_id": "party-b@10.0.0.1",
-          "dialog": [
-           {
-            "method": "INVITE",
-            "uri": "sip:conf@20.0.0.1"
-           },
-           {
-            "status_code": 486,
-            "status_text": "Busy Here"
-           },
-           {
-            "method": "ACK",
-            "uri": "sip:conf@20.0.0.1"
-           }
-          ]
-         },
-         {
-          "src_port": 22003,
-          "call_id": "party-c@10.0.0.1",
-          "dialog": [
-           {
-            "method": "INVITE",
-            "uri": "sip:conf@20.0.0.1"
-           },
-           {
-            "status_code": 100,
-            "status_text": "Trying"
-           },
-           {
-            "method": "CANCEL",
-            "uri": "sip:conf@20.0.0.1"
-           },
-           {
-            "status_code": 200,
-            "status_text": "OK"
-           },
-           {
-            "status_code": 487,
-            "status_text": "Request Terminated"
-           },
-           {
-            "method": "ACK",
-            "uri": "sip:conf@20.0.0.1"
-           }
-          ]
-         }
-        ]
-       }
-      }
      ]
     },
-    "packets": 42
+    "packets": 12
    },
    {
     "protocol": "sip",
@@ -12286,8 +12183,45 @@
    },
    {
     "protocol": "sip",
-    "case_id": "sip_rtp_filesource",
-    "summary": "T-SIP-14: RTP FileSource literal 'pay'→帧 payload 实字节（FileSource 优先合同）",
+    "case_id": "sip_nat_sessions_port",
+    "summary": "T-SIP-80: sessions 模式回填会话实际端口（22001 非 spec 12001）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "sip": {
+        "nat": {
+         "rport": true
+        },
+        "sessions": [
+         {
+          "src_port": 22001,
+          "dialog": [
+           {
+            "method": "OPTIONS",
+            "uri": "sip:callee@20.0.0.1",
+            "headers": [
+             "Via: SIP/2.0/TCP 10.0.0.1:22001;branch=z9hG4bKs"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 8
+   },
+   {
+    "protocol": "sip",
+    "case_id": "sip_rtp_media",
+    "summary": "T-SIP-11: RTP 媒体子流（EmitMedia+frames:2/PT 0→UDP 5004 两帧；14 包）",
     "config": {
      "layers": [
       {
@@ -12307,21 +12241,31 @@
          },
          {
           "status_code": 200,
+          "status_text": "OK"
+         },
+         {
+          "method": "ACK",
+          "uri": "sip:callee@20.0.0.1"
+         },
+         {
+          "method": "BYE",
+          "uri": "sip:callee@20.0.0.1"
+         },
+         {
+          "status_code": 200,
           "status_text": "OK",
           "emit_media": true
          }
         ],
         "media": {
-         "frames": 1,
-         "file_source": {
-          "literal": "pay"
-         }
+         "frames": 2,
+         "payload_type": 0
         }
        }
       }
      ]
     },
-    "packets": 0
+    "packets": 14
    }
   ],
   "smb": [
@@ -12473,22 +12417,28 @@
   "smtp": [
    {
     "protocol": "smtp",
-    "case_id": "smtp_t024_default_twoflow",
-    "summary": "T-024: 全缺省双流（静态复制门反例：无显式标量不触发，src_port保底+1）",
+    "case_id": "smtp-basic-session",
+    "summary": "SMTP (端口 25) 冒烟：完整 TCP 握手 + HELO/MAIL/RCPT/DATA/QUIT 命令对话 + 终止",
     "config": {
      "layers": [
       {
-       "ip": {}
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
       },
       {
-       "tcp": {}
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 25
+       }
       },
       {
        "smtp": {}
       }
      ]
     },
-    "packets": 40
+    "packets": 16
    },
    {
     "protocol": "smtp",
@@ -12658,7 +12608,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 9
    },
    {
     "protocol": "socks5",
@@ -13310,7 +13260,7 @@
       "flows": 1
      }
     },
-    "packets": 0
+    "packets": 20
    }
   ],
   "sstp": [
@@ -13771,7 +13721,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 1
    },
    {
     "protocol": "sv",
@@ -14006,8 +13956,8 @@
   "tcp": [
    {
     "protocol": "tcp",
-    "case_id": "tcp-window-size-applies",
-    "summary": "TCP 自定义窗口大小 4096 应用于握手双向（SYN 与 SYN-ACK 均填 winSize，非默认 65535）",
+    "case_id": "tcp-handshake-basic",
+    "summary": "TCP 完整握手 + 数据 + 终止（默认配置，MSS 1460）",
     "config": {
      "layers": [
       {
@@ -14018,39 +13968,62 @@
       },
       {
        "tcp": {
-        "src_port": 30000,
-        "dst_port": 82,
+        "src_port": 12345,
+        "dst_port": 80
+       }
+      }
+     ]
+    },
+    "packets": 6
+   },
+   {
+    "protocol": "tcp",
+    "case_id": "tcp-data-segments",
+    "summary": "TCP 大载荷按 MSS 分片（6000 字节 body → 5 段 PSH-ACK）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": 8080,
+        "handshake": true,
+        "termination": true,
+        "payload": "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"
+       }
+      }
+     ]
+    },
+    "packets": 9
+   },
+   {
+    "protocol": "tcp",
+    "case_id": "tcp-zero-window-custom-mss",
+    "summary": "TCP 自定义 MSS 536 与窗口",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 20000,
+        "dst_port": 81,
+        "mss": 536,
         "window_size": 4096
        }
       }
      ]
     },
-    "packets": 7
-   },
-   {
-    "protocol": "tcp",
-    "case_id": "tcp-no-handshake-direct-data",
-    "summary": "TCP 无握手直发数据：handshake=false 跳过 SYN 握手，数据段 PSH-ACK 直发 + 对端 ACK",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "tcp": {
-        "src_port": 22222,
-        "dst_port": 82,
-        "handshake": false,
-        "termination": false,
-        "payload": "hello-direct-data"
-       }
-      }
-     ]
-    },
-    "packets": 2
+    "packets": 6
    },
    {
     "protocol": "tcp",
@@ -14098,30 +14071,6 @@
      ]
     },
     "packets": 6
-   },
-   {
-    "protocol": "tcp",
-    "case_id": "tcp-zero-window-custom-mss",
-    "summary": "TCP 自定义 MSS 536 与窗口",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "tcp": {
-        "src_port": 20000,
-        "dst_port": 81,
-        "mss": 536,
-        "window_size": 4096
-       }
-      }
-     ]
-    },
-    "packets": 0
    }
   ],
   "tds": [
@@ -14347,46 +14296,25 @@
   "telnet": [
    {
     "protocol": "telnet",
-    "case_id": "telnet_port_dyn",
-    "summary": "T-TELNET-16: telnet.src_port 动态 inc+flows=2（E1 逐流端口池，2 流×13=26 包）",
+    "case_id": "telnet_basic_session",
+    "summary": "冒烟：TCP 3握手+defaultDialog 6事件+4挥手=13包（存量等价迁移）",
     "config": {
      "layers": [
       {
        "ip": {
-        "src": {
-         "strategy": "inc",
-         "range": [
-          "10.0.1.1",
-          "10.0.1.2"
-         ],
-         "step": 1
-        },
+        "src": "10.0.0.1",
         "dst": "20.0.0.1"
        }
       },
       {
        "telnet": {
-        "src_port": {
-         "strategy": "inc",
-         "range": [
-          20000,
-          20001
-         ],
-         "step": 1
-        },
-        "dst_port": {
-         "strategy": "fixed",
-         "value": 23
-        }
+        "src_port": 12345,
+        "dst_port": 23
        }
       }
-     ],
-     "group_id": {
-      "strategy": "fixed",
-      "value": "telnet-port-dyn"
-     }
+     ]
     },
-    "packets": 26
+    "packets": 12
    },
    {
     "protocol": "telnet",
@@ -14414,7 +14342,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 33
    },
    {
     "protocol": "telnet",
@@ -14440,7 +14368,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 15
    },
    {
     "protocol": "telnet",
@@ -14467,7 +14395,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 33
    },
    {
     "protocol": "telnet",
@@ -14496,14 +14424,14 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 8
    }
   ],
   "tftp": [
    {
     "protocol": "tftp",
-    "case_id": "tftp-rrq-allzero-options-no-oack",
-    "summary": "T-067: 全零选项（blksize=0+timeout=0+tsize 双 0+windowsize=0）→ RRQ 无选项、无 OACK → DATA#1(512B) → 自动追加 DATA#2(0B)，5 包",
+    "case_id": "tftp-rrq-short-aa100",
+    "summary": "T-001/S1: RRQ octet 单块（pattern 循环填满 512B，禁用自动追加）→ DATA#1 → ACK#1，3 包",
     "config": {
      "layers": [
       {
@@ -14514,7 +14442,39 @@
       },
       {
        "udp": {
-        "src_port": 49274,
+        "src_port": 49152,
+        "dst_port": 69
+       }
+      },
+      {
+       "tftp": {
+        "mode": "read",
+        "filename": "config.txt",
+        "transfer_mode": "octet",
+        "blocks_count": 1,
+        "data_payload_pattern": "AA",
+        "auto_append_final_block": false
+       }
+      }
+     ]
+    },
+    "packets": 3
+   },
+   {
+    "protocol": "tftp",
+    "case_id": "tftp-rrq-all4opts-tidchange",
+    "summary": "T-205: 全选项 + TID 变更（OACK 旧 TID 60000 → DATA#3 起新 TID 61000 + ERROR(5)）+ 自动追加，13 包",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.100",
+        "dst": "10.0.0.1"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 49222,
         "dst_port": 69
        }
       },
@@ -14523,20 +14483,21 @@
         "mode": "read",
         "filename": "a.bin",
         "transfer_mode": "octet",
-        "blksize": 0,
-        "timeout": 0,
-        "client_tsize": 0,
-        "server_tsize": 0,
-        "windowsize": 0,
-        "blocks_count": 1,
-        "data_payload_pattern": [
-         255
-        ]
+        "blksize": 512,
+        "timeout": 5,
+        "server_tsize": 1024,
+        "windowsize": 2,
+        "blocks_count": 4,
+        "data_payload_pattern": "AA",
+        "server_tid": 60000,
+        "server_tid_change": true,
+        "server_tid_change_at_block": 3,
+        "server_tid_new": 61000
        }
       }
      ]
     },
-    "packets": 5
+    "packets": 12
    },
    {
     "protocol": "tftp",
@@ -14575,8 +14536,8 @@
    },
    {
     "protocol": "tftp",
-    "case_id": "tftp-rrq-tid-change-12pkts",
-    "summary": "T-110/T-111/T-112/S9: TID 变更迁移完整序列（60000→61000@块3）+ ERROR(5) 不终止 + 自动追加，12 包",
+    "case_id": "tftp-rrq-finalzero-no-dup-append",
+    "summary": "T-019: FinalBlockZero + 自动追加不重复（client_tsize=1024, blocks_count=2, 末块显式 0B）→ 7 包，无 DATA#3",
     "config": {
      "layers": [
       {
@@ -14587,91 +14548,58 @@
       },
       {
        "udp": {
-        "src_port": 49176,
+        "src_port": 49252,
         "dst_port": 69
        }
       },
       {
        "tftp": {
         "mode": "read",
-        "filename": "x.bin",
+        "filename": "edgezero.bin",
         "transfer_mode": "octet",
-        "blocks_count": 4,
-        "data_payload_pattern": "AA",
-        "server_tid": 60000,
-        "server_tid_change": true,
-        "server_tid_change_at_block": 3,
-        "server_tid_new": 61000
-       }
-      }
-     ]
-    },
-    "packets": 12
-   },
-   {
-    "protocol": "tftp",
-    "case_id": "tftp-rrq-include-oack-wrq-empty",
-    "summary": "T-189: 无选项 + IncludeOACK=true（WRQ 空 OACK `00 06`）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.100",
-        "dst": "10.0.0.1"
-       }
-      },
-      {
-       "udp": {
-        "src_port": 49309,
-        "dst_port": 69
-       }
-      },
-      {
-       "tftp": {
-        "mode": "write",
-        "filename": "e189.dat",
-        "transfer_mode": "octet",
-        "include_oack": true,
-        "blocks_count": 1,
-        "data_payload_pattern": "AA",
-        "auto_append_final_block": false
-       }
-      }
-     ]
-    },
-    "packets": 4
-   },
-   {
-    "protocol": "tftp",
-    "case_id": "tftp-final-block-zero",
-    "summary": "T-018: FinalBlockZero 显式 0 字节末块（blocks_count=2，跳过自动追加），5 包",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.100",
-        "dst": "10.0.0.1"
-       }
-      },
-      {
-       "udp": {
-        "src_port": 49172,
-        "dst_port": 69
-       }
-      },
-      {
-       "tftp": {
-        "mode": "read",
-        "filename": "explicitterm.bin",
-        "transfer_mode": "octet",
+        "client_tsize": 1024,
         "blocks_count": 2,
         "final_block_zero": true,
-        "data_payload_pattern": "FF"
+        "data_payload_pattern": [
+         255
+        ]
        }
       }
      ]
     },
-    "packets": 5
+    "packets": 7
+   },
+   {
+    "protocol": "tftp",
+    "case_id": "tftp-rrq-include-oack-empty",
+    "summary": "T-016/T-064: IncludeOACK=true 无选项 → 空 OACK `00 06`（2 字节）+ ACK#0 + 自动追加，7 包",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.100",
+        "dst": "10.0.0.1"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 49179,
+        "dst_port": 69
+       }
+      },
+      {
+       "tftp": {
+        "mode": "read",
+        "filename": "o.bin",
+        "transfer_mode": "octet",
+        "blocks_count": 1,
+        "data_payload_pattern": "AA",
+        "include_oack": true
+       }
+      }
+     ]
+    },
+    "packets": 7
    }
   ],
   "thrift": [
@@ -14760,7 +14688,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 16
    },
    {
     "protocol": "tls",
@@ -14792,14 +14720,14 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 16
    }
   ],
   "tns": [
    {
     "protocol": "tns",
-    "case_id": "tns_header_fields",
-    "summary": "S7/T-TNS-S7: complete public header fields and DATA flags (层链形 D-TNS-1)",
+    "case_id": "tns_connect_accept",
+    "summary": "S1/T-TNS-S1: CONNECT→ACCEPT→TTC data; TCP 1521 (层链形 D-TNS-1)",
     "config": {
      "layers": [
       {
@@ -14834,8 +14762,7 @@
           "direction": "s2c",
           "data_flags": 0
          }
-        ],
-        "checksum_mode": "disabled"
+        ]
        }
       }
      ]
@@ -14892,6 +14819,52 @@
      ]
     },
     "packets": 18
+   },
+   {
+    "protocol": "tns",
+    "case_id": "tns_header_fields",
+    "summary": "S7/T-TNS-S7: complete public header fields and DATA flags (层链形 D-TNS-1)",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345
+       }
+      },
+      {
+       "tns": {
+        "events": [
+         {
+          "type": "CONNECT",
+          "direction": "c2s"
+         },
+         {
+          "type": "ACCEPT",
+          "direction": "s2c"
+         },
+         {
+          "type": "DATA",
+          "direction": "c2s",
+          "data_flags": 0
+         },
+         {
+          "type": "DATA",
+          "direction": "s2c",
+          "data_flags": 0
+         }
+        ],
+        "checksum_mode": "disabled"
+       }
+      }
+     ]
+    },
+    "packets": 11
    }
   ],
   "vmess": [

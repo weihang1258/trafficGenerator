@@ -32,6 +32,7 @@ type caseFile struct {
 	Expect   struct {
 		ExpectError bool `json:"expect_error"`
 		PacketCount int  `json:"packet_count"`
+		MinPackets  int  `json:"min_packets"`
 	} `json:"expect"`
 }
 
@@ -92,7 +93,7 @@ func multiFlowValue(cfg json.RawMessage) int {
 // request_only）。②覆盖 D-DNS-2/D-SNMP-2/D-NTP-2 反转后的缺省一问一答例
 // （如 snmp_get_default_transaction、ntp_client_default_transaction）——
 // 它们不带任何显式响应键，靠包数自证；opt-out 键排除多流纯查询例
-//（dns flows=2 查询例包数同为 2，但配置声明了 query_only）。
+// （dns flows=2 查询例包数同为 2，但配置声明了 query_only）。
 func txTier(e exam) bool {
 	if txSignal(e.Config) {
 		return true
@@ -189,10 +190,16 @@ func Generate(casesDir string) ([]byte, error) {
 			if c.Expect.ExpectError || len(c.SpecJSON) == 0 || len(c.SpecJSON) > 6<<10 {
 				continue
 			}
+			pk := c.Expect.PacketCount
+			if c.Expect.MinPackets > pk {
+				// packet_count 与 min_packets 两断言口径取大者：min_packets 例
+				// （如 openvpn 握手交换）此前落 0 丢事务档。
+				pk = c.Expect.MinPackets
+			}
 			protos[c.Proto] = append(protos[c.Proto], exam{
 				Protocol: c.Proto, CaseID: c.ID, Summary: c.Summary,
 				Config: c.SpecJSON, FlowControl: flowNote(c.SpecJSON),
-				Packets: c.Expect.PacketCount,
+				Packets: pk,
 			})
 		}
 	}

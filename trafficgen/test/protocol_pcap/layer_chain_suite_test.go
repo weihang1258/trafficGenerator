@@ -20,8 +20,9 @@ package protocolpcap
 //	CHAIN_PROTO=nmea go test ./test/protocol_pcap/ -run TestLayerChainSuite -v
 //	CHAIN_MAX=5    go test ./test/protocol_pcap/ -run TestLayerChainSuite -v
 //
-// 默认仅执行带空导入的 12 个协议（chain 冒烟 8 协议 + tcp + nmea + cwmp +
-// doh）；扩协议时在下方 import 块补空导入并用 CHAIN_PROTO 圈定。
+// 默认仅执行带空导入的 22 个协议（chain 冒烟 8 协议 + tcp + nmea + cwmp +
+// doh 等，含缺省事务战役新增的 gtp/ike_nat_t/openvpn）；扩协议时在下方
+// import 块补空导入并用 CHAIN_PROTO 圈定。
 
 import (
 	"encoding/json"
@@ -48,12 +49,15 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dns"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/doh"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/enip"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/gtp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/http"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ike_nat_t"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mdns"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mqtt"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/nmea"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ntp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/onvif"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/openvpn"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/pop3"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/smtp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/snmp"
@@ -71,9 +75,11 @@ import (
 var chainSuiteProtos = map[string]bool{
 	"cwmp": true, "dhcp": true, "dhcpv6": true, "dns": true, "doh": true,
 	"enip": true,
-	"mdns": true, "mqtt": true, "nmea": true, "ntp": true, "onvif": true, "snmp": true,
+	"gtp":  true, "ike_nat_t": true,
+	"mdns": true, "mqtt": true, "nmea": true, "ntp": true, "onvif": true, "openvpn": true,
 	"pop3": true,
 	"smtp": true,
+	"snmp": true,
 	"sstp": true,
 	"ssdp": true, "syslog": true, "tcp": true,
 }

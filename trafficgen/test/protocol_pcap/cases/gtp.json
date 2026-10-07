@@ -1,81 +1,157 @@
 [
-  {
-    "id": "gtp_smoke_01",
-    "proto": "gtp",
-    "summary": "冒烟：GTP-U T-PDU（空配置默认数据面，mode=u）。顶层不设端口 → 内外层均默认 2152（IANA），GTP 头 v1/TEID=0，共 1 包",
-    "spec_json": {
-      "layers": [
-        {
-          "ip": {
-            "src": "10.0.0.1",
-            "dst": "20.0.0.1"
-          }
-        },
-        {
-          "udp": {
-            "src_port": 2152,
-            "dst_port": 2152
-          }
-        },
-        {
-          "gtp": {}
-        }
-      ]
+ {
+  "id": "gtp_smoke_01",
+  "proto": "gtp",
+  "summary": "冒烟：GTP-U T-PDU（空配置默认数据面，mode=u）。顶层不设端口 → 内外层均默认 2152（IANA），GTP 头 v1/TEID=0，共 1 包",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
-    "decode_as": [
-      "udp.port==2152,gtp"
-    ],
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "gtp.flags.version",
-          "value": "1"
-        },
-        {
-          "packet": 1,
-          "field": "gtp.message",
-          "value": "0xff"
-        },
-        {
-          "packet": 1,
-          "field": "gtp.length",
-          "value": "28"
-        },
-        {
-          "packet": 1,
-          "field": "gtp.teid",
-          "value": "0x00000000"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 34,
-          "hex": "08 68 08 68"
-        },
-        {
-          "packet": 1,
-          "offset": 42,
-          "hex": "30 ff 00 1c 00 00 00 00"
-        },
-        {
-          "packet": 1,
-          "offset": 62,
-          "hex": "0a 00 00 01 14 00 00 01"
-        }
-      ],
-      "notes": [
-        "GTPv1：flags 高 3 位=version 1（0x30）；message 0xff=T-PDU（3GPP TS 29.281 §5.2）",
-        "空配置默认 GTP-U 数据面（port 2152），内层 IPv4 UDP 10.0.0.1→20.0.0.1（默认 InnerIP），帧链 eth:ip:udp:gtp:ip:udp",
-        "gtp planner 只回退零值端口（planner.go:225-231）——flow 默认 12345/80 非零则保持 → 显式 src/dst_port 2152；GTP 端口 2152 无 IANA 自动解析（tshark 探针实测）→ decode_as 强制 gtp 解析；TEID 默认 0",
-        "tshark 探针实测：version=1、message=0xff、length=28、teid=0x00000000；帧断言外层 UDP 头（offset 34 '08 68 08 68' = src/dst 2152）、8 字节 GTP 头（offset 42，Eth14+IPv4 20+UDP 8）与内层 IPv4 源/目的（offset 62，10.0.0.1→20.0.0.1 = spec 的 src_ip/dst_ip，InnerIP 默认回退 spec IP）",
-        "udp.dstport/ip.ttl/ip.proto 不断言：GTP 帧内外两层 IP/UDP，tshark 显示多值（FieldAssert 只支持单值字段）；外层端口由帧断言覆盖"
-      ]
+    {
+     "udp": {
+      "src_port": 2152,
+      "dst_port": 2152
+     }
     },
-    "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 gtp 子映射迁入 layers[].gtp"
-    ]
+    {
+     "gtp": {}
+    }
+   ]
+  },
+  "decode_as": [
+   "udp.port==2152,gtp"
+  ],
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "gtp.flags.version",
+     "value": "1"
+    },
+    {
+     "packet": 1,
+     "field": "gtp.message",
+     "value": "0xff"
+    },
+    {
+     "packet": 1,
+     "field": "gtp.length",
+     "value": "28"
+    },
+    {
+     "packet": 1,
+     "field": "gtp.teid",
+     "value": "0x00000000"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 34,
+     "hex": "08 68 08 68"
+    },
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "30 ff 00 1c 00 00 00 00"
+    },
+    {
+     "packet": 1,
+     "offset": 62,
+     "hex": "0a 00 00 01 14 00 00 01"
+    }
+   ],
+   "notes": [
+    "GTPv1：flags 高 3 位=version 1（0x30）；message 0xff=T-PDU（3GPP TS 29.281 §5.2）",
+    "空配置默认 GTP-U 数据面（port 2152），内层 IPv4 UDP 10.0.0.1→20.0.0.1（默认 InnerIP），帧链 eth:ip:udp:gtp:ip:udp",
+    "gtp planner 只回退零值端口（planner.go:225-231）——flow 默认 12345/80 非零则保持 → 显式 src/dst_port 2152；GTP 端口 2152 无 IANA 自动解析（tshark 探针实测）→ decode_as 强制 gtp 解析；TEID 默认 0",
+    "tshark 探针实测：version=1、message=0xff、length=28、teid=0x00000000；帧断言外层 UDP 头（offset 34 '08 68 08 68' = src/dst 2152）、8 字节 GTP 头（offset 42，Eth14+IPv4 20+UDP 8）与内层 IPv4 源/目的（offset 62，10.0.0.1→20.0.0.1 = spec 的 src_ip/dst_ip，InnerIP 默认回退 spec IP）",
+    "udp.dstport/ip.ttl/ip.proto 不断言：GTP 帧内外两层 IP/UDP，tshark 显示多值（FieldAssert 只支持单值字段）；外层端口由帧断言覆盖"
+   ]
+  },
+  "notes": [
+   "层链改造：扁平四元组并入 ip/udp 层，顶层 gtp 子映射迁入 layers[].gtp"
+  ]
+ },
+ {
+  "id": "gtp_c_echo_transaction",
+  "proto": "gtp",
+  "summary": "[chain] GTP-C Echo Request/Response 事务（TS 29.060 §7.1 type 1/2）：S flag + Sequence 7 双包回显（事务关联键），方向 down 响应地址对调，共 2 包",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 2123,
+      "dst_port": 2123
+     }
+    },
+    {
+     "gtp": {
+      "mode": "c",
+      "teid": 0,
+      "sequence_present": true,
+      "scenarios": [
+       {
+        "message_type": 1,
+        "direction": "up",
+        "sequence": 7
+       },
+       {
+        "message_type": 2,
+        "direction": "down",
+        "sequence": 7
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "gtp.message",
+     "value": "0x01"
+    },
+    {
+     "packet": 1,
+     "field": "gtp.seq_number",
+     "value": "0x0007"
+    },
+    {
+     "packet": 2,
+     "field": "gtp.message",
+     "value": "0x02"
+    },
+    {
+     "packet": 2,
+     "field": "gtp.seq_number",
+     "value": "0x0007"
+    },
+    {
+     "packet": 2,
+     "field": "ip.src",
+     "value": "20.0.0.1"
+    }
+   ],
+   "notes": [
+    "TS 29.060 §7.1：type 1=Echo Request、2=Echo Response；Sequence 回显是 GTP-C 事务关联键",
+    "GTP-U 数据面（gtp_smoke_01）天然单发无应答语义——单发即正常业务；控制面正常业务为 req/resp 事务，本例作证",
+    "tshark 探针 2026-10-07 实测钉值（decode_as udp.port==2123,gtp）：message 0x01/0x02、seq 0x0007 双包",
+    "layers chain style: [ip,udp,gtp]"
+   ]
   }
+ }
 ]

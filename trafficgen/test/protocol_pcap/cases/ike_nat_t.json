@@ -1,82 +1,157 @@
 [
-  {
-    "id": "ike_nat_t_sa_init_header_only",
-    "proto": "ike_nat_t",
-    "summary": "smoke: IKEv2 SA_INIT initiator header-only message (no payloads) over UDP 500; tshark auto-parses isakmp; no Non-ESP marker since dst != 4500",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {
-            "dst_port": 500
-          }
-        },
-        {
-          "ike_nat_t": {
-            "dialog": [
-              {
-                "direction": "up",
-                "exchange_type": 34
-              }
-            ]
-          }
-        }
-      ]
+ {
+  "id": "ike_nat_t_sa_init_header_only",
+  "proto": "ike_nat_t",
+  "summary": "smoke: IKEv2 SA_INIT initiator header-only message (no payloads) over UDP 500; tshark auto-parses isakmp; no Non-ESP marker since dst != 4500",
+  "spec_json": {
+   "layers": [
+    {
+     "udp": {
+      "dst_port": 500
+     }
     },
-    "expect": {
-      "min_packets": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "udp.dstport",
-          "value": "500"
-        },
-        {
-          "packet": 1,
-          "field": "isakmp.ispi",
-          "nonzero": true
-        },
-        {
-          "packet": 1,
-          "field": "isakmp.rspi",
-          "value": "0000000000000000"
-        },
-        {
-          "packet": 1,
-          "field": "isakmp.version",
-          "value": "0x20"
-        },
-        {
-          "packet": 1,
-          "field": "isakmp.exchangetype",
-          "value": "34"
-        },
-        {
-          "packet": 1,
-          "field": "isakmp.flags",
-          "value": "0x08"
-        },
-        {
-          "packet": 1,
-          "field": "isakmp.length",
-          "value": "28"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 58,
-          "hex": "00 20 22 08 00 00 00 00 00 00 00 1c"
-        }
-      ],
-      "notes": [
-        "IKE header at offset 42 (eth14+ip20+udp8): random 8B initiator SPI, 8B zero responder SPI, next_payload 0 (empty payloads), version 0x20, exchangetype 34 (SA_INIT), flags 0x08 (initiator), msgid 0, length 28",
-        "header-only frame verified byte-for-byte against /tmp/probe-iana/ike_nat_t.pcap (dst 80 in probe, same header at same offset; forced -d udp.port==80,isakmp decode is malformed-clean)",
-        "SPI is run-random (math/rand seeded by time) -> nonzero assert; responder SPI is 8 zero bytes -> exact value assert (tshark prints plain 0000000000000000)",
-        "dst 500 avoids the udpencap/Non-ESP path (planner: only dst 4500 gets the marker); udp.port 500 is IANA-registered to isakmp so no decode_as needed"
+    {
+     "ike_nat_t": {
+      "dialog": [
+       {
+        "direction": "up",
+        "exchange_type": 34
+       }
       ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "500"
     },
-    "notes": [
-      "层链改造：扁平四元组并入 ip/udp 层，顶层 ike_nat_t 子映射迁入 layers[].ike_nat_t"
-    ]
+    {
+     "packet": 1,
+     "field": "isakmp.ispi",
+     "nonzero": true
+    },
+    {
+     "packet": 1,
+     "field": "isakmp.rspi",
+     "value": "0000000000000000"
+    },
+    {
+     "packet": 1,
+     "field": "isakmp.version",
+     "value": "0x20"
+    },
+    {
+     "packet": 1,
+     "field": "isakmp.exchangetype",
+     "value": "34"
+    },
+    {
+     "packet": 1,
+     "field": "isakmp.flags",
+     "value": "0x08"
+    },
+    {
+     "packet": 1,
+     "field": "isakmp.length",
+     "value": "28"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 58,
+     "hex": "00 20 22 08 00 00 00 00 00 00 00 1c"
+    }
+   ],
+   "notes": [
+    "IKE header at offset 42 (eth14+ip20+udp8): random 8B initiator SPI, 8B zero responder SPI, next_payload 0 (empty payloads), version 0x20, exchangetype 34 (SA_INIT), flags 0x08 (initiator), msgid 0, length 28",
+    "header-only frame verified byte-for-byte against /tmp/probe-iana/ike_nat_t.pcap (dst 80 in probe, same header at same offset; forced -d udp.port==80,isakmp decode is malformed-clean)",
+    "SPI is run-random (math/rand seeded by time) -> nonzero assert; responder SPI is 8 zero bytes -> exact value assert (tshark prints plain 0000000000000000)",
+    "dst 500 avoids the udpencap/Non-ESP path (planner: only dst 4500 gets the marker); udp.port 500 is IANA-registered to isakmp so no decode_as needed"
+   ]
+  },
+  "notes": [
+   "层链改造：扁平四元组并入 ip/udp 层，顶层 ike_nat_t 子映射迁入 layers[].ike_nat_t"
+  ]
+ },
+ {
+  "id": "ike_nat_t_default_dialog",
+  "proto": "ike_nat_t",
+  "summary": "[chain] 缺省事务：空 ike_nat_t 层（无 dialog）→ planner 缺省产出完整两交换 IKE_SA_INIT req/resp + IKE_AUTH req/resp（up/down/up/down），共 4 包（RFC 7296 §1.2 每交换即 request→response 对）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 500,
+      "dst_port": 500
+     }
+    },
+    {
+     "ike_nat_t": {}
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 4,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "isakmp.exchangetype",
+     "value": "34"
+    },
+    {
+     "packet": 2,
+     "field": "isakmp.exchangetype",
+     "value": "34"
+    },
+    {
+     "packet": 3,
+     "field": "isakmp.exchangetype",
+     "value": "35"
+    },
+    {
+     "packet": 4,
+     "field": "isakmp.exchangetype",
+     "value": "35"
+    },
+    {
+     "packet": 1,
+     "field": "isakmp.ispi",
+     "nonzero": true
+    },
+    {
+     "packet": 1,
+     "field": "isakmp.rspi",
+     "value": "0000000000000000"
+    },
+    {
+     "packet": 2,
+     "field": "ip.src",
+     "value": "20.0.0.1"
+    },
+    {
+     "packet": 4,
+     "field": "ip.src",
+     "value": "20.0.0.1"
+    }
+   ],
+   "notes": [
+    "RFC 7296 §1.2：IKE 每次交换都是 request→response 对；planner buildDefaultDialog 缺省两交换",
+    "方向断言（packet 2/4 ip.src=20.0.0.1）证明 down 响应真实落 datagram，防单边 4 连发假绿",
+    "tshark 探针 2026-10-07 实测钉值：exchangetype 34/34/35/35；SPIi 运行期随机只断 nonzero",
+    "layers chain style: [ip,udp,ike_nat_t]"
+   ]
   }
+ }
 ]
