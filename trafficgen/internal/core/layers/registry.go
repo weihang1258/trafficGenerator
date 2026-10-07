@@ -148,7 +148,7 @@ func buildDefaultRegistry() {
 			"query_type":       {Type: "uint16", Default: uint16(1), Min: 0, Max: 65535},
 			"txid":             {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 			"is_response":      {Type: "bool", Default: false},
-			"query_only":       {Type: "bool", Default: false}, // D-DNS-2: 显式纯查询；缺省=一问一答
+			"query_only":       {Type: "bool", Default: false, Description: "D-DNS-2: 显式纯查询（每流只发查询 1 包，无响应）。缺省（不设）即一问一答（查询+响应 2 包）——正常 DNS 查询流量【勿设此键】；仅当用户明确要求无响应的纯查询时才设 true"}, // D-DNS-2: 显式纯查询；缺省=一问一答
 			"response_ip":      {Type: "string", Default: ""},
 			"edns0_enabled":    {Type: "bool", Default: false},
 			"udp_payload_size": {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535}, // 0=4096 回退沿 legacy
@@ -183,7 +183,7 @@ func buildDefaultRegistry() {
 			"mac":             {Type: "list"},
 			"extensions":      {Type: "list"},
 			"is_response":     {Type: "bool"},
-			"request_only":    {Type: "bool", Default: false}, // D-NTP-2: 显式纯请求；client/symmetric/control 缺省一问一答（同 dns query_only 语义）
+			"request_only":    {Type: "bool", Default: false, Description: "D-NTP-2: 显式纯请求（每事务 1 包，无响应）。缺省（不设）即 client/symmetric/control 一问一答（2 包）——正常时间同步流量【勿设此键】；server/broadcast/private 恒单发与此键无关"}, // D-NTP-2: 显式纯请求；client/symmetric/control 缺省一问一答（同 dns query_only 语义）
 			"poll_interval":   {Type: "int"},
 			"repeat_count":    {Type: "int"},
 			"sequence":        {Type: "string"},
@@ -216,7 +216,7 @@ func buildDefaultRegistry() {
 			"max_repetitions":            {Type: "uint8"},
 			"var_binds":                  {Type: "list"},
 			"is_response":                {Type: "bool"},
-			"request_only":               {Type: "bool", Default: false}, // D-SNMP-2: 显式纯请求；缺省查询型 PDU 一问一答，trap 恒单发（同 dns query_only 语义）
+			"request_only":               {Type: "bool", Default: false, Description: "D-SNMP-2: 显式纯请求（每事务 1 包，无响应）。缺省（不设）即查询型 PDU 一问一答（2 包）——正常请求流量【勿设此键】；trap 型 PDU 恒单发与此键无关"}, // D-SNMP-2: 显式纯请求；缺省查询型 PDU 一问一答，trap 恒单发（同 dns query_only 语义）
 			"response_error":             {Type: "uint8"},
 			"response_error_index":       {Type: "uint8"},
 			"response_values":            {Type: "list"},

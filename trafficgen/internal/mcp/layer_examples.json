@@ -2290,6 +2290,7 @@
       }
      ]
     },
+    "flow_control_note": "（⚠ 此例带 query_only/request_only = 显式单边单包；正常业务流量（请求+响应）请删除该键——缺省即一问一答）",
     "packets": 1
    },
    {
@@ -2320,6 +2321,7 @@
       }
      ]
     },
+    "flow_control_note": "（⚠ 此例带 query_only/request_only = 显式单边单包；正常业务流量（请求+响应）请删除该键——缺省即一问一答）",
     "packets": 1
    }
   ],
@@ -4294,6 +4296,7 @@
       }
      ]
     },
+    "flow_control_note": "（⚠ 此例带 query_only/request_only = 显式单边单包；正常业务流量（请求+响应）请删除该键——缺省即一问一答）",
     "packets": 1
    }
   ],
@@ -9529,6 +9532,7 @@
       }
      ]
     },
+    "flow_control_note": "（⚠ 此例带 query_only/request_only = 显式单边单包；正常业务流量（请求+响应）请删除该键——缺省即一问一答）",
     "packets": 1
    }
   ],
@@ -12581,6 +12585,7 @@
       }
      ]
     },
+    "flow_control_note": "（⚠ 此例带 query_only/request_only = 显式单边单包；正常业务流量（请求+响应）请删除该键——缺省即一问一答）",
     "packets": 1
    }
   ],

@@ -19,12 +19,13 @@ var layerExamplesJSON []byte
 
 // layerFieldView is the JSON-safe view of one schema field (说明书字段)。
 type layerFieldView struct {
-	Type       string      `json:"type"`
-	Default    interface{} `json:"default,omitempty"`
-	Min        int64       `json:"min,omitempty"`
-	Max        int64       `json:"max,omitempty"`
-	Required   bool        `json:"required,omitempty"`
-	Deprecated bool        `json:"deprecated,omitempty"`
+	Type        string      `json:"type"`
+	Default     interface{} `json:"default,omitempty"`
+	Min         int64       `json:"min,omitempty"`
+	Max         int64       `json:"max,omitempty"`
+	Required    bool        `json:"required,omitempty"`
+	Deprecated  bool        `json:"deprecated,omitempty"`
+	Description string      `json:"description,omitempty"`
 }
 
 // layerSchemaView is the JSON-safe view of one layer 说明书, built from
@@ -58,7 +59,7 @@ func buildLayerSchemaView(s layers.LayerSchema) layerSchemaView {
 		v.Constraints = append(v.Constraints, string(c))
 	}
 	for k, f := range s.Fields {
-		v.Fields[k] = layerFieldView{Type: f.Type, Default: f.Default, Min: f.Min, Max: f.Max, Required: f.Required, Deprecated: f.Deprecated}
+		v.Fields[k] = layerFieldView{Type: f.Type, Default: f.Default, Min: f.Min, Max: f.Max, Required: f.Required, Deprecated: f.Deprecated, Description: f.Description}
 	}
 	return v
 }

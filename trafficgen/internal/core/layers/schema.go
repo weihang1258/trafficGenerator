@@ -60,6 +60,10 @@ type FieldSchema struct {
 	Required bool
 	// Deprecated marks a legacy key read for backward compat.
 	Deprecated bool
+	// Description is the LLM-facing guidance surfaced by the schema tool and
+	// the generated dump — 单行行为语义 + 何时**不该**设此字段（引导面：
+	// 裸字段名会诱导 LLM 抄错，如"查询流量"字面匹配 query_only）。
+	Description string
 }
 
 // Constraint is a layer-chain-level validation rule (校验规则，§10.2).

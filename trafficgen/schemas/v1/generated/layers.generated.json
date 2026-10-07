@@ -868,7 +868,8 @@
         },
         "query_only": {
           "type": "bool",
-          "default": false
+          "default": false,
+          "description": "D-DNS-2: 显式纯查询（每流只发查询 1 包，无响应）。缺省（不设）即一问一答（查询+响应 2 包）——正常 DNS 查询流量【勿设此键】；仅当用户明确要求无响应的纯查询时才设 true"
         },
         "query_type": {
           "type": "uint16",
@@ -3741,7 +3742,8 @@
         },
         "request_only": {
           "type": "bool",
-          "default": false
+          "default": false,
+          "description": "D-NTP-2: 显式纯请求（每事务 1 包，无响应）。缺省（不设）即 client/symmetric/control 一问一答（2 包）——正常时间同步流量【勿设此键】；server/broadcast/private 恒单发与此键无关"
         },
         "root_delay": {
           "type": "uint32"
@@ -5326,7 +5328,8 @@
         },
         "request_only": {
           "type": "bool",
-          "default": false
+          "default": false,
+          "description": "D-SNMP-2: 显式纯请求（每事务 1 包，无响应）。缺省（不设）即查询型 PDU 一问一答（2 包）——正常请求流量【勿设此键】；trap 型 PDU 恒单发与此键无关"
         },
         "response_error": {
           "type": "uint8"

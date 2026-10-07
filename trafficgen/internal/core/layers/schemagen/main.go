@@ -17,12 +17,13 @@ import (
 )
 
 type fieldJSON struct {
-	Type       string      `json:"type"`
-	Default    interface{} `json:"default,omitempty"`
-	Min        int64       `json:"min,omitempty"`
-	Max        int64       `json:"max,omitempty"`
-	Required   bool        `json:"required,omitempty"`
-	Deprecated bool        `json:"deprecated,omitempty"`
+	Type        string      `json:"type"`
+	Default     interface{} `json:"default,omitempty"`
+	Min         int64       `json:"min,omitempty"`
+	Max         int64       `json:"max,omitempty"`
+	Required    bool        `json:"required,omitempty"`
+	Deprecated  bool        `json:"deprecated,omitempty"`
+	Description string      `json:"description,omitempty"`
 }
 
 type layerJSON struct {
@@ -78,6 +79,7 @@ func run() error {
 				Type: f.Type, Default: f.Default,
 				Min: f.Min, Max: f.Max,
 				Required: f.Required, Deprecated: f.Deprecated,
+				Description: f.Description,
 			}
 		}
 		out.Layers[name] = lj

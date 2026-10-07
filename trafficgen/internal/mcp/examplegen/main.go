@@ -228,6 +228,13 @@ func Generate(casesDir string) ([]byte, error) {
 			}
 			seen[e.CaseID] = true
 			e.FlowControl = flowNote(e.Config)
+			// opt-out 键警示（"查询流量"字面匹配诱导 LLM 抄错实测——用户配置
+			// 100 条 DNS 查询被带上 query_only:true 致单包）：带 query_only/
+			// request_only 的例是**单边形状**，正常业务（请求+响应）须删键。
+			if hasOptOutKey(e.Config) {
+				opt := "（⚠ 此例带 query_only/request_only = 显式单边单包；正常业务流量（请求+响应）请删除该键——缺省即一问一答）"
+				e.FlowControl = e.FlowControl + opt
+			}
 			picked = append(picked, e)
 		}
 		protoKeys := func(cfg json.RawMessage) map[string]bool {
