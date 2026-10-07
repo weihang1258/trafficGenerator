@@ -866,6 +866,10 @@
           "type": "string",
           "default": "example.com"
         },
+        "query_only": {
+          "type": "bool",
+          "default": false
+        },
         "query_type": {
           "type": "uint16",
           "default": 1,
