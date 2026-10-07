@@ -698,6 +698,7 @@ func TestCoverage_DNSOverTCP_LengthPrefixAndTransport(t *testing.T) {
 		Domain:    "example.com",
 		QueryType: TypeA,
 		Transport: "tcp",
+		QueryOnly: true,
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	if len(cfgs) != 1 {

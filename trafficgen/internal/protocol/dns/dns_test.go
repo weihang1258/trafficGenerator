@@ -137,9 +137,9 @@ func TestPlanner_Plan(t *testing.T) {
 		configs = append(configs, config)
 	}
 
-	// Should have 1 packet (query only)
-	if len(configs) != 1 {
-		t.Errorf("Expected 1 config, got %d", len(configs))
+	// D-DNS-2: default is the query+response transaction (2 packets).
+	if len(configs) != 2 {
+		t.Errorf("Expected 2 configs (query+response), got %d", len(configs))
 	}
 
 	// Check packet config

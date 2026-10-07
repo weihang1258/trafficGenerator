@@ -375,10 +375,12 @@ func TestDNSPlan_ResponseEnabled(t *testing.T) {
 func TestDNSPlan_ResponseDisabled(t *testing.T) {
 	p := NewPlanner()
 	spec := validDNSSpec()
+	// D-DNS-2: response suppression is expressed via query_only
+	// (is_response no longer gates the event count).
 	spec.DNS = &core.DNSConfig{
 		Domain:    "example.com",
 		QueryType: TypeA,
-		IsResponse: false,
+		QueryOnly: true,
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	if len(cfgs) != 1 {
