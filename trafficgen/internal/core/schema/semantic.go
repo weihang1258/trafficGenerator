@@ -257,6 +257,17 @@ func checkLayerChainStaticCopy(config map[string]any, flows float64) string {
 					}
 					continue
 				}
+				// D-COAP-2：coap 会话地址数组同权——session_src_ips/
+				// session_src_ports 非空数组（len≥2）即逐会话有别证明入
+				// hasDyn（生成器按会话索引取址，语义与 D-SIP-2 WP-A
+				// sessions[] 内嵌端口一致；全量 MCP 套件 5373 例唯一
+				// static-copy 红例 coap_multi_session 的执法洞）。
+				if lname == "coap" && (k == "session_src_ips" || k == "session_src_ports") {
+					if arr, isArr := v.([]any); isArr && len(arr) >= 2 {
+						hasDyn = true
+					}
+					continue
+				}
 				// D-SIP-2 WP-A：sessions[] 内嵌端口同权——标量入 hasScalar、
 				// 动态对象入 hasDyn（12.9 执法洞修补，嵌套结构不豁免）。
 				if k != "sessions" && k != "medias" {
