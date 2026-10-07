@@ -205,6 +205,25 @@ func Generate(casesDir string) ([]byte, error) {
 	}
 	out := map[string][]exam{}
 	for proto, exs := range protos {
+		// 示例面只教正常场景（用户裁定 2026-10-07：示例必须给正常场景例）。
+		// 带 query_only/request_only 的例是显式单边形状——警示注记挡不住
+		// "查询流量"字面匹配下的照抄（用户 100 条 DNS 查询实测），直接退出
+		// 服务集；协议无干净例时才兜底保留（附警示注记）。opt-out 能力面由
+		// schema 字段描述（registry Description）+ corpus 用例覆盖，不经示例。
+		clean := make([]exam, 0, len(exs))
+		optOut := make([]exam, 0)
+		for _, e := range exs {
+			if hasOptOutKey(e.Config) {
+				optOut = append(optOut, e)
+				continue
+			}
+			clean = append(clean, e)
+		}
+		if len(clean) > 0 {
+			exs = clean
+		} else {
+			exs = optOut
+		}
 		// 排序：事务例档优先，同档内 complexity 升序。simplest 规则只在
 		// 同档内生效——含响应语义的例永远排在纯请求例之前。
 		sort.Slice(exs, func(i, j int) bool {
@@ -228,9 +247,8 @@ func Generate(casesDir string) ([]byte, error) {
 			}
 			seen[e.CaseID] = true
 			e.FlowControl = flowNote(e.Config)
-			// opt-out 键警示（"查询流量"字面匹配诱导 LLM 抄错实测——用户配置
-			// 100 条 DNS 查询被带上 query_only:true 致单包）：带 query_only/
-			// request_only 的例是**单边形状**，正常业务（请求+响应）须删键。
+			// opt-out 键警示（仅兜底路径可见——正常协议的 opt-out 例已退出
+			// 服务集）：带 query_only/request_only 的例是**单边形状**。
 			if hasOptOutKey(e.Config) {
 				opt := "（⚠ 此例带 query_only/request_only = 显式单边单包；正常业务流量（请求+响应）请删除该键——缺省即一问一答）"
 				e.FlowControl = e.FlowControl + opt
