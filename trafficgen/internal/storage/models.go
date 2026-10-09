@@ -33,6 +33,10 @@ type TaskModel struct {
 	// 时含主动注册指引），注册成功时留空（响应层会补默认提示语）。
 	PcapAssetID   string `gorm:"size:64;index"`
 	PcapAssetNote string `gorm:"size:1024"`
+	// ShadowNote：output_type=both 的影子 pcap 降级记录（shadowWriter 回
+	// 调回填）——影子写失败/触顶截断都不 fail 任务，只在这里留痕供验收
+	// 两路（§6.3）核对。与 PcapAssetNote 分列，避免互相清写。
+	ShadowNote string `gorm:"size:1024"`
 	CreatedAt     time.Time `gorm:"autoCreateTime"`
 	UpdatedAt     time.Time `gorm:"autoUpdateTime"`
 	StartedAt     *time.Time

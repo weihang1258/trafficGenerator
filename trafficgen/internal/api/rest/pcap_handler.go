@@ -183,7 +183,12 @@ var PcapAutoImportMaxBytes int64 = 64 << 20 // 64MB
 // the wait explicitly. Idempotent: tasks already carrying an asset id or a
 // note are left untouched.
 func AutoRegisterTaskPcap(db *storage.DB, p *PcapHandler, task *storage.TaskModel) {
-	if task == nil || p == nil || task.OutputType != "pcap" || task.Status != "completed" {
+	if task == nil || p == nil || task.Status != "completed" {
+		return
+	}
+	// both tasks auto-register their shadow pcap exactly like pcap tasks —
+	// that registration is what gives NIC runs a full flow table.
+	if task.OutputType != "pcap" && task.OutputType != "both" {
 		return
 	}
 	if task.PcapAssetID != "" || task.PcapAssetNote != "" {
@@ -937,7 +942,8 @@ func ServeTaskPcapPublic(db *storage.DB, w http.ResponseWriter, r *http.Request)
 		http.NotFound(w, r)
 		return
 	}
-	if task.OutputType != "pcap" {
+	// both tasks serve their shadow pcap through the same link.
+	if task.OutputType != "pcap" && task.OutputType != "both" {
 		http.NotFound(w, r)
 		return
 	}

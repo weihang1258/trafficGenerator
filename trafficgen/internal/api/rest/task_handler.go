@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,6 +26,11 @@ import (
 	"github.com/trafficgen/trafficgen/pkg/netif"
 	"gorm.io/gorm"
 )
+
+// errBothDual is the single message for the v1 both×dual rejection. All
+// faces (REST create/batch/start, MCP) route through these handlers, so one
+// constant keeps the negative-parity messages identical.
+const errBothDual = "output_type=both does not support dual-port replay (interface2)"
 
 // taskSchemaGate runs the unified task validation entry (shape + flow-control
 // envelope + replay+bps conflict + batch semantics) and writes the 400 on
@@ -530,9 +536,26 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 	}
 }
 
+// resolvePortGroupIface returns the first interface of a port group — the
+// primary NIC a task writes to (output_type=port_group and both).
+func (h *TaskHandler) resolvePortGroupIface(groupID string) (string, error) {
+	var portGroup storage.PortGroupModel
+	if err := h.db.Where("id = ?", groupID).First(&portGroup).Error; err != nil {
+		return "", fmt.Errorf("port group not found: %s", groupID)
+	}
+	var portsConfig []map[string]interface{}
+	json.Unmarshal([]byte(portGroup.PortsConfig), &portsConfig)
+	if len(portsConfig) > 0 {
+		if i, ok := portsConfig[0]["interface"].(string); ok && i != "" {
+			return i, nil
+		}
+	}
+	return "", fmt.Errorf("port group has no interface configured")
+}
+
 // releasePortGroupPorts releases ports allocated for a task's port group.
 func (h *TaskHandler) releasePortGroupPorts(task *storage.TaskModel) {
-	if task.OutputType != "port_group" {
+	if task.OutputType != "port_group" && task.OutputType != "both" {
 		return
 	}
 	var outputConfig OutputConfigRequest
@@ -570,7 +593,7 @@ func (h *TaskHandler) ensureTaskMTU(task *storage.TaskModel, interface2 string) 
 	if minMTU <= 0 {
 		return nil, nil
 	}
-	if task.OutputType != "port_group" {
+	if task.OutputType != "port_group" && task.OutputType != "both" {
 		// pcap output doesn't touch a NIC.
 		return nil, nil
 	}
@@ -669,9 +692,10 @@ type TaskResponse struct {
 	DownloadURL string `json:"download_url,omitempty"`
 	// PcapAssetID：pcap 产物自动注册进资产库后的资产 id（超阈值/失败时为
 	// 空）。PcapAssetNote：已注册时为 flowb_manage_pcaps 使用提示；未注册
-	// 时为原因 + 主动注册指引。
+	// 时为原因 + 主动注册指引。ShadowNote：both 模式影子降级/截断记录。
 	PcapAssetID   string `json:"pcap_asset_id,omitempty"`
 	PcapAssetNote string `json:"pcap_asset_note,omitempty"`
+	ShadowNote    string `json:"shadow_note,omitempty"`
 	CreatedAt     int64  `json:"created_at"`
 	UpdatedAt     int64  `json:"updated_at"`
 	StartedAt     *int64 `json:"started_at,omitempty"`
@@ -697,6 +721,15 @@ func (h *TaskHandler) Create(c *gin.Context) {
 	// with the loaded models (gate re-runs including the conflict once
 	// strategies are known).
 	if !taskSchemaGate(c, taskCreateDoc(req.Name, toAnySlice(req.StrategyIDs), req.OutputType, toAny(req.OutputConfig), toAny(req.FlowControl)), nil) {
+		return
+	}
+
+	// both×dual is rejected for v1: RegisterDualWriter has exactly two sinks
+	// (c2s/s2c) and cannot express interface+interface2+pcap+pcap.s2c. Fast
+	// fail here on an explicit interface2; a replay direction="dual" fails
+	// the same way at Start once strategies are loaded.
+	if req.OutputType == "both" && req.OutputConfig != nil && req.OutputConfig.Interface2 != "" {
+		BadRequest(c, errBothDual)
 		return
 	}
 
@@ -813,27 +846,38 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 	taskID := uuid.New().String()
 
 	// Resolve output: interface name for port_group, resolved path for pcap.
+	// both = interface (primary) + shadow pcap path (defaulted from the task
+	// id and persisted into output_config so the auto-register hook and the
+	// response surface can find the file).
 	outputMode := "pcap"
 	iface := ""
 	pcapFile := ""
+	shadowPcap := ""
+	var err error
 	if req.OutputType == "port_group" {
 		outputMode = "interface"
-		var portGroup storage.PortGroupModel
-		if err := h.db.Where("id = ?", req.OutputConfig.PortGroupID).First(&portGroup).Error; err != nil {
-			BadRequest(c, "port group not found: "+req.OutputConfig.PortGroupID)
+		iface, err = h.resolvePortGroupIface(req.OutputConfig.PortGroupID)
+		if err != nil {
+			BadRequest(c, err.Error())
 			return
 		}
-		var portsConfig []map[string]interface{}
-		json.Unmarshal([]byte(portGroup.PortsConfig), &portsConfig)
-		if len(portsConfig) > 0 {
-			if i, ok := portsConfig[0]["interface"].(string); ok {
-				iface = i
-			}
-		}
-		if iface == "" {
-			BadRequest(c, "port group has no interface configured")
+	} else if req.OutputType == "both" {
+		outputMode = "interface"
+		iface, err = h.resolvePortGroupIface(req.OutputConfig.PortGroupID)
+		if err != nil {
+			BadRequest(c, err.Error())
 			return
 		}
+		if req.OutputConfig.PcapPath == "" {
+			req.OutputConfig.PcapPath = "pcap/" + taskID + "_shadow.pcap"
+		}
+		resolved, err := resolvePcapPath(req.OutputConfig.PcapPath)
+		if err != nil {
+			BadRequest(c, err.Error())
+			return
+		}
+		shadowPcap = resolved
+		req.OutputConfig.PcapPath = resolved
 	} else {
 		resolved, err := resolvePcapPath(req.OutputConfig.PcapPath)
 		if err != nil {
@@ -860,16 +904,29 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 			}
 		}
 	}
-	if dualPort && outputMode == "interface" && (req.OutputConfig == nil || req.OutputConfig.Interface2 == "") {
+	// both×dual rejection comes before the dual-port validation below so the
+	// message names the real constraint, not the missing interface2.
+	if req.OutputType == "both" && dualPort {
+		BadRequest(c, errBothDual)
+		return
+	}
+	if dualPort && outputMode == "interface" && req.OutputType != "both" && (req.OutputConfig == nil || req.OutputConfig.Interface2 == "") {
 		BadRequest(c, "dual-port replay requires a second interface (interface2 in output_config)")
 		return
 	}
 
 	// Create + register the output writer BEFORE submitting (avoids race).
 	var writer core.PacketWriter
-	var err error
 	if outputMode == "interface" {
-		writer, err = newInterfacePacketWriter(iface)
+		if req.OutputType == "both" {
+			// both: NIC primary + best-effort shadow pcap. Shadow issues
+			// degrade to the task's shadow_note; NIC issues fail the task.
+			writer, err = newShadowPacketWriter(iface, shadowPcap, func(msg string) {
+				h.noteShadowIssue(taskID, msg)
+			})
+		} else {
+			writer, err = newInterfacePacketWriter(iface)
+		}
 	} else {
 		writer, err = newPcapPacketWriter(pcapFile)
 	}
@@ -1175,19 +1232,13 @@ func (h *TaskHandler) Start(c *gin.Context) {
 
 	// Resolve port interface name if needed
 	var portGroupIface string
-	if task.OutputType == "port_group" {
+	if task.OutputType == "port_group" || task.OutputType == "both" {
 		var outputConfig OutputConfigRequest
 		json.Unmarshal([]byte(task.OutputConfig), &outputConfig)
 		if outputConfig.PortGroupID != "" {
-			var portGroup storage.PortGroupModel
-			if err := h.db.Where("id = ?", outputConfig.PortGroupID).First(&portGroup).Error; err == nil {
-				var portsConfig []map[string]interface{}
-				json.Unmarshal([]byte(portGroup.PortsConfig), &portsConfig)
-				if len(portsConfig) > 0 {
-					if iface, ok := portsConfig[0]["interface"].(string); ok {
-						portGroupIface = iface
-					}
-				}
+			iface, err := h.resolvePortGroupIface(outputConfig.PortGroupID)
+			if err == nil {
+				portGroupIface = iface
 			}
 		}
 	}
@@ -1279,10 +1330,19 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		return
 	}
 
-	// Validate and resolve output paths before proceeding
-	if task.OutputType == "pcap" {
+	// Validate and resolve output paths before proceeding. pcap resolves the
+	// requested path; both resolves (or generates — task-id derived, so a
+	// re-created task never collides) the shadow path and persists it into
+	// output_config: the auto-register hook and the response surface read it
+	// from there. Generated here (Start), NOT at Create — Create dedups by
+	// the full output_config string, so filling a path there would break
+	// idempotent resubmission.
+	if task.OutputType == "pcap" || task.OutputType == "both" {
 		var outputConfig OutputConfigRequest
 		json.Unmarshal([]byte(task.OutputConfig), &outputConfig)
+		if task.OutputType == "both" && outputConfig.PcapPath == "" {
+			outputConfig.PcapPath = "pcap/" + task.ID + "_shadow.pcap"
+		}
 		resolved, err := resolvePcapPath(outputConfig.PcapPath)
 		if err != nil {
 			task.Status = "error"
@@ -1324,6 +1384,13 @@ func (h *TaskHandler) Start(c *gin.Context) {
 			}
 		}
 	}
+	if dualPort && task.OutputType == "both" {
+		task.Status = "error"
+		task.ErrorMessage = errBothDual
+		h.db.Save(&task)
+		BadRequest(c, task.ErrorMessage)
+		return
+	}
 	if dualPort && task.OutputType == "port_group" && outputConfigForDual.Interface2 == "" {
 		task.Status = "error"
 		task.ErrorMessage = "dual-port replay requires a second interface (interface2 in output_config)"
@@ -1351,7 +1418,23 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		var err error
 
 		if ct.OutputMode == "interface" && ct.Interface != "" {
-			writer, err = newInterfacePacketWriter(ct.Interface)
+			if task.OutputType == "both" && ct.PcapFile != "" {
+				// both: NIC primary + best-effort shadow pcap. Shadow path is
+				// the task-level resolved path — same sharing semantics as
+				// pcap mode (multi-strategy tasks share one file, an existing
+				// pcap-mode property, not new here).
+				parentID := task.ID
+				writer, err = newShadowPacketWriter(ct.Interface, ct.PcapFile, func(msg string) {
+					h.noteShadowIssue(parentID, msg)
+				})
+			} else {
+				writer, err = newInterfacePacketWriter(ct.Interface)
+			}
+		} else if ct.OutputMode == "interface" {
+			// Interface mode with no resolved iface would previously fall
+			// through to the pcap branch (empty → nil writer → silent
+			// zero-output). Fail loudly instead.
+			err = fmt.Errorf("interface output but no interface resolved (port group missing?)")
 		} else if ct.PcapFile != "" {
 			writer, err = newPcapPacketWriter(ct.PcapFile)
 		}
@@ -1461,7 +1544,7 @@ func (h *TaskHandler) Start(c *gin.Context) {
 	}
 
 	// Reserve ports for port_group output
-	if task.OutputType == "port_group" {
+	if task.OutputType == "port_group" || task.OutputType == "both" {
 		var outputConfig OutputConfigRequest
 		json.Unmarshal([]byte(task.OutputConfig), &outputConfig)
 
@@ -1752,7 +1835,7 @@ func convertTaskToResponse(t *storage.TaskModel) TaskResponse {
 			FlowsCount:  t.FlowsCount,
 		}
 	}
-	if t.OutputType == "pcap" {
+	if t.OutputType == "pcap" || t.OutputType == "both" {
 		response.DownloadURL = "/downloads/tasks/" + t.ID + "/pcap"
 		response.PcapAssetID = t.PcapAssetID
 		if t.PcapAssetNote != "" {
@@ -1764,6 +1847,7 @@ func convertTaskToResponse(t *storage.TaskModel) TaskResponse {
 				") — inspect and analyze it via flowb_manage_pcaps: list_flows / list_packets / get_packet / " +
 				"extract / get_packet_payload; download via its download action"
 		}
+		response.ShadowNote = t.ShadowNote
 	}
 
 	if t.StartedAt != nil {
@@ -1936,4 +2020,111 @@ func newInterfacePacketWriter(iface string) (core.PacketWriter, error) {
 		return nil, err
 	}
 	return &interfacePacketWriter{w: w}, nil
+}
+
+// defaultShadowPcapMaxBytes caps the both-mode shadow pcap on disk (global
+// header included). Hitting it truncates the shadow (valid pcap, complete
+// records) and surfaces a note; the wire run is never affected.
+// ponytail: fixed 1GB, no knob — make it a setting when someone hits it.
+const defaultShadowPcapMaxBytes int64 = 1 << 30
+
+// shadowSink is the shadow-side contract: the pcap writer plus its timed
+// variant (interface extracted so tests can stub the sink).
+type shadowSink interface {
+	core.PacketWriter
+	core.TimedWriter
+}
+
+// shadowWriter fans each packet out to a primary sink (NIC) and a
+// best-effort shadow pcap sink (output_type=both). Error tiers differ:
+//   - primary failure returns the error → the normal output-error path fails
+//     the task (wire problems must be loud);
+//   - shadow failure is downgraded: logged once, recorded via onShadowIssue
+//     (task shadow_note), and further shadow writes are skipped — a full
+//     disk must not kill a healthy wire run. The shadow stays a valid pcap
+//     (see PCAPWriter cap + Close flush semantics).
+//
+// shadowWriter implements core.TimedWriter and dispatches per side: the
+// shadow receives the scheduled §12 send timestamps; the NIC (no schedule)
+// gets the plain byte path. v1 registers it only via RegisterOutputWriter —
+// both×dual is rejected at the validation gates.
+type shadowWriter struct {
+	primary      core.PacketWriter
+	shadow       shadowSink
+	broken       atomic.Bool
+	onShadowNote func(msg string)
+}
+
+func (s *shadowWriter) WriteTimedPackets(packets []core.PacketOutput) error {
+	frames := make([][]byte, len(packets))
+	for i, p := range packets {
+		frames[i] = p.Data
+	}
+	if err := s.primary.WritePackets(frames); err != nil {
+		return err
+	}
+	s.writeShadow(func() error { return s.shadow.WriteTimedPackets(packets) })
+	return nil
+}
+
+func (s *shadowWriter) WritePackets(packets [][]byte) error {
+	if err := s.primary.WritePackets(packets); err != nil {
+		return err
+	}
+	s.writeShadow(func() error { return s.shadow.WritePackets(packets) })
+	return nil
+}
+
+// writeShadow runs one shadow-side write under the degrade policy: first
+// error flips broken (so later packets skip the shadow entirely — no
+// per-packet error spam) and fires the note callback exactly once.
+func (s *shadowWriter) writeShadow(write func() error) {
+	if s.broken.Load() {
+		return
+	}
+	if err := write(); err != nil {
+		if s.broken.CompareAndSwap(false, true) {
+			msg := "shadow pcap degraded, mirror stopped: " + err.Error()
+			log.Printf("[shadow] %s", msg)
+			if s.onShadowNote != nil {
+				s.onShadowNote(msg)
+			}
+		}
+	}
+}
+
+func (s *shadowWriter) Close() error {
+	perr := s.primary.Close()
+	if s.broken.Load() {
+		// Already degraded: still close/flush whatever reached the buffer,
+		// ignore the error — the note already carries the reason.
+		_ = s.shadow.Close()
+		return perr
+	}
+	s.writeShadow(func() error { return s.shadow.Close() })
+	return perr
+}
+
+func newShadowPacketWriter(iface, shadowPath string, onShadowNote func(msg string)) (core.PacketWriter, error) {
+	primary, err := newInterfacePacketWriter(iface)
+	if err != nil {
+		return nil, err
+	}
+	pw, err := output.NewPCAPWriterWithCap(shadowPath, defaultShadowPcapMaxBytes)
+	if err != nil {
+		primary.Close()
+		return nil, err
+	}
+	return &shadowWriter{primary: primary, shadow: &pcapPacketWriter{w: pw}, onShadowNote: onShadowNote}, nil
+}
+
+// noteShadowIssue persists a shadow degradation into the task's shadow_note
+// column (best-effort: the wire run never depends on it). Append-safe via
+// SQL concat — multi-strategy tasks run one shadowWriter per engine task,
+// and two degraded shadows must not clobber each other's note.
+func (h *TaskHandler) noteShadowIssue(taskID, msg string) {
+	h.db.Model(&storage.TaskModel{}).Where("id = ?", taskID).
+		Update("shadow_note", gorm.Expr(
+			"CASE WHEN shadow_note IS NULL OR shadow_note = '' THEN ? ELSE shadow_note || ? END",
+			msg, " | "+msg))
 }

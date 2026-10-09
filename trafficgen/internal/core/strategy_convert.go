@@ -84,12 +84,20 @@ func StrategyModelToTask(taskModel *storage.TaskModel, strategy *storage.Strateg
 	outputMode := "pcap"
 	iface := ""
 	pcapFile := outputCfg.PcapPath
-	if taskModel.OutputType == "port_group" {
+	switch taskModel.OutputType {
+	case "port_group":
 		outputMode = "interface"
 		pcapFile = ""
 		iface = ifaceOverride
-	} else if outputCfg.PcapPath != "" {
-		pcapFile = outputCfg.PcapPath
+	case "both":
+		// interface primary + shadow pcap: keep pcapFile (resolved or
+		// task-id-derived by Start before this runs), route to the NIC.
+		outputMode = "interface"
+		iface = ifaceOverride
+	default:
+		if outputCfg.PcapPath != "" {
+			pcapFile = outputCfg.PcapPath
+		}
 	}
 
 	// Task-level flow control: parsed into typed fields for the engine to

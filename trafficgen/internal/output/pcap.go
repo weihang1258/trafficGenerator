@@ -43,19 +43,34 @@ type PCAPWriter struct {
 	path    string
 	mu      sync.Mutex
 	written int64
+	// maxBytes caps the on-disk file size (24B global header included);
+	// 0 = unbounded. truncated records a planned ceiling stop.
+	maxBytes  int64
+	truncated bool
 }
 
 // NewPCAPWriter creates a new PCAP writer.
 func NewPCAPWriter(path string) (*PCAPWriter, error) {
+	return NewPCAPWriterWithCap(path, 0)
+}
+
+// NewPCAPWriterWithCap creates a PCAP writer capped at maxBytes on-disk
+// (global header included); 0 means unbounded. When the next record would
+// exceed the cap the writer sets the truncated flag and stops accepting
+// further records — Write/WriteTimed return nil (a planned ceiling, not an
+// error). The check runs BEFORE any byte of the record is buffered, so the
+// file always ends on a complete record and stays a valid pcap.
+func NewPCAPWriterWithCap(path string, maxBytes int64) (*PCAPWriter, error) {
 	file, err := os.Create(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pcap file: %w", err)
 	}
 
 	writer := &PCAPWriter{
-		file: file,
-		bw:   bufio.NewWriterSize(file, 256*1024),
-		path: path,
+		file:     file,
+		bw:       bufio.NewWriterSize(file, 256*1024),
+		path:     path,
+		maxBytes: maxBytes,
 	}
 
 	// Write PCAP global header
@@ -109,6 +124,9 @@ func (w *PCAPWriter) Write(packets [][]byte) error {
 
 	var buf [16]byte
 	for _, packet := range packets {
+		if w.hitCap(int64(len(packet))) {
+			break
+		}
 		now := time.Now()
 		binary.LittleEndian.PutUint32(buf[0:4], uint32(now.Unix()))
 		binary.LittleEndian.PutUint32(buf[4:8], uint32(now.Nanosecond()/1000))
@@ -151,6 +169,9 @@ func (w *PCAPWriter) WriteTimed(packets []TimedPacket) error {
 
 	var buf [16]byte
 	for _, tp := range packets {
+		if w.hitCap(int64(len(tp.Data))) {
+			break
+		}
 		ts := tp.Timestamp
 		if ts.IsZero() {
 			ts = time.Now()
@@ -206,6 +227,26 @@ func (w *PCAPWriter) Path() string {
 // Written returns the total bytes written.
 func (w *PCAPWriter) Written() int64 {
 	return w.written
+}
+
+// Truncated reports whether the size cap stopped the writer early. The file
+// is still a valid pcap — every record it contains is complete.
+func (w *PCAPWriter) Truncated() bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.truncated
+}
+
+// hitCap applies the size ceiling for one incoming record (16B record header
+// + body). written counts payload+16 only, so the real file size is
+// 24 (global header) + written. Must be called under w.mu (both Write paths
+// hold it).
+func (w *PCAPWriter) hitCap(bodyLen int64) bool {
+	if w.maxBytes > 0 && 24+w.written+16+bodyLen > w.maxBytes {
+		w.truncated = true
+		return true
+	}
+	return false
 }
 
 // RotatingPCAPWriter writes to rotating PCAP files.
