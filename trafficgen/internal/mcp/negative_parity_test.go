@@ -248,6 +248,21 @@ func TestNegativeParity_TaskCreate(t *testing.T) {
 			mcpIn:    manageTasksInput{Action: "create", Name: "t", StrategyIDs: []string{"s"}, OutputType: "port_group", OutputConfig: &outputConfigInput{}},
 		},
 		{
+			name:     "both missing group id",
+			restBody: `{"name":"t","strategy_ids":["s"],"output_type":"both","output_config":{}}`,
+			mcpIn:    manageTasksInput{Action: "create", Name: "t", StrategyIDs: []string{"s"}, OutputType: "both", OutputConfig: &outputConfigInput{}},
+		},
+		{
+			name:     "both pcap path only",
+			restBody: `{"name":"t","strategy_ids":["s"],"output_type":"both","output_config":{"pcap_path":"pcap/shadow.pcap"}}`,
+			mcpIn:    manageTasksInput{Action: "create", Name: "t", StrategyIDs: []string{"s"}, OutputType: "both", OutputConfig: &outputConfigInput{PcapPath: "pcap/shadow.pcap"}},
+		},
+		{
+			name:     "both with interface2 (v1: bothxdual rejected)",
+			restBody: `{"name":"t","strategy_ids":["s"],"output_type":"both","output_config":{"port_group_id":"pg","interface2":"eth2"}}`,
+			mcpIn:    manageTasksInput{Action: "create", Name: "t", StrategyIDs: []string{"s"}, OutputType: "both", OutputConfig: &outputConfigInput{PortGroupID: "pg", Interface2: "eth2"}},
+		},
+		{
 			name:     "batch null direction",
 			restBody: `{"name":"t","output_type":"pcap","output_config":{"pcap_path":"x"},"batch":{"classes":[{"id":"c","type":"replay","replay":{"pcap_asset_id":"x","direction":null}}]}}`,
 			mcpIn:    manageTasksInput{Action: "create", Name: "t", OutputType: "pcap", OutputConfig: &outputConfigInput{PcapPath: "x.pcap"}, Batch: map[string]interface{}{"classes": []interface{}{map[string]interface{}{"id": "c", "type": "replay", "replay": map[string]interface{}{"pcap_asset_id": "x", "direction": nil}}}}},

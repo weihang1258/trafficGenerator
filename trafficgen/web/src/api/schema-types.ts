@@ -29,7 +29,7 @@ export interface CreateStrategyRequest {
 }
 
 // Task (task.json).
-export type OutputType = 'port_group' | 'pcap'
+export type OutputType = 'port_group' | 'pcap' | 'both'
 export interface Task {
   id: string
   user_id: string
@@ -81,4 +81,4 @@ export interface BatchSpec {
   global?: { total_flows?: number; duration_seconds?: number }
 }
 
-// Layers: 117 registered (Layer chain).
+// Layers: 127 registered (Layer chain).

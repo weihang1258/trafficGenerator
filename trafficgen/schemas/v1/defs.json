@@ -34,19 +34,19 @@
     },
     "output_config": {
       "title": "Output configuration",
-      "description": "Where generated packets go: a port group for wire replay, or a pcap file. interface2 enables dual-port replay.",
+      "description": "Where generated packets go: a port group for wire output, or a pcap file. output_type=both requires port_group_id; pcap_path is optional there (a task-id-derived shadow path is generated at start when omitted). interface2 enables dual-port replay (port_group/pcap only — not valid with both).",
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "port_group_id": {
           "title": "Port group id",
-          "description": "Port group for wire output (output_type=port_group).",
+          "description": "Port group for wire output (output_type=port_group or both).",
           "type": "string",
           "minLength": 1
         },
         "pcap_path": {
           "title": "Pcap path",
-          "description": "Pcap file path (output_type=pcap).",
+          "description": "Pcap file path (required for output_type=pcap; optional for output_type=both, where a shadow path is generated when omitted).",
           "type": "string",
           "minLength": 1
         },

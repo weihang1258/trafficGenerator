@@ -259,6 +259,8 @@ export default {
     outputType: '输出类型',
     portGroup: '端口组输出',
     pcap: 'PCAP 文件输出',
+    both: '端口组 + PCAP 影子',
+    shadowPcapHint: '留空则自动生成影子路径',
     portGroupID: '端口组 ID',
     selectPortGroup: '选择端口组',
     pcapPath: 'PCAP 文件路径',

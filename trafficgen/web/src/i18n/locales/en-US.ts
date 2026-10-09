@@ -259,6 +259,8 @@ export default {
     outputType: 'Output Type',
     portGroup: 'Port Group Output',
     pcap: 'PCAP File Output',
+    both: 'Port Group + PCAP Shadow',
+    shadowPcapHint: 'Leave empty to auto-generate a shadow path',
     portGroupID: 'Port Group ID',
     selectPortGroup: 'Select Port Group',
     pcapPath: 'PCAP File Path',

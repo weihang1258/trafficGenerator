@@ -27,13 +27,13 @@
     },
     "output_type": {
       "title": "Output type",
-      "description": "port_group sends to wire interfaces; pcap writes a file.",
+      "description": "port_group sends to wire interfaces; pcap writes a file; both sends to the port group AND mirrors the stream to a pcap file (shadow capture, flow-table analysis applies).",
       "type": "string",
-      "enum": ["port_group", "pcap"]
+      "enum": ["port_group", "pcap", "both"]
     },
     "output_config": {
       "title": "Output configuration",
-      "description": "Port group or pcap path matching output_type.",
+      "description": "Output routing fields matching output_type: port_group_id for port_group/both (pcap_path optional for both, shadow path auto-generated), pcap_path for pcap.",
       "$ref": "defs.json#/$defs/output_config"
     },
     "flow_control": {
@@ -51,6 +51,10 @@
     {
       "if": {"properties": {"output_type": {"const": "pcap"}}},
       "then": {"properties": {"output_config": {"required": ["pcap_path"]}}}
+    },
+    {
+      "if": {"properties": {"output_type": {"const": "both"}}},
+      "then": {"properties": {"output_config": {"required": ["port_group_id"]}}}
     }
   ]
 }

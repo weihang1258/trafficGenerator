@@ -114,7 +114,7 @@
           />
         </template>
         <template #output_type="{ row }">
-          {{ row.output_type === 'port_group' ? t('taskCreate.portGroup') : t('taskCreate.pcap') }}
+          {{ { port_group: t('taskCreate.portGroup'), pcap: t('taskCreate.pcap'), both: t('taskCreate.both') }[row.output_type] || row.output_type }}
         </template>
         <template #stats.packets_sent="{ row }">
           {{ formatNumber(row.stats?.packets_sent || 0) }}

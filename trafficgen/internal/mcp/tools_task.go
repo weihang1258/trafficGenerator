@@ -12,9 +12,9 @@ import (
 
 // outputConfigInput mirrors rest.OutputConfigRequest for tool input.
 type outputConfigInput struct {
-	PortGroupID string `json:"port_group_id,omitempty" jsonschema:"port group id (for output_type=port_group)"`
-	PcapPath    string `json:"pcap_path,omitempty" jsonschema:"pcap file path (for output_type=pcap)"`
-	Interface2  string `json:"interface2,omitempty" jsonschema:"second interface for dual-port replay"`
+	PortGroupID string `json:"port_group_id,omitempty" jsonschema:"port group id (for output_type=port_group or both)"`
+	PcapPath    string `json:"pcap_path,omitempty" jsonschema:"pcap file path (required for output_type=pcap; optional for output_type=both — a shadow path is generated when omitted)"`
+	Interface2  string `json:"interface2,omitempty" jsonschema:"second interface for dual-port replay (port_group/pcap only — not valid with both)"`
 }
 
 type manageTasksInput struct {
@@ -23,7 +23,7 @@ type manageTasksInput struct {
 	Name         string                 `json:"name,omitempty" jsonschema:"task name (for create/create_batch)"`
 	StrategyIDs  []string               `json:"strategy_ids,omitempty" jsonschema:"strategy ids (for create)"`
 	Batch        map[string]interface{} `json:"batch,omitempty" jsonschema:"batch spec (for create_batch). Each class accepts an optional group_id strategy field. Classes with the same group_id strategy (same pattern + range) bind to one PacketWorker for cross-flow ordering. See manage_strategies tool's Config.group_id for strategy syntax."`
-	OutputType   string                 `json:"output_type,omitempty" jsonschema:"output type: port_group or pcap (for create/create_batch)"`
+	OutputType   string                 `json:"output_type,omitempty" jsonschema:"output type: port_group, pcap, or both (both sends to the port group AND mirrors to a shadow pcap — requires port_group_id, pcap_path optional and auto-generated when omitted; not valid with interface2) (for create/create_batch)"`
 	OutputConfig *outputConfigInput     `json:"output_config,omitempty" jsonschema:"output configuration (for create/create_batch)"`
 	FlowControl  *flowControlInput      `json:"flow_control,omitempty" jsonschema:"optional task-level flow control (for create)"`
 	Page         int                    `json:"page,omitempty" jsonschema:"page number for list/history; pagination is optional — omit page/size for the FULL result"`

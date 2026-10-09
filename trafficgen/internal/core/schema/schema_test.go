@@ -80,6 +80,43 @@ func TestValidDynamicAndReplay(t *testing.T) {
 	}
 }
 
+// TestTaskShapeBoth pins the task.json allOf arms for output_type=both:
+// port_group_id is required (shadow pcap_path stays optional — a task-id
+// derived path is generated at Start), pcap-only configs must keep failing,
+// and the existing port_group/pcap arms stay intact (regression guard).
+func TestTaskShapeBoth(t *testing.T) {
+	base := func(outputType, outputConfig string) string {
+		return `{"name":"t","strategy_ids":["s1"],"output_type":"` + outputType + `","output_config":` + outputConfig + `}`
+	}
+	valid := []struct{ name, doc string }{
+		{"both_group_only", base("both", `{"port_group_id":"pg1"}`)},
+		{"both_group_and_path", base("both", `{"port_group_id":"pg1","pcap_path":"pcap/shadow.pcap"}`)},
+		{"port_group_regression", base("port_group", `{"port_group_id":"pg1"}`)},
+		{"pcap_regression", base("pcap", `{"pcap_path":"pcap/a.pcap"}`)},
+	}
+	for _, tc := range valid {
+		t.Run(tc.name, func(t *testing.T) {
+			if errs := ValidateTaskShape(mustDoc(t, tc.doc)); len(errs) != 0 {
+				t.Fatalf("want clean, got %v", errs)
+			}
+		})
+	}
+	invalid := []struct{ name, doc string }{
+		{"both_no_group", base("both", `{}`)},
+		{"both_path_only", base("both", `{"pcap_path":"pcap/shadow.pcap"}`)},
+		{"port_group_no_group_regression", base("port_group", `{"pcap_path":"pcap/a.pcap"}`)},
+		{"pcap_no_path_regression", base("pcap", `{"port_group_id":"pg1"}`)},
+		{"bad_enum_regression", base("triple", `{"port_group_id":"pg1"}`)},
+	}
+	for _, tc := range invalid {
+		t.Run(tc.name, func(t *testing.T) {
+			if errs := ValidateTaskShape(mustDoc(t, tc.doc)); len(errs) == 0 {
+				t.Fatalf("want errors, got clean")
+			}
+		})
+	}
+}
+
 func TestDescriptionsCoverMCPFields(t *testing.T) {
 	m, err := DescriptionMap("v1/strategy.json")
 	if err != nil {

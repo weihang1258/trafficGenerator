@@ -97,10 +97,11 @@
             <el-radio-group v-model="form.output_type">
               <el-radio value="port_group">{{ t('taskCreate.portGroup') }}</el-radio>
               <el-radio value="pcap">{{ t('taskCreate.pcap') }}</el-radio>
+              <el-radio value="both">{{ t('taskCreate.both') }}</el-radio>
             </el-radio-group>
           </el-form-item>
 
-          <el-form-item v-if="form.output_type === 'port_group'" :label="t('taskCreate.portGroupID')" prop="output_config.port_group_id">
+          <el-form-item v-if="form.output_type === 'port_group' || form.output_type === 'both'" :label="t('taskCreate.portGroupID')" prop="output_config.port_group_id">
             <el-select v-model="form.output_config.port_group_id" :placeholder="t('taskCreate.selectPortGroup')" v-loading="portGroupLoading" style="width: 100%;">
               <el-option v-for="pg in portGroups" :key="pg.id" :label="`${pg.name} (${pg.ports_config.length} ports)`" :value="pg.id" />
             </el-select>
@@ -108,6 +109,12 @@
 
           <el-form-item v-if="form.output_type === 'pcap'" :label="t('taskCreate.pcapPath')" prop="output_config.pcap_path">
             <el-input v-model="form.output_config.pcap_path" :placeholder="t('taskCreate.pcapPathPlaceholder')" >
+              <template #prepend>pcap/</template>
+            </el-input>
+          </el-form-item>
+
+          <el-form-item v-if="form.output_type === 'both'" :label="t('taskCreate.pcapPath')" prop="output_config.pcap_path">
+            <el-input v-model="form.output_config.pcap_path" :placeholder="t('taskCreate.shadowPcapHint')" >
               <template #prepend>pcap/</template>
             </el-input>
           </el-form-item>
@@ -135,7 +142,9 @@
           <el-divider content-position="left">{{ t('task.step.basic') }}</el-divider>
           <el-descriptions :column="2" border>
             <el-descriptions-item :label="t('taskCreate.taskName')">{{ form.name }}</el-descriptions-item>
-            <el-descriptions-item :label="t('taskCreate.outputType')">{{ form.output_type === 'port_group' ? t('taskCreate.portGroup') : t('taskCreate.pcap') }}</el-descriptions-item>
+            <el-descriptions-item :label="t('taskCreate.outputType')">
+              {{ { port_group: t('taskCreate.portGroup'), pcap: t('taskCreate.pcap'), both: t('taskCreate.both') }[form.output_type] || form.output_type }}
+            </el-descriptions-item>
           </el-descriptions>
 
           <el-divider content-position="left">{{ t('task.step.strategy') }}</el-divider>
@@ -147,11 +156,11 @@
 
           <el-divider content-position="left">{{ t('task.step.output') }}</el-divider>
           <el-descriptions :column="2" border>
-            <el-descriptions-item v-if="form.output_type === 'port_group'" :label="t('taskCreate.portGroupID')">
+            <el-descriptions-item v-if="form.output_type === 'port_group' || form.output_type === 'both'" :label="t('taskCreate.portGroupID')">
               {{ selectedPortGroupName }}
             </el-descriptions-item>
-            <el-descriptions-item v-if="form.output_type === 'pcap'" :label="t('taskCreate.pcapPath')">
-              {{ form.output_config.pcap_path || '-' }}
+            <el-descriptions-item v-if="form.output_type === 'pcap' || form.output_type === 'both'" :label="t('taskCreate.pcapPath')">
+              {{ form.output_config.pcap_path || t('taskCreate.shadowPcapHint') }}
             </el-descriptions-item>
             <el-descriptions-item :label="t('taskCreate.flowControl')">
               <span v-if="form.flow_control.type">{{ t('strategy.' + form.flow_control.type) }}: {{ form.flow_control.value }} {{ flowControlUnit }}</span>
@@ -263,7 +272,7 @@ const selectedStrategyDetails = computed(() => {
 })
 
 const selectedPortGroupName = computed(() => {
-  if (form.output_type !== 'port_group' || !form.output_config.port_group_id) return '-'
+  if ((form.output_type !== 'port_group' && form.output_type !== 'both') || !form.output_config.port_group_id) return '-'
   const pg = portGroups.value.find(p => p.id === form.output_config.port_group_id)
   return pg ? `${pg.name} (${pg.ports_config.length} ports)` : form.output_config.port_group_id
 })
@@ -291,8 +300,25 @@ const flowControlUnit = computed(() => {
 const rules: FormRules = {
   name: [{ required: true, message: t('taskCreate.validation.taskNameRequired'), trigger: 'blur' }],
   strategy_ids: [{ required: true, type: 'array', min: 1, message: t('taskCreate.validation.strategyRequired'), trigger: 'change' }],
-  'output_config.port_group_id': [{ required: true, message: t('taskCreate.validation.portGroupRequired'), trigger: 'change' }],
-  'output_config.pcap_path': [{ required: true, message: t('taskCreate.validation.pcapPathRequired'), trigger: 'blur' }]
+  'output_config.port_group_id': [{
+    required: true,
+    validator: (_r, _v, cb) => {
+      // port_group always needs a group; both needs it too (schema arm).
+      if ((form.output_type === 'port_group' || form.output_type === 'both') && !form.output_config.port_group_id) {
+        cb(new Error(t('taskCreate.validation.portGroupRequired')))
+      } else cb()
+    },
+    trigger: 'change'
+  }],
+  'output_config.pcap_path': [{
+    validator: (_r, _v, cb) => {
+      // Required for pcap only: both auto-generates a shadow path when empty.
+      if (form.output_type === 'pcap' && !form.output_config.pcap_path) {
+        cb(new Error(t('taskCreate.validation.pcapPathRequired')))
+      } else cb()
+    },
+    trigger: 'blur'
+  }]
 }
 
 function handleTemplateSelect(templateId: string) {
@@ -356,9 +382,10 @@ async function nextStep() {
   } else if (currentStep.value === 2) {
     // Validate output config
     const fieldsToValidate = ['output_type']
-    if (form.output_type === 'port_group') {
+    if (form.output_type === 'port_group' || form.output_type === 'both') {
       fieldsToValidate.push('output_config.port_group_id')
-    } else {
+    }
+    if (form.output_type === 'pcap' || form.output_type === 'both') {
       fieldsToValidate.push('output_config.pcap_path')
     }
     try {

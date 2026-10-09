@@ -111,12 +111,12 @@
       </template>
       <el-descriptions :column="2" border>
         <el-descriptions-item :label="t('task.outputType')">
-          {{ task.output_type === 'port_group' ? t('taskCreate.portGroup') : t('taskCreate.pcap') }}
+          {{ { port_group: t('taskCreate.portGroup'), pcap: t('taskCreate.pcap'), both: t('taskCreate.both') }[task.output_type] || task.output_type }}
         </el-descriptions-item>
-        <el-descriptions-item v-if="task.output_type === 'pcap'" :label="t('taskCreate.pcapPath')">
+        <el-descriptions-item v-if="task.output_type === 'pcap' || task.output_type === 'both'" :label="t('taskCreate.pcapPath')">
           {{ task.output_config?.pcap_path || '-' }}
         </el-descriptions-item>
-        <el-descriptions-item v-if="task.output_type === 'port_group'" :label="t('taskCreate.portGroupID')">
+        <el-descriptions-item v-if="task.output_type === 'port_group' || task.output_type === 'both'" :label="t('taskCreate.portGroupID')">
           {{ task.output_config?.port_group_id || '-' }}
         </el-descriptions-item>
         <el-descriptions-item :label="t('taskCreate.flowControl')">
