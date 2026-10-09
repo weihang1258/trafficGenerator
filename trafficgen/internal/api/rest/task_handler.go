@@ -1432,7 +1432,7 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		if s, ok := sharedPCAPs[path]; ok {
 			return s, nil
 		}
-		s, err := output.NewSharedPCAPWriter(path, maxBytes)
+		s, err := newSharedPCAPWriterFn(path, maxBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -1513,6 +1513,14 @@ func (h *TaskHandler) Start(c *gin.Context) {
 			if err != nil {
 				if writer != nil {
 					writer.Close()
+					// R1 (rev-d1): if this Close was the final Release, the
+					// registry now holds a closed writer under the main path —
+					// a later ct with the same path would cache-hit it and
+					// fail every write ("pcap writer closed"). Evict on
+					// final, symmetric with the shadow branch above.
+					if a, ok := writer.(*sharedPcapAdapter); ok && a.final && ct.PcapFile != "" {
+						delete(sharedPCAPs, ct.PcapFile)
+					}
 				}
 				log.Printf("failed to create second output writer for task %s: %v", ct.ID, err)
 				writerErrors = append(writerErrors, fmt.Sprintf("%s: %v", ct.ID, err))
@@ -2138,11 +2146,20 @@ func newInterfacePacketWriter(iface string) (core.PacketWriter, error) {
 	return newInterfaceWriterFn(iface)
 }
 
+// newSharedPCAPWriterFn is a test seam, same idiom as newInterfaceWriterFn:
+// the D-ENG-1 R1 regression test needs to fail exactly one ct's .s2c open
+// deterministically (a real-filesystem failure can't hit ct1's .s2c without
+// also hitting ct2's, since the path is shared). Always the real constructor
+// in production.
+var newSharedPCAPWriterFn = output.NewSharedPCAPWriter
+
 // defaultShadowPcapMaxBytes caps the both-mode shadow pcap on disk (global
 // header included). Hitting it truncates the shadow (valid pcap, complete
 // records) and surfaces a note; the wire run is never affected.
+// Var so the D-ENG-3 bench can shrink it to exercise the cap-trigger phase
+// (production default unchanged).
 // ponytail: fixed 1GB, no knob — make it a setting when someone hits it.
-const defaultShadowPcapMaxBytes int64 = 1 << 30
+var defaultShadowPcapMaxBytes int64 = 1 << 30
 
 // shadowSink is the shadow-side contract: the pcap writer plus its timed
 // variant and the truncation probe (interface extracted so tests can stub
