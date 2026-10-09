@@ -831,3 +831,27 @@ func TestShadowWriter_CapTruncationSurfacesNote(t *testing.T) {
 		t.Errorf("note %q missing truncation + cap size", notes[0])
 	}
 }
+
+// broken(Close 错误触发)+ Truncated 并存:抑制 truncation note——flush 已
+// 失败,断言 "still a valid pcap" 反而是假话;降级 headline 归 Close 错误。
+func TestShadowWriter_CapTruncationSuppressedWhenBroken(t *testing.T) {
+	primary := &stubWriter{}
+	shadow := &stubWriter{closeErr: fmt.Errorf("fsync fail")}
+	shadow.onWrite = func([][]byte) error { return fmt.Errorf("disk full") }
+	notes := []string{}
+	sw := &shadowWriter{primary: primary, shadow: shadow,
+		onShadowNote: func(msg string) { notes = append(notes, msg) }}
+	_ = sw.WriteTimedPackets(testOuts(1, true)) // breaks shadow (write error)
+	shadow.truncated = true
+	if err := sw.Close(); err != nil {
+		t.Fatalf("close: %v (shadow side must not fail the task)", err)
+	}
+	for _, n := range notes {
+		if strings.Contains(n, "truncated") {
+			t.Errorf("truncation note must be suppressed when broken, got %q", n)
+		}
+	}
+	if len(notes) != 1 || !strings.Contains(notes[0], "disk full") {
+		t.Fatalf("notes = %v, want exactly the write-error note", notes)
+	}
+}
