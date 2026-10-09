@@ -197,6 +197,16 @@ func runBenchOne(t *testing.T, e *core.Engine, db *storage.DB, mode string, shad
 
 		n, torn := countPCAPRecords(t, shadowPath)
 		res.shadowRecs, res.torn = n, torn
+		// rev-bench LOW:note 在 Close(状态翻转后)才落库,fsync 拖尾可让
+		// 单发重读错过。记录数缺账 ⟹ 必然帽截断 ⟹ note 必落——等到再报,
+		// 绝不带病写 truncated=false;等不到 = harness/产品 bug,响红。
+		if res.shadowRecs >= 0 && int64(res.shadowRecs) < res.sent {
+			ndeadline := time.Now().Add(2 * time.Second)
+			for time.Now().Before(ndeadline) && !strings.Contains(tm.ShadowNote, "was truncated") {
+				time.Sleep(100 * time.Millisecond)
+				db.Where("id = ?", resp.Data.ID).First(&tm)
+			}
+		}
 		res.truncated = strings.Contains(tm.ShadowNote, "was truncated")
 	}
 	if capPath != "" {
