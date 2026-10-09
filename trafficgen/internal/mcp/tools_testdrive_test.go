@@ -266,6 +266,63 @@ func TestRunProtocolCase_PortGroupMissingID(t *testing.T) {
 	}
 }
 
+// TestRunProtocolCase_PortsAutoCreate 验证 port_group + output_config.ports
+// 代建：虚构网卡 Start 必败 → 用例 error，但组必须已建成且输入已被消化
+// （port_group_id 落定、无 ports 键）。
+func TestRunProtocolCase_PortsAutoCreate(t *testing.T) {
+	env := setupTestDriveEnv(t)
+	defer env.cleanup()
+
+	_, out, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
+		Proto:      "arp",
+		CaseID:     "arp_ports_auto",
+		SpecJSON:   json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
+		OutputType: "port_group",
+		OutputConfig: &outputConfigInput{
+			Ports: []portGroupPort{{Interface: "definitely-not-an-iface-7", Weight: 1}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Status != "error" {
+		t.Fatalf("status = %q, want error (fake iface writer must fail); reason=%q", out.Status, out.Reason)
+	}
+	var pgs []storage.PortGroupModel
+	if err := env.db.Find(&pgs).Error; err != nil {
+		t.Fatalf("list groups: %v", err)
+	}
+	if len(pgs) != 1 {
+		t.Fatalf("port groups = %d, want 1 (auto-created before writer failure)", len(pgs))
+	}
+	if !strings.Contains(pgs[0].PortsConfig, "definitely-not-an-iface-7") {
+		t.Errorf("ports_config = %s, want the fake iface", pgs[0].PortsConfig)
+	}
+}
+
+// TestRunProtocolCase_PortsMutualExclusion 验证 case 入口同样互斥拒绝。
+func TestRunProtocolCase_PortsMutualExclusion(t *testing.T) {
+	env := setupTestDriveEnv(t)
+	defer env.cleanup()
+
+	_, _, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
+		Proto:      "arp",
+		CaseID:     "arp_ports_mutex",
+		SpecJSON:   json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
+		OutputType: "port_group",
+		OutputConfig: &outputConfigInput{
+			PortGroupID: "pg-x",
+			Ports:       []portGroupPort{{Interface: "ethX", Weight: 1}},
+		},
+	})
+	if err == nil {
+		t.Fatal("want InvalidParams for ports+port_group_id, got nil")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("error %q should mention mutual exclusion", err.Error())
+	}
+}
+
 // TestRunProtocolSuite_RequiresOutputType 验证 suite 入参校验：缺 output_type
 // 直接返回 InvalidParams error（区别于单个用例 fail）。
 func TestRunProtocolSuite_RequiresOutputType(t *testing.T) {

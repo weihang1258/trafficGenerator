@@ -36,7 +36,7 @@ type runCaseInput struct {
 	SpecJSON       json.RawMessage    `json:"spec_json,omitempty" jsonschema:"generate_traffic config (strategy config, protocol-specific layers/spec); OPTIONAL — omit to load the named case from the corpus"`
 	CaseDir        string             `json:"case_dir,omitempty" jsonschema:"override the corpus directory for this lookup (default: mcp.protocol_cases_dir config, then ./cases)"`
 	OutputType     string             `json:"output_type,omitempty" jsonschema:"output type: pcap or port_group (default pcap)"`
-	OutputConfig   *outputConfigInput `json:"output_config,omitempty" jsonschema:"output configuration (pcap_path for pcap; port_group_id for port_group)"`
+	OutputConfig   *outputConfigInput `json:"output_config,omitempty" jsonschema:"output configuration (pcap_path for pcap; port_group_id for port_group, or ports:[...] to auto-create the group — same rule as flowb_generate_traffic)"`
 	StrategyFC     *flowControlInput  `json:"strategy_flow_control,omitempty" jsonschema:"optional strategy-level flow control (multi-flow cases)"`
 	TaskFC         *flowControlInput  `json:"task_flow_control,omitempty" jsonschema:"optional task-level flow control"`
 	DecodeAs       []string           `json:"decode_as,omitempty" jsonschema:"extra tshark -d decode directives"`
@@ -571,6 +571,17 @@ func (s *Server) handleRunProtocolCase(ctx context.Context, req *mcp.CallToolReq
 	}
 	timeout := defaultCaseTimeout(in.TimeoutSeconds)
 
+	// output_config.ports auto-create (same rule as flowb_generate_traffic):
+	// resolve BEFORE extracting pgid so a case/suite caller can pass full
+	// group params instead of a pre-created group id. Slots into the
+	// existing validation below: resolve digests in.OutputConfig to
+	// {port_group_id} (or returns InvalidParams), so the port_group_id
+	// extraction and "requires port_group_id" error keep working unchanged.
+	if _, _, rerr := s.resolveOutputConfigPorts(ctx, outType, in.OutputConfig); rerr != nil {
+		s.auditLog(req, "flowb_run_protocol_case", time.Since(start), "error", "resolve ports: "+rerr.Error())
+		return nil, runCaseOutput{}, rerr
+	}
+
 	c := in.toPcaptestCase()
 	var path string
 	var pgid string
@@ -680,7 +691,7 @@ type suiteInput struct {
 	OutputType string `json:"output_type" jsonschema:"pcap or port_group"`
 	// OutputConfig 应用于无 per-case 覆盖的用例（port_group 需要
 	// port_group_id；pcap 时 path 默认派生）。
-	OutputConfig   *outputConfigInput `json:"output_config,omitempty" jsonschema:"output configuration (port_group_id for port_group)"`
+	OutputConfig   *outputConfigInput `json:"output_config,omitempty" jsonschema:"output configuration (port_group_id for port_group, or ports:[...] to auto-create the group — same rule as flowb_generate_traffic)"`
 	Parallel       int                `json:"parallel,omitempty" jsonschema:"max concurrent cases (default 4, max 16)"`
 	MaxCases       int                `json:"max_cases,omitempty" jsonschema:"cap on cases run (0 = no cap)"`
 	TimeoutSeconds int                `json:"timeout_s,omitempty" jsonschema:"per-case timeout (default 60, max 300)"`
@@ -736,6 +747,13 @@ func (s *Server) handleRunProtocolSuite(ctx context.Context, req *mcp.CallToolRe
 		return nil, suiteResult{}, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: "output_type must be pcap or port_group"}
 	}
 	if in.OutputType == "port_group" {
+		// output_config.ports auto-create (same rule as
+		// flowb_generate_traffic): resolve once up front; per-case fan-out
+		// below reuses the digested port_group_id for every case.
+		if _, _, rerr := s.resolveOutputConfigPorts(ctx, in.OutputType, in.OutputConfig); rerr != nil {
+			s.auditLog(req, "flowb_run_protocol_suite", time.Since(start), "error", "resolve ports: "+rerr.Error())
+			return nil, suiteResult{}, rerr
+		}
 		pgid := ""
 		if in.OutputConfig != nil {
 			pgid = in.OutputConfig.PortGroupID

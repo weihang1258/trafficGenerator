@@ -273,6 +273,77 @@ func TestMCP_PortsAutoCreate_EmptyInterface(t *testing.T) {
 	}
 }
 
+func TestMCP_PortsAutoCreate_WeightZeroSameHash(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	// omitempty 分叉钉：weight:0 省略与显式 0 必须同组（toRestPorts 经
+	// rest.PortConfig 转发，两条路径同一哈希空间；回归即红）。
+	idOmit, _, err := env.srv.resolveOutputConfigPorts(context.Background(), "port_group",
+		&outputConfigInput{Ports: []portGroupPort{{Interface: "ethZ" /* weight omitted */}}})
+	if err != nil {
+		t.Fatalf("resolve omitted: %v", err)
+	}
+	idZero, reusedZero, err := env.srv.resolveOutputConfigPorts(context.Background(), "port_group",
+		&outputConfigInput{Ports: []portGroupPort{{Interface: "ethZ", Weight: 0}}})
+	if err != nil {
+		t.Fatalf("resolve zero: %v", err)
+	}
+	if idZero != idOmit {
+		t.Errorf("weight-0 vs omitted: got %s vs %s, want same group", idZero, idOmit)
+	}
+	if !reusedZero {
+		t.Error("weight-0 second resolve reported reused=false")
+	}
+	if n := countPortGroups(t, env); n != 1 {
+		t.Errorf("group rows = %d, want 1", n)
+	}
+}
+
+func TestMCP_GenerateTraffic_Both_WithPorts(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	// both + ports：resolve 消化必须同样生效。Start 走到 writer 步之前
+	// 先把"port_group_id + 影子 pcap_path"回填进任务行（UPDATE 日志实证
+	// output_config="{\"port_group_id\":\"...\",\"pcap_path\":\"pcap/<id>_shadow.pcap\"}"，
+	// 无 ports 键）——这就是本例要钉的落库形状。writer 失败后任务标
+	// error，handleGenerateTraffic 的 cleanup 又删行（Delete 拦 running
+	// 不拦 error），故任务行事后查不到；断言收敛到错误文本 + 组建成。
+	_, out, err := env.srv.handleGenerateTraffic(context.Background(), nil, generateTrafficInput{
+		TaskName:   "both-ports",
+		Protocol:   "tcp",
+		Config:     portsTestConfig(),
+		OutputType: "both",
+		OutputConfig: &outputConfigInput{
+			Ports: []portGroupPort{{Interface: "definitely-not-an-iface-8", Weight: 1}},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected Start writer failure on fake iface, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to create output writers") {
+		t.Errorf("error = %q, want writer failure", err.Error())
+	}
+	// 落库形状在 Start 的 UPDATE 日志中已实证；此处只能验终态残留：
+	// 任务+策略被 cleanup 删除，组保留（1 行，内容正确）。
+	if n := countPortGroups(t, env); n != 1 {
+		t.Fatalf("port groups = %d, want 1 (auto-created before Start failure)", n)
+	}
+	var pg storage.PortGroupModel
+	if err := env.db.First(&pg).Error; err != nil {
+		t.Fatalf("load group: %v", err)
+	}
+	var cfgs []map[string]interface{}
+	if err := json.Unmarshal([]byte(pg.PortsConfig), &cfgs); err != nil {
+		t.Fatalf("decode ports_config: %v", err)
+	}
+	if len(cfgs) != 1 || cfgs[0]["interface"] != "definitely-not-an-iface-8" {
+		t.Errorf("ports_config = %s, want the fake iface", pg.PortsConfig)
+	}
+	_ = out
+}
+
 func TestMCP_ManageTasks_Create_WithPorts(t *testing.T) {
 	env := setupMCPTest(t)
 	defer env.cleanup()
