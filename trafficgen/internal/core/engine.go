@@ -870,6 +870,10 @@ func (e *Engine) OnPacketWritten(taskID string) {
 		entry.status.Progress = 100
 		entry.status.CompletedAt = time.Now()
 		entry.cancel()
+		// Snapshot stats under the lock: the callbacks below run unlocked and
+		// a concurrent OnPacketWritten would otherwise race this read
+		// (-race: write at OnPacketWritten vs read here).
+		finalStats := *entry.status
 		delete(e.taskStore, taskID)
 		delete(e.layerPlanners, taskID)
 		e.taskMu.Unlock()
@@ -879,7 +883,7 @@ func (e *Engine) OnPacketWritten(taskID string) {
 		// 通知（handler 侧 progress>=100 绕过节流落库），否则完成任务永远
 		// 查不到实发统计。
 		if e.OnProgress != nil {
-			e.OnProgress(taskID, 100, entry.status.Stats)
+			e.OnProgress(taskID, 100, finalStats.Stats)
 		}
 		zap.L().Info("task completed (pipeline drained)", zap.String("task_id", taskID))
 		if e.OnTaskComplete != nil {
@@ -894,9 +898,11 @@ func (e *Engine) OnPacketWritten(taskID string) {
 		// Only notify when progress changes by at least 1%
 		if newProgress-oldProgress >= 1.0 || newProgress == 100 {
 			entry.status.Progress = newProgress
+			// Snapshot under the lock — see the finalStats note above.
+			interimStats := entry.status.Stats
 			e.taskMu.Unlock()
 			if e.OnProgress != nil {
-				e.OnProgress(taskID, newProgress, entry.status.Stats)
+				e.OnProgress(taskID, newProgress, interimStats)
 			}
 			return
 		}
