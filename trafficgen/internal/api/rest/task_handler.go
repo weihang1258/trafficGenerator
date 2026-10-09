@@ -921,9 +921,18 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 		if req.OutputType == "both" {
 			// both: NIC primary + best-effort shadow pcap. Shadow issues
 			// degrade to the task's shadow_note; NIC issues fail the task.
-			writer, err = newShadowPacketWriter(iface, shadowPcap, func(msg string) {
+			// batch 是单 engine task 单消费者——不经共享注册表,直接开。
+			sink, serr := output.NewPCAPWriterWithCap(shadowPcap, defaultShadowPcapMaxBytes)
+			if serr != nil {
+				InternalError(c, "failed to create shadow pcap writer: "+serr.Error())
+				return
+			}
+			writer, err = newShadowPacketWriterWithSink(iface, &pcapPacketWriter{w: sink}, func(msg string) {
 				h.noteShadowIssue(taskID, msg)
 			})
+			if err != nil {
+				sink.Close()
+			}
 		} else {
 			writer, err = newInterfacePacketWriter(iface)
 		}
@@ -1411,8 +1420,25 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		return
 	}
 
-	// Set up output writers BEFORE submitting engine tasks to avoid race
+	// Set up output writers BEFORE submitting engine tasks to avoid race.
+	// D-ENG-1: 多策略任务会为同一 resolved 路径建多个 writer——各自 os.Create
+	// 会截断前者并交错覆盖(产物损坏)。路径键控注册表让同路径只开一个
+	// SharedPCAPWriter,每 ct 持一个引用计数适配器,末次 Release 才真关。
+	// 覆盖全部 pcap 落盘点:主路径、dual 的 .s2c、both 的影子。NIC 侧不共享
+	// (每 fd 独立注入无损坏面)。
 	var writerErrors []string
+	sharedPCAPs := map[string]*output.SharedPCAPWriter{}
+	openShared := func(path string, maxBytes int64) (*output.SharedPCAPWriter, error) {
+		if s, ok := sharedPCAPs[path]; ok {
+			return s, nil
+		}
+		s, err := output.NewSharedPCAPWriter(path, maxBytes)
+		if err != nil {
+			return nil, err
+		}
+		sharedPCAPs[path] = s
+		return s, nil
+	}
 	for _, ct := range coreTasks {
 		var writer core.PacketWriter
 		var err error
@@ -1420,13 +1446,28 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		if ct.OutputMode == "interface" && ct.Interface != "" {
 			if task.OutputType == "both" && ct.PcapFile != "" {
 				// both: NIC primary + best-effort shadow pcap. Shadow path is
-				// the task-level resolved path — same sharing semantics as
-				// pcap mode (multi-strategy tasks share one file, an existing
-				// pcap-mode property, not new here).
-				parentID := task.ID
-				writer, err = newShadowPacketWriter(ct.Interface, ct.PcapFile, func(msg string) {
-					h.noteShadowIssue(parentID, msg)
-				})
+				// the task-level resolved path, shared across strategies via
+				// the registry (D-ENG-1). L1: sink 引用成功后才组装 adapter,
+				// 半失败 Release 抵消,不留注册表残项。
+				sink, serr := openShared(ct.PcapFile, defaultShadowPcapMaxBytes)
+				if serr != nil {
+					err = serr
+				} else {
+					sink.AddRef()
+					adapter := &sharedPcapAdapter{s: sink}
+					var w2 core.PacketWriter
+					w2, err = newShadowPacketWriterWithSink(ct.Interface, adapter, func(msg string) {
+						h.noteShadowIssue(task.ID, msg)
+					})
+					if err != nil {
+						adapter.Close() // 抵消 AddRef
+						if adapter.final {
+							delete(sharedPCAPs, ct.PcapFile) // 真关后的缓存句柄不得被后续 ct 复用
+						}
+					} else {
+						writer = w2
+					}
+				}
 			} else {
 				writer, err = newInterfacePacketWriter(ct.Interface)
 			}
@@ -1436,7 +1477,13 @@ func (h *TaskHandler) Start(c *gin.Context) {
 			// zero-output). Fail loudly instead.
 			err = fmt.Errorf("interface output but no interface resolved (port group missing?)")
 		} else if ct.PcapFile != "" {
-			writer, err = newPcapPacketWriter(ct.PcapFile)
+			sink, serr := openShared(ct.PcapFile, 0)
+			if serr != nil {
+				err = serr
+			} else {
+				sink.AddRef()
+				writer = &sharedPcapAdapter{s: sink}
+			}
 		}
 
 		if err != nil {
@@ -1449,12 +1496,19 @@ func (h *TaskHandler) Start(c *gin.Context) {
 			// Create the secondary writer for s2c traffic. Interface mode uses
 			// interface2; pcap mode appends ".s2c" to the path. On failure we
 			// close the primary writer and record the error so the task fails
-			// rather than silently degrading to single-port.
+			// rather than silently degrading to single-port. D-ENG-1: .s2c 同
+			// 样走共享注册表(多策略 dual 的同损坏面)。
 			var writer2 core.PacketWriter
 			if ct.OutputMode == "interface" {
 				writer2, err = newInterfacePacketWriter(outputConfigForDual.Interface2)
 			} else if ct.PcapFile != "" {
-				writer2, err = newPcapPacketWriter(ct.PcapFile + ".s2c")
+				sink2, serr := openShared(ct.PcapFile+".s2c", 0)
+				if serr != nil {
+					err = serr
+				} else {
+					sink2.AddRef()
+					writer2 = &sharedPcapAdapter{s: sink2}
+				}
 			}
 			if err != nil {
 				if writer != nil {
@@ -1969,9 +2023,23 @@ func resolvePcapPath(path string) (string, error) {
 	return path, nil
 }
 
-// pcapPacketWriter adapts output.PCAPWriter to core.PacketWriter.
+// pcapSink is the base a pcapPacketWriter delegates to: *output.PCAPWriter
+// directly (single-consumer paths) or a shared adapter (D-ENG-1 multi-
+// strategy paths). Method names match PCAPWriter so both are drop-in.
+// Final reports whether THIS consumer's Close actually finalized the file
+// (last Release) — the both-mode truncation note fires only then, so N
+// strategies sharing one shadow produce exactly one note (M2).
+type pcapSink interface {
+	Write([][]byte) error
+	WriteTimed([]output.TimedPacket) error
+	Truncated() bool
+	Close() error
+	Final() bool
+}
+
+// pcapPacketWriter adapts a pcapSink to core.PacketWriter/TimedWriter.
 type pcapPacketWriter struct {
-	w *output.PCAPWriter
+	w pcapSink
 }
 
 func (pw *pcapPacketWriter) WritePackets(packets [][]byte) error {
@@ -1998,6 +2066,9 @@ func (pw *pcapPacketWriter) Truncated() bool {
 	return pw.w.Truncated()
 }
 
+// Final: a direct pcapPacketWriter owns its file as the sole consumer.
+func (pw *pcapPacketWriter) Final() bool { return true }
+
 // interfacePacketWriter adapts output.InterfaceWriter to core.PacketWriter.
 type interfacePacketWriter struct {
 	w *output.InterfaceWriter
@@ -2017,6 +2088,39 @@ func newPcapPacketWriter(path string) (core.PacketWriter, error) {
 		return nil, err
 	}
 	return &pcapPacketWriter{w: w}, nil
+}
+
+// sharedPcapAdapter is one consumer's handle on a SharedPCAPWriter (D-ENG-1).
+// Each strategy of a multi-strategy task holds its own adapter (engine
+// unregisters close one adapter each); the underlying file closes when the
+// last adapter releases. sync.Once pins the "exactly one Release per
+// adapter" invariant.
+type sharedPcapAdapter struct {
+	s     *output.SharedPCAPWriter
+	once  sync.Once
+	err   error
+	final bool
+}
+
+func (a *sharedPcapAdapter) WritePackets(packets [][]byte) error { return a.s.Write(packets) }
+
+func (a *sharedPcapAdapter) WriteTimedPackets(packets []core.PacketOutput) error {
+	tp := make([]output.TimedPacket, len(packets))
+	for i, p := range packets {
+		tp[i] = output.TimedPacket{Data: p.Data, Timestamp: p.Timestamp}
+	}
+	return a.s.WriteTimed(tp)
+}
+
+func (a *sharedPcapAdapter) Truncated() bool { return a.s.Truncated() }
+
+// Final reports whether this adapter's Release was the last one (file
+// actually closed).
+func (a *sharedPcapAdapter) Final() bool { return a.final }
+
+func (a *sharedPcapAdapter) Close() error {
+	a.once.Do(func() { a.final, a.err = a.s.Release() })
+	return a.err
 }
 
 // newInterfaceWriterFn is a test seam: unit tests swap in a stub so
@@ -2046,10 +2150,13 @@ const defaultShadowPcapMaxBytes int64 = 1 << 30
 // PCAPWriter treats the cap as a planned ceiling (Write returns nil), so
 // without this probe a 1GB-truncated shadow would complete silently with no
 // shadow_note, undercutting the pcap-path acceptance evidence (§6.3).
+// Final gates the note to the LAST releasing consumer (M2: N strategies
+// sharing one shadow must produce exactly one truncation note).
 type shadowSink interface {
 	core.PacketWriter
 	core.TimedWriter
 	Truncated() bool
+	Final() bool
 }
 
 // shadowWriter fans each packet out to a primary sink (NIC) and a
@@ -2124,8 +2231,10 @@ func (s *shadowWriter) Close() error {
 	s.writeShadow(func() error { return s.shadow.Close() })
 	// A cap hit is a planned ceiling — Write/Close all return nil, so it
 	// would otherwise complete with NO shadow_note (F1). Surface it here,
-	// once, after the final flush made the truncation fact on disk.
-	if !s.broken.Load() && s.shadow.Truncated() && s.onShadowNote != nil {
+	// once, after the final flush made the truncation fact on disk — and
+	// only from the consumer whose Close finalized the file (M2: shared
+	// shadow, N strategies → one note, not N).
+	if !s.broken.Load() && s.shadow.Truncated() && s.shadow.Final() && s.onShadowNote != nil {
 		s.onShadowNote(fmt.Sprintf(
 			"shadow pcap hit the %dMB cap and was truncated (still a valid pcap, ends on a complete record)",
 			defaultShadowPcapMaxBytes/(1<<20)))
@@ -2133,17 +2242,16 @@ func (s *shadowWriter) Close() error {
 	return perr
 }
 
-func newShadowPacketWriter(iface, shadowPath string, onShadowNote func(msg string)) (core.PacketWriter, error) {
+// newShadowPacketWriterWithSink builds the both-mode composite around an
+// already-referenced shadow sink (D-ENG-1: the caller owns the AddRef and
+// releases on error). L1: primary 先开,失败时 sink 未入 writer,由调用方
+// Release 抵消。
+func newShadowPacketWriterWithSink(iface string, shadow shadowSink, onShadowNote func(msg string)) (core.PacketWriter, error) {
 	primary, err := newInterfacePacketWriter(iface)
 	if err != nil {
 		return nil, err
 	}
-	pw, err := output.NewPCAPWriterWithCap(shadowPath, defaultShadowPcapMaxBytes)
-	if err != nil {
-		primary.Close()
-		return nil, err
-	}
-	return &shadowWriter{primary: primary, shadow: &pcapPacketWriter{w: pw}, onShadowNote: onShadowNote}, nil
+	return &shadowWriter{primary: primary, shadow: shadow, onShadowNote: onShadowNote}, nil
 }
 
 // noteShadowIssue persists a shadow degradation into the task's shadow_note

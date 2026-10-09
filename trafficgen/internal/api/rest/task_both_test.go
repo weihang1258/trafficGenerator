@@ -84,6 +84,9 @@ func (s *stubWriter) Truncated() bool {
 	return s.truncated
 }
 
+// Final: the stub is always its own sole consumer.
+func (s *stubWriter) Final() bool { return true }
+
 // ---- shadowWriter unit tests (error tiering + §12 dispatch) ----
 
 func testOuts(n int, withTime bool) []core.PacketOutput {
@@ -853,5 +856,53 @@ func TestShadowWriter_CapTruncationSuppressedWhenBroken(t *testing.T) {
 	}
 	if len(notes) != 1 || !strings.Contains(notes[0], "disk full") {
 		t.Fatalf("notes = %v, want exactly the write-error note", notes)
+	}
+}
+
+// T-ENG-1e(M2 复审项):两个策略共享一个影子(真 SharedPCAPWriter+真帽),
+// 触顶后两个 shadowWriter 各自 Close——truncation note 必须恰一条(真关者发)。
+func TestENG1_SharedShadow_TruncationNoteOnce(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "shared-shadow.pcap")
+	s, err := output.NewSharedPCAPWriter(path, 24+2*24) // 帽=全局头+2 条 8B 记录
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	a1, a2 := &sharedPcapAdapter{s: s}, &sharedPcapAdapter{s: s}
+	s.AddRef()
+	a1.s = s
+	s.AddRef()
+	a2.s = s
+
+	notes := []string{}
+	mk := func(adapter *sharedPcapAdapter) *shadowWriter {
+		return &shadowWriter{primary: &stubWriter{}, shadow: adapter,
+			onShadowNote: func(msg string) { notes = append(notes, msg) }}
+	}
+	sw1, sw2 := mk(a1), mk(a2)
+
+	outs := make([]core.PacketOutput, 5)
+	for i := range outs {
+		outs[i] = core.PacketOutput{Data: make([]byte, 8), Timestamp: time.Unix(1700000000, 0)}
+	}
+	_ = sw1.WriteTimedPackets(outs) // 触顶(帽 2 条),静默
+	_ = sw2.WriteTimedPackets(outs) // 帽后静默
+	if len(notes) != 0 {
+		t.Fatalf("cap stop must be silent at write time, got %v", notes)
+	}
+	if err := sw1.Close(); err != nil {
+		t.Fatalf("close1: %v", err)
+	}
+	if err := sw2.Close(); err != nil {
+		t.Fatalf("close2: %v", err)
+	}
+	if len(notes) != 1 {
+		t.Fatalf("truncation notes = %d, want exactly 1 (M2: 最后释放者发)", len(notes))
+	}
+	if !strings.Contains(notes[0], "truncated") {
+		t.Errorf("note %q missing truncation wording", notes[0])
+	}
+	// 产物完好:恰好 2 条完整记录。
+	if n, torn := countPCAPRecords(t, path); n != 2 || torn {
+		t.Errorf("shadow records=%d torn=%v, want 2 complete", n, torn)
 	}
 }

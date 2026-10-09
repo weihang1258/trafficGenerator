@@ -237,6 +237,10 @@ func (w *PCAPWriter) Truncated() bool {
 	return w.truncated
 }
 
+// Final: a directly-owned PCAPWriter has exactly one consumer, so its Close
+// always finalizes the file (D-ENG-1 shared-writer probing contract).
+func (w *PCAPWriter) Final() bool { return true }
+
 // hitCap applies the size ceiling for one incoming record (16B record header
 // + body). written counts payload+16 only, so the real file size is
 // 24 (global header) + written. Must be called under w.mu (both Write paths
@@ -247,6 +251,60 @@ func (w *PCAPWriter) hitCap(bodyLen int64) bool {
 		return true
 	}
 	return false
+}
+
+// SharedPCAPWriter lets several writers (one per strategy of a multi-strategy
+// task) share ONE underlying PCAPWriter on the same file path. Without it each
+// strategy's os.Create truncates the previous product and the independent fds
+// interleave-write over each other (D-ENG-1). Writes delegate directly —
+// PCAPWriter's mu serializes them record-by-record, so interleaved records
+// stay complete. Release drops the refcount; the LAST release fsync-closes
+// the file.
+type SharedPCAPWriter struct {
+	pw   *PCAPWriter
+	mu   sync.Mutex
+	refs int
+}
+
+// NewSharedPCAPWriter opens (or truncates) the file once with the given size
+// cap (0 = unbounded). Every consumer must AddRef before use and Release via
+// Close when done; the file is final when the last reference releases.
+func NewSharedPCAPWriter(path string, maxBytes int64) (*SharedPCAPWriter, error) {
+	pw, err := NewPCAPWriterWithCap(path, maxBytes)
+	if err != nil {
+		return nil, err
+	}
+	return &SharedPCAPWriter{pw: pw}, nil
+}
+
+// AddRef registers one consumer. Call before handing the writer out; balance
+// every AddRef with exactly one Release (adapters guard with sync.Once).
+func (s *SharedPCAPWriter) AddRef() {
+	s.mu.Lock()
+	s.refs++
+	s.mu.Unlock()
+}
+
+// Write delegates to the underlying PCAPWriter.
+func (s *SharedPCAPWriter) Write(packets [][]byte) error { return s.pw.Write(packets) }
+
+// WriteTimed delegates to the underlying PCAPWriter.
+func (s *SharedPCAPWriter) WriteTimed(tp []TimedPacket) error { return s.pw.WriteTimed(tp) }
+
+// Truncated delegates the cap probe.
+func (s *SharedPCAPWriter) Truncated() bool { return s.pw.Truncated() }
+
+// Release drops one reference and reports whether THIS release was the last
+// (file actually closed/final); the last release returns the Close error.
+func (s *SharedPCAPWriter) Release() (final bool, err error) {
+	s.mu.Lock()
+	s.refs--
+	if s.refs > 0 {
+		s.mu.Unlock()
+		return false, nil
+	}
+	s.mu.Unlock()
+	return true, s.pw.Close()
 }
 
 // RotatingPCAPWriter writes to rotating PCAP files.
