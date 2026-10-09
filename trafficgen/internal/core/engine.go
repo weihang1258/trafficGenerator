@@ -979,7 +979,10 @@ func (e *Engine) OnPacketBuildError(taskID string, err error) {
 	e.taskMu.Unlock()
 }
 
-// GetTaskStatus returns the status of a task.
+// GetTaskStatus returns a snapshot of the task's status (D-ENG-2: value copy
+// under the lock — the returned pointer does NOT alias the live entry, so
+// callers may read it after unlocking without racing OnPacketWritten's
+// stat mutations; see eng2_hammer_test.go for the regression gate).
 func (e *Engine) GetTaskStatus(taskID string) (*TaskStatus, error) {
 	e.taskMu.RLock()
 	defer e.taskMu.RUnlock()
@@ -988,17 +991,21 @@ func (e *Engine) GetTaskStatus(taskID string) (*TaskStatus, error) {
 	if !ok {
 		return nil, fmt.Errorf("task not found: %s", taskID)
 	}
-	return entry.status, nil
+	snapshot := *entry.status
+	return &snapshot, nil
 }
 
-// RangeTaskStore iterates over all tasks in the store and calls fn for each.
-// If fn returns false, iteration stops.
+// RangeTaskStore iterates over all tasks in the store and calls fn for each
+// with a per-entry snapshot (D-ENG-2, same contract as GetTaskStatus — the
+// callback's pointer does not alias the live entry). If fn returns false,
+// iteration stops.
 func (e *Engine) RangeTaskStore(fn func(id string, status *TaskStatus) bool) {
 	e.taskMu.RLock()
 	defer e.taskMu.RUnlock()
 
 	for id, entry := range e.taskStore {
-		if !fn(id, entry.status) {
+		snapshot := *entry.status
+		if !fn(id, &snapshot) {
 			return
 		}
 	}

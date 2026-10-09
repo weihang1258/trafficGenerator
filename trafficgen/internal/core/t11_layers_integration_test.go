@@ -126,10 +126,11 @@ func (o *taskOutcome) failure(id string) (string, bool) {
 // fails. A failure is detected via the OnTaskFailed callback (taskOutcome) —
 // polling GetTaskStatus alone is unreliable because FailTask removes the task
 // from the store, making "failed" indistinguishable from "completed" once the
-// store entry is gone. Status reads go through RangeTaskStore (whose callback
-// runs under the store lock): GetTaskStatus returns a pointer to the shared
-// TaskStatus, so reading fields off it after the lock is released races with
-// the output workers that mutate status under the write lock.
+// store entry is gone. Status reads go through RangeTaskStore (D-ENG-2:
+// both RangeTaskStore and GetTaskStatus now hand out value-copy snapshots
+// taken under the store lock, so status fields are safe to read any time —
+// the historical workaround comment about shared live pointers no longer
+// applies, but this read path remains the convenient one).
 func waitTaskCompleted(t *testing.T, e *core.Engine, out *taskOutcome, id string, timeout time.Duration) {
 	t.Helper()
 	statusOf := func() string {
