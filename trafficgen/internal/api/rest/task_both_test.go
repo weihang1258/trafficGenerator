@@ -31,14 +31,15 @@ import (
 // ---- stubs ----
 
 type stubWriter struct {
-	mu       sync.Mutex
-	frames   int
-	writes   [][]byte
-	err      error // sticky write error
-	closeErr error // Close return value
-	closed   bool
-	timedN   int // >0 means the TimedWriter path was used
-	onWrite  func([][]byte) error
+	mu        sync.Mutex
+	frames    int
+	writes    [][]byte
+	err       error // sticky write error
+	closeErr  error // Close return value
+	closed    bool
+	truncated bool // Truncated() probe (shadowSink)
+	timedN    int  // >0 means the TimedWriter path was used
+	onWrite   func([][]byte) error
 }
 
 func (s *stubWriter) WritePackets(p [][]byte) error {
@@ -74,6 +75,13 @@ func (s *stubWriter) Close() error {
 	defer s.mu.Unlock()
 	s.closed = true
 	return s.closeErr
+}
+
+// Truncated implements the shadowSink probe.
+func (s *stubWriter) Truncated() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.truncated
 }
 
 // ---- shadowWriter unit tests (error tiering + §12 dispatch) ----
@@ -792,5 +800,34 @@ func TestServeTaskPcapPublic_Both(t *testing.T) {
 	}
 	if w.Body.Len() == 0 {
 		t.Errorf("empty body")
+	}
+}
+
+// F1 复审项:cap 触顶是计划性天花板(写路径全 nil),若 Close 不探测
+// Truncated,任务会 completed 且 shadow_note 全空——触顶无痕。钉死:
+// 触顶必须恰好留一条 note,且文案带 cap 数值。
+func TestShadowWriter_CapTruncationSurfacesNote(t *testing.T) {
+	primary := &stubWriter{}
+	shadow := &stubWriter{}
+	notes := []string{}
+	sw := &shadowWriter{primary: primary, shadow: shadow,
+		onShadowNote: func(msg string) { notes = append(notes, msg) }}
+
+	// Healthy writes (cap stop is not an error — no note at write time).
+	if err := sw.WriteTimedPackets(testOuts(3, true)); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if len(notes) != 0 {
+		t.Fatalf("cap stop must be silent at write time, got %v", notes)
+	}
+	shadow.truncated = true // probe flips when the cap stopped the writer
+	if err := sw.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if len(notes) != 1 {
+		t.Fatalf("notes = %d, want exactly 1 truncation note", len(notes))
+	}
+	if !strings.Contains(notes[0], "truncated") || !strings.Contains(notes[0], "1024") {
+		t.Errorf("note %q missing truncation + cap size", notes[0])
 	}
 }

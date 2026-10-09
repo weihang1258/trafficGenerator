@@ -1993,6 +1993,11 @@ func (pw *pcapPacketWriter) Close() error {
 	return pw.w.Close()
 }
 
+// Truncated exposes the shadow writer's cap probe (shadowSink).
+func (pw *pcapPacketWriter) Truncated() bool {
+	return pw.w.Truncated()
+}
+
 // interfacePacketWriter adapts output.InterfaceWriter to core.PacketWriter.
 type interfacePacketWriter struct {
 	w *output.InterfaceWriter
@@ -2036,10 +2041,15 @@ func newInterfacePacketWriter(iface string) (core.PacketWriter, error) {
 const defaultShadowPcapMaxBytes int64 = 1 << 30
 
 // shadowSink is the shadow-side contract: the pcap writer plus its timed
-// variant (interface extracted so tests can stub the sink).
+// variant and the truncation probe (interface extracted so tests can stub
+// the sink). Truncated lets shadowWriter surface a cap-hit note at Close —
+// PCAPWriter treats the cap as a planned ceiling (Write returns nil), so
+// without this probe a 1GB-truncated shadow would complete silently with no
+// shadow_note, undercutting the pcap-path acceptance evidence (§6.3).
 type shadowSink interface {
 	core.PacketWriter
 	core.TimedWriter
+	Truncated() bool
 }
 
 // shadowWriter fans each packet out to a primary sink (NIC) and a
@@ -2048,8 +2058,9 @@ type shadowSink interface {
 //     the task (wire problems must be loud);
 //   - shadow failure is downgraded: logged once, recorded via onShadowIssue
 //     (task shadow_note), and further shadow writes are skipped — a full
-//     disk must not kill a healthy wire run. The shadow stays a valid pcap
-//     (see PCAPWriter cap + Close flush semantics).
+//     disk must not kill a healthy wire run. A cap-hit truncation ends on a
+//     complete record (valid pcap); an ERROR-path tear may leave a torn
+//     final record (parsers tolerate a torn tail).
 //
 // shadowWriter implements core.TimedWriter and dispatches per side: the
 // shadow receives the scheduled §12 send timestamps; the NIC (no schedule)
@@ -2103,12 +2114,22 @@ func (s *shadowWriter) writeShadow(write func() error) {
 func (s *shadowWriter) Close() error {
 	perr := s.primary.Close()
 	if s.broken.Load() {
-		// Already degraded: still close/flush whatever reached the buffer,
-		// ignore the error — the note already carries the reason.
+		// Already degraded: still close/flush whatever reached the buffer.
+		// A close-time failure stays unrecorded (best-effort; the first
+		// write error in the note is the headline, a torn tail is tolerated
+		// by parsers).
 		_ = s.shadow.Close()
 		return perr
 	}
 	s.writeShadow(func() error { return s.shadow.Close() })
+	// A cap hit is a planned ceiling — Write/Close all return nil, so it
+	// would otherwise complete with NO shadow_note (F1). Surface it here,
+	// once, after the final flush made the truncation fact on disk.
+	if !s.broken.Load() && s.shadow.Truncated() && s.onShadowNote != nil {
+		s.onShadowNote(fmt.Sprintf(
+			"shadow pcap hit the %dMB cap and was truncated (still a valid pcap, ends on a complete record)",
+			defaultShadowPcapMaxBytes/(1<<20)))
+	}
 	return perr
 }
 
