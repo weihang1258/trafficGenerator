@@ -21,7 +21,7 @@ type generateTrafficInput struct {
 	StrategyFlowControl *flowControlInput      `json:"strategy_flow_control,omitempty" jsonschema:"optional strategy-level flow control — overrides any flow_control embedded in config; omit it to use the config's own (type: flows|bps|time, value > 0)"`
 	TaskFlowControl     *flowControlInput      `json:"task_flow_control,omitempty" jsonschema:"optional task-level flow control (aggregate ceiling)"`
 	OutputType          string                 `json:"output_type" jsonschema:"output type: port_group, pcap, or both (both = port group + shadow pcap mirror; requires port_group_id, pcap_path optional and auto-generated when omitted; not valid with interface2)"`
-	OutputConfig        *outputConfigInput     `json:"output_config" jsonschema:"REQUIRED — for output_type=pcap give {'pcap_path':'/abs/out.pcap'} (remote HTTP: any file name works, the server places it and returns the link); for output_type=port_group give {'port_group_id':'<uuid>'}. NIC output has NO direct interface option: traffic to a network interface must go through a port group — first create one with flowb_manage_port_groups (action=create, ports=[{interface:'<nic-name>', weight:1}]) or list existing groups (action=list), then pass its id here"`
+	OutputConfig        *outputConfigInput     `json:"output_config" jsonschema:"REQUIRED — for output_type=pcap give {'pcap_path':'/abs/out.pcap'} (remote HTTP: any file name works, the server places it and returns the link); for output_type=port_group give {'port_group_id':'<uuid>'} or {'ports':[{'interface':'<nic-name>','weight':1}]} to auto-create (full group params: multi-NIC with weights supported, idempotent — same ports+weights reuse the existing group; mutually exclusive with port_group_id). NIC output goes through a port group only — list existing groups with flowb_manage_port_groups (action=list)"`
 }
 
 // generateTrafficOutput is the workflow result returned to the LLM.
@@ -29,6 +29,11 @@ type generateTrafficOutput struct {
 	TaskID     string `json:"task_id"`
 	StrategyID string `json:"strategy_id"`
 	Status     string `json:"status"`
+	// PortGroupID/PortGroupReused: echo of the auto-created group when
+	// output_config.ports was given (empty otherwise); Reused reports the
+	// idempotent hit ("port group already exists") vs a fresh group.
+	PortGroupID     string `json:"port_group_id,omitempty"`
+	PortGroupReused bool   `json:"port_group_reused,omitempty"`
 }
 
 // idResponse is the shape returned by StrategyHandler.Create and
@@ -98,9 +103,11 @@ func (s *Server) handleGenerateTraffic(ctx context.Context, req *mcp.CallToolReq
 		}, run.Err
 	}
 	return nil, generateTrafficOutput{
-		StrategyID: run.StrategyID,
-		TaskID:     run.TaskID,
-		Status:     "running",
+		StrategyID:      run.StrategyID,
+		TaskID:          run.TaskID,
+		Status:          "running",
+		PortGroupID:     run.PortGroupID,
+		PortGroupReused: run.PortGroupReused,
 	}, nil
 }
 
@@ -290,7 +297,7 @@ type replayPcapInput struct {
 	StrategyFlowControl *flowControlInput        `json:"strategy_flow_control,omitempty" jsonschema:"optional strategy-level flow control (replay only supports type=time)"`
 	TaskFlowControl     *flowControlInput        `json:"task_flow_control,omitempty" jsonschema:"optional task-level flow control (aggregate ceiling)"`
 	OutputType          string                   `json:"output_type,omitempty" jsonschema:"output type: port_group, pcap, or both (default pcap; both = port group + shadow pcap mirror, requires port_group_id, not valid with interface2)"`
-	OutputConfig        *outputConfigInput       `json:"output_config" jsonschema:"REQUIRED — replay: {'pcap_path':'<asset-relative-or-abs>'} or as required by the replay output type; dual-port replay adds {'interface2':'<iface>'}"`
+	OutputConfig        *outputConfigInput       `json:"output_config" jsonschema:"REQUIRED — replay: {'pcap_path':'<asset-relative-or-abs>'} or as required by the replay output type; dual-port replay adds {'interface2':'<iface>'}; port_group output may give {'ports':[...]} to auto-create the group (same rule as flowb_generate_traffic)"`
 }
 
 func (s *Server) handleReplayPcap(ctx context.Context, req *mcp.CallToolRequest, in replayPcapInput) (*mcp.CallToolResult, generateTrafficOutput, error) {
@@ -358,7 +365,16 @@ func (s *Server) handleReplayPcap(ctx context.Context, req *mcp.CallToolRequest,
 		}
 	}
 
-	// Step 2: create task referencing the replay strategy.
+	// Step 2: create task referencing the replay strategy. Ports (if any)
+	// resolve first — same no-rollback rule as createStrategyAndTask.
+	var pgID string
+	var pgReused bool
+	if id, reused, rerr := s.resolveOutputConfigPorts(ctx, in.OutputType, in.OutputConfig); rerr != nil {
+		s.auditLog(req, "flowb_replay_pcap", time.Since(start), "error", "resolve ports: "+rerr.Error())
+		return nil, generateTrafficOutput{StrategyID: stratID.ID, Status: "strategy_created"}, rerr
+	} else {
+		pgID, pgReused = id, reused
+	}
 	taskBody := mustMarshal(map[string]interface{}{
 		"name":          in.TaskName,
 		"strategy_ids":  []string{stratID.ID},
@@ -402,8 +418,10 @@ func (s *Server) handleReplayPcap(ctx context.Context, req *mcp.CallToolRequest,
 
 	s.auditLog(req, "flowb_replay_pcap", time.Since(start), "success", "")
 	return nil, generateTrafficOutput{
-		TaskID:     taskID.ID,
-		StrategyID: stratID.ID,
-		Status:     "running",
+		TaskID:          taskID.ID,
+		StrategyID:      stratID.ID,
+		Status:          "running",
+		PortGroupID:     pgID,
+		PortGroupReused: pgReused,
 	}, nil
 }

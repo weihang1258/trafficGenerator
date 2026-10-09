@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -10,11 +11,62 @@ import (
 	"github.com/trafficgen/trafficgen/internal/api/rest"
 )
 
-// outputConfigInput mirrors rest.OutputConfigRequest for tool input.
+// outputConfigInput mirrors rest.OutputConfigRequest for tool input, plus
+// Ports for auto-creating the port group (MCP-layer only: resolved to a
+// port_group_id before forwarding, so REST/schema/engine never see it).
 type outputConfigInput struct {
-	PortGroupID string `json:"port_group_id,omitempty" jsonschema:"port group id (for output_type=port_group or both)"`
-	PcapPath    string `json:"pcap_path,omitempty" jsonschema:"pcap file path (required for output_type=pcap; optional for output_type=both — a shadow path is generated when omitted)"`
-	Interface2  string `json:"interface2,omitempty" jsonschema:"second interface for dual-port replay (port_group/pcap only — not valid with both)"`
+	PortGroupID string          `json:"port_group_id,omitempty" jsonschema:"port group id (for output_type=port_group or both)"`
+	PcapPath    string          `json:"pcap_path,omitempty" jsonschema:"pcap file path (required for output_type=pcap; optional for output_type=both — a shadow path is generated when omitted)"`
+	Interface2  string          `json:"interface2,omitempty" jsonschema:"second interface for dual-port replay (port_group/pcap only — not valid with both)"`
+	Ports       []portGroupPort `json:"ports,omitempty" jsonschema:"ports for auto-creating a port group: full group params [{interface, weight}], same shape as flowb_manage_port_groups create — multi-NIC with weights supported, idempotent (same ports+weights reuse the existing group); mutually exclusive with port_group_id; only for output_type=port_group or both"`
+}
+
+// resolveOutputConfigPorts implements output_config.ports auto-create: it
+// calls the same PortGroupHandler.Create path as flowb_manage_port_groups
+// (same sort+hash+lookup, so a manually created group with the same
+// ports+weights is reused — there is no separate auto-created kind), then
+// digests the input in place (PortGroupID set, Ports cleared) so everything
+// downstream sees the classic shape. Returns the group id and whether it was
+// an idempotent reuse. A nil/omitted Ports is a no-op; each violation is an
+// InvalidParams error and creates nothing.
+func (s *Server) resolveOutputConfigPorts(ctx context.Context, outputType string, oc *outputConfigInput) (string, bool, error) {
+	if oc == nil || oc.Ports == nil {
+		return "", false, nil
+	}
+	if len(oc.Ports) == 0 {
+		return "", false, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: "output_config.ports must not be empty"}
+	}
+	if oc.PortGroupID != "" {
+		return "", false, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: "output_config.ports and port_group_id are mutually exclusive (give one)"}
+	}
+	if outputType != "port_group" && outputType != "both" {
+		return "", false, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: "output_config.ports requires output_type=port_group or both"}
+	}
+	for i := range oc.Ports {
+		if oc.Ports[i].Interface == "" {
+			return "", false, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: fmt.Sprintf("output_config.ports[%d].interface is required", i)}
+		}
+	}
+	body := mustMarshal(map[string]interface{}{"ports": oc.Ports})
+	resp, err := s.callHandler(ctx, body, "", nil, rest.NewPortGroupHandler(s.db).Create)
+	if err != nil {
+		return "", false, err
+	}
+	var created struct {
+		ID      string `json:"id"`
+		Message string `json:"message,omitempty"`
+	}
+	if uerr := json.Unmarshal(resp.Data, &created); uerr != nil {
+		return "", false, &jsonrpc.Error{Code: jsonrpc.CodeInternalError, Message: fmt.Sprintf("port group auto-create returned unparseable data: %s", string(resp.Data))}
+	}
+	if created.ID == "" {
+		return "", false, &jsonrpc.Error{Code: jsonrpc.CodeInternalError, Message: fmt.Sprintf("port group auto-create returned empty id: %s", string(resp.Data))}
+	}
+	oc.PortGroupID = created.ID
+	oc.Ports = nil
+	// Reuse is reported inside data.message ("port group already exists",
+	// rest/port_group_handler.go), not in the envelope message ("success").
+	return created.ID, created.Message == "port group already exists", nil
 }
 
 type manageTasksInput struct {
@@ -23,7 +75,7 @@ type manageTasksInput struct {
 	Name         string                 `json:"name,omitempty" jsonschema:"task name (for create/create_batch)"`
 	StrategyIDs  []string               `json:"strategy_ids,omitempty" jsonschema:"strategy ids (for create)"`
 	Batch        map[string]interface{} `json:"batch,omitempty" jsonschema:"batch spec (for create_batch). Each class accepts an optional group_id strategy field. Classes with the same group_id strategy (same pattern + range) bind to one PacketWorker for cross-flow ordering. See manage_strategies tool's Config.group_id for strategy syntax."`
-	OutputType   string                 `json:"output_type,omitempty" jsonschema:"output type: port_group, pcap, or both (both sends to the port group AND mirrors to a shadow pcap — requires port_group_id, pcap_path optional and auto-generated when omitted; not valid with interface2) (for create/create_batch)"`
+	OutputType   string                 `json:"output_type,omitempty" jsonschema:"output type: port_group, pcap, or both (both sends to the port group AND mirrors to a shadow pcap — requires port_group_id, pcap_path optional and auto-generated when omitted; not valid with interface2) (for create/create_batch). Tip: output_config.ports auto-creates the port group (full params, idempotent) instead of passing port_group_id"`
 	OutputConfig *outputConfigInput     `json:"output_config,omitempty" jsonschema:"output configuration (for create/create_batch)"`
 	FlowControl  *flowControlInput      `json:"flow_control,omitempty" jsonschema:"optional task-level flow control (for create)"`
 	Page         int                    `json:"page,omitempty" jsonschema:"page number for list/history; pagination is optional — omit page/size for the FULL result"`
@@ -66,6 +118,10 @@ func (s *Server) handleManageTasks(ctx context.Context, req *mcp.CallToolRequest
 
 	switch in.Action {
 	case "create":
+		if _, _, rerr := s.resolveOutputConfigPorts(ctx, in.OutputType, in.OutputConfig); rerr != nil {
+			s.auditLog(req, "flowb_manage_tasks", time.Since(start), "error", "resolve ports: "+rerr.Error())
+			return nil, manageTasksOutput{}, rerr
+		}
 		body := mustMarshal(map[string]interface{}{
 			"name":          in.Name,
 			"strategy_ids":  in.StrategyIDs,
@@ -75,6 +131,10 @@ func (s *Server) handleManageTasks(ctx context.Context, req *mcp.CallToolRequest
 		})
 		resp, err = s.callHandler(ctx, body, "", nil, h.Create)
 	case "create_batch":
+		if _, _, rerr := s.resolveOutputConfigPorts(ctx, in.OutputType, in.OutputConfig); rerr != nil {
+			s.auditLog(req, "flowb_manage_tasks", time.Since(start), "error", "resolve ports: "+rerr.Error())
+			return nil, manageTasksOutput{}, rerr
+		}
 		body := mustMarshal(map[string]interface{}{
 			"name":          in.Name,
 			"batch":         in.Batch,

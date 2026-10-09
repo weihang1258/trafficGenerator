@@ -22,6 +22,13 @@ type genRun struct {
 	TaskID     string
 	Running    bool
 	Err        error
+	// PortGroupID/PortGroupReused: echo of the auto-created group when the
+	// caller passed output_config.ports (empty otherwise); Reused reports
+	// the idempotent hit vs a fresh group. Carried on genRun (not
+	// outputConfigInput) because the pointer is digested in place by
+	// resolveOutputConfigPorts before the task create.
+	PortGroupID     string
+	PortGroupReused bool
 }
 
 // createAndRunStrategy drives the 3-step workflow (create strategy -> create
@@ -38,9 +45,9 @@ func (s *Server) createAndRunStrategy(ctx context.Context, req *mcp.CallToolRequ
 	}
 	if err := s.startStrategyTask(ctx, req, toolName, taskH, run.TaskID); err != nil {
 		s.cleanupCreatedRun(ctx, run)
-		return genRun{StrategyID: run.StrategyID, TaskID: run.TaskID, Err: err}
+		return genRun{StrategyID: run.StrategyID, TaskID: run.TaskID, PortGroupID: run.PortGroupID, PortGroupReused: run.PortGroupReused, Err: err}
 	}
-	return genRun{StrategyID: run.StrategyID, TaskID: run.TaskID, Running: true}
+	return genRun{StrategyID: run.StrategyID, TaskID: run.TaskID, PortGroupID: run.PortGroupID, PortGroupReused: run.PortGroupReused, Running: true}
 }
 
 func (s *Server) createStrategyAndTask(ctx context.Context, req *mcp.CallToolRequest, toolName string,
@@ -80,8 +87,18 @@ func (s *Server) createStrategyAndTask(ctx context.Context, req *mcp.CallToolReq
 		}}, taskH
 	}
 
-	// Step 2: create task. On failure we still carry the strategy id so the
-	// caller can report what was created before the failure.
+	// Step 2: create task. Ports (if any) are resolved to a port_group_id
+	// BEFORE this step: the strategy is already created, so its cleanup is
+	// the caller's; the auto-created group is explicitly NOT rolled back
+	// (it is a first-class entry, reusable by later calls).
+	var pgID string
+	var pgReused bool
+	if id, reused, rerr := s.resolveOutputConfigPorts(ctx, outputType, outputConfig); rerr != nil {
+		s.auditLog(req, toolName, time.Since(start), "error", "resolve ports: "+rerr.Error())
+		return genRun{StrategyID: stratID.ID, Err: rerr}, taskH
+	} else {
+		pgID, pgReused = id, reused
+	}
 	taskBody := mustMarshal(map[string]interface{}{
 		"name":          taskName,
 		"strategy_ids":  []string{stratID.ID},
@@ -92,19 +109,19 @@ func (s *Server) createStrategyAndTask(ctx context.Context, req *mcp.CallToolReq
 	taskResp, err := s.callHandler(ctx, taskBody, "", nil, taskH.Create)
 	if err != nil {
 		s.auditLog(req, toolName, time.Since(start), "error", "create task: "+err.Error())
-		return genRun{StrategyID: stratID.ID, Err: err}, taskH
+		return genRun{StrategyID: stratID.ID, PortGroupID: pgID, PortGroupReused: pgReused, Err: err}, taskH
 	}
 	var taskID idResponse
 	if err := json.Unmarshal(taskResp.Data, &taskID); err != nil {
 		s.auditLog(req, toolName, time.Since(start), "error", "parse task id: "+err.Error())
-		return genRun{StrategyID: stratID.ID, Err: &jsonrpc.Error{
+		return genRun{StrategyID: stratID.ID, PortGroupID: pgID, PortGroupReused: pgReused, Err: &jsonrpc.Error{
 			Code:    jsonrpc.CodeInternalError,
 			Message: fmt.Sprintf("create task returned unparseable data: %s", string(taskResp.Data)),
 		}}, taskH
 	}
 	if taskID.ID == "" {
 		s.auditLog(req, toolName, time.Since(start), "error", "empty task id")
-		return genRun{StrategyID: stratID.ID, Err: &jsonrpc.Error{
+		return genRun{StrategyID: stratID.ID, PortGroupID: pgID, PortGroupReused: pgReused, Err: &jsonrpc.Error{
 			Code:    jsonrpc.CodeInternalError,
 			Message: fmt.Sprintf("create task returned empty id: %s", string(taskResp.Data)),
 		}}, taskH
@@ -112,7 +129,7 @@ func (s *Server) createStrategyAndTask(ctx context.Context, req *mcp.CallToolReq
 
 	// Task creation is complete; the caller controls when Start runs so NIC
 	// capture can be armed before traffic begins.
-	return genRun{StrategyID: stratID.ID, TaskID: taskID.ID}, taskH
+	return genRun{StrategyID: stratID.ID, TaskID: taskID.ID, PortGroupID: pgID, PortGroupReused: pgReused}, taskH
 }
 
 func (s *Server) startStrategyTask(ctx context.Context, req *mcp.CallToolRequest, toolName string, taskH *rest.TaskHandler, taskID string) error {
