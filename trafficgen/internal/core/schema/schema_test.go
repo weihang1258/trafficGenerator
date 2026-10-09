@@ -91,6 +91,12 @@ func TestTaskShapeBoth(t *testing.T) {
 	valid := []struct{ name, doc string }{
 		{"both_group_only", base("both", `{"port_group_id":"pg1"}`)},
 		{"both_group_and_path", base("both", `{"port_group_id":"pg1","pcap_path":"pcap/shadow.pcap"}`)},
+		// Layering pin: interface2 passes the SCHEMA on a both task — the
+		// both×dual rejection lives in the Go handlers (errBothDual), not
+		// here. If someone later adds a schema-level ban, this row going red
+		// is the signal to check the Go gate still exists with the same
+		// message (negative parity depends on it).
+		{"both_group_iface2_schema_passes_go_rejects", base("both", `{"port_group_id":"pg1","interface2":"eth2"}`)},
 		{"port_group_regression", base("port_group", `{"port_group_id":"pg1"}`)},
 		{"pcap_regression", base("pcap", `{"pcap_path":"pcap/a.pcap"}`)},
 	}
@@ -104,6 +110,7 @@ func TestTaskShapeBoth(t *testing.T) {
 	invalid := []struct{ name, doc string }{
 		{"both_no_group", base("both", `{}`)},
 		{"both_path_only", base("both", `{"pcap_path":"pcap/shadow.pcap"}`)},
+		{"both_unknown_prop", base("both", `{"port_group_id":"pg1","nope":1}`)},
 		{"port_group_no_group_regression", base("port_group", `{"pcap_path":"pcap/a.pcap"}`)},
 		{"pcap_no_path_regression", base("pcap", `{"port_group_id":"pg1"}`)},
 		{"bad_enum_regression", base("triple", `{"port_group_id":"pg1"}`)},

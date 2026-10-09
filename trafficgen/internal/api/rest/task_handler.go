@@ -2014,12 +2014,19 @@ func newPcapPacketWriter(path string) (core.PacketWriter, error) {
 	return &pcapPacketWriter{w: w}, nil
 }
 
-func newInterfacePacketWriter(iface string) (core.PacketWriter, error) {
+// newInterfaceWriterFn is a test seam: unit tests swap in a stub so
+// batch/both happy paths run without a real NIC. Always the real
+// constructor in production.
+var newInterfaceWriterFn = func(iface string) (core.PacketWriter, error) {
 	w, err := output.NewInterfaceWriter(iface)
 	if err != nil {
 		return nil, err
 	}
 	return &interfacePacketWriter{w: w}, nil
+}
+
+func newInterfacePacketWriter(iface string) (core.PacketWriter, error) {
+	return newInterfaceWriterFn(iface)
 }
 
 // defaultShadowPcapMaxBytes caps the both-mode shadow pcap on disk (global

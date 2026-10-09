@@ -7,8 +7,8 @@ package rest
 // truncation validity).
 
 import (
-	"encoding/json"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -19,10 +19,11 @@ import (
 	"testing"
 	"time"
 
-	sqlite "github.com/glebarez/sqlite"
 	"github.com/gin-gonic/gin"
+	sqlite "github.com/glebarez/sqlite"
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/output"
+	"github.com/trafficgen/trafficgen/internal/protocol/udp"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"gorm.io/gorm"
 )
@@ -30,13 +31,14 @@ import (
 // ---- stubs ----
 
 type stubWriter struct {
-	mu      sync.Mutex
-	frames  int
-	writes  [][]byte
-	err     error // sticky write error
-	closed  bool
-	timedN  int // >0 means the TimedWriter path was used
-	onWrite func([][]byte) error
+	mu       sync.Mutex
+	frames   int
+	writes   [][]byte
+	err      error // sticky write error
+	closeErr error // Close return value
+	closed   bool
+	timedN   int // >0 means the TimedWriter path was used
+	onWrite  func([][]byte) error
 }
 
 func (s *stubWriter) WritePackets(p [][]byte) error {
@@ -57,7 +59,9 @@ func (s *stubWriter) WritePackets(p [][]byte) error {
 }
 
 func (s *stubWriter) WriteTimedPackets(packets []core.PacketOutput) error {
+	s.mu.Lock()
 	s.timedN++
+	s.mu.Unlock()
 	frames := make([][]byte, len(packets))
 	for i, p := range packets {
 		frames[i] = p.Data
@@ -69,7 +73,7 @@ func (s *stubWriter) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.closed = true
-	return nil
+	return s.closeErr
 }
 
 // ---- shadowWriter unit tests (error tiering + §12 dispatch) ----
@@ -447,5 +451,346 @@ func TestNoteShadowIssue_Appends(t *testing.T) {
 	}
 	if !strings.Contains(stored.ShadowNote, "first issue") || !strings.Contains(stored.ShadowNote, "second issue") {
 		t.Errorf("shadow_note = %q, want both issues", stored.ShadowNote)
+	}
+}
+
+// ---- 复审补测轮:失败路径 + 组合面(见 rev-test 清单 HIGH1-3/MEDIUM4-9) ----
+
+func stubInterfaceWriter(t *testing.T, primary *stubWriter) {
+	t.Helper()
+	old := newInterfaceWriterFn
+	newInterfaceWriterFn = func(string) (core.PacketWriter, error) { return primary, nil }
+	t.Cleanup(func() { newInterfaceWriterFn = old })
+}
+
+// HIGH-1:CreateBatch both happy path——批路径在 Create 期即落缺省影子路径
+// (batch 无幂等去重,与 Create 的 Start 期生成是两套时序,此差异需钉住);
+// 引擎真实跑包,主路吃进桩,影子写出合法 pcap,任务完成,响应面带 download_url。
+func TestCreateBatch_Both_HappyPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := newBothTestDB(t)
+	setupPortGroupRow(t, db, "pgB", "stubif0")
+
+	primary := &stubWriter{}
+	stubInterfaceWriter(t, primary)
+
+	e := core.NewEngine(core.EngineConfig{ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1, BufferSize: 256, QueueSize: 64})
+	e.RegisterPlanner(udp.NewPlanner())
+	e.SetBuildFunc(core.NewBuilder().Build)
+	if err := e.Start(); err != nil {
+		t.Fatalf("engine: %v", err)
+	}
+	defer e.Stop()
+
+	h := NewTaskHandler(db, e, nil)
+	r := gin.New()
+	r.Use(func(c *gin.Context) { c.Set("userID", "u1"); c.Next() })
+	r.POST("/tasks/batch", h.CreateBatch)
+
+	shadowDir := t.TempDir()
+	body := `{"name":"both-batch","batch":{"classes":[{"id":"u","type":"udp","flow_count":1,"config":{},` +
+		`"tuples":{"src_ip":{"strategy":"fixed","value":"10.0.0.1"},"dst_ip":{"strategy":"fixed","value":"10.0.0.2"},` +
+		`"src_port":{"strategy":"fixed","value":2000},"dst_port":{"strategy":"fixed","value":53}}}]},` +
+		`"output_type":"both","output_config":{"port_group_id":"pgB","pcap_path":"` + shadowDir + `/shadow.pcap"}}`
+	req := httptest.NewRequest("POST", "/tasks/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	taskID := resp.Data.ID
+
+	// Create 期(非 Start 期)即持久化影子路径——batch 专属时序。
+	var stored storage.TaskModel
+	if err := db.Where("id = ?", taskID).First(&stored).Error; err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if !strings.Contains(stored.OutputConfig, shadowDir+"/shadow.pcap") {
+		t.Errorf("batch output_config = %s, want resolved shadow path at create time", stored.OutputConfig)
+	}
+	if stored.OutputType != "both" {
+		t.Errorf("OutputType = %q, want both", stored.OutputType)
+	}
+
+	// 等完成:主路吃到包 + 影子文件非平凡。
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		db.First(&stored, "id = ?", taskID)
+		if stored.Status == "completed" || stored.Status == "error" {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if stored.Status != "completed" {
+		t.Fatalf("status = %s err=%q, want completed", stored.Status, stored.ErrorMessage)
+	}
+	if primary.frames == 0 {
+		t.Errorf("primary (NIC stub) received 0 frames")
+	}
+	info, err := os.Stat(shadowDir + "/shadow.pcap")
+	if err != nil {
+		t.Fatalf("shadow pcap missing: %v", err)
+	}
+	if info.Size() <= 24 {
+		t.Errorf("shadow pcap size = %d, want records beyond the header", info.Size())
+	}
+
+	// 响应面 both:download_url 必须在(pcap_handler.go 直链守卫的呼应面)。
+	tmResp := convertTaskToResponse(&stored)
+	if tmResp.DownloadURL == "" {
+		t.Errorf("both task response missing download_url")
+	}
+	if tmResp.ShadowNote != "" {
+		t.Errorf("healthy run must not carry shadow_note, got %q", tmResp.ShadowNote)
+	}
+}
+
+// HIGH-1b:CreateBatch both + interface2 → 400 errBothDual(batch 侧 dual
+// 检测还覆盖 replay class direction=dual,这里显式 interface2 即可)。
+func TestCreateBatch_Both_WithInterface2_Rejected(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := newBothTestDB(t)
+	setupPortGroupRow(t, db, "pgB2", "stubif0")
+	h := NewTaskHandlerWithCallbacks(db, nil, nil, false)
+	r := gin.New()
+	r.Use(func(c *gin.Context) { c.Set("userID", "u1"); c.Next() })
+	r.POST("/tasks/batch", h.CreateBatch)
+
+	body := `{"name":"b","batch":{"classes":[{"id":"u","type":"udp","flow_count":1,"config":{},` +
+		`"tuples":{"src_ip":{"strategy":"fixed","value":"10.0.0.1"},"dst_ip":{"strategy":"fixed","value":"10.0.0.2"},` +
+		`"src_port":{"strategy":"fixed","value":2000},"dst_port":{"strategy":"fixed","value":53}}}]},` +
+		`"output_type":"both","output_config":{"port_group_id":"pgB2","interface2":"eth9"}}`
+	req := httptest.NewRequest("POST", "/tasks/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), errBothDual) {
+		t.Fatalf("status = %d body=%s, want 400 errBothDual", w.Code, w.Body.String())
+	}
+}
+
+// HIGH-2:Start 的 both×dual 兜底——interface2 不在 output_config,而来自
+// replay 策略 direction=dual;Create 不拦(那时不加载策略),必须 Start 拦。
+func TestStart_BothReplayDual_Rejected(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := newBothTestDB(t)
+	setupPortGroupRow(t, db, "pgB3", "stubif0")
+	sid := "st-dual-both"
+	cfg := `{"pcap_asset_id":"ast-x","direction":"dual","speed":{"mode":""}}`
+	if err := db.Create(&storage.StrategyModel{ID: sid, UserID: "u1", Name: "d", Mode: "replay", Protocol: "batch", Config: cfg}).Error; err != nil {
+		t.Fatalf("seed strategy: %v", err)
+	}
+	sids, _ := json.Marshal([]string{sid})
+	task := &storage.TaskModel{
+		ID: "tk-dual-both", UserID: "u1", Name: "dual-both",
+		StrategyIDs: string(sids), Protocol: "batch",
+		OutputType:   "both",
+		OutputConfig: `{"port_group_id":"pgB3"}`,
+		Status:       "pending",
+	}
+	if err := db.Create(task).Error; err != nil {
+		t.Fatalf("seed task: %v", err)
+	}
+
+	e := core.NewEngine(core.EngineConfig{ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1, BufferSize: 64, QueueSize: 16})
+	if err := e.Start(); err != nil {
+		t.Fatalf("engine: %v", err)
+	}
+	defer e.Stop()
+
+	h := NewTaskHandler(db, e, nil)
+	r := gin.New()
+	r.Use(func(c *gin.Context) { c.Set("userID", "u1"); c.Next() })
+	r.POST("/tasks/:id/start", h.Start)
+	req := httptest.NewRequest("POST", "/tasks/tk-dual-both/start", strings.NewReader(""))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), errBothDual) {
+		t.Fatalf("status = %d body=%s, want 400 errBothDual", w.Code, w.Body.String())
+	}
+	var stored storage.TaskModel
+	if err := db.Where("id = ?", "tk-dual-both").First(&stored).Error; err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if stored.Status != "error" {
+		t.Errorf("task status = %q, want error (rejection must be persisted)", stored.Status)
+	}
+}
+
+// HIGH-3:interface 模式拿到空 iface 必须显式报错,不许静默零输出。
+// 端口组存在但没有任何 interface → resolvePortGroupIface 静默留空 → 守卫接住。
+func TestStart_BothEmptyIface_FailsLoudly(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := newBothTestDB(t)
+	// 端口组存在但 ports_config 为空数组 → iface 解析留空。
+	ports, _ := json.Marshal([]map[string]interface{}{})
+	if err := db.Create(&storage.PortGroupModel{ID: "pgE", Name: "pgE", PortsConfig: string(ports)}).Error; err != nil {
+		t.Fatalf("seed pg: %v", err)
+	}
+	sid := "st-empty-iface"
+	if err := db.Create(&storage.StrategyModel{ID: sid, UserID: "u1", Name: "s", Mode: "synth", Protocol: "udp", Config: "{}"}).Error; err != nil {
+		t.Fatalf("seed strategy: %v", err)
+	}
+	sids, _ := json.Marshal([]string{sid})
+	task := &storage.TaskModel{
+		ID: "tk-empty-iface", UserID: "u1", Name: "e",
+		StrategyIDs: string(sids), Protocol: "udp",
+		OutputType:   "both",
+		OutputConfig: `{"port_group_id":"pgE"}`,
+		Status:       "pending",
+	}
+	if err := db.Create(task).Error; err != nil {
+		t.Fatalf("seed task: %v", err)
+	}
+
+	e := core.NewEngine(core.EngineConfig{ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1, BufferSize: 64, QueueSize: 16})
+	if err := e.Start(); err != nil {
+		t.Fatalf("engine: %v", err)
+	}
+	defer e.Stop()
+
+	h := NewTaskHandler(db, e, nil)
+	r := gin.New()
+	r.Use(func(c *gin.Context) { c.Set("userID", "u1"); c.Next() })
+	r.POST("/tasks/:id/start", h.Start)
+	req := httptest.NewRequest("POST", "/tasks/tk-empty-iface/start", strings.NewReader(""))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "no interface resolved") {
+		t.Fatalf("status = %d body=%s, want 400 no-interface-resolved", w.Code, w.Body.String())
+	}
+	var stored storage.TaskModel
+	db.Where("id = ?", "tk-empty-iface").First(&stored)
+	if stored.Status != "error" {
+		t.Errorf("status = %q, want error", stored.Status)
+	}
+}
+
+// MEDIUM-4/5/6:shadowWriter × 真 PCAPWriter 组合——§12 计划时间戳必须
+// 真正写进 pcap 字节;上限截断在 WriteTimed 生产路径同样生效且文件完好。
+func TestShadowWriter_RealPcapSink_TimestampsAndCap(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "combo.pcap")
+	pw, err := output.NewPCAPWriterWithCap(path, 24+4*24) // 全局头 + 4 条 8B 记录
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	primary := &stubWriter{}
+	sw := &shadowWriter{primary: primary, shadow: &pcapPacketWriter{w: pw}}
+
+	outs := make([]core.PacketOutput, 10)
+	for i := range outs {
+		outs[i] = core.PacketOutput{Data: make([]byte, 8), Timestamp: time.Unix(int64(1700000000+i), 0)}
+	}
+	if err := sw.WriteTimedPackets(outs); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := sw.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if !pw.Truncated() {
+		t.Errorf("shadow cap must truncate at 4 records")
+	}
+	if primary.frames != 10 {
+		t.Errorf("NIC frames = %d, want 10 (cap never touches the wire)", primary.frames)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if len(raw) != 24+4*24 {
+		t.Fatalf("file size = %d, want %d (4 complete records)", len(raw), 24+4*24)
+	}
+	for off, i := 24, 0; off < len(raw); off, i = off+24, i+1 {
+		tsSec := binary.LittleEndian.Uint32(raw[off : off+4])
+		recLen := binary.LittleEndian.Uint32(raw[off+8 : off+12])
+		if tsSec != uint32(1700000000+i) {
+			t.Errorf("record %d: ts = %d, want scheduled %d (§12)", i, tsSec, 1700000000+i)
+		}
+		if recLen != 8 {
+			t.Errorf("record %d: caplen = %d, want 8", i, recLen)
+		}
+	}
+}
+
+// MEDIUM-9:Close 三分支——primary 错误传播;健康路径影子 Close 出错降级
+// 为 note(恰好一次);broken 后影子仍被关闭但错误忽略、不重复 note。
+func TestShadowWriter_CloseBranches(t *testing.T) {
+	t.Run("primary_close_error_propagates", func(t *testing.T) {
+		primary := &stubWriter{closeErr: fmt.Errorf("nic close fail")}
+		shadow := &stubWriter{}
+		sw := &shadowWriter{primary: primary, shadow: shadow}
+		if err := sw.Close(); err == nil || !strings.Contains(err.Error(), "nic close fail") {
+			t.Fatalf("Close = %v, want primary error", err)
+		}
+		if !shadow.closed {
+			t.Errorf("shadow must still be closed")
+		}
+	})
+	t.Run("healthy_shadow_close_error_degrades", func(t *testing.T) {
+		primary := &stubWriter{}
+		shadow := &stubWriter{closeErr: fmt.Errorf("fsync fail")}
+		notes := 0
+		sw := &shadowWriter{primary: primary, shadow: shadow, onShadowNote: func(string) { notes++ }}
+		if err := sw.Close(); err != nil {
+			t.Fatalf("healthy run Close = %v, want nil (shadow degraded)", err)
+		}
+		if notes != 1 {
+			t.Errorf("notes = %d, want exactly 1", notes)
+		}
+	})
+	t.Run("broken_shadow_close_silent", func(t *testing.T) {
+		primary := &stubWriter{}
+		shadow := &stubWriter{}
+		shadow.onWrite = func([][]byte) error { return fmt.Errorf("disk full") }
+		notes := 0
+		sw := &shadowWriter{primary: primary, shadow: shadow, onShadowNote: func(string) { notes++ }}
+		_ = sw.WriteTimedPackets(testOuts(1, true)) // breaks shadow, note #1
+		shadow.closeErr = fmt.Errorf("late close fail")
+		if err := sw.Close(); err != nil {
+			t.Fatalf("Close = %v, want nil", err)
+		}
+		if notes != 1 {
+			t.Errorf("notes = %d, want 1 (no duplicate after broken)", notes)
+		}
+		if !shadow.closed {
+			t.Errorf("broken shadow must still be closed (flush what reached the buffer)")
+		}
+	})
+}
+
+// MEDIUM-7:下载直链对 both 放行(评审指出的 404 死角)。
+func TestServeTaskPcapPublic_Both(t *testing.T) {
+	db := newBothTestDB(t)
+	pcapPath := filepath.Join(t.TempDir(), "shadow.pcap")
+	writePcapForREST(t, pcapPath)
+	if err := db.Create(&storage.TaskModel{
+		ID: "cccccccc-1111-1111-1111-111111111111", UserID: "u1", Name: "t",
+		Protocol: "tcp", OutputType: "both", Status: "completed", Progress: 100,
+		OutputConfig: `{"port_group_id":"pg","pcap_path":"` + pcapPath + `"}`,
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	req := httptest.NewRequest("GET", "/downloads/tasks/cccccccc-1111-1111-1111-111111111111/pcap", nil)
+	w := httptest.NewRecorder()
+	ServeTaskPcapPublic(db, w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (both shadow must be downloadable)", w.Code)
+	}
+	if w.Body.Len() == 0 {
+		t.Errorf("empty body")
 	}
 }
