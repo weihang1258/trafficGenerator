@@ -47,7 +47,7 @@ func (s *Server) resolveOutputConfigPorts(ctx context.Context, outputType string
 			return "", false, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: fmt.Sprintf("output_config.ports[%d].interface is required", i)}
 		}
 	}
-	body := mustMarshal(map[string]interface{}{"ports": oc.Ports})
+	body := mustMarshal(map[string]interface{}{"ports": toRestPorts(oc.Ports)})
 	resp, err := s.callHandler(ctx, body, "", nil, rest.NewPortGroupHandler(s.db).Create)
 	if err != nil {
 		return "", false, err
@@ -67,6 +67,19 @@ func (s *Server) resolveOutputConfigPorts(ctx context.Context, outputType string
 	// Reuse is reported inside data.message ("port group already exists",
 	// rest/port_group_handler.go), not in the envelope message ("success").
 	return created.ID, created.Message == "port group already exists", nil
+}
+
+// toRestPorts re-encodes MCP ports into rest.PortConfig so the auto-create
+// body hashes byte-identically to a manual flowb_manage_port_groups create:
+// portGroupPort.Weight has `json:",omitempty"` (weight 0 drops the key),
+// PortConfig.Weight has none (always present) — mixing the two shapes would
+// fork the hash space (same logical group, different port_group_<hash8>).
+func toRestPorts(ports []portGroupPort) []rest.PortConfig {
+	out := make([]rest.PortConfig, len(ports))
+	for i, p := range ports {
+		out[i] = rest.PortConfig{Interface: p.Interface, Weight: p.Weight}
+	}
+	return out
 }
 
 type manageTasksInput struct {

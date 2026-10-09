@@ -50,7 +50,7 @@ func (s *Server) handleManagePortGroups(ctx context.Context, req *mcp.CallToolRe
 	switch in.Action {
 	case "create":
 		body := mustMarshal(map[string]interface{}{
-			"ports": in.Ports,
+			"ports": toRestPorts(in.Ports),
 		})
 		resp, err = s.callHandler(ctx, body, "", nil, h.Create)
 	case "list":
