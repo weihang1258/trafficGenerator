@@ -165,11 +165,11 @@ trafficgen/SETUP.md
 trafficgen/docs/protocol-pcap-test/*.md
 !trafficgen/docs/protocol-pcap-test/*-spec-mapping.md
 
-# testcase docs unified under the roster (docs/protocols/<proto>/testcase.md) — 2026-10-06
+# TEST_CASES.md：程序功能 T-条目权威，本地维护不入同步（2026-10-10 双轨口径；单协议用例在 docs/protocols/<proto>/testcase.md）
 docs/TEST_CASES.md
 docs/mcp-test-matrix.md
 
-# deprecated, superseded by docs/protocols/ + docs/design/ — 2026-10-06
+# CODE_DESIGN.md：程序功能 D-条目权威，本地维护不入同步（2026-10-10 双轨口径；单协议契约在 docs/protocols/）
 docs/CODE_DESIGN.md
 
 # protocol-pcap-test: only referenced spec-mappings stay (2026-10-06)
