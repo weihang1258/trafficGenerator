@@ -37,6 +37,7 @@ func TestPcapDescriptions_P0Fields(t *testing.T) {
 		{"action schema list_flows P1 面", actionTag, []string{"typed L7 detail"}},
 		{"action schema get_packet dns 层", actionTag, []string{"dns layer"}},
 		{"tool description P2a 解析器面", pcapToolDescription, []string{"coap", "ike_nat_t"}},
+		{"tool description P2b 面", pcapToolDescription, []string{"smtp", "cross-flow links"}},
 		{"action schema list_packets 头字段", actionTag, []string{"ip_id", "seq-ack-flags-window", "udp_len", "icmp", "payload_len"}},
 		{"action schema get_packet icmpv6", actionTag, []string{"icmpv6"}},
 		{"extract_rules unknown_fields", extractTag, []string{"unknown_fields", "ip_id", "embedded_*"}},

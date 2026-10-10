@@ -382,6 +382,9 @@ func Parse(path string, opts *Options) (*PcapAnalysis, error) {
 		}
 	}
 
+	// 跨流关联第二遍（D-PARSE-1 §跨流关联）：L7 已解析、流缓冲仍在——
+	// 控制流文本面推导端口/地址后精确五元组归并。
+	linkFlowAssociations(flows)
 	// Finalize all flows at end-of-file (mid-stream FIN/RST/timeout
 	// finalization is an optimization left for large-pcap tuning; v1 finalizes
 	// at EOF, bounded by active-stream memory).

@@ -97,8 +97,14 @@ type Registry struct {
 // NewRegistry creates a registry seeded with the built-in L7 parsers.
 func NewRegistry() *Registry {
 	r := &Registry{}
+	// 注册序=优先级（P2b 复审教训）：载荷签名优先的解析器在前——rtsp/sip
+	// 的 "OPTIONS/..." 文本先于 http 方法匹配；grpc h2-preface 先于 tls 的
+	// 443 端口通配（443 非 TLS 兜底面保持：非 preface 流量仍落 tls）。
+	r.Register(&rtspParser{})
+	r.Register(&sipParser{})
 	r.Register(&httpParser{})
 	r.Register(&dnsParser{})
+	r.Register(&grpcParser{})
 	r.Register(&tlsParser{})
 	r.Register(&mqttParser{})
 	r.Register(&ftpParser{})
@@ -123,6 +129,26 @@ func NewRegistry() *Registry {
 	r.Register(&ldpParser{})
 	r.Register(&ikeParser{})
 	r.Register(&ikeNattParser{})
+	// P2b TCP 二进制/文本面
+	r.Register(&sshParser{})
+	r.Register(&telnetParser{})
+	r.Register(&smtpParser{})
+	r.Register(&pop3Parser{})
+	r.Register(&imapParser{})
+	r.Register(&ldapParser{})
+	r.Register(&rdpParser{})
+	r.Register(&xmppParser{})
+	r.Register(&vncParser{})
+	r.Register(&rtmpParser{})
+	r.Register(&h323Parser{})
+	r.Register(&pptpParser{})
+	r.Register(&socks5Parser{})
+	r.Register(&shadowsocksParser{})
+	r.Register(&vmessParser{})
+	r.Register(&gnutellaParser{})
+	r.Register(&stratumParser{})
+	r.Register(&doipParser{})
+	r.Register(&edpParser{})
 	return r
 }
 
