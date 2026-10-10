@@ -92,3 +92,52 @@ func TestAutoRegisterNoteGivesAbsolutePath(t *testing.T) {
 		t.Errorf("note must not carry the raw relative path, got: %s", task.PcapAssetNote)
 	}
 }
+
+// Weight 缺省归一（客户端实测：省略 weight 命中 weight:0 组而非 weight:1
+// 组——有名无实的字段制造分组噪音）。修后：省略/0/1 三写同组（默认 1），
+// 落库 weight:1；真正不同的非零 weight 仍分不同组。
+func TestPortGroupCreate_WeightDefaultNormalized(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := newPortGroupTestDB(t)
+	h := NewPortGroupHandler(db)
+	r := gin.New()
+	r.POST("/port-groups", h.Create)
+
+	post := func(body string) (int, map[string]string) {
+		req := httptest.NewRequest("POST", "/port-groups", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		var env struct {
+			Code int               `json:"code"`
+			Data map[string]string `json:"data"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil || env.Data == nil {
+			t.Fatalf("unexpected body for %s: %s", body, w.Body.String())
+		}
+		return w.Code, env.Data
+	}
+
+	_, omit := post(`{"ports":[{"interface":"ethW"}]}`)
+	_, zero := post(`{"ports":[{"interface":"ethW","weight":0}]}`)
+	_, one := post(`{"ports":[{"interface":"ethW","weight":1}]}`)
+	if omit["id"] != zero["id"] || zero["id"] != one["id"] {
+		t.Fatalf("omitted/0/1 must be the same group: %s vs %s vs %s", omit["id"], zero["id"], one["id"])
+	}
+	if zero["message"] != "port group already exists" || one["message"] != "port group already exists" {
+		t.Errorf("second/third create must report reuse, got %q / %q", zero["message"], one["message"])
+	}
+	// 落库形状归一。
+	var pg storage.PortGroupModel
+	if err := db.Where("id = ?", omit["id"]).First(&pg).Error; err != nil {
+		t.Fatalf("load group: %v", err)
+	}
+	if !strings.Contains(pg.PortsConfig, `"weight":1`) {
+		t.Errorf("stored ports_config = %s, want normalized weight 1", pg.PortsConfig)
+	}
+	// 非零差异仍分流。
+	_, two := post(`{"ports":[{"interface":"ethW","weight":2}]}`)
+	if two["id"] == omit["id"] {
+		t.Errorf("weight=2 must be a different group, got same id %s", two["id"])
+	}
+}

@@ -59,6 +59,18 @@ func (h *PortGroupHandler) Create(c *gin.Context) {
 		}
 	}
 
+	// Weight default: omitted/zero weight means the default weight 1.
+	// Weight is never consumed at runtime (resolvePortGroupIface only takes
+	// the first interface) — its only role is group identity — so a silent
+	// 0-vs-1 fork would split identical intents into two groups. Normalize
+	// here, the single funnel for manual + auto create, so omitted, 0 and 1
+	// hash identically; distinct nonzero weights still yield distinct groups.
+	for i := range req.Ports {
+		if req.Ports[i].Weight <= 0 {
+			req.Ports[i].Weight = 1
+		}
+	}
+
 	// Sort ports by interface name for consistent hashing
 	sort.Slice(req.Ports, func(i, j int) bool {
 		return req.Ports[i].Interface < req.Ports[j].Interface

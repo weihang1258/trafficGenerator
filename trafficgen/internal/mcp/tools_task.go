@@ -74,10 +74,18 @@ func (s *Server) resolveOutputConfigPorts(ctx context.Context, outputType string
 // portGroupPort.Weight has `json:",omitempty"` (weight 0 drops the key),
 // PortConfig.Weight has none (always present) — mixing the two shapes would
 // fork the hash space (same logical group, different port_group_<hash8>).
+// Zero/negative weights are normalized to the default 1 here as well, so
+// even a future direct-PortConfig caller can't reintroduce the fork — but
+// the authoritative normalization lives in PortGroupHandler.Create (single
+// funnel for every entry path); this is belt-and-braces for hash equality.
 func toRestPorts(ports []portGroupPort) []rest.PortConfig {
 	out := make([]rest.PortConfig, len(ports))
 	for i, p := range ports {
-		out[i] = rest.PortConfig{Interface: p.Interface, Weight: p.Weight}
+		w := p.Weight
+		if w <= 0 {
+			w = 1
+		}
+		out[i] = rest.PortConfig{Interface: p.Interface, Weight: w}
 	}
 	return out
 }

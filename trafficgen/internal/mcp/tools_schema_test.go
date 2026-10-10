@@ -204,7 +204,7 @@ func TestOutputConfig_PortsDocumented(t *testing.T) {
 		t.Errorf("outputConfigInput.PortGroupID jsonschema = %q; must mirror the mutual-exclusion rule", pg)
 	}
 	wt := fieldSchemaDescription(t, "portGroupPort", "Weight")
-	for _, want := range []string{"default 0", "DIFFERENT group"} {
+	for _, want := range []string{"default 1", "DIFFERENT group"} {
 		if !strings.Contains(wt, want) {
 			t.Errorf("portGroupPort.Weight jsonschema = %q; must mention %q", wt, want)
 		}

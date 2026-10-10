@@ -277,8 +277,9 @@ func TestMCP_PortsAutoCreate_WeightZeroSameHash(t *testing.T) {
 	env := setupMCPTest(t)
 	defer env.cleanup()
 
-	// omitempty 分叉钉：weight:0 省略与显式 0 必须同组（toRestPorts 经
-	// rest.PortConfig 转发，两条路径同一哈希空间；回归即红）。
+	// 缺省归一：省略、显式 0、显式 1 三写必须同组（weight 省略即默认 1；
+	// 归一在 PortGroupHandler.Create 单漏斗，toRestPorts 同步归一保哈希
+	// 相等；任一处回归即红）。落库形状为 weight:1。
 	idOmit, _, err := env.srv.resolveOutputConfigPorts(context.Background(), "port_group",
 		&outputConfigInput{Ports: []portGroupPort{{Interface: "ethZ" /* weight omitted */}}})
 	if err != nil {
@@ -295,8 +296,23 @@ func TestMCP_PortsAutoCreate_WeightZeroSameHash(t *testing.T) {
 	if !reusedZero {
 		t.Error("weight-0 second resolve reported reused=false")
 	}
+	idOne, reusedOne, err := env.srv.resolveOutputConfigPorts(context.Background(), "port_group",
+		&outputConfigInput{Ports: []portGroupPort{{Interface: "ethZ", Weight: 1}}})
+	if err != nil {
+		t.Fatalf("resolve one: %v", err)
+	}
+	if idOne != idOmit {
+		t.Errorf("weight-1 vs omitted: got %s vs %s, want same group", idOne, idOmit)
+	}
+	if !reusedOne {
+		t.Error("weight-1 third resolve reported reused=false")
+	}
 	if n := countPortGroups(t, env); n != 1 {
 		t.Errorf("group rows = %d, want 1", n)
+	}
+	pg := loadPortGroup(t, env, idOmit)
+	if !strings.Contains(pg.PortsConfig, `"weight":1`) {
+		t.Errorf("stored ports_config = %s, want normalized weight 1", pg.PortsConfig)
 	}
 }
 
