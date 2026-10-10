@@ -15,10 +15,10 @@ import (
 // Ports for auto-creating the port group (MCP-layer only: resolved to a
 // port_group_id before forwarding, so REST/schema/engine never see it).
 type outputConfigInput struct {
-	PortGroupID string          `json:"port_group_id,omitempty" jsonschema:"port group id (for output_type=port_group or both)"`
+	PortGroupID string          `json:"port_group_id,omitempty" jsonschema:"existing port group id (for output_type=port_group or both). Mutually exclusive with ports — give one, not both."`
 	PcapPath    string          `json:"pcap_path,omitempty" jsonschema:"pcap file path (required for output_type=pcap; optional for output_type=both — a shadow path is generated when omitted)"`
-	Interface2  string          `json:"interface2,omitempty" jsonschema:"second interface for dual-port replay (port_group/pcap only — not valid with both)"`
-	Ports       []portGroupPort `json:"ports,omitempty" jsonschema:"ports for auto-creating a port group: full group params [{interface, weight}], same shape as flowb_manage_port_groups create — multi-NIC with weights supported, idempotent (same ports+weights reuse the existing group); mutually exclusive with port_group_id; only for output_type=port_group or both"`
+	Interface2  string          `json:"interface2,omitempty" jsonschema:"second interface for dual-port replay (port_group/pcap only — not valid with both; may combine with port_group_id or ports)"`
+	Ports       []portGroupPort `json:"ports,omitempty" jsonschema:"auto-create the port group from full group params [{interface, weight}] — same shape as flowb_manage_port_groups create. Multi-NIC with weights supported; idempotent (same interfaces+weights reuse the existing group, order-insensitive). Mutually exclusive with port_group_id — give one, not both. Only for output_type=port_group or both."`
 }
 
 // resolveOutputConfigPorts implements output_config.ports auto-create: it
@@ -88,7 +88,7 @@ type manageTasksInput struct {
 	Name         string                 `json:"name,omitempty" jsonschema:"task name (for create/create_batch)"`
 	StrategyIDs  []string               `json:"strategy_ids,omitempty" jsonschema:"strategy ids (for create)"`
 	Batch        map[string]interface{} `json:"batch,omitempty" jsonschema:"batch spec (for create_batch). Each class accepts an optional group_id strategy field. Classes with the same group_id strategy (same pattern + range) bind to one PacketWorker for cross-flow ordering. See manage_strategies tool's Config.group_id for strategy syntax."`
-	OutputType   string                 `json:"output_type,omitempty" jsonschema:"output type: port_group, pcap, or both (both sends to the port group AND mirrors to a shadow pcap — requires port_group_id, pcap_path optional and auto-generated when omitted; not valid with interface2) (for create/create_batch). Tip: output_config.ports auto-creates the port group (full params, idempotent) instead of passing port_group_id"`
+	OutputType   string                 `json:"output_type,omitempty" jsonschema:"output type: port_group, pcap, or both (both sends to the port group AND mirrors to a shadow pcap — wire target via port_group_id or ports, pcap_path optional and auto-generated when omitted; not valid with interface2) (for create/create_batch). Tip: output_config.ports auto-creates the port group (full params, idempotent) instead of passing port_group_id"`
 	OutputConfig *outputConfigInput     `json:"output_config,omitempty" jsonschema:"output configuration (for create/create_batch)"`
 	FlowControl  *flowControlInput      `json:"flow_control,omitempty" jsonschema:"optional task-level flow control (for create)"`
 	Page         int                    `json:"page,omitempty" jsonschema:"page number for list/history; pagination is optional — omit page/size for the FULL result"`

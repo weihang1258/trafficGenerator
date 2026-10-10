@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"sort"
@@ -621,6 +622,13 @@ func (h *TaskHandler) ensureTaskMTU(task *storage.TaskModel, interface2 string) 
 		ifaces = append(ifaces, interface2)
 	}
 	for _, iface := range ifaces {
+		// Existence first: EnsureMTU's "interface %s: no such network
+		// interface" (Go net.InterfaceByName) would otherwise surface
+		// wrapped in "MTU raise failed", which reads as an MTU problem
+		// when the real cause is a typo'd interface name.
+		if _, err := net.InterfaceByName(iface); err != nil {
+			return ifaces, fmt.Errorf("network interface %s does not exist: %w (check flowb_query_system action=interfaces for valid names)", iface, err)
+		}
 		if err := netif.EnsureMTU(iface, minMTU); err != nil {
 			return ifaces, fmt.Errorf("MTU raise failed for %s: %w", iface, err)
 		}

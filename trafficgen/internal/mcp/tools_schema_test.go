@@ -27,6 +27,12 @@ func fieldSchemaDescription(t *testing.T, typeName, fieldName string) string {
 	case "managePcapsInput":
 		s := managePcapsInput{}
 		return extractSchemaTag(t, reflect.TypeOf(s), fieldName)
+	case "outputConfigInput":
+		s := outputConfigInput{}
+		return extractSchemaTag(t, reflect.TypeOf(s), fieldName)
+	case "portGroupPort":
+		s := portGroupPort{}
+		return extractSchemaTag(t, reflect.TypeOf(s), fieldName)
 	}
 	t.Fatalf("unknown type %s", typeName)
 	return ""
@@ -172,3 +178,43 @@ func TestManageStrategies_ConfigSchema_NoFlatAdvertisement(t *testing.T) {
 	}
 }
 
+
+// TestOutputConfig_PortsDocumented 锁住客户端反馈的三项文档缺口（缺口重现
+// 即红）：① output_config 必须出现 ports 键名及互斥说明（generate 描述
+// 只写 port_group_id/pcap_path/interface2 的时代已结束）；② weight 缺省
+// 语义（省略=0）及"不同 weight = 不同组"必须写进 port 描述；③ interface
+// 名必须先查 interfaces（建组是软校验，错名只在 Start 才败）。
+func TestOutputConfig_PortsDocumented(t *testing.T) {
+	// ① output_config 入口描述必须提到 'ports' 键及互斥（客户端原话：
+	// 只写了 port_group_id/pcap_path/interface2 三键名）。
+	gen := fieldSchemaDescription(t, "generateTrafficInput", "OutputConfig")
+	for _, want := range []string{"'ports'", "mutually exclusive with port_group_id"} {
+		if !strings.Contains(gen, want) {
+			t.Errorf("generateTrafficInput.OutputConfig jsonschema = %q; must mention %q", gen, want)
+		}
+	}
+	oc := fieldSchemaDescription(t, "outputConfigInput", "Ports")
+	for _, want := range []string{"Mutually exclusive with port_group_id", "weight", "idempotent", "port_group or both"} {
+		if !strings.Contains(oc, want) {
+			t.Errorf("outputConfigInput.Ports jsonschema = %q; must mention %q", oc, want)
+		}
+	}
+	pg := fieldSchemaDescription(t, "outputConfigInput", "PortGroupID")
+	if !strings.Contains(pg, "Mutually exclusive with ports") {
+		t.Errorf("outputConfigInput.PortGroupID jsonschema = %q; must mirror the mutual-exclusion rule", pg)
+	}
+	wt := fieldSchemaDescription(t, "portGroupPort", "Weight")
+	for _, want := range []string{"default 0", "DIFFERENT group"} {
+		if !strings.Contains(wt, want) {
+			t.Errorf("portGroupPort.Weight jsonschema = %q; must mention %q", wt, want)
+		}
+	}
+	iface := fieldSchemaDescription(t, "portGroupPort", "Interface")
+	if !strings.Contains(iface, "action=interfaces") {
+		t.Errorf("portGroupPort.Interface jsonschema = %q; must point at flowb_query_system action=interfaces", iface)
+	}
+	i2 := fieldSchemaDescription(t, "outputConfigInput", "Interface2")
+	if !strings.Contains(i2, "may combine with port_group_id or ports") {
+		t.Errorf("outputConfigInput.Interface2 jsonschema = %q; must state the combinable set (port_group_id/ports/pcap, not both)", i2)
+	}
+}

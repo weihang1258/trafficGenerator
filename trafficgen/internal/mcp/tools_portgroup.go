@@ -20,8 +20,8 @@ type managePortGroupsInput struct {
 }
 
 type portGroupPort struct {
-	Interface string `json:"interface" jsonschema:"interface name"`
-	Weight    int    `json:"weight,omitempty" jsonschema:"port weight"`
+	Interface string `json:"interface" jsonschema:"interface name (must exist on the server — check flowb_query_system action=interfaces; a typo'd name fails later at task start, not at group creation)"`
+	Weight    int    `json:"weight,omitempty" jsonschema:"port weight for load balancing (default 0 when omitted). The weight is part of the group identity: same interfaces with different weights = a DIFFERENT group (no silent merge)."`
 }
 
 type managePortGroupsOutput struct {

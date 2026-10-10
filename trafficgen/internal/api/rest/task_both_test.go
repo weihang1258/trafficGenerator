@@ -906,3 +906,33 @@ func TestENG1_SharedShadow_TruncationNoteOnce(t *testing.T) {
 		t.Errorf("shadow records=%d torn=%v, want 2 complete", n, torn)
 	}
 }
+
+// TestEnsureTaskMTU_MissingInterfaceNamesItself（客户端反馈：不存在的网卡
+// 报 "MTU raise failed … no such network interface"，第一眼以为是 MTU
+// 问题）。修后行为：网卡不存在直接报 "network interface <name> does not
+// exist"（Go net.InterfaceByName），不再包 MTU 外衣；MTU 真失败仍走原
+// 文案。MinMTU=2000 强制检查走通（lo=65536 免提权），缺网卡在提权前被拦。
+func TestEnsureTaskMTU_MissingInterfaceNamesItself(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := newBothTestDB(t)
+	setupPortGroupRow(t, db, "pgMTU", "definitely-not-an-iface-9")
+	e := core.NewEngine(core.EngineConfig{ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
+		BufferSize: 64, QueueSize: 16, MinMTU: 2000})
+	h := NewTaskHandlerWithCallbacks(db, e, nil, false)
+	task := &storage.TaskModel{ID: "tk-mtu9", UserID: "u1", Name: "mtu",
+		OutputType: "port_group", OutputConfig: `{"port_group_id":"pgMTU"}`}
+	if _, err := h.ensureTaskMTU(task, ""); err == nil {
+		t.Fatal("want error for missing interface, got nil")
+	} else {
+		msg := err.Error()
+		if !strings.Contains(msg, "does not exist") {
+			t.Errorf("error = %q, want 'does not exist' (name the real cause)", msg)
+		}
+		if !strings.Contains(msg, "definitely-not-an-iface-9") {
+			t.Errorf("error = %q, want the interface name", msg)
+		}
+		if strings.Contains(msg, "MTU raise failed") {
+			t.Errorf("error = %q, must not wear the MTU wrapper for a missing NIC", msg)
+		}
+	}
+}
