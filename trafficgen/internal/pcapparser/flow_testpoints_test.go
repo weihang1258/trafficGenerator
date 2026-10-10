@@ -91,17 +91,18 @@ func TestFlowKeyTCPUDP_ReversedOrder(t *testing.T) {
 // --- F3: flowKeyICMP ---
 
 func TestFlowKeyICMP_NormalOrder(t *testing.T) {
-	got := flowKeyICMP(ipA, ipB, 8, 1)
-	want := "1|10.0.0.1|10.0.0.2|8|1"
+	// D-PARSE-1 P0：key 去 type（req/reply 同流配对），只留 proto|ips|id。
+	got := flowKeyICMP(ipA, ipB, 1)
+	want := "1|10.0.0.1|10.0.0.2|1"
 	if got != want {
 		t.Errorf("icmp key = %q, want %q", got, want)
 	}
 }
 
 func TestFlowKeyICMP_ReversedOrder(t *testing.T) {
-	// src>dst -> IPs swap; type/id unchanged.
-	got := flowKeyICMP(ipB, ipA, 8, 1)
-	want := "1|10.0.0.1|10.0.0.2|8|1"
+	// src>dst -> IPs swap; id unchanged.
+	got := flowKeyICMP(ipB, ipA, 1)
+	want := "1|10.0.0.1|10.0.0.2|1"
 	if got != want {
 		t.Errorf("icmp reversed key = %q, want %q", got, want)
 	}
@@ -1190,8 +1191,9 @@ func TestComputeFlowKey_UDP(t *testing.T) {
 }
 
 func TestComputeFlowKey_ICMP(t *testing.T) {
+	// D-PARSE-1 P0：key 去 type（req/reply 同流才能 (id,seq) 配对，9.14 行为变更）
 	f := packetFields{l4Proto: "icmp", srcIP: ipA, dstIP: ipB, icmpType: 8, icmpID: 1}
-	if got := computeFlowKey(f); got != "1|10.0.0.1|10.0.0.2|8|1" {
+	if got := computeFlowKey(f); got != "1|10.0.0.1|10.0.0.2|1" {
 		t.Errorf("computeFlowKey icmp = %q", got)
 	}
 }

@@ -203,6 +203,8 @@ type PcapAssetModel struct {
 	ByteCount    int64
 	FlowCount    int64
 	DurationUs   int64 // 微秒
+	FirstTsUs    int64 // 首包时间（微秒，D-PARSE-1 P0 落库；此前 PcapAnalysis 已算未落）
+	LastTsUs     int64 // 末包时间（微秒，同上）
 	LinkType     int   // DLT_*
 	Snaplen      int
 	ProtocolDist string `gorm:"type:text"` // JSON: {"tcp":120,"udp":30}
@@ -264,11 +266,44 @@ type FlowModel struct {
 	OutOfOrderCount int64                     // 乱序数
 
 	// L7 元数据
-	L7Protocol  string `gorm:"size:16;index"` // http|dns|tls|raw|...
+	L7Protocol  string `gorm:"size:16;index"` // http|dns|tls|raw|...|unknown|handshake_only
 	L7Metadata  string `gorm:"type:text"`     // JSON，按协议展开（完整详情）
 	L7Method    string `gorm:"size:16;index"` // HTTP method
 	L7Host      string `gorm:"size:255;index"` // HTTP host / TLS SNI
 	L7QueryName string `gorm:"size:255;index"` // DNS 查询名
+
+	// 封装承载（D-PARSE-1 P0）：vlan 值与隧道/封装标记，解析首包提取
+	VlanIDOuter int    // 外层 VLAN ID（802.1Q），无则 -1
+	VlanIDInner int    // 内层 VLAN ID（QinQ 802.1ad），无则 -1
+	EncapType   string `gorm:"size:16;index"` // mpls|pppoe|gre|vxlan|geneve|gtp|l2tp|""
+	EncapID     int64  // 会话标识：pppoe session_id/vxlan vni/gtp teid/geneve vni，无则 -1
+
+	// 载荷完整性（D-PARSE-1 P0）：TCP=重组流字节，UDP=载荷域按序聚合，ARP/L2=L2 载荷；
+	// 空载荷=""（区别于零字节摘要）
+	C2SPayloadHash    string `gorm:"size:64;index"`
+	S2CPayloadHash    string `gorm:"size:64;index"`
+	C2SPayloadPreview string `gorm:"size:1024"` // 前 128B，hex+" | "+ascii 双视图
+	S2CPayloadPreview string `gorm:"size:1024"`
+	C2SBodyHash       string `gorm:"size:64;index"` // L7 body 段；无解析器边界=stream
+	S2CBodyHash       string `gorm:"size:64;index"`
+	C2SBodyPreview    string `gorm:"size:1024"`
+	S2CBodyPreview    string `gorm:"size:1024"`
+
+	// 配对面（D-PARSE-1 §P3 配对键；P0 落列，逐协议配对逻辑随解析器批落地）
+	RequestCount  int64
+	ResponseCount int64
+	PairState     string `gorm:"size:24"` // paired|unmatched_request|unmatched_response|none|""
+
+	// ICMP 族流级聚合（首包值；非 icmp/icmpv6 流全 -1）
+	ICMPType int
+	ICMPCode int
+	ICMPID   int
+	ICMPSeq  int
+
+	// SCTP 族流级聚合（非 sctp 流空/0）
+	SctpChunkTypes string `gorm:"size:256"` // JSON 出现过的 chunk type 列表
+	SctpAssocState string `gorm:"size:16"`  // established|aborted|incomplete|""
+	SctpDataBytes  int64
 
 	// 重组引用（流级最高层负载地址）
 	StreamFile         string `gorm:"size:512"` // {pcap_id}.payloads
@@ -316,6 +351,23 @@ type PacketModel struct {
 	AnomalyFlag string `gorm:"size:16;index"`                       // truncated|oversize|undersize|""（异常标记）
 	FragGroupID string `gorm:"size:64;index"`                       // IP 分片组 ID（IPID+src+dst），无分片则空
 	FragOffset  int    // 分片偏移（8字节单位），非分片包 -1
+
+	// 常用头字段（D-PARSE-1 P0，解析单遍顺带写；非对应协议零值）
+	IPID        uint16
+	TTL         uint8  // IPv4 TTL / IPv6 HopLimit
+	DSCP        uint8
+	ECN         uint8
+	TCPSeq      uint32
+	TCPAck      uint32
+	TCPFlagsRaw uint8
+	TCPFlagsStr string `gorm:"size:32"` // "SYN,ACK" 等
+	TCPWindow   uint16
+	UDPLen      uint16
+	ICMPType    uint16
+	ICMPCode    uint16
+	ICMPID      uint16
+	ICMPSeq     uint16
+	PayloadLen  int
 
 	CreatedAt time.Time `gorm:"autoCreateTime"`
 }

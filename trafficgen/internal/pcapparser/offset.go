@@ -21,7 +21,8 @@ type OffsetLayout struct {
 
 	SrcMAC int `json:"src_mac"`
 	DstMAC int `json:"dst_mac"`
-	VlanTCO int `json:"vlan_tco"` // VLAN TCI (priority+ID), -1 if no VLAN
+	VlanTCO int `json:"vlan_tco"` // 外层 VLAN TCI (priority+ID), -1 if no VLAN
+	VlanTCOInner int `json:"vlan_tco_inner"` // 内层 VLAN TCI (QinQ 802.1ad), -1 if absent
 
 	SrcIP     int `json:"src_ip"`
 	DstIP     int `json:"dst_ip"`
@@ -57,7 +58,7 @@ type OffsetVariant struct {
 // (absent) so that only fields actually present in the packet are set.
 func newOffsetLayout() OffsetLayout {
 	return OffsetLayout{
-		SrcMAC: -1, DstMAC: -1, VlanTCO: -1,
+		SrcMAC: -1, DstMAC: -1, VlanTCO: -1, VlanTCOInner: -1,
 		SrcIP: -1, DstIP: -1, TTL: -1, DSCPECN: -1, IPFlagsFrag: -1, IPID: -1,
 		SrcPort: -1, DstPort: -1, Seq: -1, Ack: -1, Window: -1, TCPFlags: -1,
 		L3Start: -1, L4Start: -1,
@@ -81,8 +82,13 @@ func ExtractOffsetLayout(pkt gopacket.Packet) OffsetLayout {
 			layout.SrcMAC = start + 6
 		case *layers.Dot1Q:
 			// Dot1Q Contents = TCI(2) + inner EtherType(2). TCI holds priority
-			// + VLAN ID -- the patchable field.
-			layout.VlanTCO = start + 0
+			// + VLAN ID -- the patchable field. QinQ 双层分两槽（D-PARSE-1 P0：
+			// 此前双层互相覆盖，只剩最内层）。
+			if layout.VlanTCO == -1 {
+				layout.VlanTCO = start + 0
+			} else if layout.VlanTCOInner == -1 {
+				layout.VlanTCOInner = start + 0
+			}
 		case *layers.IPv4:
 			layout.L3Start = start
 			layout.SrcIP = start + 12

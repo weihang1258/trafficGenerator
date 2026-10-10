@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/gopacket/layers"
@@ -160,6 +161,8 @@ func (h *PcapHandler) finalizeImport(asset *storage.PcapAssetModel) error {
 	asset.ByteCount = analysis.ByteCount
 	asset.FlowCount = analysis.FlowCount
 	asset.DurationUs = analysis.DurationUs()
+	asset.FirstTsUs = analysis.FirstTsUs
+	asset.LastTsUs = analysis.LastTsUs
 	asset.Snaplen = int(analysis.Snaplen)
 	asset.ProtocolDist = analysis.ProtocolDistJSON()
 	asset.ParserVersion = pcapparser.ParserVersion
@@ -367,7 +370,7 @@ func (h *PcapHandler) ListFlows(c *gin.Context) {
 		InternalError(c, "list flows: "+err.Error())
 		return
 	}
-	Success(c, gin.H{"items": flows, "total": total, "page": page, "size": size})
+	Success(c, gin.H{"items": decorateFlowTimes(flows), "total": total, "page": page, "size": size})
 }
 
 // ListPackets returns a paginated packet list for a flow.
@@ -470,6 +473,14 @@ func (h *PcapHandler) Extract(c *gin.Context) {
 	}
 	userID := auth.GetUserID(c)
 	linkType := layersLinkType(asset.LinkType)
+	// D-PARSE-1（13.30 引申）：请求词表外的字段名一次性报全，不再静默跳过
+	// ——调用方需要区分"字段不存在"和"解析失败"。
+	unknownFields := make([]string, 0)
+	for _, want := range req.Fields {
+		if !pcapparser.KnownExtractField(want) {
+			unknownFields = append(unknownFields, want)
+		}
+	}
 	results := make([]gin.H, 0, len(req.PacketIDs))
 	for _, pid := range req.PacketIDs {
 		pkt, err := h.repo.GetPacket(pid, userID)
@@ -493,7 +504,7 @@ func (h *PcapHandler) Extract(c *gin.Context) {
 		}
 		results = append(results, gin.H{"packet_id": pid, "fields": fields})
 	}
-	Success(c, gin.H{"items": results})
+	Success(c, gin.H{"items": results, "unknown_fields": unknownFields})
 }
 
 // GetPacket returns a single packet's full fields via dynamic re-parse (§17.7).
@@ -702,7 +713,30 @@ func (h *PcapHandler) GetFlow(c *gin.Context) {
 		NotFound(c, "flow")
 		return
 	}
-	Success(c, flow)
+	Success(c, decorateFlowTimes([]storage.FlowModel{*flow})[0])
+}
+
+// decorateFlowTimes adds human-readable first_time/last_time (RFC3339, UTC)
+// and duration to each flow's response object (D-PARSE-1 裁定9：响应层派生，
+// 不落库). Original Go-style keys are preserved; the derived keys are
+// snake_case per the P0 新字段命名约定.
+func decorateFlowTimes(flows []storage.FlowModel) []gin.H {
+	out := make([]gin.H, 0, len(flows))
+	for _, f := range flows {
+		b, err := json.Marshal(f)
+		if err != nil {
+			continue
+		}
+		var m map[string]interface{}
+		if err := json.Unmarshal(b, &m); err != nil {
+			continue
+		}
+		m["first_time"] = time.UnixMicro(f.FirstTsUs).UTC().Format(time.RFC3339Nano)
+		m["last_time"] = time.UnixMicro(f.LastTsUs).UTC().Format(time.RFC3339Nano)
+		m["duration"] = (time.Duration(f.DurationUs) * time.Microsecond).String()
+		out = append(out, m)
+	}
+	return out
 }
 
 // GetStream returns reassembled stream bytes from .payloads (§17.11).
@@ -997,6 +1031,13 @@ func (h *PcapHandler) ExtractBulk(c *gin.Context) {
 	}
 	userID := auth.GetUserID(c)
 	linkType := layersLinkType(asset.LinkType)
+	// D-PARSE-1（13.30 引申）：与 extract 同规则，未知字段一次报全
+	unknownFields := make([]string, 0)
+	for _, want := range req.Fields {
+		if !pcapparser.KnownExtractField(want) {
+			unknownFields = append(unknownFields, want)
+		}
+	}
 
 	var packets []storage.PacketModel
 	var total int64
@@ -1044,7 +1085,7 @@ func (h *PcapHandler) ExtractBulk(c *gin.Context) {
 		}
 		results = append(results, gin.H{"packet_id": pkt.ID, "fields": fields})
 	}
-	Success(c, gin.H{"total": total, "extracted": len(results), "items": results})
+	Success(c, gin.H{"total": total, "extracted": len(results), "items": results, "unknown_fields": unknownFields})
 }
 
 // ExtractStreams returns the reassembled c2s/s2c stream text for one flow or

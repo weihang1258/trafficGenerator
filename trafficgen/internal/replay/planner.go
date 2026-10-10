@@ -504,7 +504,7 @@ func buildFlowContexts(flows []storage.FlowModel, rules []RewriteRule) (map[stri
 				return nil, fmt.Errorf("flow %s layout: %w", flow.ID, err)
 			}
 		} else {
-			layout = pcapparser.OffsetLayout{SrcIP: -1, DstIP: -1, SrcPort: -1, DstPort: -1, SrcMAC: -1, DstMAC: -1, VlanTCO: -1, TTL: -1, DSCPECN: -1, IPFlagsFrag: -1, IPID: -1, Seq: -1, Ack: -1, Window: -1, TCPFlags: -1, L3Start: -1, L4Start: -1}
+			layout = pcapparser.OffsetLayout{SrcIP: -1, DstIP: -1, SrcPort: -1, DstPort: -1, SrcMAC: -1, DstMAC: -1, VlanTCO: -1, VlanTCOInner: -1, TTL: -1, DSCPECN: -1, IPFlagsFrag: -1, IPID: -1, Seq: -1, Ack: -1, Window: -1, TCPFlags: -1, L3Start: -1, L4Start: -1}
 		}
 		flowPatches, err := computeFlowPatches(flow, layout, rules)
 		if err != nil {

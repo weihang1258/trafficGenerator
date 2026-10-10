@@ -27,6 +27,38 @@ type LayerRecord struct {
 	Range [2]int `json:"range"`
 }
 
+// knownExtractFields is the vocabulary of layer field names populateFields can
+// emit (extract/extract_bulk 未知字段一次报全的"已知面"，13.30 引申). Any
+// requested field outside this set is reported in the response's
+// unknown_fields instead of being silently dropped.
+var knownExtractFields = map[string]bool{}
+
+func init() {
+	for _, f := range []string{
+		// eth
+		"dst_mac", "src_mac", "ether_type",
+		// dot1q
+		"vlan_id", "priority", "vlan_tco",
+		// ipv4/ipv6
+		"src_ip", "dst_ip", "ttl", "protocol", "ip_id", "dscp", "ecn", "hop_limit", "next_header",
+		// tcp
+		"src_port", "dst_port", "seq", "ack", "window", "flags",
+		// udp
+		"length",
+		// icmp/icmpv6（含内嵌解码面）
+		"type", "code", "id", "seq",
+		"embedded_src_ip", "embedded_dst_ip", "embedded_protocol", "embedded_src_port", "embedded_dst_port",
+		// arp
+		"operation", "sender_hw", "sender_ip", "target_hw", "target_ip",
+		// sctp
+	} {
+		knownExtractFields[f] = true
+	}
+}
+
+// KnownExtractField reports whether name is in the extract field vocabulary.
+func KnownExtractField(name string) bool { return knownExtractFields[name] }
+
 // fileCache caches open *os.File handles keyed by pcap path, so ParsePacket
 // doesn't re-open the file per call (§13: "pcap handle 缓存"). Files are opened
 // read-only and kept open for the engine's lifetime; the OS reclaims them on
@@ -115,7 +147,7 @@ func buildLayerRecords(pkt gopacket.Packet) []LayerRecord {
 			Offsets: map[string]int{},
 			Range:   [2]int{start, end},
 		}
-		populateFields(&rec, layer, start)
+		populateFields(pkt, &rec, layer, start)
 		records = append(records, rec)
 		offset = end
 	}
@@ -149,7 +181,7 @@ func layerName(layer gopacket.Layer) string {
 // populateFields fills the LayerRecord's Fields and Offsets for display, using
 // the same field-offset knowledge as extractOffsetLayout plus the field VALUES
 // (for viewing). Offsets are absolute (layer start + field-relative offset).
-func populateFields(rec *LayerRecord, layer gopacket.Layer, start int) {
+func populateFields(pkt gopacket.Packet, rec *LayerRecord, layer gopacket.Layer, start int) {
 	switch v := layer.(type) {
 	case *layers.Ethernet:
 		rec.Fields["dst_mac"] = v.DstMAC.String()
@@ -180,6 +212,8 @@ func populateFields(rec *LayerRecord, layer gopacket.Layer, start int) {
 		rec.Fields["dst_ip"] = v.DstIP.String()
 		rec.Fields["hop_limit"] = v.HopLimit
 		rec.Fields["next_header"] = uint8(v.NextHeader)
+		rec.Fields["dscp"] = v.TrafficClass >> 2
+		rec.Fields["ecn"] = v.TrafficClass & 0x03
 	case *layers.TCP:
 		rec.Fields["src_port"] = uint16(v.SrcPort)
 		rec.Fields["dst_port"] = uint16(v.DstPort)
@@ -204,6 +238,25 @@ func populateFields(rec *LayerRecord, layer gopacket.Layer, start int) {
 		rec.Fields["code"] = v.TypeCode.Code()
 		rec.Fields["id"] = v.Id
 		rec.Fields["seq"] = v.Seq
+		// 差错报文内嵌原始 IP 头（RFC 792：type 3/5/11/12 载荷=原 IP 头+8B）
+		if t := v.TypeCode.Type(); t == 3 || t == 5 || t == 11 || t == 12 {
+			if emb := decodeEmbeddedIPv4(v.Payload); emb != nil {
+				for k, val := range emb {
+					rec.Fields[k] = val
+				}
+			}
+		}
+	case *layers.ICMPv6:
+		// D-PARSE-1 P0：ICMPv6 字段（此前 get_packet 无 icmpv6 面）
+		rec.Fields["type"] = v.TypeCode.Type()
+		rec.Fields["code"] = v.TypeCode.Code()
+		if echo, ok := pkt.Layer(layers.LayerTypeICMPv6Echo).(*layers.ICMPv6Echo); ok {
+			rec.Fields["id"] = echo.Identifier
+			rec.Fields["seq"] = echo.SeqNumber
+		}
+	case *layers.SCTP:
+		rec.Fields["src_port"] = uint16(v.SrcPort)
+		rec.Fields["dst_port"] = uint16(v.DstPort)
 	case *layers.ARP:
 		rec.Fields["operation"] = v.Operation
 		rec.Fields["sender_hw"] = netHw(v.SourceHwAddress)
@@ -211,6 +264,32 @@ func populateFields(rec *LayerRecord, layer gopacket.Layer, start int) {
 		rec.Fields["target_hw"] = netHw(v.DstHwAddress)
 		rec.Fields["target_ip"] = netIPStr(v.DstProtAddress)
 	}
+}
+
+// decodeEmbeddedIPv4 parses the original IPv4 header embedded in an ICMP
+// error message payload (RFC 792 §2: "internet header + 64 bits of original
+// data datagram"). Returns nil when the payload is too short. Fields: src_ip,
+// dst_ip, protocol, and src_port/dst_port when the embedded L4 is TCP/UDP.
+func decodeEmbeddedIPv4(payload []byte) map[string]any {
+	if len(payload) < 20 || payload[0]>>4 != 4 {
+		return nil
+	}
+	ihl := int(payload[0]&0x0f) * 4
+	if ihl < 20 || len(payload) < ihl {
+		return nil
+	}
+	out := map[string]any{
+		"embedded_src_ip": net.IP(payload[12:16]).String(),
+		"embedded_dst_ip": net.IP(payload[16:20]).String(),
+		"embedded_protocol": payload[9],
+	}
+	if proto := payload[9]; proto == 6 || proto == 17 {
+		if len(payload) >= ihl+4 {
+			out["embedded_src_port"] = uint16(payload[ihl])<<8 | uint16(payload[ihl+1])
+			out["embedded_dst_port"] = uint16(payload[ihl+2])<<8 | uint16(payload[ihl+3])
+		}
+	}
+	return out
 }
 
 // tcpFlagsString renders the TCP flags as a compact string (e.g. "SYN,ACK").

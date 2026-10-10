@@ -18,7 +18,7 @@ import (
 // ParserVersion is the semantic version of the parsing engine. Stored on each
 // FlowModel so a future logic upgrade can detect stale indexes and trigger a
 // reparse (§17.12).
-const ParserVersion = "1.0.0"
+const ParserVersion = "1.1.0"
 
 // pcapGlobalHeaderLen is the size of the pcap file global header (24 bytes),
 // consumed by pcapgo.NewReader before the first packet record.
@@ -152,7 +152,14 @@ func Parse(path string, opts *Options) (*PcapAnalysis, error) {
 		pkt := gopacket.NewPacket(data, decoder, gopacket.Default)
 		fields := extractFields(pkt)
 
-		// Build the PacketModel (minimal index, §17.4).
+		// Build the PacketModel (minimal index, §17.4). P0 起携带常用头字段
+		// （D-PARSE-1：比对是高频等值查询，单遍顺带写零额外成本）。
+		icmpTypeU, icmpCodeU := uint16(fields.icmpType), uint16(fields.icmpCode)
+		icmpIDU, icmpSeqU := fields.icmpID, fields.icmpSeq
+		if fields.l4Proto == "icmpv6" {
+			icmpTypeU, icmpCodeU = uint16(fields.icmp6Type), uint16(fields.icmp6Code)
+			icmpIDU, icmpSeqU = fields.icmp6ID, fields.icmp6Seq
+		}
 		pm := storage.PacketModel{
 			ID:          uuid.New().String(),
 			PcapAssetID: opts.PcapAssetID,
@@ -165,6 +172,21 @@ func Parse(path string, opts *Options) (*PcapAnalysis, error) {
 			AnomalyFlag: detectAnomaly(ci.Length, capturedLen, ci.Length),
 			FragGroupID: fields.fragGroupID,
 			FragOffset:  fields.fragOffset,
+			IPID:        fields.ipID,
+			TTL:         fields.ttl,
+			DSCP:        fields.dscp,
+			ECN:         fields.ecn,
+			TCPSeq:      fields.tcpSeq,
+			TCPAck:      fields.tcpAckValue,
+			TCPFlagsRaw: fields.tcpFlagsRaw,
+			TCPFlagsStr: fields.tcpFlagsStr,
+			TCPWindow:   fields.tcpWindow,
+			UDPLen:      fields.udpLen,
+			ICMPType:    icmpTypeU,
+			ICMPCode:    icmpCodeU,
+			ICMPID:      icmpIDU,
+			ICMPSeq:     icmpSeqU,
+			PayloadLen:  len(fields.payload),
 		}
 
 		// Group into a flow.
@@ -189,14 +211,23 @@ func Parse(path string, opts *Options) (*PcapAnalysis, error) {
 		}
 		fs, ok := flows[key]
 		if !ok {
+			srcID, dstID := fields.srcIP.String(), fields.dstIP.String()
+			if fields.l4Proto == "l2" {
+				// L2-only 流无 IP：端点身份=MAC（避免 "<nil>"）
+				srcID, dstID = fields.l2SrcMAC, fields.l2DstMAC
+			}
 			fs = newFlowState(uuid.New().String(), opts.PcapAssetID, opts.UserID, key, firstPacketInfo{
-				SrcIP:     fields.srcIP.String(),
-				DstIP:     fields.dstIP.String(),
+				SrcIP:     srcID,
+				DstIP:     dstID,
 				SrcPort:   fields.srcPort,
 				DstPort:   fields.dstPort,
 				L4Proto:   fields.l4Proto,
 				IPVersion: fields.ipVersion,
 				TsUs:      tsUs,
+				VlanOuter: fields.vlanOuter,
+				VlanInner: fields.vlanInner,
+				EncapType: fields.encapType,
+				EncapID:   fields.encapID,
 			})
 			// First packet defines the offset layout (encapsulation-constant).
 			fs.setLayout(ExtractOffsetLayout(pkt))
@@ -216,7 +247,10 @@ func Parse(path string, opts *Options) (*PcapAnalysis, error) {
 		if fields.l4Proto == "tcp" && fields.fragGroupID == "" {
 			fs.recordTCPStats(fields, pm.Direction)
 		}
-		if fields.fragGroupID != "" {
+		// v4 分片喂重组器；v6 分片本批只做流身份分组（fragGroupID 带 v6| 前缀
+		// 与 v4 ipID 空间隔离），重组随 P1 批——v6 的 ipID 字段未提取，喂入会
+		// 塌成同一重组组。
+		if fields.fragGroupID != "" && fields.ipVersion == 4 {
 			reassembled := fragReassembler.AddFragment(
 				fields.fragGroupID, data, fs.layout.L3Start,
 				fields.ipID, fields.srcIP, fields.dstIP, 6,
@@ -237,15 +271,29 @@ func Parse(path string, opts *Options) (*PcapAnalysis, error) {
 		// after the assembler flushes (below).
 		if fields.l4Proto == "udp" && len(fields.payload) > 0 {
 			analysis.Trigram.AddSegment(fs.FlowModel.ID, pm.Direction, fields.payload)
-			// L7 parse (first packet with payload sets the flow's L7 metadata).
+			// P0 载荷完整性：增量摘要/预览按方向累积
+			fs.feedUDPPayload(pm.Direction, fields.payload)
+			// L7 parse（首个带载荷包起逐包尝试：识别命中但解析失败时保留解
+			// 析器名并允许后续包重试——识别≠解析成功，D-PARSE-1 错误表）。
 			// Use the calibrated server port so a capture starting at a server->client
 			// response still hints the right L7 parser.
 			if !fs.l7Parsed {
-				if res := l7reg.ParseStream(fs.serverPort, fields.payload); res != nil {
-					fs.setL7(res, pm.Direction)
-					fs.l7Parsed = true
+				if p := l7reg.Find(fs.serverPort, fields.payload); p != nil {
+					if res, perr := p.Parse(fields.payload); perr == nil && res != nil {
+						fs.setL7(res, pm.Direction)
+						fs.l7Parsed = true
+					} else if fs.FlowModel.L7Protocol == "" {
+						fs.FlowModel.L7Protocol = p.Name()
+					}
 				}
 			}
+		}
+		// P0 逐包族聚合（icmp 首包值 / sctp chunk 面）
+		if fields.l4Proto == "icmp" || fields.l4Proto == "icmpv6" {
+			fs.recordICMPStats(fields)
+		}
+		if fields.l4Proto == "sctp" {
+			fs.recordSCTPStats(fields.payload)
 		}
 
 		// Global stats.
@@ -291,14 +339,23 @@ func Parse(path string, opts *Options) (*PcapAnalysis, error) {
 			// L7 parse on the c2s reassembled stream. Use the calibrated server
 			// port (not FlowModel.DstPort, which reflects the first packet's dst
 			// and may be the client port if capture started at the SYN-ACK).
-			if res := l7reg.ParseStream(fs.serverPort, fs.c2sStream.buf); res != nil {
-				fs.setL7(res, "c2s")
+			// P0：Find/Parse 拆分——识别命中但解析失败保留解析器名（错误表）。
+			if p := l7reg.Find(fs.serverPort, fs.c2sStream.buf); p != nil {
+				if res, perr := p.Parse(fs.c2sStream.buf); perr == nil && res != nil {
+					fs.setL7(res, "c2s")
+				} else if fs.FlowModel.L7Protocol == "" {
+					fs.FlowModel.L7Protocol = p.Name()
+				}
 			}
 		}
 		if fs.s2cStream != nil && len(fs.s2cStream.buf) > 0 {
 			analysis.Trigram.AddSegment(fs.FlowModel.ID, "s2c", fs.s2cStream.buf)
-			if res := l7reg.ParseStream(fs.serverPort, fs.s2cStream.buf); res != nil {
-				fs.setL7(res, "s2c")
+			if p := l7reg.Find(fs.serverPort, fs.s2cStream.buf); p != nil {
+				if res, perr := p.Parse(fs.s2cStream.buf); perr == nil && res != nil {
+					fs.setL7(res, "s2c")
+				} else if fs.FlowModel.L7Protocol == "" {
+					fs.FlowModel.L7Protocol = p.Name()
+				}
 			}
 		}
 	}

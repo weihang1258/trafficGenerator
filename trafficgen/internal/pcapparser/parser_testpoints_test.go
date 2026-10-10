@@ -95,7 +95,9 @@ func TestParse_TruncatedRecordMidStream(t *testing.T) {
 // --- P1.10: Unknown L2 (STP) -> raw flow ---
 
 func TestParse_UnknownL2RawFlow(t *testing.T) {
-	// Build a minimal L2-only frame with a non-IP/ARP EtherType (0x0026 = PTP).
+	// D-PARSE-1 P0 行为变更注记：0x0026<1500 经 gopacket 判长帧走 LLC 解码，
+	// LLC 属 L2 族 → 归 l2| 流（原断言固化 P0 修复前 raw| 化 bug 行为，9.14）。
+	// 真 raw 面（不识别的 EtherType，无 LLC）由 TestParse_UnknownEthertypeRaw 保留。
 	buf := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{FixLengths: true}
 	eth := &layers.Ethernet{SrcMAC: macA, DstMAC: macB, EthernetType: 0x0026}
@@ -110,15 +112,34 @@ func TestParse_UnknownL2RawFlow(t *testing.T) {
 		t.Errorf("PacketCount = %d, want 1", analysis.PacketCount)
 	}
 	if analysis.FlowCount != 1 {
-		t.Errorf("FlowCount = %d, want 1 (raw|N synthetic flow)", analysis.FlowCount)
+		t.Errorf("FlowCount = %d, want 1 (l2| grouped flow)", analysis.FlowCount)
 	}
 	flow := analysis.Flows[0]
-	if flow.L4Protocol != "" {
-		t.Errorf("L4Protocol = %q, want empty (L2-only)", flow.L4Protocol)
+	if flow.L4Protocol != "l2" {
+		t.Errorf("L4Protocol = %q, want l2 (LLC 属 L2 族，D-PARSE-1 P0)", flow.L4Protocol)
 	}
-	// Flow key should be raw|<offset>
-	if !strings.HasPrefix(flow.FlowKey, "raw|") {
-		t.Errorf("FlowKey = %q, want prefix raw|", flow.FlowKey)
+	if !strings.HasPrefix(flow.FlowKey, "l2|") {
+		t.Errorf("FlowKey = %q, want prefix l2|", flow.FlowKey)
+	}
+}
+
+// TestParse_UnknownEthertypeRaw keeps the raw|N synthetic-flow contract for
+// L2 frames with an unrecognized high EtherType (non-IP/ARP/LLC/L2 族).
+func TestParse_UnknownEthertypeRaw(t *testing.T) {
+	buf := gopacket.NewSerializeBuffer()
+	opts := gopacket.SerializeOptions{FixLengths: true}
+	eth := &layers.Ethernet{SrcMAC: macA, DstMAC: macB, EthernetType: 0x9999}
+	gopacket.SerializeLayers(buf, opts, eth, gopacket.Payload([]byte("opaque")))
+	path := writePcap(t, [][]byte{buf.Bytes()}, []time.Time{time.UnixMicro(1)})
+	analysis, err := Parse(path, &Options{PcapAssetID: "ast1", UserID: "u1"})
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if analysis.FlowCount != 1 {
+		t.Fatalf("FlowCount = %d, want 1 (raw|N synthetic flow)", analysis.FlowCount)
+	}
+	if !strings.HasPrefix(analysis.Flows[0].FlowKey, "raw|") {
+		t.Errorf("FlowKey = %q, want prefix raw|", analysis.Flows[0].FlowKey)
 	}
 }
 
@@ -248,8 +269,15 @@ func TestParse_UDPL7NoMatch(t *testing.T) {
 		t.Fatalf("Parse: %v", err)
 	}
 	flow := analysis.Flows[0]
-	if flow.L7Protocol != "" {
-		t.Errorf("L7Protocol = %q, want empty (no L7 match)", flow.L7Protocol)
+	// D-PARSE-1 P0 H 规则：有载荷但无解析器命中 → "unknown"（原断言固化 P0
+	// 修复前空串行为，9.14 行为变更注记）
+	if flow.L7Protocol != "unknown" {
+		t.Errorf("L7Protocol = %q, want unknown (payload, no parser match)", flow.L7Protocol)
+	}
+	// 兜底形状：载荷 hash/preview 非空
+	if flow.C2SPayloadHash == "" || flow.C2SPayloadPreview == "" {
+		t.Errorf("unknown 兜底必须有载荷 hash/preview: hash=%q preview=%q",
+			flow.C2SPayloadHash, flow.C2SPayloadPreview)
 	}
 }
 

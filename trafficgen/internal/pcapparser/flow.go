@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"hash"
 	"net"
 	"strings"
 
@@ -55,15 +56,16 @@ func flowKeyTCPUDP(srcIP, dstIP net.IP, srcPort, dstPort uint16, proto uint8) st
 	return fmt.Sprintf("%d|%s|%s", proto, a, b)
 }
 
-// flowKeyICMP normalizes an ICMP flow as (proto, min(ip), max(ip), type, id).
-// Echo requests/replies share a flow by id; the two directions normalize via
-// IP ordering.
-func flowKeyICMP(srcIP, dstIP net.IP, icmpType uint8, id uint16) string {
+// flowKeyICMP normalizes an ICMP flow as (proto, min(ip), max(ip), id).
+// Echo requests/replies share a flow by id (type 是方向语义不是流身份——
+// req=8/reply=0 必须同流才能 (id,seq) 配对，D-PARSE-1 P0 行为变更：key 去
+// type，原 type 入 key 致 req/reply 分家)。Directions normalize via IP order.
+func flowKeyICMP(srcIP, dstIP net.IP, id uint16) string {
 	a, b := srcIP.String(), dstIP.String()
 	if strings.Compare(a, b) > 0 {
 		a, b = b, a
 	}
-	return fmt.Sprintf("1|%s|%s|%d|%d", a, b, icmpType, id)
+	return fmt.Sprintf("1|%s|%s|%d", a, b, id)
 }
 
 // flowKeyARP normalizes an ARP exchange as (op, min(sender,target), max(...)).
@@ -134,7 +136,21 @@ type FlowState struct {
 
 	// counters for finalize
 	indexInFlow int
+
+	// P0 载荷完整性（D-PARSE-1）：UDP 双向增量摘要与预览（TCP 在 finalize 从
+	// 重组流缓冲计算）；udpPayloadBytes 供 unknown 兜底判定。
+	c2sHasher, s2cHasher hash.Hash
+	c2sPrev, s2cPrev     []byte
+	udpPayloadBytes      int64
+
+	// P0 SCTP 聚合：chunk 类型集合 + 关联状态机输入
+	sctpChunkSeen                                                                                  map[uint8]bool
+	sctpHasInit, sctpHasInitAck, sctpHasCookieEcho, sctpHasCookieAck, sctpHasData, sctpHasAbort bool
 }
+
+// payloadPreviewCap is the preview cap in bytes (D-PARSE-1 裁定：128B 常量，
+// hex+ascii 双视图足够比对且防超长).
+const payloadPreviewCap = 128
 
 // newFlowState creates a FlowState for the first packet of a flow.
 func newFlowState(flowID, pcapAssetID, userID, flowKey string, pkt firstPacketInfo) *FlowState {
@@ -163,6 +179,16 @@ func newFlowState(flowID, pcapAssetID, userID, flowKey string, pkt firstPacketIn
 		Server:    fmt.Sprintf("%s:%d", pkt.DstIP, pkt.DstPort),
 		DirMethod: "first_packet",
 		DirStatus: "uncertain",
+		// 封装承载 + ICMP 聚合缺省（D-PARSE-1 P0）：无 VLAN/封装 -1，ICMP 首包
+		// 覆写（type 0 是合法 echo reply，必须 -1 哨兵）。
+		VlanIDOuter: pkt.VlanOuter,
+		VlanIDInner: pkt.VlanInner,
+		EncapType:   pkt.EncapType,
+		EncapID:     pkt.EncapID,
+		ICMPType:    -1,
+		ICMPCode:    -1,
+		ICMPID:      -1,
+		ICMPSeq:     -1,
 	}
 	return fs
 }
@@ -175,6 +201,10 @@ type firstPacketInfo struct {
 	L4Proto   string
 	IPVersion int
 	TsUs      int64
+	// 封装承载（D-PARSE-1 P0）：取自首包（封装恒定原则）
+	VlanOuter, VlanInner int
+	EncapType            string
+	EncapID              int64
 }
 
 // classifyDirection returns "c2s" if the packet's src matches the flow's
@@ -443,6 +473,245 @@ func formatTCPOptions(kinds []uint8) string {
 	return "[" + s + "]"
 }
 
+// recordICMPStats captures the first packet's type/code/id/seq into the flow
+// aggregate (D-PARSE-1 P0：首包值；混杂面 L7Detail 标记随 P1 批).
+func (fs *FlowState) recordICMPStats(f packetFields) {
+	switch f.l4Proto {
+	case "icmp":
+		if fs.FlowModel.ICMPType == -1 {
+			fs.FlowModel.ICMPType = int(f.icmpType)
+			fs.FlowModel.ICMPCode = int(f.icmpCode)
+			fs.FlowModel.ICMPID = int(f.icmpID)
+			fs.FlowModel.ICMPSeq = int(f.icmpSeq)
+		}
+	case "icmpv6":
+		if fs.FlowModel.ICMPType == -1 {
+			fs.FlowModel.ICMPType = int(f.icmp6Type)
+			fs.FlowModel.ICMPCode = int(f.icmp6Code)
+			fs.FlowModel.ICMPID = int(f.icmp6ID)
+			fs.FlowModel.ICMPSeq = int(f.icmp6Seq)
+		}
+	}
+}
+
+// sctpChunkWalk iterates SCTP chunks per RFC 4960 §3.1 (4B chunk header:
+// type/flags/length; length includes padding). Returns the chunk type list,
+// DATA payload byte total (chunk length - 16B DATA chunk header), and the
+// handshake/abort flags feeding the association state machine.
+func sctpChunkWalk(data []byte) (typesList []uint8, dataBytes int64,
+	hasInit, hasInitAck, hasCookieEcho, hasCookieAck, hasData, hasAbort bool) {
+	for len(data) >= 4 {
+		ct := data[0]
+		cl := int(data[2])<<8 | int(data[3])
+		if cl < 4 || cl > len(data) {
+			break // 截断/非法：停（负例断言锚点）
+		}
+		typesList = append(typesList, ct)
+		switch ct {
+		case 1:
+			hasInit = true
+		case 2:
+			hasInitAck = true
+		case 10:
+			hasCookieEcho = true
+		case 11:
+			hasCookieAck = true
+		case 0:
+			hasData = true
+			if cl >= 16 {
+				dataBytes += int64(cl - 16) // DATA: 4B 块头 + TSN(4)+SID(2)+SSN(2)+PPID(4)
+			}
+		case 6:
+			hasAbort = true
+		}
+		data = data[cl:]
+	}
+	return
+}
+
+// recordSCTPStats accumulates chunk-type set, DATA byte count and association
+// state inputs per SCTP packet (D-PARSE-1 P0).
+func (fs *FlowState) recordSCTPStats(payload []byte) {
+	typesList, dataBytes, hasInit, hasInitAck, hasCookieEcho, hasCookieAck, hasData, hasAbort := sctpChunkWalk(payload)
+	if fs.sctpChunkSeen == nil {
+		fs.sctpChunkSeen = map[uint8]bool{}
+	}
+	seen := []uint8{}
+	for _, ct := range typesList {
+		if !fs.sctpChunkSeen[ct] {
+			fs.sctpChunkSeen[ct] = true
+			seen = append(seen, ct)
+		}
+	}
+	if len(seen) > 0 {
+		// 追加进 JSON 数组字符串（简单拼装，类型集合是小面）
+		cur := strings.TrimSuffix(strings.TrimPrefix(fs.FlowModel.SctpChunkTypes, "["), "]")
+		parts := []string{}
+		if cur != "" {
+			parts = append(parts, cur)
+		}
+		for _, ct := range seen {
+			parts = append(parts, fmt.Sprintf("%d", ct))
+		}
+		fs.FlowModel.SctpChunkTypes = "[" + strings.Join(parts, ",") + "]"
+	}
+	fs.FlowModel.SctpDataBytes += dataBytes
+	fs.sctpHasInit = fs.sctpHasInit || hasInit
+	fs.sctpHasInitAck = fs.sctpHasInitAck || hasInitAck
+	fs.sctpHasCookieEcho = fs.sctpHasCookieEcho || hasCookieEcho
+	fs.sctpHasCookieAck = fs.sctpHasCookieAck || hasCookieAck
+	fs.sctpHasData = fs.sctpHasData || hasData
+	fs.sctpHasAbort = fs.sctpHasAbort || hasAbort
+}
+
+// finalizeSCTPState derives the association state (D-PARSE-1 P0：
+// established|aborted|incomplete) from accumulated chunk flags.
+func (fs *FlowState) finalizeSCTPState() {
+	if fs.FlowModel.L4Protocol != "sctp" || fs.sctpChunkSeen == nil {
+		return
+	}
+	handshake := (fs.sctpHasInit && fs.sctpHasInitAck) || fs.sctpHasCookieEcho
+	switch {
+	case fs.sctpHasAbort:
+		fs.FlowModel.SctpAssocState = "aborted"
+	case handshake || fs.sctpHasData || fs.sctpHasCookieAck:
+		fs.FlowModel.SctpAssocState = "established"
+	default:
+		fs.FlowModel.SctpAssocState = "incomplete"
+	}
+}
+
+// feedUDPPayload accumulates a UDP payload into its direction's incremental
+// digest and preview (D-PARSE-1 P0：载荷域按序聚合).
+func (fs *FlowState) feedUDPPayload(dir string, b []byte) {
+	if len(b) == 0 {
+		return
+	}
+	fs.udpPayloadBytes += int64(len(b))
+	if fs.c2sHasher == nil {
+		fs.c2sHasher = sha256.New()
+	}
+	if fs.s2cHasher == nil {
+		fs.s2cHasher = sha256.New()
+	}
+	if dir == "c2s" {
+		fs.c2sHasher.Write(b)
+		fs.c2sPrev = appendPreview(fs.c2sPrev, b)
+	} else {
+		fs.s2cHasher.Write(b)
+		fs.s2cPrev = appendPreview(fs.s2cPrev, b)
+	}
+}
+
+// appendPreview appends up to the preview cap bytes.
+func appendPreview(cur, b []byte) []byte {
+	if len(cur) >= payloadPreviewCap {
+		return cur
+	}
+	n := payloadPreviewCap - len(cur)
+	if n > len(b) {
+		n = len(b)
+	}
+	return append(cur, b[:n]...)
+}
+
+// formatPreview renders bytes as hex+" | "+ascii 双视图 (printable ASCII kept,
+// others '.').
+func formatPreview(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+	const hexdigits = "0123456789abcdef"
+	out := make([]byte, 0, len(b)*2+3+len(b))
+	for _, c := range b {
+		out = append(out, hexdigits[c>>4], hexdigits[c&0x0f])
+	}
+	out = append(out, ' ', '|', ' ')
+	for _, c := range b {
+		if c >= 0x20 && c < 0x7f {
+			out = append(out, c)
+		} else {
+			out = append(out, '.')
+		}
+	}
+	return string(out)
+}
+
+// sha256Hex returns the hex-encoded sha256 of b, "" when empty (payloadHash 同
+// 口径：空载荷与零字节摘要可区分).
+func sha256Hex(b []byte) string {
+	return payloadHash(b)
+}
+
+// fillPayloadDigests writes the P0 payload/body digest columns at finalize:
+// TCP from reassembled stream buffers (honoring L7 body boundaries when a
+// parser set them, else body=stream), UDP from the incremental direction
+// digest (body=payload for UDP). Must run after flushStreams + L7 parse.
+func (fs *FlowState) fillPayloadDigests() {
+	if fs.FlowModel.L4Protocol == "udp" {
+		if fs.c2sHasher != nil {
+			fs.FlowModel.C2SPayloadHash = hex.EncodeToString(fs.c2sHasher.Sum(nil))
+		}
+		if fs.s2cHasher != nil {
+			fs.FlowModel.S2CPayloadHash = hex.EncodeToString(fs.s2cHasher.Sum(nil))
+		}
+		fs.FlowModel.C2SPayloadPreview = formatPreview(fs.c2sPrev)
+		fs.FlowModel.S2CPayloadPreview = formatPreview(fs.s2cPrev)
+		// UDP 无独立 body 段：body=载荷
+		fs.FlowModel.C2SBodyHash = fs.FlowModel.C2SPayloadHash
+		fs.FlowModel.S2CBodyHash = fs.FlowModel.S2CPayloadHash
+		fs.FlowModel.C2SBodyPreview = fs.FlowModel.C2SPayloadPreview
+		fs.FlowModel.S2CBodyPreview = fs.FlowModel.S2CPayloadPreview
+		return
+	}
+	if fs.FlowModel.L4Protocol != "tcp" {
+		return
+	}
+	digestStream := func(buf []byte, bodyOff, bodyLen int64, payHash, payPrev, bodyHash, bodyPrev *string) {
+		if buf == nil {
+			return
+		}
+		*payHash = sha256Hex(buf)
+		*payPrev = formatPreview(buf)
+		// body：解析器给出边界用边界段；无/越界回落 body=stream（错误表第 4 行）
+		off, ln := int(bodyOff), int(bodyLen)
+		if ln <= 0 || off < 0 || off+ln > len(buf) {
+			off, ln = 0, len(buf)
+		}
+		*bodyHash = sha256Hex(buf[off : off+ln])
+		*bodyPrev = formatPreview(buf[off : off+ln])
+	}
+	if fs.c2sStream != nil {
+		digestStream(fs.c2sStream.buf, fs.FlowModel.C2SBodyOffset, fs.FlowModel.C2SBodyLength,
+			&fs.FlowModel.C2SPayloadHash, &fs.FlowModel.C2SPayloadPreview,
+			&fs.FlowModel.C2SBodyHash, &fs.FlowModel.C2SBodyPreview)
+	}
+	if fs.s2cStream != nil {
+		digestStream(fs.s2cStream.buf, fs.FlowModel.S2CBodyOffset, fs.FlowModel.S2CBodyLength,
+			&fs.FlowModel.S2CPayloadHash, &fs.FlowModel.S2CPayloadPreview,
+			&fs.FlowModel.S2CBodyHash, &fs.FlowModel.S2CBodyPreview)
+	}
+}
+
+// finalizeL7Fallback sets the unknown/handshake_only fallback (D-PARSE-1 H 规
+// 则)：有载荷但无解析器命中 → unknown；TCP 纯握手零载荷 → handshake_only。
+// 解析器命中但解析失败的流已带解析器名（识别≠解析成功），不走本兜底。
+func (fs *FlowState) finalizeL7Fallback() {
+	if fs.FlowModel.L7Protocol != "" {
+		return
+	}
+	hasPayload := fs.udpPayloadBytes > 0
+	if fs.FlowModel.L4Protocol == "tcp" {
+		hasPayload = fs.FlowModel.C2SLength+fs.FlowModel.S2CLength > 0
+	}
+	switch {
+	case hasPayload:
+		fs.FlowModel.L7Protocol = "unknown"
+	case fs.FlowModel.L4Protocol == "tcp":
+		fs.FlowModel.L7Protocol = "handshake_only"
+	}
+}
+
 // flushStreams writes the c2s/s2c reassembly buffers to the .payloads file and
 // records offsets/lengths/completeness in FlowModel. Called by the parser after
 // assembler.FlushAll (single-threaded). payloadsPath is stored in
@@ -512,6 +781,9 @@ func (fs *FlowState) finalize() (storage.FlowModel, []storage.PacketModel) {
 		fs.FlowModel.OffsetLayout = "{}"
 	}
 	fs.finalizeTCPStats()
+	fs.finalizeSCTPState()
+	fs.fillPayloadDigests()
+	fs.finalizeL7Fallback()
 	rem := fs.drainPackets()
 	return fs.FlowModel, rem
 }
@@ -569,7 +841,7 @@ type packetFields struct {
 	fragFirst bool
 	// TCP flags for direction calibration (§16.7) and handshake analysis.
 	tcpSYN, tcpACK, tcpFIN, tcpRST, tcpPSH bool
-	tcpSeq uint32
+	tcpSeq, tcpAckValue uint32
 	// TCP window + SYN-carried options (§7). Window is tracked per packet for
 	// WindowRange; MSS/WindowScale/SACK/option-kinds come from SYN/SYN-ACK only.
 	tcpWindow      uint16
@@ -579,18 +851,39 @@ type packetFields struct {
 	tcpOptionKinds []uint8
 	// ICMP echo flow key members (§5): type + id distinguish echo flows.
 	icmpType uint8
+	icmpCode uint8
 	icmpID   uint16
+	icmpSeq  uint16
+	// ICMPv6 (D-PARSE-1 P0)：镜像 v4 面
+	icmp6Type, icmp6Code uint8
+	icmp6ID, icmp6Seq    uint16
 	// ARP flow key members (§5): sender/target protocol address + operation.
 	arpSenderIP net.IP
 	arpTargetIP net.IP
 	arpOp       uint16
+	// P0 新传输面：ttl/dscp/ecn、udp len、igmp/ospf/pim type、L2 身份
+	ttl, dscp, ecn uint8
+	udpLen         uint16
+	igmpType       uint8
+	ospfType       uint8
+	pimType        uint8
+	l2EtherType    uint16
+	l2SrcMAC       string
+	l2DstMAC       string
+	// VLAN/封装（D-PARSE-1 P0）：-1=无
+	vlanOuter, vlanInner int
+	encapType            string
+	encapID              int64
+	// TCP flags 位组装（包级列 TCPFlagsRaw/Str 用）
+	tcpFlagsRaw uint8
+	tcpFlagsStr string
 }
 
 // extractFields walks a gopacket.Packet's layers to pull the fields the parser
 // needs. It is permissive: unknown/missing layers yield zero values rather than
 // errors, so malformed packets are still indexed (byte-patch preserves them).
 func extractFields(pkt gopacket.Packet) packetFields {
-	f := packetFields{fragOffset: -1}
+	f := packetFields{fragOffset: -1, vlanOuter: -1, vlanInner: -1, encapID: -1}
 	if nl := pkt.NetworkLayer(); nl != nil {
 		switch v := nl.(type) {
 		case *layers.IPv4:
@@ -599,6 +892,9 @@ func extractFields(pkt gopacket.Packet) packetFields {
 			f.ipVersion = 4
 			f.ipID = v.Id
 			f.ipMF = v.Flags&layers.IPv4MoreFragments != 0
+			f.ttl = v.TTL
+			f.dscp = v.TOS >> 2
+			f.ecn = v.TOS & 0x03
 			if f.ipMF || v.FragOffset != 0 {
 				f.fragGroupID = fmt.Sprintf("%d|%s|%s|%d", v.Id, v.SrcIP, v.DstIP, v.Protocol)
 				f.fragOffset = int(v.FragOffset) // 8-byte units (§17.4)
@@ -625,6 +921,9 @@ func extractFields(pkt gopacket.Packet) packetFields {
 			f.srcIP = v.SrcIP
 			f.dstIP = v.DstIP
 			f.ipVersion = 6
+			f.ttl = v.HopLimit
+			f.dscp = v.TrafficClass >> 2
+			f.ecn = v.TrafficClass & 0x03
 		}
 	}
 	if tl := pkt.TransportLayer(); tl != nil {
@@ -640,7 +939,9 @@ func extractFields(pkt gopacket.Packet) packetFields {
 			f.tcpRST = v.RST
 			f.tcpPSH = v.PSH
 			f.tcpSeq = v.Seq
+			f.tcpAckValue = v.Ack
 			f.tcpWindow = v.Window
+			f.tcpFlagsRaw, f.tcpFlagsStr = tcpFlagsPack(v)
 			// SYN/SYN-ACK carry the options that matter for FlowModel (MSS,
 			// WindowScale, SACK). Parse them here so recordTCPStats can record
 			// them on the handshake packets (§7).
@@ -667,6 +968,13 @@ func extractFields(pkt gopacket.Packet) packetFields {
 			f.dstPort = uint16(v.DstPort)
 			f.l4Proto = "udp"
 			f.payload = v.Payload
+			f.udpLen = v.Length
+		case *layers.SCTP:
+			// SCTP（D-PARSE-1 P0 收口：此前 l4Proto="" 逐包 raw 化）
+			f.srcPort = uint16(v.SrcPort)
+			f.dstPort = uint16(v.DstPort)
+			f.l4Proto = "sctp"
+			f.payload = v.Payload
 		}
 	}
 	// ICMPv4/v6 and ARP don't expose a TransportLayer/NetworkLayer; detect
@@ -675,8 +983,53 @@ func extractFields(pkt gopacket.Packet) packetFields {
 		f.l4Proto = "icmp"
 		if v, ok := icmp.(*layers.ICMPv4); ok {
 			f.icmpType = v.TypeCode.Type()
+			f.icmpCode = v.TypeCode.Code()
 			f.icmpID = v.Id
+			f.icmpSeq = v.Seq
 			f.payload = v.Payload
+		}
+	}
+	// ICMPv6（D-PARSE-1 P0 收口：镜像 v4 面；echo id/seq 在 ICMPv6Echo 层）
+	if icmp6 := pkt.Layer(layers.LayerTypeICMPv6); icmp6 != nil {
+		f.l4Proto = "icmpv6"
+		if v, ok := icmp6.(*layers.ICMPv6); ok {
+			f.icmp6Type = v.TypeCode.Type()
+			f.icmp6Code = v.TypeCode.Code()
+			f.payload = v.Payload
+			if echo, ok := pkt.Layer(layers.LayerTypeICMPv6Echo).(*layers.ICMPv6Echo); ok {
+				f.icmp6ID = echo.Identifier
+				f.icmp6Seq = echo.SeqNumber
+				f.payload = echo.Payload // echo data（4B id/seq 之后）
+			}
+		}
+	}
+	// IGMP/OSPF（IP proto 直载，NetworkLayer 之后 gopacket 解出专属层）
+	if igmp := pkt.Layer(layers.LayerTypeIGMP); igmp != nil {
+		f.l4Proto = "igmp"
+		if v, ok := igmp.(*layers.IGMP); ok {
+			f.igmpType = uint8(v.Type)
+			f.payload = v.Payload
+		}
+	}
+	// OSPF/PIM（gopacket v1.1.19 均无可断言解码层）：IP proto 原始分支。
+	// OSPF type=payload[1]（version(1)+type(1)，RFC 2328 §4.1）；
+	// PIM type=首字节低 4 位（高 4 位版本，RFC 7761 §4）。
+	if f.l4Proto == "" {
+		if v4, ok := pkt.NetworkLayer().(*layers.IPv4); ok {
+			switch v4.Protocol {
+			case layers.IPProtocol(89):
+				f.l4Proto = "ospf"
+				f.payload = v4.Payload
+				if len(v4.Payload) > 1 {
+					f.ospfType = v4.Payload[1]
+				}
+			case layers.IPProtocol(103):
+				f.l4Proto = "pim"
+				f.payload = v4.Payload
+				if len(v4.Payload) > 0 {
+					f.pimType = v4.Payload[0] & 0x0F
+				}
+			}
 		}
 	}
 	if arp := pkt.Layer(layers.LayerTypeARP); arp != nil {
@@ -690,9 +1043,104 @@ func extractFields(pkt gopacket.Packet) packetFields {
 			if len(v.DstProtAddress) == 4 {
 				f.arpTargetIP = net.IP(v.DstProtAddress)
 			}
+			f.payload = v.Payload // L2 载荷（通常零长；hash 口径统一）
+		}
+	}
+	// L2-only（goose 0x88B5/sv 0x88BA/isis LLC，D-PARSE-1 P0 收口）：无 IP 层，
+	// 按 EtherType+MAC 对分组；payload=L2 载荷（hash 口径统一）
+	if f.l4Proto == "" {
+		if eth, ok := pkt.Layer(layers.LayerTypeEthernet).(*layers.Ethernet); ok {
+			// 0x88B5=goose(IEC 61850 GOOSE)/0x88BA=sv(采样值) gopacket 未命名，
+			// 用原始值；LLC=isis（IEEE 802.3 长度字段，gopacket 标 EthernetTypeLLC=0）
+			switch eth.EthernetType {
+			case layers.EthernetType(0x88B5), layers.EthernetType(0x88BA), layers.EthernetTypeLLC:
+				f.l4Proto = "l2"
+				f.l2EtherType = uint16(eth.EthernetType)
+				f.l2SrcMAC = eth.SrcMAC.String()
+				f.l2DstMAC = eth.DstMAC.String()
+				f.payload = eth.Payload
+			}
+		}
+	}
+	// IPv6 分片分组（D-PARSE-1 P0：v4 既有/v6 本批补；重组进 assembler 随
+	// P1 批，本批只修流身份）。gopacket 对分片头 NextDecoder(DecodeFragment)
+	// 停止链式解码——首片 L4 端口从分片头后手工取（与 v4 首片同口径）。
+	if frag6, ok := pkt.Layer(layers.LayerTypeIPv6Fragment).(*layers.IPv6Fragment); ok {
+		f.fragGroupID = fmt.Sprintf("v6|%d|%s|%s", frag6.Identification, f.srcIP, f.dstIP)
+		f.fragOffset = int(frag6.FragmentOffset) // 8 字节单位，与 v4 同口径
+		f.fragFirst = frag6.FragmentOffset == 0
+		if f.fragFirst && f.l4Proto == "" {
+			rest := frag6.Payload
+			if len(rest) >= 4 {
+				ports := func() (uint16, uint16) {
+					return uint16(rest[0])<<8 | uint16(rest[1]), uint16(rest[2])<<8 | uint16(rest[3])
+				}
+				switch frag6.NextHeader {
+				case layers.IPProtocolTCP:
+					f.l4Proto = "tcp"
+					f.srcPort, f.dstPort = ports()
+				case layers.IPProtocolUDP:
+					f.l4Proto = "udp"
+					f.srcPort, f.dstPort = ports()
+				}
+			}
+		}
+	}
+	// VLAN/封装检测（D-PARSE-1 P0）：Dot1Q 单层/QinQ 双层取值 + 封装标记
+	dot1qSeen := 0
+	for _, ly := range pkt.Layers() {
+		switch v := ly.(type) {
+		case *layers.Dot1Q:
+			dot1qSeen++
+			if dot1qSeen == 1 {
+				f.vlanOuter = int(v.VLANIdentifier)
+			} else if dot1qSeen == 2 {
+				f.vlanInner = int(v.VLANIdentifier)
+			}
+		case *layers.MPLS:
+			f.encapType = "mpls"
+		case *layers.PPPoE:
+			f.encapType = "pppoe"
+			f.encapID = int64(v.SessionId)
+		case *layers.VXLAN:
+			f.encapType = "vxlan"
+			f.encapID = int64(v.VNI & 0xFFFFFF)
+		case *layers.GTPv1U:
+			f.encapType = "gtp"
+			f.encapID = int64(v.TEID)
+		case *layers.Geneve:
+			f.encapType = "geneve"
+			f.encapID = int64(v.VNI & 0xFFFFFF)
+		case *layers.GRE:
+			f.encapType = "gre"
 		}
 	}
 	return f
+}
+
+// tcpFlagsPack assembles the wire flags byte and the "SYN,ACK" style string
+// (包级列 TCPFlagsRaw/Str 用).
+func tcpFlagsPack(v *layers.TCP) (uint8, string) {
+	var raw uint8
+	var s string
+	add := func(set bool, bit uint8, name string) {
+		if set {
+			raw |= bit
+			if s != "" {
+				s += ","
+			}
+			s += name
+		}
+	}
+	add(v.FIN, 0x01, "FIN")
+	add(v.SYN, 0x02, "SYN")
+	add(v.RST, 0x04, "RST")
+	add(v.PSH, 0x08, "PSH")
+	add(v.ACK, 0x10, "ACK")
+	add(v.URG, 0x20, "URG")
+	add(v.ECE, 0x40, "ECE")
+	add(v.CWR, 0x80, "CWR")
+	return raw, s
 }
 
 // computeFlowKey derives the bidirectional-normalized flow key from parsed
@@ -704,12 +1152,47 @@ func computeFlowKey(f packetFields) string {
 	case "udp":
 		return flowKeyTCPUDP(f.srcIP, f.dstIP, f.srcPort, f.dstPort, 17)
 	case "icmp":
-		return flowKeyICMP(f.srcIP, f.dstIP, f.icmpType, f.icmpID)
+		return flowKeyICMP(f.srcIP, f.dstIP, f.icmpID)
 	case "arp":
 		return flowKeyARP(f.arpSenderIP, f.arpTargetIP, f.arpOp)
+	case "icmpv6":
+		return flowKeyICMPProto(f.srcIP, f.dstIP, 58, f.icmp6ID)
+	case "sctp":
+		return flowKeyTCPUDP(f.srcIP, f.dstIP, f.srcPort, f.dstPort, 132)
+	case "igmp", "ospf", "pim":
+		// 无端口直载协议：proto|端点序|type 分组（RFC 3376/2328/7761 面）
+		t := f.igmpType
+		proto := 2
+		if f.l4Proto == "ospf" {
+			t, proto = f.ospfType, 89
+		} else if f.l4Proto == "pim" {
+			t, proto = f.pimType, 103
+		}
+		a, b := f.srcIP.String(), f.dstIP.String()
+		if strings.Compare(a, b) > 0 {
+			a, b = b, a
+		}
+		return fmt.Sprintf("%d|%s|%s|%d", proto, a, b, t)
+	case "l2":
+		a, b := f.l2SrcMAC, f.l2DstMAC
+		if strings.Compare(a, b) > 0 {
+			a, b = b, a
+		}
+		return fmt.Sprintf("l2|%d|%s|%s", f.l2EtherType, a, b)
 	default:
 		return ""
 	}
+}
+
+// flowKeyICMPProto generalizes the ICMP flow key to any IP protocol carrying
+// echo id semantics (icmp=1 / icmpv6=58; D-PARSE-1 P0). Type 不入 key（见
+// flowKeyICMP 注）。
+func flowKeyICMPProto(srcIP, dstIP net.IP, proto uint8, id uint16) string {
+	a, b := srcIP.String(), dstIP.String()
+	if strings.Compare(a, b) > 0 {
+		a, b = b, a
+	}
+	return fmt.Sprintf("%d|%s|%s|%d", proto, a, b, id)
 }
 
 // payloadHash returns the hex-encoded sha256 of the L4 payload, or "" when the
