@@ -47,7 +47,7 @@ func (s *Server) registerWorkflowTools() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
 			Name:        "flowb_generate_traffic",
-			Description: "One-shot workflow: create strategy + create task + start task. Returns task_id and strategy_id. Most common way to generate traffic. Completed pcap tasks are auto-registered into the asset library (up to 64MB) — flowb_get_task_progress then returns pcap_asset_id, and flowb_manage_pcaps lists/analyzes/downloads the file (list_flows, get_packet, extract).",
+			Description: "One-shot workflow: create strategy + create task + start task. Returns task_id and strategy_id. Most common way to generate traffic. NIC output: give output_config.ports=[{interface, weight}] to auto-create the port group (idempotent — same interfaces reuse the group, returns port_group_reused=true), or output_config.port_group_id for an existing group (the two are mutually exclusive). Completed pcap tasks are auto-registered into the asset library (up to 64MB) — flowb_get_task_progress then returns pcap_asset_id, and flowb_manage_pcaps lists/analyzes/downloads the file (list_flows, get_packet, extract).",
 		},
 		s.handleGenerateTraffic,
 	)
