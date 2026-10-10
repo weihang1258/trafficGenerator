@@ -362,7 +362,9 @@ func (someipParser) CanParse(port uint16, sample []byte) bool {
 	if port != 30490 || len(sample) < 16 {
 		return false
 	}
-	return binary.BigEndian.Uint32(sample[4:8]) == uint32(len(sample))
+	// Length 字段从 Client ID 起数（PRS_SOMEIPProtocol §4.2.2）= 总长-8
+	// （P2a 复审发现 2：原 ==总长 恒 false，真实报文永不识别）
+	return binary.BigEndian.Uint32(sample[4:8]) == uint32(len(sample)-8)
 }
 
 func (someipParser) Parse(stream []byte) (*L7Result, error) {
@@ -491,8 +493,22 @@ func (bacnetParser) Parse(stream []byte) (*L7Result, error) {
 	if len(stream) >= 6 && stream[4] == 0x01 {
 		fields["npdu_version"] = stream[4]
 		apduOff := 6
-		if ctrl := stream[5]; ctrl&0x20 != 0 { // DNET 存在：+2+len
-			apduOff += 2 + int(stream[6]&0x0F)
+		if ctrl := stream[5]; ctrl&0x20 != 0 {
+			// DNET 存在（ASHRAE 135 §6.2.2）：DNET 2B@6:7 + DLEN 整字节@8 +
+			// DADR(DLEN)。DLEN=255 为远程广播特例（无 DADR，注记）；路由帧
+			// 短于 9B 时跳过 APDU 解析（P2a 复审发现 1：越界 panic 面）。
+			if len(stream) < 9 {
+				res.Metadata["truncated_npdu"] = true
+				detail.appendMessage(L7Message{Kind: "message", WireLen: len(stream), Fields: fields})
+				detail.countKinds()
+				res.Detail = detail
+				return res, nil
+			}
+			if stream[8] == 255 {
+				apduOff += 3
+			} else {
+				apduOff += 3 + int(stream[8])
+			}
 		}
 		if apduOff+1 <= len(stream) {
 			apdu := stream[apduOff:]
@@ -509,17 +525,19 @@ func (bacnetParser) Parse(stream []byte) (*L7Result, error) {
 				if len(apdu) >= 2 {
 					fields["service_choice"] = apdu[1]
 				}
-			case 3: // complex ACK：invoke-id + service-choice
+			case 3: // complex ACK：invoke-id + service-choice（响应面）
 				if len(apdu) >= 3 {
 					fields["invoke_id"] = apdu[1]
 					fields["service_choice"] = apdu[2]
-					kind2 := "response"
-					_ = kind2
 				}
 			}
 		}
 	}
-	detail.appendMessage(L7Message{Kind: "message", WireLen: len(stream), Fields: fields})
+	kind := "message"
+	if t, ok := fields["apdu_type"].(byte); ok && t == 3 {
+		kind = "response"
+	}
+	detail.appendMessage(L7Message{Kind: kind, WireLen: len(stream), Fields: fields})
 	detail.countKinds()
 	res.Detail = detail
 	return res, nil

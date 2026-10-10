@@ -146,12 +146,16 @@ func TestP2A_STUN(t *testing.T) {
 func TestP2A_CoAP(t *testing.T) {
 	f := []byte{0x41, 0x01, 0x12, 0x34, 0xAA} // ver1 CON GET mid tkl=1 token
 	f = append(f, 0xB3, 'o', 'n', 'e')        // URI-Path "one" (delta11 len3)
+	f = append(f, 0x11, 0x2A)                 // Content-Format=42（1B uint，复审发现 3）
 	f = append(f, 0xFF, 0x00, 0x01)           // payload marker
 	var p coapParser
 	res, _ := p.Parse(f)
 	m := res.Detail.Messages[0].Fields
 	if m["type"] != "CON" || m["code"] != "0.01" || m["method"] != "GET" || m["uri_path"] != "one" {
 		t.Errorf("coap = %v", m)
+	}
+	if m["content_format"] != 42 {
+		t.Errorf("content_format(1B uint) = %v, want 42", m["content_format"])
 	}
 }
 
@@ -201,7 +205,7 @@ func TestP2A_SomeIP(t *testing.T) {
 	f := make([]byte, 20)
 	binary.BigEndian.PutUint16(f[0:2], 0x1234)
 	binary.BigEndian.PutUint16(f[2:4], 0x0001)
-	binary.BigEndian.PutUint32(f[4:8], 20)
+	binary.BigEndian.PutUint32(f[4:8], 12) // Length=总长-8（复审发现 2）
 	binary.BigEndian.PutUint16(f[10:12], 0x0099)
 	f[14] = 0x80 // response
 	var p someipParser
@@ -309,6 +313,28 @@ func TestP2A_IKENatt(t *testing.T) {
 }
 
 // 解析器注册面：全部 CanParse 经 registry 命中且 L7Protocol 落对
+// P2a 复审发现 1 回归：DNET 存在的路由帧（DNET 2B + DLEN 1B + DADR）。
+func TestP2A_BACnetRouted(t *testing.T) {
+	// 帧=4B BVLC 头 + 2B NPDU + 4B(DNET2+DLEN1+DADR1) + 3B APDU = 13
+	f := []byte{0x81, 0x0B, 0x00, 0x0D,
+		0x01, 0x20, // NPDU v1 + DNET 位
+		0x00, 0x05, // DNET
+		0x01, 0x77, // DLEN=1 DADR
+		0x30, 0x42, 0x08} // APDU type=3 complex-ACK invoke=0x42 choice=8
+	var p bacnetParser
+	if !p.CanParse(47808, f) {
+		t.Fatal("CanParse false")
+	}
+	res, _ := p.Parse(f)
+	m := res.Detail.Messages[0].Fields
+	if m["invoke_id"] != byte(0x42) || m["service_choice"] != byte(8) {
+		t.Errorf("routed bacnet = %v", m)
+	}
+	if res.Detail.Messages[0].Kind != "response" {
+		t.Errorf("complex-ACK 应为 response")
+	}
+}
+
 func TestP2A_RegistryHits(t *testing.T) {
 	reg := NewRegistry()
 	cases := []struct {
@@ -336,6 +362,7 @@ func TestP2A_RegistryHits(t *testing.T) {
 		{500, ikeFixture(), "ike"},
 		{4500, ikeNattFixture(), "ike_nat_t"},
 		{547, []byte{2, 1, 2, 3}, "dhcpv6"},
+		{5353, buildP1DNSQuery(0x22, "mdns.test"), "dns"}, // mdns 复用 dns（复审发现 4 回归缺口）
 	}
 	for _, c := range cases {
 		p := reg.Find(c.port, c.samp)
@@ -386,7 +413,7 @@ func cflowFixture() []byte {
 
 func someipFixture() []byte {
 	f := make([]byte, 20)
-	binary.BigEndian.PutUint32(f[4:8], 20)
+	binary.BigEndian.PutUint32(f[4:8], 12) // 总长-8
 	return f
 }
 

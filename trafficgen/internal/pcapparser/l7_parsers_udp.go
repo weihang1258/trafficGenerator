@@ -688,7 +688,16 @@ func (coapParser) Parse(stream []byte) (*L7Result, error) {
 		case 15: // URI-Query
 			uriQuery = append(uriQuery, string(val))
 		case 12:
-			fields["content_format"] = binary.BigEndian.Uint16(append([]byte{0, 0}, val...))
+			// uint 编码 0/1/2 字节右对齐（RFC 7252 §3.2；复审发现 3：
+			// 1 字节编码原实现恒 0 静默错值）
+			switch len(val) {
+			case 0:
+				fields["content_format"] = 0
+			case 1:
+				fields["content_format"] = int(val[0])
+			default:
+				fields["content_format"] = int(binary.BigEndian.Uint16(val[:2]))
+			}
 		case 6:
 			fields["observe"] = uint64(0)
 			for _, b := range val {
