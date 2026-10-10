@@ -275,7 +275,7 @@ type FlowModel struct {
 	// 封装承载（D-PARSE-1 P0）：vlan 值与隧道/封装标记，解析首包提取
 	VlanIDOuter int    // 外层 VLAN ID（802.1Q），无则 -1
 	VlanIDInner int    // 内层 VLAN ID（QinQ 802.1ad），无则 -1
-	EncapType   string `gorm:"size:16;index"` // mpls|pppoe|gre|vxlan|geneve|gtp|l2tp|""
+	EncapType   string `gorm:"size:16;index"` // mpls|pppoe|gre|vxlan|geneve|gtp|""（l2tp 随 P3 隧道批）
 	EncapID     int64  // 会话标识：pppoe session_id/vxlan vni/gtp teid/geneve vni，无则 -1
 
 	// 载荷完整性（D-PARSE-1 P0）：TCP=重组流字节，UDP=载荷域按序聚合，ARP/L2=L2 载荷；

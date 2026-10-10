@@ -355,3 +355,32 @@ func TestParse_IPv6FragmentFlowGrouping(t *testing.T) {
 		t.Errorf("首片端口提取: l4=%s sport=%d, want udp/12345", f.L4Protocol, f.SrcPort)
 	}
 }
+
+// P0 隔离复审发现 1 回归：l2 流方向判定必须按 MAC 身份（双向各归其向，
+// 此前 srcIP nil→"<nil>" 恒不等 firstSrcIP，全部包误判 s2c）。
+func TestParse_L2DirectionByMAC(t *testing.T) {
+	buildGoose := func(src, dst net.HardwareAddr) []byte {
+		t.Helper()
+		buf := gopacket.NewSerializeBuffer()
+		opts := gopacket.SerializeOptions{FixLengths: true}
+		if err := gopacket.SerializeLayers(buf, opts,
+			&layers.Ethernet{SrcMAC: src, DstMAC: dst, EthernetType: layers.EthernetType(0x88B5)},
+			gopacket.Payload([]byte("goose-pdu"))); err != nil {
+			t.Fatalf("serialize goose: %v", err)
+		}
+		return buf.Bytes()
+	}
+	frames := [][]byte{
+		buildGoose(macA, macB),
+		buildGoose(macB, macA),
+	}
+	path := writePcap(t, frames, []time.Time{time.UnixMicro(1), time.UnixMicro(2)})
+	analysis, err := Parse(path, &Options{PcapAssetID: "a", UserID: "u"})
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	f := analysis.Flows[0]
+	if f.C2SPackets != 1 || f.S2CPackets != 1 {
+		t.Errorf("l2 双向计数 = %d/%d, want 1/1（方向按 MAC 判）", f.C2SPackets, f.S2CPackets)
+	}
+}

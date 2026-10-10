@@ -235,7 +235,13 @@ func Parse(path string, opts *Options) (*PcapAnalysis, error) {
 		}
 		pm.FlowID = fs.FlowModel.ID
 		fs.updateDirection(fields)
-		pm.Direction = fs.classifyDirection(fields.srcIP.String(), fields.srcPort)
+		// l2 流身份=MAC（创建侧同源）：srcIP 为 nil 时 String() 恒 "<nil>"，
+		// 与 firstSrcIP(MAC) 永不相等 → 全部包误判 s2c（P0 隔离复审发现 1）
+		dirIdentity := fields.srcIP.String()
+		if fields.l4Proto == "l2" {
+			dirIdentity = fields.l2SrcMAC
+		}
+		pm.Direction = fs.classifyDirection(dirIdentity, fields.srcPort)
 		fs.addPacket(pm)
 
 		// TCP stats (handshake/seq/flags) accumulate per packet. Skip fragments:
