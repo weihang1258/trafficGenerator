@@ -347,7 +347,15 @@ func Parse(path string, opts *Options) (*PcapAnalysis, error) {
 			// and may be the client port if capture started at the SYN-ACK).
 			// P0：Find/Parse 拆分——识别命中但解析失败保留解析器名（错误表）。
 			if p := l7reg.Find(fs.serverPort, fs.c2sStream.buf); p != nil {
-				if res, perr := p.Parse(fs.c2sStream.buf); perr == nil && res != nil {
+				// TCPStreamParser（dns: RFC 1035 §4.2.2 前缀分帧）优先于 Parse
+				var res *L7Result
+				var perr error
+				if tsp, ok := p.(TCPStreamParser); ok {
+					res, perr = tsp.ParseTCPStream(fs.c2sStream.buf)
+				} else {
+					res, perr = p.Parse(fs.c2sStream.buf)
+				}
+				if perr == nil && res != nil {
 					fs.setL7(res, "c2s")
 				} else if fs.FlowModel.L7Protocol == "" {
 					fs.FlowModel.L7Protocol = p.Name()
@@ -357,7 +365,15 @@ func Parse(path string, opts *Options) (*PcapAnalysis, error) {
 		if fs.s2cStream != nil && len(fs.s2cStream.buf) > 0 {
 			analysis.Trigram.AddSegment(fs.FlowModel.ID, "s2c", fs.s2cStream.buf)
 			if p := l7reg.Find(fs.serverPort, fs.s2cStream.buf); p != nil {
-				if res, perr := p.Parse(fs.s2cStream.buf); perr == nil && res != nil {
+				// TCPStreamParser（dns: RFC 1035 §4.2.2 前缀分帧）优先于 Parse
+				var res *L7Result
+				var perr error
+				if tsp, ok := p.(TCPStreamParser); ok {
+					res, perr = tsp.ParseTCPStream(fs.s2cStream.buf)
+				} else {
+					res, perr = p.Parse(fs.s2cStream.buf)
+				}
+				if perr == nil && res != nil {
 					fs.setL7(res, "s2c")
 				} else if fs.FlowModel.L7Protocol == "" {
 					fs.FlowModel.L7Protocol = p.Name()

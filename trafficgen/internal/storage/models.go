@@ -267,7 +267,8 @@ type FlowModel struct {
 
 	// L7 元数据
 	L7Protocol  string `gorm:"size:16;index"` // http|dns|tls|raw|...|unknown|handshake_only
-	L7Metadata  string `gorm:"type:text"`     // JSON，按协议展开（完整详情）
+	L7Metadata  string `gorm:"type:text"`     // JSON，按协议展开（兼容双写面）
+	L7Detail    string `gorm:"type:text"`     // typed 详情（D-PARSE-1 裁定2，detail_version 键）
 	L7Method    string `gorm:"size:16;index"` // HTTP method
 	L7Host      string `gorm:"size:255;index"` // HTTP host / TLS SNI
 	L7QueryName string `gorm:"size:255;index"` // DNS 查询名

@@ -2,8 +2,10 @@ package pcapparser
 
 import (
 	"bytes"
+	"crypto/x509"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -31,56 +33,135 @@ func (httpParser) CanParse(port uint16, sample []byte) bool {
 }
 
 func (httpParser) Parse(stream []byte) (*L7Result, error) {
-	// Find the header/body boundary (blank line \r\n\r\n).
-	end := bytes.Index(stream, []byte("\r\n\r\n"))
-	if end < 0 {
-		// No complete headers; parse what we have.
-		end = len(stream)
-	}
-	headerBlock := stream[:end]
 	res := &L7Result{Protocol: "http", Metadata: map[string]any{}, BodyOffset: 0, BodyLength: 0}
-	if end+4 <= len(stream) {
-		res.BodyOffset = end + 4
-		res.BodyLength = len(stream) - res.BodyOffset
-	}
-	lines := strings.Split(string(headerBlock), "\r\n")
-	if len(lines) == 0 {
-		return res, nil
-	}
-	// Request line: METHOD SP URI SP VERSION, or status line: HTTP/... CODE MSG.
-	first := lines[0]
-	if strings.HasPrefix(first, "HTTP/") {
-		// Response: status code + reason.
-		parts := strings.SplitN(first, " ", 3)
-		if len(parts) >= 2 {
-			res.Metadata["status"] = parts[1]
+	detail := &L7Detail{DetailVersion: L7DetailVersion, Type: "http", Extra: map[string]any{}}
+	var uris, methods, statuses []string
+	var host string
+	off := 0
+	firstBody := true
+	for off < len(stream) {
+		idx := bytes.Index(stream[off:], []byte("\r\n\r\n"))
+		if idx < 0 {
+			// 残头块：不完整报文（错误表截断行）
+			if off < len(stream) {
+				detail.Truncated = true
+			}
+			break
 		}
-		if len(parts) >= 3 {
-			res.Metadata["reason"] = parts[2]
-		}
-	} else {
-		parts := strings.SplitN(first, " ", 3)
-		if len(parts) >= 2 {
-			res.Metadata["method"] = parts[0]
-			res.Metadata["uri"] = parts[1]
-		}
-	}
-	// Headers: Host is the common filter field.
-	for _, line := range lines[1:] {
-		if i := strings.IndexByte(line, ':'); i > 0 {
-			key := strings.ToLower(strings.TrimSpace(line[:i]))
-			val := strings.TrimSpace(line[i+1:])
-			if key == "host" {
-				res.Metadata["host"] = val
+		headEnd := off + idx
+		bodyStart := headEnd + 4
+		lines := strings.Split(string(stream[off:headEnd]), "\r\n")
+		headers := headerMulti(lines[1:])
+		fields := map[string]any{}
+		kind := "request"
+		firstLine := lines[0]
+		if strings.HasPrefix(firstLine, "HTTP/") {
+			kind = "response"
+			parts := strings.SplitN(firstLine, " ", 3)
+			if len(parts) >= 2 {
+				fields["status_code"] = atoiSafe(parts[1])
+				statuses = append(statuses, parts[1])
+			}
+			if len(parts) >= 3 {
+				fields["reason"] = parts[2]
+			}
+		} else {
+			parts := strings.SplitN(firstLine, " ", 3)
+			if len(parts) >= 2 {
+				fields["method"] = parts[0]
+				methods = append(methods, parts[0])
+				fields["uri"] = parts[1]
+				uris = append(uris, parts[1])
+			}
+			if len(parts) >= 3 {
+				fields["version"] = parts[2]
 			}
 		}
+		hoistHTTPHeaders(headers, fields)
+		if h, ok := headerFirst(headers, "host"); ok && host == "" {
+			host = h
+		}
+		// body 定界：Content-Length 精确；chunked 找终止块；其余无体
+		bodyLen := 0
+		if cl, ok := headerFirst(headers, "content-length"); ok {
+			bodyLen = atoiSafe(cl)
+		}
+		bodyEnd := bodyStart
+		if _, chunked := headers["transfer-encoding"]; chunked && bodyLen == 0 {
+			if t := bytes.Index(stream[bodyStart:], []byte("0\r\n\r\n")); t >= 0 {
+				bodyEnd = bodyStart + t + 5
+			} else {
+				bodyEnd = len(stream)
+				detail.Truncated = true
+			}
+		} else if bodyLen > 0 {
+			bodyEnd = bodyStart + bodyLen
+			if bodyEnd > len(stream) {
+				bodyEnd = len(stream)
+				detail.Truncated = true
+			}
+		}
+		fields["body_len"] = bodyEnd - bodyStart
+		// 兼容面：L7Result.Body 語义保持首个头块之后的整段（get_body 既有
+		// 消费方不变），逐事务精确 body_len 在 messages 里。
+		if firstBody {
+			res.BodyOffset = bodyStart
+			res.BodyLength = len(stream) - bodyStart
+			firstBody = false
+		}
+		// html title：首个响应体（WHATWG HTML §4.2.4）
+		if kind == "response" {
+			if _, ok := detail.Extra["html_title"]; !ok && bodyEnd > bodyStart {
+				if title := extractHTMLTitle(stream[bodyStart:bodyEnd]); title != "" {
+					detail.Extra["html_title"] = title
+				}
+			}
+		}
+		detail.appendMessage(L7Message{Kind: kind, WireLen: bodyEnd - off, Fields: fields})
+		if bodyEnd <= off {
+			break // 防御：异常定界不前进时终止
+		}
+		off = bodyEnd
 	}
+	// metadata 双写（首值标量 + 全量列表键，setL7 列表 append 语义兼容）
+	if len(methods) > 0 {
+		res.Metadata["method"] = methods[0]
+		if len(methods) > 1 {
+			res.Metadata["methods"] = methods
+		}
+	}
+	if len(uris) > 0 {
+		res.Metadata["uri"] = uris[0]
+		if len(uris) > 1 {
+			res.Metadata["uris"] = uris
+		}
+	}
+	if host != "" {
+		res.Metadata["host"] = host
+	}
+	if len(statuses) > 0 {
+		res.Metadata["status"] = statuses[0]
+		if len(statuses) > 1 {
+			res.Metadata["statuses"] = statuses
+		}
+	}
+	// reason 首响应（既有键）
+	for i := len(detail.Messages) - 1; i >= 0; i-- {
+		if detail.Messages[i].Kind == "response" {
+			if r, ok := detail.Messages[i].Fields["reason"]; ok {
+				res.Metadata["reason"] = r
+			}
+			break
+		}
+	}
+	detail.countKinds()
+	res.Detail = detail
 	return res, nil
 }
 
-// dnsParser parses DNS messages (§14). DNS runs over UDP (one message per
-// packet) and sometimes TCP (length-prefixed). It uses gopacket's layers.DNS
-// decoder on the raw payload.
+// dnsParser parses DNS messages (RFC 1035 §4)。UDP：每报文一 datagram 单消
+// 息（Parse）；TCP：流带 2B 长度前缀逐消息（ParseTCPStream，RFC 1035
+// §4.2.2）。解码走自研 dns_wire（裁定3：gopacket 大响应 DecodeFailure）。
 type dnsParser struct{}
 
 func (dnsParser) Name() string { return "dns" }
@@ -94,40 +175,185 @@ func (dnsParser) CanParse(port uint16, sample []byte) bool {
 	return false
 }
 
+// dnsMessageFields renders one wire message into snake_case fields.
+func dnsMessageFields(m *DNSWireMessage) map[string]any {
+	f := map[string]any{
+		"txid":      m.TXID,
+		"qr":        m.QR,
+		"opcode":    m.Opcode,
+		"rcode":     m.RCode,
+		"aa":        m.AA,
+		"tc":        m.TC,
+		"rd":        m.RD,
+		"ra":        m.RA,
+		"ad":        m.AD,
+		"cd":        m.CD,
+		"qdcount":   m.QD,
+		"ancount":   m.AN,
+		"nscount":   m.NS,
+		"arcount":   m.AR,
+		"wire_len":  m.WireLen,
+	}
+	qs := make([]map[string]any, 0, len(m.Questions))
+	for _, q := range m.Questions {
+		qs = append(qs, map[string]any{"name": q.Name, "type": q.Type, "type_str": dnsTypeString(q.Type), "class": q.Class})
+	}
+	f["questions"] = qs
+	rrList := func(rrs []DNSWireRR) []map[string]any {
+		// get_packet/流级面 RR 列表上限（超大响应防字段爆炸；计数不受限）
+		const capRR = 64
+		out := make([]map[string]any, 0, len(rrs))
+		for i, rr := range rrs {
+			if i >= capRR {
+				break
+			}
+			out = append(out, map[string]any{"name": rr.Name, "type": rr.Type, "type_str": dnsTypeString(rr.Type), "class": rr.Class, "ttl": rr.TTL, "rdata": rr.RData})
+		}
+		return out
+	}
+	f["answers"] = rrList(m.Answers)
+	f["authority"] = rrList(m.Authority)
+	f["additionals"] = rrList(m.Additionals)
+	return f
+}
+
 func (dnsParser) Parse(stream []byte) (*L7Result, error) {
 	res := &L7Result{Protocol: "dns", Metadata: map[string]any{}}
-	// Use gopacket's DNS decoder. DecodeFromBytes is called by NewPacket; here
-	// we decode the payload directly.
-	dns := parseDNS(stream)
-	if dns == nil {
+	detail := &L7Detail{DetailVersion: L7DetailVersion, Type: "dns", Extra: map[string]any{}}
+	m, err := decodeDNSWire(stream)
+	if err != nil {
+		// 识别成功但解析失败：保留解析器名（L7Protocol 由调用方兜底），错误锚词入 detail
+		detail.ParseError = err.Error()
+		detail.Truncated = strings.Contains(err.Error(), "truncated")
+		detail.countKinds()
+		res.Detail = detail
 		return res, nil
 	}
-	if len(dns.Questions) > 0 {
-		q := dns.Questions[0]
-		res.Metadata["query_name"] = string(q.Name)
-		res.Metadata["query_type"] = uint16(q.Type)
+	kind := "query"
+	if m.QR == 1 {
+		kind = "response"
 	}
-	res.Metadata["rcode"] = uint8(dns.ResponseCode)
+	detail.appendMessage(L7Message{Kind: kind, WireLen: m.WireLen, Fields: dnsMessageFields(m)})
+	dnsFillMetadata(res.Metadata, detail, m, kind)
+	detail.countKinds()
+	res.Detail = detail
 	return res, nil
 }
 
-// tlsParser parses TLS handshake metadata (§14): SNI from ClientHello, version,
-// cipher suites. Record data is marked encrypted-opaque (not decrypted).
+// ParseTCPStream decodes a length-prefixed DNS stream (RFC 1035 §4.2.2).
+func (dnsParser) ParseTCPStream(stream []byte) (*L7Result, error) {
+	res := &L7Result{Protocol: "dns", Metadata: map[string]any{}}
+	detail := &L7Detail{DetailVersion: L7DetailVersion, Type: "dns", Extra: map[string]any{}}
+	msgs, truncated, ok := splitTCPDNSMessages(stream)
+	if !ok {
+		// 不是前缀流：退回单消息解码
+		return dnsParser{}.Parse(stream)
+	}
+	detail.Truncated = truncated
+	var firstQuery, firstResp *DNSWireMessage
+	for _, w := range msgs {
+		m, err := decodeDNSWire(w)
+		if err != nil {
+			if detail.ParseError == "" {
+				detail.ParseError = err.Error()
+			}
+			continue
+		}
+		kind := "query"
+		if m.QR == 1 {
+			kind = "response"
+		}
+		detail.appendMessage(L7Message{Kind: kind, WireLen: m.WireLen, Fields: dnsMessageFields(m)})
+		if m.QR == 0 && firstQuery == nil {
+			firstQuery = m
+		}
+		if m.QR == 1 && firstResp == nil {
+			firstResp = m
+		}
+	}
+	if firstQuery != nil {
+		dnsFillMetadata(res.Metadata, detail, firstQuery, "query")
+	}
+	if firstResp != nil {
+		dnsFillMetadata(res.Metadata, detail, firstResp, "response")
+	}
+	detail.countKinds()
+	res.Detail = detail
+	return res, nil
+}
+
+// dnsFillMetadata writes the compat metadata keys (L7Metadata 双写面)：首查询
+// 的 name/type/rcode 与首响应的计数/flags（D-PARSE-1 P1 矩阵行 DNS）。
+func dnsFillMetadata(meta map[string]any, detail *L7Detail, m *DNSWireMessage, kind string) {
+	meta["txid"] = m.TXID
+	meta["rcode"] = m.RCode
+	if len(m.Questions) > 0 {
+		meta["query_name"] = m.Questions[0].Name
+		meta["query_type"] = m.Questions[0].Type
+		meta["query_type_str"] = dnsTypeString(m.Questions[0].Type)
+		meta["query_class"] = m.Questions[0].Class
+	}
+	meta["is_response"] = m.QR == 1
+	if kind == "response" {
+		meta["ancount"] = m.AN
+		meta["nscount"] = m.NS
+		meta["arcount"] = m.AR
+		for _, flag := range []struct {
+			k string
+			v bool
+		}{{"aa", m.AA}, {"tc", m.TC}, {"rd", m.RD}, {"ra", m.RA}} {
+			meta[flag.k] = flag.v
+		}
+		if len(m.Answers) > 0 {
+			meta["response_ttl"] = m.Answers[0].TTL
+		}
+	}
+	if detail.Extra != nil {
+		if _, ok := detail.Extra["query_wire_len"]; !ok {
+			detail.Extra["query_wire_len"] = 0
+			detail.Extra["response_wire_len"] = 0
+		}
+		k := "query_wire_len"
+		if kind == "response" {
+			k = "response_wire_len"
+		}
+		detail.Extra[k] = detail.Extra[k].(int) + m.WireLen
+	}
+}
+
+// tlsParser parses TLS handshake metadata (RFC 8446 §4 / RFC 5246 §7.4):
+// SNI (RFC 6066 §3), versions, cipher suites, negotiated suite (ServerHello),
+// handshake message sequence, ALPN (RFC 7301), and certificate details
+// (RFC 5280 via crypto/x509). Record data remains encrypted-opaque.
 type tlsParser struct{}
 
 func (tlsParser) Name() string { return "tls" }
 
 func (tlsParser) CanParse(port uint16, sample []byte) bool {
-	if port == 443 {
+	if port == 443 || port == 995 || port == 465 || port == 993 {
 		return true
 	}
 	// TLS record: content type 0x16 (handshake) + version 0x03xx + length.
 	return len(sample) >= 3 && sample[0] == 0x16 && sample[1] == 0x03
 }
 
+// tlsParsed carries the walk results filled by parseTLSHandshake.
+type tlsParsed struct {
+	SNI          string
+	Version      string
+	CipherSuites []uint16
+	Negotiated   string   // ServerHello 单值（hex 4 位）
+	HandshakeSeq []string // 消息类型序列（RFC 8446 §4 面）
+	ALPN         []string
+	Certs        []map[string]any
+}
+
 func (tlsParser) Parse(stream []byte) (*L7Result, error) {
 	res := &L7Result{Protocol: "tls", Metadata: map[string]any{}}
-	meta := extractTLSMetadata(stream)
+	detail := &L7Detail{DetailVersion: L7DetailVersion, Type: "tls", Extra: map[string]any{}}
+	parsed := &tlsParsed{}
+	// 遗留走查函数复用（extractTLSMetadata 同 walk，签名面旧调用兼容）
+	meta := extractTLSMetadata(stream, parsed)
 	if meta.SNI != "" {
 		res.Metadata["sni"] = meta.SNI
 	}
@@ -135,7 +361,6 @@ func (tlsParser) Parse(stream []byte) (*L7Result, error) {
 		res.Metadata["version"] = meta.Version
 	}
 	if len(meta.CipherSuites) > 0 {
-		// Store as hex strings for readability (e.g. "c02f").
 		codes := make([]string, 0, len(meta.CipherSuites))
 		for _, c := range meta.CipherSuites {
 			codes = append(codes, fmt.Sprintf("%04x", c))
@@ -145,43 +370,61 @@ func (tlsParser) Parse(stream []byte) (*L7Result, error) {
 	if meta.CertChainLen > 0 {
 		res.Metadata["cert_chain_length"] = meta.CertChainLen
 	}
+	// P1 typed 面
+	if parsed.SNI != "" {
+		detail.Extra["sni"] = parsed.SNI
+	}
+	if parsed.Version != "" {
+		detail.Extra["version"] = parsed.Version
+	}
+	if len(parsed.CipherSuites) > 0 {
+		codes := make([]string, 0, len(parsed.CipherSuites))
+		for _, c := range parsed.CipherSuites {
+			codes = append(codes, fmt.Sprintf("%04x", c))
+		}
+		detail.Extra["cipher_suites"] = codes
+	}
+	if parsed.Negotiated != "" {
+		detail.Extra["negotiated_cipher"] = parsed.Negotiated
+	}
+	if len(parsed.HandshakeSeq) > 0 {
+		detail.Extra["handshake_sequence"] = parsed.HandshakeSeq
+	}
+	if len(parsed.ALPN) > 0 {
+		detail.Extra["alpn"] = parsed.ALPN
+	}
+	if len(parsed.Certs) > 0 {
+		detail.Extra["certs"] = parsed.Certs
+	}
+	detail.appendMessage(L7Message{Kind: "message", WireLen: len(stream), Fields: map[string]any{
+		"handshake_sequence": parsed.HandshakeSeq,
+		"negotiated_cipher":  parsed.Negotiated,
+	}})
+	detail.countKinds()
+	res.Detail = detail
 	return res, nil
 }
 
-// tlsMetadata holds the fields extracted from a TLS handshake stream.
-type tlsMetadata struct {
-	SNI            string
-	Version        string // e.g. "TLS 1.2", "TLS 1.3"
-	CipherSuites   []uint16
-	CertChainLen   int // total bytes of the certificate chain (Certificate msg)
-}
-
-// extractTLSMetadata walks TLS records to extract SNI, version, cipher suites,
-// and cert chain length (§6/§17.8). Best-effort: returns zero values for fields
-// not present or unparseable.
-func extractTLSMetadata(stream []byte) tlsMetadata {
-	var meta tlsMetadata
-	// Walk TLS records: type(1) version(2) length(2) body. A stream may carry
-	// multiple records (ClientHello + Certificate + ...).
+// walkTLSRecords iterates TLS records + handshake messages.
+func walkTLSRecords(stream []byte, parsed *tlsParsed) {
 	off := 0
 	for off+5 <= len(stream) {
 		recType := stream[off]
 		recLen := int(stream[off+3])<<8 | int(stream[off+4])
 		body := stream[off+5:]
 		if recLen > len(body) {
-			recLen = len(body) // truncated record
+			recLen = len(body)
 		}
-		if recType == 0x16 { // handshake
-			parseTLSHandshake(body[:recLen], &meta)
+		if recType == 0x16 {
+			parseTLSHandshake(body[:recLen], parsed)
 		}
 		off += 5 + recLen
 	}
-	return meta
 }
 
-// parseTLSHandshake walks handshake messages within a TLS record body, filling
-// SNI/version/cipher (from ClientHello) and cert chain length (from Certificate).
-func parseTLSHandshake(body []byte, meta *tlsMetadata) {
+// parseTLSHandshake walks handshake messages within a TLS record body,
+// recording the message sequence and per-message facts.
+func parseTLSHandshake(body []byte, parsed *tlsParsed) {
 	p := 0
 	for p+4 <= len(body) {
 		hsType := body[p]
@@ -190,27 +433,75 @@ func parseTLSHandshake(body []byte, meta *tlsMetadata) {
 		if hsLen > len(msg) {
 			hsLen = len(msg)
 		}
+		parsed.HandshakeSeq = append(parsed.HandshakeSeq, tlsHandshakeName(hsType))
 		switch hsType {
-		case 0x01: // ClientHello
-			parseClientHello(msg[:hsLen], meta)
-		case 0x0B: // Certificate
-			parseCertificate(msg[:hsLen], meta)
+		case 0x01:
+			parseClientHello(msg[:hsLen], parsed)
+		case 0x0B:
+			parseCertificate(msg[:hsLen], parsed)
+		case 0x02:
+			parseServerHello(msg[:hsLen], parsed)
 		}
 		p += 4 + hsLen
 	}
 }
 
-// parseClientHello extracts version, cipher suites, and SNI from a ClientHello.
-func parseClientHello(hs []byte, meta *tlsMetadata) {
-	// hs: version(2) random(32) session_id(1+n) cipher_suites(2+n) compression(1+n) extensions(2+n)
+// tlsHandshakeName maps a handshake type to its name (RFC 8446 §4).
+func tlsHandshakeName(t uint8) string {
+	switch t {
+	case 0:
+		return "hello_request"
+	case 1:
+		return "client_hello"
+	case 2:
+		return "server_hello"
+	case 4:
+		return "new_session_ticket"
+	case 8:
+		return "encrypted_extensions"
+	case 11:
+		return "certificate"
+	case 12:
+		return "server_key_exchange"
+	case 13:
+		return "certificate_request"
+	case 14:
+		return "server_hello_done"
+	case 15:
+		return "certificate_verify"
+	case 16:
+		return "client_key_exchange"
+	case 20:
+		return "finished"
+	default:
+		return fmt.Sprintf("type_%d", t)
+	}
+}
+
+// parseServerHello extracts the negotiated cipher suite (RFC 5246 §7.4.1.3:
+// version(2) random(32) sid(1+n) suite(2)).
+func parseServerHello(hs []byte, parsed *tlsParsed) {
+	if len(hs) < 2+32+1+2 {
+		return
+	}
+	p := 2 + 32
+	sidLen := int(hs[p])
+	p += 1 + sidLen
+	if p+2 > len(hs) {
+		return
+	}
+	parsed.Negotiated = fmt.Sprintf("%04x", uint16(hs[p])<<8|uint16(hs[p+1]))
+}
+
+// parseClientHello extracts version, cipher suites, SNI and ALPN.
+func parseClientHello(hs []byte, parsed *tlsParsed) {
 	if len(hs) < 2+32+1 {
 		return
 	}
 	p := 0
-	// Version (handshake-level; for TLS 1.3 this is still 0x0303).
 	hv := uint16(hs[0])<<8 | uint16(hs[1])
-	meta.Version = tlsVersionString(hv)
-	p = 2 + 32 // skip version + random
+	parsed.Version = tlsVersionString(hv)
+	p = 2 + 32
 	if p+1 > len(hs) {
 		return
 	}
@@ -224,9 +515,8 @@ func parseClientHello(hs []byte, meta *tlsMetadata) {
 	if p+csLen > len(hs) {
 		return
 	}
-	// Cipher suites: 2 bytes each.
 	for i := 0; i+1 < csLen; i += 2 {
-		meta.CipherSuites = append(meta.CipherSuites, uint16(hs[p+i])<<8|uint16(hs[p+i+1]))
+		parsed.CipherSuites = append(parsed.CipherSuites, uint16(hs[p+i])<<8|uint16(hs[p+i+1]))
 	}
 	p += csLen
 	if p+1 > len(hs) {
@@ -239,11 +529,12 @@ func parseClientHello(hs []byte, meta *tlsMetadata) {
 	}
 	extLen := int(hs[p])<<8 | int(hs[p+1])
 	p += 2
+	// extEnd = 扩展头起点 + extensions_length（RFC 5246 §7.4.1.2：该长度含
+	// 每扩展的 4B 头）。
 	extEnd := p + extLen
 	if extEnd > len(hs) {
 		extEnd = len(hs)
 	}
-	// Walk extensions; SNI = 0x0000, supported_versions = 0x002b (TLS 1.3).
 	for p+4 <= extEnd {
 		extType := int(hs[p])<<8 | int(hs[p+1])
 		extDataLen := int(hs[p+2])<<8 | int(hs[p+3])
@@ -257,19 +548,35 @@ func parseClientHello(hs []byte, meta *tlsMetadata) {
 			if len(d) >= 5 {
 				nameLen := int(d[3])<<8 | int(d[4])
 				if 5+nameLen <= len(d) {
-					meta.SNI = string(d[5 : 5+nameLen])
+					parsed.SNI = string(d[5 : 5+nameLen])
 				}
 			}
 		case 0x002b: // supported_versions (TLS 1.3)
 			d := hs[p:]
 			if len(d) >= 3 {
 				listLen := int(d[0])
-				// List of 2-byte versions; the first is the highest supported.
 				if listLen >= 2 && len(d) >= 3 {
 					v := uint16(d[1])<<8 | uint16(d[2])
 					if v == 0x0304 {
-						meta.Version = "TLS 1.3"
+						parsed.Version = "TLS 1.3"
 					}
+				}
+			}
+		case 0x0010: // ALPN (RFC 7301 §3.1)
+			d := hs[p:]
+			if len(d) >= 2 {
+				listLen := int(d[0])<<8 | int(d[1])
+				if listLen > len(d)-2 {
+					listLen = len(d) - 2
+				}
+				i := 2
+				for i < 2+listLen {
+					l := int(d[i])
+					if l == 0 || i+1+l > 2+listLen {
+						break
+					}
+					parsed.ALPN = append(parsed.ALPN, string(d[i+1:i+1+l]))
+					i += 1 + l
 				}
 			}
 		}
@@ -277,10 +584,9 @@ func parseClientHello(hs []byte, meta *tlsMetadata) {
 	}
 }
 
-// parseCertificate extracts the total certificate chain length from a Certificate
-// handshake message (server side). Format: cert_list_len(3) then each cert:
-// cert_len(3) + cert bytes.
-func parseCertificate(hs []byte, meta *tlsMetadata) {
+// parseCertificate parses Certificate entries via crypto/x509 (RFC 5280 面；
+// 最多 8 张防字段爆炸)，兼记链总长。
+func parseCertificate(hs []byte, parsed *tlsParsed) {
 	if len(hs) < 3 {
 		return
 	}
@@ -288,7 +594,69 @@ func parseCertificate(hs []byte, meta *tlsMetadata) {
 	if listLen > len(hs)-3 {
 		listLen = len(hs) - 3
 	}
-	meta.CertChainLen = listLen
+	p := 3
+	end := 3 + listLen
+	for p+3 <= end && len(parsed.Certs) < 8 {
+		cl := int(hs[p])<<16 | int(hs[p+1])<<8 | int(hs[p+2])
+		p += 3
+		if cl <= 0 || p+cl > end {
+			break
+		}
+		cert := map[string]any{"der_len": cl}
+		if xc, err := x509.ParseCertificate(hs[p : p+cl]); err == nil {
+			cert["version"] = xc.Version
+			cert["serial"] = xc.SerialNumber.String()
+			cert["signature_algorithm"] = xc.SignatureAlgorithm.String()
+			cert["issuer"] = xc.Issuer.String()
+			cert["subject"] = xc.Subject.String()
+			cert["not_before"] = xc.NotBefore.UTC().Format(time.RFC3339)
+			cert["not_after"] = xc.NotAfter.UTC().Format(time.RFC3339)
+		} else {
+			cert["parse_error"] = err.Error()
+		}
+		parsed.Certs = append(parsed.Certs, cert)
+		p += cl
+	}
+}
+
+// extractTLSSNI walks a TLS ClientHello to find the SNI extension. Best-effort:
+// returns "" if not found or the record isn't a ClientHello.
+//
+// tlsMetadata holds the legacy flat extraction fields (兼容壳：既有测试与
+// 调用面继续可用；typed 面走 tlsParser.Parse 的 tlsParsed).
+type tlsMetadata struct {
+	SNI           string
+	Version       string
+	CipherSuites  []uint16
+	CertChainLen  int
+}
+
+// extractTLSMetadata walks TLS records filling both the legacy flat fields
+// and the typed tlsParsed face.
+func extractTLSMetadata(stream []byte, parsed *tlsParsed) tlsMetadata {
+	var meta tlsMetadata
+	off := 0
+	for off+5 <= len(stream) {
+		recType := stream[off]
+		recLen := int(stream[off+3])<<8 | int(stream[off+4])
+		body := stream[off+5:]
+		if recLen > len(body) {
+			recLen = len(body)
+		}
+		if recType == 0x16 { // handshake
+			parseTLSHandshake(body[:recLen], parsed)
+		}
+		off += 5 + recLen
+	}
+	meta.SNI = parsed.SNI
+	meta.Version = parsed.Version
+	meta.CipherSuites = parsed.CipherSuites
+	for _, c := range parsed.Certs {
+		if l, ok := c["der_len"].(int); ok {
+			meta.CertChainLen += l
+		}
+	}
+	return meta
 }
 
 // tlsVersionString maps a TLS version code to a human-readable string.
@@ -309,13 +677,10 @@ func tlsVersionString(v uint16) string {
 	}
 }
 
-// extractTLSSNI walks a TLS ClientHello to find the SNI extension. Best-effort:
-// returns "" if not found or the record isn't a ClientHello.
-//
 // Deprecated: use extractTLSMetadata (which also extracts version/cipher/cert).
 // Kept for backward compatibility with tests that call it directly.
 func extractTLSSNI(stream []byte) string {
-	return extractTLSMetadata(stream).SNI
+	return extractTLSMetadata(stream, &tlsParsed{}).SNI
 }
 
 // parseDNS decodes a DNS message payload using gopacket's layers.DNS. Returns

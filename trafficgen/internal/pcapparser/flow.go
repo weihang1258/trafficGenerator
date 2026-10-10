@@ -146,6 +146,13 @@ type FlowState struct {
 	// P0 SCTP 聚合：chunk 类型集合 + 关联状态机输入
 	sctpChunkSeen                                                                                  map[uint8]bool
 	sctpHasInit, sctpHasInitAck, sctpHasCookieEcho, sctpHasCookieAck, sctpHasData, sctpHasAbort bool
+
+	// P1 L7Detail 跨方向累积 + ICMP (id,seq) 配对（D-PARSE-1 P1 矩阵行 7）
+	l7DetailAcc *L7Detail
+	icmpReqSeen map[uint32]bool // key = id<<16|seq
+	icmpReqN    int64
+	icmpRespN   int64
+	icmpPairs   int64
 }
 
 // payloadPreviewCap is the preview cap in bytes (D-PARSE-1 裁定：128B 常量，
@@ -267,10 +274,11 @@ func (fs *FlowState) setL7(res *L7Result, dir string) {
 	fs.FlowModel.L7Protocol = res.Protocol
 	if oldProto != "" && oldProto != res.Protocol {
 		// 解析器换判：整体覆盖 + 清旧协议索引列（L7Host 不能残留 TLS SNI
-		// 之类，复审 F4）。
+		// 之类，复审 F4）。P1：typed Detail 同步清空（旧协议消息不残留）。
 		fs.FlowModel.L7Method = ""
 		fs.FlowModel.L7Host = ""
 		fs.FlowModel.L7QueryName = ""
+		fs.l7DetailAcc = nil
 	}
 	// c2s/s2c 各解析一次；同协议第二次调用合并 metadata 而非整体覆盖
 	//（c2s 的 client_id/topic 不被 s2c 的 msg_types 冲掉）。列表键拼接成
@@ -320,6 +328,32 @@ func (fs *FlowState) setL7(res *L7Result, dir string) {
 	} else if dir == "s2c" {
 		fs.FlowModel.S2CBodyOffset = int64(res.BodyOffset)
 		fs.FlowModel.S2CBodyLength = int64(res.BodyLength)
+	}
+	// P1 typed Detail 累积：方向戳记 + 消息 append（有界）+ Extra 新值胜 +
+	// 解析失败锚词。
+	if res.Detail != nil {
+		if fs.l7DetailAcc == nil {
+			fs.l7DetailAcc = &L7Detail{
+				DetailVersion: res.Detail.DetailVersion,
+				Type:          res.Detail.Type,
+				Extra:         map[string]any{},
+			}
+		}
+		acc := fs.l7DetailAcc
+		acc.Type = res.Detail.Type
+		if res.Detail.ParseError != "" && acc.ParseError == "" {
+			acc.ParseError = res.Detail.ParseError
+		}
+		if res.Detail.Truncated {
+			acc.Truncated = true
+		}
+		for k, v := range res.Detail.Extra {
+			acc.Extra[k] = v
+		}
+		for _, m := range res.Detail.Messages {
+			m.Dir = dir
+			acc.appendMessage(m)
+		}
 	}
 }
 
@@ -474,8 +508,11 @@ func formatTCPOptions(kinds []uint8) string {
 }
 
 // recordICMPStats captures the first packet's type/code/id/seq into the flow
-// aggregate (D-PARSE-1 P0：首包值；混杂面 L7Detail 标记随 P1 批).
+// aggregate (P0) and tallies echo request/reply pairing by (id,seq) (P1，RFC
+// 792 §4.1 echo 语义：type 8/0 v4，128/129 v6).
 func (fs *FlowState) recordICMPStats(f packetFields) {
+	var isReq, isResp bool
+	var id, seq uint16
 	switch f.l4Proto {
 	case "icmp":
 		if fs.FlowModel.ICMPType == -1 {
@@ -484,6 +521,8 @@ func (fs *FlowState) recordICMPStats(f packetFields) {
 			fs.FlowModel.ICMPID = int(f.icmpID)
 			fs.FlowModel.ICMPSeq = int(f.icmpSeq)
 		}
+		isReq, isResp = f.icmpType == 8, f.icmpType == 0
+		id, seq = f.icmpID, f.icmpSeq
 	case "icmpv6":
 		if fs.FlowModel.ICMPType == -1 {
 			fs.FlowModel.ICMPType = int(f.icmp6Type)
@@ -491,6 +530,46 @@ func (fs *FlowState) recordICMPStats(f packetFields) {
 			fs.FlowModel.ICMPID = int(f.icmp6ID)
 			fs.FlowModel.ICMPSeq = int(f.icmp6Seq)
 		}
+		isReq, isResp = f.icmp6Type == 128, f.icmp6Type == 129
+		id, seq = f.icmp6ID, f.icmp6Seq
+	default:
+		return
+	}
+	if !isReq && !isResp {
+		return
+	}
+	key := uint32(id)<<16 | uint32(seq)
+	if isReq {
+		fs.icmpReqN++
+		if fs.icmpReqSeen == nil {
+			fs.icmpReqSeen = map[uint32]bool{}
+		}
+		fs.icmpReqSeen[key] = true
+	} else {
+		fs.icmpRespN++
+		if fs.icmpReqSeen[key] {
+			fs.icmpPairs++
+			delete(fs.icmpReqSeen, key)
+		}
+	}
+}
+
+// finalizeICMPPair derives the pairing columns (P1).
+func (fs *FlowState) finalizeICMPPair() {
+	if fs.FlowModel.L4Protocol != "icmp" && fs.FlowModel.L4Protocol != "icmpv6" {
+		return
+	}
+	fs.FlowModel.RequestCount = fs.icmpReqN
+	fs.FlowModel.ResponseCount = fs.icmpRespN
+	switch {
+	case fs.icmpPairs > 0 && len(fs.icmpReqSeen) == 0:
+		fs.FlowModel.PairState = "paired"
+	case fs.icmpRespN > 0 && fs.icmpReqN == 0:
+		fs.FlowModel.PairState = "unmatched_response"
+	case fs.icmpReqN > 0:
+		fs.FlowModel.PairState = "unmatched_request"
+	default:
+		fs.FlowModel.PairState = "none"
 	}
 }
 
@@ -784,6 +863,19 @@ func (fs *FlowState) finalize() (storage.FlowModel, []storage.PacketModel) {
 	fs.finalizeSCTPState()
 	fs.fillPayloadDigests()
 	fs.finalizeL7Fallback()
+	fs.finalizeICMPPair()
+	// P1 typed Detail 落列 + 配对面（l7 系协议从 Detail.Pair 取）
+	if fs.l7DetailAcc != nil {
+		fs.l7DetailAcc.countKinds()
+		if data, err := json.Marshal(fs.l7DetailAcc); err == nil {
+			fs.FlowModel.L7Detail = string(data)
+		}
+		if p := fs.l7DetailAcc.Pair; p != nil && fs.FlowModel.PairState == "" {
+			fs.FlowModel.RequestCount = p.Requests
+			fs.FlowModel.ResponseCount = p.Responses
+			fs.FlowModel.PairState = p.State
+		}
+	}
 	rem := fs.drainPackets()
 	return fs.FlowModel, rem
 }

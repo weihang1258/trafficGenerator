@@ -50,7 +50,9 @@ func init() {
 		"embedded_src_ip", "embedded_dst_ip", "embedded_protocol", "embedded_src_port", "embedded_dst_port",
 		// arp
 		"operation", "sender_hw", "sender_ip", "target_hw", "target_ip",
-		// sctp
+		// dns（自研解码层）
+		"txid", "qr", "opcode", "rcode", "qdcount", "ancount", "nscount", "arcount",
+		"questions", "answers", "authority", "additionals", "decode_error",
 	} {
 		knownExtractFields[f] = true
 	}
@@ -134,13 +136,28 @@ func decoderForLinkType(lt layers.LinkType) (gopacket.Decoder, error) {
 
 // buildLayerRecords walks a packet's layers and produces a LayerRecord per
 // layer with display fields, per-field offsets, and the layer's byte range.
+// DNS（UDP/53/5353）统一走自研解码出 "dns" 层记录（D-PARSE-1 裁定3）：替换
+// gopacket 的 DNS 层（大响应/EDNS DecodeFailure 已实测）与 DecodeFailure 层。
 func buildLayerRecords(pkt gopacket.Packet) []LayerRecord {
 	var records []LayerRecord
 	offset := 0
+	udpPayload := []byte(nil)
+	udpDNSPort := false
 	for _, layer := range pkt.Layers() {
 		start := offset
 		contents := layer.LayerContents()
 		end := start + len(contents)
+		// 自研 DNS 层替换：gopacket 解码成功（*layers.DNS）或失败
+		//（DecodeFailure）都换成自己的记录
+		if udpDNSPort {
+			if _, isDNS := layer.(*layers.DNS); isDNS || layer.LayerType() == gopacket.LayerTypeDecodeFailure {
+				if rec, ok := dnsLayerRecord(udpPayload, start, end); ok {
+					records = append(records, rec)
+					offset = end
+					continue
+				}
+			}
+		}
 		rec := LayerRecord{
 			Layer:   layerName(layer),
 			Fields:  map[string]any{},
@@ -148,10 +165,35 @@ func buildLayerRecords(pkt gopacket.Packet) []LayerRecord {
 			Range:   [2]int{start, end},
 		}
 		populateFields(pkt, &rec, layer, start)
+		if udp, ok := layer.(*layers.UDP); ok {
+			udpPayload = udp.Payload
+			dp, sp := uint16(udp.DstPort), uint16(udp.SrcPort)
+			udpDNSPort = dp == 53 || sp == 53 || dp == 5353 || sp == 5353
+		}
 		records = append(records, rec)
 		offset = end
 	}
 	return records
+}
+
+// dnsLayerRecord decodes DNS payload via the self-developed wire decoder into
+// a "dns" LayerRecord (字段面与流级 dnsMessageFields 同形).
+func dnsLayerRecord(payload []byte, start, end int) (LayerRecord, bool) {
+	rec := LayerRecord{
+		Layer:   "dns",
+		Fields:  map[string]any{},
+		Offsets: map[string]int{},
+		Range:   [2]int{start, end},
+	}
+	m, err := decodeDNSWire(payload)
+	if err != nil {
+		rec.Fields["decode_error"] = err.Error()
+		return rec, true
+	}
+	for k, v := range dnsMessageFields(m) {
+		rec.Fields[k] = v
+	}
+	return rec, true
 }
 
 // layerName returns a short display name for a layer.

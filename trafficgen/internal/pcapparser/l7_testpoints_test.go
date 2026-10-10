@@ -208,7 +208,8 @@ func TestDNSParse_ValidWithQuestions(t *testing.T) {
 	if !strings.Contains(res.Metadata["query_name"].(string), "example.com") {
 		t.Errorf("query_name = %v, want example.com", res.Metadata["query_name"])
 	}
-	if res.Metadata["rcode"] != uint8(0) {
+	// D-PARSE-1 P1 行为变更注记：typed 面 rcode 统一 int（原 uint8 字节面）
+	if res.Metadata["rcode"] != 0 {
 		t.Errorf("rcode = %v, want 0", res.Metadata["rcode"])
 	}
 }
@@ -332,7 +333,7 @@ func TestTLSParse_CipherSuites(t *testing.T) {
 // --- L7.7: extractTLSMetadata ---
 
 func TestExtractTLSMetadata_ShortStream(t *testing.T) {
-	meta := extractTLSMetadata([]byte{0x16, 0x03, 0x03, 0x00}) // only 4 bytes
+	meta := extractTLSMetadata([]byte{0x16, 0x03, 0x03, 0x00}, &tlsParsed{}) // only 4 bytes
 	if meta.SNI != "" || meta.Version != "" {
 		t.Errorf("short stream metadata = %+v, want empty", meta)
 	}
@@ -340,7 +341,7 @@ func TestExtractTLSMetadata_ShortStream(t *testing.T) {
 
 func TestExtractTLSMetadata_NonHandshakeRecord(t *testing.T) {
 	// Record type 0x17 (Application Data) -> skipped.
-	meta := extractTLSMetadata([]byte{0x17, 0x03, 0x03, 0x00, 0x01, 0x00})
+	meta := extractTLSMetadata([]byte{0x17, 0x03, 0x03, 0x00, 0x01, 0x00}, &tlsParsed{})
 	if meta.SNI != "" {
 		t.Errorf("non-handshake record SNI = %q, want empty", meta.SNI)
 	}
@@ -349,7 +350,7 @@ func TestExtractTLSMetadata_NonHandshakeRecord(t *testing.T) {
 func TestExtractTLSMetadata_MultipleRecords(t *testing.T) {
 	// ClientHello + Certificate (using test helpers).
 	ch := buildTLSClientHello(t, "example.com")
-	meta := extractTLSMetadata(ch)
+	meta := extractTLSMetadata(ch, &tlsParsed{})
 	if meta.SNI != "example.com" {
 		t.Errorf("SNI = %q, want example.com", meta.SNI)
 	}
@@ -362,7 +363,7 @@ func TestExtractTLSMetadata_MultipleRecords(t *testing.T) {
 
 func TestParseTLSHandshake_IncompleteHeader(t *testing.T) {
 	meta := tlsMetadata{}
-	parseTLSHandshake([]byte{0x01, 0x00, 0x00}, &meta) // only 3 bytes, need 4 for header
+	parseTLSHandshake([]byte{0x01, 0x00, 0x00}, &tlsParsed{}) // only 3 bytes, need 4 for header
 	if meta.SNI != "" {
 		t.Errorf("after incomplete header SNI = %q, want empty", meta.SNI)
 	}
@@ -371,7 +372,7 @@ func TestParseTLSHandshake_IncompleteHeader(t *testing.T) {
 func TestParseTLSHandshake_OtherType(t *testing.T) {
 	meta := tlsMetadata{}
 	// hsType 0x02 (ServerHello) -> skipped.
-	parseTLSHandshake([]byte{0x02, 0x00, 0x00, 0x00}, &meta)
+	parseTLSHandshake([]byte{0x02, 0x00, 0x00, 0x00}, &tlsParsed{})
 	if meta.Version != "" {
 		t.Errorf("ServerHello should not set version: %q", meta.Version)
 	}

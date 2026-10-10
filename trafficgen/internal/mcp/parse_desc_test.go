@@ -34,6 +34,8 @@ func TestPcapDescriptions_P0Fields(t *testing.T) {
 		needs []string
 	}{
 		{"action schema list_flows P0 面", actionTag, []string{"vlan", "payload+body sha256", "first_time", "icmp/sctp"}},
+		{"action schema list_flows P1 面", actionTag, []string{"typed L7 detail"}},
+		{"action schema get_packet dns 层", actionTag, []string{"dns layer"}},
 		{"action schema list_packets 头字段", actionTag, []string{"ip_id", "seq-ack-flags-window", "udp_len", "icmp", "payload_len"}},
 		{"action schema get_packet icmpv6", actionTag, []string{"icmpv6"}},
 		{"extract_rules unknown_fields", extractTag, []string{"unknown_fields", "ip_id", "embedded_*"}},
