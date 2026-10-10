@@ -71,7 +71,8 @@ func linkFTP(ctl *FlowState, flows map[string]*FlowState) {
 					port := uint16(h[4]<<8 | h[5])
 					linkByEndpoint(flows, ctl, ip, port, "data")
 				}
-				break // 每流首个 PASV 面
+				// 多传输各带 PASV（RFC 959 同控制连接顺序多数据流）——扫全程
+				s = seg[close_:]
 			}
 			s = seg[1:]
 		}

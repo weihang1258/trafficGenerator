@@ -234,7 +234,7 @@ func TestP2B_PPTP(t *testing.T) {
 	binary.BigEndian.PutUint16(f[0:2], 16) // length
 	binary.BigEndian.PutUint32(f[4:8], 0x1A2B3C4D)
 	binary.BigEndian.PutUint16(f[8:10], 8) // outgoing-call-rep
-	binary.BigEndian.PutUint16(f[14:16], 0x1234)
+	binary.BigEndian.PutUint16(f[12:14], 0x1234) // Call ID @12（RFC 2637 §3.2.7，复审发现 1）
 	var p pptpParser
 	if !p.CanParse(1723, f) {
 		t.Fatal("CanParse false")
@@ -335,6 +335,7 @@ func TestP2B_Shadowsocks(t *testing.T) {
 func TestP2B_VMess(t *testing.T) {
 	f := make([]byte, 20)
 	f[16] = 1
+	f[18] = 0x30
 	var p vmessParser
 	if !p.CanParse(10086, f) {
 		t.Fatal("CanParse false")
@@ -344,9 +345,41 @@ func TestP2B_VMess(t *testing.T) {
 	if m["version"] != byte(1) || m["payload_len"] != 20 {
 		t.Errorf("vmess = %v", m)
 	}
+	// 签名收紧负例（复审发现 4）：dataLen 高字节非 0 不识别
+	bad := make([]byte, 20)
+	bad[16] = 1
+	bad[17] = 0xAA
+	if p.CanParse(10086, bad) {
+		t.Errorf("vmess 弱签名误吞 unknown 流")
+	}
 }
 
 // P2b 注册面：TCP 解析器全量命中
+// P2b 复审发现 2 回归：EDP 弱签名必须有端口门禁（护 unknown 兜底契约）
+func TestP2B_EDPPortGate(t *testing.T) {
+	var p edpParser
+	f := []byte{5, 3, 0}
+	if p.CanParse(9999, f) {
+		t.Errorf("EDP 无端口门禁误吞 unknown 流")
+	}
+	if !p.CanParse(4472, f) {
+		t.Errorf("EDP 引擎端口 4472 应识别")
+	}
+}
+
+// P2b 复审发现 3 回归：RTSP 签名行首锚定（HTTP 体含 RTSP 字样不劫持）
+func TestP2B_RTSPNoHijack(t *testing.T) {
+	reg := NewRegistry()
+	httpBody := []byte("GET /player HTTP/1.1\r\nX-Player: RTSP/1.0 tuning\r\nHost: x\r\n\r\n")
+	if p := reg.Find(80, httpBody); p.Name() != "http" {
+		t.Errorf("RTSP 劫持 HTTP: %s", p.Name())
+	}
+	// 正面：真 RTSP 请求行仍识别
+	if p := reg.Find(8554, []byte("DESCRIBE rtsp://x RTSP/1.0\r\nCSeq: 1\r\n\r\n")); p == nil || p.Name() != "rtsp" {
+		t.Errorf("rtsp 正面识别失败")
+	}
+}
+
 func TestP2B_RegistryHits(t *testing.T) {
 	reg := NewRegistry()
 	cases := []struct {
@@ -399,5 +432,6 @@ func pptpFixture2() []byte {
 func vmessFixture() []byte {
 	f := make([]byte, 20)
 	f[16] = 1
+	f[18] = 0x30 // dataLen（签名收紧后须 >=0x18）
 	return f
 }

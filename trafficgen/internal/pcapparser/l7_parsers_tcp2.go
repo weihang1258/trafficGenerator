@@ -456,7 +456,7 @@ func (pptpParser) Parse(stream []byte) (*L7Result, error) {
 		}
 		// Outgoing/Incoming Call Reply 携带 Call ID（§3.2.7 关联面）
 		if off+16 <= len(stream) && (ct == 8 || ct == 10) {
-			c["call_id"] = binary.BigEndian.Uint16(stream[off+14 : off+16])
+			c["call_id"] = binary.BigEndian.Uint16(stream[off+12 : off+14]) // Call ID @12（RFC 2637 §3.2.7，复审发现 1；14:16 是 Peer Call ID）
 		}
 		ctl = append(ctl, c)
 		if l < 12 || off+l > len(stream) {
@@ -488,7 +488,7 @@ func (socks5Parser) Parse(stream []byte) (*L7Result, error) {
 	fields := map[string]any{"version": stream[0]}
 	off := 0
 	// 方法协商：VER nmethods methods...
-	if len(stream) >= 3 && stream[0] == 5 && stream[1] <= 16 && len(stream) >= 2+int(stream[1]) {
+	if len(stream) >= 3 && stream[0] == 5 && stream[1] >= 1 && len(stream) >= 2+int(stream[1]) {
 		fields["client_methods"] = hex.EncodeToString(stream[2 : 2+int(stream[1])])
 		off = 2 + int(stream[1])
 		// 后随请求（客户端流）：VER CMD RSV ATYP addr port
@@ -519,8 +519,9 @@ func (socks5Parser) Parse(stream []byte) (*L7Result, error) {
 			}
 		}
 	} else if len(stream) >= 2 && stream[0] == 5 {
-		// 服务端流：method choice + reply
-		fields["method_choice"] = stream[1]
+		// 服务端流：method choice +（可续）reply（复审发现 6：REP 曾错标
+		// method_choice）
+		fields["server_method_choice"] = stream[1]
 		off = 2
 		if off+4 <= len(stream) && stream[off] == 5 {
 			fields["rep"] = stream[off+1]
@@ -617,8 +618,9 @@ type vmessParser struct{}
 func (vmessParser) Name() string { return "vmess" }
 
 func (vmessParser) CanParse(port uint16, sample []byte) bool {
-	// 引擎缺省端口面+启发式：16B auth hash 后 version 0x01
-	return len(sample) >= 18 && sample[16] == 0x01
+	// 无固定端口——签名收紧（P2b 复审发现 4）：16B auth + version 0x01 +
+	// dataLen 高字节 0 + 数据长度合理下限，压误标率护 unknown 兜底契约
+	return len(sample) >= 19 && sample[16] == 0x01 && sample[17] == 0x00 && sample[18] >= 0x18
 }
 
 func (vmessParser) Parse(stream []byte) (*L7Result, error) {
@@ -684,13 +686,12 @@ type edpParser struct{}
 func (edpParser) Name() string { return "edp" }
 
 func (edpParser) CanParse(port uint16, sample []byte) bool {
-	// EDP：1-4B 变长 + 1B 类型（connect=1 connect_resp=2 push_data=3 push_data_resp=4
-	// update_req=9 update_resp=0xA...）；引擎缺省端口，签名弱——端口+首字节类型域
-	if len(sample) < 3 {
+	// 签名极弱（任意二进制 ~40% 命中）——必须端口门禁（P2b 复审发现 2：
+	// 无门禁误吞 unknown 兜底流，破坏 §H 契约）。引擎 fixture 4472/变体 12472。
+	if port != 4472 && port != 12472 {
 		return false
 	}
-	t := sample[1]
-	return t >= 1 && t <= 0xA
+	return len(sample) >= 3 && sample[1] >= 1 && sample[1] <= 0xA
 }
 
 func (edpParser) Parse(stream []byte) (*L7Result, error) {

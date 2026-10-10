@@ -205,8 +205,27 @@ func (rtspParser) CanParse(port uint16, sample []byte) bool {
 	if port == 554 {
 		return len(sample) > 0
 	}
-	p := string(sample)
-	return strings.Contains(p, "RTSP/1.0") || strings.Contains(p, "RTSP/2.0")
+	// 行首锚定（P2b 复审发现 3：全文 Contains 会劫持体含 "RTSP/1.0" 字样的
+	// HTTP 流——HTTP 头是自由文本）：状态行 "RTSP/" 或请求行 "方法 RTSP/x.y"
+	line := sample
+	if i := strings.IndexByte(string(sample), '\r'); i >= 0 {
+		line = sample[:i]
+	} else if i := strings.IndexByte(string(sample), '\n'); i >= 0 {
+		line = sample[:i]
+	}
+	ls := string(line)
+	if strings.HasPrefix(ls, "RTSP/") {
+		return true
+	}
+	if i := strings.Index(ls, " RTSP/"); i > 0 {
+		method := strings.SplitN(ls[:i], " ", 2)[0]
+		switch method {
+		case "OPTIONS", "DESCRIBE", "SETUP", "PLAY", "PAUSE", "TEARDOWN",
+			"GET_PARAMETER", "SET_PARAMETER", "ANNOUNCE", "RECORD", "REDIRECT":
+			return true
+		}
+	}
+	return false
 }
 
 func (rtspParser) Parse(stream []byte) (*L7Result, error) {
@@ -216,7 +235,7 @@ func (rtspParser) Parse(stream []byte) (*L7Result, error) {
 	var methods []string
 	var cseqs, sessions []string
 	var sdpMedia []string
-	for bi, b := range blocks {
+	for _, b := range blocks {
 		if b == "" {
 			continue
 		}
@@ -242,14 +261,11 @@ func (rtspParser) Parse(stream []byte) (*L7Result, error) {
 			sessions = append(sessions, v)
 		}
 		if v, ok := headerFirst(hdrs, "transport"); ok {
-			if bi == len(blocks)-1 || true {
-				var transports []string
-				if prev, ok2 := detail.Extra["transports"].([]string); ok2 {
-					transports = prev
-				}
-				transports = append(transports, v)
-				detail.Extra["transports"] = transports
+			var transports []string
+			if prev, ok2 := detail.Extra["transports"].([]string); ok2 {
+				transports = prev
 			}
+			detail.Extra["transports"] = append(transports, v)
 		}
 		// SDP 面（DESCRIBE/ANNOUNCE 体）：c=/m= 行
 		for _, ln := range lines {
@@ -457,7 +473,7 @@ func (gnutellaParser) Parse(stream []byte) (*L7Result, error) {
 			}
 			descriptors = append(descriptors, d)
 			off += 23 + pl
-			if pl < 0 || off > len(stream) {
+			if off > len(stream) {
 				detail.Truncated = true
 				break
 			}
