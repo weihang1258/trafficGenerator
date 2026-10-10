@@ -102,6 +102,27 @@ func NewRegistry() *Registry {
 	r.Register(&tlsParser{})
 	r.Register(&mqttParser{})
 	r.Register(&ftpParser{})
+	// P2a UDP 面（D-PARSE-1 §P3；ssdp 在 http 前防文本协议误吞）
+	r.Register(&ssdpParser{})
+	r.Register(&dhcpParser{})
+	r.Register(&dhcpv6Parser{})
+	r.Register(&tftpParser{})
+	r.Register(&ntpParser{})
+	r.Register(&snmpParser{})
+	r.Register(&radiusParser{})
+	r.Register(&syslogParser{})
+	r.Register(&stunParser{})
+	r.Register(&coapParser{})
+	r.Register(&kerberosParser{})
+	r.Register(&ripParser{})
+	r.Register(&cflowParser{})
+	r.Register(&someipParser{})
+	r.Register(&megacoParser{})
+	r.Register(&bacnetParser{})
+	r.Register(&finsParser{})
+	r.Register(&ldpParser{})
+	r.Register(&ikeParser{})
+	r.Register(&ikeNattParser{})
 	return r
 }
 
