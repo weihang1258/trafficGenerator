@@ -26,6 +26,10 @@ type L7Detail struct {
 	// 协议专有标量面（http: html_title；dns: 无——报文面全在 messages；
 	// tls: version/negotiated_cipher/certs）
 	Extra map[string]any `json:"extra,omitempty"`
+
+	// 超上限后的 Kind 计数（裁定4：messages 有界 256 但配对计数不受限；
+	// countKinds 合并两处）。非导出：不进 JSON。
+	overflowReq, overflowResp int64
 }
 
 // L7Message is one parsed protocol message within the flow.
@@ -57,16 +61,24 @@ func pairState(req, resp int64) string {
 	}
 }
 
-// appendMessage appends a message honoring the bounded cap.
+// appendMessage appends a message honoring the bounded cap; overflow Kind
+// still counted（裁定4：计数不受限）.
 func (d *L7Detail) appendMessage(m L7Message) {
 	if len(d.Messages) >= MaxL7Messages {
 		d.MessagesTruncated = true
+		switch m.Kind {
+		case "request", "query":
+			d.overflowReq++
+		case "response":
+			d.overflowResp++
+		}
 		return
 	}
 	d.Messages = append(d.Messages, m)
 }
 
-// countKinds tallies request/response kinds into the Pair aggregate.
+// countKinds tallies request/response kinds (in-cap + overflow) into the Pair
+// aggregate.
 func (d *L7Detail) countKinds() {
 	var req, resp int64
 	for _, m := range d.Messages {
@@ -77,6 +89,8 @@ func (d *L7Detail) countKinds() {
 			resp++
 		}
 	}
+	req += d.overflowReq
+	resp += d.overflowResp
 	d.Pair = &L7Pair{Requests: req, Responses: resp, State: pairState(req, resp)}
 }
 

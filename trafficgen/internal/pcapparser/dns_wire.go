@@ -289,11 +289,10 @@ func splitTCPDNSMessages(stream []byte) (msgs [][]byte, truncated bool, ok bool)
 		}
 		l := int(binary.BigEndian.Uint16(stream[off : off+2]))
 		off += 2
-		if l == 0 || off+l > len(stream) {
-			if off+l > len(stream) {
-				return msgs, true, true // 截断消息
-			}
-			return nil, false, false // l==0：不是前缀流
+		// l==0 不特判：真前缀流可含 TXID=0x0000 首消息（RFC 1035 无禁令）；
+		// 零长消息经 ParseTCPStream 全解码校验自然否决前缀假设回退单消息。
+		if off+l > len(stream) {
+			return msgs, true, true // 截断消息
 		}
 		msgs = append(msgs, stream[off:off+l])
 		off += l

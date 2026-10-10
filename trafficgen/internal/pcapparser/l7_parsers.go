@@ -245,20 +245,30 @@ func (dnsParser) ParseTCPStream(stream []byte) (*L7Result, error) {
 	res := &L7Result{Protocol: "dns", Metadata: map[string]any{}}
 	detail := &L7Detail{DetailVersion: L7DetailVersion, Type: "dns", Extra: map[string]any{}}
 	msgs, truncated, ok := splitTCPDNSMessages(stream)
+	var decoded []*DNSWireMessage
+	if ok {
+		// 前缀候选须"全消息解码通过"才采纳（P1 复审发现 2：TXID=0x0000 首消
+		// 息等误判形状回退单消息解码，不静默错值）。
+		allOK := true
+		for _, w := range msgs {
+			m, err := decodeDNSWire(w)
+			if err != nil {
+				allOK = false
+				break
+			}
+			decoded = append(decoded, m)
+		}
+		if !allOK || len(decoded) == 0 {
+			ok = false
+		}
+	}
 	if !ok {
 		// 不是前缀流：退回单消息解码
 		return dnsParser{}.Parse(stream)
 	}
 	detail.Truncated = truncated
 	var firstQuery, firstResp *DNSWireMessage
-	for _, w := range msgs {
-		m, err := decodeDNSWire(w)
-		if err != nil {
-			if detail.ParseError == "" {
-				detail.ParseError = err.Error()
-			}
-			continue
-		}
+	for _, m := range decoded {
 		kind := "query"
 		if m.QR == 1 {
 			kind = "response"
@@ -346,6 +356,7 @@ type tlsParsed struct {
 	HandshakeSeq []string // 消息类型序列（RFC 8446 §4 面）
 	ALPN         []string
 	Certs        []map[string]any
+	CertChainLen int // Certificate 列表总长（兼容面 CertChainLen 语义）
 }
 
 func (tlsParser) Parse(stream []byte) (*L7Result, error) {
@@ -405,22 +416,6 @@ func (tlsParser) Parse(stream []byte) (*L7Result, error) {
 	return res, nil
 }
 
-// walkTLSRecords iterates TLS records + handshake messages.
-func walkTLSRecords(stream []byte, parsed *tlsParsed) {
-	off := 0
-	for off+5 <= len(stream) {
-		recType := stream[off]
-		recLen := int(stream[off+3])<<8 | int(stream[off+4])
-		body := stream[off+5:]
-		if recLen > len(body) {
-			recLen = len(body)
-		}
-		if recType == 0x16 {
-			parseTLSHandshake(body[:recLen], parsed)
-		}
-		off += 5 + recLen
-	}
-}
 
 // parseTLSHandshake walks handshake messages within a TLS record body,
 // recording the message sequence and per-message facts.
@@ -585,7 +580,7 @@ func parseClientHello(hs []byte, parsed *tlsParsed) {
 }
 
 // parseCertificate parses Certificate entries via crypto/x509 (RFC 5280 面；
-// 最多 8 张防字段爆炸)，兼记链总长。
+// 最多 8 张防字段爆炸)。兼记链总长（既有语义=listLen 含每证书 3B 前缀，复审发现 3）。
 func parseCertificate(hs []byte, parsed *tlsParsed) {
 	if len(hs) < 3 {
 		return
@@ -594,6 +589,7 @@ func parseCertificate(hs []byte, parsed *tlsParsed) {
 	if listLen > len(hs)-3 {
 		listLen = len(hs) - 3
 	}
+	parsed.CertChainLen = listLen
 	p := 3
 	end := 3 + listLen
 	for p+3 <= end && len(parsed.Certs) < 8 {
@@ -651,11 +647,7 @@ func extractTLSMetadata(stream []byte, parsed *tlsParsed) tlsMetadata {
 	meta.SNI = parsed.SNI
 	meta.Version = parsed.Version
 	meta.CipherSuites = parsed.CipherSuites
-	for _, c := range parsed.Certs {
-		if l, ok := c["der_len"].(int); ok {
-			meta.CertChainLen += l
-		}
-	}
+	meta.CertChainLen = parsed.CertChainLen
 	return meta
 }
 

@@ -284,3 +284,44 @@ func TestP1_ICMPPairing(t *testing.T) {
 		t.Errorf("unmatched_response: %s", unmatchedResp.PairState)
 	}
 }
+
+// P1 隔离复审回归：
+// 发现 1（MED）——超 256 消息后配对计数不受限（裁定4）；
+// 发现 2（MED-LOW）——TXID=0x0000 首消息的前缀流不误判回退。
+func TestP1_OverflowPairCounting(t *testing.T) {
+	var stream []byte
+	for i := 0; i < 300; i++ {
+		m := buildP1DNSQuery(uint16(i), "overflow.test")
+		stream = append(stream, byte(len(m)>>8), byte(len(m)))
+		stream = append(stream, m...)
+	}
+	var dp dnsParser
+	res, err := dp.ParseTCPStream(stream)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(res.Detail.Messages) != MaxL7Messages {
+		t.Errorf("messages = %d, want %d（有界）", len(res.Detail.Messages), MaxL7Messages)
+	}
+	if !res.Detail.MessagesTruncated {
+		t.Errorf("messages_truncated = false, want true")
+	}
+	if res.Detail.Pair.Requests != 300 {
+		t.Errorf("Pair.Requests = %d, want 300（计数不受限，裁定4）", res.Detail.Pair.Requests)
+	}
+}
+
+func TestP1_ZeroTXIDPrefixedStream(t *testing.T) {
+	q := buildP1DNSQuery(0x0000, "zero.test")
+	var stream []byte
+	stream = append(stream, byte(len(q)>>8), byte(len(q)))
+	stream = append(stream, q...)
+	var dp dnsParser
+	res, err := dp.ParseTCPStream(stream)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if res.Metadata["txid"] != uint16(0) || res.Metadata["query_name"] != "zero.test" {
+		t.Errorf("txid=0 前缀流解析: txid=%v name=%v", res.Metadata["txid"], res.Metadata["query_name"])
+	}
+}
