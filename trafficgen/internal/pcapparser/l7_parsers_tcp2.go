@@ -490,6 +490,19 @@ func (socks5Parser) Parse(stream []byte) (*L7Result, error) {
 	res := &L7Result{Protocol: "socks5", Metadata: map[string]any{}}
 	detail := &L7Detail{DetailVersion: L7DetailVersion, Type: "socks5", Extra: map[string]any{}}
 	fields := map[string]any{"version": stream[0]}
+	if stream[0] == 4 {
+		// SOCKS4：VN(1) CD(1) dst_port(2 BE) dst_ip(4 BE) userid(...) 0x00
+		cd := stream[1]
+		fields["command"] = map[byte]string{1: "connect", 2: "bind"}[cd]
+		if len(stream) >= 8 {
+			fields["dst_port"] = binary.BigEndian.Uint16(stream[2:4])
+			fields["dst_addr"] = fmt.Sprintf("%d.%d.%d.%d", stream[4], stream[5], stream[6], stream[7])
+		}
+		detail.appendMessage(L7Message{Kind: "request", WireLen: len(stream), Fields: fields})
+		detail.countKinds()
+		res.Detail = detail
+		return res, nil
+	}
 	off := 0
 	// 方法协商：VER nmethods methods...
 	if len(stream) >= 3 && stream[0] == 5 && stream[1] >= 1 && len(stream) >= 2+int(stream[1]) {

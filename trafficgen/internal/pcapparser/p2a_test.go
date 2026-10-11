@@ -293,8 +293,9 @@ func TestP2A_IKE(t *testing.T) {
 func TestP2A_IKENatt(t *testing.T) {
 	f := make([]byte, 32)
 	copy(f[0:4], []byte{0, 0, 0, 0}) // non-ESP marker
-	f[4+12] = 34
-	f[4+13] = 0x20
+	f[4+12] = 34 // IKE_SA_INIT
+	f[4+13] = 0x20 // version 2.0
+	binary.BigEndian.PutUint32(f[4+24:4+28], 28) // IKE length = header size
 	var p ikeNattParser
 	if !p.CanParse(4500, f) {
 		t.Fatal("CanParse false")

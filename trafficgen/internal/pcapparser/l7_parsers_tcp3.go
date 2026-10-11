@@ -1250,6 +1250,61 @@ func (amsParser) Parse(stream []byte) (*L7Result, error) {
 	return res, nil
 }
 
+
+// ---- OpenVPN（UDP/TCP 1194；UDP V2 HMAC 帧 + 内嵌 TLS ClientHello）----
+
+type openvpnParser struct{}
+
+func (openvpnParser) Name() string { return "openvpn" }
+
+func (openvpnParser) CanParse(port uint16, sample []byte) bool {
+	if port != 1194 || len(sample) < 1 {
+		return false
+	}
+	// opcode 高 5 位 1..10（RFC/OpenVPN protocol.h：P_CONTROL 1..P_ACK_V1 6,
+	// P_CONTROL_HARD_RESET_* 7-10）
+	op := sample[0] >> 3
+	return op >= 1 && op <= 10
+}
+
+func (openvpnParser) Parse(stream []byte) (*L7Result, error) {
+	res := &L7Result{Protocol: "openvpn", Metadata: map[string]any{}}
+	detail := &L7Detail{DetailVersion: L7DetailVersion, Type: "openvpn", Extra: map[string]any{}}
+	opcode := stream[0] >> 3
+	keyID := stream[0] & 0x07
+	opNames := map[byte]string{
+		1: "control", 2: "control", 3: "data", 4: "ack",
+		5: "ack", 6: "ack_v1", 7: "hard_reset_client_v2", 8: "hard_reset_server_v2",
+		9: "hard_reset_client_v3", 10: "hard_reset_server_v3",
+	}
+	fields := map[string]any{
+		"opcode":       opcode,
+		"opcode_name":  opNames[opcode],
+		"key_id":       keyID,
+		"payload_len":  len(stream),
+	}
+	// 内嵌 TLS ClientHello（V2 HMAC 后载荷中含 0x16 0x03 记录头）
+	embedOff := strings.Index(string(stream), "\x16\x03")
+	if embedOff >= 0 {
+		fields["embedded_tls"] = true
+		fields["tls_offset"] = embedOff
+		if embedOff+3 <= len(stream) {
+			fields["tls_version"] = fmt.Sprintf("%02x%02x", stream[embedOff+1], stream[embedOff+2])
+		}
+		detail.Extra["embedded_tls"] = true
+		detail.Extra["tls_version"] = fields["tls_version"]
+	}
+	// session ID（V2：byte 1 后 8B）
+	if len(stream) >= 9 && opcode >= 7 {
+		fields["session_id"] = hex.EncodeToString(stream[1:9])
+	}
+	res.Metadata["opcode_name"] = fields["opcode_name"]
+	detail.appendMessage(L7Message{Kind: "message", WireLen: len(stream), Fields: fields})
+	detail.countKinds()
+	res.Detail = detail
+	return res, nil
+}
+
 // ---- OpenWire（ActiveMQ；TCP 61616，端口门禁+WireFormatInfo 识别）----
 
 type openwireParser struct{}

@@ -698,6 +698,22 @@ func (ikeNattParser) Parse(stream []byte) (*L7Result, error) {
 		res.Detail = detail
 		return res, nil
 	}
+	// ESP 数据面噪声守卫（反馈项）：IKE 头 sanity——version ≤ 2.0、
+	// exchange type ≤ 40、length 字段合理。ESP 数据是随机字节不会通过
+	ikeBody := stream[4:]
+	if len(ikeBody) >= 28 {
+		ver := ikeBody[13]
+		exch := ikeBody[12]
+		ikeLen := int(binary.BigEndian.Uint32(ikeBody[24:28]))
+		if ver > 0x20 || exch > 40 || ikeLen < 28 || ikeLen > len(ikeBody)+256 {
+			res := &L7Result{Protocol: "ike_nat_t", Metadata: map[string]any{"esp_data": true}}
+			detail := &L7Detail{DetailVersion: L7DetailVersion, Type: "ike_nat_t", Extra: map[string]any{"esp_data": true}}
+			detail.appendMessage(L7Message{Kind: "message", WireLen: len(stream), Fields: map[string]any{"esp_data": true}})
+			detail.countKinds()
+			res.Detail = detail
+			return res, nil
+		}
+	}
 	res := &L7Result{Protocol: "ike_nat_t", Metadata: map[string]any{}}
 	detail := &L7Detail{DetailVersion: L7DetailVersion, Type: "ike_nat_t", Extra: map[string]any{}}
 	r, err := ikeParser{}.Parse(stream[4:])

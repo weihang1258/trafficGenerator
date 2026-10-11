@@ -192,6 +192,7 @@ func NewRegistry() *Registry {
 	r.Register(&mmsParser{})
 	r.Register(&amsParser{})
 	r.Register(&openwireParser{})
+	r.Register(&openvpnParser{})
 	return r
 }
 

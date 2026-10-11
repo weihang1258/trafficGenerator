@@ -46,8 +46,15 @@ func (smtpParser) Parse(stream []byte) (*L7Result, error) {
 	lines := linesOf(stream, 256)
 	var banner string
 	var commands, replies, mailFrom, rcptTo []string
+	inData := false
 	for _, ln := range lines {
 		if ln == "" {
+			continue
+		}
+		if inData {
+			if ln == "." {
+				inData = false
+			}
 			continue
 		}
 		if len(ln) >= 3 && ln[0] >= '0' && ln[0] <= '9' && ln[1] >= '0' && ln[1] <= '9' && ln[2] >= '0' && ln[2] <= '9' {
@@ -61,6 +68,8 @@ func (smtpParser) Parse(stream []byte) (*L7Result, error) {
 		cmd := strings.ToUpper(strings.SplitN(ln, " ", 2)[0])
 		commands = append(commands, cmd)
 		switch cmd {
+		case "DATA":
+			inData = true
 		case "EHLO", "HELO":
 			res.Metadata["helo"] = strings.TrimSpace(ln[4:])
 		case "MAIL":

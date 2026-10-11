@@ -114,6 +114,8 @@ func linkSIP(ctl *FlowState, flows map[string]*FlowState) {
 			linkByEndpoint(flows, ctl, ip, uint16(port), "media")
 			// RTCP 相邻口（RFC 3550 §11 端口对：偶/奇）
 			linkByEndpoint(flows, ctl, ip, uint16(port+1), "media")
+			// NAT 回退：SDP IP 可能因 NAT 与实际流 IP 不一致——端口精确匹配
+			linkByEndpointAnyIP(flows, ctl, uint16(port), "media")
 		}
 	}
 }
@@ -200,6 +202,10 @@ func linkTFTP(ctl *FlowState, flows map[string]*FlowState) {
 			continue
 		}
 		markRelated(fs, ctl, "data")
+		// 数据流补 tftp 标签（反馈项：数据流 L7=unknown 应标 tftp）
+		if fs.FlowModel.L7Protocol == "" || fs.FlowModel.L7Protocol == "unknown" {
+			fs.FlowModel.L7Protocol = "tftp_data"
+		}
 	}
 }
 
