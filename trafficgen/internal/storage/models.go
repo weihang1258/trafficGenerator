@@ -306,6 +306,10 @@ type FlowModel struct {
 	SctpAssocState string `gorm:"size:16"`  // established|aborted|incomplete|""
 	SctpDataBytes  int64
 
+	// 跨流关联（D-PARSE-1 §跨流关联；3.8-3.10 解析面呈现）
+	RelatedFlowID string `gorm:"size:64;index"` // 父流 ID（数据/媒体流指向控制流）
+	RelatedRole   string `gorm:"size:16"`      // control|data|media|""
+
 	// 重组引用（流级最高层负载地址）
 	StreamFile         string `gorm:"size:512"` // {pcap_id}.payloads
 	C2SOffset          int64                    // c2s 重组流偏移
