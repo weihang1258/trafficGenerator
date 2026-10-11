@@ -124,6 +124,14 @@ func TestP2C_SMB(t *testing.T) {
 	if m["dialect"] != "smb2" || m["command_name"] != "negotiate" {
 		t.Errorf("smb = %v", m)
 	}
+	// smb1 面：command @8（NetBIOS4+FFSMB4 之后，复审发现 5）
+	smb1 := []byte{0, 0, 0, 50, 0xFF, 'S', 'M', 'B', 0x72}
+	if smb1cmd := func() byte {
+		r, _ := p.Parse(smb1)
+		return r.Detail.Messages[0].Fields["command"].(byte)
+	}(); smb1cmd != 0x72 {
+		t.Errorf("smb1 command = %#v, want 0x72", smb1cmd)
+	}
 }
 
 func TestP2C_NFS(t *testing.T) {
@@ -230,9 +238,9 @@ func TestP2C_Thrift(t *testing.T) {
 
 func TestP2C_MongoDB(t *testing.T) {
 	f := make([]byte, 16)
-	binary.BigEndian.PutUint32(f[0:4], 32)
-	binary.BigEndian.PutUint32(f[4:8], 7)     // request id
-	binary.BigEndian.PutUint32(f[12:16], 2013) // OP_MSG
+	binary.LittleEndian.PutUint32(f[0:4], 32)
+	binary.LittleEndian.PutUint32(f[4:8], 7)     // request id
+	binary.LittleEndian.PutUint32(f[12:16], 2013) // OP_MSG 小端
 	var p mongodbParser
 	if !p.CanParse(27017, f) {
 		t.Fatal("CanParse false")
@@ -296,17 +304,21 @@ func TestP2C_NMEA(t *testing.T) {
 }
 
 func TestP2C_GBT32960(t *testing.T) {
-	f := []byte{0x23, 0x23, 0x01} // vehicle login
-	f = append(f, []byte("LSVNA12345A678901")...) // VIN 17
+	f := []byte{0x23, 0x23, 0x01, 0x00} // vehicle login 下发
+	f = append(f, []byte("LSVNA12345A678901")...) // VIN 17 @4:21
+	f = append(f, 0x01)                            // enc @21
 	f = append(f, 0, 5, 0, 0x42)
 	var p gbt32960Parser
-	if !p.CanParse(32960, f) {
+	if !p.CanParse(10020, f) {
 		t.Fatal("CanParse false")
 	}
 	res, _ := p.Parse(f)
 	m := res.Detail.Messages[0].Fields
 	if m["command_name"] != "vehicle_login" || res.Detail.Messages[0].Kind != "request" {
 		t.Errorf("gbt32960 = %v", m)
+	}
+	if m["vin"] != "LSVNA12345A678901" {
+		t.Errorf("vin = %v", m["vin"])
 	}
 }
 
@@ -324,10 +336,13 @@ func TestP2C_JT808(t *testing.T) {
 }
 
 func TestP2C_JT809(t *testing.T) {
-	f := make([]byte, 26)
-	f[0], f[1] = 0x30, 0x30
-	binary.BigEndian.PutUint32(f[4:8], 99) // msg sn
-	binary.BigEndian.PutUint16(f[8:10], 0x1205)
+	// 引擎线格式（buildFrame）：5B + MsgLength4 + SN4 + MsgID2 + Center4 + ver3 + CRC2 + 5D
+	f := make([]byte, 30)
+	f[0] = 0x5B
+	binary.BigEndian.PutUint32(f[1:5], 30) // 整帧总长
+	binary.BigEndian.PutUint32(f[5:9], 99) // sn
+	binary.BigEndian.PutUint16(f[9:11], 0x1205)
+	f[29] = 0x5D
 	var p jt809Parser
 	if !p.CanParse(8812, f) {
 		t.Fatal("CanParse false")
@@ -439,20 +454,33 @@ func TestP2C_S7(t *testing.T) {
 }
 
 func TestP2C_AMS(t *testing.T) {
-	f := make([]byte, 38)
-	copy(f[0:6], []byte{1, 2, 3, 4, 5, 6})
-	binary.BigEndian.PutUint16(f[6:8], 10000)
-	copy(f[8:14], []byte{6, 5, 4, 3, 2, 1})
-	binary.BigEndian.PutUint16(f[14:16], 20000)
-	binary.BigEndian.PutUint16(f[18:20], 2) // ads_read
+	// 引擎 wire profile：Length(4,=总长-4) | Version1 | Type | Flags2 |
+	// SessionID4 | CorrelationID8 | Payload | AE 5A
+	f := make([]byte, 30)
+	binary.BigEndian.PutUint32(f[0:4], 26)
+	f[4] = 1
+	f[5] = 2 // type
+	binary.BigEndian.PutUint32(f[8:12], 0x55)
+	f[28], f[29] = 0xAE, 0x5A
 	var p amsParser
-	if !p.CanParse(48898, f) {
+	if !p.CanParse(61616, f) {
 		t.Fatal("CanParse false")
 	}
 	res, _ := p.Parse(f)
 	m := res.Detail.Messages[0].Fields
-	if m["command_name"] != "ads_read" || m["target_port"] != uint16(10000) {
+	if m["type"] != byte(2) || m["session_id"] != uint32(0x55) {
 		t.Errorf("ams = %v", m)
+	}
+	// openwire 首字节 0x01 与 ams 长度高位 0x00 天然区分（复审确认面）：
+	// ams 门禁对 openwire 形状（首字节 1）恒否——长度高位非 0 不满足 ==len-4
+	var p2 openwireParser
+	owf := make([]byte, 20)
+	owf[0] = 1
+	if !p2.CanParse(61616, owf) {
+		t.Errorf("openwire 反而不识别（回归面）")
+	}
+	if p.CanParse(61616, owf) {
+		t.Errorf("ams 误吞 openwire 形状")
 	}
 }
 
@@ -494,7 +522,7 @@ func TestP2C_RegistryHits(t *testing.T) {
 		{9090, []byte{0, 0, 0, 5, 0x80, 1, 0, 1, 0}, "thrift"},
 		{27017, mongoFixture(), "mongodb"},
 		{8181, []byte{0, 1, 0, 4}, "pcep"},
-		{32960, []byte{0x23, 0x23, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, "gbt32960"},
+		{10020, []byte{0x23, 0x23, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, "gbt32960"},
 		{7611, []byte{0x7E, 1, 0, 0, 5, 1, 2, 3, 4, 5, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x7E}, "jt808"},
 		{8812, jt809Fixture(), "jt809"},
 		{10700, make([]byte, 16), "jtt905"},
@@ -504,7 +532,7 @@ func TestP2C_RegistryHits(t *testing.T) {
 		{446, []byte{0, 10, 0xD0, 0, 0, 1}, "drda"},
 		{44818, enipFixture(), "enip"},
 		{102, s7Fixture(), "s7"},
-		{48898, amsFixture(), "ams"},
+		{61616, amsFixture(), "ams"},
 		{61616, []byte{1, 0, 0, 0, 0, 5, 0, 0, 0, 0}, "openwire"},
 	}
 	for _, c := range cases {
@@ -540,13 +568,14 @@ func nfsFixture() []byte {
 
 func mongoFixture() []byte {
 	f := make([]byte, 16)
-	binary.BigEndian.PutUint32(f[12:16], 2013)
+	binary.LittleEndian.PutUint32(f[12:16], 2013)
 	return f
 }
 
 func jt809Fixture() []byte {
-	f := make([]byte, 26)
-	f[0], f[1] = 0x30, 0x30
+	f := make([]byte, 30)
+	f[0] = 0x5B
+	f[29] = 0x5D
 	return f
 }
 
@@ -562,9 +591,10 @@ func s7Fixture() []byte {
 }
 
 func amsFixture() []byte {
-	f := make([]byte, 38)
-	copy(f[0:6], []byte{1, 2, 3, 4, 5, 6})
-	copy(f[8:14], []byte{6, 5, 4, 3, 2, 1})
+	f := make([]byte, 30)
+	binary.BigEndian.PutUint32(f[0:4], 26)
+	f[4] = 1
+	f[28], f[29] = 0xAE, 0x5A
 	return f
 }
 

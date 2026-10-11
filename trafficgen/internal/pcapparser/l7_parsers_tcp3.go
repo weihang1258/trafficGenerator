@@ -398,10 +398,10 @@ func (smbParser) Parse(stream []byte) (*L7Result, error) {
 				res.Metadata["command"] = n
 			}
 		}
-	} else { // SMB1：command @4 后（§2.2.1 SMB1 头在 NetBIOS 后 32B）
+	} else { // SMB1：command 在 NetBIOS(4B)+protocol(4B) 之后 = @8
 		fields["dialect"] = "smb1"
-		if len(stream) >= 5 {
-			fields["command"] = stream[4]
+		if len(stream) >= 9 {
+			fields["command"] = stream[8]
 		}
 	}
 	detail.appendMessage(L7Message{Kind: "message", WireLen: len(stream), Fields: fields})
@@ -699,17 +699,19 @@ func (mongodbParser) CanParse(port uint16, sample []byte) bool {
 	if port != 27017 || len(sample) < 16 {
 		return false
 	}
-	return binary.BigEndian.Uint32(sample[12:16]) == 2013 // OP_MSG
+	return binary.LittleEndian.Uint32(sample[12:16]) == 2013 // OP_MSG（全小端）
 }
 
 func (mongodbParser) Parse(stream []byte) (*L7Result, error) {
 	res := &L7Result{Protocol: "mongodb", Metadata: map[string]any{}}
 	detail := &L7Detail{DetailVersion: L7DetailVersion, Type: "mongodb", Extra: map[string]any{}}
 	fields := map[string]any{
-		"length":       binary.BigEndian.Uint32(stream[0:4]),
-		"request_id":   binary.BigEndian.Uint32(stream[4:8]),
-		"response_to":  binary.BigEndian.Uint32(stream[8:12]),
-		"opcode":       2013,
+		// MongoDB wire protocol 全小端（引擎 builder LittleEndian 实证，
+		// P2c 复审发现 3：BigEndian 致真实流量永不识别）
+		"length":      binary.LittleEndian.Uint32(stream[0:4]),
+		"request_id":  binary.LittleEndian.Uint32(stream[4:8]),
+		"response_to": binary.LittleEndian.Uint32(stream[8:12]),
+		"opcode":      2013,
 	}
 	kind := "request"
 	if fields["response_to"].(uint32) != 0 {
@@ -866,6 +868,11 @@ type gbt32960Parser struct{}
 func (gbt32960Parser) Name() string { return "gbt32960" }
 
 func (gbt32960Parser) CanParse(port uint16, sample []byte) bool {
+	// 端口门禁（引擎缺省 10020）+ 帧头 0x23 0x23（P2c 复审发现 4：无门禁
+	// 时跨端口 2323 前缀流量可误标）
+	if port != 10020 && port != 32960 {
+		return false
+	}
 	return len(sample) >= 24 && sample[0] == 0x23 && sample[1] == 0x23
 }
 
@@ -874,17 +881,19 @@ func (gbt32960Parser) Parse(stream []byte) (*L7Result, error) {
 	detail := &L7Detail{DetailVersion: L7DetailVersion, Type: "gbt32960", Extra: map[string]any{}}
 	cmdNames := map[byte]string{1: "vehicle_login", 2: "vehicle_logout", 3: "realtime_report", 4: "reissue_report", 5: "platform_login", 6: "platform_logout", 7: "heartbeat", 8: "vehicle_check", 0x81: "vehicle_login_resp", 0x82: "vehicle_logout_resp", 0x83: "realtime_report_resp"}
 	cmd := stream[2]
+	resp := stream[3] // 应答标志（0 下发 1 上行应答）
 	fields := map[string]any{
 		"command": fmt.Sprintf("0x%02x", cmd),
-		"vin":     strings.TrimRight(string(stream[3:20]), "\x00"),
-		"data_len": binary.BigEndian.Uint16(stream[20:22]),
+		"resp":    resp,
+		"vin":     strings.TrimRight(string(stream[4:21]), "\x00"),
+		"data_len": binary.BigEndian.Uint16(stream[22:24]),
 	}
 	if n, ok := cmdNames[cmd]; ok {
 		fields["command_name"] = n
 		res.Metadata["command_name"] = n
 	}
 	kind := "request"
-	if cmd&0x80 != 0 {
+	if resp == 1 {
 		kind = "response"
 	}
 	detail.appendMessage(L7Message{Kind: kind, WireLen: len(stream), Fields: fields})
@@ -934,21 +943,24 @@ type jt809Parser struct{}
 func (jt809Parser) Name() string { return "jt809" }
 
 func (jt809Parser) CanParse(port uint16, sample []byte) bool {
-	if port != 8812 || len(sample) < 22 {
+	// 引擎线格式（protocol/jt809/builder.go buildFrame）：0x5B + MsgLength(4)
+	// + ... + CRC16(2) + 0x5D，无 0x3030 标识（P2c 复审发现 1：0x3030 假设
+	// 致引擎帧永不识别）
+	if port != 8812 || len(sample) < 26 {
 		return false
 	}
-	return sample[0] == 0x30 && sample[1] == 0x30
+	return sample[0] == 0x5B && sample[len(sample)-1] == 0x5D
 }
 
 func (jt809Parser) Parse(stream []byte) (*L7Result, error) {
 	res := &L7Result{Protocol: "jt809", Metadata: map[string]any{}}
 	detail := &L7Detail{DetailVersion: L7DetailVersion, Type: "jt809", Extra: map[string]any{}}
 	fields := map[string]any{
-		"msg_length":    binary.BigEndian.Uint32(stream[0:4]) - 26,
-		"msg_sn":        binary.BigEndian.Uint32(stream[4:8]),
-		"msg_id":        binary.BigEndian.Uint16(stream[8:10]),
-		"gnss_center_id": binary.BigEndian.Uint32(stream[10:14]),
-		"version":       fmt.Sprintf("%d.%d.%d", stream[14], stream[15], stream[16]),
+		"msg_length":     binary.BigEndian.Uint32(stream[1:5]),
+		"msg_sn":         binary.BigEndian.Uint32(stream[5:9]),
+		"msg_id":         binary.BigEndian.Uint16(stream[9:11]),
+		"gnss_center_id": binary.BigEndian.Uint32(stream[11:15]),
+		"version":        fmt.Sprintf("%d.%d.%d", stream[15], stream[16], stream[17]),
 	}
 	res.Metadata["msg_id"] = fields["msg_id"]
 	res.Metadata["msg_sn"] = fields["msg_sn"]
@@ -1204,28 +1216,29 @@ type amsParser struct{}
 func (amsParser) Name() string { return "ams" }
 
 func (amsParser) CanParse(port uint16, sample []byte) bool {
-	return port == 48898 && len(sample) >= 38
+	// 引擎 "ams" 层 = 自研 wire profile（protocol/ams/builder.go）：Length(4,
+	// 不含自身) | Version(1)=1 | Type(1) | Flags(2) | SessionID(4) |
+	// CorrelationID(8) | Payload | FrameEnd(2)=0xAE 0x5A，TCP 61616——非
+	// Beckhoff ADS（P2c 复审发现 2）。与 openwire 区分：openwire 首字节 0x01
+	// 是 WireFormatInfo 类型，ams 首字段为长度高位（小帧恒 0）
+	if port != 61616 || len(sample) < 22 {
+		return false
+	}
+	return binary.BigEndian.Uint32(sample[0:4]) == uint32(len(sample)-4) &&
+		sample[4] == 1 &&
+		sample[len(sample)-2] == 0xAE && sample[len(sample)-1] == 0x5A
 }
 
 func (amsParser) Parse(stream []byte) (*L7Result, error) {
 	res := &L7Result{Protocol: "ams", Metadata: map[string]any{}}
 	detail := &L7Detail{DetailVersion: L7DetailVersion, Type: "ams", Extra: map[string]any{}}
-	cmdNames := map[uint16]string{
-		0x01: "ads_read_device_info", 0x02: "ads_read", 0x03: "ads_write",
-		0x06: "ads_read_state", 0x09: "ads_notification", 0x10: "port_connect",
-	}
-	cmd := binary.BigEndian.Uint16(stream[18:20])
 	fields := map[string]any{
-		"target_net_id": hex.EncodeToString(stream[0:6]),
-		"target_port":   binary.BigEndian.Uint16(stream[6:8]),
-		"source_net_id": hex.EncodeToString(stream[8:14]),
-		"source_port":   binary.BigEndian.Uint16(stream[14:16]),
-		"command":       fmt.Sprintf("0x%04x", cmd),
-		"data_length":   binary.BigEndian.Uint32(stream[30:34]),
-	}
-	if n, ok := cmdNames[cmd]; ok {
-		fields["command_name"] = n
-		res.Metadata["command_name"] = n
+		"length":        binary.BigEndian.Uint32(stream[0:4]),
+		"version":       stream[4],
+		"type":          stream[5],
+		"flags":         binary.BigEndian.Uint16(stream[6:8]),
+		"session_id":    binary.BigEndian.Uint32(stream[8:12]),
+		"correlation_id": hex.EncodeToString(stream[12:20]),
 	}
 	detail.appendMessage(L7Message{Kind: "message", WireLen: len(stream), Fields: fields})
 	detail.countKinds()
