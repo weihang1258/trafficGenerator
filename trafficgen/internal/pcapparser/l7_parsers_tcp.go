@@ -241,6 +241,10 @@ func (rtspParser) Parse(stream []byte) (*L7Result, error) {
 		}
 		lines := strings.Split(b, "\r\n")
 		first := lines[0]
+		if strings.HasPrefix(first, "v=0") || strings.HasPrefix(first, "o=") ||
+			strings.HasPrefix(first, "c=") || strings.HasPrefix(first, "m=") {
+			continue // SDP 行跳过（缺陷 4）
+		}
 		if strings.HasPrefix(first, "RTSP/") {
 			// 响应
 			parts := strings.SplitN(first, " ", 3)
@@ -315,12 +319,24 @@ func (sipParser) Parse(stream []byte) (*L7Result, error) {
 	blocks := strings.Split(string(stream), "\r\n\r\n")
 	var callIDs, methods []string
 	var sdpAddr, sdpMedia []string
-	for _, b := range blocks {
+	for bi, b := range blocks {
 		if b == "" {
 			continue
 		}
 		lines := strings.Split(b, "\r\n")
 		first := lines[0]
+		if bi > 0 {
+			// 非首块 = SDP 体：只扫 c=/m=，不提方法/响应（缺陷 4：v=0 混入 methods）
+			for _, ln := range lines {
+				if strings.HasPrefix(ln, "c=") {
+					sdpAddr = append(sdpAddr, strings.TrimPrefix(ln, "c="))
+				}
+				if strings.HasPrefix(ln, "m=") {
+					sdpMedia = append(sdpMedia, strings.TrimPrefix(ln, "m="))
+				}
+			}
+			continue
+		}
 		if strings.HasPrefix(first, "SIP/2.0 ") {
 			parts := strings.SplitN(first, " ", 3)
 			if len(parts) >= 2 {
@@ -339,15 +355,7 @@ func (sipParser) Parse(stream []byte) (*L7Result, error) {
 		if v, ok := headerFirst(hdrs, "call-id"); ok {
 			callIDs = append(callIDs, v)
 		}
-		// SDP 面（体块：非首块或含 c=/m= 行）
-		for _, ln := range lines {
-			if strings.HasPrefix(ln, "c=") {
-				sdpAddr = append(sdpAddr, strings.TrimPrefix(ln, "c="))
-			}
-			if strings.HasPrefix(ln, "m=") {
-				sdpMedia = append(sdpMedia, strings.TrimPrefix(ln, "m="))
-			}
-		}
+
 	}
 	fields := map[string]any{}
 	if methods != nil {

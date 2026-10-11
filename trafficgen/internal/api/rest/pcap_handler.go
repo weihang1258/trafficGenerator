@@ -662,6 +662,10 @@ func (h *PcapHandler) Reparse(c *gin.Context) {
 	asset.Status = "ready"
 	asset.PacketCount = analysis.PacketCount
 	asset.FlowCount = analysis.FlowCount
+	asset.ByteCount = analysis.ByteCount
+	asset.FirstTsUs = analysis.FirstTsUs
+	asset.LastTsUs = analysis.LastTsUs
+	asset.DurationUs = analysis.DurationUs()
 	asset.ParserVersion = pcapparser.ParserVersion
 	h.repo.UpdateAsset(asset)
 	SuccessWithMessage(c, "reparse complete", asset)

@@ -1,8 +1,10 @@
 package pcapparser
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
+	"strings"
 	"os"
 	"sync"
 
@@ -299,6 +301,41 @@ func populateFields(pkt gopacket.Packet, rec *LayerRecord, layer gopacket.Layer,
 	case *layers.SCTP:
 		rec.Fields["src_port"] = uint16(v.SrcPort)
 		rec.Fields["dst_port"] = uint16(v.DstPort)
+		// DATA chunk 关键字段（缺陷 6：get_packet SCTPData 层 fields 为空）
+		chunks, dataBytes, _, _, _, _, _, _ := sctpChunkWalk(v.Payload)
+		_ = dataBytes
+		var dataChunks []map[string]any
+		chOff := 0
+		data := v.Payload
+		for chOff+4 <= len(data) && len(dataChunks) < 8 {
+			ct := data[chOff]
+			cl := int(data[chOff+2])<<8 | int(data[chOff+3])
+			if cl < 4 || chOff+cl > len(data) {
+				break
+			}
+			if ct == 0 && cl >= 16 { // DATA chunk
+				tsn := binary.BigEndian.Uint32(data[chOff+4 : chOff+8])
+				sid := binary.BigEndian.Uint16(data[chOff+8 : chOff+10])
+				ssn := binary.BigEndian.Uint16(data[chOff+10 : chOff+12])
+				ppid := binary.BigEndian.Uint32(data[chOff+12 : chOff+16])
+				dc := map[string]any{
+					"tsn": tsn, "stream_id": sid, "ssn": ssn, "ppid": ppid,
+					"payload_len": cl - 16,
+				}
+				dataChunks = append(dataChunks, dc)
+			}
+			chOff += cl
+		}
+		if dataChunks != nil {
+			rec.Fields["data_chunks"] = dataChunks
+		}
+		if len(chunks) > 0 {
+			var cts []string
+			for _, ct := range chunks {
+				cts = append(cts, fmt.Sprintf("%d", ct))
+			}
+			rec.Fields["chunk_types"] = strings.Join(cts, ",")
+		}
 	case *layers.ARP:
 		rec.Fields["operation"] = v.Operation
 		rec.Fields["sender_hw"] = netHw(v.SourceHwAddress)

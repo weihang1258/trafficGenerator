@@ -147,6 +147,8 @@ type FlowState struct {
 	sctpChunkSeen                                                                                  map[uint8]bool
 	sctpHasInit, sctpHasInitAck, sctpHasCookieEcho, sctpHasCookieAck, sctpHasData, sctpHasAbort bool
 
+	// UDP 逐包解析的缓存解析器（缺陷 1：去 l7Parsed 门闩后缓存协议避免逐包 Find 扫描）
+	cachedUDPParser ProtocolParser
 	// P1 L7Detail 跨方向累积 + ICMP (id,seq) 配对（D-PARSE-1 P1 矩阵行 7）
 	l7DetailAcc *L7Detail
 	icmpReqSeen map[uint32]bool // key = id<<16|seq
@@ -348,6 +350,14 @@ func (fs *FlowState) setL7(res *L7Result, dir string) {
 			acc.Truncated = true
 		}
 		for k, v := range res.Detail.Extra {
+			// Extra int 值用 MAX 合并（dnsFillMetadata 双向 wire_len 各自累加，
+			// 合并时取较大值避免覆盖——缺陷 1 的 query_wire_len=0 残余根因）
+			if nv, ok := v.(int); ok {
+				if ov, ok2 := acc.Extra[k].(int); ok2 && ov > nv {
+					acc.Extra[k] = ov
+					continue
+				}
+			}
 			acc.Extra[k] = v
 		}
 		for _, m := range res.Detail.Messages {

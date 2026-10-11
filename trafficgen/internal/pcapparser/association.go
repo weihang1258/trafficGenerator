@@ -5,6 +5,7 @@ package pcapparser
 // RelatedFlowID=控制流 ID + RelatedRole。匹配不上不反向污染。
 
 import (
+	"encoding/binary"
 	"strconv"
 	"strings"
 )
@@ -14,6 +15,8 @@ func linkFlowAssociations(flows map[string]*FlowState) {
 	for _, ctl := range flows {
 		if ctl.FlowModel.L7Protocol == "ftp" {
 			linkFTP(ctl, flows)
+		} else if ctl.FlowModel.L7Protocol == "tftp" {
+			linkTFTP(ctl, flows)
 		} else if ctl.FlowModel.L7Protocol == "sip" {
 			linkSIP(ctl, flows)
 		} else if ctl.FlowModel.L7Protocol == "rtsp" {
@@ -169,4 +172,71 @@ func (fs *FlowState) streamBytes(dir string) []byte {
 		return fs.s2cStream.buf
 	}
 	return nil
+}
+
+// linkTFTP：TFTP 控制流(69 端口)关联数据流（缺陷 3）。RFC 1350 §4：RRQ/WRQ
+// 走 69 端口，数据走服务器临时端口。找同 IP 对 + 同客户端临时端口 + 非 69
+// 端口的 UDP 流。
+func linkTFTP(ctl *FlowState, flows map[string]*FlowState) {
+	clientIP, clientPort := ctl.FlowModel.SrcIP, ctl.FlowModel.SrcPort
+	// TFTP 控制流方向可能是 client→69 或 69→client，取非 69 端为客户端
+	if clientPort == 69 {
+		clientIP, clientPort = ctl.FlowModel.DstIP, ctl.FlowModel.DstPort
+	}
+	for _, fs := range flows {
+		if fs == ctl || fs.FlowModel.L4Protocol != "udp" {
+			continue
+		}
+		// 数据流：同客户端 IP+端口，非 69 端口
+		var peerPort uint16
+		if fs.FlowModel.SrcIP == clientIP && fs.FlowModel.SrcPort == clientPort {
+			peerPort = fs.FlowModel.DstPort
+		} else if fs.FlowModel.DstIP == clientIP && fs.FlowModel.DstPort == clientPort {
+			peerPort = fs.FlowModel.SrcPort
+		} else {
+			continue
+		}
+		if peerPort == 69 {
+			continue
+		}
+		markRelated(fs, ctl, "data")
+	}
+}
+
+// linkRTP：SIP SDP c=/m= 提取的 RTP 端口找 UDP 流（缺陷 2 补充——RTP 流给 rtp 识别）
+func linkRTP(ctl *FlowState, flows map[string]*FlowState, ip string, port uint16) {
+	for _, fs := range flows {
+		if fs == ctl || fs.FlowModel.L4Protocol != "udp" {
+			continue
+		}
+		if (fs.FlowModel.SrcIP == ip && fs.FlowModel.SrcPort == port) ||
+			(fs.FlowModel.DstIP == ip && fs.FlowModel.DstPort == port) {
+			markRelated(fs, ctl, "media")
+			// RTP 流补 RTP 识别（ssrc 等 UDP 载荷首 12B 可解析时）
+			if fs.FlowModel.L7Protocol == "" || fs.FlowModel.L7Protocol == "unknown" {
+				fs.FlowModel.L7Protocol = "rtp"
+				if fs.c2sHasher != nil || fs.c2sPrev != nil {
+					// RTP 头：V(2) P(1) X(1) CC(4) M(1) PT(7) + seq(2) + timestamp(4) + ssrc(4)
+					// 从第一个 UDP 载荷提取（由 feedUDPPayload 累积的 prev 前 12B）
+					if len(fs.c2sPrev) >= 12 {
+						fs.l7DetailAcc = &L7Detail{DetailVersion: L7DetailVersion, Type: "rtp", Extra: map[string]any{
+							"ssrc":         binary.BigEndian.Uint32(fs.c2sPrev[8:12]),
+							"payload_type": fs.c2sPrev[1] & 0x7F,
+							"seq":          binary.BigEndian.Uint16(fs.c2sPrev[2:4]),
+						}}
+					} else if len(fs.s2cPrev) >= 12 {
+						fs.l7DetailAcc = &L7Detail{DetailVersion: L7DetailVersion, Type: "rtp", Extra: map[string]any{
+							"ssrc":         binary.BigEndian.Uint32(fs.s2cPrev[8:12]),
+							"payload_type": fs.s2cPrev[1] & 0x7F,
+						}}
+					}
+				}
+			}
+		}
+		// RTCP 对口
+		if (fs.FlowModel.SrcIP == ip && fs.FlowModel.SrcPort == port+1) ||
+			(fs.FlowModel.DstIP == ip && fs.FlowModel.DstPort == port+1) {
+			markRelated(fs, ctl, "media")
+		}
+	}
 }

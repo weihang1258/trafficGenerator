@@ -18,7 +18,7 @@ import (
 // ParserVersion is the semantic version of the parsing engine. Stored on each
 // FlowModel so a future logic upgrade can detect stale indexes and trigger a
 // reparse (§17.12).
-const ParserVersion = "1.1.0"
+const ParserVersion = "1.2.0"
 
 // pcapGlobalHeaderLen is the size of the pcap file global header (24 bytes),
 // consumed by pcapgo.NewReader before the first packet record.
@@ -279,18 +279,21 @@ func Parse(path string, opts *Options) (*PcapAnalysis, error) {
 			analysis.Trigram.AddSegment(fs.FlowModel.ID, pm.Direction, fields.payload)
 			// P0 载荷完整性：增量摘要/预览按方向累积
 			fs.feedUDPPayload(pm.Direction, fields.payload)
-			// L7 parse（首个带载荷包起逐包尝试：识别命中但解析失败时保留解
-			// 析器名并允许后续包重试——识别≠解析成功，D-PARSE-1 错误表）。
-			// Use the calibrated server port so a capture starting at a server->client
-			// response still hints the right L7 parser.
-			if !fs.l7Parsed {
-				if p := l7reg.Find(fs.serverPort, fields.payload); p != nil {
-					if res, perr := p.Parse(fields.payload); perr == nil && res != nil {
-						fs.setL7(res, pm.Direction)
-						fs.l7Parsed = true
-					} else if fs.FlowModel.L7Protocol == "" {
-						fs.FlowModel.L7Protocol = p.Name()
-					}
+			// UDP 逐包解析（缺陷 1 修复：去 l7Parsed 门闩——DNS query+response
+			// 双侧均需解析累加进 L7Detail.messages）。协议识别首包缓存；
+			// 后续包仅走已缓存解析器的 Parse（省 Find 扫描）。
+			if fs.cachedUDPParser == nil {
+				fs.cachedUDPParser = l7reg.Find(fs.serverPort, fields.payload)
+				if fs.cachedUDPParser == nil && fs.FlowModel.L7Protocol == "" {
+					// 无解析器且首包：保留无名（后续包可能命中——协议切换面）
+				}
+			}
+			if fs.cachedUDPParser != nil {
+				res, perr := fs.cachedUDPParser.Parse(fields.payload)
+				if perr == nil && res != nil {
+					fs.setL7(res, pm.Direction)
+				} else if fs.FlowModel.L7Protocol == "" {
+					fs.FlowModel.L7Protocol = fs.cachedUDPParser.Name()
 				}
 			}
 		}

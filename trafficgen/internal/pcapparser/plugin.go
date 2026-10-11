@@ -84,6 +84,15 @@ func hoistHTTPHeaders(h map[string][]string, fields map[string]any) {
 	set("user_agent", "user-agent")
 	set("referer", "referer")
 	set("host", "host")
+	set("server", "server")
+	set("authorization", "authorization")
+	set("accept", "accept")
+	set("accept_encoding", "accept-encoding")
+	set("connection", "connection")
+	set("cache_control", "cache-control")
+	set("transfer_encoding", "transfer-encoding")
+	set("last_modified", "last-modified")
+	set("etag", "etag")
 	if v, ok := h["set-cookie"]; ok {
 		fields["set_cookie"] = v
 	}
