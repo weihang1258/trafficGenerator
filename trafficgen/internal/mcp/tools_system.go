@@ -16,6 +16,7 @@ import (
 // flowb_manage_settings (separate tool). The `interface` field is reserved for
 // a future single-interface query; current implementation always lists all.
 type querySystemInput struct {
+	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
 	Action    string `json:"action" jsonschema:"operation: status|protocols|stats|health|ready|interfaces|ports|refresh_interfaces"`
 	Interface string `json:"interface,omitempty" jsonschema:"reserved for single-interface query (not yet implemented)"`
 }

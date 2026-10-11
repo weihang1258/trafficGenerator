@@ -91,6 +91,7 @@ func toRestPorts(ports []portGroupPort) []rest.PortConfig {
 }
 
 type manageTasksInput struct {
+	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
 	Action       string                 `json:"action" jsonschema:"operation: create|create_batch|list|get|start|stop|delete|history"`
 	ID           string                 `json:"id,omitempty" jsonschema:"task id (for get/start/stop/delete)"`
 	Name         string                 `json:"name,omitempty" jsonschema:"task name (for create/create_batch)"`

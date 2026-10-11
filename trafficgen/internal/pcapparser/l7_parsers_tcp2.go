@@ -483,7 +483,11 @@ type socks5Parser struct{}
 func (socks5Parser) Name() string { return "socks5" }
 
 func (socks5Parser) CanParse(port uint16, sample []byte) bool {
-	return port == 1080 && len(sample) >= 2 && sample[0] == 5
+	if port != 1080 || len(sample) < 2 {
+		return false
+	}
+	// SOCKS5: VER(1)=5；SOCKS4: VN(1)=4 + CD(1)=[1,2]
+	return sample[0] == 5 || (sample[0] == 4 && sample[1] >= 1 && sample[1] <= 2)
 }
 
 func (socks5Parser) Parse(stream []byte) (*L7Result, error) {
@@ -497,6 +501,15 @@ func (socks5Parser) Parse(stream []byte) (*L7Result, error) {
 		if len(stream) >= 8 {
 			fields["dst_port"] = binary.BigEndian.Uint16(stream[2:4])
 			fields["dst_addr"] = fmt.Sprintf("%d.%d.%d.%d", stream[4], stream[5], stream[6], stream[7])
+		}
+		// 隧道内嵌流量标签（反馈项）：CONNECT 建立后同流的 HTTP 等载荷
+		if len(stream) > 10 {
+			rest := stream[10:]
+			if strings.HasPrefix(string(rest), "GET ") || strings.HasPrefix(string(rest), "POST ") ||
+				strings.HasPrefix(string(rest), "PUT ") || strings.HasPrefix(string(rest), "HTTP/") {
+				fields["tunnel_payload"] = true
+				fields["tunnel_proto"] = "http"
+			}
 		}
 		detail.appendMessage(L7Message{Kind: "request", WireLen: len(stream), Fields: fields})
 		detail.countKinds()

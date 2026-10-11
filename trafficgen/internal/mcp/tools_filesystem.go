@@ -27,6 +27,7 @@ import (
 // decode the bytes to obtain the file content (binary-safe). This mirrors
 // the established pcap payload pattern (see tools_pcap.go §wrapBinaryAsBase64).
 type manageFilesystemInput struct {
+	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
 	Action    string             `json:"action" jsonschema:"operation: upload|read|delete|mkdir|rmdir|list|query"`
 	Path      string             `json:"path,omitempty" jsonschema:"relative path inside the filesystem root (e.g. \"docs/readme.txt\"). Required for all actions. For list, \".\" lists the root."`
 	Source    *filesystem.FileSource `json:"source,omitempty" jsonschema:"file source (upload only). One of: {file: <relative-or-absolute-path>, literal: <text>, fill: {byte, bytes}, random: {min_bytes, max_bytes, seed}}. file reads from another filesystem entry (relative) or an absolute disk path (outside root). literal is inline text bytes. fill repeats a single byte. random generates random bytes (seed=0 -> crypto-random fresh each call, non-zero -> reproducible)."`

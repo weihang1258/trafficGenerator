@@ -31,6 +31,7 @@ import (
 // test/protocol_pcap 的 Case schema 一致（pcaptest.Case），output_type /
 // output_config 控制走 pcap 文件还是 port_group 真实发包。
 type runCaseInput struct {
+	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
 	Proto          string             `json:"proto,omitempty" jsonschema:"protocol name (registry name, e.g. tcp/tftp/modbus); optional when the case resolves from the server's cases corpus"`
 	CaseID         string             `json:"case_id" jsonschema:"case identifier (used in task naming + pcap path); with spec_json omitted the case loads from the server's protocol cases corpus (case_id alone runs a regression case)"`
 	SpecJSON       json.RawMessage    `json:"spec_json,omitempty" jsonschema:"generate_traffic config (strategy config, protocol-specific layers/spec); OPTIONAL — omit to load the named case from the corpus"`
@@ -686,6 +687,7 @@ func pcFc(fc *flowControlInput) *pcaptest.StrategyFC {
 // suiteInput 是 flowb_run_protocol_suite 的入参：从 cases 目录加载用例后
 // 并行驱动，聚合结果。case_dir 默认 cases/（test/protocol_pcap/cases）。
 type suiteInput struct {
+	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
 	CaseDir    string `json:"case_dir,omitempty" jsonschema:"directory of cases/*.json files (default cases/)"`
 	Proto      string `json:"proto,omitempty" jsonschema:"filter to one protocol (empty = all)"`
 	OutputType string `json:"output_type" jsonschema:"pcap or port_group"`

@@ -15,6 +15,7 @@ import (
 // The tool is registered anyway so Phase 3 (multi-user/API-key-as-admin)
 // unlocks it without code changes.
 type manageUsersInput struct {
+	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
 	Action     string `json:"action" jsonschema:"operation: list|get|update|delete|reset_password"`
 	ID         string `json:"id,omitempty" jsonschema:"user id (get/update/delete/reset_password)"`
 	Email      string `json:"email,omitempty" jsonschema:"new email (update)"`

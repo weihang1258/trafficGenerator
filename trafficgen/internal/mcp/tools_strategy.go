@@ -19,6 +19,7 @@ type flowControlInput struct {
 }
 
 type manageStrategiesInput struct {
+	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
 	Action      string                 `json:"action" jsonschema:"operation: create|list|get|update|delete|list_tasks — update is a FULL replace: it requires config (create-shaped body), not partial fields"`
 	ID          string                 `json:"id,omitempty" jsonschema:"strategy id (for get/update/delete/list_tasks)"`
 	Name        string                 `json:"name,omitempty" jsonschema:"strategy name (for create/update)"`

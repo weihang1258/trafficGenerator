@@ -96,6 +96,7 @@ func buildLayerSchemaViews(reg *layers.Registry) []layerSchemaView {
 }
 
 type queryLayersInput struct {
+	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
 	Action string `json:"action,omitempty" jsonschema:"operation: schema (default; layer registry) | examples (verified per-protocol configs an LLM can copy verbatim)"`
 	Layer  string `json:"layer,omitempty" jsonschema:"schema action: layer name to look up (e.g. ip/tcp/http). Empty = list all registered layers."`
 	Proto  string `json:"protocol,omitempty" jsonschema:"examples action: protocol name (e.g. modbus/http/dns). Empty = all protocols."`

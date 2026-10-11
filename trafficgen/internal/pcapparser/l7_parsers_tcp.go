@@ -47,6 +47,8 @@ func (smtpParser) Parse(stream []byte) (*L7Result, error) {
 	var banner string
 	var commands, replies, mailFrom, rcptTo []string
 	inData := false
+	inAuth := false
+	var authCredentials []string
 	for _, ln := range lines {
 		if ln == "" {
 			continue
@@ -55,6 +57,11 @@ func (smtpParser) Parse(stream []byte) (*L7Result, error) {
 			if ln == "." {
 				inData = false
 			}
+			continue
+		}
+		if inAuth {
+			// AUTH LOGIN base64 凭据行（反馈项 5：不入 commands）
+			authCredentials = append(authCredentials, ln)
 			continue
 		}
 		if len(ln) >= 3 && ln[0] >= '0' && ln[0] <= '9' && ln[1] >= '0' && ln[1] <= '9' && ln[2] >= '0' && ln[2] <= '9' {
@@ -70,6 +77,8 @@ func (smtpParser) Parse(stream []byte) (*L7Result, error) {
 		switch cmd {
 		case "DATA":
 			inData = true
+		case "AUTH":
+			inAuth = true
 		case "EHLO", "HELO":
 			res.Metadata["helo"] = strings.TrimSpace(ln[4:])
 		case "MAIL":
@@ -83,12 +92,18 @@ func (smtpParser) Parse(stream []byte) (*L7Result, error) {
 		}
 	}
 	fields := map[string]any{}
+	if authCredentials != nil {
+		fields["auth_credentials"] = authCredentials
+	}
 	if banner != "" {
 		fields["banner"] = banner
 	}
 	if commands != nil {
 		fields["commands"] = commands
 		res.Metadata["commands"] = commands
+	}
+	if authCredentials != nil {
+		fields["auth_credentials"] = authCredentials
 	}
 	if replies != nil {
 		fields["reply_codes"] = replies

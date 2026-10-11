@@ -1261,9 +1261,20 @@ func (openvpnParser) CanParse(port uint16, sample []byte) bool {
 	if port != 1194 || len(sample) < 1 {
 		return false
 	}
-	// opcode 高 5 位 1..10（RFC/OpenVPN protocol.h：P_CONTROL 1..P_ACK_V1 6,
-	// P_CONTROL_HARD_RESET_* 7-10）
-	op := sample[0] >> 3
+	// UDP: 首字节 = opcode<<3 | key_id；TCP: 2B length 前缀后才是 opcode
+	off := 0
+	if len(sample) >= 3 {
+		// TCP 封装：2B BE length 前缀（OpenVPN §3.1 TCP transport）
+		tcpLen := int(sample[0])<<8 | int(sample[1])
+		if tcpLen >= int(len(sample))-2 && tcpLen <= int(len(sample)) {
+			off = 2 // TCP 模式：跳过 length 前缀
+		}
+	}
+	if off >= len(sample) {
+		return false
+	}
+	// opcode 高 5 位 1..10（OpenVPN protocol.h）
+	op := sample[off] >> 3
 	return op >= 1 && op <= 10
 }
 

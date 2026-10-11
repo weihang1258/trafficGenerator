@@ -13,6 +13,7 @@ import (
 // manageSettingsInput covers the 2 settings actions: get / update.
 // Settings are global (no user_id isolation); service account can read/write.
 type manageSettingsInput struct {
+	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
 	Action     string `json:"action" jsonschema:"operation: get|update"`
 	MaxTasks   int    `json:"max_tasks,omitempty" jsonschema:"max concurrent tasks (update; applies immediately)"`
 	BufferSize int    `json:"buffer_size,omitempty" jsonschema:"ring buffer size (update; applies on next engine restart)"`
