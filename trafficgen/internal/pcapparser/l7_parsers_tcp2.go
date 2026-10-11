@@ -346,13 +346,14 @@ func (rtmpParser) Parse(stream []byte) (*L7Result, error) {
 			break
 		}
 		c := map[string]any{"fmt": fmtb, "csid": csid}
-		if fmtb == 0 && off+8 <= len(stream) {
+		if fmtb == 0 && off+12 <= len(stream) {
 			// fmt=0：timestamp(3) msglen(3) typeid(1) streamid(4)
-			c["type_id"] = binary.BigEndian.Uint32(append([]byte{0}, stream[off+7:off+8]...))
-			if n, ok := typeNames[stream[off+7]]; ok {
+			c["msg_len"] = int(stream[off+4])<<16 | int(stream[off+5])<<8 | int(stream[off+6])
+			tid := stream[off+7]
+			c["type_id"] = int(tid)
+			if n, ok := typeNames[tid]; ok {
 				c["type_name"] = n
 			}
-			c["msg_len"] = int(stream[off+4])<<16 | int(stream[off+5])<<8 | int(stream[off+6])
 		}
 		chunks = append(chunks, c)
 		// chunk 长度近似：头 + max chunk data（无完整组装面，走查前 32 个头即可）
