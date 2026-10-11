@@ -38,6 +38,7 @@ func TestPcapDescriptions_P0Fields(t *testing.T) {
 		{"action schema get_packet dns 层", actionTag, []string{"dns layer"}},
 		{"tool description P2a 解析器面", pcapToolDescription, []string{"coap", "ike_nat_t"}},
 		{"tool description P2b 面", pcapToolDescription, []string{"smtp", "cross-flow links"}},
+		{"tool description P2c 面", pcapToolDescription, []string{"modbus", "iec104", "gbt32960"}},
 		{"action schema list_packets 头字段", actionTag, []string{"ip_id", "seq-ack-flags-window", "udp_len", "icmp", "payload_len"}},
 		{"action schema get_packet icmpv6", actionTag, []string{"icmpv6"}},
 		{"extract_rules unknown_fields", extractTag, []string{"unknown_fields", "ip_id", "embedded_*"}},
