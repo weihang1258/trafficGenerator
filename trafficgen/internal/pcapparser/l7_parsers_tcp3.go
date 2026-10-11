@@ -189,10 +189,12 @@ type mysqlParser struct{}
 func (mysqlParser) Name() string { return "mysql" }
 
 func (mysqlParser) CanParse(port uint16, sample []byte) bool {
-	if port != 3306 || len(sample) < 6 {
-		return false
+	// greeting 签名（seq=0+proto=10）独立成立——服务端 greeting 反向到达
+	// 瞬态口时端口门禁会漏（双源对账实测），双条件并集
+	if port == 3306 && len(sample) >= 6 {
+		return true
 	}
-	return sample[3] == 0 && sample[4] == 10 // seq 0 + protocol version 10（greeting）
+	return len(sample) >= 6 && sample[3] == 0 && sample[4] == 10
 }
 
 func (mysqlParser) Parse(stream []byte) (*L7Result, error) {
@@ -417,17 +419,19 @@ type nfsParser struct{}
 func (nfsParser) Name() string { return "nfs" }
 
 func (nfsParser) CanParse(port uint16, sample []byte) bool {
+	// TCP 载荷带 record mark（引擎 recordMark()=0x80000000|len，RFC 5531
+	// §11）：program 在 mark 后 = @16:20
 	if port != 2049 || len(sample) < 28 {
 		return false
 	}
-	return binary.BigEndian.Uint32(sample[12:16]) == 100003 // program
+	return binary.BigEndian.Uint32(sample[16:20]) == 100003
 }
 
 func (nfsParser) Parse(stream []byte) (*L7Result, error) {
 	res := &L7Result{Protocol: "nfs", Metadata: map[string]any{}}
 	detail := &L7Detail{DetailVersion: L7DetailVersion, Type: "nfs", Extra: map[string]any{}}
-	xid := binary.BigEndian.Uint32(stream[0:4])
-	msgType := binary.BigEndian.Uint32(stream[4:8])
+	xid := binary.BigEndian.Uint32(stream[4:8])  // record mark 后（引擎 recordMark()，RFC 5531 §11）
+	msgType := binary.BigEndian.Uint32(stream[8:12])
 	kind := "request"
 	if msgType == 1 {
 		kind = "response"
@@ -435,12 +439,12 @@ func (nfsParser) Parse(stream []byte) (*L7Result, error) {
 	fields := map[string]any{
 		"xid":          xid,
 		"msg_type":     msgType,
-		"rpc_version":  binary.BigEndian.Uint32(stream[8:12]),
-		"program":      binary.BigEndian.Uint32(stream[12:16]),
-		"proc":         binary.BigEndian.Uint32(stream[20:24]),
+		"rpc_version":  binary.BigEndian.Uint32(stream[12:16]),
+		"program":      binary.BigEndian.Uint32(stream[16:20]),
+		"proc":         binary.BigEndian.Uint32(stream[24:28]),
 	}
-	// NFS 版本在 program 版本字段 @16:20
-	fields["nfs_version"] = binary.BigEndian.Uint32(stream[16:20])
+	// NFS 版本在 program 版本字段 @20:24
+	fields["nfs_version"] = binary.BigEndian.Uint32(stream[20:24])
 	res.Metadata["xid"] = xid
 	res.Metadata["proc"] = fields["proc"]
 	detail.appendMessage(L7Message{Kind: kind, WireLen: len(stream), Fields: fields})

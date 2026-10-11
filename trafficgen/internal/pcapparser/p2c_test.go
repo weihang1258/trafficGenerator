@@ -135,13 +135,14 @@ func TestP2C_SMB(t *testing.T) {
 }
 
 func TestP2C_NFS(t *testing.T) {
-	f := make([]byte, 32)
-	binary.BigEndian.PutUint32(f[0:4], 0xAA)   // xid
-	binary.BigEndian.PutUint32(f[4:8], 0)      // call
-	binary.BigEndian.PutUint32(f[8:12], 2)     // rpc ver
-	binary.BigEndian.PutUint32(f[12:16], 100003) // nfs program
-	binary.BigEndian.PutUint32(f[16:20], 3)    // nfs v3
-	binary.BigEndian.PutUint32(f[20:24], 6)    // proc read
+	f := make([]byte, 36)
+	binary.BigEndian.PutUint32(f[0:4], 0x80000020) // record mark
+	binary.BigEndian.PutUint32(f[4:8], 0xAA)   // xid
+	binary.BigEndian.PutUint32(f[8:12], 0)      // call
+	binary.BigEndian.PutUint32(f[12:16], 2)     // rpc ver
+	binary.BigEndian.PutUint32(f[16:20], 100003) // nfs program
+	binary.BigEndian.PutUint32(f[20:24], 3)    // nfs v3
+	binary.BigEndian.PutUint32(f[24:28], 6)    // proc read
 	var p nfsParser
 	if !p.CanParse(2049, f) {
 		t.Fatal("CanParse false")
@@ -556,13 +557,15 @@ func bgpFixture() []byte {
 	for i := 0; i < 16; i++ {
 		f[i] = 0xFF
 	}
+	f[16], f[17] = 0, 19 // marker 后 length=19（keepalive 最小帧长）
 	f[18] = 4
 	return f
 }
 
 func nfsFixture() []byte {
-	f := make([]byte, 32)
-	binary.BigEndian.PutUint32(f[12:16], 100003)
+	f := make([]byte, 36)
+	binary.BigEndian.PutUint32(f[0:4], 0x80000020)
+	binary.BigEndian.PutUint32(f[16:20], 100003)
 	return f
 }
 

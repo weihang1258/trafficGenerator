@@ -430,7 +430,10 @@ func (pptpParser) CanParse(port uint16, sample []byte) bool {
 	if port != 1723 || len(sample) < 12 {
 		return false
 	}
-	return binary.BigEndian.Uint32(sample[4:8]) == 0x1A2B3C4D
+	// magic 0x1A2B3C4D：引擎 BE 写线、tshark LE 识别——双序兼容（复审面）
+	be := binary.BigEndian.Uint32(sample[4:8])
+	le := binary.LittleEndian.Uint32(sample[4:8])
+	return be == 0x1A2B3C4D || le == 0x1A2B3C4D
 }
 
 func (pptpParser) Parse(stream []byte) (*L7Result, error) {

@@ -2,6 +2,7 @@ package pcapparser
 
 import (
 	"encoding/binary"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -321,6 +322,8 @@ func TestP2B_FTPAssociation(t *testing.T) {
 	if ctl.RelatedRole != "control" {
 		t.Errorf("控制流角色 = %q, want control", ctl.RelatedRole)
 	}
+	_ = fmt.Sprintf("")
+	fmt.Printf("[dbg] ftp l7=%q detail_len=%d\n", ctl.L7Protocol, len(ctl.L7Detail))
 }
 
 func TestP2B_Shadowsocks(t *testing.T) {
