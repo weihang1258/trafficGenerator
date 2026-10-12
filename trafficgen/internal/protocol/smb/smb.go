@@ -74,6 +74,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	if err != nil {
 		return nil, err
 	}
+	applyFileSource(ctx, cfg) // D-FILE-1：文件源 → WRITE 数据
 
 	configChan := make(chan core.PacketConfig, 256)
 

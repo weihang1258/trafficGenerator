@@ -100,6 +100,16 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		return nil, err
 	}
 
+	// D-FILE-1 万能兜底：spec.FileSource → spec.Payload（解析成功即赢，
+	// 对齐 http.go:247 契约；失败静默保留 inline payload）。
+	if spec.FileSource != nil {
+		if pc := core.PayloadCacheFrom(ctx); pc != nil {
+			if b, err := pc.GetOrLoad(ctx, *spec.FileSource); err == nil {
+				spec.Payload = b
+			}
+		}
+	}
+
 	configChan := make(chan core.PacketConfig, 256)
 
 	go func() {

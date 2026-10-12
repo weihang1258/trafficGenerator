@@ -156,11 +156,34 @@ func (g *ShadowsocksGenerator) Generate(ctx context.Context, req *layers.GenRequ
 		chunkSizes = append(chunkSizes, ss.ChunkPayloadSize)
 	}
 
+	// D-FILE-1 口径修复：FileSource → req.Meta.Payload（与 planner.go 同
+	// 款——链路径 FileSource 解析后走既有分块+原文通路）。
+	if ss.FileSource != nil && len(req.Meta.Payload) == 0 {
+		if pc := core.PayloadCacheFrom(ctx); pc != nil {
+			if b, err := pc.GetOrLoad(ctx, *ss.FileSource); err == nil {
+				req.Meta.Payload = b
+			}
+		}
+	}
+
+	// 分块内容游标：spec.Payload 有值时逐块取原文（FileSource/inline 同路）。
+	payloadOff := 0
 	for _, sz := range chunkSizes {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		chunk := buildAEADChunk(ss, sz)
+		var content []byte
+		if len(req.Meta.Payload) > 0 {
+			end := payloadOff + sz
+			if end > len(req.Meta.Payload) {
+				end = len(req.Meta.Payload)
+			}
+			if payloadOff < len(req.Meta.Payload) {
+				content = req.Meta.Payload[payloadOff:end]
+			}
+			payloadOff = end
+		}
+		chunk := buildAEADChunk(ss, sz, content)
 		if err := emit(true, chunk); err != nil {
 			return err
 		}

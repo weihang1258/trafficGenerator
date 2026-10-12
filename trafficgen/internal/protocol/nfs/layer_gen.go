@@ -72,6 +72,7 @@ func (g *NFSGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 	if err != nil {
 		return err
 	}
+	applyFileSource(ctx, cfg) // D-FILE-1：文件源 → WRITE 数据
 
 	// --- 默认化（legacy Plan nfs.go:381-403 逐行同款）---
 	// 默认化前先做多流检查：Sessions>1 时 legacy 的 SessionsSrcPortBase

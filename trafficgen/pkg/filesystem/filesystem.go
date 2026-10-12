@@ -3,6 +3,7 @@ package filesystem
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,6 +44,15 @@ func (fs *Filesystem) initDirs() error {
 // Root returns the absolute root directory.
 func (fs *Filesystem) Root() string { return fs.root }
 
+// UploadResult is the D-FILE-1 upload receipt: content id (= sha256) and
+// whether the content already existed (dedup hit — nothing re-stored).
+type UploadResult struct {
+	FileID  string `json:"file_id"` // content sha256 hex — 用它引用（file_source.file_id）
+	SHA256  string `json:"sha256"`  // 与 FileID 同值（显式列，调用方直观）
+	Existed bool   `json:"existed"` // true = 内容已存在（本次零存储，只加路径引用）
+	Bytes   int    `json:"bytes"`   // 内容字节数
+}
+
 // Upload writes the bytes from src to relPath in the filesystem. The bytes
 // are content-addressed: if an identical blob (by SHA-256) is already
 // present, no new blob is written. If relPath already exists, the old
@@ -52,18 +62,27 @@ func (fs *Filesystem) Root() string { return fs.root }
 // relPath must be a relative path (no leading slash). Path components are
 // cleaned and validated for directory traversal escape.
 func (fs *Filesystem) Upload(ctx context.Context, relPath string, src FileSource) error {
+	_, err := fs.UploadInfo(ctx, relPath, src)
+	return err
+}
+
+// UploadInfo resolves src, stores the blob (hash dedup: skip write if the
+// content already exists) and materializes relPath. Returns the receipt.
+// D-FILE-1 裁定 2：上传即查询——同内容重复上传 Existed=true，零重复存储。
+func (fs *Filesystem) UploadInfo(ctx context.Context, relPath string, src FileSource) (UploadResult, error) {
 	cleanRel, err := fs.cleanRelPath(relPath)
 	if err != nil {
-		return err
+		return UploadResult{}, err
 	}
 	// Resolve bytes BEFORE locking; src.File recurses into Read which needs RLock.
 	b, err := fs.resolveBytes(src)
 	if err != nil {
-		return err
+		return UploadResult{}, err
 	}
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 	hash := hashStr(b)
+	res := UploadResult{FileID: hash, SHA256: hash, Existed: false, Bytes: len(b)}
 
 	// Look up the existing hash (if any) for this path. Used both for the
 	// ref-removal step, the I2 fix (skip materialization when the existing
@@ -75,7 +94,7 @@ func (fs *Filesystem) Upload(ctx context.Context, relPath string, src FileSource
 	// (and delete the old blob if refs become empty).
 	if existingHash != "" && existingHash != hash {
 		if err := fs.removeRefLocked(existingHash, cleanRel); err != nil {
-			return err
+			return UploadResult{}, err
 		}
 		// The old blob's ref was removed; the new hash is what we'll save below.
 		existingHash = ""
@@ -85,8 +104,11 @@ func (fs *Filesystem) Upload(ctx context.Context, relPath string, src FileSource
 	blobPath := fs.blobPath(hash)
 	if _, err := os.Stat(blobPath); os.IsNotExist(err) {
 		if err := os.WriteFile(blobPath, b, 0644); err != nil {
-			return err
+			return UploadResult{}, err
 		}
+	} else {
+		// Blob already on disk — dedup hit.
+		res.Existed = true
 	}
 
 	// I1 fix: save meta BEFORE materializing the hardlink. If materialization
@@ -101,7 +123,7 @@ func (fs *Filesystem) Upload(ctx context.Context, relPath string, src FileSource
 	// Refs append because containsStr guards against duplicates).
 	meta, err := fs.loadMeta(hash)
 	if err != nil && !errors.Is(err, ErrNotFound) {
-		return err
+		return UploadResult{}, err
 	}
 	metaWasNew := false
 	if meta == nil {
@@ -114,7 +136,7 @@ func (fs *Filesystem) Upload(ctx context.Context, relPath string, src FileSource
 		refAdded = true
 	}
 	if err := fs.saveMeta(hash, meta); err != nil {
-		return err
+		return UploadResult{}, err
 	}
 
 	// Materialize the file on disk at relPath so it is visible to List,
@@ -125,37 +147,37 @@ func (fs *Filesystem) Upload(ctx context.Context, relPath string, src FileSource
 		// Materialization failed — roll back the meta save above so we don't
 		// leave a meta entry pointing at a path with no hardlink on disk.
 		fs.rollbackMetaLocked(hash, cleanRel, metaWasNew, refAdded)
-		return err
+		return UploadResult{}, err
 	}
 	if existingHash != "" && existingHash == hash {
 		// I2 fix: hardlink already points at the right blob — no-op.
 	} else if st, err := os.Lstat(absRel); err == nil {
 		if st.IsDir() {
 			fs.rollbackMetaLocked(hash, cleanRel, metaWasNew, refAdded)
-			return errors.New("filesystem: path is a directory")
+			return UploadResult{}, errors.New("filesystem: path is a directory")
 		}
 		if err := os.Remove(absRel); err != nil {
 			fs.rollbackMetaLocked(hash, cleanRel, metaWasNew, refAdded)
-			return err
+			return UploadResult{}, err
 		}
 		if err := linkFunc(blobPath, absRel); err != nil {
 			// Fall back to a copy if hardlink fails (e.g., cross-device).
 			if err := os.WriteFile(absRel, b, 0644); err != nil {
 				// I1 fix: linkFunc AND fallback both failed. Roll back.
 				fs.rollbackMetaLocked(hash, cleanRel, metaWasNew, refAdded)
-				return err
+				return UploadResult{}, err
 			}
 		}
 	} else {
 		if err := linkFunc(blobPath, absRel); err != nil {
 			if err := os.WriteFile(absRel, b, 0644); err != nil {
 				fs.rollbackMetaLocked(hash, cleanRel, metaWasNew, refAdded)
-				return err
+				return UploadResult{}, err
 			}
 		}
 	}
 
-	return nil
+	return res, nil
 }
 
 // rollbackMetaLocked undoes the meta save performed before materialization.
@@ -536,4 +558,40 @@ func removeStr(s []string, v string) []string {
 		}
 	}
 	return s
+}
+
+// QueryByHash returns metadata for a content hash (file_id). D-FILE-1 裁定 3：
+// 大文件先查再传的反查口子——命中说明内容已存在，无需重复上传。
+func (fs *Filesystem) QueryByHash(ctx context.Context, hash string) (FileInfo, error) {
+	if err := validFileID(hash); err != nil {
+		return FileInfo{}, err
+	}
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+	meta, err := fs.loadMeta(hash)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return FileInfo{}, fmt.Errorf("%w: file_id %s 不存在（未上传或已删除）", ErrNotFound, hash[:12])
+		}
+		return FileInfo{}, err
+	}
+	return FileInfo{IsDir: false, Size: meta.Size, SHA256: hash}, nil
+}
+
+// ReadByHash returns the blob bytes for a content hash (file_id).
+// D-FILE-1 裁定 5：缺失时文案说人话。
+func (fs *Filesystem) ReadByHash(ctx context.Context, hash string) ([]byte, error) {
+	if err := validFileID(hash); err != nil {
+		return nil, err
+	}
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+	b, err := os.ReadFile(fs.blobPath(hash))
+	if os.IsNotExist(err) {
+		return nil, fmt.Errorf("%w: file_id %s 不存在（未上传或已删除）", ErrNotFound, hash[:12])
+	}
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
 }

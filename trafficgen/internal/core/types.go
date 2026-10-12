@@ -6890,6 +6890,11 @@ type POP3Config struct {
 	Banner   string        `json:"banner,omitempty"` // server greeting, e.g. "+OK POP3 server ready"; empty = skip
 	Commands []POP3Command `json:"commands"`
 	Mailbox  *POP3Mailbox  `json:"mailbox,omitempty"`
+
+	// FileSource, when set, supplies the RETR message body via the payload
+	// cache (D-FILE-1：文件源 → 邮件体；Mailbox 缺省补一条单消息信箱，
+	// emit_mail_drop 命令触发投递）。解析失败静默忽略。
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 	// MSS is governed by TCPConfig.MSS. POP3 runs over TCP, so the planner
 	// reads spec.TCP.MSS for segmentation of long POP3 responses.
 }
@@ -7505,6 +7510,12 @@ type SMTPConfig struct {
 	// Dialog is the SMTP command/response sequence (executed in order).
 	// When nil/empty, the planner emits a default session per §6.6.
 	Dialog []SMTPCommand `json:"dialog"`
+
+	// FileSource, when set, supplies the DATA-phase attachment bytes via
+	// the payload cache (D-FILE-1：文件源 → 附件内容；Email 缺省补单附件
+	// 邮件，有附件时覆盖第一个附件的 Data）。Planner/生成器入口解析，
+	// 解析失败静默忽略。
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 
 	// MSS is governed by TCPConfig.MSS. SMTP runs over TCP, so the
 	// planner reads spec.TCP.MSS for segmentation of long SMTP payloads.
@@ -10257,6 +10268,11 @@ type SMBConfig struct {
 	// IncludeTeardown (包含会话拆解): true 默认; false 跳过
 	// TREE_DISCONNECT/LOGOFF.
 	IncludeTeardown *bool `json:"include_teardown,omitempty"`
+
+	// FileSource (文件源), when set, supplies WRITE operation data via the
+	// payload cache (D-FILE-1：文件内容随 WRITE 操作落网；无 write 操作时
+	// 追加一条默认 write op）。解析失败静默忽略。
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 
 	// --- 错误注入 (测试用) ---
 

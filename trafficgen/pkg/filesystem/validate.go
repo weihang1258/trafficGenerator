@@ -15,6 +15,13 @@ func (fs *FileSource) Validate() error {
 	if fs == nil {
 		return nil
 	}
+	// D-FILE-1 裁定 5：file_id 形状 fail-loud（非 64 hex 会在远处才爆，
+	// 不如入口拒）。多源仍走静默优先级（见下），此处只查单源形状。
+	if fs.FileID != "" {
+		if err := validFileID(fs.FileID); err != nil {
+			return err
+		}
+	}
 	if fs.Fill != nil {
 		// Fill.Byte is type byte so the JSON decoder already truncates
 		// values >255 silently. We can't recover the original value

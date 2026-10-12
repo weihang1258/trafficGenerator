@@ -14,9 +14,11 @@ import (
 )
 
 // FileSource describes how to obtain bytes for a file. Exactly one source
-// should be set. Priority: File > Literal > Fill > Random.
+// should be set. Priority: File > FileID > Literal > Fill > Random
+// (D-FILE-1 裁定 4：静默优先级，不 fail-loud——遵守既有契约).
 type FileSource struct {
 	File    string  `json:"file,omitempty"`    // filesystem relative path (recursive Read)
+	FileID  string  `json:"file_id,omitempty"` // content sha256 hex (64 chars) — D-FILE-1: 引用已上传内容，与 pcap asset id 同体验
 	Literal string  `json:"literal,omitempty"` // inline text bytes
 	Fill    *Fill   `json:"fill,omitempty"`     // single-byte pattern
 	Random  *Random `json:"random,omitempty"`   // random content, length range

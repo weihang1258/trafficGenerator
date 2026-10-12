@@ -15,6 +15,10 @@
 // constructing FlowSpec values that target the NFS protocol.
 package nfs
 
+import (
+	"github.com/trafficgen/trafficgen/pkg/filesystem"
+)
+
 // --- Constants ---
 
 // Default NFS TCP port (RFC 7530 §3 / RFC 1813 §11).
@@ -356,6 +360,9 @@ type NFSConfig struct {
 	XIDBase     uint32 `json:"xid_base,omitempty"`
 	XIDIncr     int    `json:"xid_incr,omitempty"`
 	Ops         []NFSOp `json:"ops"`
+	// FileSource, when set, supplies WRITE operation data via the payload
+	// cache (D-FILE-1：文件源 → WRITE 数据；无 write op 时追加默认一条）。
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 	Sessions    int    `json:"sessions,omitempty"`
 	SessionsSrcPortBase uint16 `json:"sessions_src_port_base,omitempty"`
 	SessionsSrcPortStep int    `json:"sessions_src_port_step,omitempty"`

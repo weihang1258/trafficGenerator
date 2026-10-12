@@ -112,6 +112,15 @@ func (g *VmessGenerator) Generate(ctx context.Context, req *layers.GenRequest) e
 	}
 
 	// --- VMess Request ---
+	// FileSource 解析（D-FILE-1 口径修复：registry 声明了 file_source 但
+	// planner 未消费——grpc layer_gen.go:85 同款，加载失败静默忽略）。
+	if v.FileSource != nil {
+		if pc := core.PayloadCacheFrom(ctx); pc != nil {
+			if b, err := pc.GetOrLoad(ctx, *v.FileSource); err == nil {
+				v.Payload = b
+			}
+		}
+	}
 	reqPayload := buildVMessRequestPayload(v, uuidBytes, enc, addrType, addrBytes)
 	if err := emit(true, reqPayload); err != nil {
 		return err

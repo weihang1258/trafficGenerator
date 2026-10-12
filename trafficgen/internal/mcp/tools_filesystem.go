@@ -29,8 +29,9 @@ import (
 type manageFilesystemInput struct {
 	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
 	Action    string             `json:"action" jsonschema:"operation: upload|read|delete|mkdir|rmdir|list|query"`
-	Path      string             `json:"path,omitempty" jsonschema:"relative path inside the filesystem root (e.g. \"docs/readme.txt\"). Required for all actions. For list, \".\" lists the root."`
-	Source    *filesystem.FileSource `json:"source,omitempty" jsonschema:"file source (upload only). One of: {file: <relative-or-absolute-path>, literal: <text>, fill: {byte, bytes}, random: {min_bytes, max_bytes, seed}}. file reads from another filesystem entry (relative) or an absolute disk path (outside root). literal is inline text bytes. fill repeats a single byte. random generates random bytes (seed=0 -> crypto-random fresh each call, non-zero -> reproducible)."`
+	Path      string             `json:"path,omitempty" jsonschema:"relative path inside the filesystem root (e.g. \"docs/readme.txt\"). Required for all actions EXCEPT query-by-hash. For list, \".\" lists the root."`
+	SHA256    string             `json:"sha256,omitempty" jsonschema:"query only: 64-hex content hash. Query BEFORE uploading a large file — if it hits, the content already exists (no need to upload). Mutually exclusive with path."`
+	Source    *filesystem.FileSource `json:"source,omitempty" jsonschema:"file source (upload only). One of: {file: <relative-or-absolute-path>, file_id: <64-hex sha256 of previously uploaded content>, literal: <text>, fill: {byte, bytes}, random: {min_bytes, max_bytes, seed}}. file reads from another filesystem entry (relative) or an absolute disk path (outside root). file_id references already-uploaded content by its content hash (returned by upload). literal is inline text bytes. fill repeats a single byte. random generates random bytes (seed=0 -> crypto-random fresh each call, non-zero -> reproducible)."`
 	Recursive bool               `json:"recursive,omitempty" jsonschema:"recursive directory removal (rmdir only). When true, deletes the directory and all files/sub-directories inside it. When false (default), rejects removal of a non-empty directory with ErrNotEmpty."`
 }
 
@@ -43,7 +44,7 @@ func (s *Server) registerFilesystemTool() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
 			Name:        "flowb_manage_filesystem",
-			Description: "Manage the trafficgen content-addressed filesystem: upload/read/delete/mkdir/rmdir/list/query files and directories. upload writes a file from a JSON-described source (literal text, fill byte, random bytes, or another filesystem/disk file). read returns file bytes base64-encoded (binary-safe). delete removes a file (last reference deletes the backing blob). mkdir creates a directory (idempotent). rmdir removes a directory (recursive=true to delete non-empty). list lists entries in a directory. query returns metadata (size, mtime, sha256, is_dir) for a path." + autoExportNote,
+			Description: "Manage the trafficgen content-addressed filesystem: upload/read/delete/mkdir/rmdir/list/query files and directories. upload writes a file from a JSON-described source (literal text, fill byte, random bytes, another filesystem/disk file, or a previously uploaded file_id) and returns its file_id (= content sha256) plus existed=true when identical content was already stored (dedup — nothing re-stored). To reference uploaded content in traffic configs, use file_source={file_id: <file_id>} in protocol layers (http body, ftp data_channel, tcp/udp payload, ...). query accepts sha256=<64-hex> to check whether content already exists BEFORE uploading (no path needed, no upload cost). read returns file bytes base64-encoded (binary-safe). delete removes a file (last reference deletes the backing blob; file_ids of deleted blobs stop resolving). mkdir creates a directory (idempotent). rmdir removes a directory (recursive=true to delete non-empty). list lists entries in a directory. query with a path returns metadata (size, mtime, sha256, is_dir)." + autoExportNote,
 			OutputSchema: manageOutputSchema(),
 		},
 		s.handleManageFilesystem,
@@ -67,7 +68,8 @@ func (s *Server) handleManageFilesystem(ctx context.Context, req *mcp.CallToolRe
 	// from the filesystem layer (which would surface as a generic InternalError
 	// because the MCP layer doesn't translate filesystem-layer error strings
 	// to HTTP status codes the way the REST handler does).
-	if in.Path == "" {
+	// D-FILE-1 例外：query-by-hash（sha256 参数）不需要 path。
+	if in.Path == "" && !(in.Action == "query" && in.SHA256 != "") {
 		s.auditLog(req, "flowb_manage_filesystem", time.Since(start), "error", "missing path")
 		return nil, manageFilesystemOutput{}, &jsonrpc.Error{
 			Code:    jsonrpc.CodeInvalidParams,
@@ -89,11 +91,20 @@ func (s *Server) handleManageFilesystem(ctx context.Context, req *mcp.CallToolRe
 				Message: "source is required for action upload",
 			}
 		}
-		err = s.filesystem.Upload(ctx, in.Path, *in.Source)
+		up, err := s.filesystem.UploadInfo(ctx, in.Path, *in.Source)
 		if err != nil {
 			break
 		}
-		result = map[string]interface{}{"path": in.Path, "uploaded": true}
+		// D-FILE-1 裁定 2：上传即查询——回执带 file_id（=内容 sha256）与
+		// existed（同内容重复上传 = true，零重复存储）。引用方式见工具描述。
+		result = map[string]interface{}{
+			"path":     in.Path,
+			"uploaded": true,
+			"file_id":  up.FileID,
+			"sha256":   up.SHA256,
+			"existed":  up.Existed,
+			"bytes":    up.Bytes,
+		}
 
 	case "read":
 		var b []byte
@@ -141,6 +152,23 @@ func (s *Server) handleManageFilesystem(ctx context.Context, req *mcp.CallToolRe
 		result = map[string]interface{}{"path": in.Path, "entries": entries}
 
 	case "query":
+		// D-FILE-1 裁定 3：按哈希反查（sha256 参数与 path 互斥）——大文件
+		// 先查再传，命中即内容已存在，无需重复上传。
+		if in.SHA256 != "" {
+			if in.Path != "" {
+				return nil, manageFilesystemOutput{}, &jsonrpc.Error{
+					Code:    jsonrpc.CodeInvalidParams,
+					Message: "query accepts either path or sha256, not both",
+				}
+			}
+			var info filesystem.FileInfo
+			info, err = s.filesystem.QueryByHash(ctx, in.SHA256)
+			if err != nil {
+				break
+			}
+			result = map[string]interface{}{"file_id": info.SHA256, "sha256": info.SHA256, "size": info.Size, "existed": true}
+			break
+		}
 		var info filesystem.FileInfo
 		info, err = s.filesystem.Query(ctx, in.Path)
 		if err != nil {

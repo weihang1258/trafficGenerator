@@ -369,6 +369,10 @@ func validateUDPLength(cfg *NFSConfig) error {
 
 // Plan generates packet configs for an NFS flow.
 func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.PacketConfig, error) {
+	// D-FILE-1：文件源先于 Validate（合成 write op 须过 V 面 ops 非空检查）。
+	if cfg0 := GetConfig(spec); cfg0 != nil {
+		applyFileSource(ctx, cfg0)
+	}
 	if err := p.Validate(spec); err != nil {
 		return nil, err
 	}

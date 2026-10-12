@@ -115,6 +115,12 @@ func (c *PayloadCache) resolveBytes(ctx context.Context, src filesystem.FileSour
 			return nil, errors.New("payloadcache: relative src.File but no filesystem configured")
 		}
 		return c.fs.Read(ctx, src.File)
+	case src.FileID != "":
+		// D-FILE-1：按内容哈希读 blob（O(1) 路径推导，无 id 索引）。
+		if c.fs == nil {
+			return nil, errors.New("payloadcache: src.FileID but no filesystem configured")
+		}
+		return c.fs.ReadByHash(ctx, src.FileID)
 	case src.Literal != "":
 		return []byte(src.Literal), nil
 	case src.Fill != nil:

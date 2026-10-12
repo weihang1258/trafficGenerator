@@ -1995,7 +1995,7 @@ func MapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 // without a file_source serializes as nil (no null in JSON output thanks
 // to omitempty on the field tags).
 //
-// The four source kinds (File, Literal, Fill, Random) are parsed
+// The five source kinds (File, FileID, Literal, Fill, Random) are parsed
 // independently; at most one is expected to be set, but we don't enforce
 // that here (priority resolution happens at consume time in PayloadCache).
 //
@@ -2012,6 +2012,10 @@ func parseFileSource(cfg map[string]interface{}) *filesystem.FileSource {
 	fs := &filesystem.FileSource{}
 	if v, ok := src["file"].(string); ok {
 		fs.File = v
+	}
+	// D-FILE-1：file_id（内容 sha256 hex）——引用已上传内容。
+	if v, ok := src["file_id"].(string); ok {
+		fs.FileID = v
 	}
 	if v, ok := src["literal"].(string); ok {
 		fs.Literal = v
@@ -2032,7 +2036,7 @@ func parseFileSource(cfg map[string]interface{}) *filesystem.FileSource {
 	// If all fields are zero, treat as nil. This prevents a non-nil pointer
 	// to a zero-value FileSource from being serialized as "file_source": {}
 	// and from confusing planners that test `if spec.FileSource != nil`.
-	if fs.File == "" && fs.Literal == "" && fs.Fill == nil && fs.Random == nil {
+	if fs.File == "" && fs.FileID == "" && fs.Literal == "" && fs.Fill == nil && fs.Random == nil {
 		return nil
 	}
 	return fs
@@ -2051,6 +2055,10 @@ func parseFileSourceField(m map[string]interface{}) *filesystem.FileSource {
 	if v, ok := src["file"].(string); ok {
 		fs.File = v
 	}
+	// D-FILE-1：file_id（内容 sha256 hex）——引用已上传内容。
+	if v, ok := src["file_id"].(string); ok {
+		fs.FileID = v
+	}
 	if v, ok := src["literal"].(string); ok {
 		fs.Literal = v
 	}
@@ -2067,7 +2075,7 @@ func parseFileSourceField(m map[string]interface{}) *filesystem.FileSource {
 			Seed:     int64(toInt(r["seed"])),
 		}
 	}
-	if fs.File == "" && fs.Literal == "" && fs.Fill == nil && fs.Random == nil {
+	if fs.File == "" && fs.FileID == "" && fs.Literal == "" && fs.Fill == nil && fs.Random == nil {
 		return nil
 	}
 	return fs
@@ -8507,6 +8515,9 @@ func parseSMBConfig(m map[string]interface{}) *SMBConfig {
 		ShareAccess:                    uint8(getInt(m, "share_access")),
 		CreateOptions:                  getUint32(m, "create_options"),
 		Operations:                     parseSMBOperations(m["operations"]),
+		// D-FILE-1：file_source 对象 JSON round-trip（FileSource 形状由
+		// struct 标签管，与扁平 parse 同形；telnet :1779 同款）。
+		FileSource:                     parseFileSource(m),
 		PreauthIntegrityHashAlgorithms: getUint16Slice(m, "preauth_integrity_hash_algorithms"),
 		EncryptionAlgorithm:            getUint16(m, "encryption_algorithm"),
 		ErrorOnCommand:                 getString(m, "error_on_command"),

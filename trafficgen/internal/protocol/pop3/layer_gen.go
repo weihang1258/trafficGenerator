@@ -36,6 +36,7 @@ func (g *POP3Generator) Generate(ctx context.Context, req *layers.GenRequest) er
 		// 与 legacy 同款（Plan 对 nil Config 走默认空会话）：空命令序列。
 		c = &core.POP3Config{}
 	}
+	applyFileSource(ctx, c) // D-FILE-1：文件源 → RETR 邮件体
 	emit := func(up bool, payload []byte) error {
 		return g.emitMsg(ctx, req.EmitMsg, layers.MessageEvent{Up: up, Bytes: payload})
 	}

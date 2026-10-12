@@ -60,11 +60,13 @@ func (h *FilesystemHandler) Upload(c *gin.Context) {
 		BadRequest(c, err.Error())
 		return
 	}
-	if err := h.fs.Upload(c.Request.Context(), relPath, src); err != nil {
+	up, err := h.fs.UploadInfo(c.Request.Context(), relPath, src)
+	if err != nil {
 		respondFsError(c, err)
 		return
 	}
-	c.Status(http.StatusCreated)
+	// D-FILE-1：上传即查询——201 带回执（file_id=内容 sha256 + existed 去重位）。
+	c.JSON(http.StatusCreated, up)
 }
 
 // Download returns the raw bytes at relPath. Only file paths are accepted

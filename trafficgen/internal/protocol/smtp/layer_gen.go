@@ -60,6 +60,7 @@ func (g *SMTPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 		// 默认 dialog（HELO + MAIL + RCPT + DATA + 空 body + QUIT）。
 		cfg = &core.SMTPConfig{}
 	}
+	applyFileSource(ctx, cfg) // D-FILE-1：文件源 → DATA 附件
 
 	emit := func(ev layers.MessageEvent) error {
 		return emitSel(ctx, req.EmitMsg, ev)

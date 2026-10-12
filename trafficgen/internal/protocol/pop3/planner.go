@@ -211,6 +211,10 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 // yields PacketConfig values in wire order. The channel is closed when
 // generation completes or when ctx is cancelled.
 func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.PacketConfig, error) {
+	// D-FILE-1：文件源先于 Validate（合成 Mailbox 须过 V 面 EmitMailDrop 检查）。
+	if spec.POP3 != nil {
+		applyFileSource(ctx, spec.POP3)
+	}
 	if err := p.Validate(spec); err != nil {
 		return nil, err
 	}
@@ -226,6 +230,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		if pop3Config == nil {
 			pop3Config = &core.POP3Config{}
 		}
+		applyFileSource(ctx, pop3Config) // D-FILE-1：文件源 → RETR 邮件体
 
 		effectiveTTL := spec.TTL
 		if effectiveTTL == 0 {

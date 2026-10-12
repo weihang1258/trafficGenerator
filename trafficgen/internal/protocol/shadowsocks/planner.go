@@ -493,6 +493,17 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	}
 
 	// --- AEAD Chunk loop (AEAD数据块循环) ---
+	// D-FILE-1 口径修复：FileSource → spec.Payload（既有分块路径接管；
+	// 原 buildAEADChunk 内 FileSource 分支为未实现桩——注释自认 fall
+	// through to random，已随本修复删除）。对齐 http.go:247 契约：
+	// FileSource 解析成功即赢过 inline Payload。
+	if ss.FileSource != nil {
+		if pc := core.PayloadCacheFrom(ctx); pc != nil {
+			if b, err := pc.GetOrLoad(ctx, *ss.FileSource); err == nil {
+				spec.Payload = b
+			}
+		}
+	}
 	// Determine chunk payload sizes. When Chunks > 0, use explicit count.
 	// When Chunks == 0 and spec.Payload is provided, split the payload into
 	// chunks of MaxChunkPayload (or ChunkPayloadSize if set).
@@ -530,6 +541,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		chunkSizes = append(chunkSizes, ss.ChunkPayloadSize)
 	}
 
+	// 分块内容游标：spec.Payload 有值时逐块取原文（FileSource/inline 同路）。
+	payloadOff := 0
 	for _, sz := range chunkSizes {
 		select {
 		case <-ctx.Done():
@@ -537,7 +550,18 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		default:
 		}
 
-		chunk := buildAEADChunk(ss, sz)
+		var content []byte
+		if len(spec.Payload) > 0 {
+			end := payloadOff + sz
+			if end > len(spec.Payload) {
+				end = len(spec.Payload)
+			}
+			if payloadOff < len(spec.Payload) {
+				content = spec.Payload[payloadOff:end]
+			}
+			payloadOff = end
+		}
+		chunk := buildAEADChunk(ss, sz, content)
 		clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, chunk)
 	}
 
@@ -673,21 +697,24 @@ func buildHTTPObfuscation(ss *core.ShadowsocksConfig) []byte {
 // the encrypted payload. Per shadowsocks.org AEAD spec, the length-prefix and
 // the payload are each independently AEAD-encrypted, each producing its own tag.
 // For cipher="none": [plain_len 2B][plain_payload NB] (no tags)
-func buildAEADChunk(ss *core.ShadowsocksConfig, payloadSize int) []byte {
+// content != nil 时块载荷=原文切片（FileSource/inline spec.Payload 通路，
+// D-FILE-1）；nil 时维持旧行为（zeros/random 占位）。
+func buildAEADChunk(ss *core.ShadowsocksConfig, payloadSize int, content []byte) []byte {
 	cipher := normalizeCipher(ss.Cipher)
 	isAEAD := isAEADCipher(cipher)
 
 	// Payload bytes
 	var payload []byte
 	if payloadSize > 0 {
-		payload = make([]byte, payloadSize)
-		if ss.PayloadBytesFormat == "zeros" {
-			// Already zero-filled
-		} else if ss.FileSource != nil {
-			// FileSource not supported in simple planner; fall through to random
-			rand.Read(payload)
+		if content != nil {
+			payload = content
 		} else {
-			rand.Read(payload)
+			payload = make([]byte, payloadSize)
+			if ss.PayloadBytesFormat == "zeros" {
+				// Already zero-filled
+			} else {
+				rand.Read(payload)
+			}
 		}
 	}
 

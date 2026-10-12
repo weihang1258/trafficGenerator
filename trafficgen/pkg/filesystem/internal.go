@@ -21,7 +21,7 @@ type fileMeta struct {
 }
 
 // resolveBytes returns the bytes for the given source. Used by Upload.
-// Precedence: File > Literal > Fill > Random.
+// Precedence: File > FileID > Literal > Fill > Random（D-FILE-1 裁定 4）.
 //
 // src.File may be either a filesystem-relative path (resolved via fs.Read,
 // recursive content-addressed lookup) or an absolute disk path (resolved
@@ -39,6 +39,10 @@ func (fs *Filesystem) resolveBytes(src FileSource) ([]byte, error) {
 		}
 		// Relative path — read from this filesystem.
 		return fs.Read(context.Background(), src.File)
+	case src.FileID != "":
+		// D-FILE-1：按内容哈希取 blob（upload 以 file_id 为源 = 给已有
+		// 内容再挂一个路径名）。
+		return fs.ReadByHash(context.Background(), src.FileID)
 	case src.Literal != "":
 		return []byte(src.Literal), nil
 	case src.Fill != nil:
@@ -55,6 +59,20 @@ func (fs *Filesystem) resolveBytes(src FileSource) ([]byte, error) {
 	default:
 		return nil, errors.New("filesystem: FileSource has no source set")
 	}
+}
+
+// validFileID checks file_id shape: 64 lowercase/uppercase hex chars.
+// D-FILE-1 裁定 5：形状 fail-loud。
+func validFileID(id string) error {
+	if len(id) != 64 {
+		return errors.New("filesystem: file_id must be 64 hex chars (sha256)")
+	}
+	for _, c := range id {
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
+			return errors.New("filesystem: file_id must be 64 hex chars (sha256)")
+		}
+	}
+	return nil
 }
 
 // GenerateRandomBytes is exported for reuse by internal/core/payloadcache

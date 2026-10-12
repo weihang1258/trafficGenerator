@@ -130,6 +130,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		if smtpConfig == nil {
 			smtpConfig = &core.SMTPConfig{}
 		}
+		applyFileSource(ctx, smtpConfig) // D-FILE-1：文件源 → DATA 附件
 
 		effectiveTTL := spec.TTL
 		if effectiveTTL == 0 {

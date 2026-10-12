@@ -1783,7 +1783,7 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 						// 镜像 parseFileSource 零值→nil 契约
 						// （strategy_convert.go:1545-1548）：全零
 						// FileSource 视为缺省，不产生非 nil 空指针。
-						if out.File != "" || out.Literal != "" || out.Fill != nil || out.Random != nil {
+						if out.File != "" || out.FileID != "" || out.Literal != "" || out.Fill != nil || out.Random != nil {
 							tc.FileSource = &out
 						}
 					}
@@ -3636,6 +3636,18 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			} else {
 				spec.ValidationErrors = append(spec.ValidationErrors,
 					fmt.Sprintf("tcp layer payload must be a string, got %T", v))
+			}
+		}
+		// D-FILE-1：file_source → spec.FileSource（telnet :1779 同款 JSON
+		// round-trip 直迁；零值 FileSource 视为缺省不产生非 nil 空指针）。
+		if fs, ok := term.Config["file_source"]; ok && fs != nil {
+			if b, err := json.Marshal(fs); err == nil {
+				var out filesystem.FileSource
+				if json.Unmarshal(b, &out) == nil {
+					if out.File != "" || out.FileID != "" || out.Literal != "" || out.Fill != nil || out.Random != nil {
+						spec.FileSource = &out
+					}
+				}
 			}
 		}
 	case "tds":

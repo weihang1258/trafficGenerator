@@ -101,6 +101,7 @@ func (g *SMBGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 	// 默认化（legacy Plan smb.go:86 applyDefaults 同款；值拷贝——不污染
 	// FlowMeta 的共享配置）。
 	wcfg := applyDefaults(req.Meta.SMB)
+	applyFileSource(ctx, wcfg) // D-FILE-1：文件源 → WRITE 数据
 
 	// 会话状态（smb.go:112-122 同款：messageID 0 起、fileID 用默认化后的值、
 	// dialectRev 由 SelectedDialect 解析）。
