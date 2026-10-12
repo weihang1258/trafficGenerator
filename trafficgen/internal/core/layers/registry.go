@@ -93,6 +93,9 @@ func buildDefaultRegistry() {
 		Fields: map[string]FieldSchema{
 			"src_port": {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 			"dst_port": {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
+			// D-FILE-1 万能兜底（独立 [ip→udp] flow 终结形态）：文件源驱动
+			// 裸流载荷，与 tcp 层同款；ChainPlanner.Plan 单点解析。
+			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
 		},
 	})
 

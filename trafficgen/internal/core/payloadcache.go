@@ -83,18 +83,28 @@ func (c *PayloadCache) GetOrLoad(ctx context.Context, src filesystem.FileSource)
 	if src.Random != nil && src.Random.Seed == 0 {
 		return filesystem.GenerateRandomBytes(src.Random)
 	}
+	// D-FILE-1 补测（复审 M1）：FileID 即内容哈希——命中内存条目则零 IO
+	// 返回（无命中才落盘读+哈希入库；file_id 是 64 hex，直接作缓存键无
+	// 碰撞风险）。多流共享同一 file_id 时只发生一次磁盘读。
+	if src.FileID != "" {
+		if actual, ok := c.entries.Load(src.FileID); ok {
+			return actual.([]byte), nil
+		}
+	}
 
 	b, err := c.resolveBytes(ctx, src)
 	if err != nil {
 		return nil, err
 	}
-	hash := hashHex(b)
+	key := hashHex(b)
+	// 键=内容 sha256。FileID 源的 hashHex(b) 恒等于 src.FileID，故上面的
+	// 早查（Load(src.FileID)）对首读入库后的所有后续调用恒命中（零 IO）。
 	// LoadOrStore so totalBytes is incremented exactly once per unique hash.
 	// Concurrent callers that race on the same hash will both compute b, but
 	// only the first Store wins (stored=false for losers); the loser returns
 	// the winner's []byte. Bytes are immutable after publish, so sharing is
 	// race-free.
-	actual, stored := c.entries.LoadOrStore(hash, b)
+	actual, stored := c.entries.LoadOrStore(key, b)
 	if !stored {
 		// We added a new entry — account for the bytes.
 		c.totalBytes.Add(int64(len(b)))

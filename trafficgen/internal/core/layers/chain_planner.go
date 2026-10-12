@@ -1312,8 +1312,9 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 		return nil, err
 	}
 	// D-FILE-1：链路径 FileSource → Payload 单点解析（tcp/udp 裸层兜底）。
-	// 文件字节在 Meta.Payload 快照（flowMetaFor）前落位；解析成功赢过
-	// inline payload——与 legacy tcp.Plan 同契约。失败静默保留 inline。
+	// 文件字节在 drive() 的 FlowMeta 快照（chain_planner_translate.go:48
+	// 的 FlowMeta 字面量拷贝 spec.Payload）前落位；解析成功赢过 inline
+	// payload——与 legacy tcp.Plan 同契约。失败静默保留 inline。
 	if spec.FileSource != nil {
 		if pc := core.PayloadCacheFrom(ctx); pc != nil {
 			if b, err := pc.GetOrLoad(ctx, *spec.FileSource); err == nil {

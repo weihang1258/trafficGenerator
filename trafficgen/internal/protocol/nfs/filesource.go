@@ -35,13 +35,7 @@ func applyFileSource(ctx context.Context, cfg *NFSConfig) {
 			}
 		}
 	}
-	// 追加面幂等（Plan 可重入/多流共享配置：已有 file.bin write op 只改
-	// Data 不重复追加）。
-	for i := range cfg.Ops {
-		if cfg.Ops[i].Procedure == NFS3ProcWRITE && cfg.Ops[i].Filename == "file.bin" {
-			cfg.Ops[i].Data = b
-			return
-		}
-	}
+	// 追加面幂等（Plan 可重入/多流共享配置）：重入时上面的第一循环已命中
+	// 合成 op（Procedure==WRITE）只改 Data 不重复追加。
 	cfg.Ops = append(cfg.Ops, NFSOp{Procedure: NFS3ProcWRITE, Filename: "file.bin", Data: b})
 }

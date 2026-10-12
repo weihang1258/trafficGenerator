@@ -1917,7 +1917,8 @@
           "default": 0
         },
         "file_source": {
-          "type": "object"
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
         },
         "headers": {
           "type": "map",
@@ -3483,6 +3484,10 @@
           "type": "string",
           "default": ""
         },
+        "file_source": {
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
+        },
         "minorversion": {
           "type": "uint32",
           "default": 0,
@@ -4243,6 +4248,10 @@
         "commands": {
           "type": "list",
           "default": []
+        },
+        "file_source": {
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
         },
         "mailbox": {
           "type": "object"
@@ -5137,6 +5146,10 @@
           "type": "string",
           "default": ""
         },
+        "file_source": {
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
+        },
         "include_auth": {
           "type": "bool",
           "default": true
@@ -5254,6 +5267,10 @@
         },
         "email": {
           "type": "object"
+        },
+        "file_source": {
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
         }
       }
     },
@@ -5996,6 +6013,10 @@
           "default": 0,
           "max": 65535
         },
+        "file_source": {
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
+        },
         "handshake": {
           "type": "bool",
           "default": true
@@ -6358,6 +6379,10 @@
           "default": 0,
           "max": 65535
         },
+        "file_source": {
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
+        },
         "src_port": {
           "type": "uint16",
           "default": 0,
@@ -6582,7 +6607,8 @@
           "type": "string"
         },
         "file_source": {
-          "type": "object"
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
         },
         "handshake": {
           "type": "bool"

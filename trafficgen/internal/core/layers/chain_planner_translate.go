@@ -3650,6 +3650,20 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 				}
 			}
 		}
+	case "udp":
+		// D-FILE-1：独立 [ip→udp] flow 终结形态的 file_source 兜底（tcp
+		// 同款直迁）：层内 file_source → spec.FileSource，ChainPlanner.Plan
+		// 单点解析成 payload 字节。零值 FileSource 不产生非 nil 空指针。
+		if fs, ok := term.Config["file_source"]; ok && fs != nil {
+			if b, err := json.Marshal(fs); err == nil {
+				var out filesystem.FileSource
+				if json.Unmarshal(b, &out) == nil {
+					if out.File != "" || out.FileID != "" || out.Literal != "" || out.Fill != nil || out.Random != nil {
+						spec.FileSource = &out
+					}
+				}
+			}
+		}
 	case "tds":
 		// D-TDS-1：层条目 layers[].tds 经 JSON 搬进 spec.Payload（生成器经
 		// FlowMeta.Payload 消费，drive :48 直传——无 Payload 字面量漏传位）。

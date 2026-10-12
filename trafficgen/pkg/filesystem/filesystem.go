@@ -101,14 +101,18 @@ func (fs *Filesystem) UploadInfo(ctx context.Context, relPath string, src FileSo
 	}
 
 	// Write the blob if missing (hash dedup: skip write if already exists).
+	// D-FILE-1 补测（复审 L4）：Stat 非 nil 非 NotExist 错误（权限等）不得
+	// 误判 Existed=true 且跳过写盘——显式三分支。
 	blobPath := fs.blobPath(hash)
-	if _, err := os.Stat(blobPath); os.IsNotExist(err) {
+	if st, err := os.Stat(blobPath); err == nil && !st.IsDir() {
+		// Blob already on disk — dedup hit.
+		res.Existed = true
+	} else if err != nil && !os.IsNotExist(err) {
+		return UploadResult{}, err
+	} else {
 		if err := os.WriteFile(blobPath, b, 0644); err != nil {
 			return UploadResult{}, err
 		}
-	} else {
-		// Blob already on disk — dedup hit.
-		res.Existed = true
 	}
 
 	// I1 fix: save meta BEFORE materializing the hardlink. If materialization
