@@ -14,7 +14,7 @@ import (
 // 没有自定义 name：组名恒为 port_group_<hash8>（对完整 ports 配置幂等——
 // 同配置重提交返回既有组），自定义名会破坏防重复机制，故不暴露该参数。
 type managePortGroupsInput struct {
-	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
+	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
 	Action string          `json:"action" jsonschema:"operation: create|list|get|delete"`
 	ID     string          `json:"id,omitempty" jsonschema:"port group id (get/delete)"`
 	Ports  []portGroupPort `json:"ports,omitempty" jsonschema:"ports in the group (create)"`

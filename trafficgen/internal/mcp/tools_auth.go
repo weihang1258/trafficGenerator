@@ -23,7 +23,7 @@ import (
 // token needed). validate/logout/refresh require a JWT token from the LLM;
 // MCP parses it to derive the caller identity (NOT the service account).
 type manageAuthInput struct {
-	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
+	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
 	Action  string `json:"action" jsonschema:"operation: register|login|validate|logout|refresh"`
 	Username string `json:"username,omitempty" jsonschema:"username (register/login)"`
 	Password string `json:"password,omitempty" jsonschema:"password (register/login, min 8 chars)"`

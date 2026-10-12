@@ -111,13 +111,13 @@ func linkSIP(ctl *FlowState, flows map[string]*FlowState) {
 			continue
 		}
 		if port, err := strconv.Atoi(f[1]); err == nil && port > 0 {
-			linkByEndpoint(flows, ctl, ip, uint16(port), "media")
+			linkByEndpoint(flows, ctl, ip, uint16(port), "media_rtp")
 			// RTCP 相邻口（RFC 3550 §11 端口对：偶/奇）
-			linkByEndpoint(flows, ctl, ip, uint16(port+1), "media")
+			linkByEndpoint(flows, ctl, ip, uint16(port+1), "media_rtcp")
 			// NAT 回退：SDP IP 可能因 NAT 与实际流 IP 不一致——端口精确匹配
-			linkByEndpointAnyIP(flows, ctl, uint16(port), "media")
+			linkByEndpointAnyIP(flows, ctl, uint16(port), "media_rtp")
 			// RTCP NAT 回退（反馈项 3：RTCP 流=RTP+1 端口，补 AnyIP 匹配）
-			linkByEndpointAnyIP(flows, ctl, uint16(port+1), "media")
+			linkByEndpointAnyIP(flows, ctl, uint16(port+1), "media_rtcp")
 		}
 	}
 }
@@ -134,7 +134,7 @@ func linkRTSP(ctl *FlowState, flows map[string]*FlowState) {
 				ports := strings.Split(strings.SplitN(kv, "=", 2)[1], "-")
 				if len(ports) >= 1 {
 					if port, err := strconv.Atoi(ports[0]); err == nil && port > 0 {
-						linkByEndpointAnyIP(flows, ctl, uint16(port), "media")
+						linkByEndpointAnyIP(flows, ctl, uint16(port), "media_rtp")
 					}
 				}
 			}

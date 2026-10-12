@@ -13,7 +13,7 @@ import (
 // manageProfileInput covers the 3 profile actions: get / update / delete.
 // All operate on the current user (service account in Phase 1).
 type manageProfileInput struct {
-	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
+	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
 	Action      string `json:"action" jsonschema:"operation: get|update|delete"`
 	Email       string `json:"email,omitempty" jsonschema:"new email (update)"`
 	Password    string `json:"password,omitempty" jsonschema:"current password (delete, for confirmation) OR new password (update, min 8 chars)"`

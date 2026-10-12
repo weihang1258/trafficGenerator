@@ -15,7 +15,7 @@ import (
 // generateTrafficInput is the input for flowb_generate_traffic, the one-shot
 // "create strategy + create task + start task" workflow.
 type generateTrafficInput struct {
-	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
+	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
 	TaskName            string                 `json:"task_name" jsonschema:"task name"`
 	Protocol            string                 `json:"protocol" jsonschema:"protocol name, e.g. modbus/http/dns/a2a — 123 protocols supported; run flowb_query_layers action=examples (no protocol) for the full list"`
 	Config              map[string]interface{} `json:"config" jsonschema:"strategy config. layer-chain is the only accepted format (flat config is gone): {\"layers\":[{\"ip\":{\"src\":\"10.0.0.1\",\"dst\":\"20.0.0.1\"}},{\"udp\":{\"dst_port\":53}},{\"dns\":{\"name\":\"a.com\"}}],\"flow_control\":{\"type\":\"flows\",\"value\":1}} — EACH layers element must hold EXACTLY ONE layer key (merging layers into one element, e.g. {\"layers\":[{\"ip\":{...},\"tcp\":{...}}]}, is rejected with 'each layer entry must contain exactly one layer name') — ordered layers, outermost (L2/L3) first; protocol inferred from outermost non-scaffolding layer, explicit protocol must match. Only schema-declared fields accepted: unknown fields rejected (all reported at once), hard depends_on auto-completed. ALWAYS call flowb_query_layers action=examples for the target protocol BEFORE composing a config — it returns verified copy-paste examples (field names like ip.src / http.response_status_code come from there, do not guess); action=schema lists fields/types/defaults/depends_on. Top-level src_ip/dst_ip/src_port/dst_port/count are rejected (flat config is gone). group_id binds same-id flows to one worker, e.g. {\"strategy\":\"fixed\",\"value\":7} | {\"strategy\":\"inc\",\"range\":[1024,2048],\"step\":1} | {\"strategy\":\"rand\",\"range\":[1,254],\"seed\":42} | {\"strategy\":\"list\",\"list\":[3,4]} | {\"strategy\":\"pattern\",\"pattern\":\"host{n}\",\"n_range\":[1,100]} (range is a two-element array [lo,hi])."`
@@ -114,7 +114,7 @@ func (s *Server) handleGenerateTraffic(ctx context.Context, req *mcp.CallToolReq
 
 // getTaskProgressInput is the input for flowb_get_task_progress.
 type getTaskProgressInput struct {
-	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
+	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
 	TaskID string `json:"task_id" jsonschema:"task id to query"`
 }
 
@@ -142,7 +142,7 @@ func (s *Server) handleGetTaskProgress(ctx context.Context, req *mcp.CallToolReq
 
 // stopAllTasksInput is the input for flowb_stop_all_tasks.
 type stopAllTasksInput struct {
-	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
+	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
 }
 
 // stopAllTasksResult is the output for flowb_stop_all_tasks.
@@ -215,7 +215,7 @@ func (s *Server) handleStopAllTasks(ctx context.Context, req *mcp.CallToolReques
 
 // waitForTaskInput is the input for flowb_wait_for_task.
 type waitForTaskInput struct {
-	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
+	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
 	TaskID              string `json:"task_id" jsonschema:"task id to wait for"`
 	TimeoutSeconds      int    `json:"timeout_seconds,omitempty" jsonschema:"max wait time (default 60, max 300)"`
 	PollIntervalSeconds int    `json:"poll_interval_seconds,omitempty" jsonschema:"poll interval (default 2, min 1)"`
@@ -291,7 +291,7 @@ func (s *Server) handleWaitForTask(ctx context.Context, req *mcp.CallToolRequest
 
 // replayPcapInput is the input for flowb_replay_pcap.
 type replayPcapInput struct {
-	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
+	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
 	TaskName            string                   `json:"task_name" jsonschema:"task name"`
 	PcapAssetID         string                   `json:"pcap_asset_id" jsonschema:"imported pcap asset id to replay"`
 	Loop                *int                     `json:"loop,omitempty" jsonschema:"loop count — omit for a single pass; 0 = infinite (stop the task to end it); N = N passes"`

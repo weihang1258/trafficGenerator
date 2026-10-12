@@ -487,6 +487,10 @@ func (socks5Parser) CanParse(port uint16, sample []byte) bool {
 		return false
 	}
 	// SOCKS5: VER(1)=5；SOCKS4: VN(1)=4 + CD(1)=[1,2]
+	// SOCKS4 reply: VN(1)=0 + CD(1)=0x5A(granted)/0x5B(failed)
+	if sample[0] == 0 && sample[1] >= 0x5A && sample[1] <= 0x5D {
+		return true
+	}
 	return sample[0] == 5 || (sample[0] == 4 && sample[1] >= 1 && sample[1] <= 2)
 }
 
@@ -494,6 +498,16 @@ func (socks5Parser) Parse(stream []byte) (*L7Result, error) {
 	res := &L7Result{Protocol: "socks5", Metadata: map[string]any{}}
 	detail := &L7Detail{DetailVersion: L7DetailVersion, Type: "socks5", Extra: map[string]any{}}
 	fields := map[string]any{"version": stream[0]}
+	if stream[0] == 0 && len(stream) >= 8 {
+		// SOCKS4 reply：VN(1)=0 + CD(1) + dst_port(2) + dst_ip(4)
+		rep := stream[1]
+		fields["reply_code"] = rep
+		fields["reply_granted"] = rep == 0x5A
+		detail.appendMessage(L7Message{Kind: "response", WireLen: len(stream), Fields: fields})
+		detail.countKinds()
+		res.Detail = detail
+		return res, nil
+	}
 	if stream[0] == 4 {
 		// SOCKS4：VN(1) CD(1) dst_port(2 BE) dst_ip(4 BE) userid(...) 0x00
 		cd := stream[1]

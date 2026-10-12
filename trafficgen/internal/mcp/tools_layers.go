@@ -25,7 +25,7 @@ type layerFieldView struct {
 	Max         int64       `json:"max,omitempty"`
 	Required    bool        `json:"required,omitempty"`
 	Deprecated  bool        `json:"deprecated,omitempty"`
-	Description string      `json:"description,omitempty"`
+	Description string      `json:"description"`
 }
 
 // layerSchemaView is the JSON-safe view of one layer 说明书, built from
@@ -96,7 +96,7 @@ func buildLayerSchemaViews(reg *layers.Registry) []layerSchemaView {
 }
 
 type queryLayersInput struct {
-	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
+	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
 	Action string `json:"action,omitempty" jsonschema:"operation: schema (default; layer registry) | examples (verified per-protocol configs an LLM can copy verbatim)"`
 	Layer  string `json:"layer,omitempty" jsonschema:"schema action: layer name to look up (e.g. ip/tcp/http). Empty = list all registered layers."`
 	Proto  string `json:"protocol,omitempty" jsonschema:"examples action: protocol name (e.g. modbus/http/dns). Empty = all protocols."`
