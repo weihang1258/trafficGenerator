@@ -504,6 +504,12 @@ func (socks5Parser) Parse(stream []byte) (*L7Result, error) {
 		rep := stream[1]
 		fields["reply_code"] = rep
 		fields["reply_granted"] = rep == 0x5A
+		// 隧道封装标记（五轮反馈 1）：reply 后同流 HTTP 响应，与 c2s request 对称
+		// （SOCKS4 reply 定长 8B，载荷即其后残余）
+		if len(stream) > 8 && strings.HasPrefix(string(stream[8:]), "HTTP/") {
+			fields["encapsulated"] = true
+			fields["inner_protocol"] = "http"
+		}
 		detail.appendMessage(L7Message{Kind: "response", WireLen: len(stream), Fields: fields})
 		detail.countKinds()
 		res.Detail = detail

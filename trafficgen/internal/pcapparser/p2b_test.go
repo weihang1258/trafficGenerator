@@ -461,3 +461,26 @@ func TestP2B_SOCKS4Tunnel(t *testing.T) {
 		t.Errorf("误标 %v", res2.Detail.Messages[0].Fields)
 	}
 }
+
+// 五轮反馈 1：SOCKS4 reply 后同流 HTTP 响应 → s2c response 消息与 c2s 对称标注
+func TestP2B_SOCKS4ReplyTunnel(t *testing.T) {
+	var p socks5Parser
+	rep := []byte{0, 0x5A, 0, 80, 10, 0, 0, 2}
+	rep = append(rep, []byte("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")...)
+	if !p.CanParse(1080, rep) {
+		t.Fatal("CanParse false")
+	}
+	res, _ := p.Parse(rep)
+	m := res.Detail.Messages[0].Fields
+	if res.Detail.Messages[0].Kind != "response" {
+		t.Fatalf("kind = %s", res.Detail.Messages[0].Kind)
+	}
+	if m["encapsulated"] != true || m["inner_protocol"] != "http" {
+		t.Errorf("socks4 reply tunnel = %v", m)
+	}
+	// 纯 reply（无隧道载荷）不得误标
+	res2, _ := p.Parse([]byte{0, 0x5A, 0, 80, 10, 0, 0, 2})
+	if res2.Detail.Messages[0].Fields["encapsulated"] != nil {
+		t.Errorf("误标 %v", res2.Detail.Messages[0].Fields)
+	}
+}

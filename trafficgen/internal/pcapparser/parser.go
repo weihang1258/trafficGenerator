@@ -18,7 +18,7 @@ import (
 // ParserVersion is the semantic version of the parsing engine. Stored on each
 // FlowModel so a future logic upgrade can detect stale indexes and trigger a
 // reparse (§17.12).
-const ParserVersion = "1.3.0"
+const ParserVersion = "1.4.0"
 
 // pcapGlobalHeaderLen is the size of the pcap file global header (24 bytes),
 // consumed by pcapgo.NewReader before the first packet record.
