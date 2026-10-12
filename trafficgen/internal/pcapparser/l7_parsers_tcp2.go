@@ -3,6 +3,7 @@ package pcapparser
 // P2b TCP 解析器——二进制族。识别+握手/帧面（加密主体不深解，裁定6/范围）。
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -516,13 +517,14 @@ func (socks5Parser) Parse(stream []byte) (*L7Result, error) {
 			fields["dst_port"] = binary.BigEndian.Uint16(stream[2:4])
 			fields["dst_addr"] = fmt.Sprintf("%d.%d.%d.%d", stream[4], stream[5], stream[6], stream[7])
 		}
-		// 隧道内嵌流量标签（反馈项）：CONNECT 建立后同流的 HTTP 等载荷
-		if len(stream) > 10 {
-			rest := stream[10:]
+		// 隧道封装标记（反馈项 2）：CONNECT 后同流 HTTP 载荷
+		// （userid NUL 结尾——载荷起点在 userid 终止符后，非固定偏移）
+		if nul := bytes.IndexByte(stream[8:], 0); nul >= 0 {
+			rest := stream[8+nul+1:]
 			if strings.HasPrefix(string(rest), "GET ") || strings.HasPrefix(string(rest), "POST ") ||
 				strings.HasPrefix(string(rest), "PUT ") || strings.HasPrefix(string(rest), "HTTP/") {
-				fields["tunnel_payload"] = true
-				fields["tunnel_proto"] = "http"
+				fields["encapsulated"] = true
+				fields["inner_protocol"] = "http"
 			}
 		}
 		detail.appendMessage(L7Message{Kind: "request", WireLen: len(stream), Fields: fields})

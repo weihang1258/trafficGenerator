@@ -60,15 +60,22 @@ func (smtpParser) Parse(stream []byte) (*L7Result, error) {
 			continue
 		}
 		if inAuth {
-			// SMTP 响应码 → AUTH 交互结束（235 成功/535 失败等）
-			if len(ln) >= 3 && ln[0] >= '2' && ln[0] <= '5' && ln[1] >= '0' && ln[1] <= '9' && ln[2] >= '0' && ln[2] <= '9' {
+			// 已知 SMTP 命令词→AUTH 交互结束（反馈项 3c：AUTH LOGIN 后
+			// 无退出条件致 MAIL/RCPT/DATA 全被吞入凭据）
+			up := strings.ToUpper(ln)
+			isCmd := false
+			for _, verb := range []string{"MAIL ", "RCPT ", "DATA", "QUIT", "EHLO ", "HELO ", "RSET"} {
+				if strings.HasPrefix(up, verb) {
+					isCmd = true
+					break
+				}
+			}
+			if isCmd {
 				inAuth = false
-				replies = append(replies, ln[:3])
+			} else {
+				authCredentials = append(authCredentials, ln)
 				continue
 			}
-			// base64 凭据行（仅 A-Z a-z 0-9 +/= 填充）
-			authCredentials = append(authCredentials, ln)
-			continue
 		}
 		if len(ln) >= 3 && ln[0] >= '0' && ln[0] <= '9' && ln[1] >= '0' && ln[1] <= '9' && ln[2] >= '0' && ln[2] <= '9' {
 			if banner == "" {

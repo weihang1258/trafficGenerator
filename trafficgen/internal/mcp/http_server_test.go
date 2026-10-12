@@ -419,7 +419,7 @@ func TestHTTPServer_ProtocolFlow(t *testing.T) {
 
 	// Call flowb_manage_strategies(action=list) -- should succeed (empty list).
 	args := map[string]interface{}{"action": "list"}
-	result, err := session.CallTool(ctx, &mcp.CallToolParams{
+	result, err := tc(ctx, session, &mcp.CallToolParams{
 		Name:      "flowb_manage_strategies",
 		Arguments: args,
 	})

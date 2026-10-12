@@ -438,3 +438,26 @@ func vmessFixture() []byte {
 	f[18] = 0x30 // dataLen（签名收紧后须 >=0x18）
 	return f
 }
+
+// 三轮反馈项 2：SOCKS4 CONNECT 隧道后同流 HTTP 载荷 → encapsulated/inner_protocol
+func TestP2B_SOCKS4Tunnel(t *testing.T) {
+	var p socks5Parser
+	req := []byte{4, 1, 0x1F, 0x90, 10, 0, 0, 1, 'u', 's', 'e', 'r', 0}
+	req = append(req, []byte("GET / HTTP/1.1\r\nHost: x\r\n\r\n")...)
+	if !p.CanParse(1080, req) {
+		t.Fatal("CanParse false")
+	}
+	res, _ := p.Parse(req)
+	m := res.Detail.Messages[0].Fields
+	if m["encapsulated"] != true || m["inner_protocol"] != "http" {
+		t.Errorf("socks4 tunnel = %v", m)
+	}
+	if m["command"] != "connect" || m["dst_port"] != uint16(8080) {
+		t.Errorf("socks4 = %v", m)
+	}
+	// 纯请求（无隧道载荷）不得误标
+	res2, _ := p.Parse([]byte{4, 1, 0, 80, 10, 0, 0, 2, 'u', 0})
+	if res2.Detail.Messages[0].Fields["encapsulated"] != nil {
+		t.Errorf("误标 %v", res2.Detail.Messages[0].Fields)
+	}
+}

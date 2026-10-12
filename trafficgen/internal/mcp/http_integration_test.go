@@ -136,7 +136,7 @@ func TestHTTPServer_EndToEndWorkflow(t *testing.T) {
 	defer cancel()
 
 	// Step 1: query_system(action=status)
-	statusResult, err := session.CallTool(ctx, &mcp.CallToolParams{
+	statusResult, err := tc(ctx, session, &mcp.CallToolParams{
 		Name:      "flowb_query_system",
 		Arguments: map[string]interface{}{"action": "status"},
 	})
@@ -149,7 +149,7 @@ func TestHTTPServer_EndToEndWorkflow(t *testing.T) {
 
 	// Step 2: generate_traffic (TCP, 5 packets, output to pcap)
 	pcapPath := env.tmp + "/e2e.pcap"
-	genResult, err := session.CallTool(ctx, &mcp.CallToolParams{
+	genResult, err := tc(ctx, session, &mcp.CallToolParams{
 		Name: "flowb_generate_traffic",
 		Arguments: map[string]interface{}{
 			"task_name":   "e2e-test",
@@ -184,7 +184,7 @@ func TestHTTPServer_EndToEndWorkflow(t *testing.T) {
 	}
 
 	// Step 3: get_task_progress
-	progResult, err := session.CallTool(ctx, &mcp.CallToolParams{
+	progResult, err := tc(ctx, session, &mcp.CallToolParams{
 		Name:      "flowb_get_task_progress",
 		Arguments: map[string]interface{}{"task_id": genOut.TaskID},
 	})
@@ -206,7 +206,7 @@ func TestHTTPServer_EndToEndWorkflow(t *testing.T) {
 	env.db.Exec("UPDATE tasks SET status = ?, progress = 100 WHERE id = ?",
 		"completed", genOut.TaskID)
 
-	waitResult, err := session.CallTool(ctx, &mcp.CallToolParams{
+	waitResult, err := tc(ctx, session, &mcp.CallToolParams{
 		Name: "flowb_wait_for_task",
 		Arguments: map[string]interface{}{
 			"task_id":              genOut.TaskID,
@@ -234,7 +234,7 @@ func TestHTTPServer_EndToEndWorkflow(t *testing.T) {
 	}
 
 	// Step 5: list tasks -- should include our task
-	listResult, err := session.CallTool(ctx, &mcp.CallToolParams{
+	listResult, err := tc(ctx, session, &mcp.CallToolParams{
 		Name: "flowb_manage_tasks",
 		Arguments: map[string]interface{}{
 			"action": "list",
@@ -294,7 +294,7 @@ func TestHTTPServer_AllDomainToolsCallable(t *testing.T) {
 	for _, c := range cases {
 		actionStr, _ := c.arguments["action"].(string)
 		t.Run(c.tool+"/"+actionStr, func(t *testing.T) {
-			result, err := session.CallTool(ctx, &mcp.CallToolParams{
+			result, err := tc(ctx, session, &mcp.CallToolParams{
 				Name:      c.tool,
 				Arguments: c.arguments,
 			})
@@ -333,7 +333,7 @@ func TestHTTPServer_AllWorkflowToolsCallable(t *testing.T) {
 
 	// 1. generate_traffic
 	pcapPath := env.tmp + "/wf.pcap"
-	genResult, err := session.CallTool(ctx, &mcp.CallToolParams{
+	genResult, err := tc(ctx, session, &mcp.CallToolParams{
 		Name: "flowb_generate_traffic",
 		Arguments: map[string]interface{}{
 			"task_name":   "wf-test",
@@ -356,7 +356,7 @@ func TestHTTPServer_AllWorkflowToolsCallable(t *testing.T) {
 	}
 
 	// 2. get_task_progress
-	_, err = session.CallTool(ctx, &mcp.CallToolParams{
+	_, err = tc(ctx, session, &mcp.CallToolParams{
 		Name:      "flowb_get_task_progress",
 		Arguments: map[string]interface{}{"task_id": genOut.TaskID},
 	})
@@ -365,7 +365,7 @@ func TestHTTPServer_AllWorkflowToolsCallable(t *testing.T) {
 	}
 
 	// 3. stop_all_tasks (may or may not stop our task depending on timing)
-	_, err = session.CallTool(ctx, &mcp.CallToolParams{
+	_, err = tc(ctx, session, &mcp.CallToolParams{
 		Name:      "flowb_stop_all_tasks",
 		Arguments: map[string]interface{}{},
 	})
@@ -381,7 +381,7 @@ func TestHTTPServer_AllWorkflowToolsCallable(t *testing.T) {
 		}
 	}()
 	env.db.Exec("UPDATE tasks SET status = ? WHERE id = ?", "completed", genOut.TaskID)
-	_, err = session.CallTool(ctx, &mcp.CallToolParams{
+	_, err = tc(ctx, session, &mcp.CallToolParams{
 		Name: "flowb_wait_for_task",
 		Arguments: map[string]interface{}{
 			"task_id":               genOut.TaskID,
@@ -401,7 +401,7 @@ func TestHTTPServer_AllWorkflowToolsCallable(t *testing.T) {
 	assetID := importTestPcap(t, env)
 
 	replayPcap := env.tmp + "/replay.pcap"
-	_, err = session.CallTool(ctx, &mcp.CallToolParams{
+	_, err = tc(ctx, session, &mcp.CallToolParams{
 		Name: "flowb_replay_pcap",
 		Arguments: map[string]interface{}{
 			"task_name":     "wf-replay",
@@ -462,7 +462,7 @@ func TestHTTPServer_ConcurrentSessions(t *testing.T) {
 			}
 			defer sess.Close()
 
-			_, err = sess.CallTool(ctx, &mcp.CallToolParams{
+			_, err = tc(ctx, sess, &mcp.CallToolParams{
 				Name:      "flowb_query_system",
 				Arguments: map[string]interface{}{"action": "status"},
 			})
@@ -949,4 +949,17 @@ func TestHTTPServer_OutputSchema_AcceptsAnyDataValue(t *testing.T) {
 			t.Errorf("expected tool %q in tools/list, not found", name)
 		}
 	}
+}
+
+// tc 注入必填 description（工具 schema 强制；回归夹具缺省补齐后透传）。
+func tc(ctx context.Context, s *mcp.ClientSession, p *mcp.CallToolParams) (*mcp.CallToolResult, error) {
+	args, _ := p.Arguments.(map[string]interface{})
+	if args == nil {
+		args = map[string]interface{}{}
+	}
+	if _, ok := args["description"]; !ok {
+		args["description"] = "回归调用：" + p.Name
+	}
+	p.Arguments = args
+	return s.CallTool(ctx, p)
 }

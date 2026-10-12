@@ -1778,7 +1778,7 @@ func TestMCP_QueryLayers_SDKCallToolNotBase64(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	out, err := session.CallTool(ctx, &mcp.CallToolParams{
+	out, err := tc(ctx, session, &mcp.CallToolParams{
 		Name:      "flowb_query_layers",
 		Arguments: map[string]interface{}{"layer": "tcp"},
 	})

@@ -1261,32 +1261,32 @@ func (openvpnParser) CanParse(port uint16, sample []byte) bool {
 	if port != 1194 || len(sample) < 1 {
 		return false
 	}
-	// UDP: 首字节 = opcode<<3 | key_id；TCP: 2B length 前缀后才是 opcode
-	off := 0
-	if len(sample) >= 3 {
-		// TCP 封装：2B BE length 前缀（OpenVPN §3.1 TCP transport）
-		tcpLen := int(sample[0])<<8 | int(sample[1])
-		if tcpLen >= int(len(sample))-2 && tcpLen <= int(len(sample)) {
-			off = 2 // TCP 模式：跳过 length 前缀
+	// 双偏移尝试（连续 4 轮根因：重组流含多消息，首消息长度≠整流长度
+	// →长度校验不匹配→off=0→首字节=0x00→op=0→不识别）
+	// 0=UDP 裸帧 / 2=TCP length 前缀后首消息 opcode
+	for _, off := range []int{0, 2} {
+		if off < len(sample) {
+			op := sample[off] >> 3
+			if op >= 1 && op <= 10 {
+				return true
+			}
 		}
 	}
-	if off >= len(sample) {
-		return false
-	}
-	// opcode 高 5 位 1..10（OpenVPN protocol.h）
-	op := sample[off] >> 3
-	return op >= 1 && op <= 10
+	return false
 }
 
 func (openvpnParser) Parse(stream []byte) (*L7Result, error) {
 	res := &L7Result{Protocol: "openvpn", Metadata: map[string]any{}}
 	detail := &L7Detail{DetailVersion: L7DetailVersion, Type: "openvpn", Extra: map[string]any{}}
-	// TCP 封装跳 2B length 前缀（OpenVPN §3.1）；UDP 无前缀
+	// 双偏移：UDP 首 1B opcode / TCP 2B length 前缀后 1B opcode
 	pkt := stream
-	if len(stream) >= 3 {
-		tcpLen := int(stream[0])<<8 | int(stream[1])
-		if tcpLen >= len(stream)-2 && tcpLen <= len(stream) {
-			pkt = stream[2:]
+	for _, off := range []int{0, 2} {
+		if off < len(pkt) {
+			op := pkt[off] >> 3
+			if op >= 1 && op <= 10 {
+				pkt = pkt[off:]
+				break
+			}
 		}
 	}
 	if len(pkt) < 1 {
