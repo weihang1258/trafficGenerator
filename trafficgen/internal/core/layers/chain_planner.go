@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/trafficgen/trafficgen/internal/core"
 )
 
@@ -1319,6 +1321,8 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 		if pc := core.PayloadCacheFrom(ctx); pc != nil {
 			if b, err := pc.GetOrLoad(ctx, *spec.FileSource); err == nil {
 				spec.Payload = b
+			} else {
+				zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
 			}
 		}
 	}

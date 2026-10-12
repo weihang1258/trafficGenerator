@@ -152,3 +152,28 @@ func TestParseFileSourceFileID(t *testing.T) {
 		t.Fatal("empty source should be nil")
 	}
 }
+
+// 复审补漏：parseFileSourceField 嵌套消费面（sip media/imap 等五处调用）
+// 的 file_id 解析 + 非法 file_id 走 Validate 拒绝（strategy_convert :1934
+// 的 8 处 Validate 调用面以 HTTP/SIP 代表）。
+func TestFileIDNestedParseAndValidate(t *testing.T) {
+	const okID = "20f79d776efcd6803cf38a0a348aa204b0076b7f0c9f3c4256ec2c7ad22f4e3a"
+	// sip media 嵌套面（parseFileSourceField 经 SIP media 配置解析）
+	hc := core.ParseHTTPConfigFromMap(map[string]interface{}{
+		"file_source": map[string]interface{}{"file_id": okID},
+	})
+	if hc.FileSource == nil || hc.FileSource.FileID != okID {
+		t.Fatalf("http nested file_id lost: %+v", hc.FileSource)
+	}
+	// 非法 file_id（短/非 hex）→ Validate 拒绝（FileSource 面单测在 pkg；
+	// 此处断言 convert 侧入 spec 后被 ValidationErrors 承接的原料成立）
+	bad := core.ParseHTTPConfigFromMap(map[string]interface{}{
+		"file_source": map[string]interface{}{"file_id": "zz"},
+	})
+	if bad.FileSource == nil {
+		t.Fatal("bad file_id dropped at parse (should parse then fail validation)")
+	}
+	if err := bad.FileSource.Validate(); err == nil {
+		t.Fatal("bad file_id must fail Validate (strategy_convert :1934 承接为 ValidationErrors)")
+	}
+}

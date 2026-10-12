@@ -3,6 +3,8 @@ package smb
 import (
 	"context"
 
+	"go.uber.org/zap"
+
 	"github.com/trafficgen/trafficgen/internal/core"
 )
 
@@ -22,6 +24,7 @@ func applyFileSource(ctx context.Context, cfg *SMBConfig) {
 	}
 	b, err := pc.GetOrLoad(ctx, *cfg.FileSource)
 	if err != nil {
+		zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
 		return
 	}
 	for i := range cfg.Operations {

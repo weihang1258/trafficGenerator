@@ -38,6 +38,7 @@ package shadowsocks
 import (
 	"context"
 	"fmt"
+	"go.uber.org/zap"
 	"math/rand"
 
 	"github.com/trafficgen/trafficgen/internal/core"
@@ -162,6 +163,8 @@ func (g *ShadowsocksGenerator) Generate(ctx context.Context, req *layers.GenRequ
 		if pc := core.PayloadCacheFrom(ctx); pc != nil {
 			if b, err := pc.GetOrLoad(ctx, *ss.FileSource); err == nil {
 				req.Meta.Payload = b
+			} else {
+				zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
 			}
 		}
 	}

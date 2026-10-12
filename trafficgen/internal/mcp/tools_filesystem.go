@@ -91,7 +91,10 @@ func (s *Server) handleManageFilesystem(ctx context.Context, req *mcp.CallToolRe
 				Message: "source is required for action upload",
 			}
 		}
-		up, err := s.filesystem.UploadInfo(ctx, in.Path, *in.Source)
+		// 注意赋值外层 err（:= 会遮蔽 switch 外的 err，错误被吞成
+		// data:null——复审补漏负例 3 实证）。
+		var up filesystem.UploadResult
+		up, err = s.filesystem.UploadInfo(ctx, in.Path, *in.Source)
 		if err != nil {
 			break
 		}

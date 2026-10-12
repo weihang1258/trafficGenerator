@@ -3,6 +3,8 @@ package smtp
 import (
 	"context"
 
+	"go.uber.org/zap"
+
 	"github.com/trafficgen/trafficgen/internal/core"
 )
 
@@ -21,6 +23,7 @@ func applyFileSource(ctx context.Context, cfg *core.SMTPConfig) {
 	}
 	b, err := pc.GetOrLoad(ctx, *cfg.FileSource)
 	if err != nil {
+		zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
 		return
 	}
 	if cfg.Email == nil {

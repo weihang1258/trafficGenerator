@@ -29,6 +29,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
+	"go.uber.org/zap"
 	"math/big"
 	"net"
 	"strings"
@@ -75,29 +76,29 @@ const (
 	SOCKS5RSV = 0x00
 
 	// SOCKS5 CMD values (命令值).
-	SOCKS5CmdConnect = 0x01 // CONNECT (连接)
-	SOCKS5CmdBind = 0x02 // BIND (绑定)
+	SOCKS5CmdConnect      = 0x01 // CONNECT (连接)
+	SOCKS5CmdBind         = 0x02 // BIND (绑定)
 	SOCKS5CmdUDPAssociate = 0x03 // UDP ASSOCIATE (UDP关联)
 
 	// SOCKS5 ATYP values (地址类型).
-	SOCKS5ATYPIPv4 = 0x01 // IPv4 address (IPv4地址)
+	SOCKS5ATYPIPv4   = 0x01 // IPv4 address (IPv4地址)
 	SOCKS5ATYPDomain = 0x03 // Domain name (域名)
-	SOCKS5ATYPIPv6 = 0x04 // IPv6 address (IPv6地址)
+	SOCKS5ATYPIPv6   = 0x04 // IPv6 address (IPv6地址)
 
 	// SOCKS5 METHOD values (认证方法).
-	SOCKS5MethodNoAuth = 0x00 // No authentication (无认证)
-	SOCKS5MethodPassword = 0x02 // Username/password (用户名密码)
+	SOCKS5MethodNoAuth       = 0x00 // No authentication (无认证)
+	SOCKS5MethodPassword     = 0x02 // Username/password (用户名密码)
 	SOCKS5MethodNoAcceptable = 0xFF // No acceptable methods (无可用方法)
 
 	// SOCKS5 REP values (响应码).
-	SOCKS5RepSuccess = 0x00 // Succeeded (成功)
-	SOCKS5RepGeneralFailure = 0x01 // General SOCKS server failure (通用故障)
-	SOCKS5RepNotAllowed = 0x02 // Connection not allowed (不允许)
-	SOCKS5RepNetUnreachable = 0x03 // Network unreachable (网络不可达)
-	SOCKS5RepHostUnreachable = 0x04 // Host unreachable (主机不可达)
-	SOCKS5RepConnRefused = 0x05 // Connection refused (连接拒绝)
-	SOCKS5RepTTLExpired = 0x06 // TTL expired (TTL超时)
-	SOCKS5RepCmdNotSupported = 0x07 // Command not supported (命令不支持)
+	SOCKS5RepSuccess          = 0x00 // Succeeded (成功)
+	SOCKS5RepGeneralFailure   = 0x01 // General SOCKS server failure (通用故障)
+	SOCKS5RepNotAllowed       = 0x02 // Connection not allowed (不允许)
+	SOCKS5RepNetUnreachable   = 0x03 // Network unreachable (网络不可达)
+	SOCKS5RepHostUnreachable  = 0x04 // Host unreachable (主机不可达)
+	SOCKS5RepConnRefused      = 0x05 // Connection refused (连接拒绝)
+	SOCKS5RepTTLExpired       = 0x06 // TTL expired (TTL超时)
+	SOCKS5RepCmdNotSupported  = 0x07 // Command not supported (命令不支持)
 	SOCKS5RepAtypNotSupported = 0x08 // Address type not supported (地址类型不支持)
 
 	// UDP RSV (UDP保留字段) fixed 0x0000 per shadowsocks-rust spec.
@@ -109,12 +110,12 @@ const (
 
 // supportedCiphers (支持的加密算法) lists all supported cipher names.
 var supportedCiphers = map[string]bool{
-	"aes-128-gcm": true,
-	"aes-256-gcm": true,
-	"chacha20-ietf-poly1305": true,
-	"none": true,
-	"2022-blake3-aes-128-gcm": true,
-	"2022-blake3-aes-256-gcm": true,
+	"aes-128-gcm":                   true,
+	"aes-256-gcm":                   true,
+	"chacha20-ietf-poly1305":        true,
+	"none":                          true,
+	"2022-blake3-aes-128-gcm":       true,
+	"2022-blake3-aes-256-gcm":       true,
 	"2022-blake3-chacha20-poly1305": true,
 }
 
@@ -257,322 +258,324 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	go func() {
 		defer close(configChan)
 
-			flowID := fmt.Sprintf("%s-%s-%d-%d", spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort)
+		flowID := fmt.Sprintf("%s-%s-%d-%d", spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort)
 
 		ss := spec.Shadowsocks
 		if ss == nil {
 			ss = &core.ShadowsocksConfig{}
-	}
-
-	effectiveTTL := spec.TTL
-	if effectiveTTL == 0 {
-		effectiveTTL = DefaultTTL
-	}
-
-	// Resolve MSS
-	mss := uint16(DefaultMSS)
-	if spec.TCP != nil && spec.TCP.MSS > 0 {
-		mss = spec.TCP.MSS
-	}
-	synOpts := synOptions(mss)
-
-	now := time.Now()
-	packetIndex := uint64(0)
-	ipID := uint16(0)
-	nextIPID := func() uint16 {
-		id := ipID
-		ipID++
-		return id
-	}
-
-	// Random ISN per RFC 6528.
-	clientSeq := uint32(0)
-	if spec.TCP != nil {
-		clientSeq = spec.TCP.InitialSeq
-	}
-	if clientSeq == 0 {
-		clientSeq = randUint32()
-	}
-	serverSeq := randUint32()
-
-	winSize := uint16(65535)
-
-	// emit (发送包) sends a packet config to the channel.
-	emit := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, seq, ack uint32, flags uint8, payload []byte) {
-		if payload == nil {
-			payload = []byte{}
 		}
-		l3 := core.L3Base(srcIP, dstIP, 6, effectiveTTL, nextIPID(), spec)
-		l4 := core.L4Config{
-			Protocol: "tcp",
-			SrcPort: srcPort,
-			DstPort: dstPort,
-			Seq: seq,
-			Ack: ack,
-			Flags: flags,
-			WindowSize: winSize,
+
+		effectiveTTL := spec.TTL
+		if effectiveTTL == 0 {
+			effectiveTTL = DefaultTTL
 		}
-		if flags == 0x02 || flags == 0x12 {
-			l4.TCPOptions = synOpts
+
+		// Resolve MSS
+		mss := uint16(DefaultMSS)
+		if spec.TCP != nil && spec.TCP.MSS > 0 {
+			mss = spec.TCP.MSS
 		}
-		var meta map[string]interface{}
-		if spec.GroupID != nil && spec.GroupID.Strategy != "" {
-			if g := core.FlowGroupIDValue(spec.GroupID, 0); g != "" {
-				meta = map[string]interface{}{"group_id": g}
+		synOpts := synOptions(mss)
+
+		now := time.Now()
+		packetIndex := uint64(0)
+		ipID := uint16(0)
+		nextIPID := func() uint16 {
+			id := ipID
+			ipID++
+			return id
+		}
+
+		// Random ISN per RFC 6528.
+		clientSeq := uint32(0)
+		if spec.TCP != nil {
+			clientSeq = spec.TCP.InitialSeq
+		}
+		if clientSeq == 0 {
+			clientSeq = randUint32()
+		}
+		serverSeq := randUint32()
+
+		winSize := uint16(65535)
+
+		// emit (发送包) sends a packet config to the channel.
+		emit := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, seq, ack uint32, flags uint8, payload []byte) {
+			if payload == nil {
+				payload = []byte{}
 			}
-		}
-		cfg := core.PacketConfig{
-			FlowID: flowID,
-			PacketIndex: packetIndex,
-			Direction: direction,
-			Timestamp: now,
-			L2: core.L2Config{
-				SrcMAC: srcMAC,
-				DstMAC: dstMAC,
-				EtherType: core.EtherTypeFor(spec.SrcIP),
-			},
-			L3: l3,
-			L4: l4,
-			Payload: payload,
-			Metadata: meta,
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case configChan <- cfg:
-		}
-		packetIndex++
-	}
-
-	// emitUDP (发送UDP包) sends a UDP packet config.
-	emitUDP := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, payload []byte) {
-		if payload == nil {
-			payload = []byte{}
-		}
-		l3 := core.L3Base(srcIP, dstIP, 17, effectiveTTL, nextIPID(), spec)
-		l4 := core.L4Config{
-			Protocol: "udp",
-			SrcPort: srcPort,
-			DstPort: dstPort,
-		}
-		var meta map[string]interface{}
-		if spec.GroupID != nil && spec.GroupID.Strategy != "" {
-			if g := core.FlowGroupIDValue(spec.GroupID, 0); g != "" {
-				meta = map[string]interface{}{"group_id": g}
+			l3 := core.L3Base(srcIP, dstIP, 6, effectiveTTL, nextIPID(), spec)
+			l4 := core.L4Config{
+				Protocol:   "tcp",
+				SrcPort:    srcPort,
+				DstPort:    dstPort,
+				Seq:        seq,
+				Ack:        ack,
+				Flags:      flags,
+				WindowSize: winSize,
 			}
-		}
-		cfg := core.PacketConfig{
-			FlowID: flowID,
-			PacketIndex: packetIndex,
-			Direction: direction,
-			Timestamp: now,
-			L2: core.L2Config{
-				SrcMAC: srcMAC,
-				DstMAC: dstMAC,
-				EtherType: core.EtherTypeFor(spec.SrcIP),
-			},
-			L3: l3,
-			L4: l4,
-			Payload: payload,
-			Metadata: meta,
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case configChan <- cfg:
-		}
-		packetIndex++
-	}
-
-	// emitData (发送数据段) segments payload by MSS and emits each chunk
-	// as a PSH-ACK in the given direction, advancing the sender's seq.
-	emitData := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, senderSeq, peerSeq uint32, payload []byte) (newSenderSeq uint32) {
-		for _, seg := range segmentByMSS(payload, int(mss)) {
+			if flags == 0x02 || flags == 0x12 {
+				l4.TCPOptions = synOpts
+			}
+			var meta map[string]interface{}
+			if spec.GroupID != nil && spec.GroupID.Strategy != "" {
+				if g := core.FlowGroupIDValue(spec.GroupID, 0); g != "" {
+					meta = map[string]interface{}{"group_id": g}
+				}
+			}
+			cfg := core.PacketConfig{
+				FlowID:      flowID,
+				PacketIndex: packetIndex,
+				Direction:   direction,
+				Timestamp:   now,
+				L2: core.L2Config{
+					SrcMAC:    srcMAC,
+					DstMAC:    dstMAC,
+					EtherType: core.EtherTypeFor(spec.SrcIP),
+				},
+				L3:       l3,
+				L4:       l4,
+				Payload:  payload,
+				Metadata: meta,
+			}
 			select {
 			case <-ctx.Done():
-				return senderSeq
-			default:
+				return
+			case configChan <- cfg:
 			}
-			emit(direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, senderSeq, peerSeq, 0x18, seg)
-			senderSeq += uint32(len(seg))
+			packetIndex++
 		}
-		return senderSeq
-	}
 
-	// --- Determine mode (模式判断) ---
-	mode := normalizeMode(ss.Mode)
-
-	if mode == "udp" {
-		// === UDP mode ===
-		count := spec.Count
-		if count <= 0 {
-			count = 1
+		// emitUDP (发送UDP包) sends a UDP packet config.
+		emitUDP := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, payload []byte) {
+			if payload == nil {
+				payload = []byte{}
+			}
+			l3 := core.L3Base(srcIP, dstIP, 17, effectiveTTL, nextIPID(), spec)
+			l4 := core.L4Config{
+				Protocol: "udp",
+				SrcPort:  srcPort,
+				DstPort:  dstPort,
+			}
+			var meta map[string]interface{}
+			if spec.GroupID != nil && spec.GroupID.Strategy != "" {
+				if g := core.FlowGroupIDValue(spec.GroupID, 0); g != "" {
+					meta = map[string]interface{}{"group_id": g}
+				}
+			}
+			cfg := core.PacketConfig{
+				FlowID:      flowID,
+				PacketIndex: packetIndex,
+				Direction:   direction,
+				Timestamp:   now,
+				L2: core.L2Config{
+					SrcMAC:    srcMAC,
+					DstMAC:    dstMAC,
+					EtherType: core.EtherTypeFor(spec.SrcIP),
+				},
+				L3:       l3,
+				L4:       l4,
+				Payload:  payload,
+				Metadata: meta,
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case configChan <- cfg:
+			}
+			packetIndex++
 		}
-		for i := 0; i < count; i++ {
+
+		// emitData (发送数据段) segments payload by MSS and emits each chunk
+		// as a PSH-ACK in the given direction, advancing the sender's seq.
+		emitData := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, senderSeq, peerSeq uint32, payload []byte) (newSenderSeq uint32) {
+			for _, seg := range segmentByMSS(payload, int(mss)) {
+				select {
+				case <-ctx.Done():
+					return senderSeq
+				default:
+				}
+				emit(direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, senderSeq, peerSeq, 0x18, seg)
+				senderSeq += uint32(len(seg))
+			}
+			return senderSeq
+		}
+
+		// --- Determine mode (模式判断) ---
+		mode := normalizeMode(ss.Mode)
+
+		if mode == "udp" {
+			// === UDP mode ===
+			count := spec.Count
+			if count <= 0 {
+				count = 1
+			}
+			for i := 0; i < count; i++ {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+
+				payloadSize := ss.ChunkPayloadSize
+				if payloadSize <= 0 {
+					if len(spec.Payload) > 0 {
+						payloadSize = len(spec.Payload)
+					} else {
+						payloadSize = 0
+					}
+				}
+
+				udpPayload := buildUDPPacket(ss, spec, payloadSize)
+
+				// Build direction: default "up", but support response
+				direction := "up"
+				if spec.UDP != nil && spec.UDP.IsResponse {
+					direction = "down"
+				}
+				emitUDP(direction, spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, udpPayload)
+			}
+			return
+		}
+
+		// === TCP mode ===
+
+		// --- TCP handshake (TCP三次握手) ---
+		emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, 0, 0x02, nil)
+		clientSeq++
+		emit("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, 0x12, nil)
+		serverSeq++
+		emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x10, nil)
+
+		// --- Optional SOCKS5 handshake (可选SOCKS5握手) ---
+		if ss.SOCKS5Handshake {
+			// 1. Greeting (握手请求)
+			greeting := buildSOCKS5Greeting(ss)
+			clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, greeting)
+
+			// 2. Method Response (方法响应, server -> client)
+			methodResp := buildSOCKS5MethodResponse(ss)
+			serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, methodResp)
+
+			// 3. Username/password sub-negotiation (用户名密码子协商, optional)
+			if ss.SOCKS5AuthMethod == "password" {
+				authReq := buildSOCKS5AuthRequest(ss)
+				clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, authReq)
+
+				// Auth response (认证响应, server -> client)
+				authResp := buildSOCKS5AuthResponse()
+				serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, authResp)
+			}
+
+			// 4. SOCKS5 Request (SOCKS5请求)
+			socks5Req := buildSOCKS5Request(ss)
+			clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, socks5Req)
+
+			// 5. SOCKS5 Reply (SOCKS5响应, server -> client)
+			socks5Reply := buildSOCKS5Reply(ss)
+			serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, socks5Reply)
+		}
+
+		// --- Optional HTTP obfuscation (可选HTTP混淆) ---
+		if ss.Obfuscation == "http" {
+			obfHeader := buildHTTPObfuscation(ss)
+			clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, obfHeader)
+		}
+
+		// --- Shadowsocks Salt (影子盐值, 32 bytes) ---
+		cipher := normalizeCipher(ss.Cipher)
+		if isAEADCipher(cipher) {
+			salt := make([]byte, SaltLen)
+			if ss.PayloadBytesFormat == "zeros" {
+				// zeros: keep zero-initialized
+			} else {
+				rand.Read(salt)
+			}
+			clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, salt)
+		}
+
+		// --- AEAD Chunk loop (AEAD数据块循环) ---
+		// D-FILE-1 口径修复：FileSource → spec.Payload（既有分块路径接管；
+		// 原 buildAEADChunk 内 FileSource 分支为未实现桩——注释自认 fall
+		// through to random，已随本修复删除）。对齐 http.go:247 契约：
+		// FileSource 解析成功即赢过 inline Payload。
+		if ss.FileSource != nil {
+			if pc := core.PayloadCacheFrom(ctx); pc != nil {
+				if b, err := pc.GetOrLoad(ctx, *ss.FileSource); err == nil {
+					spec.Payload = b
+				} else {
+					zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+				}
+			}
+		}
+		// Determine chunk payload sizes. When Chunks > 0, use explicit count.
+		// When Chunks == 0 and spec.Payload is provided, split the payload into
+		// chunks of MaxChunkPayload (or ChunkPayloadSize if set).
+		var chunkSizes []int
+		if ss.Chunks > 0 {
+			payloadSize := ss.ChunkPayloadSize
+			if payloadSize <= 0 {
+				if len(spec.Payload) > 0 {
+					payloadSize = len(spec.Payload)
+					if payloadSize > MaxChunkPayload {
+						payloadSize = MaxChunkPayload
+					}
+				} else {
+					payloadSize = 0
+				}
+			}
+			for i := 0; i < ss.Chunks; i++ {
+				chunkSizes = append(chunkSizes, payloadSize)
+			}
+		} else if len(spec.Payload) > 0 {
+			chunkSize := ss.ChunkPayloadSize
+			if chunkSize <= 0 || chunkSize > MaxChunkPayload {
+				chunkSize = MaxChunkPayload
+			}
+			remaining := len(spec.Payload)
+			for remaining > 0 {
+				sz := chunkSize
+				if sz > remaining {
+					sz = remaining
+				}
+				chunkSizes = append(chunkSizes, sz)
+				remaining -= sz
+			}
+		} else {
+			chunkSizes = append(chunkSizes, ss.ChunkPayloadSize)
+		}
+
+		// 分块内容游标：spec.Payload 有值时逐块取原文（FileSource/inline 同路）。
+		payloadOff := 0
+		for _, sz := range chunkSizes {
 			select {
 			case <-ctx.Done():
 				return
 			default:
 			}
 
-			payloadSize := ss.ChunkPayloadSize
-			if payloadSize <= 0 {
-				if len(spec.Payload) > 0 {
-					payloadSize = len(spec.Payload)
-				} else {
-					payloadSize = 0
-				}
-			}
-
-			udpPayload := buildUDPPacket(ss, spec, payloadSize)
-
-			// Build direction: default "up", but support response
-			direction := "up"
-			if spec.UDP != nil && spec.UDP.IsResponse {
-				direction = "down"
-			}
-			emitUDP(direction, spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, udpPayload)
-		}
-		return
-	}
-
-	// === TCP mode ===
-
-	// --- TCP handshake (TCP三次握手) ---
-	emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, 0, 0x02, nil)
-	clientSeq++
-	emit("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, 0x12, nil)
-	serverSeq++
-	emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x10, nil)
-
-	// --- Optional SOCKS5 handshake (可选SOCKS5握手) ---
-	if ss.SOCKS5Handshake {
-		// 1. Greeting (握手请求)
-		greeting := buildSOCKS5Greeting(ss)
-		clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, greeting)
-
-		// 2. Method Response (方法响应, server -> client)
-		methodResp := buildSOCKS5MethodResponse(ss)
-		serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, methodResp)
-
-		// 3. Username/password sub-negotiation (用户名密码子协商, optional)
-		if ss.SOCKS5AuthMethod == "password" {
-			authReq := buildSOCKS5AuthRequest(ss)
-			clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, authReq)
-
-			// Auth response (认证响应, server -> client)
-			authResp := buildSOCKS5AuthResponse()
-			serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, authResp)
-		}
-
-		// 4. SOCKS5 Request (SOCKS5请求)
-		socks5Req := buildSOCKS5Request(ss)
-		clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, socks5Req)
-
-		// 5. SOCKS5 Reply (SOCKS5响应, server -> client)
-		socks5Reply := buildSOCKS5Reply(ss)
-		serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, socks5Reply)
-	}
-
-	// --- Optional HTTP obfuscation (可选HTTP混淆) ---
-	if ss.Obfuscation == "http" {
-		obfHeader := buildHTTPObfuscation(ss)
-		clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, obfHeader)
-	}
-
-	// --- Shadowsocks Salt (影子盐值, 32 bytes) ---
-	cipher := normalizeCipher(ss.Cipher)
-	if isAEADCipher(cipher) {
-		salt := make([]byte, SaltLen)
-		if ss.PayloadBytesFormat == "zeros" {
-			// zeros: keep zero-initialized
-		} else {
-			rand.Read(salt)
-		}
-		clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, salt)
-	}
-
-	// --- AEAD Chunk loop (AEAD数据块循环) ---
-	// D-FILE-1 口径修复：FileSource → spec.Payload（既有分块路径接管；
-	// 原 buildAEADChunk 内 FileSource 分支为未实现桩——注释自认 fall
-	// through to random，已随本修复删除）。对齐 http.go:247 契约：
-	// FileSource 解析成功即赢过 inline Payload。
-	if ss.FileSource != nil {
-		if pc := core.PayloadCacheFrom(ctx); pc != nil {
-			if b, err := pc.GetOrLoad(ctx, *ss.FileSource); err == nil {
-				spec.Payload = b
-			}
-		}
-	}
-	// Determine chunk payload sizes. When Chunks > 0, use explicit count.
-	// When Chunks == 0 and spec.Payload is provided, split the payload into
-	// chunks of MaxChunkPayload (or ChunkPayloadSize if set).
-	var chunkSizes []int
-	if ss.Chunks > 0 {
-		payloadSize := ss.ChunkPayloadSize
-		if payloadSize <= 0 {
+			var content []byte
 			if len(spec.Payload) > 0 {
-				payloadSize = len(spec.Payload)
-				if payloadSize > MaxChunkPayload {
-					payloadSize = MaxChunkPayload
+				end := payloadOff + sz
+				if end > len(spec.Payload) {
+					end = len(spec.Payload)
 				}
-			} else {
-				payloadSize = 0
+				if payloadOff < len(spec.Payload) {
+					content = spec.Payload[payloadOff:end]
+				}
+				payloadOff = end
 			}
-		}
-		for i := 0; i < ss.Chunks; i++ {
-			chunkSizes = append(chunkSizes, payloadSize)
-		}
-	} else if len(spec.Payload) > 0 {
-		chunkSize := ss.ChunkPayloadSize
-		if chunkSize <= 0 || chunkSize > MaxChunkPayload {
-			chunkSize = MaxChunkPayload
-		}
-		remaining := len(spec.Payload)
-		for remaining > 0 {
-			sz := chunkSize
-			if sz > remaining {
-				sz = remaining
-			}
-			chunkSizes = append(chunkSizes, sz)
-			remaining -= sz
-		}
-	} else {
-		chunkSizes = append(chunkSizes, ss.ChunkPayloadSize)
-	}
-
-	// 分块内容游标：spec.Payload 有值时逐块取原文（FileSource/inline 同路）。
-	payloadOff := 0
-	for _, sz := range chunkSizes {
-		select {
-		case <-ctx.Done():
-			return
-		default:
+			chunk := buildAEADChunk(ss, sz, content)
+			clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, chunk)
 		}
 
-		var content []byte
-		if len(spec.Payload) > 0 {
-			end := payloadOff + sz
-			if end > len(spec.Payload) {
-				end = len(spec.Payload)
-			}
-			if payloadOff < len(spec.Payload) {
-				content = spec.Payload[payloadOff:end]
-			}
-			payloadOff = end
-		}
-		chunk := buildAEADChunk(ss, sz, content)
-		clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, chunk)
-	}
-
-	// --- TCP teardown (TCP四次挥手) ---
-	emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x11, nil)
-	clientSeq++
-	emit("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, 0x10, nil)
-	emit("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, 0x11, nil)
-	serverSeq++
-	emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x10, nil)
-}()
+		// --- TCP teardown (TCP四次挥手) ---
+		emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x11, nil)
+		clientSeq++
+		emit("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, 0x10, nil)
+		emit("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, 0x11, nil)
+		serverSeq++
+		emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x10, nil)
+	}()
 
 	return configChan, nil
 }

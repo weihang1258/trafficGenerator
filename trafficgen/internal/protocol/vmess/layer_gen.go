@@ -39,6 +39,7 @@ package vmess
 import (
 	"context"
 	"fmt"
+	"go.uber.org/zap"
 
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/core/layers"
@@ -118,6 +119,8 @@ func (g *VmessGenerator) Generate(ctx context.Context, req *layers.GenRequest) e
 		if pc := core.PayloadCacheFrom(ctx); pc != nil {
 			if b, err := pc.GetOrLoad(ctx, *v.FileSource); err == nil {
 				v.Payload = b
+			} else {
+				zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
 			}
 		}
 	}
