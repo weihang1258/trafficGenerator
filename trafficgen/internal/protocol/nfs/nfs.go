@@ -94,6 +94,10 @@ func validateNFSConfig(cfg *NFSConfig) error {
 	if cfg.Version != 3 && cfg.Version != 4 {
 		return fmt.Errorf("nfs: version must be 3 or 4 (got %d)", cfg.Version)
 	}
+	// D-FILE-1：FileSource 面缺省 write op 由 Plan 期合成（V4 前移容忍）。
+	if cfg.FileSource != nil && len(cfg.Ops) == 0 {
+		cfg.Ops = []NFSOp{{Procedure: NFS3ProcWRITE, Filename: "file.bin"}}
+	}
 	// V2
 	if cfg.Transport != "" && cfg.Transport != "tcp" && cfg.Transport != "udp" {
 		return fmt.Errorf("nfs: transport must be tcp or udp (got %q)", cfg.Transport)

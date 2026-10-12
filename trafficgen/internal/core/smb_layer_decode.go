@@ -50,7 +50,10 @@ func normalizeSMBLayerMap(m map[string]interface{}) map[string]interface{} {
 			"include_negotiate", "include_auth", "include_tree_connect",
 			"include_teardown",
 			"dialects", "security_blob", "operations",
-			"preauth_integrity_hash_algorithms":
+			"preauth_integrity_hash_algorithms",
+			// D-FILE-1：file_source 是对象（FileSource struct）——原值放行
+			// 才能过 DisallowUnknownFields 的类型检查；值真相归 parseSMBConfig。
+			"file_source":
 			out[k] = v
 			continue
 		case "client_guid", "server_guid", "file_id":

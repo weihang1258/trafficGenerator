@@ -148,11 +148,15 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		}
 
 		// EmitMailDrop requires Mailbox and in-range MsgNum.
+		// D-FILE-1：FileSource 在 Plan 期合成单消息信箱（Validate 先于
+		// Plan 运行且无缓存可解析）——FileSource 面容忍 Mailbox 缺席，
+		// MsgNum 视作 1 合法。
 		if cmd.EmitMailDrop {
-			if spec.POP3.Mailbox == nil {
+			mailboxMissing := spec.POP3.Mailbox == nil || len(spec.POP3.Mailbox.Messages) == 0
+			if mailboxMissing && spec.POP3.FileSource == nil {
 				return fmt.Errorf("pop3: Commands[%d].EmitMailDrop=true but Mailbox is nil", i)
 			}
-			if cmd.MsgNum < 1 || int(cmd.MsgNum) > len(spec.POP3.Mailbox.Messages) {
+			if !mailboxMissing && (cmd.MsgNum < 1 || int(cmd.MsgNum) > len(spec.POP3.Mailbox.Messages)) {
 				return fmt.Errorf("pop3: Commands[%d].MsgNum %d out of range [1, %d]", i, cmd.MsgNum, len(spec.POP3.Mailbox.Messages))
 			}
 		}
@@ -164,10 +168,11 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 			if cmd.EmitMailDrop {
 				return fmt.Errorf("pop3: Commands[%d].EmitTop and EmitMailDrop are mutually exclusive", i)
 			}
-			if spec.POP3.Mailbox == nil {
+			mailboxMissing := spec.POP3.Mailbox == nil || len(spec.POP3.Mailbox.Messages) == 0
+			if mailboxMissing && spec.POP3.FileSource == nil {
 				return fmt.Errorf("pop3: Commands[%d].EmitTop=true but Mailbox is nil", i)
 			}
-			if cmd.MsgNum < 1 || int(cmd.MsgNum) > len(spec.POP3.Mailbox.Messages) {
+			if !mailboxMissing && (cmd.MsgNum < 1 || int(cmd.MsgNum) > len(spec.POP3.Mailbox.Messages)) {
 				return fmt.Errorf("pop3: Commands[%d].MsgNum %d out of range [1, %d]", i, cmd.MsgNum, len(spec.POP3.Mailbox.Messages))
 			}
 		}

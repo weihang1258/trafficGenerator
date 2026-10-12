@@ -3,6 +3,8 @@ package rest
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http/httptest"
 	"testing"
@@ -78,6 +80,20 @@ func TestFSHandler_Upload_ThenRead(t *testing.T) {
 	srv.Router().ServeHTTP(w, req)
 	if w.Code != 201 {
 		t.Fatalf("upload status got %d, want 201; body=%s", w.Code, w.Body.String())
+	}
+	// D-FILE-1：201 带回执（file_id=内容 sha256 + existed）。
+	var receipt struct {
+		FileID  string `json:"file_id"`
+		SHA256  string `json:"sha256"`
+		Existed bool   `json:"existed"`
+		Bytes   int    `json:"bytes"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &receipt); err != nil {
+		t.Fatalf("receipt decode: %v body=%s", err, w.Body.String())
+	}
+	sum := sha256.Sum256([]byte("hello"))
+	if receipt.FileID != hex.EncodeToString(sum[:]) || receipt.Existed || receipt.Bytes != 5 {
+		t.Fatalf("receipt = %+v", receipt)
 	}
 	// Read it back.
 	req2 := httptest.NewRequest("GET", "/api/v1/fs/files/docs/a.txt?op=download", nil)
