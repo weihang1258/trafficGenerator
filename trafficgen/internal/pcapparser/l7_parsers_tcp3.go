@@ -1281,8 +1281,20 @@ func (openvpnParser) CanParse(port uint16, sample []byte) bool {
 func (openvpnParser) Parse(stream []byte) (*L7Result, error) {
 	res := &L7Result{Protocol: "openvpn", Metadata: map[string]any{}}
 	detail := &L7Detail{DetailVersion: L7DetailVersion, Type: "openvpn", Extra: map[string]any{}}
-	opcode := stream[0] >> 3
-	keyID := stream[0] & 0x07
+	// TCP 封装跳 2B length 前缀（OpenVPN §3.1）；UDP 无前缀
+	pkt := stream
+	if len(stream) >= 3 {
+		tcpLen := int(stream[0])<<8 | int(stream[1])
+		if tcpLen >= len(stream)-2 && tcpLen <= len(stream) {
+			pkt = stream[2:]
+		}
+	}
+	if len(pkt) < 1 {
+		res.Detail = detail
+		return res, nil
+	}
+	opcode := pkt[0] >> 3
+	keyID := pkt[0] & 0x07
 	opNames := map[byte]string{
 		1: "control", 2: "control", 3: "data", 4: "ack",
 		5: "ack", 6: "ack_v1", 7: "hard_reset_client_v2", 8: "hard_reset_server_v2",
@@ -1292,22 +1304,22 @@ func (openvpnParser) Parse(stream []byte) (*L7Result, error) {
 		"opcode":       opcode,
 		"opcode_name":  opNames[opcode],
 		"key_id":       keyID,
-		"payload_len":  len(stream),
+		"payload_len":  len(pkt),
 	}
 	// 内嵌 TLS ClientHello（V2 HMAC 后载荷中含 0x16 0x03 记录头）
-	embedOff := strings.Index(string(stream), "\x16\x03")
+	embedOff := strings.Index(string(pkt), "\x16\x03")
 	if embedOff >= 0 {
 		fields["embedded_tls"] = true
 		fields["tls_offset"] = embedOff
-		if embedOff+3 <= len(stream) {
-			fields["tls_version"] = fmt.Sprintf("%02x%02x", stream[embedOff+1], stream[embedOff+2])
+		if embedOff+3 <= len(pkt) {
+			fields["tls_version"] = fmt.Sprintf("%02x%02x", pkt[embedOff+1], pkt[embedOff+2])
 		}
 		detail.Extra["embedded_tls"] = true
 		detail.Extra["tls_version"] = fields["tls_version"]
 	}
 	// session ID（V2：byte 1 后 8B）
-	if len(stream) >= 9 && opcode >= 7 {
-		fields["session_id"] = hex.EncodeToString(stream[1:9])
+	if len(pkt) >= 9 && opcode >= 7 {
+		fields["session_id"] = hex.EncodeToString(pkt[1:9])
 	}
 	res.Metadata["opcode_name"] = fields["opcode_name"]
 	detail.appendMessage(L7Message{Kind: "message", WireLen: len(stream), Fields: fields})

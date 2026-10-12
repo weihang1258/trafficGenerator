@@ -357,11 +357,32 @@ func (fs *FlowState) setL7(res *L7Result, dir string) {
 					acc.Extra[k] = ov
 					continue
 				}
+				acc.Extra[k] = nv
+				continue
+			}
+			// []string 值用 append 合并（RTSP 多 track：c2s SETUP client_port
+			// + s2c server_port 都保留——覆盖会丢先建立的 audio track）
+			if nv, ok := v.([]string); ok {
+				if ov, ok2 := acc.Extra[k].([]string); ok2 {
+					acc.Extra[k] = append(ov, nv...)
+				} else {
+					acc.Extra[k] = nv
+				}
+				continue
 			}
 			acc.Extra[k] = v
 		}
 		for _, m := range res.Detail.Messages {
 			m.Dir = dir
+			// 空 Kind 按方向补（socks5/tds/thrift 等解析器不设 Kind 的协议——
+			// setL7 统一按 c2s=request / s2c=response 补齐使 pair 计数生效）
+			if m.Kind == "" {
+				if dir == "c2s" {
+					m.Kind = "request"
+				} else {
+					m.Kind = "response"
+				}
+			}
 			acc.appendMessage(m)
 		}
 	}

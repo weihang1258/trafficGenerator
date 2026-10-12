@@ -60,7 +60,13 @@ func (smtpParser) Parse(stream []byte) (*L7Result, error) {
 			continue
 		}
 		if inAuth {
-			// AUTH LOGIN base64 凭据行（反馈项 5：不入 commands）
+			// SMTP 响应码 → AUTH 交互结束（235 成功/535 失败等）
+			if len(ln) >= 3 && ln[0] >= '2' && ln[0] <= '5' && ln[1] >= '0' && ln[1] <= '9' && ln[2] >= '0' && ln[2] <= '9' {
+				inAuth = false
+				replies = append(replies, ln[:3])
+				continue
+			}
+			// base64 凭据行（仅 A-Z a-z 0-9 +/= 填充）
 			authCredentials = append(authCredentials, ln)
 			continue
 		}

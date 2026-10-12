@@ -116,6 +116,8 @@ func linkSIP(ctl *FlowState, flows map[string]*FlowState) {
 			linkByEndpoint(flows, ctl, ip, uint16(port+1), "media")
 			// NAT 回退：SDP IP 可能因 NAT 与实际流 IP 不一致——端口精确匹配
 			linkByEndpointAnyIP(flows, ctl, uint16(port), "media")
+			// RTCP NAT 回退（反馈项 3：RTCP 流=RTP+1 端口，补 AnyIP 匹配）
+			linkByEndpointAnyIP(flows, ctl, uint16(port+1), "media")
 		}
 	}
 }
