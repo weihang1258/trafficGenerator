@@ -19,6 +19,6 @@ RESPONSE RULES
 - Responses up to 64 KB return inline; anything larger is auto-exported to a server file and answered with a small receipt {written_to, bytes, export_id, download_url} — fetch it with curl and read locally.
 - Remote (HTTP) clients: any output_path you pass is treated as a file name only — the server picks the location; stdio (same-host) clients give an absolute path.
 - There is no REST API for you to call — every capability is an MCP tool. The only raw HTTP you ever issue is fetching download_url files and the /uploads/pcaps import (step 5). When a tool call fails, fix the arguments (query_layers examples/schema), never fall back to probing guessed endpoints.
-- Manage the trafficgen filesystem with flowb_manage_filesystem (upload/read/list; large reads are auto-exported too).
+- Manage the trafficgen filesystem with flowb_manage_filesystem (upload/read/list; large reads are auto-exported too). To transfer a specific file over HTTP/FTP/etc: upload once (the receipt returns file_id = content sha256; identical content dedups with existed=true), then reference it in the protocol layer with file_source={file_id: <file_id>} — query accepts sha256=<64-hex> to check existence before uploading a large file.
 
 Admin surface: flowb_manage_port_groups (NIC real-send output), flowb_manage_users / flowb_manage_auth / flowb_manage_profile / flowb_manage_settings / flowb_query_system.`

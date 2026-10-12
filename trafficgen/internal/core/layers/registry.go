@@ -85,7 +85,7 @@ func buildDefaultRegistry() {
 			// file_source: D-FILE-1 万能兜底——文件源（file/file_id/literal/
 			// fill/random）驱动 tcp 裸流载荷，覆盖所有未适配协议传文件场景。
 			// 优先级 File>FileID>Literal>Fill>Random；解析成功赢过 payload。
-			"file_source": {Type: "object"},
+			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
 		},
 	})
 	r.Register(LayerSchema{Name: "udp", Category: CategoryTransport,
@@ -133,7 +133,7 @@ func buildDefaultRegistry() {
 			"response_transfer_encoding": {Type: "string", Default: ""},
 			"chunk_size":                 {Type: "int", Default: 0},
 			"pipelined":                  {Type: "bool", Default: false},
-			"file_source":                {Type: "object"},
+			"file_source":                {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
 		},
 		// http 家族目的端口落在 tcp 层（DefaultDstPort=80，strategy_convert
 		// 同款）；声明 tcp.dst_port 供 layers 数组路径（未显式写端口）补齐。
@@ -773,7 +773,7 @@ func buildDefaultRegistry() {
 			"keepalive_interval":      {Type: "int"},
 			"cookie_reply_threshold":  {Type: "int"},
 			"transport_payloads":      {Type: "list"},
-			"file_source":             {Type: "object"},
+			"file_source":             {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
 			"direction":               {Type: "string"},
 			"handshake":               {Type: "bool"},
 			"response":                {Type: "bool"},
@@ -1964,7 +1964,7 @@ func buildDefaultRegistry() {
 			"minorversion":           {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
 			// D-FILE-1：file_source → WRITE 数据（v3 Proc=7 / v4 OP_WRITE=38；
 			// 无 write op 追加默认一条）。
-			"file_source":            {Type: "object"},
+			"file_source":            {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
 		}})
 	// ---- P4a：smb（tcp 终结层。MS-SMB2——会话状态机展开为逐 PDU 事件
 	// （NEGOTIATE → SESSION_SETUP → TREE_CONNECT → CREATE → Operations →
@@ -2002,7 +2002,7 @@ func buildDefaultRegistry() {
 			"operations":                        {Type: "list", Default: []interface{}{}},
 			// D-FILE-1：file_source → WRITE 操作数据（无 write op 追加默认一条；
 			// 会话建立/TREE_CONNECT 由既有状态机承担）。
-			"file_source":                       {Type: "object"},
+			"file_source":                       {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
 			"preauth_integrity_hash_algorithms": {Type: "list", Default: []interface{}{}},
 			"encryption_algorithm":              {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 			"encryption_required":               {Type: "bool", Default: false},
@@ -2079,7 +2079,7 @@ func buildDefaultRegistry() {
 			"email":  {Type: "object"},
 			// D-FILE-1：file_source → DATA 阶段附件内容（file/file_id/literal/
 			// fill/random；Email 缺省补单附件邮件，RFC 2045 §6.8 base64 既有路径）。
-			"file_source": {Type: "object"},
+			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
 		},
 	})
 	r.Register(LayerSchema{Name: "redis", Category: CategoryTerminal,
@@ -2109,7 +2109,7 @@ func buildDefaultRegistry() {
 			"mailbox":  {Type: "object"},
 			// D-FILE-1：file_source → RETR 邮件体（Mailbox 缺省补单消息；
 			// emit_mail_drop 命令由用户配置触发投递）。
-			"file_source": {Type: "object"},
+			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
 		},
 	})
 	r.Register(LayerSchema{Name: "imap", Category: CategoryTerminal,
