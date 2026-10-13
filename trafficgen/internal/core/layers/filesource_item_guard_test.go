@@ -32,3 +32,23 @@ func TestFileSourceItemLevelUnknownKeyRejected(t *testing.T) {
 		})
 	}
 }
+
+// 第12轮反馈：不支持 file_source 的协议（sv/mongodb/thrift 等全部非白名单层），
+// 任何位置的 file_source 都必须在 create 即报"not supported"——此前 sv.data[]
+// 合法放行、静默丢弃（completed 102B 无内容）。
+func TestFileSourceUnsupportedLayerRejected(t *testing.T) {
+	cases := []struct{ name, proto, chain string }{
+		{"sv.data[]", "sv", `[{"eth":{}},{"sv":{"data":[{"type":"inst_mag","inst_mag":1,"file_source":{"file_id":"` + strings.Repeat("ab", 32) + `"}}]}}]`},
+		{"mongodb", "mongodb", `[{"ip":{}},{"tcp":{}},{"mongodb":{"file_source":{"file_id":"` + strings.Repeat("ab", 32) + `"}}}]`},
+		{"thrift", "thrift", `[{"ip":{}},{"tcp":{}},{"thrift":{"file_source":{"file_id":"` + strings.Repeat("ab", 32) + `"}}}]`},
+		{"arp（白名单外对照）", "arp", `[{"arp":{"file_source":{"file_id":"` + strings.Repeat("ab", 32) + `"}}}]`},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := layers.ValidateLayers(json.RawMessage(c.chain), c.proto)
+			if err == nil || !strings.Contains(err.Error(), "does not support file_source") {
+				t.Fatalf("不支持协议的 file_source 应报 not supported, got %v", err)
+			}
+		})
+	}
+}

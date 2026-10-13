@@ -1354,7 +1354,8 @@ func ValidateLayers(layersJSON json.RawMessage, protocol string) (string, error)
 	// 缺已知键在 create 即报，不再静默吞成"completed 但内容为空"）。
 	for i := range chain {
 		var fsErrs []string
-		walkFileSourceKeys(chain[i].Config, fmt.Sprintf("layers[%d](%s)", i, chain[i].Name), &fsErrs)
+		walkFileSourceKeysSupported(chain[i].Config, fmt.Sprintf("layers[%d](%s)", i, chain[i].Name), &fsErrs,
+			fileSourceSupportedLayers[chain[i].Name])
 		if len(fsErrs) > 0 {
 			return "", fmt.Errorf("%s", strings.Join(fsErrs, "; "))
 		}
@@ -1478,10 +1479,40 @@ func outerCategory(r *Registry, l Layer) LayerCategory {
 //   - file_source 值为整体动态对象（{"strategy":...}）时让路——动态门管辖；
 //   - 键值级动态策略对象（isDynObject）视为合法源；
 //   - 未知键 / 缺全部已知键（file/file_id/literal/fill/random）→ 报错点名。
+// fileSourceSupportedLayers 是支持 file_source 的协议层名单（D-FILE-2 交底
+// 单口径，2026-10-13 终版 33 层）。白名单外的层任何位置的 file_source 一律
+// create 即报"does not support"——防"合法放行、静默丢弃"（第12轮 sv.data[]
+// 实证：键名校验通过但生成器不消费 → completed 无内容）。加新协议支持时
+// 同步本表（registry 声明 + 本表 + 生成器消费 + 红例四件套）。
+var fileSourceSupportedLayers = map[string]bool{
+	"http": true, "ftp": true, "tcp": true, "udp": true,
+	"smtp": true, "pop3": true, "smb": true, "nfs": true,
+	"wireguard": true, "vmess": true, "shadowsocks": true, "telnet": true,
+	"sip": true, "sctp": true,
+	// P0
+	"tftp": true, "coap": true, "socks5": true, "openvpn": true, "rdp": true,
+	// P1
+	"mqtt": true, "xmpp": true, "syslog": true, "rtmp": true, "someip": true,
+	"icmp": true, "icmpv6": true, "imap": true, "grpc": true,
+	// P2
+	"pppoe": true, "srv6": true, "ssh": true, "vnc": true, "goose": true,
+}
+
 func walkFileSourceKeys(v interface{}, path string, errs *[]string) {
+	walkFileSourceKeysSupported(v, path, errs, true)
+}
+
+func walkFileSourceKeysSupported(v interface{}, path string, errs *[]string, supported bool) {
 	switch t := v.(type) {
 	case map[string]interface{}:
-		if fso, ok := t["file_source"].(map[string]interface{}); ok && fso["strategy"] == nil {
+		if fso, ok := t["file_source"].(map[string]interface{}); ok {
+			if !supported {
+				*errs = append(*errs, path+".file_source: layer does not support file_source (33 supported protocols — see flowb_query_layers action=examples)")
+				return
+			}
+			if fso["strategy"] != nil {
+				return
+			}
 			known := map[string]bool{"file": true, "file_id": true, "literal": true, "fill": true, "random": true}
 			var unknown []string
 			recognized := false
@@ -1505,11 +1536,11 @@ func walkFileSourceKeys(v interface{}, path string, errs *[]string) {
 			if k == "file_source" {
 				continue // 已检；其内部（fill{byte,bytes} 等）非配置树
 			}
-			walkFileSourceKeys(sub, path+"."+k, errs)
+			walkFileSourceKeysSupported(sub, path+"."+k, errs, supported)
 		}
 	case []interface{}:
 		for i, sub := range t {
-			walkFileSourceKeys(sub, fmt.Sprintf("%s[%d]", path, i), errs)
+			walkFileSourceKeysSupported(sub, fmt.Sprintf("%s[%d]", path, i), errs, supported)
 		}
 	}
 }

@@ -198,7 +198,8 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 			continue
 		}
 		var fsErrs []string
-		walkFileSourceKeys(l.Config, fmt.Sprintf("%s layer config", p.name), &fsErrs)
+		walkFileSourceKeysSupported(l.Config, fmt.Sprintf("%s layer config", p.name), &fsErrs,
+			fileSourceSupportedLayers[l.Name])
 		if len(fsErrs) > 0 {
 			return spec, fmt.Errorf("%s", strings.Join(fsErrs, "; "))
 		}

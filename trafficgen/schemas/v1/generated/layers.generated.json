@@ -5906,7 +5906,7 @@
         },
         "data": {
           "type": "list",
-          "description": "采样值成员（name/type/inst_mag 结构化）——无自由字节承载面，file_source 不适用（D-FILE-2 改判）；file_source 键集 file/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错"
+          "description": "采样值成员（name/type/inst_mag 结构化）——无自由字节承载面，file_source 不支持（配置校验即报错，D-FILE-2 第12轮）"
         },
         "double_send": {
           "type": "bool"

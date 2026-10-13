@@ -1651,7 +1651,7 @@ func buildDefaultRegistry() {
 			"smp_synch":         {Type: "uint8", Min: 0, Max: 255},
 			"smp_rate":          {Type: "uint16", Min: 0, Max: 65535},
 			"period_us":         {Type: "int"},
-			"data":              {Type: "list", Description: "采样值成员（name/type/inst_mag 结构化）——无自由字节承载面，file_source 不适用（D-FILE-2 改判）；file_source 键集 file/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
+			"data":              {Type: "list", Description: "采样值成员（name/type/inst_mag 结构化）——无自由字节承载面，file_source 不支持（配置校验即报错，D-FILE-2 第12轮）"},
 			"count":             {Type: "int", Min: 0, Max: 1000000},
 			"dst_mac":           {Type: "mac"},
 			"double_send":       {Type: "bool"},
