@@ -11,6 +11,8 @@
 package vnc
 
 import (
+	"go.uber.org/zap"
+
 	"context"
 	"fmt"
 
@@ -33,6 +35,15 @@ func (g *VNCGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 	if cfg == nil {
 		// 空层 config 已由翻译分支保底非 nil，此分支仅防引擎直调绕过翻译。
 		cfg = &core.VNCConfig{}
+	}
+	// D-FILE-2 P2：file_source → 客户端剪贴板文本（文本语义）。优先级
+	// FileSource > ClientCutText；失败 warn 静默跳过。
+	if pc := core.PayloadCacheFrom(ctx); pc != nil && cfg.FileSource != nil {
+		if b, err := pc.GetOrLoad(ctx, *cfg.FileSource); err == nil {
+			cfg.ClientCutText = string(b)
+		} else {
+			zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+		}
 	}
 	spec := core.FlowSpec{
 		VNC:       cfg,

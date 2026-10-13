@@ -4244,6 +4244,7 @@ func parsePPPoEConfig(m map[string]interface{}) *PPPoEConfig {
 		Password:      getString(m, "password"),
 		DataFrames:    getInt(m, "data_frames"),
 		DataPayload:   getByteSlice(m, "data_payload"),
+		FileSource:    parseFileSource(m), // D-FILE-2 P2：config 级（生成器解析注入 DataPayload）
 		InnerProto:    uint8(getInt(m, "inner_proto")),
 		DataDirection: getString(m, "data_direction"),
 		// PADT 指针三态（缺省 true）：false=抑制终止帧——此前漏解析致
@@ -5806,6 +5807,7 @@ func parseVNCConfig(m map[string]interface{}) (*VNCConfig, []string) {
 		Bell:                 getBool(m, "bell", false),
 		ServerCutText:        getString(m, "server_cut_text"),
 		ClientCutText:        getString(m, "client_cut_text"),
+		FileSource:           parseFileSource(m), // D-FILE-2 P2：config 级（生成器解析注入 ClientCutText）
 		ChallengeSeed:        getUint64(m, "challenge_seed"),
 		ResponseSeed:         getUint64(m, "response_seed"),
 	}
@@ -6221,6 +6223,7 @@ func ParseSRv6ConfigFromMap(m map[string]interface{}) *SRv6Config {
 		SegType:         getString(m, "seg_type"),
 		PayloadProtocol: getString(m, "payload_protocol"),
 		InnerPayload:    getByteSlice(m, "inner_payload"),
+		FileSource:      parseFileSource(m), // D-FILE-2 P2：config 级（生成器解析注入 InnerPayload）
 		InnerSrcPort:    uint16(getInt(m, "inner_src_port")),
 		InnerDstPort:    uint16(getInt(m, "inner_dst_port")),
 		TLV:             parseSRv6TLVs(m["tlv"]),
@@ -8671,7 +8674,20 @@ func parseGOOSEConfig(m map[string]interface{}) *GOOSEConfig {
 	if data, ok := m["data"].([]interface{}); ok {
 		for _, raw := range data {
 			if item, ok := raw.(map[string]interface{}); ok {
-				b.Data = append(b.Data, GOOSEData{Name: getString(item, "name"), Type: getString(item, "type"), Value: item["value"], BitLength: getInt(item, "bit_length")})
+				gd := GOOSEData{Name: getString(item, "name"), Type: getString(item, "type"), Value: item["value"], BitLength: getInt(item, "bit_length")}
+				// D-FILE-2 P2：item 级 file_source（嵌套对象；生成器解析为
+				// octet_string 原文字节，优先级 FileSource > Value）。
+				if fso, ok := item["file_source"]; ok && fso != nil {
+					if fb, err := json.Marshal(fso); err == nil {
+						var out filesystem.FileSource
+						if json.Unmarshal(fb, &out) == nil {
+							if out.File != "" || out.FileID != "" || out.Literal != "" || out.Fill != nil || out.Random != nil {
+								gd.FileSource = &out
+							}
+						}
+					}
+				}
+				b.Data = append(b.Data, gd)
 			}
 		}
 	}

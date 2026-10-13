@@ -16,6 +16,8 @@
 package pppoe
 
 import (
+	"go.uber.org/zap"
+
 	"context"
 	"fmt"
 
@@ -38,6 +40,15 @@ func (g *PPPoEGenerator) Generate(ctx context.Context, req *layers.GenRequest) e
 	if cfg == nil {
 		// 空层 config 已由翻译分支保底非 nil，此分支仅防引擎直调绕过翻译。
 		cfg = &core.PPPoEConfig{}
+	}
+	// D-FILE-2 P2：file_source → 内层数据包载荷（[]byte 直上）。优先级
+	// FileSource > DataPayload > spec.Payload；失败 warn 静默跳过。
+	if pc := core.PayloadCacheFrom(ctx); pc != nil && cfg.FileSource != nil {
+		if b, err := pc.GetOrLoad(ctx, *cfg.FileSource); err == nil {
+			cfg.DataPayload = b
+		} else {
+			zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+		}
 	}
 	spec := core.FlowSpec{
 		PPPoE:     cfg,

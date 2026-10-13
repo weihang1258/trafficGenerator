@@ -4273,6 +4273,35 @@
      ]
     },
     "packets": 2
+   },
+   {
+    "protocol": "goose",
+    "case_id": "goose_data_file_id",
+    "summary": "D-FILE-2 P2：GOOSE 数据成员值来自上传文件（data[].file_source 编码 octet_string 原文字节）",
+    "config": {
+     "layers": [
+      {
+       "eth": {}
+      },
+      {
+       "goose": {
+        "gocb_ref": "CB1",
+        "dat_set": "DS1",
+        "tal_ms": 1000,
+        "conf_rev": 1,
+        "data": [
+         {
+          "type": "octet_string",
+          "file_source": {
+           "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+          }
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 3
    }
   ],
   "gre": [
@@ -4372,7 +4401,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 15
    }
   ],
   "gtp": [
@@ -5362,7 +5391,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 2
    }
   ],
   "icmpv6": [
@@ -5460,7 +5489,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 2
    }
   ],
   "iec104": [
@@ -5963,7 +5992,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 10
    }
   ],
   "isis": [
@@ -8811,7 +8840,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 11
    }
   ],
   "mysql": [
@@ -11202,6 +11231,26 @@
      ]
     },
     "packets": 7
+   },
+   {
+    "protocol": "pppoe",
+    "case_id": "pppoe_data_file_id",
+    "summary": "D-FILE-2 P2：PPPoE 内层 IPv4 数据包载荷来自上传文件（file_source，优先级 \u003e data_payload）",
+    "config": {
+     "layers": [
+      {
+       "eth": {}
+      },
+      {
+       "pppoe": {
+        "file_source": {
+         "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+        }
+       }
+      }
+     ]
+    },
+    "packets": 8
    }
   ],
   "pptp": [
@@ -12082,7 +12131,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 21
    }
   ],
   "rtsp": [
@@ -13291,7 +13340,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 2
    }
   ],
   "spnego": [
@@ -13725,6 +13774,32 @@
      ]
     },
     "packets": 1
+   },
+   {
+    "protocol": "srv6",
+    "case_id": "srv6_inner_file_id",
+    "summary": "D-FILE-2 P2：SRv6 内层载荷来自上传文件（file_source，优先级 \u003e inner_payload）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "2001:db8::1",
+        "dst": "2001:db8::2"
+       }
+      },
+      {
+       "srv6": {
+        "segment_list": [
+         "2001:db8::10"
+        ],
+        "file_source": {
+         "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+        }
+       }
+      }
+     ]
+    },
+    "packets": 1
    }
   ],
   "ssdp": [
@@ -13776,6 +13851,36 @@
      }
     },
     "packets": 20
+   },
+   {
+    "protocol": "ssh",
+    "case_id": "ssh_command_file_id",
+    "summary": "D-FILE-2 P2：SSH exec 命令文本来自上传文件（文本语义，scenario=exec）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 40007,
+        "dst_port": 22
+       }
+      },
+      {
+       "ssh": {
+        "scenario": "exec",
+        "file_source": {
+         "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+        }
+       }
+      }
+     ]
+    },
+    "packets": 25
    }
   ],
   "sstp": [
@@ -14493,7 +14598,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 1
    }
   ],
   "tcp": [
@@ -15803,6 +15908,46 @@
      ]
     },
     "packets": 17
+   },
+   {
+    "protocol": "vnc",
+    "case_id": "vnc_cuttext_file_id",
+    "summary": "D-FILE-2 P2：VNC 客户端剪贴板文本来自上传文件（文本语义）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "vnc": {
+        "security_type": 1,
+        "width": 1024,
+        "height": 768,
+        "rounds": 1,
+        "fbu_update_interval": 1,
+        "initial_fbu": [
+         {
+          "width": 100,
+          "height": 100
+         }
+        ],
+        "update_rects": [
+         {
+          "width": 100,
+          "height": 100
+         }
+        ],
+        "file_source": {
+         "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+        }
+       }
+      }
+     ]
+    },
+    "packets": 12
    }
   ],
   "vxlan": [
@@ -16113,7 +16258,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 20
    }
   ],
   "xmrmining": [

@@ -1013,7 +1013,20 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 						if u, ok := configUint64(item["bit_length"]); ok {
 							bitLen = int(u)
 						}
-						gc.Data = append(gc.Data, core.GOOSEData{Name: name, Type: typ, Value: item["value"], BitLength: bitLen})
+							gd := core.GOOSEData{Name: name, Type: typ, Value: item["value"], BitLength: bitLen}
+						// D-FILE-2 P2：item file_source（嵌套对象；生成器解析为
+						// octet_string 原文字节，优先级 FileSource > Value）。
+						if fso, ok := item["file_source"]; ok && fso != nil {
+							if fb, err := json.Marshal(fso); err == nil {
+								var out filesystem.FileSource
+								if json.Unmarshal(fb, &out) == nil {
+									if out.File != "" || out.FileID != "" || out.Literal != "" || out.Fill != nil || out.Random != nil {
+										gd.FileSource = &out
+									}
+								}
+							}
+						}
+						gc.Data = append(gc.Data, gd)
 					}
 				}
 			}

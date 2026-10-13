@@ -1628,6 +1628,7 @@ func buildDefaultRegistry() {
 			"nds_com":       {Type: "bool"},
 			"boolean":       {Type: "bool"},
 			"data":          {Type: "list"},
+			"file_source":   {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（→ 数据成员 octet_string 原文字节，优先级 file_source > value）（D-FILE-2 P2）"},
 			"event_seq":     {Type: "list"},
 			"count":         {Type: "int", Min: 0, Max: 1000000},
 			"dst_mac":       {Type: "mac"},
@@ -1651,7 +1652,7 @@ func buildDefaultRegistry() {
 			"smp_synch":         {Type: "uint8", Min: 0, Max: 255},
 			"smp_rate":          {Type: "uint16", Min: 0, Max: 65535},
 			"period_us":         {Type: "int"},
-			"data":              {Type: "list"},
+			"data":              {Type: "list", Description: "采样值成员（name/type/inst_mag 结构化）——无自由字节承载面，file_source 不适用（D-FILE-2 改判）"},
 			"count":             {Type: "int", Min: 0, Max: 1000000},
 			"dst_mac":           {Type: "mac"},
 			"double_send":       {Type: "bool"},
@@ -2209,6 +2210,7 @@ func buildDefaultRegistry() {
 			"disconnect_on_close":    {Type: "bool"},
 			"scenario":               {Type: "string"},
 			"command":                {Type: "string"},
+			"file_source":            {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（→ exec 命令文本，文本语义，优先级 file_source > command）（D-FILE-2 P2）"},
 			"stdout":                 {Type: "list"},
 			"stderr":                 {Type: "list"},
 		},
@@ -2422,6 +2424,7 @@ func buildDefaultRegistry() {
 			"seg_type":         {Type: "string"},
 			"payload_protocol": {Type: "string"},
 			"inner_payload":    {Type: "object"}, // 字符串=原文字节 | 字节数组（getByteSlice 双形）
+			"file_source":      {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（→ 内层载荷，优先级 file_source > inner_payload）（D-FILE-2 P2）"},
 			"inner_src_port":   {Type: "uint16", Min: 0, Max: 65535},
 			"inner_dst_port":   {Type: "uint16", Min: 0, Max: 65535},
 			"tlv":              {Type: "list"},
@@ -2774,6 +2777,7 @@ func buildDefaultRegistry() {
 			"set_colour_map_entries":  {Type: "object"}, // 2 子键：first/colors
 			"server_cut_text":         {Type: "string"},
 			"client_cut_text":         {Type: "string"},
+			"file_source":             {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（→ 客户端剪贴板文本，文本语义，优先级 file_source > client_cut_text）（D-FILE-2 P2）"},
 			"challenge_seed":          {Type: "uint64"},
 			"response_seed":           {Type: "uint64"},
 		},
@@ -2945,6 +2949,7 @@ func buildDefaultRegistry() {
 			"password":       {Type: "string"},
 			"data_frames":    {Type: "int", Min: 0, Max: 1000000},
 			"data_payload":   {Type: "object"}, // 同 cookie 双形
+			"file_source":    {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（→ 内层 IPv4 数据包载荷，优先级 file_source > data_payload）（D-FILE-2 P2）"},
 			"inner_proto":    {Type: "uint8", Min: 0, Max: 255},
 			"data_direction": {Type: "string"},
 			"padt":           {Type: "bool"}, // 缺省 true（RFC 2516 §5.6），指针三态

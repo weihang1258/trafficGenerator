@@ -1,6 +1,8 @@
 package srv6
 
 import (
+	"go.uber.org/zap"
+
 	"context"
 	"fmt"
 
@@ -37,6 +39,15 @@ func (g *SRV6Generator) Generate(ctx context.Context, req *layers.GenRequest) er
 		// 空层 config 已由翻译分支保底非 nil（VR-02 必拒），此分支仅防
 		// 引擎直调绕过翻译。
 		cfg = &core.SRv6Config{}
+	}
+	// D-FILE-2 P2：file_source → 内层载荷（[]byte 直上）。优先级
+	// FileSource > InnerPayload > spec.Payload；失败 warn 静默跳过。
+	if pc := core.PayloadCacheFrom(ctx); pc != nil && cfg.FileSource != nil {
+		if b, err := pc.GetOrLoad(ctx, *cfg.FileSource); err == nil {
+			cfg.InnerPayload = b
+		} else {
+			zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+		}
 	}
 	spec := core.FlowSpec{
 		SRv6:    cfg,

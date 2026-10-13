@@ -1,6 +1,8 @@
 package goose
 
 import (
+	"go.uber.org/zap"
+
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -492,6 +494,23 @@ func (g *Generator) Generate(ctx context.Context, req *layers.GenRequest) error 
 // retransmit frames sqNum=1..retransmits), then remaining heartbeats continue
 // sqNum. Matches cases goose_retransmit/goose_dataset_change.
 func emitGooseFrames(ctx context.Context, emit func(core.PacketConfig) error, c *core.GOOSEConfig, count int, st, sq uint32, src string) error {
+	// D-FILE-2 P2：data members file_source → octet_string 原文字节（优先级
+	// FileSource > Value；失败 warn 保留 Value 原值）。
+	for i := range c.Data {
+		if fs := c.Data[i].FileSource; fs != nil {
+			if pc := core.PayloadCacheFrom(ctx); pc != nil {
+				if b, err := pc.GetOrLoad(ctx, *fs); err == nil {
+					c.Data[i].Type = "octet_string"
+					// string(b) 保字节序（toString 对 string 原样返回；
+					// []byte 会走 %v 变数字列表）。
+					c.Data[i].Value = string(b)
+					c.Data[i].BitLength = len(b) * 8
+				} else {
+					zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+				}
+			}
+		}
+	}
 	v := (*core.VLAN)(nil)
 	if c.VLANEnabled {
 		v = &core.VLAN{ID: c.VLANID, Priority: c.VLANPriority}

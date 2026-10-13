@@ -1580,6 +1580,9 @@ type GOOSEData struct {
 	Name  string      `json:"name,omitempty"`
 	Type  string      `json:"type"`
 	Value interface{} `json:"value,omitempty"`
+	// FileSource（D-FILE-2 P2）：该数据成员值来自文件源（编码为
+	// octet_string 原文字节）。优先级 FileSource > Value。
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 	// BitLength is the number of meaningful bits in a bit_string member
 	// (IEC 61850 BIT STRING). Encoded as leading unused-bit count: for
 	// bit_length L, the final byte carries 8-(L%8) trailing zeros and the
@@ -3157,6 +3160,9 @@ type PPPoEConfig struct {
 	// DataPayload is the payload bytes for the inner IPv4 data packets.
 	// nil = spec.Payload.
 	DataPayload []byte `json:"data_payload,omitempty"`
+	// FileSource（D-FILE-2 P2）：内层数据包载荷来自文件源。优先级
+	// FileSource > DataPayload > spec.Payload。
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 
 	// InnerProto is the inner IP protocol for data frames: 6=TCP, 17=UDP.
 	// 0 = UDP (or TCP when spec.TCP is set).
@@ -7893,6 +7899,9 @@ type SSHConfig struct {
 	// Command is the exec command string used by exec/pty-exec/long_output
 	// scenarios. Empty = "uname -a". Ignored in manual mode.
 	Command string `json:"command,omitempty"`
+	// FileSource（D-FILE-2 P2）：exec 命令文本来自文件源（文本语义）。
+	// 优先级 FileSource > Command。
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 
 	// Stdout is the stdout byte payload emitted as CHANNEL_DATA (server->client)
 	// in exec/pty-exec/shell/long_output scenarios. Empty = representative
@@ -9167,6 +9176,9 @@ type VNCConfig struct {
 	// ClientCutText (客户端剪贴板): non-empty sends a ClientCutText
 	// message (RFC 6143 §8.5) after the initial FBU request.
 	ClientCutText string `json:"client_cut_text,omitempty"`
+	// FileSource（D-FILE-2 P2）：客户端剪贴板文本来自文件源（文本语义）。
+	// 优先级 FileSource > ClientCutText。
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 
 	// ChallengeSeed (挑战种子): seed for the 16-byte server challenge;
 	// 0 = reference pcap fixed bytes (byte-exact reproduction).
@@ -10584,6 +10596,9 @@ type SRv6Config struct {
 
 	// InnerPayload is the inner payload bytes. nil = spec.Payload.
 	InnerPayload []byte `json:"inner_payload,omitempty"`
+	// FileSource（D-FILE-2 P2）：内层载荷来自文件源。优先级
+	// FileSource > InnerPayload > spec.Payload。
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 
 	// InnerSrcPort / InnerDstPort are inner L4 ports. 0 = spec.SrcPort /
 	// spec.DstPort.

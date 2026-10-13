@@ -34,6 +34,8 @@ package ssh
 // 数据帧（flags=0x18 PSH-ACK payload）一一对应。
 
 import (
+	"go.uber.org/zap"
+
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -58,6 +60,17 @@ func (g *SSHGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 		return fmt.Errorf("ssh generator: EmitMsg is nil (generator not wired to a transport layer)")
 	}
 	sshCfg := req.Meta.SSH
+	// D-FILE-2 P2：file_source → exec 命令文本（文本语义；Go string 保字节序）。
+	// 优先级 FileSource > Command；失败 warn 静默跳过。
+	if sshCfg != nil {
+		if pc := core.PayloadCacheFrom(ctx); pc != nil && sshCfg.FileSource != nil {
+			if b, err := pc.GetOrLoad(ctx, *sshCfg.FileSource); err == nil {
+				sshCfg.Command = string(b)
+			} else {
+				zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+			}
+		}
+	}
 	if sshCfg == nil {
 		// 与 legacy Plan 同款（planner.go:263-266：sshCfg==nil →
 		// &core.SSHConfig{}）空配置走默认：手动模式默认 auth/channel。

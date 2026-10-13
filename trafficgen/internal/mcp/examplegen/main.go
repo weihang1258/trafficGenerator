@@ -67,6 +67,13 @@ func handExamples() []example {
 		"tftp_file_id": 3, "coap_file_id": 2, "socks5_data_file_id": 12,
 		"openvpn_file_id": 12, "rdp_data_event_file_id": 28, "sip_media_file_id": 9,
 		"sctp_chunk_file_id": 8,
+		// P1 批
+		"mqtt_publish_file_id": 11, "xmpp_body_file_id": 20, "syslog_msg_file_id": 1,
+		"rtmp_data_file_id": 21, "someip_payload_file_id": 2, "icmp_data_file_id": 2,
+		"icmpv6_data_file_id": 2, "imap_append_file_id": 10, "grpc_request_file_id": 15,
+		// P2 批
+		"pppoe_data_file_id": 8, "srv6_inner_file_id": 1, "ssh_command_file_id": 25,
+		"vnc_cuttext_file_id": 12, "goose_data_file_id": 3,
 	}
 	mk := func(proto, id, summary, cfg string) example {
 		return example{Protocol: proto, CaseID: id, Summary: summary,
@@ -162,6 +169,22 @@ func handExamples() []example {
 		mk("grpc", "grpc_request_file_id",
 			"D-FILE-2 P1：gRPC 请求消息来自上传文件（file_source 覆盖 request_messages，既有接线）",
 			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"tcp": {"src_port": 40006, "dst_port": 50051}}, {"grpc": {"service": "pkg.Svc", "method": "Put", "call_type": "unary", "file_source": {"file_id": "`+fid+`"}}}]}`),
+		// —— D-FILE-2 P2 批（2026-10-13）——
+		mk("pppoe", "pppoe_data_file_id",
+			"D-FILE-2 P2：PPPoE 内层 IPv4 数据包载荷来自上传文件（file_source，优先级 > data_payload）",
+			`{"layers": [{"eth": {}}, {"pppoe": {"file_source": {"file_id": "`+fid+`"}}}]}`),
+		mk("srv6", "srv6_inner_file_id",
+			"D-FILE-2 P2：SRv6 内层载荷来自上传文件（file_source，优先级 > inner_payload）",
+			`{"layers": [{"ip": {"src": "2001:db8::1", "dst": "2001:db8::2"}}, {"srv6": {"segment_list": ["2001:db8::10"], "file_source": {"file_id": "`+fid+`"}}}]}`),
+		mk("ssh", "ssh_command_file_id",
+			"D-FILE-2 P2：SSH exec 命令文本来自上传文件（文本语义，scenario=exec）",
+			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"tcp": {"src_port": 40007, "dst_port": 22}}, {"ssh": {"scenario": "exec", "file_source": {"file_id": "`+fid+`"}}}]}`),
+		mk("vnc", "vnc_cuttext_file_id",
+			"D-FILE-2 P2：VNC 客户端剪贴板文本来自上传文件（文本语义）",
+			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"vnc": {"security_type": 1, "width": 1024, "height": 768, "rounds": 1, "fbu_update_interval": 1, "initial_fbu": [{"width": 100, "height": 100}], "update_rects": [{"width": 100, "height": 100}], "file_source": {"file_id": "`+fid+`"}}}]}`),
+		mk("goose", "goose_data_file_id",
+			"D-FILE-2 P2：GOOSE 数据成员值来自上传文件（data[].file_source 编码 octet_string 原文字节）",
+			`{"layers": [{"eth": {}}, {"goose": {"gocb_ref": "CB1", "dat_set": "DS1", "tal_ms": 1000, "conf_rev": 1, "data": [{"type": "octet_string", "file_source": {"file_id": "`+fid+`"}}]}}]}`),
 	}
 }
 
