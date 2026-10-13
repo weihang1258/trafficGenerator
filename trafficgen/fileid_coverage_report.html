@@ -1,0 +1,328 @@
+<title>file_id 协议覆盖交底单</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    --paper: #f5f4ef;
+    --ink: #21261f;
+    --accent: #2c6e49;
+    --accent-soft: #e3ece4;
+    --warn: #a4431c;
+    --warn-soft: #f3e4da;
+    --muted: #6d7367;
+    --line: #d9d7cb;
+    --card: #fbfaf6;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #191d18;
+      --ink: #e4e6de;
+      --accent: #6fbf8f;
+      --accent-soft: #22301f;
+      --warn: #e08a5c;
+      --warn-soft: #38251a;
+      --muted: #9aa093;
+      --line: #353a31;
+      --card: #20251f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #191d18;
+    --ink: #e4e6de;
+    --accent: #6fbf8f;
+    --accent-soft: #22301f;
+    --warn: #e08a5c;
+    --warn-soft: #38251a;
+    --muted: #9aa093;
+    --line: #353a31;
+    --card: #20251f;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Noto Sans SC", sans-serif;
+    font-size: 15px;
+    line-height: 1.75;
+    padding: 48px 20px 80px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  h1 {
+    font-family: "Noto Serif SC", serif;
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1.3;
+    margin: 8px 0 10px;
+    text-wrap: balance;
+  }
+  .meta {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 18px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 18px;
+  }
+  .verdict {
+    margin: 26px 0 0;
+    padding: 16px 18px;
+    background: var(--accent-soft);
+    border-left: 3px solid var(--accent);
+    font-size: 15.5px;
+  }
+  .verdict strong { color: var(--accent); }
+  h2 {
+    font-family: "Noto Serif SC", serif;
+    font-size: 20px;
+    font-weight: 700;
+    margin: 44px 0 14px;
+    text-wrap: balance;
+  }
+  h2 .no {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    margin-right: 10px;
+    font-weight: 400;
+  }
+  p { margin: 0 0 12px; }
+  .dist {
+    display: flex;
+    height: 34px;
+    margin: 18px 0 8px;
+    border: 1px solid var(--line);
+    overflow: hidden;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-weight: 600;
+  }
+  .dist > div {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    color: #fff;
+  }
+  .d-ok   { background: var(--accent); width: 26%; }
+  .d-no   { background: #8a6a2a; width: 22.8%; }
+  .d-na   { background: #75796e; width: 51.2%; }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 22px;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .legend b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .dot { display: inline-block; width: 9px; height: 9px; margin-right: 6px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    margin: 12px 0 6px;
+  }
+  th {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--ink);
+    padding: 6px 10px 6px 0;
+  }
+  td {
+    border-bottom: 1px solid var(--line);
+    padding: 8px 10px 8px 0;
+    vertical-align: top;
+  }
+  td.proto { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .batch {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 0 6px;
+    margin-right: 8px;
+  }
+  .bug {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .bug:last-child { border-bottom: none; }
+  .bug .t {
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .bug .sev {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--warn);
+    border: 1px solid var(--warn);
+    padding: 0 5px;
+    margin-right: 8px;
+  }
+  .bug p { font-size: 13.5px; color: var(--muted); margin: 4px 0 0; }
+  .twocol {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 32px;
+    font-size: 13.5px;
+  }
+  .twocol h3 {
+    font-size: 14px;
+    margin: 14px 0 6px;
+    color: var(--accent);
+  }
+  .namelist {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    line-height: 2;
+    color: var(--muted);
+    word-spacing: 2px;
+  }
+  .steps {
+    counter-reset: step;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .steps li {
+    counter-increment: step;
+    padding: 8px 0 8px 40px;
+    position: relative;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+  }
+  .steps li:last-child { border-bottom: none; }
+  .steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 9px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+  .steps code, .inline {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: var(--accent-soft);
+    padding: 1px 5px;
+  }
+  .errata {
+    margin-top: 30px;
+    padding: 14px 18px;
+    background: var(--warn-soft);
+    border-left: 3px solid var(--warn);
+    font-size: 13.5px;
+  }
+  .errata b { color: var(--warn); }
+  .foot {
+    margin-top: 44px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  @media (max-width: 560px) {
+    .twocol { grid-template-columns: 1fr; }
+    h1 { font-size: 25px; }
+  }
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">trafficgen · D-FILE-2 · 交付验收</div>
+  <h1>file_id 协议覆盖交底单</h1>
+  <div class="meta">
+    <span>2026-10-13 终版</span>
+    <span>部署：10.12.131.35:8081</span>
+    <span>口径：upload → file_source 引用 → pcap 原文字节断言</span>
+    <span>ParserVersion 1.4.0</span>
+  </div>
+
+  <div class="verdict">
+    客户端清单已全部施工完毕。<strong>33 个协议支持文件引用</strong>（每个都经 8081 实跑、抓包核对文件内容在线），两轮隔离代码复审终局 <strong>PASS</strong>，全部 33 条使用示例已内置于 <span class="inline">flowb_query_layers</span>。
+  </div>
+
+  <h2><span class="no">01</span>127 个协议层的最终分类</h2>
+  <div class="dist">
+    <div class="d-ok">33 支持</div>
+    <div class="d-no"><span class="lbl">29 不建议</span></div>
+    <div class="d-na"><span class="lbl">65 不适用</span></div>
+  </div>
+  <div class="legend">
+    <span><span class="dot" style="background:var(--accent)"></span>支持 <b>33</b></span>
+    <span><span class="dot" style="background:#8a6a2a"></span>不建议 <b>29</b>（塞文件=畸形流量）</span>
+    <span><span class="dot" style="background:#75796e"></span>不适用 <b>65</b>（无自由字节承载面）</span>
+  </div>
+  <p>本页口径修正：此前中途通报"支持 12→28"系算术笔误，终版为 <strong>33</strong>（存量 12 + 洗清 2 + 新接 19）。</p>
+
+  <h2><span class="no">02</span>33 个支持协议明细</h2>
+  <table>
+    <tr><th>批次</th><th>协议</th><th style="text-align:right">实测包数*</th></tr>
+    <tr><td><span class="batch">存量</span></td><td class="proto">http · ftp · tcp · udp · smtp · pop3 · smb · nfs · wireguard · vmess · shadowsocks · telnet</td><td class="num">12 例</td></tr>
+    <tr><td><span class="batch">洗清</span></td><td class="proto">sip · sctp</td><td class="num">9 / 8</td></tr>
+    <tr><td><span class="batch">P0</span></td><td class="proto">tftp · coap · socks5 · openvpn · rdp</td><td class="num">3 / 2 / 12 / 12 / 28</td></tr>
+    <tr><td><span class="batch">P1</span></td><td class="proto">mqtt · xmpp · syslog · rtmp · someip · icmp · icmpv6 · imap · grpc</td><td class="num">11 / 20 / 1 / 21 / 2 / 2 / 2 / 10 / 15</td></tr>
+    <tr><td><span class="batch">P2</span></td><td class="proto">pppoe · srv6 · ssh · vnc · goose</td><td class="num">8 / 1 / 25 / 12 / 3</td></tr>
+  </table>
+  <p style="font-size:12.5px;color:var(--muted)">* 实测包数 = 该示例 8081 单次实跑产出的包量。特殊口径：sip 需对话消息带 <span class="inline">emit_media:true</span> 且 media 开关打开（媒体流锚在对话上，D-SIP-2 设计）；ftp 走 data_channel 嵌套；tcp/udp 为裸流万能兜底；openvpn 外层加密，以注入面验证。</p>
+
+  <h2><span class="no">03</span>过程中修复的存量问题</h2>
+  <div class="bug"><div class="t"><span class="sev">严重</span>ftp 下载方向反了</div><p>"服务器发文件给客户端"的场景，抓包发现数据是客户端发给服务器的——方向被锚死在模式上。已修，修后严格断言数据通道 s2c 载荷指纹 == 文件指纹。</p></div>
+  <div class="bug"><div class="t"><span class="sev">严重</span>tftp 双填静默截断</div><p>同时配文件源和填充模板时，块数按模板算、内容按文件切——两套判断顺序打架，613 字节的文件只发 512 字节，无声无息。已修：文件源在两个维度统一优先。</p></div>
+  <div class="bug"><div class="t"><span class="sev">严重</span>rtmp 调试残留可致崩溃</div><p>开发期调试打印漏删，无数据的 rtmp 配置会触发数组越界。已删，并补守卫测试（复审代理对抗验证：把问题代码还原，测试必红）。</p></div>
+  <div class="bug"><div class="t"><span class="sev">中等</span>删除的文件还能用 / 双填结果随机</div><p>缓存不撒手：删掉的文件再引用仍出旧内容；同时填文件路径和文件 ID 时胜者漂移。已修：删除即失效，双填固定"文件路径优先"，契约写进接口描述。</p></div>
+  <div class="bug"><div class="t"><span class="sev">中等</span>socks5 / shadowsocks / imap 假拒绝或静默丢弃</div><p>三者以"链路径不可用"为由拒绝或降级文件引用——该前提被 8 个同行协议实证推翻。全部撤除并接线，悬空引用统一走"警告+跳过"。</p></div>
+
+  <h2><span class="no">04</span>不建议与不适用清单</h2>
+  <div class="twocol">
+    <div>
+      <h3>⚪ 不建议 · 29</h3>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:6px">有字段但塞文件会造出畸形流量：工控结构化（modbus/enip/fins/s7/iec104）、SQL/命令文本（mysql/redis/rtsp/ssdp）、加密协商（ike/ike_nat_t）、隧道层该挂内层（gtp/mpls/vxlan/geneve/nvgre/l2tp）、结构不符（cflow/dhcp/dhcpv6/doip/igmp/cwmp/hls/hds/pptp/dameng/onvif/tds）。</p>
+    </div>
+    <div>
+      <h3>⚫ 不适用 · 65</h3>
+      <div class="namelist">a2a amqp ams arp bacnet bgp cql dcerpc dnp3 dns doh drda dtls edp eth ethmining gbt gbt32960 getwork gnutella gre h323 hl7 http_flv ip isis jt808 jt809 jtt905 kerberos ldap ldp mcp mdns megaco mms mmse moxa mongodb nmea ntlm ntp ngap ocsp opcua openwire ospf pcep pim postgresql radius rip rtmfp snmp spnego sstp stratum stun swarm sv thrift tls tns vlan xmrmining</div>
+    </div>
+  </div>
+  <p style="font-size:12.5px;color:var(--muted)">判定依据 = 层配置是否有可自由填写的字节/文本字段（机器扫描全量核过）。其中 <span class="inline">mongodb · thrift · sv</span> 三者为本次改判（客户端曾建议，实查为结构化字段，无自由字节面，已与登记文档同步）。</p>
+
+  <h2><span class="no">05</span>客户端复测指引</h2>
+  <ol class="steps">
+    <li>上传文件：<span class="inline">flowb_manage_filesystem action=upload</span>，回执拿 <span class="inline">file_id</span>（= 内容 sha256）</li>
+    <li>打开 <span class="inline">flowb_query_layers action=examples</span>，任选 33 条 file_id 示例之一，把占位符替换为 file_id</li>
+    <li><span class="inline">flowb_generate_traffic</span> 生成 → <span class="inline">flowb_wait_for_task</span> 至 completed</li>
+    <li>断言：下载 pcap 或 <span class="inline">list_packets → get_packet_payload</span>，包字节中应能找到上传文件的原文（openvpn 为密文，见其示例说明）</li>
+  </ol>
+
+  <div class="errata">
+    <b>勘误与遗留（如实记录）</b><br>
+    ① 中途通报"支持 12→28"为算术笔误，终版 33。② icmp 层一处描述字符串曾把结构体名写反（纯文档，零行为影响），已随 021450ef 勘误。③ icmpv6 早期误报"断线"系验证面假阴性，Go 层探针证伪后洗清。④ 已知三个并行抖动测试（ftp/rtmp/goose 性能与随机面），单跑必绿，基线在档，与本次改动无关。
+  </div>
+
+  <div class="foot">
+    13 commits（7297c265..021450ef） · 两轮隔离对抗复审（首轮 FAIL→收口→PASS；次轮 FAIL→收口→PASS） · 全部红例先行 · 线面验收口径 = pcap 原文字节
+  </div>
+</div>

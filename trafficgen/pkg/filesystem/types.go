@@ -8,6 +8,8 @@
 package filesystem
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"sync"
 	"time"
@@ -20,8 +22,23 @@ type FileSource struct {
 	File    string  `json:"file,omitempty"`    // filesystem relative path (recursive Read)
 	FileID  string  `json:"file_id,omitempty"` // content sha256 hex (64 chars) — D-FILE-1: 引用已上传内容，与 pcap asset id 同体验
 	Literal string  `json:"literal,omitempty"` // inline text bytes
-	Fill    *Fill   `json:"fill,omitempty"`     // single-byte pattern
-	Random  *Random `json:"random,omitempty"`   // random content, length range
+	Fill    *Fill   `json:"fill,omitempty"`    // single-byte pattern
+	Random  *Random `json:"random,omitempty"`  // random content, length range
+}
+
+// UnmarshalJSON rejects unknown keys (fail-loud, 第10轮反馈 B)：直觉键名
+// （file_path/path 等）此前被静默丢弃——任务 completed 但内容为空。已知键
+// 集合 = file/file_id/literal/fill/random；任何其他键在解码即报错并点名。
+func (f *FileSource) UnmarshalJSON(b []byte) error {
+	type fileSourceAlias FileSource
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	var alias fileSourceAlias
+	if err := dec.Decode(&alias); err != nil {
+		return err
+	}
+	*f = FileSource(alias)
+	return nil
 }
 
 // Fill describes a single-byte pattern repeated Bytes times.
@@ -54,9 +71,9 @@ type RmdirOptions struct {
 }
 
 var (
-	ErrNotFound     = errors.New("filesystem: path not found")
-	ErrExists       = errors.New("filesystem: path already exists")
-	ErrNotEmpty     = errors.New("filesystem: directory not empty")
+	ErrNotFound      = errors.New("filesystem: path not found")
+	ErrExists        = errors.New("filesystem: path already exists")
+	ErrNotEmpty      = errors.New("filesystem: directory not empty")
 	ErrNotADirectory = errors.New("filesystem: not a directory")
 )
 

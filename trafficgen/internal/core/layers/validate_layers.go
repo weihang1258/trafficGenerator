@@ -1351,6 +1351,34 @@ func ValidateLayers(layersJSON json.RawMessage, protocol string) (string, error)
 	// + 补全后全链（插入的依赖层，config 为空天然通过）。
 	firstIP := true
 	for i := range chain {
+		// D-FILE-2 第10轮反馈 B：file_source 键名校验前置到 create——
+		// 未知键/缺已知键在提交即报（与 ChainPlanner.ValidateSpec 任务侧
+		// 守卫同锚词），不再静默吞成"completed 但内容为空"。
+		if fso, ok := chain[i].Config["file_source"].(map[string]interface{}); ok && fso["strategy"] == nil {
+			// file_source 整体为动态对象（{"strategy":...}）时让路：D-HTTP-1
+			// allowlist 门在本循环后段管辖。此处只检静态形状的键名。
+			known := map[string]bool{"file": true, "file_id": true, "literal": true, "fill": true, "random": true}
+			var unknown []string
+			recognized := false
+			for k, v := range fso {
+				if known[k] {
+					recognized = true
+				} else if isDynObject(v) {
+					// 键值级动态策略对象合法（存量语料 file_source 值支持逐流变化）
+					recognized = true
+				} else {
+					unknown = append(unknown, k)
+				}
+			}
+			if len(unknown) > 0 {
+				return "", fmt.Errorf("layers[%d](%s): file_source unknown key(s) %s — want file/file_id/literal/fill/random (or a dynamic strategy object)",
+					i, chain[i].Name, strings.Join(unknown, "/"))
+			}
+			if !recognized {
+				return "", fmt.Errorf("layers[%d](%s): file_source has no recognized source key — want file/file_id/literal/fill/random",
+					i, chain[i].Name)
+			}
+		}
 		// D-GRE-2 §12：内层 ip 层（隧道载荷侧，非首个 ip 层）动态对象拒绝
 		// ——LayerDynValues 只有一套 ip 值，双层动态会静默打架（外层对象
 		// 被内层顶掉，2026-09-15 探针 C）。单四元组模型下内层地址静态。

@@ -85,7 +85,7 @@ func buildDefaultRegistry() {
 			// file_source: D-FILE-1 万能兜底——文件源（file/file_id/literal/
 			// fill/random）驱动 tcp 裸流载荷，覆盖所有未适配协议传文件场景。
 			// 优先级 File>FileID>Literal>Fill>Random；解析成功赢过 payload。
-			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
+			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 		},
 	})
 	r.Register(LayerSchema{Name: "udp", Category: CategoryTransport,
@@ -95,7 +95,7 @@ func buildDefaultRegistry() {
 			"dst_port": {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 			// D-FILE-1 万能兜底（独立 [ip→udp] flow 终结形态）：文件源驱动
 			// 裸流载荷，与 tcp 层同款；ChainPlanner.Plan 单点解析。
-			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
+			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 		},
 	})
 
@@ -136,7 +136,7 @@ func buildDefaultRegistry() {
 			"response_transfer_encoding": {Type: "string", Default: ""},
 			"chunk_size":                 {Type: "int", Default: 0},
 			"pipelined":                  {Type: "bool", Default: false},
-			"file_source":                {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
+			"file_source":                {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 		},
 		// http 家族目的端口落在 tcp 层（DefaultDstPort=80，strategy_convert
 		// 同款）；声明 tcp.dst_port 供 layers 数组路径（未显式写端口）补齐。
@@ -252,7 +252,7 @@ func buildDefaultRegistry() {
 			"msg_id":          {Type: "string"},
 			"structured_data": {Type: "list"},
 			"msg":             {Type: "string", Description: "消息体（UTF-8）；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1，优先级 file_source > msg）"},
-			"file_source":     {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传→ Msg（UTF-8 文本语义）（D-FILE-2 P1）"},
+			"file_source":     {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错→ Msg（UTF-8 文本语义）（D-FILE-2 P1）"},
 			"msg_has_bom":     {Type: "bool"},
 			"format":          {Type: "string"},
 			"transport":       {Type: "string"},
@@ -415,7 +415,7 @@ func buildDefaultRegistry() {
 			"data_payload_pattern":    {Type: "string", Default: ""},
 			// D-FILE-2：file_source → 文件模式（块数=ceil(size/blksize)，
 			// 逐块切片原文，末块=余量）；优先级 file_source > data_payload_pattern。
-			"file_source":                {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（tftp 文件模式：整文件按 blksize 分块传输）"},
+			"file_source":                {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错（tftp 文件模式：整文件按 blksize 分块传输）"},
 			"include_oack":               {Type: "bool", Default: false},
 			"retransmit_blocks":          {Type: "list", Default: []interface{}{}},
 			"server_tid_change":          {Type: "bool", Default: false},
@@ -704,8 +704,8 @@ func buildDefaultRegistry() {
 			"query":   {Type: "list", Default: []interface{}{}},
 			"payload": {Type: "list", Default: []interface{}{}},
 			// D-FILE-2 裁定4：请求/响应文件源显式分列（防双填歧义）。
-			"file_source":             {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（→ 请求 payload）"},
-			"response_file_source":    {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（→ 响应 response_payload）"},
+			"file_source":             {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错（→ 请求 payload）"},
+			"response_file_source":    {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错（→ 响应 response_payload）"},
 			"content_format":          {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 			"accept":                  {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 			"confirmable":             {Type: "bool", Default: false},
@@ -783,7 +783,7 @@ func buildDefaultRegistry() {
 			"keepalive_interval":      {Type: "int"},
 			"cookie_reply_threshold":  {Type: "int"},
 			"transport_payloads":      {Type: "list"},
-			"file_source":             {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
+			"file_source":             {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 			"direction":               {Type: "string"},
 			"handshake":               {Type: "bool"},
 			"response":                {Type: "bool"},
@@ -855,7 +855,7 @@ func buildDefaultRegistry() {
 			"data_payload":          {Type: "list"},
 			// D-FILE-2 裁定5：file_source → P_DATA 明文载荷（FileSource >
 			// data_payload > 默认填充；加密外层不校内容）。
-			"file_source":            {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（→ P_DATA 明文载荷）"},
+			"file_source":            {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错（→ P_DATA 明文载荷）"},
 			"data_packet_count":      {Type: "int"},
 			"perform_soft_reset":     {Type: "bool"},
 			"static_key_mode":        {Type: "bool"},
@@ -1246,7 +1246,7 @@ func buildDefaultRegistry() {
 			"auto_response":     {Type: "bool"},
 			"direction":         {Type: "string"},
 			"payload":           {Type: "list", Description: "消息载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1）"},
-			"file_source":       {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传→ payload（D-FILE-2 P1）"},
+			"file_source":       {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错→ payload（D-FILE-2 P1）"},
 			"sd":                {Type: "object"},
 			"tp":                {Type: "object"},
 			"events":            {Type: "list"},
@@ -1805,7 +1805,7 @@ func buildDefaultRegistry() {
 			"identifier":  {Type: "uint16", Min: 0, Max: 65535},
 			"sequence":    {Type: "uint16", Min: 0, Max: 65535},
 			"data":        {Type: "string", Description: "ping 载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1：映射进 ICMPv6Config.FileSource）"},
-			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传→ ping 载荷（D-FILE-2 P1）"},
+			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错→ ping 载荷（D-FILE-2 P1）"},
 			"pattern":     {Type: "list"},
 		},
 	})
@@ -1821,7 +1821,7 @@ func buildDefaultRegistry() {
 			"identifier":  {Type: "uint16", Min: 0, Max: 65535},
 			"sequence":    {Type: "uint16", Min: 0, Max: 65535},
 			"data":        {Type: "string", Description: "ping 载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1：映射进 ICMPConfig.FileSource）"},
-			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传→ ping 载荷（D-FILE-2 P1）"},
+			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错→ ping 载荷（D-FILE-2 P1）"},
 			"pattern":     {Type: "list"},
 		},
 	})
@@ -1980,7 +1980,7 @@ func buildDefaultRegistry() {
 			"minorversion":           {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
 			// D-FILE-1：file_source → WRITE 数据（v3 Proc=7 / v4 OP_WRITE=38；
 			// 无 write op 追加默认一条）。
-			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
+			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 		}})
 	// ---- P4a：smb（tcp 终结层。MS-SMB2——会话状态机展开为逐 PDU 事件
 	// （NEGOTIATE → SESSION_SETUP → TREE_CONNECT → CREATE → Operations →
@@ -2018,7 +2018,7 @@ func buildDefaultRegistry() {
 			"operations":          {Type: "list", Default: []interface{}{}},
 			// D-FILE-1：file_source → WRITE 操作数据（无 write op 追加默认一条；
 			// 会话建立/TREE_CONNECT 由既有状态机承担）。
-			"file_source":                       {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
+			"file_source":                       {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 			"preauth_integrity_hash_algorithms": {Type: "list", Default: []interface{}{}},
 			"encryption_algorithm":              {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 			"encryption_required":               {Type: "bool", Default: false},
@@ -2095,7 +2095,7 @@ func buildDefaultRegistry() {
 			"email":  {Type: "object"},
 			// D-FILE-1：file_source → DATA 阶段附件内容（file/file_id/literal/
 			// fill/random；Email 缺省补单附件邮件，RFC 2045 §6.8 base64 既有路径）。
-			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
+			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 		},
 	})
 	r.Register(LayerSchema{Name: "redis", Category: CategoryTerminal,
@@ -2125,7 +2125,7 @@ func buildDefaultRegistry() {
 			"mailbox":  {Type: "object"},
 			// D-FILE-1：file_source → RETR 邮件体（Mailbox 缺省补单消息；
 			// emit_mail_drop 命令由用户配置触发投递）。
-			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
+			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 		},
 	})
 	r.Register(LayerSchema{Name: "imap", Category: CategoryTerminal,
@@ -2172,7 +2172,7 @@ func buildDefaultRegistry() {
 			"scheme":                 {Type: "string"},
 			"call_type":              {Type: "string"},
 			"request_messages":       {Type: "list", Description: "请求消息列表（每项一帧）；亦可 file_source 整体覆盖（既有字段，D-FILE-2 前已接线）"},
-			"file_source":            {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传→ 覆盖 request_messages（既有接线）（D-FILE-2 P1）"},
+			"file_source":            {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错→ 覆盖 request_messages（既有接线）（D-FILE-2 P1）"},
 			"request_messages_b64":   {Type: "list"},
 			"response_messages":      {Type: "list"},
 			"response_messages_b64":  {Type: "list"},
@@ -2209,7 +2209,7 @@ func buildDefaultRegistry() {
 			"disconnect_on_close":    {Type: "bool"},
 			"scenario":               {Type: "string"},
 			"command":                {Type: "string"},
-			"file_source":            {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（→ exec 命令文本，文本语义，优先级 file_source > command）（D-FILE-2 P2）"},
+			"file_source":            {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错（→ exec 命令文本，文本语义，优先级 file_source > command）（D-FILE-2 P2）"},
 			"stdout":                 {Type: "list"},
 			"stderr":                 {Type: "list"},
 		},
@@ -2281,7 +2281,7 @@ func buildDefaultRegistry() {
 			"header_pad_len":   {Type: "uint8"},
 			"payload":          {Type: "list"},
 			"response_payload": {Type: "list"},
-			"file_source":      {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
+			"file_source":      {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 			"heartbeat":        {Type: "bool"},
 			"heartbeat_count":  {Type: "int"},
 			"mux_streams":      {Type: "list"},
@@ -2309,7 +2309,7 @@ func buildDefaultRegistry() {
 			"obf_headers":          {Type: "object"},
 			"payload_bytes_format": {Type: "string"},
 			"frag":                 {Type: "uint8"},
-			"file_source":          {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
+			"file_source":          {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 		},
 	})
 	r.Register(LayerSchema{Name: "socks5", Category: CategoryTerminal,
@@ -2423,7 +2423,7 @@ func buildDefaultRegistry() {
 			"seg_type":         {Type: "string"},
 			"payload_protocol": {Type: "string"},
 			"inner_payload":    {Type: "object"}, // 字符串=原文字节 | 字节数组（getByteSlice 双形）
-			"file_source":      {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（→ 内层载荷，优先级 file_source > inner_payload）（D-FILE-2 P2）"},
+			"file_source":      {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错（→ 内层载荷，优先级 file_source > inner_payload）（D-FILE-2 P2）"},
 			"inner_src_port":   {Type: "uint16", Min: 0, Max: 65535},
 			"inner_dst_port":   {Type: "uint16", Min: 0, Max: 65535},
 			"tlv":              {Type: "list"},
@@ -2586,7 +2586,7 @@ func buildDefaultRegistry() {
 			"terminal_type": {Type: "string"},
 			"window_cols":   {Type: "uint16", Min: 0, Max: 65535},
 			"window_rows":   {Type: "uint16", Min: 0, Max: 65535},
-			"file_source":   {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
+			"file_source":   {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 			"scenario":      {Type: "string"},
 			"username":      {Type: "string"},
 			"password":      {Type: "string"},
@@ -2776,7 +2776,7 @@ func buildDefaultRegistry() {
 			"set_colour_map_entries":  {Type: "object"}, // 2 子键：first/colors
 			"server_cut_text":         {Type: "string"},
 			"client_cut_text":         {Type: "string"},
-			"file_source":             {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（→ 客户端剪贴板文本，文本语义，优先级 file_source > client_cut_text）（D-FILE-2 P2）"},
+			"file_source":             {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错（→ 客户端剪贴板文本，文本语义，优先级 file_source > client_cut_text）（D-FILE-2 P2）"},
 			"challenge_seed":          {Type: "uint64"},
 			"response_seed":           {Type: "uint64"},
 		},
@@ -2948,7 +2948,7 @@ func buildDefaultRegistry() {
 			"password":       {Type: "string"},
 			"data_frames":    {Type: "int", Min: 0, Max: 1000000},
 			"data_payload":   {Type: "object"}, // 同 cookie 双形
-			"file_source":    {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（→ 内层 IPv4 数据包载荷，优先级 file_source > data_payload）（D-FILE-2 P2）"},
+			"file_source":    {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错（→ 内层 IPv4 数据包载荷，优先级 file_source > data_payload）（D-FILE-2 P2）"},
 			"inner_proto":    {Type: "uint8", Min: 0, Max: 255},
 			"data_direction": {Type: "string"},
 			"padt":           {Type: "bool"}, // 缺省 true（RFC 2516 §5.6），指针三态

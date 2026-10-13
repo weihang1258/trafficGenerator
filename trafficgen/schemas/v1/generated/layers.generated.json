@@ -335,7 +335,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（→ 请求 payload）"
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错（→ 请求 payload）"
         },
         "message_id": {
           "type": "uint16",
@@ -384,7 +384,7 @@
         },
         "response_file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（→ 响应 response_payload）"
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错（→ 响应 response_payload）"
         },
         "response_payload": {
           "type": "list",
@@ -1600,7 +1600,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传→ 覆盖 request_messages（既有接线）（D-FILE-2 P1）"
+          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错→ 覆盖 request_messages（既有接线）（D-FILE-2 P1）"
         },
         "header_table_size": {
           "type": "uint32"
@@ -1932,7 +1932,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错"
         },
         "headers": {
           "type": "map",
@@ -2050,7 +2050,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传→ ping 载荷（D-FILE-2 P1）"
+          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错→ ping 载荷（D-FILE-2 P1）"
         },
         "identifier": {
           "type": "uint16",
@@ -2088,7 +2088,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传→ ping 载荷（D-FILE-2 P1）"
+          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错→ ping 载荷（D-FILE-2 P1）"
         },
         "identifier": {
           "type": "uint16",
@@ -3511,7 +3511,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错"
         },
         "minorversion": {
           "type": "uint32",
@@ -4030,7 +4030,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（→ P_DATA 明文载荷）"
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错（→ P_DATA 明文载荷）"
         },
         "fragment_size": {
           "type": "uint16"
@@ -4280,7 +4280,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错"
         },
         "mailbox": {
           "type": "object"
@@ -4344,7 +4344,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（→ 内层 IPv4 数据包载荷，优先级 file_source \u003e data_payload）（D-FILE-2 P2）"
+          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错（→ 内层 IPv4 数据包载荷，优先级 file_source \u003e data_payload）（D-FILE-2 P2）"
         },
         "inner_proto": {
           "type": "uint8",
@@ -5021,7 +5021,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错"
         },
         "frag": {
           "type": "uint8"
@@ -5185,7 +5185,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错"
         },
         "include_auth": {
           "type": "bool",
@@ -5307,7 +5307,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错"
         }
       }
     },
@@ -5498,7 +5498,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传→ payload（D-FILE-2 P1）"
+          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错→ payload（D-FILE-2 P1）"
         },
         "interface_version": {
           "type": "uint8"
@@ -5611,7 +5611,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（→ 内层载荷，优先级 file_source \u003e inner_payload）（D-FILE-2 P2）"
+          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错（→ 内层载荷，优先级 file_source \u003e inner_payload）（D-FILE-2 P2）"
         },
         "flags": {
           "type": "uint8",
@@ -5770,7 +5770,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（→ exec 命令文本，文本语义，优先级 file_source \u003e command）（D-FILE-2 P2）"
+          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错（→ exec 命令文本，文本语义，优先级 file_source \u003e command）（D-FILE-2 P2）"
         },
         "host_key_algorithms": {
           "type": "string"
@@ -6008,7 +6008,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传→ Msg（UTF-8 文本语义）（D-FILE-2 P1）"
+          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错→ Msg（UTF-8 文本语义）（D-FILE-2 P1）"
         },
         "format": {
           "type": "string"
@@ -6072,7 +6072,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错"
         },
         "handshake": {
           "type": "bool",
@@ -6212,7 +6212,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错"
         },
         "password": {
           "type": "string"
@@ -6288,7 +6288,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（tftp 文件模式：整文件按 blksize 分块传输）"
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错（tftp 文件模式：整文件按 blksize 分块传输）"
         },
         "filename": {
           "type": "string",
@@ -6443,7 +6443,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错"
         },
         "src_port": {
           "type": "uint16",
@@ -6499,7 +6499,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错"
         },
         "header_pad_len": {
           "type": "uint8"
@@ -6565,7 +6565,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（→ 客户端剪贴板文本，文本语义，优先级 file_source \u003e client_cut_text）（D-FILE-2 P2）"
+          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错（→ 客户端剪贴板文本，文本语义，优先级 file_source \u003e client_cut_text）（D-FILE-2 P2）"
         },
         "height": {
           "type": "int",
@@ -6675,7 +6675,7 @@
         },
         "file_source": {
           "type": "object",
-          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file \u003e file_id \u003e literal \u003e fill \u003e random；未知键在配置校验即报错"
         },
         "handshake": {
           "type": "bool"
