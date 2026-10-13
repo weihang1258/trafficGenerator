@@ -4985,7 +4985,8 @@
           "type": "string"
         },
         "file_source": {
-          "type": "object"
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
         },
         "frag": {
           "type": "uint8"
@@ -6154,7 +6155,8 @@
           "max": 65535
         },
         "file_source": {
-          "type": "object"
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
         },
         "password": {
           "type": "string"
@@ -6436,7 +6438,8 @@
           "type": "string"
         },
         "file_source": {
-          "type": "object"
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"
         },
         "header_pad_len": {
           "type": "uint8"

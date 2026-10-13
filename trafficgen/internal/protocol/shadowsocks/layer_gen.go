@@ -122,6 +122,19 @@ func (g *ShadowsocksGenerator) Generate(ctx context.Context, req *layers.GenRequ
 		}
 	}
 
+	// D-FILE-1：FileSource → req.Meta.Payload（与 planner.go 同款）。必须在
+	// chunkSizes 计算之前解析——第9轮复核 三.3：先按空 Payload 算分块会落到
+	// [0]，文件内容静默变 2 字节空块（"0000"）。
+	if ss.FileSource != nil && len(req.Meta.Payload) == 0 {
+		if pc := core.PayloadCacheFrom(ctx); pc != nil {
+			if b, err := pc.GetOrLoad(ctx, *ss.FileSource); err == nil {
+				req.Meta.Payload = b
+			} else {
+				zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+			}
+		}
+	}
+
 	// --- AEAD Chunk loop ---
 	var chunkSizes []int
 	if ss.Chunks > 0 {
@@ -155,18 +168,6 @@ func (g *ShadowsocksGenerator) Generate(ctx context.Context, req *layers.GenRequ
 		}
 	} else {
 		chunkSizes = append(chunkSizes, ss.ChunkPayloadSize)
-	}
-
-	// D-FILE-1 口径修复：FileSource → req.Meta.Payload（与 planner.go 同
-	// 款——链路径 FileSource 解析后走既有分块+原文通路）。
-	if ss.FileSource != nil && len(req.Meta.Payload) == 0 {
-		if pc := core.PayloadCacheFrom(ctx); pc != nil {
-			if b, err := pc.GetOrLoad(ctx, *ss.FileSource); err == nil {
-				req.Meta.Payload = b
-			} else {
-				zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
-			}
-		}
 	}
 
 	// 分块内容游标：spec.Payload 有值时逐块取原文（FileSource/inline 同路）。

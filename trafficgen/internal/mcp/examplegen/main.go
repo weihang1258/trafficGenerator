@@ -51,6 +51,58 @@ type envelope struct {
 }
 type exam = example
 
+// handExamples returns the curated D-FILE-1 file_id examples（每层至少 1 条
+// file_id 形态——客户端第9轮复核 三.5）。config 形状与派生例同源（最小层
+// 链 + file_source.file_id 占位符），真值经 8081 实跑验证。
+func handExamples() []example {
+	fid := "<上传回执 file_id，64 位 hex>"
+	mk := func(proto, id, summary, cfg string) example {
+		return example{Protocol: proto, CaseID: id, Summary: summary,
+			Config: json.RawMessage(cfg), Packets: 0}
+	}
+	return []example{
+		// —— D-FILE-1 首批 3 条（此前手工追加进 layer_examples.json，收编
+		// 入生成器防 examplegen 重生成丢失）——
+		mk("ftp", "ftp_retr_file_id",
+			"D-FILE-1：RETR 数据通道下发上传文件（data_channel.direction=down + file_source.file_id）",
+			`{"layers": [{"tcp": {}}, {"ftp": {"sessions": [{"transactions": [{"commands": [{"cmd": "USER u", "response": "331"}, {"cmd": "PASS p", "response": "230"}, {"cmd": "RETR /f.bin", "response": "150", "emit_data_channel": true}, {"cmd": "", "response": "226"}, {"cmd": "QUIT", "response": "221"}], "data_channel": {"mode": "passive", "direction": "down", "file_source": {"file_id": "`+fid+`"}}}]}]}}]}`),
+		mk("http", "http_body_file_id",
+			"D-FILE-1：请求 body 来自上传文件（file_source.file_id=上传回执的 file_id，免重复上传）",
+			`{"layers": [{"ip": {"src": "192.0.2.10", "dst": "198.51.100.20"}}, {"tcp": {"src_port": 40010, "dst_port": 80}}, {"http": {"method": "POST", "uri": "/upload", "version": "1.1", "file_source": {"file_id": "`+fid+`"}}}]}`),
+		mk("tcp", "tcp_raw_file_id",
+			"D-FILE-1：tcp 裸流载荷来自上传文件（未适配协议传文件的万能兜底）",
+			`{"layers": [{"ip": {"src": "192.0.2.10", "dst": "198.51.100.20"}}, {"tcp": {"src_port": 40012, "dst_port": 9000, "file_source": {"file_id": "`+fid+`"}}}]}`),
+		// —— 第9轮补齐 9 条 ——
+		mk("smtp", "smtp_attachment_file_id",
+			"D-FILE-1：SMTP 附件内容来自上传文件（file_source 自动补单附件，RFC2045 base64）",
+			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"tcp": {"src_port": 12345, "dst_port": 25}}, {"smtp": {"file_source": {"file_id": "`+fid+`"}}}]}`),
+		mk("pop3", "pop3_retr_file_id",
+			"D-FILE-1：POP3 RETR 邮件体来自上传文件（file_source 自动补单消息）",
+			`{"layers": [{"ip": {}}, {"tcp": {}}, {"pop3": {"file_source": {"file_id": "`+fid+`"}}}]}`),
+		mk("smb", "smb_write_file_id",
+			"D-FILE-1：SMB WRITE 数据来自上传文件（file_source 自动补 write 操作）",
+			`{"layers": [{"ip": {"src": "10.0.0.100", "dst": "10.0.0.1"}}, {"tcp": {}}, {"smb": {"file_source": {"file_id": "`+fid+`"}}}]}`),
+		mk("nfs", "nfs_write_file_id",
+			"D-FILE-1：NFS WRITE 数据来自上传文件（v3 Proc=7 / v4 OP_WRITE=38，自动补 write op）",
+			`{"layers": [{"tcp": {}}, {"nfs": {"version": 3, "file_source": {"file_id": "`+fid+`"}}}]}`),
+		mk("wireguard", "wireguard_payload_file_id",
+			"D-FILE-1：WireGuard transport_payloads 内容来自上传文件",
+			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"udp": {}}, {"wireguard": {"file_source": {"file_id": "`+fid+`"}}}], "flow_control": {"flows": 1}}`),
+		mk("shadowsocks", "shadowsocks_file_id",
+			"D-FILE-1：Shadowsocks 载荷来自上传文件（缺省自动分块；cipher=none 时线内容可校验）",
+			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"tcp": {}}, {"shadowsocks": {"cipher": "none", "file_source": {"file_id": "`+fid+`"}}}]}`),
+		mk("vmess", "vmess_payload_file_id",
+			"D-FILE-1：VMess 载荷来自上传文件（AEAD 分块；uuid/address/port 必填）",
+			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"tcp": {}}, {"vmess": {"uuid": "b831381d-6324-4d53-ad4f-8cda48b30811", "address": "203.0.113.10", "port": 443, "file_source": {"file_id": "`+fid+`"}}}]}`),
+		mk("udp", "udp_raw_file_id",
+			"D-FILE-1：udp 裸流载荷来自上传文件（[ip→udp] 终结形态万能兜底）",
+			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"udp": {"dst_port": 9000, "file_source": {"file_id": "`+fid+`"}}}]}`),
+		mk("telnet", "telnet_file_id",
+			"D-FILE-1：telnet 会话载荷来自上传文件（Dialog 前注入）",
+			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"telnet": {"src_port": 12345, "dst_port": 23, "file_source": {"file_id": "`+fid+`"}}}]}`),
+	}
+}
+
 func complexity(spec json.RawMessage) (int, error) {
 	var m struct {
 		Layers []map[string]json.RawMessage `json:"layers"`
@@ -334,6 +386,43 @@ func Generate(casesDir string) ([]byte, error) {
 			}
 		}
 		out[proto] = picked
+		// D-FILE-1 手工例（第9轮复核 三.5：派生例不含 file_id 形态——cases
+		// 语料是内联 payload，file_id 形态是 MCP 工作流教面）。策展注入，
+		// 去重后追加（不受 ≤5 派生上限约束）。加新协议手工例时在此追加。
+		for _, he := range handExamples() {
+			if he.Protocol != proto {
+				continue
+			}
+			dup := false
+			for _, e := range picked {
+				if e.CaseID == he.CaseID {
+					dup = true
+					break
+				}
+			}
+			if !dup {
+				he.FlowControl = flowNote(he.Config)
+				picked2 := append(picked, he)
+				out[proto] = picked2
+			}
+		}
+	}
+	// hand-only 协议：派生集为空（无 cases 例）时手工例独立建条目
+	// （第9轮 三.5：udp 无 examples 条目）。
+	handByProto := map[string][]example{}
+	for _, he := range handExamples() {
+		handByProto[he.Protocol] = append(handByProto[he.Protocol], he)
+	}
+	for proto, hes := range handByProto {
+		if _, ok := out[proto]; ok {
+			continue
+		}
+		entry := make([]exam, 0, len(hes))
+		for _, he := range hes {
+			he.FlowControl = flowNote(he.Config)
+			entry = append(entry, he)
+		}
+		out[proto] = entry
 	}
 	names := make([]string, 0, len(out))
 	for k := range out {

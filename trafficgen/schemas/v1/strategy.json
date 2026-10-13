@@ -369,7 +369,7 @@
         },
         "file_source": {
           "title": "File source",
-          "description": "Payload bytes from file/literal/file_id/fill/random instead of inline payload. file_id = 64-hex sha256 returned by flowb_manage_filesystem upload (dedup receipt) — reference previously uploaded content without re-uploading. Recommended flow: upload once, then reference by file_id everywhere.",
+          "description": "Payload bytes from file/literal/file_id/fill/random instead of inline payload. file_id = 64-hex sha256 returned by flowb_manage_filesystem upload (dedup receipt) — reference previously uploaded content without re-uploading. Recommended flow: upload once, then reference by file_id everywhere. When several source keys are set in one file_source, precedence is fixed: file > file_id > literal > fill > random (deterministic, not order-dependent).",
           "type": "object"
         },
         "pcap_asset_id": {

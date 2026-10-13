@@ -83,12 +83,26 @@ func (c *PayloadCache) GetOrLoad(ctx context.Context, src filesystem.FileSource)
 	if src.Random != nil && src.Random.Seed == 0 {
 		return filesystem.GenerateRandomBytes(src.Random)
 	}
-	// D-FILE-1 补测（复审 M1）：FileID 即内容哈希——命中内存条目则零 IO
+	// D-FILE-1 补测（复审 M1）：FileID 即内容哈希——命中内存条目则零字节 IO
 	// 返回（无命中才落盘读+哈希入库；file_id 是 64 hex，直接作缓存键无
 	// 碰撞风险）。多流共享同一 file_id 时只发生一次磁盘读。
-	if src.FileID != "" {
+	//
+	// 客户端第9轮复核两裁定（2026-10-13）：
+	//   - File != "" 时不得早查：契约 File > FileID（pkg/filesystem
+	//     resolveBytes 同序）——早查曾直接返回缓存内容压过 File 源，双填
+	//     胜者随"哪个内容先入过缓存"漂移（13 组实测无规则，三.2）。
+	//   - 早查命中须先 stat 确认 blob 仍在：delete 后缓存残留会静默注入
+	//     陈旧内容（三.1）——已删则丢条目，走 resolve 失败路径，与"从未
+	//     存在"同口径降级。QueryByHash 是 O(1) 路径推导 + Stat，无字节读。
+	if src.FileID != "" && src.File == "" {
 		if actual, ok := c.entries.Load(src.FileID); ok {
-			return actual.([]byte), nil
+			if c.fs == nil {
+				return actual.([]byte), nil
+			}
+			if _, err := c.fs.QueryByHash(ctx, src.FileID); err == nil {
+				return actual.([]byte), nil
+			}
+			c.entries.Delete(src.FileID)
 		}
 	}
 
@@ -98,7 +112,7 @@ func (c *PayloadCache) GetOrLoad(ctx context.Context, src filesystem.FileSource)
 	}
 	key := hashHex(b)
 	// 键=内容 sha256。FileID 源的 hashHex(b) 恒等于 src.FileID，故上面的
-	// 早查（Load(src.FileID)）对首读入库后的所有后续调用恒命中（零 IO）。
+	// 早查对首读入库后的所有后续调用恒命中（stat 面校验 + 零字节读）。
 	// LoadOrStore so totalBytes is incremented exactly once per unique hash.
 	// Concurrent callers that race on the same hash will both compute b, but
 	// only the first Store wins (stored=false for losers); the loser returns
@@ -113,7 +127,8 @@ func (c *PayloadCache) GetOrLoad(ctx context.Context, src filesystem.FileSource)
 }
 
 // resolveBytes fetches/constructs the bytes for src (after the unseeded
-// random bypass). File > Literal > Fill > Seeded Random.
+// random bypass). File > FileID > Literal > Fill > Seeded Random（与
+// pkg/filesystem resolveBytes 同序，双填契约单一真相）。
 func (c *PayloadCache) resolveBytes(ctx context.Context, src filesystem.FileSource) ([]byte, error) {
 	switch {
 	case src.File != "":

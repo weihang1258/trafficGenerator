@@ -19,7 +19,7 @@ var schemaDocsStrategy = map[string]string{
 	"/properties/config/properties/dst_mac":                       "Destination MAC: Destination MAC XX:XX:XX:XX:XX:XX. Absent = 02:00:00:00:00:02.",
 	"/properties/config/properties/dst_port":                      "Destination port: Destination port 0-65535. Absent = 80 (DNS overrides to 53).",
 	"/properties/config/properties/ecn":                           "ECN: ECN 0-3.",
-	"/properties/config/properties/file_source":                   "File source: Payload bytes from file/literal/file_id/fill/random instead of inline payload. file_id = 64-hex sha256 returned by flowb_manage_filesystem upload (dedup receipt) — reference previously uploaded content without re-uploading. Recommended flow: upload once, then reference by file_id everywhere.",
+	"/properties/config/properties/file_source":                   "File source: Payload bytes from file/literal/file_id/fill/random instead of inline payload. file_id = 64-hex sha256 returned by flowb_manage_filesystem upload (dedup receipt) — reference previously uploaded content without re-uploading. Recommended flow: upload once, then reference by file_id everywhere. When several source keys are set in one file_source, precedence is fixed: file > file_id > literal > fill > random (deterministic, not order-dependent).",
 	"/properties/config/properties/frag_offset":                   "Fragment offset: Fragment offset 0-8191 in 8-byte units.",
 	"/properties/config/properties/group_id":                      "Worker binding: Routes flows with the same generated id to one PacketWorker.",
 	"/properties/config/properties/icmp":                          "ICMP options: ICMP type/code/sequence.",
@@ -143,7 +143,8 @@ const schemaConfigBlurb = "strategy config. " +
 	"{\"udp\":{\"dst_port\":53}},{\"dns\":{\"name\":\"a.com\"}}],\"flow_control\":{\"type\":\"flows\",\"value\":1}} — " +
 	"EACH layers element must hold EXACTLY ONE layer key (merging layers into one element, e.g. " +
 	"{\"layers\":[{\"ip\":{...},\"tcp\":{...}}]}, is rejected with 'each layer entry must contain exactly one layer name') — " +
-	"ordered layers, outermost (L2/L3) first; protocol inferred from outermost non-scaffolding layer, " +
+	"ordered layers, outermost (L2/L3) first, and the chain must END with a terminal (application) layer (a chain ending at a bare " +
+	"transport layer is rejected with 'layer chain must end with a terminal layer'); protocol inferred from outermost non-scaffolding layer, " +
 	"explicit protocol must match. " +
 	"Only schema-declared fields accepted: unknown fields rejected (all reported at once), " +
 	"hard depends_on auto-completed. " +
