@@ -63,6 +63,10 @@ func handExamples() []example {
 		"smtp_attachment_file_id": 20, "pop3_retr_file_id": 9, "smb_write_file_id": 31,
 		"nfs_write_file_id": 13, "wireguard_payload_file_id": 3, "shadowsocks_file_id": 8,
 		"vmess_payload_file_id": 11, "udp_raw_file_id": 1, "telnet_file_id": 14,
+		// D-FILE-2 批（8081 实跑 2026-10-13 回填）
+		"tftp_file_id": 3, "coap_file_id": 2, "socks5_data_file_id": 12,
+		"openvpn_file_id": 12, "rdp_data_event_file_id": 28, "sip_media_file_id": 9,
+		"sctp_chunk_file_id": 8,
 	}
 	mk := func(proto, id, summary, cfg string) example {
 		return example{Protocol: proto, CaseID: id, Summary: summary,

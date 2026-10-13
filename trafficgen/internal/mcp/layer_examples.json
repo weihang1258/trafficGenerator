@@ -1345,7 +1345,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 2
    }
   ],
   "cql": [
@@ -10268,7 +10268,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 12
    }
   ],
   "openwire": [
@@ -11361,7 +11361,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 28
    }
   ],
   "redis": [
@@ -12236,7 +12236,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 8
    }
   ],
   "shadowsocks": [
@@ -12507,7 +12507,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 9
    }
   ],
   "smb": [
@@ -12950,7 +12950,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 12
    }
   ],
   "someip": [
@@ -14988,7 +14988,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 3
    }
   ],
   "thrift": [
