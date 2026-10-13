@@ -319,6 +319,10 @@ func TestP2B_FTPAssociation(t *testing.T) {
 	if data.RelatedFlowID != ctl.ID || data.RelatedRole != "data" {
 		t.Errorf("关联 = %q/%q, want ctl.ID/data", data.RelatedFlowID, data.RelatedRole)
 	}
+	// 第11轮反馈：数据流 L7=unknown 应标 ftp_data（与 linkTFTP 同款）
+	if data.L7Protocol != "ftp_data" {
+		t.Errorf("数据流 L7Protocol = %q, want ftp_data", data.L7Protocol)
+	}
 	if ctl.RelatedRole != "control" {
 		t.Errorf("控制流角色 = %q, want control", ctl.RelatedRole)
 	}

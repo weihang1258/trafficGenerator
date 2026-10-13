@@ -251,7 +251,7 @@ func buildDefaultRegistry() {
 			"proc_id":         {Type: "string"},
 			"msg_id":          {Type: "string"},
 			"structured_data": {Type: "list"},
-			"msg":             {Type: "string", Description: "消息体（UTF-8）；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1，优先级 file_source > msg）"},
+			"msg":             {Type: "string", Description: "消息体（UTF-8）；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1，优先级 file_source > msg）；file_source 键集 file/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 			"file_source":     {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错→ Msg（UTF-8 文本语义）（D-FILE-2 P1）"},
 			"msg_has_bom":     {Type: "bool"},
 			"format":          {Type: "string"},
@@ -676,7 +676,7 @@ func buildDefaultRegistry() {
 			"connect_ack_code":            {Type: "int", Default: 0, Min: 0, Max: 0},
 			"connect_ack_session_present": {Type: "bool", Default: false},
 			"subscriptions":               {Type: "list", Default: []interface{}{}},
-			"messages":                    {Type: "list", Default: []interface{}{}, Description: "PUBLISH 消息列表；item 键 topic/payload/qos/retain/dup/packet_id/direction/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1，优先级 file_source > payload）"},
+			"messages":                    {Type: "list", Default: []interface{}{}, Description: "PUBLISH 消息列表；item 键 topic/payload/qos/retain/dup/packet_id/direction/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1，优先级 file_source > payload）；file_source 键集 file/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 			"ping_after_messages":         {Type: "bool", Default: false},
 			"disconnect":                  {Type: "bool", Default: true},
 			"disconnect_reason":           {Type: "int"}, // nil = 不发（缺省不进 config map；Default 0 会被解码成非 nil *int，误触 5.0-only 校验）
@@ -1245,7 +1245,7 @@ func buildDefaultRegistry() {
 			"return_code":       {Type: "uint8"},
 			"auto_response":     {Type: "bool"},
 			"direction":         {Type: "string"},
-			"payload":           {Type: "list", Description: "消息载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1）"},
+			"payload":           {Type: "list", Description: "消息载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1）；file_source 键集 file/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 			"file_source":       {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错→ payload（D-FILE-2 P1）"},
 			"sd":                {Type: "object"},
 			"tp":                {Type: "object"},
@@ -1627,7 +1627,7 @@ func buildDefaultRegistry() {
 			"test":          {Type: "bool"},
 			"nds_com":       {Type: "bool"},
 			"boolean":       {Type: "bool"},
-			"data":          {Type: "list", Description: "数据成员列表；item 键 name/type/value/bit_length/file_source——file_source=上传回执 file_id（内容 sha256 hex），成员值编码 octet_string 原文字节（优先级 file_source > value）（D-FILE-2 P2）"},
+			"data":          {Type: "list", Description: "数据成员列表；item 键 name/type/value/bit_length/file_source——file_source=上传回执 file_id（内容 sha256 hex），成员值编码 octet_string 原文字节（优先级 file_source > value）（D-FILE-2 P2）；file_source 键集 file/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 			"event_seq":     {Type: "list"},
 			"count":         {Type: "int", Min: 0, Max: 1000000},
 			"dst_mac":       {Type: "mac"},
@@ -1651,7 +1651,7 @@ func buildDefaultRegistry() {
 			"smp_synch":         {Type: "uint8", Min: 0, Max: 255},
 			"smp_rate":          {Type: "uint16", Min: 0, Max: 65535},
 			"period_us":         {Type: "int"},
-			"data":              {Type: "list", Description: "采样值成员（name/type/inst_mag 结构化）——无自由字节承载面，file_source 不适用（D-FILE-2 改判）"},
+			"data":              {Type: "list", Description: "采样值成员（name/type/inst_mag 结构化）——无自由字节承载面，file_source 不适用（D-FILE-2 改判）；file_source 键集 file/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 			"count":             {Type: "int", Min: 0, Max: 1000000},
 			"dst_mac":           {Type: "mac"},
 			"double_send":       {Type: "bool"},
@@ -1804,7 +1804,7 @@ func buildDefaultRegistry() {
 			"code":        {Type: "uint8", Min: 0, Max: 255},
 			"identifier":  {Type: "uint16", Min: 0, Max: 65535},
 			"sequence":    {Type: "uint16", Min: 0, Max: 65535},
-			"data":        {Type: "string", Description: "ping 载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1：映射进 ICMPv6Config.FileSource）"},
+			"data":        {Type: "string", Description: "ping 载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1：映射进 ICMPv6Config.FileSource）；file_source 键集 file/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错→ ping 载荷（D-FILE-2 P1）"},
 			"pattern":     {Type: "list"},
 		},
@@ -1820,7 +1820,7 @@ func buildDefaultRegistry() {
 			"code":        {Type: "uint8", Min: 0, Max: 255},
 			"identifier":  {Type: "uint16", Min: 0, Max: 65535},
 			"sequence":    {Type: "uint16", Min: 0, Max: 65535},
-			"data":        {Type: "string", Description: "ping 载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1：映射进 ICMPConfig.FileSource）"},
+			"data":        {Type: "string", Description: "ping 载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1：映射进 ICMPConfig.FileSource）；file_source 键集 file/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错→ ping 载荷（D-FILE-2 P1）"},
 			"pattern":     {Type: "list"},
 		},
@@ -2138,7 +2138,7 @@ func buildDefaultRegistry() {
 			// mime_body 是嵌套对象/数组，V9 只验顶层键存在，值语义归翻译
 			// 分支 JSON 往返解码 + validator）。
 			"banner":             {Type: "string", Default: ""},
-			"commands":           {Type: "list", Description: "命令列表；item 键 tag/cmd/responses/literal_body/literal_body_b64/mime_body/file_source——file_source=上传回执 file_id（内容 sha256 hex），APPEND literal 体来自文件（优先级 MIMEBody > file_source > b64 > literal）"},
+			"commands":           {Type: "list", Description: "命令列表；item 键 tag/cmd/responses/literal_body/literal_body_b64/mime_body/file_source——file_source=上传回执 file_id（内容 sha256 hex），APPEND literal 体来自文件（优先级 MIMEBody > file_source > b64 > literal）；file_source 键集 file/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 			"idle":               {Type: "object"},
 			"pipelined_commands": {Type: "bool", Default: false},
 			"allow_utf8_mailbox": {Type: "bool", Default: false},
@@ -2171,7 +2171,7 @@ func buildDefaultRegistry() {
 			"authority":              {Type: "string"},
 			"scheme":                 {Type: "string"},
 			"call_type":              {Type: "string"},
-			"request_messages":       {Type: "list", Description: "请求消息列表（每项一帧）；亦可 file_source 整体覆盖（既有字段，D-FILE-2 前已接线）"},
+			"request_messages":       {Type: "list", Description: "请求消息列表（每项一帧）；亦可 file_source 整体覆盖（既有字段，D-FILE-2 前已接线）；file_source 键集 file/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 			"file_source":            {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错→ 覆盖 request_messages（既有接线）（D-FILE-2 P1）"},
 			"request_messages_b64":   {Type: "list"},
 			"response_messages":      {Type: "list"},
@@ -2263,7 +2263,7 @@ func buildDefaultRegistry() {
 			"scenario":                        {Type: "string"},
 			// D-FILE-2 裁定6：逐事件 item 支持 file_source（优先级
 			// FileSource > payload > payload_b64）。
-			"data_events":      {Type: "list", Description: "Active 相位事件列表；item 键 type/channel/direction/payload/payload_b64/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传"},
+			"data_events":      {Type: "list", Description: "Active 相位事件列表；item 键 type/channel/direction/payload/payload_b64/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传；file_source 键集 file/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 			"server_responses": {Type: "list"},
 		},
 	})
@@ -2329,7 +2329,7 @@ func buildDefaultRegistry() {
 			"bnd_port":    {Type: "int"},
 			"user_id":     {Type: "string", Default: ""},
 			// D-FILE-2 裁定2：item 支持 file_source（曾以假前提拒绝，已撤销）。
-			"data": {Type: "list", Default: []interface{}{}, Description: "隧道数据消息列表；item 键 direction/payload/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传"},
+			"data": {Type: "list", Default: []interface{}{}, Description: "隧道数据消息列表；item 键 direction/payload/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传；file_source 键集 file/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 			"udp":  {Type: "object"},
 		},
 	})
@@ -2602,7 +2602,7 @@ func buildDefaultRegistry() {
 			// D-SIP-2+D-FILE-2：RTP 媒体流；item 内 file_source=RTP 帧载荷
 			// 文件源（须 dialog[] 消息带 emit_media:true 且 media.enabled:true
 			// 才发射——媒体流锚在对话消息上）。
-			"media":      {Type: "object", Description: "RTP 媒体流（enabled/frames/src_port/dst_port/frame_size/payload_type/direction/file_source）——file_source=上传回执 file_id（内容 sha256 hex）；发射须 dialog 消息 emit_media:true + media.enabled:true"},
+			"media":      {Type: "object", Description: "RTP 媒体流（enabled/frames/src_port/dst_port/frame_size/payload_type/direction/file_source）——file_source=上传回执 file_id（内容 sha256 hex）；发射须 dialog 消息 emit_media:true + media.enabled:true；file_source 键集 file/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 			"sessions":   {Type: "list"},   // D-SIP-2 WP-A：多会话结构（与 dialog 互斥，语义层判死）
 			"medias":     {Type: "list"},   // D-SIP-2 WP-B：多流媒体（与 media 互斥，语义层判死）
 			"interleave": {Type: "bool"},   // D-SIP-2 WP-B：媒体流内信令交错调度
@@ -2663,7 +2663,7 @@ func buildDefaultRegistry() {
 			"tc_url":      {Type: "string"},
 			"command":     {Type: "string"},
 			"stream_name": {Type: "string"},
-			"data":        {Type: "list", Description: "数据 chunk 列表；item 键 direction/msg_type/chunk_stream_id/payload(_b64)/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1，优先级 FileSource > payload）"},
+			"data":        {Type: "list", Description: "数据 chunk 列表；item 键 direction/msg_type/chunk_stream_id/payload(_b64)/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1，优先级 FileSource > payload）；file_source 键集 file/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 		},
 	})
 	// rtsp（tcp 终结层。RFC 2326——文本 dialog（OPTIONS/DESCRIBE/SETUP/
@@ -2800,7 +2800,7 @@ func buildDefaultRegistry() {
 			"username":       {Type: "string"},
 			"password":       {Type: "string"},
 			"presence":       {Type: "bool"},
-			"messages":       {Type: "list", Description: "消息 stanza 列表；item 键 direction/to/body/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1，优先级 file_source > body）"},
+			"messages":       {Type: "list", Description: "消息 stanza 列表；item 键 direction/to/body/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1，优先级 file_source > body）；file_source 键集 file/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
 		},
 	})
 	// sctp（tcp 终结层。RFC 4960——SCTP 自成 L4（IP proto 132）：公共头

@@ -83,8 +83,8 @@ func handExamples() []example {
 		// —— D-FILE-1 首批 3 条（此前手工追加进 layer_examples.json，收编
 		// 入生成器防 examplegen 重生成丢失）——
 		mk("ftp", "ftp_retr_file_id",
-			"D-FILE-1：RETR 数据通道下发上传文件（data_channel.direction=down + file_source.file_id）",
-			`{"layers": [{"tcp": {}}, {"ftp": {"sessions": [{"transactions": [{"commands": [{"cmd": "USER u", "response": "331"}, {"cmd": "PASS p", "response": "230"}, {"cmd": "RETR /f.bin", "response": "150", "emit_data_channel": true}, {"cmd": "", "response": "226"}, {"cmd": "QUIT", "response": "221"}], "data_channel": {"mode": "passive", "direction": "down", "file_source": {"file_id": "`+fid+`"}}}]}]}}]}`),
+			"D-FILE-1：RETR 数据通道下发上传文件（data_channel.direction=down + file_source.file_id；PASV 227 通告的端口须与数据通道一致——控制流带 227 行，抓包解析才能把数据流标成 ftp_data 并关联）",
+			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"tcp": {}}, {"ftp": {"sessions": [{"transactions": [{"commands": [{"cmd": "USER u", "response": "331"}, {"cmd": "PASS p", "response": "230"}, {"cmd": "PASV", "response": "227 Entering Passive Mode (20,0,0,1,195,64)"}, {"cmd": "RETR /f.bin", "response": "150", "emit_data_channel": true}, {"cmd": "", "response": "226"}, {"cmd": "QUIT", "response": "221"}], "data_channel": {"mode": "passive", "direction": "down", "file_source": {"file_id": "`+fid+`"}}}]}]}}]}`),
 		mk("http", "http_body_file_id",
 			"D-FILE-1：请求 body 来自上传文件（file_source.file_id=上传回执的 file_id，免重复上传）",
 			`{"layers": [{"ip": {"src": "192.0.2.10", "dst": "198.51.100.20"}}, {"tcp": {"src_port": 40010, "dst_port": 80}}, {"http": {"method": "POST", "uri": "/upload", "version": "1.1", "file_source": {"file_id": "`+fid+`"}}}]}`),

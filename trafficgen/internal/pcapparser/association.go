@@ -73,6 +73,14 @@ func linkFTP(ctl *FlowState, flows map[string]*FlowState) {
 					ip := strconv.Itoa(h[0]) + "." + strconv.Itoa(h[1]) + "." + strconv.Itoa(h[2]) + "." + strconv.Itoa(h[3])
 					port := uint16(h[4]<<8 | h[5])
 					linkByEndpoint(flows, ctl, ip, port, "data")
+					// 数据流补 ftp_data 标签（第11轮反馈：数据流 L7=unknown
+					// 应标 ftp-data；linkTFTP 同款先例）。
+					for _, fs := range flows {
+						if fs.FlowModel.RelatedFlowID == ctl.FlowModel.ID && fs.FlowModel.RelatedRole == "data" &&
+							(fs.FlowModel.L7Protocol == "" || fs.FlowModel.L7Protocol == "unknown") {
+							fs.FlowModel.L7Protocol = "ftp_data"
+						}
+					}
 				}
 				// 多传输各带 PASV（RFC 959 同控制连接顺序多数据流）——扫全程
 				s = seg[close_:]

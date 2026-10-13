@@ -3481,9 +3481,15 @@
    {
     "protocol": "ftp",
     "case_id": "ftp_retr_file_id",
-    "summary": "D-FILE-1：RETR 数据通道下发上传文件（data_channel.direction=down + file_source.file_id）",
+    "summary": "D-FILE-1：RETR 数据通道下发上传文件（data_channel.direction=down + file_source.file_id；PASV 227 通告的端口须与数据通道一致——控制流带 227 行，抓包解析才能把数据流标成 ftp_data 并关联）",
     "config": {
      "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
       {
        "tcp": {}
       },
@@ -3501,6 +3507,10 @@
              {
               "cmd": "PASS p",
               "response": "230"
+             },
+             {
+              "cmd": "PASV",
+              "response": "227 Entering Passive Mode (20,0,0,1,195,64)"
              },
              {
               "cmd": "RETR /f.bin",

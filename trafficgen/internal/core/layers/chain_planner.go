@@ -191,32 +191,16 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 	// 翻译必须在协议级 validator 之前：dns validator 要求 spec.DNS 非 nil，
 	// worker.go:218 的 planner.Validate(task.Spec) 先于 Plan 运行。
 	p.translateTerminalConfig(&spec)
-	// D-FILE-2 第10轮反馈 B（键名零校验）：终结层 file_source 含未知键或
-	// 缺全部已知键（file/file_id/literal/fill/random）→ 配置校验即报错，
-	// 不再静默吞成"completed 但内容为空"。只检键名层面（协议是否消费该
-	// file_source 不在此判——各自生成器/校验器负责），全协议统一。
+	// D-FILE-2 第11轮反馈 1：file_source 键名守卫下沉任意嵌套（任务侧与
+	// create 侧 ValidateLayers 同规则；walk 实现与锚词见 validate_layers.go）。
 	for _, l := range p.chain {
 		if l.Name != p.name {
 			continue
 		}
-		if fso, ok := l.Config["file_source"].(map[string]interface{}); ok {
-			known := map[string]bool{"file": true, "file_id": true, "literal": true, "fill": true, "random": true}
-			var unknown []string
-			recognized := false
-			for k := range fso {
-				if known[k] {
-					recognized = true
-				} else {
-					unknown = append(unknown, k)
-				}
-			}
-			if len(unknown) > 0 {
-				return spec, fmt.Errorf("%s layer config: file_source unknown key(s) %s — want file/file_id/literal/fill/random",
-					p.name, strings.Join(unknown, "/"))
-			}
-			if !recognized {
-				return spec, fmt.Errorf("%s layer config: file_source has no recognized source key — want file/file_id/literal/fill/random", p.name)
-			}
+		var fsErrs []string
+		walkFileSourceKeys(l.Config, fmt.Sprintf("%s layer config", p.name), &fsErrs)
+		if len(fsErrs) > 0 {
+			return spec, fmt.Errorf("%s", strings.Join(fsErrs, "; "))
 		}
 	}
 	// 翻译期错误统一拦截（D-CWMP-1）：translateTerminalConfig 的层 config
