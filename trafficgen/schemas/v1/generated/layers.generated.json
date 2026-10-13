@@ -2046,7 +2046,7 @@
         },
         "data": {
           "type": "string",
-          "description": "ping 载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1：映射进 ICMPv6Config.FileSource）"
+          "description": "ping 载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1：映射进 ICMPConfig.FileSource）"
         },
         "file_source": {
           "type": "object",

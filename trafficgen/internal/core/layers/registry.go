@@ -1820,7 +1820,7 @@ func buildDefaultRegistry() {
 			"code":        {Type: "uint8", Min: 0, Max: 255},
 			"identifier":  {Type: "uint16", Min: 0, Max: 65535},
 			"sequence":    {Type: "uint16", Min: 0, Max: 65535},
-			"data":        {Type: "string", Description: "ping 载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1：映射进 ICMPv6Config.FileSource）"},
+			"data":        {Type: "string", Description: "ping 载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1：映射进 ICMPConfig.FileSource）"},
 			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传→ ping 载荷（D-FILE-2 P1）"},
 			"pattern":     {Type: "list"},
 		},
