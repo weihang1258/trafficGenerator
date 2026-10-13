@@ -333,6 +333,10 @@
           "type": "list",
           "default": []
         },
+        "file_source": {
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（→ 请求 payload）"
+        },
         "message_id": {
           "type": "uint16",
           "default": 0,
@@ -377,6 +381,10 @@
           "type": "uint16",
           "default": 0,
           "max": 65535
+        },
+        "response_file_source": {
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（→ 响应 response_payload）"
         },
         "response_payload": {
           "type": "list",
@@ -4003,6 +4011,10 @@
         "exit_notify_interval": {
           "type": "uint16"
         },
+        "file_source": {
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（→ P_DATA 明文载荷）"
+        },
         "fragment_size": {
           "type": "uint16"
         },
@@ -4627,7 +4639,8 @@
           "type": "string"
         },
         "data_events": {
-          "type": "list"
+          "type": "list",
+          "description": "Active 相位事件列表；item 键 type/channel/direction/payload/payload_b64/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传"
         },
         "desktop_height": {
           "type": "uint16"
@@ -5055,7 +5068,8 @@
           "type": "bool"
         },
         "media": {
-          "type": "object"
+          "type": "object",
+          "description": "RTP 媒体流（enabled/frames/src_port/dst_port/frame_size/payload_type/direction/file_source）——file_source=上传回执 file_id（内容 sha256 hex）；发射须 dialog 消息 emit_media:true + media.enabled:true"
         },
         "medias": {
           "type": "list"
@@ -5404,7 +5418,8 @@
         },
         "data": {
           "type": "list",
-          "default": []
+          "default": [],
+          "description": "隧道数据消息列表；item 键 direction/payload/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传"
         },
         "dst_addr": {
           "type": "string",
@@ -6229,6 +6244,10 @@
         "error_side": {
           "type": "string",
           "default": ""
+        },
+        "file_source": {
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（tftp 文件模式：整文件按 blksize 分块传输）"
         },
         "filename": {
           "type": "string",

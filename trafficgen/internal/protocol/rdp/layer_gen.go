@@ -39,6 +39,8 @@ package rdp
 // security）下 wrapTLSAppData 是 no-op，事件字节即原始 X.224 TPKT。
 
 import (
+	"go.uber.org/zap"
+
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -205,9 +207,19 @@ func (g *RDPGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 	}
 
 	// --- Phase 9: Data events (Active phase) ---
+	// D-FILE-2 裁定6：data_events[].file_source → 该事件载荷（解析失败 warn
+	// 静默跳过——家族契约）。优先级 FileSource > Payload > PayloadB64。
 	for _, ev := range cfg.DataEvents {
 		payload := ev.Payload
-		if len(ev.PayloadB64) > 0 {
+		if ev.FileSource != nil {
+			if pc := core.PayloadCacheFrom(ctx); pc != nil {
+				if b, err := pc.GetOrLoad(ctx, *ev.FileSource); err == nil {
+					payload = b
+				} else {
+					zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+				}
+			}
+		} else if len(ev.PayloadB64) > 0 {
 			if b, err := base64.StdEncoding.DecodeString(ev.PayloadB64); err == nil {
 				payload = b
 			}

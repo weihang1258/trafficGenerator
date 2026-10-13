@@ -1,8 +1,10 @@
 package coap
 
 import (
-	"encoding/base64"
+	"go.uber.org/zap"
+
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
@@ -23,6 +25,26 @@ func (g *CoAPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 	cfg, err := configFromValue(req.Meta.CoAP)
 	if err != nil {
 		return err
+	}
+	// D-FILE-2 裁定4：file_source → 请求 Payload；response_file_source →
+	// 响应 ResponsePayload（解析失败 warn 静默跳过——家族契约）。在
+	// configFromValue 之后统一解析，全部发射分支（重传/错误响应/通知等）
+	// 经 BuildMessage 读同一 cfg，单点覆盖。
+	if pc := core.PayloadCacheFrom(ctx); pc != nil {
+		if cfg.FileSource != nil {
+			if b, err := pc.GetOrLoad(ctx, *cfg.FileSource); err == nil {
+				cfg.Payload = b
+			} else {
+				zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+			}
+		}
+		if cfg.ResponseFileSource != nil {
+			if b, err := pc.GetOrLoad(ctx, *cfg.ResponseFileSource); err == nil {
+				cfg.ResponsePayload = b
+			} else {
+				zap.L().Warn("response_file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+			}
+		}
 	}
 	if err := (&Planner{}).Validate(core.FlowSpec{SrcIP: req.Meta.SrcIP, DstIP: req.Meta.DstIP, SrcPort: effectivePort(req.Meta.SrcPort), DstPort: req.Meta.DstPort, CoAP: cfg}); err != nil {
 		return err

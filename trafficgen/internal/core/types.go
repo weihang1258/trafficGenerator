@@ -6307,6 +6307,11 @@ type OpenVPNConfig struct {
 	// Empty = no payload, just keepalive. Default: 64 bytes synthesized data.
 	DataPayload []byte `json:"data_payload,omitempty"`
 
+	// FileSource（D-FILE-2 裁定5）：P_DATA 明文载荷来自文件源——生成器经
+	// PayloadCache 解析注入 DataPayload（FileSource > DataPayload > 默认填充，
+	// 家族优先级）。JSON 往返自动贯通（openvpn 层 translate 严格解码）。
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
+
 	// DataPacketCount is how many P_DATA packets to emit per direction.
 	// 0 = 1 packet. Default 5.
 	DataPacketCount int `json:"data_packet_count,omitempty"`
@@ -7204,6 +7209,10 @@ type RDPDataEvent struct {
 	Direction  string `json:"direction,omitempty"`
 	Payload    []byte `json:"payload,omitempty"`
 	PayloadB64 string `json:"payload_b64,omitempty"`
+	// FileSource（D-FILE-2 裁定6）：该事件载荷来自文件源。优先级
+	// FileSource > Payload > PayloadB64（家族契约）。JSON 往返自动贯通
+	// （rdp 层 translate 严格解码）。
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 }
 
 // RDPServerResponse is a server-driven Active-phase or capability-phase

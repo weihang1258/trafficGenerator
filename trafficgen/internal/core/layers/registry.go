@@ -412,6 +412,9 @@ func buildDefaultRegistry() {
 			"final_block_zero":           {Type: "bool", Default: false},
 			"wrap_block_number":          {Type: "bool", Default: false},
 			"data_payload_pattern":       {Type: "string", Default: ""},
+			// D-FILE-2：file_source → 文件模式（块数=ceil(size/blksize)，
+			// 逐块切片原文，末块=余量）；优先级 file_source > data_payload_pattern。
+			"file_source":                {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（tftp 文件模式：整文件按 blksize 分块传输）"},
 			"include_oack":               {Type: "bool", Default: false},
 			"retransmit_blocks":          {Type: "list", Default: []interface{}{}},
 			"server_tid_change":          {Type: "bool", Default: false},
@@ -699,6 +702,9 @@ func buildDefaultRegistry() {
 			"path":                    {Type: "list", Default: []interface{}{}},
 			"query":                   {Type: "list", Default: []interface{}{}},
 			"payload":                 {Type: "list", Default: []interface{}{}},
+			// D-FILE-2 裁定4：请求/响应文件源显式分列（防双填歧义）。
+			"file_source":             {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（→ 请求 payload）"},
+			"response_file_source":    {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（→ 响应 response_payload）"},
 			"content_format":          {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 			"accept":                  {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 			"confirmable":             {Type: "bool", Default: false},
@@ -846,6 +852,9 @@ func buildDefaultRegistry() {
 			"tls_auth_hmac":          {Type: "list"},
 			"tls_crypt_wrapped_key":  {Type: "list"},
 			"data_payload":           {Type: "list"},
+			// D-FILE-2 裁定5：file_source → P_DATA 明文载荷（FileSource >
+			// data_payload > 默认填充；加密外层不校内容）。
+			"file_source":            {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（→ P_DATA 明文载荷）"},
 			"data_packet_count":      {Type: "int"},
 			"perform_soft_reset":     {Type: "bool"},
 			"static_key_mode":        {Type: "bool"},
@@ -2246,7 +2255,9 @@ func buildDefaultRegistry() {
 			"server_cert_version":             {Type: "uint32"},
 			"security_exchange_rsa_key_bytes": {Type: "int"},
 			"scenario":                        {Type: "string"},
-			"data_events":                     {Type: "list"},
+			// D-FILE-2 裁定6：逐事件 item 支持 file_source（优先级
+			// FileSource > payload > payload_b64）。
+			"data_events":                     {Type: "list", Description: "Active 相位事件列表；item 键 type/channel/direction/payload/payload_b64/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传"},
 			"server_responses":                {Type: "list"},
 		},
 	})
@@ -2311,7 +2322,8 @@ func buildDefaultRegistry() {
 			"bnd_addr":    {Type: "string", Default: ""},
 			"bnd_port":    {Type: "int"},
 			"user_id":     {Type: "string", Default: ""},
-			"data":        {Type: "list", Default: []interface{}{}},
+			// D-FILE-2 裁定2：item 支持 file_source（曾以假前提拒绝，已撤销）。
+			"data":        {Type: "list", Default: []interface{}{}, Description: "隧道数据消息列表；item 键 direction/payload/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传"},
 			"udp":         {Type: "object"},
 		},
 	})
@@ -2580,7 +2592,10 @@ func buildDefaultRegistry() {
 		OptionalOn: []string{"tls"}, // D-SIP-2 WP-D：SIPS——显式写 tls 层启用（事件面）
 		Fields: map[string]FieldSchema{
 			"dialog":     {Type: "list"},
-			"media":      {Type: "object"},
+			// D-SIP-2+D-FILE-2：RTP 媒体流；item 内 file_source=RTP 帧载荷
+			// 文件源（须 dialog[] 消息带 emit_media:true 且 media.enabled:true
+			// 才发射——媒体流锚在对话消息上）。
+			"media":      {Type: "object", Description: "RTP 媒体流（enabled/frames/src_port/dst_port/frame_size/payload_type/direction/file_source）——file_source=上传回执 file_id（内容 sha256 hex）；发射须 dialog 消息 emit_media:true + media.enabled:true"},
 			"sessions":   {Type: "list"},   // D-SIP-2 WP-A：多会话结构（与 dialog 互斥，语义层判死）
 			"medias":     {Type: "list"},   // D-SIP-2 WP-B：多流媒体（与 media 互斥，语义层判死）
 			"interleave": {Type: "bool"},   // D-SIP-2 WP-B：媒体流内信令交错调度

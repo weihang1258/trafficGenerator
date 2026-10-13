@@ -22,6 +22,8 @@ package openvpn
 // planner.go:131"openvpn config is required"，与 rdp/l2tp/gtp/ike 同款）。
 
 import (
+	"go.uber.org/zap"
+
 	"context"
 	"fmt"
 
@@ -48,6 +50,15 @@ func (g *OpenVPNGenerator) Generate(ctx context.Context, req *layers.GenRequest)
 	// TCP 模式链上不支持（validator 已同步拒绝；此处双保险防御，理论上不可达）。
 	if cfg.Proto == "tcp" {
 		return fmt.Errorf("openvpn generator: proto=tcp is not supported on the layer chain (udp layer cannot do OpenVPN-over-TCP framing + TLS)")
+	}
+	// D-FILE-2 裁定5：file_source → DataPayload（解析失败 warn 静默跳过，
+	// 家族契约）。FileSource > DataPayload > 默认填充（planner.go:406 通路）。
+	if pc := core.PayloadCacheFrom(ctx); pc != nil && cfg.FileSource != nil {
+		if b, err := pc.GetOrLoad(ctx, *cfg.FileSource); err == nil {
+			cfg.DataPayload = b
+		} else {
+			zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+		}
 	}
 	spec := core.FlowSpec{
 		SrcIP:   req.Meta.SrcIP,

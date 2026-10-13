@@ -108,6 +108,28 @@ func handExamples() []example {
 		mk("telnet", "telnet_file_id",
 			"D-FILE-1：telnet 会话载荷来自上传文件（Dialog 前注入）",
 			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"telnet": {"src_port": 12345, "dst_port": 23, "file_source": {"file_id": "`+fid+`"}}}]}`),
+		// —— D-FILE-2 第二批（2026-10-13）——
+		mk("tftp", "tftp_file_id",
+			"D-FILE-2：TFTP 文件模式——整文件按 blksize 分块传输（块数=ceil(size/blksize)，末块=余量）",
+			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"udp": {"src_port": 51000, "dst_port": 69}}, {"tftp": {"mode": "read", "filename": "firmware.bin", "file_source": {"file_id": "`+fid+`"}}}]}`),
+		mk("coap", "coap_file_id",
+			"D-FILE-2：CoAP 请求 payload 来自上传文件（response_file_source 喂响应方向）",
+			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"udp": {"dst_port": 5683}}, {"coap": {"method": "POST", "path": ["upload"], "file_source": {"file_id": "`+fid+`"}, "response": true, "response_code": "2.01"}}]}`),
+		mk("socks5", "socks5_data_file_id",
+			"D-FILE-2：SOCKS5 隧道数据面来自上传文件（data[].file_source，[]byte 直上二进制安全）",
+			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"tcp": {"src_port": 40000, "dst_port": 1080}}, {"socks5": {"data": [{"direction": "up", "file_source": {"file_id": "`+fid+`"}}]}}]}`),
+		mk("openvpn", "openvpn_file_id",
+			"D-FILE-2：OpenVPN P_DATA 明文载荷来自上传文件（加密外层不校内容）",
+			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"udp": {"dst_port": 1194}}, {"openvpn": {"file_source": {"file_id": "`+fid+`"}}}]}`),
+		mk("rdp", "rdp_data_event_file_id",
+			"D-FILE-2：RDP 虚拟通道数据来自上传文件（data_events[].file_source，优先级 FileSource > payload > payload_b64）",
+			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"tcp": {"src_port": 40001, "dst_port": 3389}}, {"rdp": {"data_events": [{"type": "cliprdr_format_list", "channel": "cliprdr", "file_source": {"file_id": "`+fid+`"}}]}}]}`),
+		mk("sip", "sip_media_file_id",
+			"D-FILE-2：SIP RTP 媒体帧载荷来自上传文件——须 dialog 消息 emit_media:true + media.enabled:true（媒体流锚在对话消息上，D-SIP-2）",
+			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"udp": {"dst_port": 5060}}, {"sip": {"dialog": [{"method": "INVITE", "direction": "up", "emit_media": true}], "media": {"enabled": true, "frames": 2, "file_source": {"file_id": "`+fid+`"}}}}]}`),
+		mk("sctp", "sctp_chunk_file_id",
+			"D-FILE-2：SCTP DATA 块载荷来自上传文件（chunks[].file_source）",
+			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"sctp": {"chunks": [{"tsn": 1, "sid": 0, "ssn": 0, "ppid": 1, "direction": "up", "file_source": {"file_id": "`+fid+`"}}]}}]}`),
 	}
 }
 

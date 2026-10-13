@@ -2,44 +2,51 @@ package core
 
 import (
 	"encoding/json"
+	"github.com/trafficgen/trafficgen/pkg/filesystem"
 	"time"
 )
 
 // CoAPConfig describes a CoAP message exchange over UDP.
 type CoAPConfig struct {
-	Method                string                `json:"method,omitempty"`
-	Path                  []string              `json:"path,omitempty"`
-	Query                 []string              `json:"query,omitempty"`
-	Payload               []byte                `json:"payload,omitempty"`
-	ContentFormat         uint16                `json:"content_format,omitempty"`
-	Accept                *uint16               `json:"accept,omitempty"`
-	Confirmable           bool                  `json:"confirmable,omitempty"`
-	Token                 []byte                `json:"token,omitempty"`
-	TokenLength           uint8                 `json:"token_length,omitempty"`
-	MessageID             uint16                `json:"message_id,omitempty"`
-	Version               uint8                 `json:"version,omitempty"`
-	Code                  uint8                 `json:"code,omitempty"`
-	Response              *bool                 `json:"response,omitempty"`
-	ResponseCode          string                `json:"response_code,omitempty"`
-	ResponsePayload       []byte                `json:"response_payload,omitempty"`
-	ResponseContentFormat uint16                `json:"response_content_format,omitempty"`
-	ResponseBlocks        []ResponseBlockConfig `json:"response_blocks,omitempty"`
-	Block1                *BlockConfig          `json:"block1,omitempty"`
-	Block2                *BlockConfig          `json:"block2,omitempty"`
+	Method  string   `json:"method,omitempty"`
+	Path    []string `json:"path,omitempty"`
+	Query   []string `json:"query,omitempty"`
+	Payload []byte   `json:"payload,omitempty"`
+	// FileSource（D-FILE-2 裁定4）：请求 payload 来自文件源（file/file_id/
+	// literal/fill/random），生成器经 PayloadCache 解析注入 Payload。与
+	// ResponseFileSource 显式分列——单字段喂两方向=双填歧义（三.7 教训）。
+	FileSource      *filesystem.FileSource `json:"file_source,omitempty"`
+	ContentFormat   uint16                 `json:"content_format,omitempty"`
+	Accept          *uint16                `json:"accept,omitempty"`
+	Confirmable     bool                   `json:"confirmable,omitempty"`
+	Token           []byte                 `json:"token,omitempty"`
+	TokenLength     uint8                  `json:"token_length,omitempty"`
+	MessageID       uint16                 `json:"message_id,omitempty"`
+	Version         uint8                  `json:"version,omitempty"`
+	Code            uint8                  `json:"code,omitempty"`
+	Response        *bool                  `json:"response,omitempty"`
+	ResponseCode    string                 `json:"response_code,omitempty"`
+	ResponsePayload []byte                 `json:"response_payload,omitempty"`
+	// ResponseFileSource（D-FILE-2 裁定4）：响应 payload 来自文件源。
+	ResponseFileSource    *filesystem.FileSource `json:"response_file_source,omitempty"`
+	ResponseContentFormat uint16                 `json:"response_content_format,omitempty"`
+	ResponseBlocks        []ResponseBlockConfig  `json:"response_blocks,omitempty"`
+	Block1                *BlockConfig           `json:"block1,omitempty"`
+	Block2                *BlockConfig           `json:"block2,omitempty"`
 	// ResponseBlock2 carries the Block2 option on the *response* of a Block2
 	// exchange (the request reads cfg.Block2). Per-block NUM/M/SZX come from a
 	// response_blocks entry; the generator sets this per response it builds.
-	ResponseBlock2        *BlockConfig          `json:"response_block2,omitempty"`
-	Observe               *ObserveConfig        `json:"observe,omitempty"`
-	Retransmit            *CoAPRetransmitConfig `json:"retransmit,omitempty"`
-	ErrorCode             string                `json:"error_code,omitempty"`
-	ErrorPayload          []byte                `json:"error_payload,omitempty"`
-	ErrorResponses        []ErrorResponseConfig `json:"error_responses,omitempty"`
-	URIMaxLength          uint32                `json:"uri_max_length,omitempty"`
-	Tokens                []string              `json:"tokens,omitempty"`
-	MessageIDs            []uint16              `json:"message_ids,omitempty"`
-	SessionSrcIPs         []string              `json:"session_src_ips,omitempty"`
-	SessionSrcPorts       []uint16              `json:"session_src_ports,omitempty"`
+	ResponseBlock2  *BlockConfig          `json:"response_block2,omitempty"`
+	Observe         *ObserveConfig        `json:"observe,omitempty"`
+	Retransmit      *CoAPRetransmitConfig `json:"retransmit,omitempty"`
+	ErrorCode       string                `json:"error_code,omitempty"`
+	ErrorPayload    []byte                `json:"error_payload,omitempty"`
+	ErrorResponses  []ErrorResponseConfig `json:"error_responses,omitempty"`
+	URIMaxLength    uint32                `json:"uri_max_length,omitempty"`
+	Tokens          []string              `json:"tokens,omitempty"`
+	MessageIDs      []uint16              `json:"message_ids,omitempty"`
+	SessionSrcIPs   []string              `json:"session_src_ips,omitempty"`
+	SessionSrcPorts []uint16              `json:"session_src_ports,omitempty"`
 }
 
 // ResponseBlockConfig is one chunk of a Block2 (response block) sequence.

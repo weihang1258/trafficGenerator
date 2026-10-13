@@ -1312,6 +1312,40 @@
      ]
     },
     "packets": 4
+   },
+   {
+    "protocol": "coap",
+    "case_id": "coap_file_id",
+    "summary": "D-FILE-2：CoAP 请求 payload 来自上传文件（response_file_source 喂响应方向）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "udp": {
+        "dst_port": 5683
+       }
+      },
+      {
+       "coap": {
+        "method": "POST",
+        "path": [
+         "upload"
+        ],
+        "file_source": {
+         "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+        },
+        "response": true,
+        "response_code": "2.01"
+       }
+      }
+     ]
+    },
+    "packets": 0
    }
   ],
   "cql": [
@@ -10207,6 +10241,34 @@
      }
     },
     "packets": 12
+   },
+   {
+    "protocol": "openvpn",
+    "case_id": "openvpn_file_id",
+    "summary": "D-FILE-2：OpenVPN P_DATA 明文载荷来自上传文件（加密外层不校内容）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "udp": {
+        "dst_port": 1194
+       }
+      },
+      {
+       "openvpn": {
+        "file_source": {
+         "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+        }
+       }
+      }
+     ]
+    },
+    "packets": 0
    }
   ],
   "openwire": [
@@ -11265,6 +11327,41 @@
      }
     },
     "packets": 27
+   },
+   {
+    "protocol": "rdp",
+    "case_id": "rdp_data_event_file_id",
+    "summary": "D-FILE-2：RDP 虚拟通道数据来自上传文件（data_events[].file_source，优先级 FileSource \u003e payload \u003e payload_b64）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 40001,
+        "dst_port": 3389
+       }
+      },
+      {
+       "rdp": {
+        "data_events": [
+         {
+          "type": "cliprdr_format_list",
+          "channel": "cliprdr",
+          "file_source": {
+           "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+          }
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 0
    }
   ],
   "redis": [
@@ -12108,6 +12205,38 @@
      ]
     },
     "packets": 5
+   },
+   {
+    "protocol": "sctp",
+    "case_id": "sctp_chunk_file_id",
+    "summary": "D-FILE-2：SCTP DATA 块载荷来自上传文件（chunks[].file_source）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "sctp": {
+        "chunks": [
+         {
+          "tsn": 1,
+          "sid": 0,
+          "ssn": 0,
+          "ppid": 1,
+          "direction": "up",
+          "file_source": {
+           "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+          }
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 0
    }
   ],
   "shadowsocks": [
@@ -12340,6 +12469,45 @@
      ]
     },
     "packets": 14
+   },
+   {
+    "protocol": "sip",
+    "case_id": "sip_media_file_id",
+    "summary": "D-FILE-2：SIP RTP 媒体帧载荷来自上传文件——须 dialog 消息 emit_media:true + media.enabled:true（媒体流锚在对话消息上，D-SIP-2）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "udp": {
+        "dst_port": 5060
+       }
+      },
+      {
+       "sip": {
+        "dialog": [
+         {
+          "method": "INVITE",
+          "direction": "up",
+          "emit_media": true
+         }
+        ],
+        "media": {
+         "enabled": true,
+         "frames": 2,
+         "file_source": {
+          "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+         }
+        }
+       }
+      }
+     ]
+    },
+    "packets": 0
    }
   ],
   "smb": [
@@ -12744,6 +12912,40 @@
         "password": "secret",
         "dst_addr": "target.example.com",
         "dst_port": 8080
+       }
+      }
+     ]
+    },
+    "packets": 0
+   },
+   {
+    "protocol": "socks5",
+    "case_id": "socks5_data_file_id",
+    "summary": "D-FILE-2：SOCKS5 隧道数据面来自上传文件（data[].file_source，[]byte 直上二进制安全）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 40000,
+        "dst_port": 1080
+       }
+      },
+      {
+       "socks5": {
+        "data": [
+         {
+          "direction": "up",
+          "file_source": {
+           "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+          }
+         }
+        ]
        }
       }
      ]
@@ -14756,6 +14958,37 @@
      ]
     },
     "packets": 7
+   },
+   {
+    "protocol": "tftp",
+    "case_id": "tftp_file_id",
+    "summary": "D-FILE-2：TFTP 文件模式——整文件按 blksize 分块传输（块数=ceil(size/blksize)，末块=余量）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "udp": {
+        "src_port": 51000,
+        "dst_port": 69
+       }
+      },
+      {
+       "tftp": {
+        "mode": "read",
+        "filename": "firmware.bin",
+        "file_source": {
+         "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+        }
+       }
+      }
+     ]
+    },
+    "packets": 0
    }
   ],
   "thrift": [
