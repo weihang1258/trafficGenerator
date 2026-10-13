@@ -98,5 +98,7 @@ func TestChainFileSourceDanglingSilentSkip(t *testing.T) {
 	if err := g.Generate(ctx, req); err != nil {
 		t.Fatalf("悬空引用不得报错: %v", err)
 	}
-	_ = n
+	if n == 0 {
+		t.Fatal("悬空时信令事件应照常发射（仅载荷缺席）")
+	}
 }
