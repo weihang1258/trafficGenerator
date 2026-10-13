@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/trafficgen/trafficgen/internal/core"
+	"go.uber.org/zap"
+
 	"github.com/trafficgen/trafficgen/internal/core/layers"
 )
 
@@ -20,7 +22,7 @@ import (
 //
 // 与 legacy Plan（socks5.go:252-530）的差异（文档化 divergence）：
 //   - legacy 自产 TCP 握手（3 包）与挥手（3 包 FIN 序列，socks5.go:448-456
-//     + 514-522）——事件模式不产：tcp 层生成器负责（防双握手）。握手/挥手
+//   - 514-522）——事件模式不产：tcp 层生成器负责（防双握手）。握手/挥手
 //     开关由 tcp 层 schema 默认 true 执行，validator 强制校准 true（legacy
 //     恒产握手/挥手）。
 //   - seq/ack、ipID、Timestamp、MSS 分段：链上由 tcp 层生成器处理。
@@ -51,12 +53,6 @@ func (g *SOCKS5Generator) Generate(ctx context.Context, req *layers.GenRequest) 
 	if c.UDP != nil {
 		return fmt.Errorf("socks5 generator: udp relay sub-flow not supported on layer chains (UDP relay needs a second 4-tuple); use the flat socks5 protocol instead")
 	}
-	for i, msg := range c.Data {
-		if msg.FileSource != nil {
-			return fmt.Errorf("socks5 generator: data[%d] file_source not supported on layer chains (FlowMeta does not carry the payload cache); use inline payload", i)
-		}
-	}
-
 	normalize := normalizeVersion
 	version := normalize(c.Version)
 	if version == "" {
@@ -108,13 +104,32 @@ func (g *SOCKS5Generator) Generate(ctx context.Context, req *layers.GenRequest) 
 	}
 
 	// --- Data plane（隧道数据面，socks5.go:453-493 同款；Rep=0 才发）---
+	// D-FILE-2 裁定2：data[].file_source → GetOrLoad → []byte 直上（绕过
+	// Payload string，二进制安全）。曾以"FlowMeta 不承载 payload cache"双拒
+	// ——前提被 8 个链生成器实跑证伪（vmess/shadowsocks 同款 ctx 消费）。
+	// 解析失败 → zap warn 静默跳过（家族契约，与 legacy socks5.go:465 对齐）。
 	if c.Rep == 0 {
 		for _, msg := range c.Data {
 			dir := normalizeDirection(msg.Direction)
 			if dir == "" {
 				dir = "up"
 			}
-			if err := emit(dir != "down", []byte(msg.Payload)); err != nil {
+			var payload []byte
+			if msg.FileSource != nil {
+				pc := core.PayloadCacheFrom(ctx)
+				if pc == nil {
+					continue
+				}
+				b, err := pc.GetOrLoad(ctx, *msg.FileSource)
+				if err != nil {
+					zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+					continue
+				}
+				payload = b
+			} else {
+				payload = []byte(msg.Payload)
+			}
+			if err := emit(dir != "down", payload); err != nil {
 				return err
 			}
 		}
@@ -158,11 +173,7 @@ func init() {
 			if s.UDP != nil {
 				return fmt.Errorf("socks5: udp relay sub-flow not supported on layer chains (UDP relay needs a second 4-tuple); use the flat socks5 protocol instead")
 			}
-			for i, msg := range s.Data {
-				if msg.FileSource != nil {
-					return fmt.Errorf("socks5: data[%d] file_source not supported on layer chains (FlowMeta does not carry the payload cache); use inline payload", i)
-				}
-			}
+			_ = s // data[].file_source 已放行（D-FILE-2 裁定2）
 		}
 		if err := (&Planner{}).Validate(*spec); err != nil {
 			return err

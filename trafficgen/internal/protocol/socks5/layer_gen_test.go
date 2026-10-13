@@ -132,9 +132,11 @@ func TestSocks5Chain_Socks4(t *testing.T) {
 	}
 }
 
-// TestSocks5Chain_RejectsUDPRelayAndFileSource: 链路径限制显式拒绝——
-// UDP relay 需第二个 4-tuple、FileSource 需 engine 级缓存，事件模型不承载。
-func TestSocks5Chain_RejectsUDPRelayAndFileSource(t *testing.T) {
+// TestSocks5Chain_RejectsUDPRelay: 链路径限制显式拒绝——UDP relay 需第二
+// 个 4-tuple，事件模型不承载。（D-FILE-2 裁定2：FileSource 假拒已撤销——
+// "FlowMeta 不承载缓存"前提被 8 个链生成器证伪，file_source 现已放行，
+// 消费红例见 fileid_test.go。）
+func TestSocks5Chain_RejectsUDPRelay(t *testing.T) {
 	g := &SOCKS5Generator{}
 	err := g.Generate(context.Background(), &layers.GenRequest{
 		EmitMsg: func(layers.MessageEvent) error { return nil },
@@ -142,15 +144,6 @@ func TestSocks5Chain_RejectsUDPRelayAndFileSource(t *testing.T) {
 	})
 	if err == nil {
 		t.Error("UDP relay config must be rejected on layer chains")
-	}
-	err = g.Generate(context.Background(), &layers.GenRequest{
-		EmitMsg: func(layers.MessageEvent) error { return nil },
-		Meta: layers.FlowMeta{Socks: &core.SocksConfig{Data: []core.SocksDataMessage{
-			{FileSource: &filesystem.FileSource{}},
-		}}},
-	})
-	if err == nil {
-		t.Error("FileSource data must be rejected on layer chains")
 	}
 }
 
