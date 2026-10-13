@@ -7,8 +7,8 @@ import (
 
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/core/layers"
-	"github.com/trafficgen/trafficgen/pkg/filesystem"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tcp"
+	"github.com/trafficgen/trafficgen/pkg/filesystem"
 )
 
 // T-FILE-2a（D-FILE-2 裁定2）：socks5 data[].file_source 曾被生成器+validator
@@ -78,17 +78,30 @@ func TestChainDataFileSourceDanglingSilentSkip(t *testing.T) {
 			},
 		},
 	}
-	var got []byte
+	// L4 复审强化：逐事件断言——悬空消息须整条缺席（非空载荷段冒充），
+	// 内联消息照发。只看拼接字节区分不了"跳过"与"发空段"。
+	var ups [][]byte
 	req.EmitMsg = func(ev layers.MessageEvent) error {
 		if ev.Up {
-			got = append(got, ev.Bytes...)
+			ups = append(ups, ev.Bytes)
 		}
 		return nil
 	}
 	if err := g.Generate(ctx, req); err != nil {
 		t.Fatalf("悬空引用不得报错: %v", err)
 	}
-	if !strings.Contains(string(got), "INLINE-OK") || strings.Contains(string(got), "\x00\x00") {
-		t.Fatalf("内联消息应照发, 悬空消息应缺席: got=%d bytes", len(got))
+	// up 事件 = 2 信令（greeting/request）+ 数据面。悬空消息整条缺席 →
+	// 数据面恰 1 条（INLINE-OK）；若实现退化成"发空载荷段"则出现 4 条
+	// 且其中一条为空——两种实现在此口径下可区分。
+	if len(ups) != 3 {
+		t.Fatalf("up 事件数=%d, want 3（2 信令+1 数据面；悬空缺席）", len(ups))
+	}
+	if string(ups[2]) != "INLINE-OK" {
+		t.Fatalf("数据面 up=%q, want INLINE-OK", ups[2])
+	}
+	for i, b := range ups {
+		if len(b) == 0 {
+			t.Fatalf("up[%d] 为空载荷段（家族契约=整条跳过）", i)
+		}
 	}
 }

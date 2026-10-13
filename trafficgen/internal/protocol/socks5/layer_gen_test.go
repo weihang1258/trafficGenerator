@@ -41,10 +41,10 @@ func TestSocks5Chain_SignalingEventOrder(t *testing.T) {
 	}
 	wantDirs := []bool{true, false, true, false}
 	wantBytes := [][]byte{
-		{0x05, 0x01, 0x00},                                        // greeting no_auth
-		{0x05, 0x00},                                              // method response
-		{0x05, 0x01, 0x00, 0x03, 15},                              // request: ver/cmd/rsv/atyp=len-prefixed domain
-		{0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0},                // reply rep=0 bnd 0.0.0.0:0
+		{0x05, 0x01, 0x00},                         // greeting no_auth
+		{0x05, 0x00},                               // method response
+		{0x05, 0x01, 0x00, 0x03, 15},               // request: ver/cmd/rsv/atyp=len-prefixed domain
+		{0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0}, // reply rep=0 bnd 0.0.0.0:0
 	}
 	for i, ev := range events {
 		if ev.Up != wantDirs[i] {
@@ -109,7 +109,7 @@ func TestSocks5Chain_DataPlane(t *testing.T) {
 	}
 
 	events = mustPlanChain(t, core.FlowSpec{Socks: &core.SocksConfig{
-		Rep: 1,
+		Rep:  1,
 		Data: []core.SocksDataMessage{{Payload: "x"}},
 	}})
 	if len(events) != 4 {

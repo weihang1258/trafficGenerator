@@ -3561,14 +3561,18 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		// D-FILE-2 裁定3：层 file_source → spec.FileSource（tcp/udp 同款
 		// 直迁）：ChainPlanner.Plan 单点解析成 payload 字节 → Meta.Payload
 		// → 生成器 spec.Payload → plan.go 文件模式（逐块切片，末块=余量）。
-		// 零值 FileSource 不产生非 nil 空指针。
+		// 零值 FileSource 不产生非 nil 空指针。L3 复审收口：严格解码——
+		// 键 typo（file_ids）响亮报错，不静默变 nil（openvpn/rdp 同口径）。
 		if fs, ok := term.Config["file_source"]; ok && fs != nil {
 			if b, err := json.Marshal(fs); err == nil {
 				var out filesystem.FileSource
-				if json.Unmarshal(b, &out) == nil {
-					if out.File != "" || out.FileID != "" || out.Literal != "" || out.Fill != nil || out.Random != nil {
-						spec.FileSource = &out
-					}
+				decFS := json.NewDecoder(bytes.NewReader(b))
+				decFS.DisallowUnknownFields()
+				if err := decFS.Decode(&out); err != nil {
+					spec.ValidationErrors = append(spec.ValidationErrors,
+						fmt.Sprintf("tftp layer file_source decode: %v", err))
+				} else if out.File != "" || out.FileID != "" || out.Literal != "" || out.Fill != nil || out.Random != nil {
+					spec.FileSource = &out
 				}
 			}
 		}

@@ -38,6 +38,8 @@
 package socks5
 
 import (
+	"go.uber.org/zap"
+
 	"context"
 	"crypto/rand"
 	"encoding/binary"
@@ -467,7 +469,14 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					if pc == nil {
 						continue
 					}
-					payload, _ = pc.GetOrLoad(ctx, *msg.FileSource)
+					// D-FILE-2 L1 复审对齐：解析失败 warn+跳过（家族契约），
+					// 不发空载荷段（此前 payload,_ 吞错 → 空 TCP 段上线）。
+					b, err := pc.GetOrLoad(ctx, *msg.FileSource)
+					if err != nil {
+						zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+						continue
+					}
+					payload = b
 				} else {
 					payload = []byte(msg.Payload)
 				}

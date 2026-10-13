@@ -53,3 +53,26 @@ func TestChainFileSourceDataPayload(t *testing.T) {
 		t.Fatalf("P_DATA 事件 n=%d maxLen=%d, want >= %d", n, maxLen, len(content))
 	}
 }
+
+// L4 复审：悬空 file_id → 解析失败静默跳过，DataPayload 不被污染。
+func TestChainFileSourceDanglingSilentSkip(t *testing.T) {
+	fs, err := filesystem.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	pc := core.NewPayloadCache(fs)
+	ctx := core.WithPayloadCache(context.Background(), pc)
+	g, err := layers.NewLayerGenerator("openvpn")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := &core.OpenVPNConfig{FileSource: &filesystem.FileSource{FileID: strings.Repeat("ab", 32)}}
+	req := &layers.GenRequest{Meta: layers.FlowMeta{OpenVPN: cfg}}
+	req.EmitMsg = func(layers.MessageEvent) error { return nil }
+	if err := g.Generate(ctx, req); err != nil {
+		t.Fatalf("悬空引用不得报错: %v", err)
+	}
+	if len(cfg.DataPayload) != 0 {
+		t.Fatalf("悬空时 DataPayload 应保持缺席, got %d 字节", len(cfg.DataPayload))
+	}
+}

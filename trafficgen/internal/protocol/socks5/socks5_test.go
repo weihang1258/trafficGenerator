@@ -424,10 +424,10 @@ func TestSocks5Session_FrameOrder(t *testing.T) {
 		}
 	}
 	assertPayloads(t, tcps,
-		"\x05\x01\x00",                       // greeting
-		"\x05\x00",                           // method response
+		"\x05\x01\x00", // greeting
+		"\x05\x00",     // method response
 		"\x05\x01\x00\x03\x0fwww.example.com\x00\x50", // request
-		"\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00",     // reply
+		"\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00",    // reply
 	)
 	// Each signaling message occupies its own PSH-ACK (2.1.3): the 4
 	// signaling messages must not be merged with adjacent data.
@@ -554,11 +554,11 @@ func TestMSS_Segmentation(t *testing.T) {
 // TestStateMachine_Phases (3.1-3.3): signaling message counts by mode.
 func TestStateMachine_Phases(t *testing.T) {
 	cases := []struct {
-		name     string
-		version  string
-		auth     string
+		name      string
+		version   string
+		auth      string
 		signaling int
-		total    int
+		total     int
 	}{
 		{"socks5_password", "socks5", "password", 6, 12},
 		{"socks5_no_auth", "socks5", "no_auth", 4, 10},
@@ -752,10 +752,10 @@ func TestScenario_PasswordAuth(t *testing.T) {
 	spec.Socks = &core.SocksConfig{AuthMethod: "password", Username: "alice", Password: "s3cret"}
 	cfgs := mustPlan(t, NewPlanner(), spec)
 	assertPayloads(t, tcpPackets(cfgs),
-		"\x05\x01\x02",                         // greeting offers password
-		"\x05\x02",                             // method response picks password
-		"\x01\x05alice\x06s3cret",              // RFC 1929 auth request
-		"\x01\x00",                             // auth response
+		"\x05\x01\x02",            // greeting offers password
+		"\x05\x02",                // method response picks password
+		"\x01\x05alice\x06s3cret", // RFC 1929 auth request
+		"\x01\x00",                // auth response
 		"\x05\x01\x00\x03\x0fwww.example.com\x00\x50",
 		"\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00",
 	)
@@ -795,7 +795,7 @@ func TestDataPlane_OrderAndDefaults(t *testing.T) {
 	down1 := "C" + strings.Repeat("c", 20)
 	spec := socksSpec(1000)
 	spec.Socks = &core.SocksConfig{Data: []core.SocksDataMessage{
-		{Payload: up1},                      // no Direction → up (5.3)
+		{Payload: up1}, // no Direction → up (5.3)
 		{Direction: "up", Payload: up2},
 		{Direction: "down", Payload: down1},
 	}}

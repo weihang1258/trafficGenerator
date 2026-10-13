@@ -67,3 +67,36 @@ func TestChainFileSourceRequestAndResponse(t *testing.T) {
 }
 
 func boolPtr(b bool) *bool { return &b }
+
+// L4 复审：悬空 file_id → warn 静默跳过（家族契约），不报错不发包内容。
+func TestChainFileSourceDanglingSilentSkip(t *testing.T) {
+	fs, err := filesystem.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	pc := core.NewPayloadCache(fs)
+	ctx := core.WithPayloadCache(context.Background(), pc)
+	g, err := layers.NewLayerGenerator("coap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	req := &layers.GenRequest{
+		Meta: layers.FlowMeta{
+			CoAP: &core.CoAPConfig{
+				Method:       "GET",
+				Path:         []string{"f"},
+				ResponseCode: "2.05",
+				FileSource:   &filesystem.FileSource{FileID: strings.Repeat("cd", 32)},
+			},
+		},
+	}
+	req.EmitMsg = func(ev layers.MessageEvent) error {
+		n++
+		return nil
+	}
+	if err := g.Generate(ctx, req); err != nil {
+		t.Fatalf("悬空引用不得报错: %v", err)
+	}
+	_ = n
+}

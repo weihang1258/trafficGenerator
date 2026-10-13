@@ -255,6 +255,17 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	if err := p.Validate(spec); err != nil {
 		return nil, err
 	}
+	// D-FILE-2 M1 复审收口：spec.FileSource → spec.Payload（tcp.go:103 万能
+	// 兜底同款）。此前 legacy 路径 FileSource 只进块数推导、内容恒走
+	// pattern 填充=假传输；解析进 Payload 后 derive 与 buildDataPayload
+	// 文件模式共用同一真相。失败静默保留 inline（家族契约）。
+	if spec.FileSource != nil {
+		if pc := core.PayloadCacheFrom(ctx); pc != nil {
+			if b, err := pc.GetOrLoad(ctx, *spec.FileSource); err == nil {
+				spec.Payload = b
+			}
+		}
+	}
 	cfg := *spec.TFTP
 
 	// Apply defaults (§5.1) on the local copy.
@@ -331,9 +342,11 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 // so the fallback only triggers when the file is unreadable at plan time.
 // BlocksCount=0 cannot reach here (V16).
 func deriveBlocksCount(ctx context.Context, spec *core.FlowSpec, blkSize uint16) uint32 {
-	if len(spec.TFTP.DataPayloadPattern) > 0 {
-		return 1
-	}
+	// D-FILE-2 H1 复审修复（2026-10-13）：Payload/FileSource（文件源）判定
+	// 必须先于 DataPayloadPattern——此前 pattern 先判返回 1 块而内容维
+	// buildDataPayload 文件先判，块数维与内容维顺序相反 → 双填时文件静默
+	// 截断（复审探针实证 613B 只发 1 块）。对齐 registry 声明
+	// "file_source > data_payload_pattern"（两维一致）。
 	if len(spec.Payload) > 0 {
 		return ceilDiv(uint64(len(spec.Payload)), uint64(blkSize))
 	}
@@ -344,9 +357,12 @@ func deriveBlocksCount(ctx context.Context, spec *core.FlowSpec, blkSize uint16)
 			}
 		}
 	}
-	// Unresolvable file source: Validate allowed it (V16 only requires the
-	// source to be set), so degrade to a single full block rather than
-	// generating nothing.
+	if len(spec.TFTP.DataPayloadPattern) > 0 {
+		return 1
+	}
+	// Unresolvable source: Validate allowed it (V16 only requires the source
+	// to be set), so degrade to a single full block rather than generating
+	// nothing.
 	return 1
 }
 

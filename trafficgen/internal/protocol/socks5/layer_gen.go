@@ -167,13 +167,13 @@ func init() {
 	layers.RegisterLayerValidator("socks5", func(spec *core.FlowSpec) error {
 		// 链路径限制先行拒绝（生成器同款检查作双保险——链上"驱动失败 →
 		// 空流"契约会把生成器错误吞成 completed+0 包，enip/mqtt 同款纪律）：
-		// UDP relay 需第二个 4-tuple、FileSource 需 engine 级缓存。
+		// UDP relay 需第二个 4-tuple。（D-FILE-2：file_source 假拒已撤销，
+		// data[].file_source 已放行——fileid_test.go 红例。）
 		s := spec.Socks
 		if s != nil {
 			if s.UDP != nil {
 				return fmt.Errorf("socks5: udp relay sub-flow not supported on layer chains (UDP relay needs a second 4-tuple); use the flat socks5 protocol instead")
 			}
-			_ = s // data[].file_source 已放行（D-FILE-2 裁定2）
 		}
 		if err := (&Planner{}).Validate(*spec); err != nil {
 			return err
