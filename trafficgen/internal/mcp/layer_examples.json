@@ -12057,7 +12057,7 @@
    {
     "protocol": "rtmp",
     "case_id": "rtmp_data_file_id",
-    "summary": "D-FILE-2 P1：RTMP 数据 chunk 来自上传文件（data[].file_source，item 级）",
+    "summary": "D-FILE-2 P1：RTMP 数据 chunk 来自上传文件（data[].file_source，item 级；rtmp 自建 TCP 载体，链不带 tcp 层）",
     "config": {
      "layers": [
       {
@@ -12067,13 +12067,9 @@
        }
       },
       {
-       "tcp": {
-        "src_port": 40004,
-        "dst_port": 1935
-       }
-      },
-      {
        "rtmp": {
+        "command": "publish",
+        "stream_name": "stream1",
         "data": [
          {
           "direction": "up",
@@ -13286,6 +13282,8 @@
       },
       {
        "someip": {
+        "service_id": 1,
+        "method_id": 1,
         "file_source": {
          "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
         }
@@ -16092,19 +16090,13 @@
    {
     "protocol": "xmpp",
     "case_id": "xmpp_body_file_id",
-    "summary": "D-FILE-2 P1：XMPP \u003cbody\u003e 来自上传文件（messages[].file_source，item 级，文本语义）",
+    "summary": "D-FILE-2 P1：XMPP \u003cbody\u003e 来自上传文件（messages[].file_source，item 级，文本语义；xmpp 自建 TCP 载体，链不带 tcp 层）",
     "config": {
      "layers": [
       {
        "ip": {
         "src": "10.0.0.1",
         "dst": "20.0.0.1"
-       }
-      },
-      {
-       "tcp": {
-        "src_port": 40003,
-        "dst_port": 5222
        }
       },
       {

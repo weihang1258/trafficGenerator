@@ -52,6 +52,7 @@ func (g *RTMPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 	// D-FILE-2 P1：data[].file_source → chunk 载荷（[]byte 直上）。优先级
 	// FileSource > Payload > 随机填充；失败 warn 走既有随机填充缺省。
 	if cfg := spec.RTMP; cfg != nil {
+		fmt.Println("DBG-RTMP data=", len(cfg.Data), "fs0=", cfg.Data[0].FileSource != nil)
 		for i := range cfg.Data {
 			if fs := cfg.Data[i].FileSource; fs != nil {
 				if pc := core.PayloadCacheFrom(ctx); pc != nil {

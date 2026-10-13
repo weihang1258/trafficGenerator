@@ -4200,9 +4200,17 @@ func parseXmppMessages(v interface{}) []XmppMessage {
 				To:        getString(m, "to"),
 				Body:      getString(m, "body"),
 			}
-			// D-FILE-2 P1：item 级 file_source（生成器解析注入 Body）。
-			if fs := parseFileSource(m); fs != nil {
-				xm.FileSource = fs
+			// D-FILE-2 P1：item 级 file_source（嵌套对象——parseFileSource
+			// 读平铺源键，此处须先取 "file_source" 子对象再解析）。
+			if fso, ok := m["file_source"]; ok && fso != nil {
+				if b, err := json.Marshal(fso); err == nil {
+					var out filesystem.FileSource
+					if json.Unmarshal(b, &out) == nil {
+						if out.File != "" || out.FileID != "" || out.Literal != "" || out.Fill != nil || out.Random != nil {
+							xm.FileSource = &out
+						}
+					}
+				}
 			}
 			out = append(out, xm)
 		}
@@ -5411,10 +5419,17 @@ func parseRTMPConfig(m map[string]interface{}) *RTMPConfig {
 				} else if raw := getString(chunk, "payload"); raw != "" {
 					dc.Payload = []byte(raw)
 				}
-				// D-FILE-2 P1：chunk 级 file_source（生成器解析注入 Payload，
-				// 优先级 FileSource > payload/payload_b64）。
-				if fs := parseFileSource(chunk); fs != nil {
-					dc.FileSource = fs
+				// D-FILE-2 P1：chunk 级 file_source（嵌套对象，同 xmpp 修法；
+				// 生成器解析注入 Payload，优先级 FileSource > payload/payload_b64）。
+				if fso, ok := chunk["file_source"]; ok && fso != nil {
+					if b, err := json.Marshal(fso); err == nil {
+						var out filesystem.FileSource
+						if json.Unmarshal(b, &out) == nil {
+							if out.File != "" || out.FileID != "" || out.Literal != "" || out.Fill != nil || out.Random != nil {
+								dc.FileSource = &out
+							}
+						}
+					}
 				}
 				cfg.Data = append(cfg.Data, dc)
 			}

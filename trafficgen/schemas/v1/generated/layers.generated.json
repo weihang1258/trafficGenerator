@@ -1597,6 +1597,10 @@
         "encoding": {
           "type": "string"
         },
+        "file_source": {
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传→ 覆盖 request_messages（既有接线）（D-FILE-2 P1）"
+        },
         "header_table_size": {
           "type": "uint32"
         },
@@ -2043,6 +2047,10 @@
           "type": "string",
           "description": "ping 载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1：映射进 ICMPv6Config.FileSource）"
         },
+        "file_source": {
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传→ ping 载荷（D-FILE-2 P1）"
+        },
         "identifier": {
           "type": "uint16",
           "max": 65535
@@ -2076,6 +2084,10 @@
         "data": {
           "type": "string",
           "description": "ping 载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1：映射进 ICMPConfig.FileSource）"
+        },
+        "file_source": {
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传→ ping 载荷（D-FILE-2 P1）"
         },
         "identifier": {
           "type": "uint16",
@@ -5479,6 +5491,10 @@
         "events": {
           "type": "list"
         },
+        "file_source": {
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传→ payload（D-FILE-2 P1）"
+        },
         "interface_version": {
           "type": "uint8"
         },
@@ -5975,6 +5991,10 @@
         },
         "facility": {
           "type": "uint8"
+        },
+        "file_source": {
+          "type": "object",
+          "description": "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传→ Msg（UTF-8 文本语义）（D-FILE-2 P1）"
         },
         "format": {
           "type": "string"

@@ -118,6 +118,12 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		HDS:        spec.HDS,
 		MOXA:       spec.MOXA,
 		SOMEIP:     spec.SOMEIP,
+		// D-FILE-2 P1 补齐：tcp 载体链（[tcp,rtmp]/[tcp,xmpp]）此前路由进
+		// drive 分支时 Meta 不含其配置 → 静默默认形（配置被吞）。rtmp/xmpp
+		// 规范链为 [ip,rtmp]/[ip,xmpp]（自建 TCP 载体，raw-IP 分支本就携带），
+		// 此处兜底 tcp 载体形状不再吞配置。
+		RTMP: spec.RTMP,
+		Xmpp: spec.Xmpp,
 		DRDA:       spec.DRDA,
 		Thrift:     spec.Thrift,
 		OpenWire:   spec.OpenWire,
