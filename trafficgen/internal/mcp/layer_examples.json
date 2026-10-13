@@ -3497,7 +3497,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 24
    }
   ],
   "gbt": [
@@ -5132,7 +5132,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 9
    }
   ],
   "http_flv": [
@@ -8848,7 +8848,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 13
    }
   ],
   "ngap": [
@@ -10735,7 +10735,7 @@
    {
     "protocol": "pop3",
     "case_id": "pop3_retr_file_id",
-    "summary": "D-FILE-1：POP3 RETR 邮件体来自上传文件（file_source 自动补单消息）",
+    "summary": "D-FILE-1：POP3 RETR 邮件体来自上传文件（file_source 合成单消息信箱，命令须显式 RETR + emit_mail_drop）",
     "config": {
      "layers": [
       {
@@ -10746,6 +10746,13 @@
       },
       {
        "pop3": {
+        "commands": [
+         {
+          "cmd": "RETR 1",
+          "emit_mail_drop": true,
+          "msg_num": 1
+         }
+        ],
         "file_source": {
          "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
         }
@@ -10753,7 +10760,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 9
    }
   ],
   "postgresql": [
@@ -12150,7 +12157,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 8
    }
   ],
   "sip": [
@@ -12504,7 +12511,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 31
    }
   ],
   "smtp": [
@@ -12653,7 +12660,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 20
    }
   ],
   "snmp": [
@@ -14194,7 +14201,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 9
    }
   ],
   "tds": [
@@ -14573,7 +14580,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 14
    }
   ],
   "tftp": [
@@ -15039,7 +15046,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 1
    }
   ],
   "vmess": [
@@ -15101,7 +15108,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 11
    }
   ],
   "vnc": [
@@ -15501,7 +15508,7 @@
       "flows": 1
      }
     },
-    "packets": 0
+    "packets": 3
    }
   ],
   "xmpp": [

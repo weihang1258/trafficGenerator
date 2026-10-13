@@ -81,3 +81,28 @@ func TestFTPChain_TwoEmptySessions(t *testing.T) {
 		t.Fatalf("per-session packets = %d/%d, want 7/7 (independent connections)", c1, c2)
 	}
 }
+
+// 第9轮复核（客户端 2026-10-13 实测发现）：链路径 data_channel 的载荷方向
+// 必须忠于 direction —— legacy emitTCPSubFlow 以 dir 决定载荷侧（down=
+// server 发 PSH 载荷, s2c），链生成器曾把方向锚死到 mode（`_ = dc.Direction`），
+// passive RETR（direction=down）载荷走了 c2s，与 legacy 背离。红测先行。
+func TestFTPChain_DataChannelDirectionDownPayloadS2C(t *testing.T) {
+	pkts := collectChainFTP(t,
+		`[{"tcp":{"src_port":23100,"dst_port":21}},{"ftp":{"banner":"220 ready","commands":[{"cmd":"USER u","response":"331"},{"cmd":"RETR /f.bin","response":"150","emit_data_channel":true},{"cmd":"","response":"226"},{"cmd":"QUIT","response":"221"}],"data_channel":{"mode":"passive","direction":"down","payload":"RETR-BYTES"}}}]`,
+		core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 23100, DstPort: 21})
+	found := false
+	for _, p := range pkts {
+		if string(p.Payload) == "RETR-BYTES" {
+			found = true
+			// 数据通道端口=ctrl+1=23101；载荷须 server→client：
+			// 服务端口是 21 侧? 数据通道服务端口=50000（推导），客户端 23101。
+			// direction=down ⇒ 载荷包 src=服务数据端口。
+			if p.L4.SrcPort == 23101 {
+				t.Fatalf("direction=down payload flowed client→server (src=%d), want server→client", p.L4.SrcPort)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("data payload RETR-BYTES not found in %d packets", len(pkts))
+	}
+}

@@ -264,15 +264,19 @@ func (g *FTPGenerator) emitDataChannel(ctx context.Context, emit func(layers.Mes
 	if dc.AbortAfterBytes > 0 && dc.AbortAfterBytes < len(payloadBytes) {
 		payloadBytes = payloadBytes[:dc.AbortAfterBytes]
 	}
-	// dataEv 方向约定（legacy EmitSubFlow ServerInitiated 同款）：数据通道
-	// 首 SYN 的发送方决定首包方向——passive=client 首 SYN（Up=true），
-	// active=server 首 SYN（down 方向，ServerFirst=true）。载荷流向固定
-	// down（下载）/up（上传）由 drive 的 ServerFirst 分支按 legacy
-	// emitTCPSubFlow 的 dir 决定：dir=down server 发 PSH，dir=up client 发
-	// PSH。Up 只表达首包方向，ServerFirst 同时翻转首包与载荷两份方向。
-	_ = dc.Direction // 载荷流向由 ServerFirst 锚定（active=server 发）
+	// dataEv 方向约定（第9轮复核修正，2026-10-13）：载荷流向忠于
+	// dc.Direction（down=server 发 PSH 载荷, RETR；up=client 发, STOR）——
+	// 曾锚死到 mode（`_ = dc.Direction`），passive RETR 载荷走了 c2s，与
+	// legacy emitTCPSubFlow 的 dir 语义背离（红测
+	// TestFTPChain_DataChannelDirectionDownPayloadS2C 实证）。ServerFirst
+	// 仍锚 mode（active=server 首包）——载荷方向与建连方正交（legacy
+	// SubFlowSpec 契约：Direction 与 ServerInitiated 独立，subflow.go）。
+	dir := dc.Direction
+	if dir == "" {
+		dir = "down" // parseFTPDataChannel 同缺省（RETR 最常见）
+	}
 	payloadEv := layers.MessageEvent{
-		Up:          !isActive,
+		Up:          dir != "down",
 		ServerFirst: isActive,
 		Bytes:       payloadBytes,
 		SrcPort:     clientDataPort,

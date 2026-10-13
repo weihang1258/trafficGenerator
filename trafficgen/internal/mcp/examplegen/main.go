@@ -56,9 +56,17 @@ type exam = example
 // 链 + file_source.file_id 占位符），真值经 8081 实跑验证。
 func handExamples() []example {
 	fid := "<上传回执 file_id，64 位 hex>"
+	// Packets = 8081 实跑 pcap 的实测包数（2026-10-13 第9轮验证批次回填，
+	// 展示口径：事务档判定与 LLM 预期包量）。
+	pkts := map[string]int{
+		"ftp_retr_file_id": 24, "http_body_file_id": 9, "tcp_raw_file_id": 9,
+		"smtp_attachment_file_id": 20, "pop3_retr_file_id": 9, "smb_write_file_id": 31,
+		"nfs_write_file_id": 13, "wireguard_payload_file_id": 3, "shadowsocks_file_id": 8,
+		"vmess_payload_file_id": 11, "udp_raw_file_id": 1, "telnet_file_id": 14,
+	}
 	mk := func(proto, id, summary, cfg string) example {
 		return example{Protocol: proto, CaseID: id, Summary: summary,
-			Config: json.RawMessage(cfg), Packets: 0}
+			Config: json.RawMessage(cfg), Packets: pkts[id]}
 	}
 	return []example{
 		// —— D-FILE-1 首批 3 条（此前手工追加进 layer_examples.json，收编
@@ -77,8 +85,8 @@ func handExamples() []example {
 			"D-FILE-1：SMTP 附件内容来自上传文件（file_source 自动补单附件，RFC2045 base64）",
 			`{"layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"tcp": {"src_port": 12345, "dst_port": 25}}, {"smtp": {"file_source": {"file_id": "`+fid+`"}}}]}`),
 		mk("pop3", "pop3_retr_file_id",
-			"D-FILE-1：POP3 RETR 邮件体来自上传文件（file_source 自动补单消息）",
-			`{"layers": [{"ip": {}}, {"tcp": {}}, {"pop3": {"file_source": {"file_id": "`+fid+`"}}}]}`),
+			"D-FILE-1：POP3 RETR 邮件体来自上传文件（file_source 合成单消息信箱，命令须显式 RETR + emit_mail_drop）",
+			`{"layers": [{"ip": {}}, {"tcp": {}}, {"pop3": {"commands": [{"cmd": "RETR 1", "emit_mail_drop": true, "msg_num": 1}], "file_source": {"file_id": "`+fid+`"}}}]}`),
 		mk("smb", "smb_write_file_id",
 			"D-FILE-1：SMB WRITE 数据来自上传文件（file_source 自动补 write 操作）",
 			`{"layers": [{"ip": {"src": "10.0.0.100", "dst": "10.0.0.1"}}, {"tcp": {}}, {"smb": {"file_source": {"file_id": "`+fid+`"}}}]}`),
