@@ -3558,6 +3558,20 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.TFTP == nil {
 			spec.TFTP = core.ParseTFTPConfigFromMap(completedConfig(s, term.Config))
 		}
+		// D-FILE-2 裁定3：层 file_source → spec.FileSource（tcp/udp 同款
+		// 直迁）：ChainPlanner.Plan 单点解析成 payload 字节 → Meta.Payload
+		// → 生成器 spec.Payload → plan.go 文件模式（逐块切片，末块=余量）。
+		// 零值 FileSource 不产生非 nil 空指针。
+		if fs, ok := term.Config["file_source"]; ok && fs != nil {
+			if b, err := json.Marshal(fs); err == nil {
+				var out filesystem.FileSource
+				if json.Unmarshal(b, &out) == nil {
+					if out.File != "" || out.FileID != "" || out.Literal != "" || out.Fill != nil || out.Random != nil {
+						spec.FileSource = &out
+					}
+				}
+			}
+		}
 	case "doip":
 		// D-DOIP-1：层 config 经 core.ParseDoIPConfigFromMap 复用扁平
 		// 解析单一真相（oem_specific/user_data 等字节片 getByteSlice/

@@ -27,6 +27,10 @@ func (p *Planner) emit(
 		blkSize = DefaultBlkSize
 	}
 	isRead := cfg.Mode == "read"
+	// D-FILE-2 裁定3 文件模式：spec.Payload 非空（链路径=file_source 单点
+	// 解析产物）→ 块内容=逐块切片，末块=余量；DataPayloadPattern 循环语义
+	// 仅在无文件字节时兜底。家族优先级：file_source 赢 pattern。
+	fileBytes := spec.Payload
 
 	var idx uint64
 
@@ -148,7 +152,7 @@ func (p *Planner) emit(
 		}
 
 		// Build DATA payload for block i.
-		data := buildDataPayload(cfg, blkSize, i, bc)
+		data := buildDataPayload(cfg, blkSize, i, bc, fileBytes)
 		blockNum := wireBlockNum(i, cfg.WrapBlockNumber)
 		dataPkt := buildDATA(blockNum, data)
 
@@ -223,7 +227,13 @@ func (p *Planner) emit(
 	// L-1 修复：FinalBlockZero 已在条件中排除（!cfg.FinalBlockZero），此时
 	// buildDataPayload 恒产出 blkSize 字节（pattern 填充），因此 lastDataLen
 	// == blkSize 恒为真，移除冗余条件分支，直接展开。
-	if autoAppend && !cfg.FinalBlockZero && !errAtLast {
+	// D-FILE-2 文件模式：末块可能为余量（<blkSize，RFC 1350 §6 即结束信号），
+	// 不满不补 0 字节块；整除时仍按 autoAppend 补。
+	lastDataLen := uint64(blkSize)
+	if len(fileBytes) > 0 {
+		lastDataLen = uint64(len(fileBytes)) - uint64(bc-1)*uint64(blkSize)
+	}
+	if autoAppend && !cfg.FinalBlockZero && !errAtLast && lastDataLen == uint64(blkSize) {
 		// Emit DATA#(bc+1) with 0 bytes.
 		appendedBlockNum := wireBlockNum(bc+1, cfg.WrapBlockNumber)
 		zeroData := buildDATA(appendedBlockNum, nil)
@@ -372,9 +382,22 @@ func errMsgFor(cfg *core.TFTPConfig) string {
 // buildDataPayload constructs the DATA payload for block i. The pattern is
 // cycled to fill blkSize bytes. When FinalBlockZero=true and i==bc, the
 // payload is empty (0 bytes).
-func buildDataPayload(cfg *core.TFTPConfig, blkSize uint16, i, bc uint32) []byte {
+func buildDataPayload(cfg *core.TFTPConfig, blkSize uint16, i, bc uint32, fileBytes []byte) []byte {
 	if cfg.FinalBlockZero && i == bc {
 		return nil
+	}
+	// D-FILE-2 裁定3 文件模式：块 i（1 起）= fileBytes[(i-1)*blk : i*blk]，
+	// 末块=余量（不循环不填零）。
+	if len(fileBytes) > 0 {
+		start := uint64(i-1) * uint64(blkSize)
+		if start >= uint64(len(fileBytes)) {
+			return nil
+		}
+		end := start + uint64(blkSize)
+		if end > uint64(len(fileBytes)) {
+			end = uint64(len(fileBytes))
+		}
+		return fileBytes[start:end]
 	}
 	pattern := cfg.DataPayloadPattern
 	if len(pattern) == 0 {
