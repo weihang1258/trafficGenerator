@@ -938,3 +938,49 @@ func TestPcapImport_RenameFail(t *testing.T) {
 // TestPcapPacketPayload_RequireReady — covered above
 // TestPcapGetStream_RequireReady — covered by audit fix test (ListPackets is the flow packets endpoint)
 // TestPcapGetBody_RequireReady — covered above
+// PCAP-EXTRACT-POS2 (客户端审查 2026-10-13 问题1): extract 必须支持描述里
+// 承诺的 tcp_flags / payload_len ——描述advertise了这两个名字，白名单此前只有
+// flags，请求被静默丢进 unknown_fields。红→绿：修前 tcp_flags/payload_len 落
+// unknown_fields 且字段缺失。
+func TestPcapExtract_TCPFlagsAndPayloadLen(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	_, r, _ := newPcapTestServerExtended(t)
+	id, _ := importPcapForTest(t, r)
+
+	req := httptest.NewRequest("GET", fmt.Sprintf("/pcaps/%s/packets", id), nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	var pktsResp struct {
+		Data struct {
+			Items []storage.PacketModel `json:"items"`
+		} `json:"data"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &pktsResp)
+	if len(pktsResp.Data.Items) == 0 { t.Fatal("no packets") }
+	pid := pktsResp.Data.Items[0].ID
+
+	body := fmt.Sprintf(`{"packet_ids":["%s"],"fields":["tcp_flags","payload_len","flags","no_such_field"]}`, pid)
+	req = httptest.NewRequest("POST", fmt.Sprintf("/pcaps/%s/extract", id), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	_, _, data := parseResponse(t, w.Body.Bytes())
+	var out struct {
+		Items         []struct {
+			PacketID string         `json:"packet_id"`
+			Fields   map[string]any `json:"fields"`
+		} `json:"items"`
+		UnknownFields []string `json:"unknown_fields"`
+	}
+	if err := json.Unmarshal(data, &out); err != nil { t.Fatalf("unmarshal: %v", err) }
+	if len(out.Items) != 1 { t.Fatalf("items=%d", len(out.Items)) }
+	f := out.Items[0].Fields
+	if f["tcp_flags"] != "SYN" { t.Errorf("tcp_flags=%v, want SYN", f["tcp_flags"]) }
+	if f["flags"] != "SYN" { t.Errorf("flags=%v, want SYN", f["flags"]) }
+	// fixture payload = "hello" (5 bytes after TCP header)
+	if f["payload_len"] != float64(5) { t.Errorf("payload_len=%v, want 5", f["payload_len"]) }
+	if len(out.UnknownFields) != 1 || out.UnknownFields[0] != "no_such_field" {
+		t.Errorf("unknown_fields=%v, want [no_such_field]", out.UnknownFields)
+	}
+}

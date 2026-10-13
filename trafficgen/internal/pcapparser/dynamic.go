@@ -43,10 +43,13 @@ func init() {
 		"vlan_id", "priority", "vlan_tco",
 		// ipv4/ipv6
 		"src_ip", "dst_ip", "ttl", "protocol", "ip_id", "dscp", "ecn", "hop_limit", "next_header",
-		// tcp
-		"src_port", "dst_port", "seq", "ack", "window", "flags",
+		// tcp（tcp_flags 是 flags 的规范别名——工具描述/OffsetLayout 均
+		// 用 tcp_flags 这个名字，客户端审查 2026-10-13 问题1）
+		"src_port", "dst_port", "seq", "ack", "window", "flags", "tcp_flags",
 		// udp
 		"length",
+		// tcp/udp 共用：L4 头之后的负载字节数
+		"payload_len",
 		// icmp/icmpv6（含内嵌解码面）
 		"type", "code", "id", "seq",
 		"embedded_src_ip", "embedded_dst_ip", "embedded_protocol", "embedded_src_port", "embedded_dst_port",
@@ -265,6 +268,8 @@ func populateFields(pkt gopacket.Packet, rec *LayerRecord, layer gopacket.Layer,
 		rec.Fields["ack"] = v.Ack
 		rec.Fields["window"] = v.Window
 		rec.Fields["flags"] = tcpFlagsString(v)
+		rec.Fields["tcp_flags"] = tcpFlagsString(v) // flags 的规范别名（描述承诺此名）
+		rec.Fields["payload_len"] = len(v.Payload)
 		rec.Offsets["src_port"] = start + 0
 		rec.Offsets["dst_port"] = start + 2
 		rec.Offsets["seq"] = start + 4
@@ -275,6 +280,7 @@ func populateFields(pkt gopacket.Packet, rec *LayerRecord, layer gopacket.Layer,
 		rec.Fields["src_port"] = uint16(v.SrcPort)
 		rec.Fields["dst_port"] = uint16(v.DstPort)
 		rec.Fields["length"] = v.Length
+		rec.Fields["payload_len"] = len(v.Payload)
 		rec.Offsets["src_port"] = start + 0
 		rec.Offsets["dst_port"] = start + 2
 	case *layers.ICMPv4:
