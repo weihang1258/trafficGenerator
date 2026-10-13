@@ -769,6 +769,8 @@ type SOMEIPConfig struct {
 	AutoResponse     *bool           `json:"auto_response,omitempty"`
 	Direction        string          `json:"direction,omitempty"`
 	Payload          []byte          `json:"payload,omitempty"`
+	// FileSource（D-FILE-2 P1）：payload 来自文件源。优先级 FileSource > Payload。
+	FileSource       *filesystem.FileSource `json:"file_source,omitempty"`
 	SD               *SOMEIPSDConfig `json:"sd,omitempty"`
 	TP               *SOMEIPTPConfig `json:"tp,omitempty"`
 	Events           []SOMEIPEvent   `json:"events,omitempty"`
@@ -8085,6 +8087,9 @@ type SyslogConfig struct {
 	StructuredData []string `json:"structured_data,omitempty"`
 	// Msg is the message body (RFC 5424 §6.2.9), UTF-8. Empty allowed.
 	Msg string `json:"msg,omitempty"`
+	// FileSource（D-FILE-2 P1）：Msg 来自文件源（syslog 文本语义，UTF-8）。
+	// 优先级 FileSource > Msg。
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 	// MsgHasBOM prepends UTF-8 BOM (EF BB BF) before Msg per RFC 5424 §6.4.4.
 	// BOM replaces the SP separator between STRUCTURED-DATA and MSG. Ignored
 	// when Msg is empty.
@@ -8772,6 +8777,10 @@ type RTMPDataChunk struct {
 	// Payload (载荷): chunk 数据字节 (不含 RTMP chunk 头部).
 	// 空值自动生成 100 字节随机数据 (模拟音视频帧).
 	Payload []byte `json:"payload,omitempty"`
+
+	// FileSource（D-FILE-2 P1）：该 chunk 载荷来自文件源。优先级
+	// FileSource > Payload > 随机填充。
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 }
 
 // NGAPConfig holds NGAP (Next Generation Application Protocol, 5G核心网信令协议)
@@ -9354,6 +9363,9 @@ type XmppMessage struct {
 
 	// Body (消息体): content of the <body> element.
 	Body string `json:"body,omitempty"`
+	// FileSource（D-FILE-2 P1）：<body> 内容来自文件源（XML 文本语义，
+	// 建议文本文件）。优先级 FileSource > Body。
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 }
 
 // TFTPConfig configures the TFTP (RFC 1350) planner. TFTP runs over UDP:
@@ -10028,6 +10040,9 @@ type MQTTWill struct {
 type MQTTMessage struct {
 	Topic     string `json:"topic,omitempty"`     // PUBLISH topic; empty = error (除非 Topic Alias已建映射)
 	Payload   string `json:"payload,omitempty"`   // application message bytes
+	// FileSource（D-FILE-2 P1）：PUBLISH 载荷来自文件源——生成器解析注入
+	// Payload（Go string 保字节序，二进制无损）。优先级 FileSource > Payload。
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 	QoS       int    `json:"qos,omitempty"`       // 0 (default), 1, 2
 	Retain    bool   `json:"retain,omitempty"`    // PUBLISH retain flag
 	DUP       bool   `json:"dup,omitempty"`       // PUBLISH dup flag (QoS>0 only)

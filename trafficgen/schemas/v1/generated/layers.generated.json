@@ -1619,7 +1619,8 @@
           "type": "int"
         },
         "request_messages": {
-          "type": "list"
+          "type": "list",
+          "description": "请求消息列表（每项一帧）；亦可 file_source 整体覆盖（既有字段，D-FILE-2 前已接线）"
         },
         "request_messages_b64": {
           "type": "list"
@@ -2039,7 +2040,8 @@
           "max": 255
         },
         "data": {
-          "type": "string"
+          "type": "string",
+          "description": "ping 载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1：映射进 ICMPv6Config.FileSource）"
         },
         "identifier": {
           "type": "uint16",
@@ -2072,7 +2074,8 @@
           "max": 255
         },
         "data": {
-          "type": "string"
+          "type": "string",
+          "description": "ping 载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1：映射进 ICMPConfig.FileSource）"
         },
         "identifier": {
           "type": "uint16",
@@ -2407,7 +2410,7 @@
         },
         "commands": {
           "type": "list",
-          "default": []
+          "description": "命令列表；item 键 tag/cmd/responses/literal_body/literal_body_b64/mime_body/file_source——file_source=上传回执 file_id（内容 sha256 hex），APPEND literal 体来自文件（优先级 MIMEBody \u003e file_source \u003e b64 \u003e literal）"
         },
         "idle": {
           "type": "object"
@@ -3388,7 +3391,8 @@
         },
         "messages": {
           "type": "list",
-          "default": []
+          "default": [],
+          "description": "PUBLISH 消息列表；item 键 topic/payload/qos/retain/dup/packet_id/direction/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1，优先级 file_source \u003e payload）"
         },
         "password": {
           "type": "string",
@@ -4884,7 +4888,8 @@
           "type": "string"
         },
         "data": {
-          "type": "list"
+          "type": "list",
+          "description": "数据 chunk 列表；item 键 direction/msg_type/chunk_stream_id/payload(_b64)/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1，优先级 FileSource \u003e payload）"
         },
         "stream_name": {
           "type": "string"
@@ -5484,7 +5489,8 @@
           "type": "uint16"
         },
         "payload": {
-          "type": "list"
+          "type": "list",
+          "description": "消息载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1）"
         },
         "protocol_version": {
           "type": "uint8"
@@ -5980,7 +5986,8 @@
           "type": "list"
         },
         "msg": {
-          "type": "string"
+          "type": "string",
+          "description": "消息体（UTF-8）；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1，优先级 file_source \u003e msg）"
         },
         "msg_has_bom": {
           "type": "bool"
@@ -6692,7 +6699,8 @@
           "type": "string"
         },
         "messages": {
-          "type": "list"
+          "type": "list",
+          "description": "消息 stanza 列表；item 键 direction/to/body/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1，优先级 file_source \u003e body）"
         },
         "password": {
           "type": "string"

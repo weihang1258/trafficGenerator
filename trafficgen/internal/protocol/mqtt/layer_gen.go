@@ -45,6 +45,8 @@ package mqtt
 // 字节与 legacy 数据帧（flags=0x18 PSH-ACK payload）一一对应。
 
 import (
+	"go.uber.org/zap"
+
 	"context"
 	"fmt"
 
@@ -156,6 +158,17 @@ func (g *MQTTGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 	// 与 publish 相反）---
 	for _, msg := range cfg.Messages {
 		m := msg
+		// D-FILE-2 P1：file_source → PUBLISH 载荷（Go string 保字节序，
+		// 二进制无损）。优先级 FileSource > Payload；解析失败 warn + 空载荷。
+		if m.FileSource != nil {
+			if pc := core.PayloadCacheFrom(ctx); pc != nil {
+				if b, err := pc.GetOrLoad(ctx, *m.FileSource); err == nil {
+					m.Payload = string(b)
+				} else {
+					zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+				}
+			}
+		}
 		if m.PacketID == 0 && m.QoS > 0 {
 			m.PacketID = nextID()
 		}

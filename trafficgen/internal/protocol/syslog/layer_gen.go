@@ -1,6 +1,8 @@
 package syslog
 
 import (
+	"go.uber.org/zap"
+
 	"context"
 	"fmt"
 
@@ -33,6 +35,15 @@ func (g *SyslogGenerator) Generate(ctx context.Context, req *layers.GenRequest) 
 	} else {
 		copied := *cfg
 		cfg = &copied
+		// D-FILE-2 P1：file_source → Msg（syslog 文本语义 UTF-8）。优先级
+		// FileSource > Msg；失败 warn 留空。
+		if pc := core.PayloadCacheFrom(ctx); pc != nil && cfg.FileSource != nil {
+			if b, err := pc.GetOrLoad(ctx, *cfg.FileSource); err == nil {
+				cfg.Msg = string(b)
+			} else {
+				zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+			}
+		}
 	}
 
 	emit := func(ev layers.MessageEvent) error {

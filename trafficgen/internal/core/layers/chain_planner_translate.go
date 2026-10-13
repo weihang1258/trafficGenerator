@@ -1235,6 +1235,17 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.ICMPv6 == nil {
 			cfg := completedConfig(s, term.Config)
 			ic := &core.ICMPv6Config{Type: 128, Code: 0, Sequence: 1}
+			// D-FILE-2 P1：file_source 映射（icmp 同款，结构体字段已在）。
+			if fsObj, ok := cfg["file_source"]; ok && fsObj != nil {
+				if b, err := json.Marshal(fsObj); err == nil {
+					var out filesystem.FileSource
+					if json.Unmarshal(b, &out) == nil {
+						if out.File != "" || out.FileID != "" || out.Literal != "" || out.Fill != nil || out.Random != nil {
+							ic.FileSource = &out
+						}
+					}
+				}
+			}
 			if v, ok := configUint8(cfg["type"]); ok {
 				ic.Type = v
 			}
@@ -1295,6 +1306,19 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.ICMP == nil {
 			cfg := completedConfig(s, term.Config)
 			ic := &core.ICMPConfig{Type: 8, Code: 0, Sequence: 1}
+			// D-FILE-2 P1：file_source → ICMPConfig.FileSource（结构体字段
+			// legacy 时代已在，链 translate 此前裁定不映射——2026-10-13 用户
+			// 批准 P1 清单反转为映射；legacy planner 消费通路健在）。
+			if fsObj, ok := cfg["file_source"]; ok && fsObj != nil {
+				if b, err := json.Marshal(fsObj); err == nil {
+					var out filesystem.FileSource
+					if json.Unmarshal(b, &out) == nil {
+						if out.File != "" || out.FileID != "" || out.Literal != "" || out.Fill != nil || out.Random != nil {
+							ic.FileSource = &out
+						}
+					}
+				}
+			}
 			if v, ok := configUint8(cfg["type"]); ok {
 				ic.Type = v
 			}

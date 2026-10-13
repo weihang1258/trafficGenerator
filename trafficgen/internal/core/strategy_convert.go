@@ -4195,11 +4195,16 @@ func parseXmppMessages(v interface{}) []XmppMessage {
 	out := make([]XmppMessage, 0, len(arr))
 	for _, item := range arr {
 		if m, ok := item.(map[string]interface{}); ok {
-			out = append(out, XmppMessage{
+			xm := XmppMessage{
 				Direction: getString(m, "direction"),
 				To:        getString(m, "to"),
 				Body:      getString(m, "body"),
-			})
+			}
+			// D-FILE-2 P1：item 级 file_source（生成器解析注入 Body）。
+			if fs := parseFileSource(m); fs != nil {
+				xm.FileSource = fs
+			}
+			out = append(out, xm)
 		}
 	}
 	return out
@@ -5405,6 +5410,11 @@ func parseRTMPConfig(m map[string]interface{}) *RTMPConfig {
 					}
 				} else if raw := getString(chunk, "payload"); raw != "" {
 					dc.Payload = []byte(raw)
+				}
+				// D-FILE-2 P1：chunk 级 file_source（生成器解析注入 Payload，
+				// 优先级 FileSource > payload/payload_b64）。
+				if fs := parseFileSource(chunk); fs != nil {
+					dc.FileSource = fs
 				}
 				cfg.Data = append(cfg.Data, dc)
 			}

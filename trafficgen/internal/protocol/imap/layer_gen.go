@@ -1,6 +1,8 @@
 package imap
 
 import (
+	"go.uber.org/zap"
+
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -64,11 +66,23 @@ func (g *IMAPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 		return fmt.Sprintf("A%03d", autoTagCounter)
 	}
 
-	// resolveLiteral：MIMEBody > LiteralBodyB64 > LiteralBody（FileSource
-	// 链路径不可用——见类型注释）。ok=false = 无 literal 源。
+	// resolveLiteral：MIMEBody > FileSource > LiteralBodyB64 > LiteralBody
+	// （legacy planner.go:441 同序；解析失败 warn 返回空——家族契约）。
 	resolveLiteral := func(cmd core.IMAPCommand) ([]byte, bool) {
 		if cmd.MIMEBody != nil {
 			return constructMIMEBody(cmd.MIMEBody), true
+		}
+		if cmd.FileSource != nil {
+			pc := core.PayloadCacheFrom(ctx)
+			if pc == nil {
+				return nil, false
+			}
+			b, err := pc.GetOrLoad(ctx, *cmd.FileSource)
+			if err != nil {
+				zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+				return nil, true
+			}
+			return b, true
 		}
 		if cmd.LiteralBodyB64 != "" {
 			decoded, err := base64.StdEncoding.DecodeString(cmd.LiteralBodyB64)

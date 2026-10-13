@@ -251,7 +251,7 @@ func buildDefaultRegistry() {
 			"proc_id":         {Type: "string"},
 			"msg_id":          {Type: "string"},
 			"structured_data": {Type: "list"},
-			"msg":             {Type: "string"},
+			"msg":             {Type: "string", Description: "消息体（UTF-8）；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1，优先级 file_source > msg）"},
 			"msg_has_bom":     {Type: "bool"},
 			"format":          {Type: "string"},
 			"transport":       {Type: "string"},
@@ -395,23 +395,23 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "tftp", Category: CategoryTerminal,
 		DependsOn: []string{"udp"},
 		Fields: map[string]FieldSchema{
-			"mode":                       {Type: "string", Default: ""},
-			"filename":                   {Type: "string", Default: ""},
-			"transfer_mode":              {Type: "string", Default: ""},
-			"blksize":                    {Type: "uint16", Default: uint16(0), Min: 0, Max: 65464},
-			"timeout":                    {Type: "uint8", Default: uint8(0), Min: 0, Max: 255},
-			"client_tsize":               {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
-			"server_tsize":               {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
-			"server_tid":                 {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
-			"error_code":                 {Type: "uint8", Default: uint8(0), Min: 0, Max: 255},
-			"error_msg":                  {Type: "string", Default: ""},
-			"error_after_block":          {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
-			"error_side":                 {Type: "string", Default: ""},
-			"blocks_count":               {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
-			"auto_append_final_block":    {Type: "bool"},
-			"final_block_zero":           {Type: "bool", Default: false},
-			"wrap_block_number":          {Type: "bool", Default: false},
-			"data_payload_pattern":       {Type: "string", Default: ""},
+			"mode":                    {Type: "string", Default: ""},
+			"filename":                {Type: "string", Default: ""},
+			"transfer_mode":           {Type: "string", Default: ""},
+			"blksize":                 {Type: "uint16", Default: uint16(0), Min: 0, Max: 65464},
+			"timeout":                 {Type: "uint8", Default: uint8(0), Min: 0, Max: 255},
+			"client_tsize":            {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
+			"server_tsize":            {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
+			"server_tid":              {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
+			"error_code":              {Type: "uint8", Default: uint8(0), Min: 0, Max: 255},
+			"error_msg":               {Type: "string", Default: ""},
+			"error_after_block":       {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
+			"error_side":              {Type: "string", Default: ""},
+			"blocks_count":            {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
+			"auto_append_final_block": {Type: "bool"},
+			"final_block_zero":        {Type: "bool", Default: false},
+			"wrap_block_number":       {Type: "bool", Default: false},
+			"data_payload_pattern":    {Type: "string", Default: ""},
 			// D-FILE-2：file_source → 文件模式（块数=ceil(size/blksize)，
 			// 逐块切片原文，末块=余量）；优先级 file_source > data_payload_pattern。
 			"file_source":                {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（tftp 文件模式：整文件按 blksize 分块传输）"},
@@ -675,7 +675,7 @@ func buildDefaultRegistry() {
 			"connect_ack_code":            {Type: "int", Default: 0, Min: 0, Max: 0},
 			"connect_ack_session_present": {Type: "bool", Default: false},
 			"subscriptions":               {Type: "list", Default: []interface{}{}},
-			"messages":                    {Type: "list", Default: []interface{}{}},
+			"messages":                    {Type: "list", Default: []interface{}{}, Description: "PUBLISH 消息列表；item 键 topic/payload/qos/retain/dup/packet_id/direction/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1，优先级 file_source > payload）"},
 			"ping_after_messages":         {Type: "bool", Default: false},
 			"disconnect":                  {Type: "bool", Default: true},
 			"disconnect_reason":           {Type: "int"}, // nil = 不发（缺省不进 config map；Default 0 会被解码成非 nil *int，误触 5.0-only 校验）
@@ -698,10 +698,10 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "coap", Category: CategoryTerminal,
 		DependsOn: []string{"udp"},
 		Fields: map[string]FieldSchema{
-			"method":                  {Type: "string", Default: ""},
-			"path":                    {Type: "list", Default: []interface{}{}},
-			"query":                   {Type: "list", Default: []interface{}{}},
-			"payload":                 {Type: "list", Default: []interface{}{}},
+			"method":  {Type: "string", Default: ""},
+			"path":    {Type: "list", Default: []interface{}{}},
+			"query":   {Type: "list", Default: []interface{}{}},
+			"payload": {Type: "list", Default: []interface{}{}},
 			// D-FILE-2 裁定4：请求/响应文件源显式分列（防双填歧义）。
 			"file_source":             {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（→ 请求 payload）"},
 			"response_file_source":    {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（→ 响应 response_payload）"},
@@ -836,22 +836,22 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"udp"},
 		FieldContract: map[string]string{"udp.dst_port": "1194"}, // OpenVPN 默认 1194；用户显式非标准端口优先，不强制
 		Fields: map[string]FieldSchema{
-			"proto":                  {Type: "string"},
-			"version":                {Type: "string"},
-			"key_id":                 {Type: "uint8"},
-			"session_id":             {Type: "uint64"},
-			"tls_auth":               {Type: "bool"},
-			"tls_crypt":              {Type: "bool"},
-			"tls_crypt_v2":           {Type: "bool"},
-			"data_cipher":            {Type: "string"},
-			"ncp_disable":            {Type: "bool"},
-			"tls_version":            {Type: "string"},
-			"tls_role":               {Type: "string"},
-			"sni":                    {Type: "string"},
-			"mssfix":                 {Type: "uint16"},
-			"tls_auth_hmac":          {Type: "list"},
-			"tls_crypt_wrapped_key":  {Type: "list"},
-			"data_payload":           {Type: "list"},
+			"proto":                 {Type: "string"},
+			"version":               {Type: "string"},
+			"key_id":                {Type: "uint8"},
+			"session_id":            {Type: "uint64"},
+			"tls_auth":              {Type: "bool"},
+			"tls_crypt":             {Type: "bool"},
+			"tls_crypt_v2":          {Type: "bool"},
+			"data_cipher":           {Type: "string"},
+			"ncp_disable":           {Type: "bool"},
+			"tls_version":           {Type: "string"},
+			"tls_role":              {Type: "string"},
+			"sni":                   {Type: "string"},
+			"mssfix":                {Type: "uint16"},
+			"tls_auth_hmac":         {Type: "list"},
+			"tls_crypt_wrapped_key": {Type: "list"},
+			"data_payload":          {Type: "list"},
 			// D-FILE-2 裁定5：file_source → P_DATA 明文载荷（FileSource >
 			// data_payload > 默认填充；加密外层不校内容）。
 			"file_source":            {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量（→ P_DATA 明文载荷）"},
@@ -1244,7 +1244,7 @@ func buildDefaultRegistry() {
 			"return_code":       {Type: "uint8"},
 			"auto_response":     {Type: "bool"},
 			"direction":         {Type: "string"},
-			"payload":           {Type: "list"},
+			"payload":           {Type: "list", Description: "消息载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1）"},
 			"sd":                {Type: "object"},
 			"tp":                {Type: "object"},
 			"events":            {Type: "list"},
@@ -1802,14 +1802,14 @@ func buildDefaultRegistry() {
 			"code":       {Type: "uint8", Min: 0, Max: 255},
 			"identifier": {Type: "uint16", Min: 0, Max: 65535},
 			"sequence":   {Type: "uint16", Min: 0, Max: 65535},
-			"data":       {Type: "string"},
+			"data":       {Type: "string", Description: "ping 载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1：映射进 ICMPConfig.FileSource）"},
 			"pattern":    {Type: "list"},
 		},
 	})
 	// D-ICMP-1：icmp 层 6 业务键（raw-IP 终结层，[ip,icmp] 链，RFC 792——
 	// icmpv6 对称）。无 Default（缺省 translate 镜像 flat parse：type 8/
 	// code 0/seq 1/data "ping"，决策 D1）；FieldContract ip.protocol=1
-	//（IPPROTO_ICMP）。file_source 不映射（③ C 类）。
+	//（IPPROTO_ICMP）。file_source 已映射（D-FILE-2 P1 反转 ③ C 裁定）。
 	r.Register(LayerSchema{Name: "icmp", Category: CategoryTerminal, DependsOn: []string{"ip"},
 		FieldContract: map[string]string{"ip.protocol": "1"},
 		Fields: map[string]FieldSchema{
@@ -1817,7 +1817,7 @@ func buildDefaultRegistry() {
 			"code":       {Type: "uint8", Min: 0, Max: 255},
 			"identifier": {Type: "uint16", Min: 0, Max: 65535},
 			"sequence":   {Type: "uint16", Min: 0, Max: 65535},
-			"data":       {Type: "string"},
+			"data":       {Type: "string", Description: "ping 载荷字节；亦可 file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1：映射进 ICMPv6Config.FileSource）"},
 			"pattern":    {Type: "list"},
 		},
 	})
@@ -1976,7 +1976,7 @@ func buildDefaultRegistry() {
 			"minorversion":           {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
 			// D-FILE-1：file_source → WRITE 数据（v3 Proc=7 / v4 OP_WRITE=38；
 			// 无 write op 追加默认一条）。
-			"file_source":            {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
+			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
 		}})
 	// ---- P4a：smb（tcp 终结层。MS-SMB2——会话状态机展开为逐 PDU 事件
 	// （NEGOTIATE → SESSION_SETUP → TREE_CONNECT → CREATE → Operations →
@@ -1990,28 +1990,28 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "smb", Category: CategoryTerminal,
 		DependsOn: []string{"tcp"},
 		Fields: map[string]FieldSchema{
-			"transport":                         {Type: "string", Default: ""},
-			"dialects":                          {Type: "list", Default: []interface{}{}},
-			"selected_dialect":                  {Type: "string", Default: ""},
-			"client_capabilities":               {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
-			"server_capabilities":               {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
-			"security_mode":                     {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
-			"signing_required":                  {Type: "bool", Default: false},
-			"auth_mechanism":                    {Type: "string", Default: ""},
-			"username":                          {Type: "string", Default: ""},
-			"domain":                            {Type: "string", Default: ""},
-			"password":                          {Type: "string", Default: ""},
-			"security_blob":                     {Type: "list", Default: []interface{}{}},
-			"auth_rounds":                       {Type: "int", Default: 0, Min: 0, Max: 0},
-			"tree_connect_share":                {Type: "string", Default: ""},
-			"share_type":                        {Type: "uint8", Default: uint8(0), Min: 0, Max: 255},
-			"file_path":                         {Type: "string", Default: ""},
-			"create_disposition":                {Type: "uint8", Default: uint8(0), Min: 0, Max: 255},
-			"access_mask":                       {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
-			"file_attributes":                   {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
-			"share_access":                      {Type: "uint8", Default: uint8(0), Min: 0, Max: 255},
-			"create_options":                    {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
-			"operations":                        {Type: "list", Default: []interface{}{}},
+			"transport":           {Type: "string", Default: ""},
+			"dialects":            {Type: "list", Default: []interface{}{}},
+			"selected_dialect":    {Type: "string", Default: ""},
+			"client_capabilities": {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
+			"server_capabilities": {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
+			"security_mode":       {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
+			"signing_required":    {Type: "bool", Default: false},
+			"auth_mechanism":      {Type: "string", Default: ""},
+			"username":            {Type: "string", Default: ""},
+			"domain":              {Type: "string", Default: ""},
+			"password":            {Type: "string", Default: ""},
+			"security_blob":       {Type: "list", Default: []interface{}{}},
+			"auth_rounds":         {Type: "int", Default: 0, Min: 0, Max: 0},
+			"tree_connect_share":  {Type: "string", Default: ""},
+			"share_type":          {Type: "uint8", Default: uint8(0), Min: 0, Max: 255},
+			"file_path":           {Type: "string", Default: ""},
+			"create_disposition":  {Type: "uint8", Default: uint8(0), Min: 0, Max: 255},
+			"access_mask":         {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
+			"file_attributes":     {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
+			"share_access":        {Type: "uint8", Default: uint8(0), Min: 0, Max: 255},
+			"create_options":      {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
+			"operations":          {Type: "list", Default: []interface{}{}},
 			// D-FILE-1：file_source → WRITE 操作数据（无 write op 追加默认一条；
 			// 会话建立/TREE_CONNECT 由既有状态机承担）。
 			"file_source":                       {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量"},
@@ -2134,7 +2134,7 @@ func buildDefaultRegistry() {
 			// mime_body 是嵌套对象/数组，V9 只验顶层键存在，值语义归翻译
 			// 分支 JSON 往返解码 + validator）。
 			"banner":             {Type: "string", Default: ""},
-			"commands":           {Type: "list", Default: []interface{}{}},
+			"commands":           {Type: "list", Description: "命令列表；item 键 tag/cmd/responses/literal_body/literal_body_b64/mime_body/file_source——file_source=上传回执 file_id（内容 sha256 hex），APPEND literal 体来自文件（优先级 MIMEBody > file_source > b64 > literal）"},
 			"idle":               {Type: "object"},
 			"pipelined_commands": {Type: "bool", Default: false},
 			"allow_utf8_mailbox": {Type: "bool", Default: false},
@@ -2167,7 +2167,7 @@ func buildDefaultRegistry() {
 			"authority":              {Type: "string"},
 			"scheme":                 {Type: "string"},
 			"call_type":              {Type: "string"},
-			"request_messages":       {Type: "list"},
+			"request_messages":       {Type: "list", Description: "请求消息列表（每项一帧）；亦可 file_source 整体覆盖（既有字段，D-FILE-2 前已接线）"},
 			"request_messages_b64":   {Type: "list"},
 			"response_messages":      {Type: "list"},
 			"response_messages_b64":  {Type: "list"},
@@ -2257,8 +2257,8 @@ func buildDefaultRegistry() {
 			"scenario":                        {Type: "string"},
 			// D-FILE-2 裁定6：逐事件 item 支持 file_source（优先级
 			// FileSource > payload > payload_b64）。
-			"data_events":                     {Type: "list", Description: "Active 相位事件列表；item 键 type/channel/direction/payload/payload_b64/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传"},
-			"server_responses":                {Type: "list"},
+			"data_events":      {Type: "list", Description: "Active 相位事件列表；item 键 type/channel/direction/payload/payload_b64/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传"},
+			"server_responses": {Type: "list"},
 		},
 	})
 	r.Register(LayerSchema{Name: "vmess", Category: CategoryTerminal,
@@ -2323,8 +2323,8 @@ func buildDefaultRegistry() {
 			"bnd_port":    {Type: "int"},
 			"user_id":     {Type: "string", Default: ""},
 			// D-FILE-2 裁定2：item 支持 file_source（曾以假前提拒绝，已撤销）。
-			"data":        {Type: "list", Default: []interface{}{}, Description: "隧道数据消息列表；item 键 direction/payload/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传"},
-			"udp":         {Type: "object"},
+			"data": {Type: "list", Default: []interface{}{}, Description: "隧道数据消息列表；item 键 direction/payload/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传"},
+			"udp":  {Type: "object"},
 		},
 	})
 
@@ -2591,7 +2591,7 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "sip", Category: CategoryTerminal, DependsOn: []string{"ip"},
 		OptionalOn: []string{"tls"}, // D-SIP-2 WP-D：SIPS——显式写 tls 层启用（事件面）
 		Fields: map[string]FieldSchema{
-			"dialog":     {Type: "list"},
+			"dialog": {Type: "list"},
 			// D-SIP-2+D-FILE-2：RTP 媒体流；item 内 file_source=RTP 帧载荷
 			// 文件源（须 dialog[] 消息带 emit_media:true 且 media.enabled:true
 			// 才发射——媒体流锚在对话消息上）。
@@ -2656,7 +2656,7 @@ func buildDefaultRegistry() {
 			"tc_url":      {Type: "string"},
 			"command":     {Type: "string"},
 			"stream_name": {Type: "string"},
-			"data":        {Type: "list"}, // 项：direction/msg_type/chunk_stream_id/payload(_b64)
+			"data":        {Type: "list", Description: "数据 chunk 列表；item 键 direction/msg_type/chunk_stream_id/payload(_b64)/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1，优先级 FileSource > payload）"},
 		},
 	})
 	// rtsp（tcp 终结层。RFC 2326——文本 dialog（OPTIONS/DESCRIBE/SETUP/
@@ -2792,7 +2792,7 @@ func buildDefaultRegistry() {
 			"username":       {Type: "string"},
 			"password":       {Type: "string"},
 			"presence":       {Type: "bool"},
-			"messages":       {Type: "list"}, // 记录：direction/to/body
+			"messages":       {Type: "list", Description: "消息 stanza 列表；item 键 direction/to/body/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传（D-FILE-2 P1，优先级 file_source > body）"},
 		},
 	})
 	// sctp（tcp 终结层。RFC 4960——SCTP 自成 L4（IP proto 132）：公共头

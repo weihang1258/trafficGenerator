@@ -1,6 +1,8 @@
 package someip
 
 import (
+	"go.uber.org/zap"
+
 	"context"
 	"fmt"
 
@@ -10,7 +12,7 @@ import (
 
 type SOMEIPGenerator struct{}
 
-func (g *SOMEIPGenerator) Name() string { return "someip" }
+func (g *SOMEIPGenerator) Name() string                     { return "someip" }
 func (g *SOMEIPGenerator) GenEvents() layers.EventGenerator { return g }
 func (g *SOMEIPGenerator) EmitEvent(layers.MessageEvent) error {
 	return fmt.Errorf("someip generator: EmitEvent is not wired")
@@ -130,6 +132,15 @@ func (g *SOMEIPGenerator) Generate(ctx context.Context, req *layers.GenRequest) 
 	}
 
 	// 单条消息（无 events）：REQUEST 默认 autoResponse 双向
+	// D-FILE-2 P1：file_source → payload（[]byte 直上）。优先级
+	// FileSource > Payload；失败 warn 留空。
+	if pc := core.PayloadCacheFrom(ctx); pc != nil && cfg.FileSource != nil {
+		if b, err := pc.GetOrLoad(ctx, *cfg.FileSource); err == nil {
+			cfg.Payload = b
+		} else {
+			zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+		}
+	}
 	payload := cfg.Payload
 	up := cfg.Direction != "down"
 

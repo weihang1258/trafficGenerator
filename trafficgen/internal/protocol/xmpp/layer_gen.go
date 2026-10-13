@@ -12,6 +12,8 @@
 package xmpp
 
 import (
+	"go.uber.org/zap"
+
 	"context"
 	"fmt"
 
@@ -34,6 +36,19 @@ func (g *XMPPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 	if cfg == nil {
 		// 空层 config 已由翻译分支保底非 nil，此分支仅防引擎直调绕过翻译。
 		cfg = &core.XmppConfig{}
+	}
+	// D-FILE-2 P1：messages[].file_source → Body（XML 文本语义，建议文本
+	// 文件；Go string 保字节序）。优先级 FileSource > Body；失败 warn 留空。
+	for i := range cfg.Messages {
+		if fs := cfg.Messages[i].FileSource; fs != nil {
+			if pc := core.PayloadCacheFrom(ctx); pc != nil {
+				if b, err := pc.GetOrLoad(ctx, *fs); err == nil {
+					cfg.Messages[i].Body = string(b)
+				} else {
+					zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+				}
+			}
+		}
 	}
 	spec := core.FlowSpec{
 		Xmpp:      cfg,

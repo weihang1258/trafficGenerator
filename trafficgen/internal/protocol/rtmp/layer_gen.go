@@ -12,6 +12,8 @@
 package rtmp
 
 import (
+	"go.uber.org/zap"
+
 	"context"
 	"fmt"
 
@@ -46,6 +48,21 @@ func (g *RTMPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 		TTL:       req.Meta.TTL,
 		Payload:   req.Meta.Payload,
 		FlowIndex: req.Meta.FlowIndex,
+	}
+	// D-FILE-2 P1：data[].file_source → chunk 载荷（[]byte 直上）。优先级
+	// FileSource > Payload > 随机填充；失败 warn 走既有随机填充缺省。
+	if cfg := spec.RTMP; cfg != nil {
+		for i := range cfg.Data {
+			if fs := cfg.Data[i].FileSource; fs != nil {
+				if pc := core.PayloadCacheFrom(ctx); pc != nil {
+					if b, err := pc.GetOrLoad(ctx, *fs); err == nil {
+						cfg.Data[i].Payload = b
+					} else {
+						zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
+					}
+				}
+			}
+		}
 	}
 	ch, err := NewPlanner().Plan(ctx, spec)
 	if err != nil {

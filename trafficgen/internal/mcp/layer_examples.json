@@ -4341,6 +4341,38 @@
      ]
     },
     "packets": 13
+   },
+   {
+    "protocol": "grpc",
+    "case_id": "grpc_request_file_id",
+    "summary": "D-FILE-2 P1：gRPC 请求消息来自上传文件（file_source 覆盖 request_messages，既有接线）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 40006,
+        "dst_port": 50051
+       }
+      },
+      {
+       "grpc": {
+        "service": "pkg.Svc",
+        "method": "Put",
+        "call_type": "unary",
+        "file_source": {
+         "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+        }
+       }
+      }
+     ]
+    },
+    "packets": 0
    }
   ],
   "gtp": [
@@ -5308,6 +5340,29 @@
      ]
     },
     "packets": 4
+   },
+   {
+    "protocol": "icmp",
+    "case_id": "icmp_data_file_id",
+    "summary": "D-FILE-2 P1：ICMP echo 载荷来自上传文件（file_source，config 级）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "icmp": {
+        "file_source": {
+         "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+        }
+       }
+      }
+     ]
+    },
+    "packets": 0
    }
   ],
   "icmpv6": [
@@ -5383,6 +5438,29 @@
      ]
     },
     "packets": 3
+   },
+   {
+    "protocol": "icmpv6",
+    "case_id": "icmpv6_data_file_id",
+    "summary": "D-FILE-2 P1：ICMPv6 echo 载荷来自上传文件（file_source，config 级，icmp 对称）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "2001:db8::1",
+        "dst": "2001:db8::2"
+       }
+      },
+      {
+       "icmpv6": {
+        "file_source": {
+         "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+        }
+       }
+      }
+     ]
+    },
+    "packets": 0
    }
   ],
   "iec104": [
@@ -5844,6 +5922,41 @@
            "* BYE Logging out",
            "A003 OK LOGOUT completed"
           ]
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 0
+   },
+   {
+    "protocol": "imap",
+    "case_id": "imap_append_file_id",
+    "summary": "D-FILE-2 P1：IMAP APPEND literal 体来自上传文件（commands[].file_source，item 级）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 40005,
+        "dst_port": 143
+       }
+      },
+      {
+       "imap": {
+        "banner": "* OK ready\r\n",
+        "commands": [
+         {
+          "cmd": "APPEND INGRID (\\Seen) {100}",
+          "file_source": {
+           "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+          }
          }
         ]
        }
@@ -8665,6 +8778,40 @@
      ]
     },
     "packets": 9
+   },
+   {
+    "protocol": "mqtt",
+    "case_id": "mqtt_publish_file_id",
+    "summary": "D-FILE-2 P1：MQTT PUBLISH 载荷来自上传文件（messages[].file_source，item 级）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 40002,
+        "dst_port": 1883
+       }
+      },
+      {
+       "mqtt": {
+        "messages": [
+         {
+          "topic": "sensor/data",
+          "file_source": {
+           "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+          }
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 0
    }
   ],
   "mysql": [
@@ -11906,6 +12053,40 @@
      ]
     },
     "packets": 0
+   },
+   {
+    "protocol": "rtmp",
+    "case_id": "rtmp_data_file_id",
+    "summary": "D-FILE-2 P1：RTMP 数据 chunk 来自上传文件（data[].file_source，item 级）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 40004,
+        "dst_port": 1935
+       }
+      },
+      {
+       "rtmp": {
+        "data": [
+         {
+          "direction": "up",
+          "file_source": {
+           "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+          }
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 0
    }
   ],
   "rtsp": [
@@ -13085,6 +13266,34 @@
      ]
     },
     "packets": 2
+   },
+   {
+    "protocol": "someip",
+    "case_id": "someip_payload_file_id",
+    "summary": "D-FILE-2 P1：SOME/IP payload 来自上传文件（file_source，config 级）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "udp": {
+        "dst_port": 30490
+       }
+      },
+      {
+       "someip": {
+        "file_source": {
+         "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+        }
+       }
+      }
+     ]
+    },
+    "packets": 0
    }
   ],
   "spnego": [
@@ -14259,6 +14468,34 @@
      ]
     },
     "packets": 1
+   },
+   {
+    "protocol": "syslog",
+    "case_id": "syslog_msg_file_id",
+    "summary": "D-FILE-2 P1：syslog 消息体来自上传文件（file_source，config 级，UTF-8）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "udp": {
+        "dst_port": 514
+       }
+      },
+      {
+       "syslog": {
+        "file_source": {
+         "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+        }
+       }
+      }
+     ]
+    },
+    "packets": 0
    }
   ],
   "tcp": [
@@ -15851,6 +16088,40 @@
      ]
     },
     "packets": 18
+   },
+   {
+    "protocol": "xmpp",
+    "case_id": "xmpp_body_file_id",
+    "summary": "D-FILE-2 P1：XMPP \u003cbody\u003e 来自上传文件（messages[].file_source，item 级，文本语义）",
+    "config": {
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 40003,
+        "dst_port": 5222
+       }
+      },
+      {
+       "xmpp": {
+        "messages": [
+         {
+          "direction": "up",
+          "file_source": {
+           "file_id": "\u003c上传回执 file_id，64 位 hex\u003e"
+          }
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "packets": 0
    }
   ],
   "xmrmining": [
