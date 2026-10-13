@@ -104,26 +104,26 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// D-SIP-2 WP-D：sip 事件面同款（dialog→MessageEvents 生成器读
 		// Meta.SIP）。此前 sip 走 isRawIPChain 自驱分支（flowMetaFor 有
 		// SIP 字段）——事件面分支在本 drive 内联 meta 清单补齐。
-		SIP:        spec.SIP,
-		S7:         spec.S7,
-		IEC104:     spec.IEC104,
-		GOOSE:      spec.GOOSE,
-		SV:         spec.SV,
-		OPCUA:      spec.OPCUA,
-		MMS:        spec.MMS,
-		BGP:        spec.BGP,
-		STUN:       spec.STUN,
-		HTTPFLV:    spec.HTTPFLV,
-		HLS:        spec.HLS,
-		HDS:        spec.HDS,
-		MOXA:       spec.MOXA,
-		SOMEIP:     spec.SOMEIP,
+		SIP:     spec.SIP,
+		S7:      spec.S7,
+		IEC104:  spec.IEC104,
+		GOOSE:   spec.GOOSE,
+		SV:      spec.SV,
+		OPCUA:   spec.OPCUA,
+		MMS:     spec.MMS,
+		BGP:     spec.BGP,
+		STUN:    spec.STUN,
+		HTTPFLV: spec.HTTPFLV,
+		HLS:     spec.HLS,
+		HDS:     spec.HDS,
+		MOXA:    spec.MOXA,
+		SOMEIP:  spec.SOMEIP,
 		// D-FILE-2 P1 补齐：tcp 载体链（[tcp,rtmp]/[tcp,xmpp]）此前路由进
 		// drive 分支时 Meta 不含其配置 → 静默默认形（配置被吞）。rtmp/xmpp
 		// 规范链为 [ip,rtmp]/[ip,xmpp]（自建 TCP 载体，raw-IP 分支本就携带），
 		// 此处兜底 tcp 载体形状不再吞配置。
-		RTMP: spec.RTMP,
-		Xmpp: spec.Xmpp,
+		RTMP:       spec.RTMP,
+		Xmpp:       spec.Xmpp,
 		DRDA:       spec.DRDA,
 		Thrift:     spec.Thrift,
 		OpenWire:   spec.OpenWire,
@@ -1013,7 +1013,7 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 						if u, ok := configUint64(item["bit_length"]); ok {
 							bitLen = int(u)
 						}
-							gd := core.GOOSEData{Name: name, Type: typ, Value: item["value"], BitLength: bitLen}
+						gd := core.GOOSEData{Name: name, Type: typ, Value: item["value"], BitLength: bitLen}
 						// D-FILE-2 P2：item file_source（嵌套对象；生成器解析为
 						// octet_string 原文字节，优先级 FileSource > Value）。
 						if fso, ok := item["file_source"]; ok && fso != nil {

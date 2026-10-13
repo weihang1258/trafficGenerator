@@ -25,10 +25,9 @@ import (
 //     tcp 层生成器负责；validator 强制 spec.TCP.Handshake/Termination=true
 //     （legacy 恒产握手/挥手）。
 //   - seq/ack、ipID、Timestamp、MSS 分段：链上由 tcp 层生成器处理。
-//   - FileSource literal 在链路径不可用：resolveLiteral 的 FileSource 分支
-//     依赖 ctx 携带的 PayloadCache（engine 级缓存），FlowMeta 不承载——
-//     与 tftp layer_gen 对 FileSource 的降级同款。LiteralBody/LiteralBodyB64/
-//     MIMEBody 路径完整可用。
+//   - FileSource literal 链路径可用（D-FILE-2 P1）：resolveLiteral 的
+//     FileSource 分支恢复——优先级 MIMEBody > FileSource > LiteralBodyB64 >
+//     LiteralBody（legacy planner.go:441 同序）。
 type IMAPGenerator struct{}
 
 // Name returns "imap".
