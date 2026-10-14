@@ -352,6 +352,24 @@ func (b *Builder) Build(config PacketConfig) ([]byte, error) {
 		}
 	}
 
+	// D-UDP-MTU：16 位长度域守卫。此前 UDP 头 / IPv4 总长 / IPv6 载荷长
+	// 三处 uint16 转换对超限载荷静默回绕（实测 70042B 帧 ip.len 回绕 4492，
+	// 头部与帧长不符的畸形包），改为在装配前显式报错（任务失败报失败）。
+	// PPPoE 面已有同族守卫（上方 pl > MaxUint16）。LLC/非 IP EtherType
+	//（arp/goose 等）无 16 位 IP 长度域，不入此守卫。
+	if effectiveEtherType == EtherTypeIPv4 || effectiveEtherType == EtherTypeIPv6 {
+		ipPayloadLen := l4Len + len(payloadBytes) + greLen + hbhoLen + srhLen
+		if config.L4.Protocol == "udp" && 8+len(payloadBytes) > math.MaxUint16 {
+			return nil, fmt.Errorf("udp packet length %d exceeds the 16-bit UDP length field (65535)", 8+len(payloadBytes))
+		}
+		if effectiveEtherType == EtherTypeIPv4 && 20+ipPayloadLen > math.MaxUint16 {
+			return nil, fmt.Errorf("IPv4 total length %d exceeds the 16-bit Total Length field (65535)", 20+ipPayloadLen)
+		}
+		if effectiveEtherType == EtherTypeIPv6 && ipPayloadLen > math.MaxUint16 {
+			return nil, fmt.Errorf("IPv6 payload length %d exceeds the 16-bit Payload Length field (65535)", ipPayloadLen)
+		}
+	}
+
 	packet := make([]byte, total)
 	l2End := l2Len
 	l3End := l2End + l3Len
@@ -604,6 +622,10 @@ func validateHopByHopConfig(options []IPv6Option, etherType uint16, pppoeInner b
 // Type + Len + Value), padded with Pad1/PadN so the total is a multiple of
 // 8 — HdrExtLen counts 8-octet units after the first 8, so an integral
 // header keeps it exact.
+// HopByHopHeaderLen is the exported form of hopByHopHeaderLen (D-UDP-MTU：
+// udp 层拆包预算需按扩展头实际序列化长度入账，与 builder 同源单一算式)。
+func HopByHopHeaderLen(options []IPv6Option) int { return hopByHopHeaderLen(options) }
+
 func hopByHopHeaderLen(options []IPv6Option) int {
 	n := 2
 	for _, o := range options {
