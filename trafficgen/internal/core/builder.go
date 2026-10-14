@@ -357,7 +357,9 @@ func (b *Builder) Build(config PacketConfig) ([]byte, error) {
 	// 头部与帧长不符的畸形包），改为在装配前显式报错（任务失败报失败）。
 	// PPPoE 面已有同族守卫（上方 pl > MaxUint16）。LLC/非 IP EtherType
 	//（arp/goose 等）无 16 位 IP 长度域，不入此守卫。
-	if effectiveEtherType == EtherTypeIPv4 || effectiveEtherType == EtherTypeIPv6 {
+	if (effectiveEtherType == EtherTypeIPv4 || effectiveEtherType == EtherTypeIPv6) && l3Len > 0 {
+		// l3Len==0（如 PPPoE Discovery 头less 帧）不写任何 IP 头，无 16 位
+		// IP 长度域可绕，不入守卫（复审 L-2）。
 		ipPayloadLen := l4Len + len(payloadBytes) + greLen + hbhoLen + srhLen
 		if config.L4.Protocol == "udp" && 8+len(payloadBytes) > math.MaxUint16 {
 			return nil, fmt.Errorf("udp packet length %d exceeds the 16-bit UDP length field (65535)", 8+len(payloadBytes))

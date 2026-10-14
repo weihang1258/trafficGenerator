@@ -7,7 +7,6 @@ package layers
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -137,6 +136,40 @@ func TestUDPMTU_ResponseSplitsSwapped(t *testing.T) {
 	}
 }
 
+// T-UDP-MTU-5 补格：v6×response（9.24 族对称）与显式 mtu=9000×response。
+func TestUDPMTU_ResponseMatrixFill(t *testing.T) {
+	orig := bytes.Repeat([]byte{0x45}, 3000)
+	// v6 载体 response：6 包（3 up + 3 down，chunk=1452），down 换向拼接==原文。
+	var out []core.PacketConfig
+	req := mtuReq(map[string]interface{}{"src_port": uint16(5000), "dst_port": uint16(9001)}, "2001:db8::1", orig, nil)
+	req.Emit = emitCollector(&out)
+	req.Meta.UDP = &core.UDPConfig{IsResponse: true}
+	if err := (&UDPGenerator{}).Generate(context.Background(), req); err != nil {
+		t.Fatalf("v6 response: Generate() error = %v", err)
+	}
+	if len(out) != 6 {
+		t.Fatalf("v6 response 3000B = %d packets, want 6", len(out))
+	}
+	sizesEq(t, sizes(out[:3]), 1452, 1452, 96)
+	for i := 3; i < 6; i++ {
+		if out[i].L4.SrcPort != 9001 || out[i].L4.DstPort != 5000 {
+			t.Fatalf("v6 down packet %d ports = %d/%d, want swapped", i, out[i].L4.SrcPort, out[i].L4.DstPort)
+		}
+	}
+	// 显式 mtu=9000×response：2 包（单文件不拆的反面——超 9000 预算仍拆）。
+	out = nil
+	req = mtuReq(map[string]interface{}{"mtu": uint16(9000), "src_port": uint16(5000), "dst_port": uint16(9001)}, "10.0.0.1", orig, nil)
+	req.Emit = emitCollector(&out)
+	req.Meta.UDP = &core.UDPConfig{IsResponse: true}
+	if err := (&UDPGenerator{}).Generate(context.Background(), req); err != nil {
+		t.Fatalf("9000 response: Generate() error = %v", err)
+	}
+	// 3000 ≤ 9000−28：request 1 包 + response 1 包 = 2 包。
+	if len(out) != 2 || len(out[0].Payload) != 3000 || len(out[1].Payload) != 3000 {
+		t.Fatalf("9000x response = %d packets, want 2x3000B", len(out))
+	}
+}
+
 // T-UDP-MTU-6 空载荷恒 1 包（既有语义回归守卫，off==0 边界）。
 func TestUDPMTU_EmptyPayloadSingleDatagram(t *testing.T) {
 	var out []core.PacketConfig
@@ -209,8 +242,8 @@ func TestUDPMTU_ChunkBudgetNonPositive(t *testing.T) {
 	req := mtuReq(map[string]interface{}{"mtu": uint16(68)}, "2001:db8::1", bytes.Repeat([]byte{7}, 100), []core.IPv6Option{bigOpt})
 	req.Emit = emitCollector(&out)
 	err := (&UDPGenerator{}).Generate(context.Background(), req)
-	if err == nil {
-		t.Fatalf("chunk budget 68-40-ext-8 <= 0: Generate() = %d packets, want error", len(out))
+	if err == nil || !strings.Contains(err.Error(), "chunk budget") {
+		t.Fatalf("chunk budget 68-40-ext-8 <= 0: err = %v, want 'chunk budget' anchor", err)
 	}
 }
 
@@ -224,13 +257,7 @@ func TestUDPMTU_SlicesShareBackingArray(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 	for i := range out {
-		if len(out[i].Payload) == 0 {
-			continue
-		}
-		if fmt.Sprintf("%p", &out[i].Payload[0]) != fmt.Sprintf("%p", &orig[0]) && i > 0 {
-			// 每片首字节都必须落在 orig 底层数组上（off 递增）。
-		}
-		if &out[i].Payload[0] != &orig[len(orig)-len(orig)+i*1472] {
+		if &out[i].Payload[0] != &orig[i*1472] {
 			t.Fatalf("slice %d does not share backing array at offset %d", i, i*1472)
 		}
 	}
@@ -241,6 +268,11 @@ func TestUDPMTU_V9RangeReject(t *testing.T) {
 	l := Layer{Name: "udp", Config: map[string]interface{}{"mtu": uint16(67)}}
 	if err := DefaultRegistry().ValidateLayerConfig(l); err == nil || !strings.Contains(err.Error(), "[68,65535]") {
 		t.Fatalf("mtu=67: err = %v, want out-of-range [68,65535]", err)
+	}
+	// JSON 数值进 V9 是 float64——上界拒绝（T-7 越上界格的 V9 面）以
+	// 65536 float64 字面量验证（uint16 字面量装不下 65536，编译期即拒）。
+	if err := DefaultRegistry().ValidateLayerConfig(Layer{Name: "udp", Config: map[string]interface{}{"mtu": float64(65536)}}); err == nil || !strings.Contains(err.Error(), "out of range") {
+		t.Fatalf("mtu=65536: err = %v, want out-of-range", err)
 	}
 	l0 := Layer{Name: "udp", Config: map[string]interface{}{"mtu": uint16(0)}}
 	if err := DefaultRegistry().ValidateLayerConfig(l0); err != nil {

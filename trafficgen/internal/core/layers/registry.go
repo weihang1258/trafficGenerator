@@ -98,7 +98,7 @@ func buildDefaultRegistry() {
 			// IP 分片，逐包拼接=原载荷）；≤预算恒单包。与 tun_mtu（隧道内）
 			// /interface_mtu（网卡）语义无关；事件驱动协议载体不拆。
 			"mtu": {Type: "uint16", Default: uint16(1500), Min: 68, Max: 65535,
-				Description: "单包切块预算（含 IP+UDP 头开销，默认 1500；0=取默认）：独立 [ip→udp] 流载荷超过该预算（按链上实际头长扣除）时自动拆为多个独立 UDP 数据报（非 IP 分片，逐包拼接=原载荷），≤预算恒单包；68=RFC 791 IPv4 最小数据报；事件驱动协议载体（dns/syslog 等）不受此参数影响"},
+				Description: "单包切块预算（含 IP+UDP 头开销，默认 1500；0=取默认）：独立 [ip→udp] 流载荷超过该预算（按链上实际头长扣除）时自动拆为多个独立 UDP 数据报（非 IP 分片，逐包拼接=原载荷），≤预算恒单包；68=RFC 791 IPv4 最小数据报；事件驱动协议载体（dns/syslog 等）不受此参数影响；超大规模文件（如 1GB≈70 万包/流）属调用方责任面，flow_control 照常生效"},
 			// D-FILE-1 万能兜底（独立 [ip→udp] flow 终结形态）：文件源驱动
 			// 裸流载荷，与 tcp 层同款；ChainPlanner.Plan 单点解析。
 			"file_source": {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
