@@ -1339,6 +1339,21 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 			}
 		}
 	}
+	// D-UDP-MTU：syslog file_source 在 Plan 期解析并复查 65507——Generate
+	// 期报错会被 drive 吞成 0 包掩蔽（锚词丢失），Plan 同步报错才带真实
+	// 文案（14.11）。解析写回 spec.Syslog.Msg，Generate 侧经同键缓存幂等。
+	// 65507 字面量 = 65535−20−8（RFC 5426 §6；layers 不许 import protocol
+	// 包，文案与 syslog.MaxUDPPayloadBytes 族逐字一致）。
+	if spec.Syslog != nil && spec.Syslog.FileSource != nil {
+		if pc := core.PayloadCacheFrom(ctx); pc != nil {
+			if b, err := pc.GetOrLoad(ctx, *spec.Syslog.FileSource); err == nil {
+				spec.Syslog.Msg = string(b)
+			}
+		}
+		if len(spec.Syslog.Msg) > 65507 {
+			return nil, fmt.Errorf("syslog: encoded message exceeds UDP payload limit %d (RFC 5426 §6)", 65507)
+		}
+	}
 	chain, err := p.completedChain()
 	if err != nil {
 		return nil, err
@@ -1623,7 +1638,19 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 	// 读原始链。预检读 drive 同款注入结果（applySpecToChain(chain, spec)），
 	// 标量链注入前后一致（无条件注入幂等 / 层值优先不动），对象链预检的是
 	// 解析/默认形态——形状违规仍同步拒绝（V9 已放行对象，非法标量照旧拦）。
-	if eg, ok := gens[len(chain)-1].(interface{ GenEvents() EventGenerator }); ok && eg.GenEvents() != nil {
+	// D-UDP-MTU：裸 [ip→udp] 流（末层即传输层）Plan 期预检——mtu 解析与
+	// 切块预算同步报错（真实锚词），不落 drive 的 0 包掩蔽。载荷超预算是
+	// 拆包不是错误，无需在此查大小。
+	if g, ok := gens[len(chain)-1].(*UDPGenerator); ok {
+		effChain := p.applySpecToChain(chain, spec)
+		cfg, err := g.resolveCfg(&GenRequest{Layer: effChain[len(effChain)-1]})
+		if err != nil {
+			return nil, err
+		}
+		if _, err := budgetFromParts(int(cfg.mtu), spec.SrcIP, spec.DstIP, spec.HopByHop); err != nil {
+			return nil, err
+		}
+	} else if eg, ok := gens[len(chain)-1].(interface{ GenEvents() EventGenerator }); ok && eg.GenEvents() != nil {
 		if idx := transportIndex(gens); idx >= 0 {
 			effChain := p.applySpecToChain(chain, spec)
 			switch g := gens[idx].(type) {
@@ -1648,7 +1675,10 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 		defer close(out)
 		packets, err := p.drive(ctx, chain, gens, spec)
 		if err != nil {
-			// 驱动失败：通道随后关闭，包流为空，调用方（worker）会按空流处理。
+			// 驱动失败：通道随后关闭，包流为空，调用方（worker）会按空流
+			// 处理（任务经 0 包守卫失败）。真实错误在此记日志，否则锚词
+			// 只剩 0 包掩蔽文案。
+			zap.L().Warn("chain drive failed; flow yields no packets", zap.String("flow", flowID(spec)), zap.Error(err))
 			return
 		}
 		// 逐包回填（无锁单一 goroutine）：IPID 已在 ip 层生成器写入

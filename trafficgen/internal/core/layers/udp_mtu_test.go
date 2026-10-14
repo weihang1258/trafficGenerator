@@ -306,3 +306,27 @@ func TestUDPMTU_ChainPlannerWiring(t *testing.T) {
 		}
 	}
 }
+
+// T-UDP-MTU-8b MCP 面：Plan 期同步预检——mtu 预算错误带真实锚词，
+// 不落 drive 的 0 包掩蔽（14.11 负例锚词）。链必须带用户层配置
+// （NewChainPlannerFromChain——mtu/hop_by_hop 住层，spec 直填不算）。
+func TestUDPMTU_PlanSyncBudgetError(t *testing.T) {
+	chain := []Layer{
+		{Name: "ip", Config: map[string]interface{}{"src": "2001:db8::1", "dst": "2001:db8::2", "hop_by_hop": []interface{}{map[string]interface{}{"type": float64(30), "value": strings.Repeat("09", 100)}}}},
+		{Name: "udp", Config: map[string]interface{}{"src_port": uint16(5000), "dst_port": uint16(9001), "mtu": uint16(68)}},
+	}
+	p := NewChainPlannerFromChain("udp", chain)
+	// 生产路径上地址由策略转换提升进 spec（1.1 地址住 ip 层）；此处直填
+	// 等价形态，族判定读 spec.SrcIP/DstIP。
+	spec := core.FlowSpec{SrcIP: "2001:db8::1", DstIP: "2001:db8::2", SrcPort: 5000, DstPort: 9001}
+	ch, err := p.Plan(context.Background(), spec)
+	if err == nil {
+		t.Fatal("Plan() = nil error, want sync chunk-budget anchor (not 0-packet masking)")
+	}
+	if !strings.Contains(err.Error(), "chunk budget") {
+		t.Fatalf("err = %v, want 'chunk budget' anchor", err)
+	}
+	if ch != nil {
+		t.Fatal("Plan() channel must be nil on sync error")
+	}
+}

@@ -1730,16 +1730,22 @@ func (g *UDPGenerator) chunkBudget(req *GenRequest) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	return budgetFromParts(int(cfg.mtu), req.Meta.SrcIP, req.Meta.DstIP, req.Meta.HopByHop)
+}
+
+// budgetFromParts 是预算算式本体（mtu 已归一）：族按地址字面量判（含":"
+// 即 v6），扩展头经 builder 同源算长。Plan 期预检与 Generate 期共用。
+func budgetFromParts(mtu int, srcIP, dstIP string, hbh []core.IPv6Option) (int, error) {
 	l3 := 20
-	if strings.Contains(req.Meta.SrcIP, ":") || strings.Contains(req.Meta.DstIP, ":") {
+	if strings.Contains(srcIP, ":") || strings.Contains(dstIP, ":") {
 		l3 = 40
 	}
-	if len(req.Meta.HopByHop) > 0 {
-		l3 += core.HopByHopHeaderLen(req.Meta.HopByHop)
+	if len(hbh) > 0 {
+		l3 += core.HopByHopHeaderLen(hbh)
 	}
-	budget := int(cfg.mtu) - l3 - 8
+	budget := mtu - l3 - 8
 	if budget <= 0 {
-		return 0, fmt.Errorf("udp layer: chunk budget %d <= 0 (mtu %d minus %d bytes of headers); raise mtu or drop extension headers", budget, cfg.mtu, l3+8)
+		return 0, fmt.Errorf("udp layer: chunk budget %d <= 0 (mtu %d minus %d bytes of headers); raise mtu or drop extension headers", budget, mtu, l3+8)
 	}
 	return budget, nil
 }
