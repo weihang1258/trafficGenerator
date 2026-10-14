@@ -45,8 +45,8 @@ type Engine struct {
 	// taskChan + stopChan pointer pair so reads and writes of both fields
 	// are atomic across Stop/Start cycles (avoids field-level data race
 	// between SubmitTask reading them and Stop/Start swapping them).
-	stopChan   chan struct{}
-	channelMu  sync.Mutex
+	stopChan  chan struct{}
+	channelMu sync.Mutex
 	// packetChan removed: replaced by shardedPacketChan (one per OutputWorker).
 
 	// Sharded config channel: one per PacketWorker. ConfigWorker pushes to
@@ -60,9 +60,9 @@ type Engine struct {
 	// gap: without sharding here, multiple OutputWorkers pulling from a shared
 	// packetChan would reorder same-flow packets (large packet slow, small
 	// packet fast -> small overtakes large on the wire).
-	shardedPacketChan []chan PacketOutput
-	shardSeed         maphash.Seed       // random seed for hash, anti-flooding
-	shardCounts       []atomic.Int64     // per-shard enqueue count, for imbalance monitor
+	shardedPacketChan  []chan PacketOutput
+	shardSeed          maphash.Seed       // random seed for hash, anti-flooding
+	shardCounts        []atomic.Int64     // per-shard enqueue count, for imbalance monitor
 	shardMonitorCancel context.CancelFunc // stops runShardMonitor on Engine.Stop
 
 	// Workers
@@ -105,10 +105,10 @@ type Engine struct {
 	maxTasks atomic.Int64
 
 	// Callbacks
-	OnTaskComplete   func(taskID string)                // called when a task finishes (completed or failed)
-	OnTaskFailed     func(taskID string, errMsg string) // called when a task fails with error message
-	OnBufferOverflow func(taskID string, dropped int)   // called when buffer overflows
-	OnOutputError    func(taskID string, err error)     // called when output writer fails
+	OnTaskComplete   func(taskID string)                                    // called when a task finishes (completed or failed)
+	OnTaskFailed     func(taskID string, errMsg string)                     // called when a task fails with error message
+	OnBufferOverflow func(taskID string, dropped int)                       // called when buffer overflows
+	OnOutputError    func(taskID string, err error)                         // called when output writer fails
 	OnProgress       func(taskID string, progress float64, stats TaskStats) // called when task progress changes
 
 	// Error handling
@@ -156,7 +156,7 @@ type PacketOutput struct {
 	Metadata    map[string]interface{}
 	FlowID      string
 	PacketIndex uint64
-	Direction   string // c2s|s2c (or up|down for synth) -- drives dual-port routing
+	Direction   string    // c2s|s2c (or up|down for synth) -- drives dual-port routing
 	Timestamp   time.Time // scheduled send time (§12: pcap output uses this, not time.Now())
 }
 
@@ -164,6 +164,10 @@ type taskEntry struct {
 	task   *Task
 	status *TaskStatus
 	cancel context.CancelFunc
+	// flowsSeen：FlowsCount 计数源（第14轮 B2：TaskStats.FlowsCount/BytesSent
+	// 曾"无计数源恒零"）。FlowID 在 OnPacketWritten 处可见，集合内存上界=
+	// 流数，任务完成即随 entry 释放。
+	flowsSeen map[string]struct{}
 
 	// Pipeline drain tracking: ConfigWorker sets totalConfigs when done,
 	// OutputWorker increments writtenPackets per write, PacketWorker reports
@@ -645,10 +649,17 @@ func (e *Engine) SubmitTask(task Task) error {
 	// TaskFCValue is already in bps (stored raw in TaskModel.FlowControl), so
 	// convert directly -- a formatBPS->ParseBPS string round-trip would lose
 	// precision (e.g. 1.5Gbps rounds to "2G").
-	if task.TaskFCType == "bps" && task.ParentTaskID != "" {
-		bps := int64(task.TaskFCValue)
-		if bps > 0 {
-			e.SetClassRateLimit(task.ParentTaskID, bps)
+	// 第14轮 B2：task 级 bps 桶两种模式各归其键——batch 走 parent 键
+	// （worker parent-bucket 路径，既有测试锁定）；单发此前完全不消费
+	// （flow_control bps 对 standalone generate_traffic 瞬完），桶键=task.ID，
+	// worker 按 metadata task_id 查用。
+	if task.TaskFCType == "bps" {
+		if bps := int64(task.TaskFCValue); bps > 0 {
+			if task.ParentTaskID != "" {
+				e.SetClassRateLimit(task.ParentTaskID, bps)
+			} else {
+				e.SetClassRateLimit(task.ID, bps)
+			}
 		}
 	}
 	// Task-level flows ceiling: lazily create a shared counter.
@@ -685,7 +696,7 @@ func (e *Engine) SubmitTask(task Task) error {
 	switch {
 	case task.Batch != nil && task.Batch.Global.DurationSeconds > 0:
 		taskCtx, cancel = context.WithTimeout(e.ctx, time.Duration(task.Batch.Global.DurationSeconds)*time.Second)
-	case task.TaskFCType == "time" && task.ParentTaskID != "":
+	case task.TaskFCType == "time":
 		eff := task.TaskFCValue
 		if task.Spec.Duration > 0 && time.Duration(task.Spec.Duration)*time.Second < time.Duration(eff*float64(time.Second)) {
 			eff = float64(task.Spec.Duration) // min(strategy, task-level)
@@ -841,7 +852,9 @@ func (e *Engine) cleanupTaskRateLimiters(taskID string) {
 
 // OnPacketWritten is called by OutputWorker after writing a packet.
 // When writtenPackets >= totalConfigs, the task is marked as completed.
-func (e *Engine) OnPacketWritten(taskID string) {
+// 第14轮 B2：带字节数与 FlowID——BytesSent/FlowsCount 计数源补齐（此前
+// 恒零，进度监控不可用）。
+func (e *Engine) OnPacketWritten(taskID, flowID string, nbytes int) {
 	e.taskMu.Lock()
 	entry, ok := e.taskStore[taskID]
 	if !ok {
@@ -850,9 +863,25 @@ func (e *Engine) OnPacketWritten(taskID string) {
 	}
 	entry.writtenPackets++
 	// P2-⑤：TaskStats 原是死结构（无任何累计点）——实发包数在此激活，
-	// 完成通知与 progress 聚合才有非零 stats。BytesSent/FlowsCount 引擎
-	// 面暂无计数源，保持零值不伪报。
+	// 完成通知与 progress 聚合才有非零 stats。
 	entry.status.Stats.PacketsSent++
+	entry.status.Stats.BytesSent += int64(nbytes)
+	if entry.flowsSeen == nil {
+		entry.flowsSeen = make(map[string]struct{})
+	}
+	if flowID != "" {
+		entry.flowsSeen[flowID] = struct{}{}
+	}
+	entry.status.Stats.FlowsCount = len(entry.flowsSeen)
+	// CurrentPPS/BPS：起跑以来均值（第14轮 B2：此前无计数源恒零）。逐包
+	// 计算成本可忽略；"瞬时速率"窗口化留待后续（有均值已可监控）。
+	if st := entry.status; !st.StartedAt.IsZero() {
+		elapsed := time.Since(st.StartedAt).Seconds()
+		if elapsed > 0 {
+			st.Stats.CurrentPPS = float64(st.Stats.PacketsSent) / elapsed
+			st.Stats.CurrentBPS = float64(st.Stats.BytesSent) * 8 / elapsed
+		}
+	}
 	// Skip further processing for stopped tasks
 	if entry.status.Status == "stopped" {
 		e.taskMu.Unlock()

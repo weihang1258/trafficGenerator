@@ -1473,12 +1473,12 @@ func outerCategory(r *Registry, l Layer) LayerCategory {
 	return s.Category
 }
 
-
 // walkFileSourceKeys 递归校验原始配置树中每一处 file_source 对象的键名
 // （第11轮反馈 1：顶层与任意嵌套 item 同规则）。规则：
 //   - file_source 值为整体动态对象（{"strategy":...}）时让路——动态门管辖；
 //   - 键值级动态策略对象（isDynObject）视为合法源；
 //   - 未知键 / 缺全部已知键（file/file_id/literal/fill/random）→ 报错点名。
+//
 // fileSourceSupportedLayers 是支持 file_source 的协议层名单（D-FILE-2 交底
 // 单口径，2026-10-13 终版 33 层）。白名单外的层任何位置的 file_source 一律
 // create 即报"does not support"——防"合法放行、静默丢弃"（第12轮 sv.data[]

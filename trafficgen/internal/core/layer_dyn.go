@@ -480,6 +480,7 @@ func checkDynShape(where, lname, field string, s *StrategyConfig) string {
 		if a > b {
 			return fmt.Sprintf("%s: %s range start must not exceed end", where, s.Strategy)
 		}
+
 		// D-FTP-4: IP range 顺序按地址族比较——dynIntEnds 只懂十进制整型，
 		// IPv6 端点经 Atoi 全得 0 会 neighbourhood 误判。IP 字段走 ipRangeOrder。
 		if lname == "ip" && field != "ttl" {
@@ -560,10 +561,10 @@ func checkDynEndpoints(where, lname, field string, vals []interface{}) string {
 		}
 	}
 	// MAC order check for inc/rand is done at resolve time (low-byte order);
-// cross-OUI ranges resolve empty (no-op). Keep loud-shape vs quiet-resolve
-// split: shape guarantees parseability, resolve guarantees bounds.
-// IP mixed-family check is loud too (D-FTP-4): a range/list mixing v4 and
-// v6 endpoints is rejected here, never silently resolved in one family.
+	// cross-OUI ranges resolve empty (no-op). Keep loud-shape vs quiet-resolve
+	// split: shape guarantees parseability, resolve guarantees bounds.
+	// IP mixed-family check is loud too (D-FTP-4): a range/list mixing v4 and
+	// v6 endpoints is rejected here, never silently resolved in one family.
 	if isIP && len(vals) == 2 {
 		if msg := checkIPFamilyMix(where, vals); msg != "" {
 			return msg

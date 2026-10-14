@@ -1219,7 +1219,7 @@ func (w *OutputWorker) writePacket(out PacketOutput) {
 	// overflow) so the task completes once all planned packets are processed.
 	if w.engine != nil && out.Metadata != nil {
 		if taskID, ok := out.Metadata["task_id"].(string); ok {
-			w.engine.OnPacketWritten(taskID)
+			w.engine.OnPacketWritten(taskID, out.FlowID, len(out.Data))
 		}
 	}
 }

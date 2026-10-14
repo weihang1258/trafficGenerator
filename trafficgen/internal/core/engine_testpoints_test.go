@@ -716,7 +716,7 @@ func TestOnPacketWritten_Normal(t *testing.T) {
 	e := makeEngineWithTask(t, "t1")
 	entry := getTaskEntry(e, "t1")
 	entry.totalConfigs = 100
-	e.OnPacketWritten("t1")
+	e.OnPacketWritten("t1", "f1", 100)
 	if entry.writtenPackets != 1 {
 		t.Errorf("writtenPackets=%d want 1", entry.writtenPackets)
 	}
@@ -733,7 +733,7 @@ func TestOnPacketWritten_NotInStore(t *testing.T) {
 			t.Fatalf("OnPacketWritten on non-existent panicked: %v", r)
 		}
 	}()
-	e.OnPacketWritten("nope")
+	e.OnPacketWritten("nope", "", 0)
 }
 
 // E85-BR1: stopped task -> no increment.
@@ -742,7 +742,7 @@ func TestOnPacketWritten_StatusStopped(t *testing.T) {
 	entry := getTaskEntry(e, "t1")
 	entry.totalConfigs = 10
 	entry.status.Status = "stopped"
-	e.OnPacketWritten("t1")
+	e.OnPacketWritten("t1", "f1", 100)
 	// engine.go increments writtenPackets (line 560) BEFORE the status check
 	// (line 562). So the increment always happens; only the completion check
 	// is skipped. Status must still be "stopped" (not overwritten to completed).
@@ -762,7 +762,7 @@ func TestOnPacketWritten_ReachesTotal(t *testing.T) {
 	entry.writtenPackets = 9
 	var completed bool
 	e.OnTaskComplete = func(id string) { completed = true }
-	e.OnPacketWritten("t1")
+	e.OnPacketWritten("t1", "f1", 100)
 	if !completed {
 		t.Error("should complete when writtenPackets reaches totalConfigs")
 	}
@@ -776,7 +776,7 @@ func TestOnPacketWritten_TotalConfigsZero(t *testing.T) {
 	e := makeEngineWithTask(t, "t1")
 	entry := getTaskEntry(e, "t1")
 	entry.totalConfigs = 0
-	e.OnPacketWritten("t1")
+	e.OnPacketWritten("t1", "f1", 100)
 	if entry.writtenPackets != 1 {
 		t.Errorf("writtenPackets=%d want 1", entry.writtenPackets)
 	}
@@ -790,7 +790,7 @@ func TestOnPacketWritten_OnProgressNil(t *testing.T) {
 	e := makeEngineWithTask(t, "t1")
 	entry := getTaskEntry(e, "t1")
 	entry.totalConfigs = 10
-	e.OnPacketWritten("t1")
+	e.OnPacketWritten("t1", "f1", 100)
 	if entry.status.Progress < 0 {
 		t.Error("progress went negative")
 	}
@@ -807,7 +807,7 @@ func TestOnPacketWritten_OnTaskCompleteNil(t *testing.T) {
 			t.Fatalf("OnPacketWritten with nil OnTaskComplete panicked: %v", r)
 		}
 	}()
-	e.OnPacketWritten("t1")
+	e.OnPacketWritten("t1", "f1", 100)
 }
 
 // ========================================================================

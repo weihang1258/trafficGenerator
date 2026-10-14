@@ -249,17 +249,16 @@ func (r *PcapRepository) CountReplayReferences(assetID string) (int64, error) {
 // ---------------- FlowModel ----------------
 
 // CreateFlows batch-inserts flow records. gorm CreateInBatches keeps memory
-// bounded for pcaps with many flows. Batch 500, not 1000: SQLite binds every
-// column of every row in one statement, and FlowModel has ~54 columns —
-// 54×1000 host parameters blows past the 32766 limit (PacketModel is slim at
-// ~15, so packets alone never tripped it) — "SQL logic error: too
-// many SQL variables" surfaced only on large registrations (P1-17, 15000-flow
-// task completed but auto-register failed silently).
+// bounded for pcaps with many flows. 批大小随列数漂移两次翻车（第14轮客户端
+// 实测 B15）：批 500 按 FlowModel ~54 列设定后，D-PARSE-1 把列数加到 ~79，
+// 500×79 越过 SQLite 32766 参数上限——415 流恰越界（415×79=32785）、414 恰
+// 不过，客户端实测 414 OK / 415+ 全失败。批 250 给足余量（250×79=19750）；
+// 列数再涨时的症状 = "too many SQL variables"，先减这里的批值。
 func (r *PcapRepository) CreateFlows(flows []FlowModel) error {
 	if len(flows) == 0 {
 		return nil
 	}
-	return r.db.CreateInBatches(flows, 500).Error
+	return r.db.CreateInBatches(flows, 250).Error
 }
 
 // ListFlowsByAsset lists flows for an asset (scoped to userID) with pagination,

@@ -2,6 +2,7 @@ package pcapparser
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"net"
 	"strings"
@@ -19,14 +20,14 @@ type SearchQuery struct {
 
 // FlowFilter matches flow-level fields. Empty/zero fields are wildcards.
 type FlowFilter struct {
-	Protocol  string // tcp|udp|icmp|arp
-	SrcIP     string
-	DstIP     string
-	SrcPort   uint16
-	DstPort   uint16
-	L7Type    string // l7_protocol
-	L7Method  string
-	L7Host    string
+	Protocol    string // tcp|udp|icmp|arp
+	SrcIP       string
+	DstIP       string
+	SrcPort     uint16
+	DstPort     uint16
+	L7Type      string // l7_protocol
+	L7Method    string
+	L7Host      string
 	L7QueryName string
 }
 
@@ -44,8 +45,11 @@ type PacketFilter struct {
 // (text or binary); Regex is an optional regex applied after trigram narrowing
 // (v1 supports Contains; Regex is v2 but the field is reserved).
 type PayloadFilter struct {
-	Contains []byte
-	Encoding string // "ascii"|"hex" (hex decodes Contains before search)
+	// Contains 是**文本形态**的检索串（第14轮 B8：曾为 []byte，JSON 字符串
+	// 会被 encoding/json 强制按 base64 解码——Encoding 参数从未生效）。
+	// 解码语义由 Encoding 决定，见 decodePayloadFilter。
+	Contains string
+	Encoding string // "ascii"(默认)|"hex"|"base64"
 	Regex    string // v2
 }
 
@@ -53,9 +57,9 @@ type PayloadFilter struct {
 // a payload filter was applied, and the packet IDs within it that match the
 // packet filter (if any).
 type SearchResult struct {
-	Flow     FlowModelView
-	Matches  []TrigramMatch   // payload match locations (empty if no payload filter)
-	Packets  []PacketModelView // packets in this flow matching PacketFilter (empty if none)
+	Flow    FlowModelView
+	Matches []TrigramMatch    // payload match locations (empty if no payload filter)
+	Packets []PacketModelView // packets in this flow matching PacketFilter (empty if none)
 }
 
 // FlowModelView is a lightweight projection of storage.FlowModel for search
@@ -279,8 +283,9 @@ func decodePayloadFilter(p *PayloadFilter) ([]byte, error) {
 	if p == nil {
 		return nil, nil
 	}
-	needle := p.Contains
-	if p.Encoding == "hex" && len(needle) > 0 {
+	needle := []byte(p.Contains)
+	switch p.Encoding {
+	case "hex":
 		s := strings.TrimSpace(string(needle))
 		if len(s)%2 != 0 {
 			return nil, fmt.Errorf("odd hex length: %d chars in %q", len(s), s)
@@ -294,6 +299,15 @@ func decodePayloadFilter(p *PayloadFilter) ([]byte, error) {
 			dec[i/2] = b
 		}
 		needle = dec
+	case "base64":
+		dec, err := base64.StdEncoding.DecodeString(string(needle))
+		if err != nil {
+			return nil, fmt.Errorf("invalid base64 in Contains: %w", err)
+		}
+		needle = dec
+	default:
+		// ""/"ascii"：原文字节（第14轮 B8：Encoding 此前被忽略、恒按
+		// base64 解——ascii 文本必报 illegal base64）。
 	}
 	return needle, nil
 }

@@ -254,7 +254,7 @@ func TestDecodePayloadFilter_Nil(t *testing.T) {
 }
 
 func TestDecodePayloadFilter_PlainText(t *testing.T) {
-	needle, err := decodePayloadFilter(&PayloadFilter{Contains: []byte("target"), Encoding: "ascii"})
+	needle, err := decodePayloadFilter(&PayloadFilter{Contains: "target", Encoding: "ascii"})
 	if err != nil {
 		t.Fatalf("ascii: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestDecodePayloadFilter_PlainText(t *testing.T) {
 }
 
 func TestDecodePayloadFilter_HexEmptyNeedle(t *testing.T) {
-	needle, err := decodePayloadFilter(&PayloadFilter{Contains: []byte(""), Encoding: "hex"})
+	needle, err := decodePayloadFilter(&PayloadFilter{Contains: "", Encoding: "hex"})
 	if err != nil {
 		t.Errorf("hex empty: err = %v, want nil", err)
 	}
@@ -274,14 +274,14 @@ func TestDecodePayloadFilter_HexEmptyNeedle(t *testing.T) {
 }
 
 func TestDecodePayloadFilter_HexOddLength(t *testing.T) {
-	_, err := decodePayloadFilter(&PayloadFilter{Contains: []byte("abc"), Encoding: "hex"})
+	_, err := decodePayloadFilter(&PayloadFilter{Contains: "abc", Encoding: "hex"})
 	if err == nil || !strings.Contains(err.Error(), "odd hex") {
 		t.Errorf("hex odd 'abc': err = %v, want contains 'odd hex'", err)
 	}
 }
 
 func TestDecodePayloadFilter_HexInvalidChar(t *testing.T) {
-	_, err := decodePayloadFilter(&PayloadFilter{Contains: []byte("0xYZ"), Encoding: "hex"})
+	_, err := decodePayloadFilter(&PayloadFilter{Contains: "0xYZ", Encoding: "hex"})
 	if err == nil || !strings.Contains(err.Error(), "invalid hex") {
 		t.Errorf("hex invalid char: err = %v, want contains 'invalid hex'", err)
 	}
@@ -289,7 +289,7 @@ func TestDecodePayloadFilter_HexInvalidChar(t *testing.T) {
 
 func TestDecodePayloadFilter_HexValid(t *testing.T) {
 	// "48656c6c6f" is hex for "Hello".
-	needle, err := decodePayloadFilter(&PayloadFilter{Contains: []byte("48656c6c6f"), Encoding: "hex"})
+	needle, err := decodePayloadFilter(&PayloadFilter{Contains: "48656c6c6f", Encoding: "hex"})
 	if err != nil {
 		t.Fatalf("hex valid: %v", err)
 	}
@@ -329,7 +329,7 @@ func TestSearch_PayloadNoHits(t *testing.T) {
 	flows := []FlowModelView{{ID: "f1", L4Protocol: "tcp"}}
 	idx := NewTrigramIndex()
 	idx.AddSegment("f1", "c2s", []byte("hello world"))
-	res, err := Search(flows, nil, idx, &SearchQuery{Payload: &PayloadFilter{Contains: []byte("nonexistent")}})
+	res, err := Search(flows, nil, idx, &SearchQuery{Payload: &PayloadFilter{Contains: "nonexistent"}})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -413,7 +413,7 @@ func TestSearch_PayloadHitsAttached(t *testing.T) {
 	flows := []FlowModelView{{ID: "f1", L4Protocol: "tcp"}}
 	idx := NewTrigramIndex()
 	idx.AddSegment("f1", "c2s", []byte("secret password"))
-	res, err := Search(flows, nil, idx, &SearchQuery{Payload: &PayloadFilter{Contains: []byte("secret")}})
+	res, err := Search(flows, nil, idx, &SearchQuery{Payload: &PayloadFilter{Contains: "secret"}})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}

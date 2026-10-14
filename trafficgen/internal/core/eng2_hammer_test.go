@@ -33,7 +33,7 @@ func TestENG2_StatusSnapshot_HammerRace(t *testing.T) {
 				case <-stop:
 					return
 				default:
-					e.OnPacketWritten("t-hammer")
+					e.OnPacketWritten("t-hammer", "", 0)
 				}
 			}
 		}()

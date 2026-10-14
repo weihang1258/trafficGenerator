@@ -134,11 +134,11 @@ func TestFlowKey_Normalization(t *testing.T) {
 // flow with correct stats, direction counts, and per-packet fields.
 func TestParse_TCPFlow(t *testing.T) {
 	frames := [][]byte{
-		buildTCPFrame(t, macA, macB, ipA, ipB, 1234, 80, 100, 0, flagSYN, nil),                  // SYN c2s
-		buildTCPFrame(t, macB, macA, ipB, ipA, 80, 1234, 200, 101, flagSYN|flagACK, nil),  // SYN-ACK s2c
-		buildTCPFrame(t, macA, macB, ipA, ipB, 1234, 80, 101, 201, flagACK, nil),                // ACK c2s
+		buildTCPFrame(t, macA, macB, ipA, ipB, 1234, 80, 100, 0, flagSYN, nil),                       // SYN c2s
+		buildTCPFrame(t, macB, macA, ipB, ipA, 80, 1234, 200, 101, flagSYN|flagACK, nil),             // SYN-ACK s2c
+		buildTCPFrame(t, macA, macB, ipA, ipB, 1234, 80, 101, 201, flagACK, nil),                     // ACK c2s
 		buildTCPFrame(t, macA, macB, ipA, ipB, 1234, 80, 101, 201, flagPSH|flagACK, []byte("hello")), // data c2s
-		buildTCPFrame(t, macA, macB, ipA, ipB, 1234, 80, 101, 201, flagFIN|flagACK, nil),  // FIN c2s
+		buildTCPFrame(t, macA, macB, ipA, ipB, 1234, 80, 101, 201, flagFIN|flagACK, nil),             // FIN c2s
 	}
 	ts := []time.Time{
 		time.UnixMicro(1000), time.UnixMicro(2000), time.UnixMicro(3000),
@@ -681,7 +681,7 @@ func TestParse_TCPReassembly(t *testing.T) {
 	frames := [][]byte{
 		buildTCPFrame(t, macA, macB, ipA, ipB, 1234, 80, 100, 0, flagSYN, nil),
 		buildTCPFrame(t, macB, macA, ipB, ipA, 80, 1234, 200, 101, flagSYN|flagACK, nil),
-		buildTCPFrame(t, macA, macB, ipA, ipB, 1234, 80, 101, 201, flagACK, nil),                  // pure ACK
+		buildTCPFrame(t, macA, macB, ipA, ipB, 1234, 80, 101, 201, flagACK, nil), // pure ACK
 		buildTCPFrame(t, macA, macB, ipA, ipB, 1234, 80, 101, 201, flagPSH|flagACK, []byte("Hello ")),
 		buildTCPFrame(t, macA, macB, ipA, ipB, 1234, 80, 107, 201, flagPSH|flagACK, []byte("World")),
 		buildTCPFrame(t, macA, macB, ipA, ipB, 1234, 80, 112, 201, flagFIN|flagACK, nil),
@@ -1003,7 +1003,7 @@ func TestSearch_MultiCondition(t *testing.T) {
 		{ID: "f2", L4Protocol: "tcp", SrcIP: "10.0.0.3", DstIP: "10.0.0.2", DstPort: 443},
 	}
 	// Payload filter only -> both flows match (both contain "password").
-	res, err := Search(flows, nil, idx, &SearchQuery{Payload: &PayloadFilter{Contains: []byte("password")}})
+	res, err := Search(flows, nil, idx, &SearchQuery{Payload: &PayloadFilter{Contains: "password"}})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -1013,7 +1013,7 @@ func TestSearch_MultiCondition(t *testing.T) {
 	// Payload + flow filter (DstPort=443) -> only f2.
 	res, err = Search(flows, nil, idx, &SearchQuery{
 		FlowFilter: &FlowFilter{DstPort: 443},
-		Payload:    &PayloadFilter{Contains: []byte("password")},
+		Payload:    &PayloadFilter{Contains: "password"},
 	})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
@@ -1023,7 +1023,7 @@ func TestSearch_MultiCondition(t *testing.T) {
 	}
 	// Hex encoding: search for "secret" as hex.
 	res, err = Search(flows, nil, idx, &SearchQuery{
-		Payload: &PayloadFilter{Contains: []byte("736563726574"), Encoding: "hex"},
+		Payload: &PayloadFilter{Contains: "736563726574", Encoding: "hex"},
 	})
 	if err != nil {
 		t.Fatalf("Search hex: %v", err)
@@ -1135,18 +1135,27 @@ func TestReparse(t *testing.T) {
 	frames := [][]byte{buildTCPFrame(t, macA, macB, ipA, ipB, 1234, 80, 1, 0, flagSYN, nil)}
 	path := writePcap(t, frames, []time.Time{time.UnixMicro(1)})
 	a1, err := Parse(path, &Options{PcapAssetID: "ast1", UserID: "u1"})
-	if err != nil { t.Fatalf("Parse: %v", err) }
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
 	a2, err := Reparse(path, &Options{PcapAssetID: "ast1", UserID: "u1"})
-	if err != nil { t.Fatalf("Reparse: %v", err) }
+	if err != nil {
+		t.Fatalf("Reparse: %v", err)
+	}
 	if a1.PacketCount != a2.PacketCount || a1.FlowCount != a2.FlowCount {
 		t.Errorf("Reparse diverged: packets %d vs %d, flows %d vs %d", a1.PacketCount, a2.PacketCount, a1.FlowCount, a2.FlowCount)
 	}
 	if a2.Flows[0].ParserVersion != ParserVersion {
 		t.Errorf("ParserVersion = %q, want %q", a2.Flows[0].ParserVersion, ParserVersion)
 	}
-	if !NeedsReparse("0.0.1") { t.Error("NeedsReparse(old) = false, want true") }
-	if NeedsReparse(ParserVersion) { t.Error("NeedsReparse(current) = true, want false") }
+	if !NeedsReparse("0.0.1") {
+		t.Error("NeedsReparse(old) = false, want true")
+	}
+	if NeedsReparse(ParserVersion) {
+		t.Error("NeedsReparse(current) = true, want false")
+	}
 }
+
 // MISSING-SCENARIO TESTS - appended to parser_test.go
 // Each test builds a pcap (or uses the trigram/Search/fragment API directly),
 // calls Parse or the relevant function, and asserts correctness with t.Errorf.
@@ -1639,7 +1648,7 @@ func TestSearch_PayloadFilterOnly(t *testing.T) {
 	idx.AddSegment("f2", "c2s", []byte("other data"))
 
 	res, err := Search(flows, nil, idx, &SearchQuery{
-		Payload: &PayloadFilter{Contains: []byte("password")},
+		Payload: &PayloadFilter{Contains: "password"},
 	})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
@@ -1667,7 +1676,7 @@ func TestDecodePayloadFilter_OddHex(t *testing.T) {
 	idx.AddSegment("f1", "c2s", []byte("hello world"))
 
 	_, err := Search(flows, nil, idx, &SearchQuery{
-		Payload: &PayloadFilter{Contains: []byte("abc"), Encoding: "hex"},
+		Payload: &PayloadFilter{Contains: "abc", Encoding: "hex"},
 	})
 	if err == nil {
 		t.Errorf("odd hex 'abc': expected error, got nil")
@@ -1687,7 +1696,7 @@ func TestDecodePayloadFilter_ASCII(t *testing.T) {
 	idx.AddSegment("f1", "c2s", []byte("hello world target"))
 
 	res, err := Search(flows, nil, idx, &SearchQuery{
-		Payload: &PayloadFilter{Contains: []byte("target"), Encoding: "ascii"},
+		Payload: &PayloadFilter{Contains: "target", Encoding: "ascii"},
 	})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
@@ -1726,7 +1735,7 @@ func TestFragmentReassembler_OutOfOrder(t *testing.T) {
 	key := "0x5678|10.0.0.1|10.0.0.2|6"
 	l3Start := 14
 	// 8-byte payloads so fragment offsets (8-byte units) are contiguous.
-	frag1 := buildFrag(0x5678, 0, true, []byte("AAAAAAAA")) // offset 0, MF=1
+	frag1 := buildFrag(0x5678, 0, true, []byte("AAAAAAAA"))  // offset 0, MF=1
 	frag2 := buildFrag(0x5678, 1, false, []byte("BBBBBBBB")) // offset 8 bytes = 1 unit, MF=0
 
 	r := NewFragmentReassembler()
