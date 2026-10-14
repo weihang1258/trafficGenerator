@@ -44,6 +44,13 @@ func (g *SyslogGenerator) Generate(ctx context.Context, req *layers.GenRequest) 
 				zap.L().Warn("file_source resolve failed; payload silently skipped (family contract)", zap.Error(err))
 			}
 		}
+		// D-UDP-MTU：validator（planner.go validateSyslogConfig）在 file_source
+		// 加载前执行、彼时 Msg 为空，RFC 5426 §6 的 65507 上限必须在此复查。
+		// syslog 报文是结构整体不可拆，超限只能拒；文案与 planner.go:257
+		// 逐字同族（13.8）。
+		if len(cfg.Msg) > MaxUDPPayloadBytes {
+			return fmt.Errorf("syslog: encoded message exceeds UDP payload limit %d (RFC 5426 §6)", MaxUDPPayloadBytes)
+		}
 	}
 
 	emit := func(ev layers.MessageEvent) error {
