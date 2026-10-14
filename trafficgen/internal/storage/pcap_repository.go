@@ -190,9 +190,11 @@ func (r *PcapRepository) DeleteAssetFlowsAndPackets(assetID string) error {
 // malformed config (skips it) and is dialect-agnostic.
 func (r *PcapRepository) CountReplayReferences(assetID string) (int64, error) {
 	var count int64
-	// 1. Strategy references.
+	// 1. Strategy references. 第14轮 B18：按 mode='replay' 判别——replay_pcap
+	// 工具建的策略 protocol 列为空（此前 protocol='replay' 过滤整个漏掉，
+	// 被引用资产静默删除成功）。
 	var strategies []StrategyModel
-	if err := r.db.Select("config").Where("protocol = ?", "replay").Find(&strategies).Error; err != nil {
+	if err := r.db.Select("config").Where("mode = ?", "replay").Find(&strategies).Error; err != nil {
 		return 0, err
 	}
 	for _, s := range strategies {

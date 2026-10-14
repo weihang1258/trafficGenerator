@@ -119,7 +119,7 @@ func TestAuditFix_CountReplayReferences_Tasks(t *testing.T) {
 	repo := NewPcapRepository(db)
 	// (a) Strategy branch: a replay-protocol strategy referencing astX.
 	strategy := &StrategyModel{
-		ID: "s1", UserID: "user1", Name: "replay-strat", Protocol: "replay",
+		ID: "s1", UserID: "user1", Name: "replay-strat", Protocol: "replay", Mode: "replay",
 		Config: `{"pcap_asset_id":"astX","speed":{"mode":"original"}}`,
 	}
 	db.Create(strategy)
@@ -164,7 +164,7 @@ func TestAuditFix_CountReplayReferences_Tasks(t *testing.T) {
 
 	// Strategy branch alone: asset referenced only by a strategy, no tasks.
 	solo := &StrategyModel{
-		ID: "s2", UserID: "user1", Name: "solo-strat", Protocol: "replay",
+		ID: "s2", UserID: "user1", Name: "solo-strat", Protocol: "replay", Mode: "replay",
 		Config: `{"pcap_asset_id":"astZ"}`,
 	}
 	db.Create(solo)

@@ -91,12 +91,12 @@ func toRestPorts(ports []portGroupPort) []rest.PortConfig {
 }
 
 type manageTasksInput struct {
-	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
+	Description  string                 `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
 	Action       string                 `json:"action" jsonschema:"operation: create|create_batch|list|get|start|stop|delete|history"`
 	ID           string                 `json:"id,omitempty" jsonschema:"task id (for get/start/stop/delete)"`
 	Name         string                 `json:"name,omitempty" jsonschema:"task name (for create/create_batch)"`
 	StrategyIDs  []string               `json:"strategy_ids,omitempty" jsonschema:"strategy ids (for create)"`
-	Batch        map[string]interface{} `json:"batch,omitempty" jsonschema:"batch spec (for create_batch). Each class accepts an optional group_id strategy field. Classes with the same group_id strategy (same pattern + range) bind to one PacketWorker for cross-flow ordering. See manage_strategies tool's Config.group_id for strategy syntax."`
+	Batch        map[string]interface{} `json:"batch,omitempty" jsonschema:"batch spec (create_batch). 形状 = {"classes":[...],"global":{...}}。每个 class 必填 id/type，type=synth 带 protocol+config（层链）或 flow_count；type=replay 必填 replay 对象 {"pcap_asset_id":"<资产id>","speed":{"mode":"original|multiplier|bps","bps":"1000","multiplier":2},"direction":"c2s|s2c|dual","checksum_mode":"recompute"}——replay 缺失即报 required。可选 class 键：group_id（同 group_id 策略绑定一个 PacketWorker 保证跨流顺序）、flow_count、bps。global 可选键 duration_seconds（整批时长上限）。完整字段见 schemas/v1/batch.json。"`
 	OutputType   string                 `json:"output_type,omitempty" jsonschema:"output type: port_group, pcap, or both (both sends to the port group AND mirrors to a shadow pcap — wire target via port_group_id or ports, pcap_path optional and auto-generated when omitted; not valid with interface2) (for create/create_batch). Tip: output_config.ports auto-creates the port group (full params, idempotent) instead of passing port_group_id"`
 	OutputConfig *outputConfigInput     `json:"output_config,omitempty" jsonschema:"output configuration (for create/create_batch)"`
 	FlowControl  *flowControlInput      `json:"flow_control,omitempty" jsonschema:"optional task-level flow control (for create)"`

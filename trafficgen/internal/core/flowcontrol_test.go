@@ -577,10 +577,11 @@ func TestTaskLevelTime_SubSecondNotTruncated(t *testing.T) {
 	waitTaskDone(t, e, "t14-subsec", 5*time.Second)
 	elapsed := time.Since(start)
 
-	// With the fix: task runs ~500ms and produces 1 flow (not immediately
-	// cancelled). Without: WithTimeout(0) cancels before Plan -> 0 flows.
-	if got := pl.FlowsRun(); got != 1 {
-		t.Errorf("flows = %d, want 1 (sub-second time must not cancel immediately)", got)
+	// 第14轮 B1 新语义：time = 持续发送直到 deadline（流循环不设上界，
+	// Count 不参与）。0.5s 内持续产流（FlowsRun>=1 且量级远超单流），
+	// deadline 正常收尾（elapsed 贴 TaskFCValue）。
+	if got := pl.FlowsRun(); got < 1 {
+		t.Errorf("flows = %d, want >= 1 (time mode keeps producing until deadline)", got)
 	}
 	if elapsed > 2*time.Second {
 		t.Errorf("elapsed = %v, want < 2s (0.5s ceiling should not run long)", elapsed)

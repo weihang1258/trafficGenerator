@@ -32,7 +32,7 @@ func (s *Server) registerUserTools() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
 			Name:        "flowb_manage_users",
-			Description: "Manage users (admin only): list/get/update/delete/reset_password. In service account mode, all actions return 403 -- tool exists for Phase 3 multi-user mode.",
+			Description: "Manage users (admin only): list/get/update/delete/reset_password. 权限取决于账号 role：role=admin 可用全部动作；role=user 收到 403 admin access required（第14轮 B12：admin@trafficgen.local 即 role=admin，可列出全部用户——按实际权限口径）。",
 			OutputSchema: manageOutputSchema(),
 		},
 		s.handleManageUsers,

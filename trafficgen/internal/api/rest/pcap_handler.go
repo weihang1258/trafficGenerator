@@ -502,6 +502,15 @@ func (h *PcapHandler) Extract(c *gin.Context) {
 				}
 			}
 		}
+		// 第14轮 B13：direction 从存储包注入（方向是流相对元数据，动态
+		// 重解析面不产出——提取请求点名时由存储行补齐）。
+		for _, want := range req.Fields {
+			if want == "direction" {
+				if fields["direction"] == nil {
+					fields["direction"] = pkt.Direction
+				}
+			}
+		}
 		results = append(results, gin.H{"packet_id": pid, "fields": fields})
 	}
 	Success(c, gin.H{"items": results, "unknown_fields": unknownFields})
@@ -1085,6 +1094,12 @@ func (h *PcapHandler) ExtractBulk(c *gin.Context) {
 				if v, ok := rec.Fields[want]; ok {
 					fields[want] = v
 				}
+			}
+		}
+		// 第14轮 B13：direction 注入（同 Extract）。
+		for _, want := range req.Fields {
+			if want == "direction" && fields["direction"] == nil {
+				fields["direction"] = pkt.Direction
 			}
 		}
 		results = append(results, gin.H{"packet_id": pkt.ID, "fields": fields})

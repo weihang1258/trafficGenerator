@@ -169,10 +169,23 @@ func (p *ChainPlanner) validateChainForPlanner(r *Registry, chain []Layer) error
 	if len(chain) == 0 {
 		return fmt.Errorf("layers: empty layer chain")
 	}
+	// 第14轮 B9：跨层未知字段聚合——逐层收集 unknown-field 错误一次全报
+	// （文档承诺 "all reported at once"；此前 return 首层即停，tcp 层的
+	// 未知字段要修完 ip 层后才可见）。V9 其余（范围类）错误维持 fail-fast。
+	var unknownErrs []string
 	for _, l := range chain {
-		if err := r.ValidateLayerConfig(l); err != nil {
-			return err
+		err := r.ValidateLayerConfig(l)
+		if err == nil {
+			continue
 		}
+		if strings.Contains(err.Error(), "unknown field") {
+			unknownErrs = append(unknownErrs, err.Error())
+			continue
+		}
+		return err
+	}
+	if len(unknownErrs) > 0 {
+		return fmt.Errorf("%s", strings.Join(unknownErrs, "; "))
 	}
 	if err := r.ValidateChain(chain); err != nil {
 		if isTerminalEndError(err) && chain[len(chain)-1].Name == p.name {

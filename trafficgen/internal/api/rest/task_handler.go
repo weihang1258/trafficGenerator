@@ -728,16 +728,14 @@ func (h *TaskHandler) Create(c *gin.Context) {
 	// Strategy existence/ownership and the replay+bps conflict run below
 	// with the loaded models (gate re-runs including the conflict once
 	// strategies are known).
-	if !taskSchemaGate(c, taskCreateDoc(req.Name, toAnySlice(req.StrategyIDs), req.OutputType, toAny(req.OutputConfig), toAny(req.FlowControl)), nil) {
-		return
-	}
-
-	// both×dual is rejected for v1: RegisterDualWriter has exactly two sinks
-	// (c2s/s2c) and cannot express interface+interface2+pcap+pcap.s2c. Fast
-	// fail here on an explicit interface2; a replay direction="dual" fails
-	// the same way at Start once strategies are loaded.
+	// 第14轮 B10：组合合法性先于缺参——both×interface2 的真约束
+	// （errBothDual）优先于 schema 缺参报错，否则报错把用户引向补
+	// port_group_id（误导）。
 	if req.OutputType == "both" && req.OutputConfig != nil && req.OutputConfig.Interface2 != "" {
 		BadRequest(c, errBothDual)
+		return
+	}
+	if !taskSchemaGate(c, taskCreateDoc(req.Name, toAnySlice(req.StrategyIDs), req.OutputType, toAny(req.OutputConfig), toAny(req.FlowControl)), nil) {
 		return
 	}
 
@@ -777,11 +775,23 @@ func (h *TaskHandler) Create(c *gin.Context) {
 
 	// Serialize for storage
 	outputConfigJSON, _ := json.Marshal(req.OutputConfig)
+	// D-FILE-2 第14轮 B1/B2 收口：flow_control 随策略存储（MCP 层
+	// embeddedFlowControl 提取入策略），任务创建必须继承——否则
+	// StrategyModelToTask 读 task.FlowControl 恒空，TaskFCType 恒空，
+	// task 级 time/bps 流控对主流程完全失效（B1/B2 实测根因）。显式
+	// req.FlowControl 优先；未给时继承首个携带 flow_control 的策略。
 	var flowControlJSON []byte
-	if req.FlowControl != nil {
+	switch {
+	case req.FlowControl != nil:
 		flowControlJSON, _ = json.Marshal(req.FlowControl)
+	default:
+		for _, sf := range strategiesForFC {
+			if sf.FlowControl != "" {
+				flowControlJSON = []byte(sf.FlowControl)
+				break
+			}
+		}
 	}
-
 	// Sort strategy IDs for consistent idempotency checks AND canonical storage,
 	// so a duplicate submission with reversed order still hits the same record.
 	sortedStrategyIDs := make([]string, len(req.StrategyIDs))

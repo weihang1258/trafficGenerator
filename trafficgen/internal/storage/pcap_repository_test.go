@@ -10,18 +10,18 @@ import (
 // assetFixture builds a minimal PcapAssetModel for tests.
 func assetFixture(userID, name, hash string) *PcapAssetModel {
 	return &PcapAssetModel{
-		ID:            uuid.New().String(),
-		UserID:        userID,
-		Name:          name,
+		ID:               uuid.New().String(),
+		UserID:           userID,
+		Name:             name,
 		OriginalFilename: name + ".pcap",
-		StoragePath:   "/data/pcaps/" + hash + ".pcap",
-		PayloadsPath:  "/data/pcaps/" + hash + ".payloads",
+		StoragePath:      "/data/pcaps/" + hash + ".pcap",
+		PayloadsPath:     "/data/pcaps/" + hash + ".payloads",
 		TrigramIndexPath: "/data/pcaps/" + hash + ".trigram",
-		FileHash:      hash,
-		FileSize:      1024,
-		Status:        "importing",
-		LinkType:      1, // DLT_EN10MB
-		Snaplen:       65535,
+		FileHash:         hash,
+		FileSize:         1024,
+		Status:           "importing",
+		LinkType:         1, // DLT_EN10MB
+		Snaplen:          65535,
 	}
 }
 
@@ -288,11 +288,12 @@ func TestPcapRepository_CountReplayReferences(t *testing.T) {
 
 	// Create a replay strategy referencing asset "ast1".
 	strat := &StrategyModel{
-		ID:        uuid.New().String(),
-		UserID:    "user1",
-		Name:      "replay1",
-		Protocol:  "replay",
-		Config:    `{"pcap_asset_id":"ast1","speed":{"mode":"original"}}`,
+		ID:       uuid.New().String(),
+		UserID:   "user1",
+		Name:     "replay1",
+		Mode:     "replay",
+		Protocol: "replay",
+		Config:   `{"pcap_asset_id":"ast1","speed":{"mode":"original"}}`,
 	}
 	if err := db.Create(strat).Error; err != nil {
 		t.Fatalf("create strategy: %v", err)
@@ -332,8 +333,8 @@ func TestPcapRepository_CountReplayReferences(t *testing.T) {
 			ID:       uuid.New().String(),
 			UserID:   "user1",
 			Name:     "bad",
-			Protocol: "replay",
-			Config:   badConfig,
+			Protocol: "replay", Mode: "replay",
+			Config: badConfig,
 		}
 		db.Create(bad)
 	}
@@ -753,6 +754,7 @@ func TestPcapRepository_DeleteAsset_NotFound(t *testing.T) {
 		t.Errorf("DeleteAsset(nonexistent): %v, want nil", err)
 	}
 }
+
 // TestPcapRepository_FullPull_SizeZero: size=0 = 全量拉取（用户裁定
 // 2026-10-04，翻页可选）——三个列表方法都不得加 LIMIT。
 func TestPcapRepository_FullPull_SizeZero(t *testing.T) {

@@ -276,7 +276,18 @@ func (w *ConfigWorker) processTask(task Task) {
 
 	// Forward configs to packet workers
 	var configCount int64
-	for i := 0; i < flowCount; i++ {
+	// 第14轮 B1：time 流控 = 持续发送直到 deadline。此前流循环以 flowCount
+	// 为上界，单流任务生成 µs 级耗尽先于 deadline——任务瞬完，deadline
+	// 检查永远打不中（客户端 B1 实测）。time 模式下流循环不设上界：循环头
+	// 既有 deadline 检查负责正常完成（onTaskDone(nil)→SetTaskTotalConfigs
+	// →包排空后 completed，既有机制闭环）；stop（非 deadline 取消）照旧
+	// 走取消分支。spec.Count 在 time 模式不参与（持续生成即语义）。
+	timeMode := task.TaskFCType == "time"
+	flowLimit := flowCount
+	if timeMode {
+		flowLimit = int(^uint(0) >> 1) // MaxInt：由 deadline 终止
+	}
+	for i := 0; i < flowLimit; i++ {
 		// Honour context cancellation between flows (time deadline / stop).
 		select {
 		case <-taskCtx.Done():

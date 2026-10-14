@@ -181,6 +181,20 @@ func (h *StrategyHandler) createReplayStrategy(c *gin.Context, userID string, re
 	if _, ok := schemaGate(c, "replay", "", req.Config, req.FlowControl); !ok {
 		return
 	}
+	// 第14轮 B5：pcap_asset_id 存在性 create 即校验（此前运行期才失败，
+	// error_message 暴露内部占位 UUID——NEG-016 实测）。
+	specJSON, _ := json.Marshal(req.Config)
+	var replaySpec struct {
+		PcapAssetID string `json:"pcap_asset_id"`
+	}
+	if json.Unmarshal(specJSON, &replaySpec) == nil && replaySpec.PcapAssetID != "" {
+		var n int64
+		if err := h.db.Raw(`SELECT COUNT(*) FROM pcap_assets WHERE id = ? AND user_id = ?`,
+			replaySpec.PcapAssetID, userID).Scan(&n).Error; err == nil && n == 0 {
+			BadRequest(c, "pcap asset "+replaySpec.PcapAssetID+" not found (create-time validation)")
+			return
+		}
+	}
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
 		BadRequest(c, "invalid config format")

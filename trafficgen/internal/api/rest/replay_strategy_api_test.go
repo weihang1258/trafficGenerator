@@ -29,14 +29,14 @@ func createReplayStrategyForTest(t *testing.T, db *storage.DB, userID, name, spe
 	ch := calculateConfigHash("replay", "", config, "")
 	id := uuid.New().String()
 	if err := db.Create(&storage.StrategyModel{
-		ID:         id,
-		UserID:     userID,
-		Name:       name,
-		Mode:       "replay",
-		Protocol:   "",
-		Config:     config,
+		ID:          id,
+		UserID:      userID,
+		Name:        name,
+		Mode:        "replay",
+		Protocol:    "",
+		Config:      config,
 		FlowControl: "",
-		ConfigHash: ch,
+		ConfigHash:  ch,
 	}).Error; err != nil {
 		t.Fatalf("create replay strategy: %v", err)
 	}
@@ -48,9 +48,16 @@ func createReplayStrategyForTest(t *testing.T, db *storage.DB, userID, name, spe
 func TestReplayStrategy_Create_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, r, db := newStrategyTestServer(t)
-	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Set("username", "alice"); c.Set("roles", []string{"user"}); c.Next() })
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", "test-user")
+		c.Set("username", "alice")
+		c.Set("roles", []string{"user"})
+		c.Next()
+	})
 	r.POST("/strategies", h.Create)
 
+	// B5 create 校验需要 pcap_assets 行存在——测试前置插入
+	db.Create(&storage.PcapAssetModel{ID: "a1", UserID: "test-user", Status: "ready"})
 	body := `{"name":"r1","mode":"replay","config":{"pcap_asset_id":"a1","speed":{"mode":"original"}}}`
 	req := httptest.NewRequest("POST", "/strategies", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")

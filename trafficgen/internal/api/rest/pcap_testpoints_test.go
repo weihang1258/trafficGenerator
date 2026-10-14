@@ -235,7 +235,7 @@ func TestPcapDelete_ReferencedNoForce(t *testing.T) {
 	stratConfig := fmt.Sprintf(`{"pcap_asset_id":"ast-refed"}`)
 	h.db.Create(&storage.StrategyModel{
 		ID: uuid.New().String(), UserID: "test-user", Name: "replay-s",
-		Protocol: "replay", Config: stratConfig,
+		Protocol: "replay", Mode: "replay", Config: stratConfig,
 	})
 	req := httptest.NewRequest("DELETE", "/pcaps/ast-refed", nil)
 	w := httptest.NewRecorder()
