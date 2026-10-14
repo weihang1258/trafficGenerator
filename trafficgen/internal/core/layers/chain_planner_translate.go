@@ -53,16 +53,18 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// DNS/NTP/SNMP/Syslog 同款（波 4）：协议配置经 Meta 直传终结层生成器。
 		// MDNS 同款（波 5a）。SSDP 同款（波 5b）：配置 + 默认端口经 Meta 直传
 		// ssdp 层生成器（端口 validateSpecBase 已默认化 1900）。
-		HTTP:   spec.HTTP,
-		UDP:    spec.UDP,
-		DNS:    spec.DNS,
-		NTP:    spec.NTP,
-		SNMP:   spec.SNMP,
-		Syslog: spec.Syslog,
-		MDNS:   spec.MDNS,
-		SSDP:   spec.SSDP,
-		RIP:    spec.RIP,
-		DHCP:   spec.DHCP,
+		HTTP: spec.HTTP,
+		UDP:  spec.UDP,
+		// HopByHop 直传（D-UDP-MTU）：udp 层拆包预算按扩展头入账。
+		HopByHop: spec.HopByHop,
+		DNS:      spec.DNS,
+		NTP:      spec.NTP,
+		SNMP:     spec.SNMP,
+		Syslog:   spec.Syslog,
+		MDNS:     spec.MDNS,
+		SSDP:     spec.SSDP,
+		RIP:      spec.RIP,
+		DHCP:     spec.DHCP,
 		// DHCPv6 同款（波 5e）：配置经 Meta 直传 dhcpv6 层生成器（DUID/
 		// scenario/relay 解析全部在生成器内，planner.go Plan 同款）。
 		DHCPv6: spec.DHCPv6,

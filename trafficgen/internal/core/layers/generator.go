@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/trafficgen/trafficgen/internal/core"
@@ -224,6 +225,10 @@ type FlowMeta struct {
 	Timestamp time.Time
 	// Payload is the flow-level application payload (spec.Payload)。
 	Payload []byte
+	// HopByHop is the flow's IPv6 hop-by-hop option list (spec.HopByHop，
+	// D-UDP-MTU：udp 层拆包预算需按扩展头实际长度入账；链上 ip 层
+	// hop_by_hop → spec.HopByHop 直传，chain_planner.go:484 填充)。
+	HopByHop []core.IPv6Option
 	// HTTP is the flow's HTTP config (注入到 http 层生成器，绕过 schema
 	// 字段表——HTTPConfig 全量字段不落层 config，避免 ValidateLayerConfig
 	// 的未知字段拒绝)。Only set for http chains.
@@ -1669,6 +1674,9 @@ func (g *UDPGenerator) GenEvents() EventGenerator { return nil }
 // udpCfg is the resolved UDP layer configuration.
 type udpCfg struct {
 	srcPort, dstPort uint16
+	// mtu is the per-datagram chunk budget (D-UDP-MTU)：单包切块预算，
+	// 0 值在 resolveCfg 已归一为默认 1500。
+	mtu uint16
 }
 
 // resolveCfg resolves the UDP layer configuration from the completed layer
@@ -1691,7 +1699,78 @@ func (g *UDPGenerator) resolveCfg(req *GenRequest) (udpCfg, error) {
 			return cfg, fmt.Errorf("udp layer: field \"dst_port\" = %v invalid: cannot convert to uint16", v)
 		}
 	}
+	// D-UDP-MTU：mtu 切块预算。显式 0 = 用默认（complete.go u==0 放行惯例
+	// 同款）；范围面由 registry Min/Max（V9）建策略面拦截，这里作 Plan 期
+	// 兜底（引擎直调绕过 schema 校验时仍守下界）。
+	cfg.mtu = 1500
+	if v, ok := flowConfigField(c, "mtu"); ok {
+		u, ok := configUint64(v)
+		if !ok {
+			return cfg, fmt.Errorf("udp layer: field \"mtu\" = %v invalid: cannot convert to uint16", v)
+		}
+		switch {
+		case u == 0: // 显式 0 = 默认
+		case u < 68:
+			return cfg, fmt.Errorf("udp layer: field \"mtu\" = %d invalid: below minimum 68 (RFC 791 minimum IPv4 datagram)", u)
+		case u > 65535:
+			return cfg, fmt.Errorf("udp layer: field \"mtu\" = %d invalid: above maximum 65535", u)
+		default:
+			cfg.mtu = uint16(u)
+		}
+	}
 	return cfg, nil
+}
+
+// chunkBudget 计算单数据报最大载荷：mtu − L3 头（IPv4 20 / IPv6 40，族按
+// Meta 地址字面量判，含":"即 v6）− hop-by-hop 扩展头（builder 同源口径，
+// 仅 v6 合法）− UDP 头 8。族盲硬编码 28 是评审 F1 的 bug——v6 40 字节头
+// 必须入账。预算 ≤0（mtu 下界 + 大扩展头）显式报错。
+func (g *UDPGenerator) chunkBudget(req *GenRequest) (int, error) {
+	cfg, err := g.resolveCfg(req)
+	if err != nil {
+		return 0, err
+	}
+	l3 := 20
+	if strings.Contains(req.Meta.SrcIP, ":") || strings.Contains(req.Meta.DstIP, ":") {
+		l3 = 40
+	}
+	if len(req.Meta.HopByHop) > 0 {
+		l3 += core.HopByHopHeaderLen(req.Meta.HopByHop)
+	}
+	budget := int(cfg.mtu) - l3 - 8
+	if budget <= 0 {
+		return 0, fmt.Errorf("udp layer: chunk budget %d <= 0 (mtu %d minus %d bytes of headers); raise mtu or drop extension headers", budget, cfg.mtu, l3+8)
+	}
+	return budget, nil
+}
+
+// emitUDPSlices 按 budget 切 payload 逐包 emit（满片顺切、末片=余量；空
+// 载荷经 off==0 恒发 1 包，保留既有语义）。切片共享 payload 底层数组
+// （零拷贝）；Metadata 各包共享同一只读映射（builder 只读）。
+func emitUDPSlices(emit func(core.PacketConfig) error, md map[string]interface{}, dir string, sp, dp uint16, payload []byte, budget int) error {
+	for off := 0; off < len(payload) || off == 0; off += budget {
+		end := off + budget
+		if end > len(payload) {
+			end = len(payload)
+		}
+		pkt := core.PacketConfig{
+			Direction: dir,
+			L4: core.L4Config{
+				Protocol: "udp",
+				SrcPort:  sp,
+				DstPort:  dp,
+			},
+			Payload:  payload[off:end],
+			Metadata: md,
+		}
+		if err := emit(pkt); err != nil {
+			return err
+		}
+		if end >= len(payload) {
+			return nil
+		}
+	}
+	return nil
 }
 
 // Generate drives the UDP sequence for one flow. 独立 [ip→udp] flow（无事件
@@ -1828,29 +1907,17 @@ func (g *UDPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	}
 
 	// ---- 独立 payload 模式：request + 可选 response ----
-	if err := emit(core.PacketConfig{
-		Direction: "up",
-		L4: core.L4Config{
-			Protocol: "udp",
-			SrcPort:  cfg.srcPort,
-			DstPort:  cfg.dstPort,
-		},
-		Payload:  req.Meta.Payload,
-		Metadata: meta(),
-	}); err != nil {
+	// D-UDP-MTU：载荷超 chunk 预算自动拆为多个独立数据报（request/response
+	// 双向同款）；≤预算走同一循环的 1 包路径，存量行为不变。
+	budget, err := g.chunkBudget(req)
+	if err != nil {
+		return err
+	}
+	if err := emitUDPSlices(emit, meta(), "up", cfg.srcPort, cfg.dstPort, req.Meta.Payload, budget); err != nil {
 		return err
 	}
 	if req.Meta.UDP != nil && req.Meta.UDP.IsResponse {
-		if err := emit(core.PacketConfig{
-			Direction: "down",
-			L4: core.L4Config{
-				Protocol: "udp",
-				SrcPort:  cfg.dstPort,
-				DstPort:  cfg.srcPort,
-			},
-			Payload:  req.Meta.Payload,
-			Metadata: meta(),
-		}); err != nil {
+		if err := emitUDPSlices(emit, meta(), "down", cfg.dstPort, cfg.srcPort, req.Meta.Payload, budget); err != nil {
 			return err
 		}
 	}
