@@ -151,8 +151,9 @@ func queryLayersPayload(in queryLayersInput) (string, interface{}, error) {
 		return "query_layers", data, nil
 	case "examples":
 		var env struct {
-			Generated int                      `json:"generated"`
-			Protocols map[string][]interface{} `json:"protocols"`
+			Generated   int                      `json:"generated"`
+			GeneratedAt int64                    `json:"generated_at"` // 语料新旧识别标记（复测回执承诺）
+			Protocols   map[string][]interface{} `json:"protocols"`
 		}
 		if err := json.Unmarshal(layerExamplesJSON, &env); err != nil {
 			return "", nil, fmt.Errorf("embedded examples corrupt: %w", err)
@@ -173,7 +174,7 @@ func queryLayersPayload(in queryLayersInput) (string, interface{}, error) {
 			}
 			return "examples", map[string]interface{}{"envelope": envelope, "protocol": in.Proto, "examples": exs}, nil
 		}
-		return "examples", map[string]interface{}{"envelope": envelope, "generated": env.Generated, "protocols": env.Protocols}, nil
+		return "examples", map[string]interface{}{"envelope": envelope, "generated": env.Generated, "generated_at": env.GeneratedAt, "protocols": env.Protocols}, nil
 	default:
 		return "", nil, &jsonrpc.Error{
 			Code:    jsonrpc.CodeInvalidParams,
