@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 type caseFile struct {
@@ -53,8 +54,9 @@ type example struct {
 }
 
 type envelope struct {
-	Generated int               `json:"generated"`
-	Protocols map[string][]exam `json:"protocols"`
+	Generated   int               `json:"generated"`
+	GeneratedAt int64             `json:"generated_at"` // unix 秒：语料新旧识别标记（复测回执承诺——旧导出无此键即过期）
+	Protocols   map[string][]exam `json:"protocols"`
 }
 type exam = example
 
@@ -538,7 +540,7 @@ func Generate(casesDir string) ([]byte, error) {
 		names = append(names, k)
 	}
 	sort.Strings(names)
-	env := envelope{Generated: len(out), Protocols: out}
+	env := envelope{Generated: len(out), GeneratedAt: time.Now().Unix(), Protocols: out}
 	b, err := json.MarshalIndent(env, "", " ")
 	if err != nil {
 		return nil, err
