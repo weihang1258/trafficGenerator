@@ -1,8 +1,31 @@
 package schema
 
 import (
+	"fmt"
+
 	"github.com/trafficgen/trafficgen/internal/core/layers"
 )
+
+// batchDynHint 批量语境的动态对象指引（D-ROBUST-2 N3）：批量 = 单流 ×
+// flow_count 包复制，逐流变化（动态对象）属策略入口能力。通用文案
+// "validated via ValidateLayers" 会让批量用户迷路（复测回执实测）。
+func batchDynHint(layer, field string) string {
+	return fmt.Sprintf("batch classes replicate a single flow (flow_count = packet count): dynamic per-flow variation (dynamic objects) belongs to the single-task strategy entry (layer %q field %q)", layer, field)
+}
+
+// hasDynObject reports whether a layer config carries a top-level dynamic
+// object (strategy-keyed map) — same shape ValidateLayerConfig's scalar gate
+// matches.
+func hasDynObject(cfg map[string]any) bool {
+	for _, v := range cfg {
+		if m, ok := v.(map[string]any); ok {
+			if _, dyn := m["strategy"]; dyn {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // ValidateBatchClassLayerFields runs the per-layer field gate (V9 numeric
 // ranges / unknown fields / declared-type shape) over a batch class config —
@@ -30,6 +53,9 @@ func ValidateBatchClassLayerFields(config map[string]any) string {
 				if lcm == nil {
 					continue
 				}
+				if hasDynObject(lcm) {
+					return batchDynHint(name, firstDynField(lcm))
+				}
 				if err := layers.DefaultRegistry().ValidateLayerConfig(layers.Layer{Name: name, Config: lcm}); err != nil {
 					return err.Error()
 				}
@@ -46,8 +72,22 @@ func ValidateBatchClassLayerFields(config map[string]any) string {
 		if lcm == nil {
 			continue
 		}
+		if hasDynObject(lcm) {
+			return batchDynHint(name, firstDynField(lcm))
+		}
 		if err := layers.DefaultRegistry().ValidateLayerConfig(layers.Layer{Name: name, Config: lcm}); err != nil {
 			return err.Error()
+		}
+	}
+	return ""
+}
+
+func firstDynField(cfg map[string]any) string {
+	for f, v := range cfg {
+		if m, ok := v.(map[string]any); ok {
+			if _, dyn := m["strategy"]; dyn {
+				return f
+			}
 		}
 	}
 	return ""

@@ -60,14 +60,14 @@
   <p><strong>修法</strong>：批量任务创建时，每个非回放分项先过与单任务相同来源的字段校验（数值范围、未知字段、类型形状），拒绝时报错带分项编号与单任务一致的原文。两项刻意保留的批量特有权，说明如下：</p>
   <table>
     <tr><th style="width:200px">保留项</th><th>理由</th></tr>
-    <tr><td>静态四元组 + 按条数复制 不拒绝</td><td>批量的"按条数批量复制"本身就是它的设计语义（核心要求 §2.5：大量同类流量用条数批量）——需要逐流有别的场景，正确写法是分项内的 tuples 池或动态对象（你们 RETEST-F2 的写法）。策略入口的对应禁令针对的是"单模板靠复制充数"，批量是显式复制入口，二者语义不同。</td></tr>
+    <tr><td>静态四元组 + 按条数复制 不拒绝</td><td>批量的"按条数批量复制"本身就是它的设计语义（核心要求 §2.5：大量同类流量用条数批量）。<strong>口径更正（见 03 节 N3）</strong>：批量入口的语义是"单流 × 按条数复制包"——需要逐流有别（多条流）的场景，请走单任务入口 + 动态对象（你们 RETEST-F2 的写法）；批量内写动态对象会在建单时被明确拒绝并给出指引。</td></tr>
     <tr><td>扁平协议配置写法不受影响</td><td>批量分项既有的配置写法是合法契约，本轮只加字段校验、不改形状自由。已实测既有多流批量用例不误伤。</td></tr>
   </table>
   <p><strong>验证</strong>（按你们的复现口径）：</p>
   <table>
     <tr><td class="id">bgp version=7 经批量</td><td>建单即拒，报错带分项编号 + <span class="inline">out of range [4,4]</span>（原：受理跑完 13 包）</td></tr>
     <tr><td class="id">未知字段经批量</td><td>建单即拒，报错含 unknown field 锚词（原：受理）</td></tr>
-    <tr><td class="id">tuples 多流 + 条数 3</td><td>照常受理（正确写法不误伤）</td></tr>
+    <tr><td class="id">tuples 池 + 条数 3</td><td>照常受理（既有形不误伤；注意其语义仍是单流复制，见 04 节 N3）</td></tr>
     <tr><td class="id">既有批量用例</td><td>全量回归通过</td></tr>
   </table>
 
@@ -79,7 +79,11 @@
     <tr><td class="id">EX-C-sv_mac_dyn_inc<br>3 → 1</td><td>该用例的策略级流数为 <strong>flows=3</strong>（eth 源 MAC 递增序列 01/02/回绕 01，每流 1 包）。语料导出工具此前漏带流数字段，回放按 1 流执行 → 1 包。你们看到的 FlowCount=0 是 10-14 修复前的统计缺陷（当日已修，现已正确计为 1）。<br><strong>语料备注建议写</strong>："基线 3 = 3 流 × 1 包；旧导出缺流数、照抄得 1 包；示例已内嵌 flow_control flows=3，照抄新导出即复现 3 包。"（线上已验证：imap_t078 同机制例照抄新导出 = 14 包 / 2 流精确复现。）</td></tr>
   </table>
 
-  <h2><span class="no">04</span>其余事项对账</h2>
+  <h2><span class="no">04</span>N3：答复指引与批量能力不符——更正口径，报错同步加指引</h2>
+  <p>确认属实，且三条实测（fc=3 = 1 流 3 包；动态对象被拒；同配置单任务 = 3 流 3 包）与我方复核一致。<strong>本函 01 节原指引文字有误，更正为：批量入口的语义是"单流 × 按条数复制包"（flow_count = 包数），多流场景走单任务入口 + 动态对象。</strong>之所以这样裁定：多流职责按设计归策略入口（核心要求 §2），批量职责是多类合跑与按条数复制（§2.5）——两者分工明确，批量多流作为特性需求如确有场景，欢迎提需求单另行立项，不默认实现。</p>
+  <p>配套改进：批量内写动态对象的报错不再是通用文案（原文指向策略入口的校验器、让人迷路），改为明确指引——<span class="inline">batch classes replicate a single flow (flow_count = packet count): dynamic per-flow variation belongs to the single-task strategy entry</span>。已实测生效。</p>
+
+  <h2><span class="no">05</span>其余事项对账</h2>
   <table>
     <tr><td class="id">wireguard.rekey_after</td><td>双方对账闭环，无需 further 动作。也感谢你们的严谨——探针构造错误主动认领并书面更正，这个对账质量很高。</td></tr>
     <tr><td class="id">8082 留档</td><td>收讫。26,037 行连续日志与我方结论互证：测试窗口内该实例单进程稳定运行，仅版本旧于开发环境。按你们决定不展开，档案备查。</td></tr>
