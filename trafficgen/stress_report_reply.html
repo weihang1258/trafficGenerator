@@ -1,0 +1,125 @@
+<title>压测报告答复函：16 项逐条核实与处置</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    --paper: #f5f4ef; --ink: #21261f; --accent: #2c6e49; --accent-soft: #e3ece4;
+    --warn: #a4431c; --warn-soft: #f3e4da; --muted: #6d7367; --line: #d9d7cb;
+    --card: #fbfaf6; --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #191d18; --ink: #e4e6de; --accent: #6fbf8f; --accent-soft: #22301f;
+      --warn: #e08a5c; --warn-soft: #38251a; --muted: #9aa093; --line: #353a31; --card: #20251f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #191d18; --ink: #e4e6de; --accent: #6fbf8f; --accent-soft: #22301f;
+    --warn: #e08a5c; --warn-soft: #38251a; --muted: #9aa093; --line: #353a31; --card: #20251f;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: "Noto Sans SC", sans-serif;
+    font-size: 15px; line-height: 1.75; padding: 48px 20px 80px; }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .18em; color: var(--muted); text-transform: uppercase; }
+  h1 { font-family: "Noto Serif SC", serif; font-size: 29px; font-weight: 700; line-height: 1.3; margin: 8px 0 10px; }
+  .meta { font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 18px;
+    border-bottom: 1px solid var(--line); padding-bottom: 18px; }
+  .verdict { margin: 26px 0 0; padding: 16px 18px; background: var(--accent-soft); border-left: 3px solid var(--accent); font-size: 15.5px; }
+  h2 { font-family: "Noto Serif SC", serif; font-size: 20px; font-weight: 700; margin: 42px 0 12px; }
+  h2 .no { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-right: 10px; font-weight: 400; }
+  p { margin: 0 0 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 12px 0 8px; }
+  th { text-align: left; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; color: var(--muted);
+    font-weight: 600; border-bottom: 1px solid var(--ink); padding: 6px 10px 6px 0; }
+  td { border-bottom: 1px solid var(--line); padding: 9px 10px 9px 0; vertical-align: top; }
+  td.id { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+  .pill { display: inline-block; font-family: var(--mono); font-size: 10.5px; padding: 0 6px; margin-right: 6px; white-space: nowrap; }
+  .p-fixed { color: var(--accent); border: 1px solid var(--accent); }
+  .p-clear { color: var(--muted); border: 1px solid var(--muted); }
+  .p-pend { color: #8a6a2a; border: 1px solid #8a6a2a; }
+  .p-perf { color: var(--warn); border: 1px solid var(--warn); }
+  .note { padding: 13px 16px; background: var(--warn-soft); border-left: 3px solid var(--warn); font-size: 13.5px; margin: 14px 0; }
+  .ok { padding: 13px 16px; background: var(--accent-soft); border-left: 3px solid var(--accent); font-size: 13.5px; margin: 14px 0; }
+  code, .inline { font-family: var(--mono); font-size: 12.5px; background: var(--accent-soft); padding: 1px 5px; }
+  .steps { counter-reset: step; margin: 10px 0 0; padding: 0; list-style: none; }
+  .steps li { counter-increment: step; padding: 8px 0 8px 40px; position: relative; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .steps li::before { content: counter(step); position: absolute; left: 0; top: 9px; width: 24px; height: 24px; display: flex;
+    align-items: center; justify-content: center; font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--accent); border: 1px solid var(--accent); }
+  .foot { margin-top: 44px; padding-top: 14px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  @media (max-width: 640px) { h1 { font-size: 24px; } td, th { padding-right: 4px; } }
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">trafficgen · 压测报告逐条答复</div>
+  <h1>16 项报告逐条核实完毕：8 项已修复上线，4 项对齐后无需修改，2 项性能单独立项，2 项需你们的补充信息</h1>
+  <div class="meta">
+    <span>2026-10-15</span>
+    <span>对应报告：generate_traffic 缺陷汇总（769 用例 / 575 任务）</span>
+    <span>复核方式：代码逐行 + 线上实测 + 崩溃堆栈反汇编 + 语料逐条考古</span>
+  </div>
+
+  <div class="verdict">
+    先说最重要的：<strong>你们 124 并发打出的进程崩溃是真问题，是我们在 10-14 晚上的"UDP 大文件自动拆包"改动里埋的——当天已修复、已部署，并用你们同款 124 并发场景重放验证不再崩。</strong>其余各项逐条核实如下：报告质量很高，帮我们抓出了多个测试盲区；少数几条与实测数据有出入，我们也把对账证据一并列出。
+  </div>
+
+  <h2><span class="no">01</span>已修复并上线（8 项）</h2>
+  <table>
+    <tr><th style="width:70px">报告项</th><th>根因</th><th>修复与验证</th></tr>
+    <tr><td class="id">BUG-01<br><span class="pill p-fixed">已修复</span></td><td>10-14 晚"UDP 拆包"改动中，同一份数据报的多个分片共用了一份内部记录表；发送端写、构建端读，并发下必然相撞。124 并发只是把碰撞窗口变成了必现。</td><td>改为每个分片独立记录。用你们的 124 并发配置重放：102 个任务受理、22 个被"同时最多 100 任务"的保护上限正常拒绝（这个上限是既有设计）、零崩溃。另核点了你们堆栈里提到的另一处嫌疑位置——反汇编证实那处全程有锁，不是它。</td></tr>
+    <tr><td class="id">BUG-02<br><span class="pill p-fixed">已修复</span></td><td>服务异常退出后，卡在"进行中/排队"状态的任务没有任何启动期纠正机制。</td><td>服务启动时统一把残留任务标为失败并注明"interrupted by server restart"。已用你们报告里那两个卡死的任务（B1REPRO-16/25）实证：B1REPRO-25 已被标为失败并带原因；B1REPRO-16 显示 stopped 是你们当时手动停止生效的结果（停止接口当时返回 null 是因为引擎队列里已经没有它，数据库状态其实已翻转）。</td></tr>
+    <tr><td class="id">BUG-07<br><span class="pill p-fixed">已修复</span></td><td>三个真实缺陷：①批量任务里每个分项省略 config 时产出乱码报错；②工具说明文字在线上被截断——这是我们在 10-13 一轮修复中引入的回归（文字里嵌了未转义的引号）；③那段说明写错了形状（说了不存在的 type=synth）。</td><td>三项全修：省略 config 现在按"全默认"处理正常建单；说明文字重写为真实形状并附完整示例；联同把校验口径补齐。线上实测两种形状（带 config / 省略 config）都能正常建单跑包。</td></tr>
+    <tr><td class="id">BUG-04<br><span class="pill p-fixed">已修复</span></td><td>文件引用 id 的合法性检查只在个别协议里有，多数协议对非法值静默降级或失败原因被吞。</td><td>格式检查（64 位十六进制）统一前移到建单入口，全协议一致拒绝、报错含期望格式。你们语料里的占位符字符串现在会在建单时被明确拒绝。各协议"合法 id 但文件已删"时的降级行为保持各自语义（这是设计，详见第 03 节 tftp/vnc 的对账）。</td></tr>
+    <tr><td class="id">BUG-16<br><span class="pill p-fixed">已修复</span></td><td>"规划器产出 0 包"不带根因。</td><td>规划阶段的真实失败原因现在直接写进任务的错误信息。上线当天就兑现了：一个配置不完整的 coap 用例，报错从裸"0 包"变成了明确指出缺响应码。</td></tr>
+    <tr><td class="id">BUG-05<br><span class="pill p-fixed">已修复</span></td><td>字段类型说明与实现不符。逐一核对：确认错标 2 处（ike_nat_t.keepalive、gtp.tcp_options），另有 hls 的 3 个负向开关字段同类错标（你们语料实测时被新上的类型检查逮出——这个检查器第一班岗就抓到真问题）；openvpn.data_payload 是"双形"字段（两种写法都合法），说明已补。报告里 wireguard.rekey_after 一条与实现核对后是一致的。</td><td>错标全部修正；并新增"声明类型 vs 实际形状"的建单期检查——以前形状不符会被静默丢弃（无任何提示），现在明确拒绝。9 个字段按新说明编程即可。</td></tr>
+    <tr><td class="id">BUG-09<br><span class="pill p-fixed">已修复（首期）</span></td><td>创建时只查结构，协议语义校验在任务启动期才跑——两套时机不一致属实。</td><td>首期把报告点名的三个案例的数值范围下沉到建单入口（bgp.version 只认 4、enip.session_count 1~1000、grpc.response_status 0~16），建单即拒。全部 131 个协议校验器的整体前移涉及"翻译+补全"流水线重构，已登记为后续项（需要先出设计再动）。</td></tr>
+    <tr><td class="id">BUG-11<br><span class="pill p-fixed">已修复</span></td><td>两个真缺口：①列表查询的计数失败被忽略（总数显示 0 造成"任务全丢"假象）；②HTTP 写超时（10 秒）小于数据库忙等窗口（60 秒），高负载下排队中的查询被服务端掐断——你们看到的"空列表"最可能是这个（MCP 通道无此超时，所以 MCP 侧不受害）。</td><td>计数失败改为明确报错；写超时对齐到 65 秒。</td></tr>
+  </table>
+
+  <h2><span class="no">02</span>核实后无需改代码的项（对等说明 + 一处待补）</h2>
+  <table>
+    <tr><td class="id">BUG-08</td><td>数量控制只有三种：条数（flows）、速率（bps）、时长（time）。"按包数"这个类型在全部历史版本中都不存在，不是被移除的。省略时不写即默认"1 条流"——三种类型已在工具参数说明里写明；"省略时默认 1 条"这句话此前只在另一层文档里，现已补进工具参数说明。若"按包数控制"是真实需求，欢迎提需求单。</td></tr>
+    <tr><td class="id">BUG-10</td><td>对齐一下两条事实：同名任务在"仍在运行"时提交会被拒（防重复护栏）；同名任务已结束后新建是允许的（每次新建都是新任务）。这是两个不同操作的两条规则，并存不矛盾。此前这套语义从未书面声明，是我们的文档缺口，已登记补充。另外说明：并发下如果同一任务被同时启动，会收到"请重试"类错误，属于正常竞态保护。</td></tr>
+    <tr><td class="id">BUG-06</td><td>七个协议里其实都没有名为 method 的字段——各协议控制动作的字段各不相同（ssh 叫 scenario、s7 叫 commands、isis 叫 pdu_type 等），这些字段都真实存在且生效。真正的问题是：这些字段的取值列表在任何查询面上都看不到（说明文字是空的）——这是我们的文档缺口，已登记补全。tls 的 alpn/cert 属于 tls 层，放在 http 层会被正确拒绝。</td></tr>
+    <tr><td class="id">BUG-15<br><span class="pill p-pend">待确认</span></td><td>8086 是安装版（按发布包升级的设计口径），跑旧版本是部署拓扑现状，不是代码问题，本战役收官后会走发版升级对齐。<strong>需要你们补充一个信息</strong>：8082 在我们此刻的检查中没有任何进程在监听（8082 恰是发行配置的默认 REST 端口）。你们测试窗口内它是否存活、跑的什么版本，需要具体时间点对着服务日志才能给准话——提供大致时间我们即查。</td></tr>
+  </table>
+
+  <h2><span class="no">03</span>语料 46 条差异：逐条考古完毕，无一例是引擎回归</h2>
+  <p>你们附录 A 的 46 条，我们逐条对到源文件和提交历史，五组归因（全部是基线侧口径问题，引擎当前行为全部正确）：</p>
+  <table>
+    <tr><th style="width:90px">组</th><th style="width:60px">条数</th><th>真相</th></tr>
+    <tr><td class="id">多流坍缩</td><td>7</td><td>语料导出工具漏了"流数字段"——多流用例导出时只带 1 条流的配置。坍缩数量全部是精确的 1/N：imap 14→7（2 流）、modbus 22→11（2 流）、nfs 63→21（3 流）、srv6 10→1（10 流）。<strong>根因已修：导出现在自带流数，照抄示例即可精确复现基线（已实测：imap 例 14 包 / 2 流）。</strong></td></tr>
+    <tr><td class="id">包数变多</td><td>16</td><td>导出展示的数字本来就是"最少包数"断言（下限），实际产出一直多于下限、断言全部通过。下限值已刷新为实测值。</td></tr>
+    <tr><td class="id">file_id ±1~2</td><td>8</td><td>基线包数是 10-13 用<strong>真实文件</strong>实测的；你们回放时配置里是占位符字符串（非法值），解析失败走降级路径——输入不同，数字自然差 1~2。占位符今后会在建单时被明确拒绝（见 BUG-04 修复）。</td></tr>
+    <tr><td class="id">基线 0 包</td><td>13</td><td>这 13 条在源文件里根本没有包数断言，导出的 0 从来不是实测值（你们报告说 12 条，实数 13）。现在已按实测补上断言。</td></tr>
+    <tr><td class="id">vnc / goose</td><td>2</td><td>已真机 A/B 定数：vnc 用真实文件实发 82 包（"12"是当年回填口径错位——vnc 引擎代码自 8 月 7 日未动）；goose 真文件与占位符都是 1 包（"3"的配置口径存疑），两处已刷新。</td></tr>
+  </table>
+  <p>另纠正报告附录的一处小误：hls 三条差异（6→9/11）与 dnp3（4→8/9）等"变多"同样属于下限口径，且其中 3 条 hls 负向开关字段的类型错标正是这次新检查逮出的第 4~6 处错标——你们语料的写法是对的，schema 错了，已修。</p>
+
+  <h2><span class="no">04</span>性能三项：确认存在，单独立项</h2>
+  <table>
+    <tr><td class="id">BUG-12</td><td>确认。引擎并行为 8 个打包线程 + 1 个调度（配置默认，无隐藏限制）；40×8 秒任务的消化效率需专项分析（time 型任务的推进效率、队列策略），已立项性能专项。</td></tr>
+    <tr><td class="id">BUG-13</td><td>统计口径问题为主：shard 计数是开机累计值对累计均值比，早期偏斜会永久留在统计里；且你们压测复用同一四元组时全部粘在同一 shard（同键保序是设计）。统计口径会改为滚动窗口。</td></tr>
+    <tr><td class="id">BUG-14</td><td>确认。每行 0.44ms 在"11 个索引 + 每次提交刷盘 + 单写者排队"下量级合理，但确有优化空间：改刷盘策略（WAL 下安全降级）→ 精简低基数索引 → pcap 独立库文件，按此顺序排期。</td></tr>
+  </table>
+
+  <h2><span class="no">05</span>复测指引（针对本轮修复面）</h2>
+  <ol class="steps">
+    <li>并发回归：124 并发 generate_traffic（含 udp 大文件拆包配置）——应零崩溃；超过 100 个并发任务时收到"max_tasks limit"属保护上限</li>
+    <li>批量任务：class 省略 config 应正常建单；工具说明里 batch 的形状描述完整可读</li>
+    <li>重启清扫：制造几个运行中任务后重启服务 → 列表里应显示失败并注明 "interrupted by server restart"</li>
+    <li>文件引用：占位符或任何非 64 位十六进制的 file_id 建单即拒，报错含 "64 hex chars"</li>
+    <li>多流示例：query_layers examples 里任一多流例（如 imap_t078）照抄执行，包数应与标注一致（流数已内置）</li>
+    <li>诊断透出：任何"0 包"失败的报错应带真实原因</li>
+  </ol>
+
+  <div class="ok">
+    <b>部署状态</b>：8081 已运行含全部修复的版本（今日多次重启后的最新构建，网口能力位已重新打好）。8086 安装版待本战役发版后统一升级。
+  </div>
+  <div class="note">
+    <b>需要你们配合的一件事</b>：BUG-15 的 8082 定论——提供你们观察到 8082 异常的大致时间点（精确到小时即可），我们对着服务日志给准话。
+  </div>
+
+  <div class="foot">
+    修复提交：0a8eed40（并发崩溃）→ 4d05b03b（复审收口）→ ffe4d624（诊断透出）→ f406e072（复审收口）→ c5eecb5a/d03fb92b（批 1/批 2）→ 0634acf1（语料根因）→ e8280f4e（基线定数） · 全部修复经隔离对抗复审 + 线上实测 · 语料 46 条定代报告与基线刷新明细见交付档案
+  </div>
+</div>
