@@ -1525,6 +1525,16 @@ func walkFileSourceKeysSupported(v interface{}, path string, errs *[]string, sup
 					unknown = append(unknown, k)
 				}
 			}
+			// D-ROBUST-1（BUG-04）：file_id 值形状统一前移——64 hex chars
+			// (sha256)。此前只在个别协议 validator（运行期）校验，其余协议
+			// 非法值静默降级/0 包掩蔽三路不一致。纯形状检查无运行态依赖，
+			// create 即拒；错误文案与 wireguard validator 同族。动态对象
+			// （strategy 键）此处不查值（运行期逐流解析后仍受协议面校验）。
+			if fid, ok := fso["file_id"].(string); ok && !isDynObject(fso["file_id"]) {
+				if !isHex64(fid) {
+					*errs = append(*errs, path+".file_source: filesystem: file_id must be 64 hex chars (sha256), got "+fmt.Sprintf("%q", fid))
+				}
+			}
 			if len(unknown) > 0 {
 				*errs = append(*errs, path+".file_source: unknown key(s) "+strings.Join(unknown, "/")+
 					" — want file/file_id/literal/fill/random (or a dynamic strategy object)")
@@ -1543,4 +1553,19 @@ func walkFileSourceKeysSupported(v interface{}, path string, errs *[]string, sup
 			walkFileSourceKeysSupported(sub, fmt.Sprintf("%s[%d]", path, i), errs, supported)
 		}
 	}
+}
+
+// isHex64 reports whether s is exactly 64 lowercase/uppercase hex chars
+// (content sha256). D-ROBUST-1 BUG-04 统一校验。
+func isHex64(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
+			return false
+		}
+	}
+	return true
 }

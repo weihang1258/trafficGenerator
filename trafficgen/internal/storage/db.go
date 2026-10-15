@@ -421,3 +421,17 @@ func (r *HistoryRepository) List(page, size int, startTime, endTime time.Time) (
 
 	return histories, total, nil
 }
+
+// SweepOrphanTasks marks every pending/running/starting task as failed with
+// an interrupt reason. D-ROBUST-1（BUG-02）：崩溃/kill 后这些任务无引擎队列
+// 承接（新进程队列恒空），永久卡死且占幂等键与 max_tasks 配额。启动期调用
+// （HTTP 受理前）——单实例单库部署形态下无误伤。返回清扫行数。
+func (db *DB) SweepOrphanTasks() (int64, error) {
+	res := db.Model(&TaskModel{}).
+		Where("status IN ?", []string{"pending", "running", "starting"}).
+		Updates(map[string]interface{}{
+			"status":        "error",
+			"error_message": "interrupted by server restart",
+		})
+	return res.RowsAffected, res.Error
+}

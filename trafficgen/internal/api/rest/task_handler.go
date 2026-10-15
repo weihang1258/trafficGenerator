@@ -135,6 +135,10 @@ func pruneZero(m map[string]interface{}) map[string]interface{} {
 // toAnyBatch converts a bound BatchSpec to the client-sent shape: same as
 // toAny plus recursive zero pruning (BatchSpec/TrafficClass/GlobalConfig
 // lack omitempty, so absent sub-fields arrive zero-valued).
+// D-ROBUST-1：class.config 缺省（TrafficClass.Config 无 omitempty → JSON
+// null → untyped nil 绕过 pruneZero 类型开关）归一为 {}——batch.json 中
+// config 非必填、空对象=全默认合法形（层链 {"udp":{}} 同语义），合法输入
+// 不得产出 "<invalid reflect.Value>" 垃圾报错（客户端压测 BUG-07①）。
 func toAnyBatch(v interface{}) map[string]interface{} {
 	if v == nil {
 		return nil
@@ -146,6 +150,17 @@ func toAnyBatch(v interface{}) map[string]interface{} {
 	var m map[string]interface{}
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return nil
+	}
+	if classes, ok := m["classes"].([]interface{}); ok {
+		for _, ci := range classes {
+			cm, ok := ci.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if cm["config"] == nil {
+				cm["config"] = map[string]interface{}{}
+			}
+		}
 	}
 	return pruneZero(m)
 }
@@ -189,7 +204,7 @@ type TaskHandler struct {
 	db                 *storage.DB
 	engine             *core.Engine
 	wsHub              *websocket.Hub
-	pcap               *PcapHandler // optional; enables task pcap auto-registration
+	pcap               *PcapHandler      // optional; enables task pcap auto-registration
 	failedTasks        map[string]string // engineTaskID -> errorMessage
 	failMu             sync.Mutex
 	lastProgressUpdate map[string]time.Time // parentTaskID -> last DB update time

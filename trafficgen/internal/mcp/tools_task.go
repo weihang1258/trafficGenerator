@@ -91,12 +91,15 @@ func toRestPorts(ports []portGroupPort) []rest.PortConfig {
 }
 
 type manageTasksInput struct {
-	Description  string                 `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
-	Action       string                 `json:"action" jsonschema:"operation: create|create_batch|list|get|start|stop|delete|history"`
-	ID           string                 `json:"id,omitempty" jsonschema:"task id (for get/start/stop/delete)"`
-	Name         string                 `json:"name,omitempty" jsonschema:"task name (for create/create_batch)"`
-	StrategyIDs  []string               `json:"strategy_ids,omitempty" jsonschema:"strategy ids (for create)"`
-	Batch        map[string]interface{} `json:"batch,omitempty" jsonschema:"batch spec (create_batch). 形状 = {"classes":[...],"global":{...}}。每个 class 必填 id/type，type=synth 带 protocol+config（层链）或 flow_count；type=replay 必填 replay 对象 {"pcap_asset_id":"<资产id>","speed":{"mode":"original|multiplier|bps","bps":"1000","multiplier":2},"direction":"c2s|s2c|dual","checksum_mode":"recompute"}——replay 缺失即报 required。可选 class 键：group_id（同 group_id 策略绑定一个 PacketWorker 保证跨流顺序）、flow_count、bps。global 可选键 duration_seconds（整批时长上限）。完整字段见 schemas/v1/batch.json。"`
+	Description string   `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
+	Action      string   `json:"action" jsonschema:"operation: create|create_batch|list|get|start|stop|delete|history"`
+	ID          string   `json:"id,omitempty" jsonschema:"task id (for get/start/stop/delete)"`
+	Name        string   `json:"name,omitempty" jsonschema:"task name (for create/create_batch)"`
+	StrategyIDs []string `json:"strategy_ids,omitempty" jsonschema:"strategy ids (for create)"`
+	// D-ROBUST-1（BUG-07②③）：描述文本不得含内嵌双引号——reflect.StructTag
+	// 在首个内嵌引号处截断（B17 回归，go vet mcp 可查）；内容按 batch.json
+	// 真实形状：type=协议名或 replay（无 synth/protocol 键）。
+	Batch        map[string]interface{} `json:"batch,omitempty" jsonschema:"batch spec (create_batch). 形状 = {classes:[{id,type,config,flow_count,bps,group_id,replay}],global:{duration_seconds}}。每个 class 必填 id 与 type；type 填协议名（如 udp/tcp/modbus，config 为层链对象，可省略=全默认）或 replay；type=replay 时必填 replay 对象（键：pcap_asset_id 资产id；speed 对象 mode=original|multiplier|bps 配 bps=1000 或 multiplier=2；direction=c2s|s2c|dual；checksum_mode=recompute）——缺失即报 required。可选 class 键：flow_count（该类流数）、bps（限速）、group_id（同值类绑定同一 PacketWorker 保证跨流顺序）。global 可选键 duration_seconds（整批时长上限）。完整字段见 schemas/v1/batch.json，示例：{classes:[{id:t1,type:udp,config:{layers:[{ip:{src:10.0.0.1,dst:20.0.0.1}},{udp:{dst_port:53}}]},flow_count:5}]}。"`
 	OutputType   string                 `json:"output_type,omitempty" jsonschema:"output type: port_group, pcap, or both (both sends to the port group AND mirrors to a shadow pcap — wire target via port_group_id or ports, pcap_path optional and auto-generated when omitted; not valid with interface2) (for create/create_batch). Tip: output_config.ports auto-creates the port group (full params, idempotent) instead of passing port_group_id"`
 	OutputConfig *outputConfigInput     `json:"output_config,omitempty" jsonschema:"output configuration (for create/create_batch)"`
 	FlowControl  *flowControlInput      `json:"flow_control,omitempty" jsonschema:"optional task-level flow control (for create)"`

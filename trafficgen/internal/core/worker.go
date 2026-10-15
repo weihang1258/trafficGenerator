@@ -247,6 +247,9 @@ func (w *ConfigWorker) processTask(task Task) {
 			taskCtx = WithPayloadCache(taskCtx, pc)
 		}
 	}
+	// D-ROBUST-1（BUG-16）：plan-error sink——每流重置（Plan 前赋值），流循环
+	// 外的 0 包守卫读取最后一次 Plan 的 drive 错误。
+	var sink *PlanErrorSink
 
 	// Number of flows to generate. spec.Count (from strategy flow_control
 	// type="flows") controls flow count; <=0 defaults to 1 (e.g. bps-only or
@@ -344,6 +347,10 @@ func (w *ConfigWorker) processTask(task Task) {
 
 		// Plan packet configs for this flow. Use spec (the potentially modified
 		// copy with auto-incremented src_port) instead of task.Spec.
+		// D-ROBUST-1（BUG-16）：每流一个 plan-error sink——drive 异步错误经
+		// 此透出到 0 包报错，不再只剩掩蔽文案。
+		sink = &PlanErrorSink{}
+		taskCtx = WithPlanErrorSink(taskCtx, sink)
 		configChan, err := planner.Plan(taskCtx, spec)
 		if err != nil {
 			// Release the flows-ceiling slot this iteration reserved: a failed
@@ -429,6 +436,10 @@ func (w *ConfigWorker) processTask(task Task) {
 		// ran a flow (ranFlow) or never hit the ceiling, 0 configs still
 		// mean a broken planner and must fail.
 		if configCount == 0 && taskCtx.Err() == nil && !(ceilingHit && !ranFlow) {
+			if perr := sink.Load(); perr != nil {
+				w.onTaskDone(task.ID, fmt.Errorf("planner produced 0 packet configs: %w", perr), 0)
+				return
+			}
 			w.onTaskDone(task.ID, fmt.Errorf("planner produced 0 packet configs"), 0)
 			return
 		}

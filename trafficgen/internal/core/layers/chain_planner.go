@@ -1682,8 +1682,12 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 		packets, err := p.drive(ctx, chain, gens, spec)
 		if err != nil {
 			// 驱动失败：通道随后关闭，包流为空，调用方（worker）会按空流
-			// 处理（任务经 0 包守卫失败）。真实错误在此记日志，否则锚词
-			// 只剩 0 包掩蔽文案。
+			// 处理（任务经 0 包守卫失败）。真实错误经 ctx sink 透出到任务
+			// error_message（D-ROBUST-1 BUG-16——否则锚词只剩 0 包掩蔽），
+			// 并落日志兜底。
+			if sink := core.PlanErrorFrom(ctx); sink != nil {
+				sink.Store(err)
+			}
 			zap.L().Warn("chain drive failed; flow yields no packets", zap.String("flow", flowID(spec)), zap.Error(err))
 			return
 		}

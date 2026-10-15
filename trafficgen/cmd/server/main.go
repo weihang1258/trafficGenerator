@@ -216,9 +216,9 @@ import (
 )
 
 var (
-	configPath   = flag.String("config", "", "Path to configuration file")
-	fsRoot       = flag.String("fs-root", "", "Filesystem root override (default: data/filesystem)")
-	showVersion  = flag.Bool("version", false, "Print version and exit")
+	configPath  = flag.String("config", "", "Path to configuration file")
+	fsRoot      = flag.String("fs-root", "", "Filesystem root override (default: data/filesystem)")
+	showVersion = flag.Bool("version", false, "Print version and exit")
 	// version 由构建期 ldflags 注入（-X main.version=vX.Y.Z）；
 	// 源码直跑时为 dev。发布物必须带真实版本号（Makefile dist）。
 	version = "dev"
@@ -336,6 +336,17 @@ func main() {
 	// Initialize engine
 	if err := app.initEngine(); err != nil {
 		zap.L().Fatal("failed to init engine", zap.Error(err))
+	}
+
+	// D-ROBUST-1（BUG-02）：孤儿任务清扫。引擎队列重启后恒空——DB 内
+	// 仍处 pending/running/starting 的任务必为上代进程残留（崩溃/kill），
+	// 无人推进也无人纠错（永久卡死、占幂等键与 max_tasks 配额、batch 孤儿
+	// 连 Start 都进不去）。统一置 failed；必须在 initServer（HTTP 开始
+	// 受理）之前完成。单实例单库（各实例 cwd/config 独立 DB），无误伤面。
+	if n, err := app.db.SweepOrphanTasks(); err != nil {
+		zap.L().Warn("orphan task sweep failed", zap.Error(err))
+	} else if n > 0 {
+		zap.L().Info("orphan tasks swept", zap.Int64("count", n))
 	}
 
 	// Initialize WebSocket
