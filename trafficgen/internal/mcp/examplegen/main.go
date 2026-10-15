@@ -29,7 +29,14 @@ type caseFile struct {
 	Proto    string          `json:"proto"`
 	Summary  string          `json:"summary"`
 	SpecJSON json.RawMessage `json:"spec_json"`
-	Expect   struct {
+	// StrategyFC 是套件路径的策略级封包（driver.go:96 施加）。D-BUG-03
+	// 根因修复：此前不导出——多流例回放坍缩成 1 流（flows=2 例 14→7 等
+	// 七条 MISMATCH 的整数倍坍缩根因）。
+	StrategyFC *struct {
+		Type  string  `json:"type"`
+		Value float64 `json:"value"`
+	} `json:"strategy_fc,omitempty"`
+	Expect struct {
 		ExpectError bool `json:"expect_error"`
 		PacketCount int  `json:"packet_count"`
 		MinPackets  int  `json:"min_packets"`
@@ -333,9 +340,26 @@ func Generate(casesDir string) ([]byte, error) {
 				// （如 openvpn 握手交换）此前落 0 丢事务档。
 				pk = c.Expect.MinPackets
 			}
+			// D-BUG-03：strategy_fc 钉进导出 config（flow_control 键）——
+			// 客户端照抄示例即复现套件的 N 流形状；spec 已带 flow_control
+			// 时不覆盖（spec 内值优先，与套件 driver 同序）。
+			cfgJSON := c.SpecJSON
+			if c.StrategyFC != nil {
+				var obj map[string]json.RawMessage
+				if err := json.Unmarshal(cfgJSON, &obj); err == nil {
+					if _, has := obj["flow_control"]; !has {
+						if fc, ferr := json.Marshal(c.StrategyFC); ferr == nil {
+							obj["flow_control"] = fc
+							if merged, merr := json.Marshal(obj); merr == nil {
+								cfgJSON = merged
+							}
+						}
+					}
+				}
+			}
 			protos[c.Proto] = append(protos[c.Proto], exam{
 				Protocol: c.Proto, CaseID: c.ID, Summary: c.Summary,
-				Config: c.SpecJSON, FlowControl: flowNote(c.SpecJSON),
+				Config: cfgJSON, FlowControl: flowNote(cfgJSON),
 				Packets: pk,
 			})
 		}

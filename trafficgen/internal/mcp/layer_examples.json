@@ -119,6 +119,71 @@
    },
    {
     "protocol": "a2a",
+    "case_id": "a2a_t165_multi_session_taskid",
+    "summary": "T165: 多会话独立 taskId（3 流各自 taskId，strategy flows=3）",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 3
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 8080,
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          12345,
+          12346
+         ],
+         "step": 1
+        }
+       }
+      },
+      {
+       "a2a": {
+        "tasks": [
+         {
+          "method": "message/send",
+          "requestId": "req-165a",
+          "message": {
+           "role": "user",
+           "parts": [
+            {
+             "kind": "text",
+             "text": "flow1"
+            }
+           ],
+           "messageId": "m-165a",
+           "kind": "message"
+          },
+          "response": {
+           "result": {
+            "id": "task-165a",
+            "kind": "task",
+            "status": {
+             "state": "completed",
+             "timestamp": "2026-08-09T11:00:00Z"
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=3（3 条流并发）",
+    "packets": 27
+   },
+   {
+    "protocol": "a2a",
     "case_id": "a2a_s8_bearer_auth",
     "summary": "S8/T093: Bearer Token 认证，请求含 Authorization: Bearer \u003ctoken\u003e 头，8 包",
     "config": {
@@ -731,6 +796,88 @@
      ]
     },
     "packets": 7
+   },
+   {
+    "protocol": "bgp",
+    "case_id": "bgp_a_multi_flow_dynamic",
+    "summary": "A': flows=3 with ip.src inc + ip.dst rand(seed) + tcp.src_port inc",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 3
+     },
+     "group_id": {
+      "strategy": "fixed",
+      "value": "bgp-multiflow"
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": {
+         "strategy": "inc",
+         "range": [
+          "10.0.0.1",
+          "10.0.0.3"
+         ],
+         "step": 1
+        },
+        "dst": {
+         "strategy": "rand",
+         "range": [
+          "20.0.0.1",
+          "20.0.0.9"
+         ],
+         "seed": 42
+        }
+       }
+      },
+      {
+       "tcp": {
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          12345,
+          12347
+         ],
+         "step": 1
+        }
+       }
+      },
+      {
+       "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": [
+         {
+          "kind": "open",
+          "direction": "c2s",
+          "version": 4,
+          "my_as": 64512,
+          "hold_time": 90,
+          "identifier": "192.0.2.1"
+         },
+         {
+          "kind": "open",
+          "direction": "s2c",
+          "version": 4,
+          "my_as": 64513,
+          "hold_time": 90,
+          "identifier": "192.0.2.2"
+         },
+         {
+          "kind": "keepalive",
+          "direction": "c2s"
+         },
+         {
+          "kind": "keepalive",
+          "direction": "s2c"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=3（3 条流并发）",
+    "packets": 33
    },
    {
     "protocol": "bgp",
@@ -1733,6 +1880,51 @@
    },
    {
     "protocol": "dameng",
+    "case_id": "dameng_multi_flow_dynamic",
+    "summary": "MF: flows=3 dynamic src ports over single-connect baseline",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 3
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          12345,
+          12347
+         ],
+         "step": 1
+        }
+       }
+      },
+      {
+       "dameng": {
+        "wire_profile": "dm8_profile_pending",
+        "events": [
+         {
+          "kind": "connect",
+          "direction": "c2s",
+          "profile": "connect_default"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=3（3 条流并发）",
+    "packets": 24
+   },
+   {
+    "protocol": "dameng",
     "case_id": "dameng_length_boundary",
     "summary": "S5: profile minimum non-empty payload boundary",
     "config": {
@@ -2533,6 +2725,50 @@
    },
    {
     "protocol": "doip",
+    "case_id": "doip_tcp_multiflow_dynamic",
+    "summary": "T-DOIP #15: flows=2 sessions, tcp.src_port inc dynamic — distinct 4-tuples",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": "192.168.1.100",
+        "dst": "192.168.1.200"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          40000,
+          40010
+         ],
+         "step": 1
+        }
+       }
+      },
+      {
+       "doip": {
+        "tester_address": 3712,
+        "logical_address": 1,
+        "activation": {
+         "direction": "up",
+         "activation_type": 0,
+         "response_code": 16
+        }
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 18
+   },
+   {
+    "protocol": "doip",
     "case_id": "doip_alive_mid_messages",
     "summary": "T115: AliveCheck 插入 Messages 中间 → 0x0007 在诊断包后 12 包",
     "config": {
@@ -3108,6 +3344,72 @@
      ]
     },
     "packets": 8
+   },
+   {
+    "protocol": "enip",
+    "case_id": "enip_t180_multiflow_txn_error_branch",
+    "summary": "T-180/T-179/T-217: 2 并发流(framework flows=2 + 动态 tcp.src_port) x 单流 3 命令事务序列(0x0065 注册 -\u003e 0x006F SendRRData 请求 -\u003e 0x006F down 错误响应 ENIP Status=0x0064 InvalidSessionHandle) -- 多流/多会话内多事务/异常分支三面同例",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "group_id": {
+      "strategy": "fixed",
+      "value": "enip-mf-err"
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          12345,
+          12346
+         ],
+         "step": 1
+        },
+        "dst_port": 44818
+       }
+      },
+      {
+       "enip": {
+        "transport": "tcp",
+        "commands": [
+         {
+          "command": 101,
+          "protocol_version": 1,
+          "session_handle": 305419896
+         },
+         {
+          "command": 111,
+          "cip_service": 14,
+          "class_id": 1,
+          "instance_id": 1,
+          "attribute_id": 1
+         },
+         {
+          "command": 111,
+          "direction": "down",
+          "status": 100,
+          "cip_service": 14,
+          "class_id": 1,
+          "instance_id": 1,
+          "attribute_id": 1
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 20
    }
   ],
   "ethmining": [
@@ -3360,6 +3662,10 @@
     "case_id": "ftp_multiflow_data",
     "summary": "多流×数据通道组合：flows=3 每流 PASV+RETR 含独立数据通道（端口逐流隔离）",
     "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 3
+     },
      "layers": [
       {
        "tcp": {}
@@ -3413,6 +3719,7 @@
       }
      ]
     },
+    "flow_control_note": "flows=3（3 条流并发）",
     "packets": 60
    },
    {
@@ -3701,6 +4008,45 @@
    },
    {
     "protocol": "gbt32960",
+    "case_id": "gbt_t117_multiflow_2vehicles",
+    "summary": "T-GBT-057(4-tuple 部分): strategy_fc flows=2 → 2 车辆流完整会话, src_port 12345/12346 自动递增, 4-tuple 独立; 每流 3+2+2+3=10 包共 20 包",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "group_id": {
+      "strategy": "fixed",
+      "value": "gbt-mf"
+     },
+     "layers": [
+      {
+       "tcp": {}
+      },
+      {
+       "gbt32960": {
+        "role": "vehicle",
+        "vin": "LXXXXXXXXXXXXXXX1",
+        "sim": "13800138000",
+        "login_time": "2026-08-03T14:30:00+08:00",
+        "login_serial_number": 1,
+        "rechargeable_subsys_count": 1,
+        "rechargeable_subsys_code_length": 1,
+        "rechargeable_subsys_codes": [
+         "00"
+        ],
+        "reports": [
+         {}
+        ]
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 26
+   },
+   {
+    "protocol": "gbt32960",
     "case_id": "gbt_t053_platform",
     "summary": "T-GBT-053: 平台角色 — 0x05 (48B: user 12B+pwd 20B+encrypt_seq 16B, 右补零) + 0x0C + 0x0B×3 + 0x06 + 0x0C; 13 包",
     "config": {
@@ -3723,42 +4069,6 @@
      ]
     },
     "packets": 14
-   },
-   {
-    "protocol": "gbt32960",
-    "case_id": "gbt_t013_remote_control",
-    "summary": "T-GBT-013: 远程控制 — 0x08(下行 data=01 00) + 0x0C(上行 data=08) + 下一条上行(0x04)resp=01; 2 上报+控制 → 16 包",
-    "config": {
-     "layers": [
-      {
-       "tcp": {}
-      },
-      {
-       "gbt32960": {
-        "role": "vehicle",
-        "vin": "LXXXXXXXXXXXXXXX1",
-        "sim": "13800138000",
-        "login_time": "2026-08-03T14:30:00+08:00",
-        "login_serial_number": 1,
-        "reports": [
-         {},
-         {}
-        ],
-        "remote_control": {
-         "control_type": 1,
-         "params": "00",
-         "response_flags": "01"
-        },
-        "rechargeable_subsys_count": 1,
-        "rechargeable_subsys_code_length": 1,
-        "rechargeable_subsys_codes": [
-         "00"
-        ]
-       }
-      }
-     ]
-    },
-    "packets": 17
    },
    {
     "protocol": "gbt32960",
@@ -4350,6 +4660,54 @@
      ]
     },
     "packets": 9
+   },
+   {
+    "protocol": "gre",
+    "case_id": "gre_inner_tcp_dynamic",
+    "summary": "内层tcp动态正例（T-GRE-18）：T-GRE-8链形内层dst_port inc[80,8080 step8000]+flows=2→两流内层目的端口distinct(80/8080)",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "gre": {
+        "sequence": true
+       }
+      },
+      {
+       "ip": {
+        "src": "192.168.1.1",
+        "dst": "192.168.1.2"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": 12345,
+        "dst_port": {
+         "strategy": "inc",
+         "range": [
+          80,
+          8080
+         ],
+         "step": 8000
+        }
+       }
+      },
+      {
+       "http": {}
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 18
    }
   ],
   "grpc": [
@@ -4482,6 +4840,51 @@
    },
    {
     "protocol": "h323",
+    "case_id": "h323_port_dyn",
+    "summary": "T-H323-14: h323.src_port 动态 inc+flows=2（逐流端口池，决策 E1）",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "group_id": {
+      "strategy": "fixed",
+      "value": "h323-port-dyn"
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": {
+         "strategy": "inc",
+         "range": [
+          "10.0.1.1",
+          "10.0.1.2"
+         ],
+         "step": 1
+        },
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "h323": {
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          30000,
+          30001
+         ],
+         "step": 1
+        },
+        "dst_port": 1720
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 32
+   },
+   {
+    "protocol": "h323",
     "case_id": "h323_calls_multi",
     "summary": "T-H323-11: calls=2+显式 crv=0x1000（32 包=16×2；呼叫间 CRV 0x1000→0x1001 递增）",
     "config": {
@@ -4553,28 +4956,6 @@
      ]
     },
     "packets": 10
-   },
-   {
-    "protocol": "h323",
-    "case_id": "h323_role_callee",
-    "summary": "T-H323-15: role=callee（握手恒 client 发起；Q.931 面方向翻转）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "h323": {
-        "role": "callee",
-        "src_port": 12345
-       }
-      }
-     ]
-    },
-    "packets": 16
    }
   ],
   "hds": [
@@ -5083,6 +5464,46 @@
    },
    {
     "protocol": "http",
+    "case_id": "http_multiflow_dynamic_sport",
+    "summary": "multiflow inc sport T-HTTP-41",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.10",
+        "dst": "198.51.100.20"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          41000,
+          41001
+         ]
+        },
+        "dst_port": 80
+       }
+      },
+      {
+       "http": {
+        "method": "GET",
+        "uri": "/mf",
+        "version": "1.1"
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 18
+   },
+   {
+    "protocol": "http",
     "case_id": "http_req_chunk_size_multi",
     "summary": "请求 chunk_size=5 多分块（frames钉GET行，T-HTTP-21）",
     "config": {
@@ -5170,37 +5591,6 @@
         "version": "1.1",
         "transactions": 3,
         "keep_alive": true
-       }
-      }
-     ]
-    },
-    "packets": 13
-   },
-   {
-    "protocol": "http",
-    "case_id": "http_pipelined",
-    "summary": "pipelined：3 请求先行后 3 响应（T-HTTP-10）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "192.0.2.10",
-        "dst": "198.51.100.20"
-       }
-      },
-      {
-       "tcp": {
-        "src_port": 40013,
-        "dst_port": 80
-       }
-      },
-      {
-       "http": {
-        "method": "GET",
-        "uri": "/pipe",
-        "version": "1.1",
-        "transactions": 3,
-        "pipelined": true
        }
       }
      ]
@@ -5423,6 +5813,41 @@
      ]
     },
     "packets": 2
+   },
+   {
+    "protocol": "icmpv6",
+    "case_id": "icmpv6_ip_dyn_multi",
+    "summary": "T-ICMPV6-11: ip.src 动态 inc + flows=2 → 4 包逐流源异（3.14 逃生口；dynamic 对象豁免 static copy 门）",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "group_id": {
+      "strategy": "fixed",
+      "value": "icmpv6-dyn-multi"
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": {
+         "strategy": "inc",
+         "range": [
+          "2001:db8::1",
+          "2001:db8::2"
+         ],
+         "step": 1
+        },
+        "dst": "2001:db8::9"
+       }
+      },
+      {
+       "icmpv6": {}
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 4
    },
    {
     "protocol": "icmpv6",
@@ -5783,6 +6208,10 @@
     "case_id": "imap_t078_default_twoflow",
     "summary": "T-078: 全缺省双流放行",
     "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
      "layers": [
       {
        "ip": {}
@@ -5795,6 +6224,7 @@
       }
      ]
     },
+    "flow_control_note": "flows=2（2 条流并发）",
     "packets": 14
    },
    {
@@ -7224,6 +7654,45 @@
    },
    {
     "protocol": "mcp",
+    "case_id": "mcp_t043_stdio_multiflow_3_sessions",
+    "summary": "T-043/§7.16: 3 会话独立 4-tuple，src_port 递增 12345/12346/12347，聚合包数 33",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 3
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": {
+         "strategy": "fixed",
+         "value": 8081
+        }
+       }
+      },
+      {
+       "mcp": {
+        "transport": "stdio",
+        "requests": [
+         {
+          "method": "ping"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=3（3 条流并发）",
+    "packets": 36
+   },
+   {
+    "protocol": "mcp",
     "case_id": "mcp_t039_stdio_state_complete",
     "summary": "T-039/§7.15: state 完整流 submitted→working→completed，progress 通知 + _meta.state=completed 终态",
     "config": {
@@ -7369,39 +7838,6 @@
             "method": "roots/list"
            }
           }
-         }
-        ]
-       }
-      }
-     ]
-    },
-    "packets": 12
-   },
-   {
-    "protocol": "mcp",
-    "case_id": "mcp_t011_stdio_protocol_version_downgrade",
-    "summary": "T-011/§7.1: initialize 协议版本降级，客户端 2025-06-18 → 服务端响应 2024-11-05",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "tcp": {
-        "src_port": 12345,
-        "dst_port": 8081
-       }
-      },
-      {
-       "mcp": {
-        "transport": "stdio",
-        "protocol_version": "2025-06-18",
-        "requests": [
-         {
-          "method": "ping"
          }
         ]
        }
@@ -7818,6 +8254,42 @@
    },
    {
     "protocol": "mms",
+    "case_id": "mms_multiflow",
+    "summary": "G-MMS-8 flow_control 补例（§12.12）：flows=2 双流并发，ip.src 层内动态逐流递增 + 框架逐流源端口 12345/12346，每流关联 7 包",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": {
+         "strategy": "inc",
+         "range": [
+          "10.0.1.1",
+          "10.0.1.9"
+         ],
+         "step": 1
+        },
+        "dst": "10.0.0.2"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 102
+       }
+      },
+      {
+       "mms": {}
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 14
+   },
+   {
+    "protocol": "mms",
     "case_id": "mms_service_error",
     "summary": "MMS negative: read non-existent object -\u003e Confirmed-ErrorPDU (access/object-non-existent)",
     "config": {
@@ -7929,56 +8401,6 @@
      ]
     },
     "packets": 5
-   },
-   {
-    "protocol": "mms",
-    "case_id": "mms_multi_session",
-    "summary": "MMS multi-session: two independent TCP associations each complete CR/CC",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "192.0.2.88",
-        "dst": "198.51.100.88"
-       }
-      },
-      {
-       "tcp": {
-        "dst_port": 102
-       }
-      },
-      {
-       "mms": {
-        "objects": [
-         {
-          "domain": "IED1",
-          "name": "GGIO1.SPCSO1.stVal",
-          "datatype": "boolean"
-         }
-        ],
-        "enableRead": true,
-        "multiSession": [
-         {
-          "objects": [
-           {
-            "domain": "IED2",
-            "name": "MMXU1.TotW.mag.f",
-            "datatype": "integer",
-            "value": 5
-           }
-          ]
-         }
-        ],
-        "sequence": {
-         "steps": [
-          "read"
-         ]
-        }
-       }
-      }
-     ]
-    },
-    "packets": 18
    }
   ],
   "mmse": [
@@ -8222,6 +8644,58 @@
    },
    {
     "protocol": "modbus",
+    "case_id": "modbus-flow-count-4",
+    "summary": "T-171: FlowCount=4 独立流 (每流 1 tx) → 4×9=36 packets",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 4
+     },
+     "layers": [
+      {
+       "eth": {
+        "src_mac": "02:00:00:00:00:01",
+        "dst_mac": "02:00:00:00:00:02"
+       }
+      },
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 502,
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          20000,
+          20003
+         ],
+         "step": 1
+        }
+       }
+      },
+      {
+       "modbus": {
+        "unit_id": 1,
+        "transactions": [
+         {
+          "function_code": 3,
+          "starting_address": 0,
+          "quantity": 1
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=4（4 条流并发）",
+    "packets": 36
+   },
+   {
+    "protocol": "modbus",
     "case_id": "modbus-broadcast-unit0-exception",
     "summary": "T-050: UnitID=0 广播 + 异常响应 → 异常被抑制 (无响应包)",
     "config": {
@@ -8266,6 +8740,10 @@
     "case_id": "modbus-shared-tid-space-false",
     "summary": "T-163: SharedTIDSpace=false 跨 master 各自 TID=0 起始",
     "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
      "layers": [
       {
        "eth": {
@@ -8312,6 +8790,7 @@
       }
      ]
     },
+    "flow_control_note": "flows=2（2 条流并发）",
     "packets": 22
    }
   ],
@@ -8371,6 +8850,75 @@
      }
     },
     "packets": 9
+   },
+   {
+    "protocol": "mongodb",
+    "case_id": "mongodb_multi_flow_dynamic",
+    "summary": "A'/§12.12: flows=3 多流 + ip.src inc / ip.dst rand(seed=42) / tcp.src_port inc （四元组动态对象，静态复制门 §12.9 豁免）；包数 8×N=24 待 suite 先跑后钉",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 3
+     },
+     "group_id": {
+      "strategy": "fixed",
+      "value": "mongodb-multiflow"
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": {
+         "strategy": "inc",
+         "range": [
+          "10.0.0.1",
+          "10.0.0.3"
+         ],
+         "step": 1
+        },
+        "dst": {
+         "strategy": "rand",
+         "range": [
+          "20.0.0.1",
+          "20.0.0.9"
+         ],
+         "seed": 42
+        }
+       }
+      },
+      {
+       "tcp": {
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          12345,
+          12347
+         ],
+         "step": 1
+        }
+       }
+      },
+      {
+       "mongodb": {
+        "messages": [
+         {
+          "request_id": 600,
+          "response_to": 0,
+          "opcode": "OP_QUERY",
+          "namespace": "test.users",
+          "flags": 0,
+          "skip": 0,
+          "return_count": 1,
+          "query": {
+           "x": 1
+          }
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=3（3 条流并发）",
+    "packets": 24
    },
    {
     "protocol": "mongodb",
@@ -8495,6 +9043,49 @@
      ]
     },
     "packets": 8
+   },
+   {
+    "protocol": "moxa",
+    "case_id": "moxa_sessions_multi",
+    "summary": "S4/T-MOXA-S4-01: 多串口会话 = flows=3，src_port 12345/12346/12347，dst_port 恒 4800，3×8=24 包；聚合用 distinct_exclude 滤掉对端口",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 3
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          12345,
+          12347
+         ],
+         "step": 1
+        },
+        "dst_port": 4800
+       }
+      },
+      {
+       "moxa": {
+        "stream": [
+         {
+          "payload": "hello"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=3（3 条流并发）",
+    "packets": 24
    }
   ],
   "mpls": [
@@ -8525,6 +9116,56 @@
      ]
     },
     "packets": 3
+   },
+   {
+    "protocol": "mpls",
+    "case_id": "mpls_port_dyn",
+    "summary": "T-MPLS-14: mpls.src_port 动态 inc+flows=2（E1 逐流端口池）",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "group_id": {
+      "strategy": "fixed",
+      "value": "mpls-port-dyn"
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": {
+         "strategy": "inc",
+         "range": [
+          "10.0.1.1",
+          "10.0.1.2"
+         ],
+         "step": 1
+        },
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "mpls": {
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          30000,
+          30001
+         ],
+         "step": 1
+        },
+        "dst_port": 80,
+        "labels": [
+         {
+          "label": 100
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 2
    },
    {
     "protocol": "mpls",
@@ -8609,34 +9250,6 @@
      ]
     },
     "packets": 1
-   },
-   {
-    "protocol": "mpls",
-    "case_id": "mpls_inner_tcp",
-    "summary": "T-MPLS-12: 内层 TCP 裸头（inner_proto:6）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "mpls": {
-        "src_port": 12345,
-        "dst_port": 80,
-        "labels": [
-         {
-          "label": 100
-         }
-        ],
-        "inner_proto": 6
-       }
-      }
-     ]
-    },
-    "packets": 1
    }
   ],
   "mqtt": [
@@ -8665,6 +9278,38 @@
      ]
     },
     "packets": 10
+   },
+   {
+    "protocol": "mqtt",
+    "case_id": "mqtt_dyn_client_id_list",
+    "summary": "client_id dyn (D-MQTT-1 s12): list + flows=2, CONNECT client_id distinct",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "layers": [
+      {
+       "ip": {}
+      },
+      {
+       "tcp": {}
+      },
+      {
+       "mqtt": {
+        "client_id": {
+         "strategy": "list",
+         "list": [
+          "dyn-a",
+          "dyn-b"
+         ]
+        }
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 20
    },
    {
     "protocol": "mqtt",
@@ -8788,38 +9433,6 @@
    },
    {
     "protocol": "mqtt",
-    "case_id": "mqtt_s14_connack_reject",
-    "summary": "S14/T-068: CONNACK 拒绝码 5 跳过后续 MQTT 包(8 包)",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "tcp": {}
-      },
-      {
-       "mqtt": {
-        "client_id": "bad-client",
-        "connect_ack_code": 5,
-        "messages": [
-         {
-          "topic": "t",
-          "payload": "p",
-          "qos": 0
-         }
-        ]
-       }
-      }
-     ]
-    },
-    "packets": 9
-   },
-   {
-    "protocol": "mqtt",
     "case_id": "mqtt_publish_file_id",
     "summary": "D-FILE-2 P1：MQTT PUBLISH 载荷来自上传文件（messages[].file_source，item 级）",
     "config": {
@@ -8909,6 +9522,14 @@
     "case_id": "nfs_t195_v3_multiflow_composite",
     "summary": "T-195/T-200 复合大场景：flow_control.flows=3 条独立客户端流（层内动态 ip.src + 框架逐流源端口 12345/6/7）— 每流 MOUNT + GETATTR/LOOKUP/READ/WRITE/REMOVE + UMOUNT 共 7 轮 RPC；GETATTR 注入 NFS3ERR_STALE(70) 异常分支后 LOOKUP 恢复；AUTH_SYS 全 call；group_id 同 shard 定序 → 3×21=63 包",
     "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 3
+     },
+     "group_id": {
+      "strategy": "fixed",
+      "value": "nfs-composite"
+     },
      "layers": [
       {
        "ip": {
@@ -8959,12 +9580,9 @@
         ]
        }
       }
-     ],
-     "group_id": {
-      "strategy": "fixed",
-      "value": "nfs-composite"
-     }
+     ]
     },
+    "flow_control_note": "flows=3（3 条流并发）",
     "packets": 63
    },
    {
@@ -9096,6 +9714,54 @@
    },
    {
     "protocol": "ngap",
+    "case_id": "ngap_port_dyn",
+    "summary": "T-NGAP-15: ngap.src_port 动态 inc+flows=2（E1 逐流端口池，2 流×9=18 包）",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "group_id": {
+      "strategy": "fixed",
+      "value": "ngap-port-dyn"
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": {
+         "strategy": "inc",
+         "range": [
+          "10.0.1.1",
+          "10.0.1.2"
+         ],
+         "step": 1
+        },
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "ngap": {
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          20000,
+          20001
+         ],
+         "step": 1
+        },
+        "dst_port": {
+         "strategy": "fixed",
+         "value": 38412
+        }
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 18
+   },
+   {
+    "protocol": "ngap",
     "case_id": "ngap_all_procedures",
     "summary": "T-NGAP-9: 全可选流程 16 包=4握手+2Setup+1+1+1+2+2+3拆链",
     "config": {
@@ -9196,29 +9862,6 @@
      ]
     },
     "packets": 10
-   },
-   {
-    "protocol": "ngap",
-    "case_id": "ngap_amf_name",
-    "summary": "T-NGAP-12: amf_name 自定义 'AMF-EDGE-07'（f6 NGSetupResp PDU hex pin）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "ngap": {
-        "src_port": 12345,
-        "dst_port": 38412,
-        "amf_name": "AMF-EDGE-07"
-       }
-      }
-     ]
-    },
-    "packets": 9
    }
   ],
   "nmea": [
@@ -10916,6 +11559,10 @@
     "case_id": "pop3_t046_default_twoflow",
     "summary": "T-046: 全缺省双流放行",
     "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
      "layers": [
       {
        "ip": {}
@@ -10928,6 +11575,7 @@
       }
      ]
     },
+    "flow_control_note": "flows=2（2 条流并发）",
     "packets": 14
    },
    {
@@ -11039,6 +11687,92 @@
      ]
     },
     "packets": 7
+   },
+   {
+    "protocol": "postgresql",
+    "case_id": "postgresql_multi_flow_dynamic",
+    "summary": "T-PG-46: flows=3 with per-flow ip/tcp dynamics (inc wrap / rand seed / list rotation)",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 3
+     },
+     "group_id": {
+      "strategy": "fixed",
+      "value": "pg-multiflow"
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": {
+         "strategy": "inc",
+         "range": [
+          "10.0.0.1",
+          "10.0.0.3"
+         ],
+         "step": 1
+        },
+        "dst": {
+         "strategy": "rand",
+         "range": [
+          "20.0.0.1",
+          "20.0.0.9"
+         ],
+         "seed": 42
+        },
+        "ttl": {
+         "strategy": "inc",
+         "range": [
+          60,
+          62
+         ],
+         "step": 1
+        }
+       }
+      },
+      {
+       "tcp": {
+        "src_port": {
+         "strategy": "list",
+         "list": [
+          "45082",
+          "45083",
+          "45084"
+         ]
+        }
+       }
+      },
+      {
+       "postgresql": {
+        "dialect": "postgresql",
+        "wire_profile": "postgresql_v3",
+        "events": [
+         {
+          "kind": "startup",
+          "direction": "c2s",
+          "user": "bench",
+          "database": "bench"
+         },
+         {
+          "kind": "auth_request",
+          "direction": "s2c",
+          "authtype": 0
+         },
+         {
+          "kind": "ready",
+          "direction": "s2c"
+         },
+         {
+          "kind": "terminate",
+          "direction": "c2s"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=3（3 条流并发）",
+    "packets": 33
    },
    {
     "protocol": "postgresql",
@@ -11406,6 +12140,50 @@
      ]
     },
     "packets": 2
+   },
+   {
+    "protocol": "radius",
+    "case_id": "radius_port_dyn",
+    "summary": "T-RADIUS-21 src_port/dst_port 动态 inc+flows=2（E1 逐流端口池；group_id 固定同 worker 保序；2 流×2=4 包）",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "radius": {
+        "code": 1,
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          12001,
+          12002
+         ],
+         "step": 1,
+         "group_id": "radius-src"
+        },
+        "dst_port": {
+         "strategy": "inc",
+         "range": [
+          1812,
+          1813
+         ],
+         "step": 1,
+         "group_id": "radius-dst"
+        }
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 4
    },
    {
     "protocol": "radius",
@@ -12238,6 +13016,10 @@
     "case_id": "s7_connect_setup_read",
     "summary": "S3 模板: 完整会话 TCP握手-\u003eCR-\u003eCC-\u003eSetup(F0)-\u003eRead DB1.DBW0-\u003eRead Ack(0x1234), 逐包断言 COTP 无S7头 + setup + read",
     "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 1
+     },
      "layers": [
       {
        "ip": {
@@ -12578,6 +13360,76 @@
    },
    {
     "protocol": "sip",
+    "case_id": "sip_port_dyn",
+    "summary": "T-SIP-17: sip.src_port 动态 inc+flows=2（E1 逐流端口池，2 流×12=24 包）",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "group_id": {
+      "strategy": "fixed",
+      "value": "sip-port-dyn"
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": {
+         "strategy": "inc",
+         "range": [
+          "10.0.1.1",
+          "10.0.1.2"
+         ],
+         "step": 1
+        },
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "sip": {
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          20000,
+          20001
+         ],
+         "step": 1
+        },
+        "dst_port": {
+         "strategy": "fixed",
+         "value": 5060
+        },
+        "dialog": [
+         {
+          "method": "INVITE",
+          "uri": "sip:callee@20.0.0.1"
+         },
+         {
+          "status_code": 200,
+          "status_text": "OK"
+         },
+         {
+          "method": "ACK",
+          "uri": "sip:callee@20.0.0.1"
+         },
+         {
+          "method": "BYE",
+          "uri": "sip:callee@20.0.0.1"
+         },
+         {
+          "status_code": 200,
+          "status_text": "OK"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 24
+   },
+   {
+    "protocol": "sip",
     "case_id": "sip_medias_interleave",
     "summary": "T-SIP-73: interleave 交错调度（WP-B：T=4 G=3→gap 2/1/1；RTP 与信令帧序钉死=§3.12 写死可复现；14 包）",
     "config": {
@@ -12777,6 +13629,46 @@
    },
    {
     "protocol": "smb",
+    "case_id": "probe_multi_flow_dynamic",
+    "summary": "probe: flows=2 with dynamic src_port",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "group_id": {
+      "strategy": "fixed",
+      "value": "smb-probe"
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.100",
+        "dst": "10.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          40001,
+          40002
+         ],
+         "step": 1
+        }
+       }
+      },
+      {
+       "smb": {}
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 58
+   },
+   {
+    "protocol": "smb",
     "case_id": "smb_tpos41_custom_securityblob",
     "summary": "T041: SecurityBlob=自定义 → req#1 SecurityBufferLength 匹配 + blob 内容 = 0x60 0x82 0x01 0x00",
     "config": {
@@ -12868,31 +13760,6 @@
    },
    {
     "protocol": "smb",
-    "case_id": "smb_tpos510_disposition_0",
-    "summary": "T510: CreateDisposition=0(supersede) 显式 + file_path 伴写 → 帧 158 = 00 00 00 00 (透传; validate.go:248-256 createStageSet 启发式)",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.100",
-        "dst": "10.0.0.1"
-       }
-      },
-      {
-       "tcp": {}
-      },
-      {
-       "smb": {
-        "create_disposition": 0,
-        "file_path": "file.txt"
-       }
-      }
-     ]
-    },
-    "packets": 29
-   },
-   {
-    "protocol": "smb",
     "case_id": "smb_write_file_id",
     "summary": "D-FILE-1：SMB WRITE 数据来自上传文件（file_source 自动补 write 操作）",
     "config": {
@@ -12943,6 +13810,30 @@
      ]
     },
     "packets": 16
+   },
+   {
+    "protocol": "smtp",
+    "case_id": "smtp_t024_default_twoflow",
+    "summary": "T-024: 全缺省双流（静态复制门反例：无显式标量不触发，src_port保底+1）",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "layers": [
+      {
+       "ip": {}
+      },
+      {
+       "tcp": {}
+      },
+      {
+       "smtp": {}
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 40
    },
    {
     "protocol": "smtp",
@@ -13618,6 +14509,44 @@
    },
    {
     "protocol": "srv6",
+    "case_id": "srv6_mf05_group_id",
+    "summary": "MF-05: group_id 固定值 → 同 worker 顺序发包（跨流时序保持）",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 10
+     },
+     "group_id": {
+      "strategy": "fixed",
+      "value": "srv6-g1"
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": "2001:db8::1",
+        "dst": {
+         "strategy": "fixed",
+         "value": "2001:db8::2"
+        }
+       }
+      },
+      {
+       "srv6": {
+        "segment_list": [
+         "2001:db8:a::1"
+        ],
+        "seg_type": "end",
+        "payload_protocol": "udp",
+        "inner_dst_port": 53
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=10（10 条流并发）",
+    "packets": 10
+   },
+   {
+    "protocol": "srv6",
     "case_id": "srv6_vp03_full_explicit",
     "summary": "V-P-03: 全字段显式（src/dst/SL/LE/Flags/Tag/SegType/PayloadProto/TLV）validate 通过",
     "config": {
@@ -13661,6 +14590,10 @@
     "case_id": "srv6_mf04_down_multi_flow",
     "summary": "MF-04: 10 流 Direction=down（每流反转 + MAC/IP/Port swap，DstIP=原 List[0]）",
     "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 10
+     },
      "layers": [
       {
        "ip": {
@@ -13687,6 +14620,7 @@
       }
      ]
     },
+    "flow_control_note": "flows=10（10 条流并发）",
     "packets": 10
    },
    {
@@ -13709,76 +14643,6 @@
         "seg_type": "end",
         "payload_protocol": "icmpv6",
         "inner_payload": "12345678"
-       }
-      }
-     ]
-    },
-    "packets": 1
-   },
-   {
-    "protocol": "srv6",
-    "case_id": "srv6_tpos20_reduced_hmac",
-    "summary": "P-17: Reduced SRH + HMAC TLV（D bit=1，reduced DA verification disabled）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "2001:db8::1",
-        "dst": "2001:db8::2"
-       }
-      },
-      {
-       "srv6": {
-        "segment_list": [
-         "2001:db8:a::1",
-         "2001:db8:b::1"
-        ],
-        "reduced": true,
-        "tlv": [
-         {
-          "type": 5,
-          "value": [
-           128,
-           0,
-           0,
-           0,
-           0,
-           1,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0,
-           0
-          ]
-         }
-        ]
        }
       }
      ]
@@ -13947,6 +14811,87 @@
      ]
     },
     "packets": 16
+   },
+   {
+    "protocol": "sstp",
+    "case_id": "sstp_multi_connection",
+    "summary": "多连接隔离：flows=2 两条独立 TCP/443 + TLS session，各自完成控制序与 PPP",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "layers": [
+      {
+       "ip": {
+        "dst": "198.51.100.57",
+        "src": "192.0.2.57"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 443,
+        "src_port": {
+         "range": [
+          41000,
+          41001
+         ],
+         "strategy": "inc"
+        }
+       }
+      },
+      {
+       "tls": {
+        "role": "client",
+        "sni": "sstp.example.test",
+        "version": "tls1.3"
+       }
+      },
+      {
+       "sstp": {
+        "events": [
+         {
+          "attributes": [
+           {
+            "id": 1
+           }
+          ],
+          "direction": "c2s",
+          "kind": "call_connect_request"
+         },
+         {
+          "attributes": [
+           {
+            "id": 4
+           }
+          ],
+          "direction": "s2c",
+          "kind": "call_connect_ack"
+         },
+         {
+          "attributes": [
+           {
+            "id": 3
+           }
+          ],
+          "direction": "c2s",
+          "kind": "call_connected"
+         },
+         {
+          "direction": "c2s",
+          "kind": "ppp_data",
+          "ppp": {
+           "payload_len": 24,
+           "protocol": "ipv4"
+          }
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 36
    },
    {
     "protocol": "sstp",
@@ -14282,6 +15227,10 @@
     "case_id": "sv_mac_dyn_inc",
     "summary": "MAC dynamic inc multi-flow + wrap: flows=3 over range-of-2, flow3 wraps to :01",
     "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 3
+     },
      "layers": [
       {
        "eth": {
@@ -14313,6 +15262,7 @@
       }
      ]
     },
+    "flow_control_note": "flows=3（3 条流并发）",
     "packets": 3
    },
    {
@@ -15001,6 +15951,54 @@
    },
    {
     "protocol": "telnet",
+    "case_id": "telnet_port_dyn",
+    "summary": "T-TELNET-16: telnet.src_port 动态 inc+flows=2（E1 逐流端口池，2 流×13=26 包）",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "group_id": {
+      "strategy": "fixed",
+      "value": "telnet-port-dyn"
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": {
+         "strategy": "inc",
+         "range": [
+          "10.0.1.1",
+          "10.0.1.2"
+         ],
+         "step": 1
+        },
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "telnet": {
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          20000,
+          20001
+         ],
+         "step": 1
+        },
+        "dst_port": {
+         "strategy": "fixed",
+         "value": 23
+        }
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 26
+   },
+   {
+    "protocol": "telnet",
     "case_id": "telnet_login_full",
     "summary": "T-TELNET-4: login_full 场景+5 参数键（协商 11+登录 8+shell+双命令+logout=33 包校准）",
     "config": {
@@ -15082,35 +16080,6 @@
    },
    {
     "protocol": "telnet",
-    "case_id": "telnet_iac_escape",
-    "summary": "T-TELNET-10: IAC 转义 data 0xFF 翻倍（RFC 854 §3；data_b64 形态）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "telnet": {
-        "src_port": 12345,
-        "dst_port": 23,
-        "dialog": [
-         {
-          "type": "data",
-          "direction": "up",
-          "data_b64": "Yf8gYg=="
-         }
-        ]
-       }
-      }
-     ]
-    },
-    "packets": 8
-   },
-   {
-    "protocol": "telnet",
     "case_id": "telnet_file_id",
     "summary": "D-FILE-1：telnet 会话载荷来自上传文件（Dialog 前注入）",
     "config": {
@@ -15167,6 +16136,50 @@
      ]
     },
     "packets": 3
+   },
+   {
+    "protocol": "tftp",
+    "case_id": "tftp-multiflow-3flows-9pkt",
+    "summary": "T-106/S11: 3 流并发（strategy_fc flows=3），每流 RRQ→DATA→ACK，4-tuple 互异",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 3
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.100",
+        "dst": "10.0.0.1"
+       }
+      },
+      {
+       "udp": {
+        "dst_port": 69,
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          49152,
+          49162
+         ],
+         "step": 1
+        }
+       }
+      },
+      {
+       "tftp": {
+        "mode": "read",
+        "filename": "f106.bin",
+        "transfer_mode": "octet",
+        "blocks_count": 1,
+        "data_payload_pattern": "AA",
+        "auto_append_final_block": false
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=3（3 条流并发）",
+    "packets": 9
    },
    {
     "protocol": "tftp",
@@ -15279,38 +16292,6 @@
    },
    {
     "protocol": "tftp",
-    "case_id": "tftp-rrq-include-oack-empty",
-    "summary": "T-016/T-064: IncludeOACK=true 无选项 → 空 OACK `00 06`（2 字节）+ ACK#0 + 自动追加，7 包",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.100",
-        "dst": "10.0.0.1"
-       }
-      },
-      {
-       "udp": {
-        "src_port": 49179,
-        "dst_port": 69
-       }
-      },
-      {
-       "tftp": {
-        "mode": "read",
-        "filename": "o.bin",
-        "transfer_mode": "octet",
-        "blocks_count": 1,
-        "data_payload_pattern": "AA",
-        "include_oack": true
-       }
-      }
-     ]
-    },
-    "packets": 7
-   },
-   {
-    "protocol": "tftp",
     "case_id": "tftp_file_id",
     "summary": "D-FILE-2：TFTP 文件模式——整文件按 blksize 分块传输（块数=ceil(size/blksize)，末块=余量）",
     "config": {
@@ -15398,6 +16379,58 @@
      ]
     },
     "packets": 9
+   },
+   {
+    "protocol": "thrift",
+    "case_id": "thrift_multi_sessions",
+    "summary": "S7/T-THRIFT-S7-01：策略级两条独立 TCP 会话，各9包，seqid各自从1",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 9090,
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          12345,
+          12346
+         ],
+         "step": 1
+        }
+       }
+      },
+      {
+       "thrift": {
+        "messages": [
+         {
+          "type": "CALL",
+          "method": "ping",
+          "seqid": 1,
+          "args": []
+         },
+         {
+          "type": "REPLY",
+          "method": "ping",
+          "seqid": 1,
+          "result": []
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 18
    }
   ],
   "tls": [
@@ -15428,6 +16461,53 @@
      ]
     },
     "packets": 16
+   },
+   {
+    "protocol": "tls",
+    "case_id": "tls-dyn-sni-list",
+    "summary": "业务 sni list 轮转：a.com/b.com 两流（T-TLS-5）",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": "192.0.2.10",
+        "dst": "198.51.100.20"
+       }
+      },
+      {
+       "tcp": {
+        "dst_port": 443,
+        "src_port": {
+         "strategy": "list",
+         "list": [
+          "41001",
+          "41002"
+         ]
+        }
+       }
+      },
+      {
+       "tls": {
+        "sni": {
+         "strategy": "list",
+         "list": [
+          "a.com",
+          "b.com"
+         ]
+        }
+       }
+      },
+      {
+       "http": {}
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 32
    },
    {
     "protocol": "tls",
@@ -15507,6 +16587,53 @@
      ]
     },
     "packets": 11
+   },
+   {
+    "protocol": "tns",
+    "case_id": "tns_dyn_srcport",
+    "summary": "tcp.src_port inc 动态（flows=2，每流独立）（pending-suite：断言/包数沿 testcase 设计值，suite 实测复钉）",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "layers": [
+      {
+       "ip": {
+        "src": "10.0.0.1",
+        "dst": "20.0.0.1"
+       }
+      },
+      {
+       "tcp": {
+        "src_port": {
+         "strategy": "inc",
+         "range": [
+          12345,
+          12346
+         ],
+         "step": 1
+        }
+       }
+      },
+      {
+       "tns": {
+        "events": [
+         {
+          "type": "CONNECT",
+          "direction": "c2s"
+         },
+         {
+          "type": "ACCEPT",
+          "direction": "s2c"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 18
    },
    {
     "protocol": "tns",
