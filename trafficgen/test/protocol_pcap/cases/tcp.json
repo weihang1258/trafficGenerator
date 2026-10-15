@@ -22,7 +22,7 @@
     "expect": {
       "has_handshake": true,
       "negotiated": true,
-      "min_packets": 6,
+      "min_packets": 7,
       "fields": [
         {
           "packet": 1,
@@ -72,7 +72,8 @@
       ],
       "notes": [
         "无 payload 时握手完成后 f4 即 FIN(0x011)+f5 ACK、f6 FIN+f7 ACK 双方向终止；MSS 1460 选项默认 (02 04 05 b4)"
-      ]
+      ],
+      "packet_count": 7
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 tcp 子映射（握手/挥手开关等）并入 layers[].tcp"
@@ -164,7 +165,7 @@
     },
     "expect": {
       "has_handshake": true,
-      "min_packets": 6,
+      "min_packets": 7,
       "fields": [
         {
           "packet": 1,
@@ -197,7 +198,8 @@
       "notes": [
         "自定义 MSS 536 (选项字节 02 04 02 18，f1/f2 协商一致) + 窗口 4096 (f1/f2 双向断言)；f3 起为默认窗口 524288",
         "MSS/窗口协商是双向的：SYN 与 SYN-ACK 必须携带相同值"
-      ]
+      ],
+      "packet_count": 7
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 tcp 子映射（握手/挥手开关等）并入 layers[].tcp"

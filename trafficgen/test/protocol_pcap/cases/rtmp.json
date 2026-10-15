@@ -312,7 +312,9 @@
       "terminates": true,
       "notes": [
         "tc_url 显式值优先于自动构造 rtmp://<DstIP>/<app>（Plan tcURL 缺省分支由 T-1 承接）"
-      ]
+      ],
+      "min_packets": 20,
+      "packet_count": 20
     }
   },
   {
@@ -493,7 +495,9 @@
       "terminates": true,
       "notes": [
         "推流+自定义 app+流名+音视频双 chunk 四类交织"
-      ]
+      ],
+      "min_packets": 22,
+      "packet_count": 22
     }
   },
   {

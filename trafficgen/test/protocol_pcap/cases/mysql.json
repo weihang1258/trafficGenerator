@@ -27,7 +27,7 @@
       "negotiated": true,
       "terminates": true,
       "has_payload": true,
-      "min_packets": 9,
+      "min_packets": 10,
       "fields": [
         {
           "packet": 1,
@@ -107,7 +107,8 @@
         "f5 登录包: 0xa005=CLIENT_PROTOCOL_41|CLIENT_SECURE_CONNECTION, max_packet=8(0x08), 用户 'root' 在帧偏移 95 处（帧头 54 + 负载 41）",
         "f6 OK 包: 0x00=OK, server status 0x0002；10 帧 = 3 握手 + 3 数据 + 4 终止",
         "f7-10 为 FIN 挥手 (0x0011/0x0010/0x0011/0x0010)"
-      ]
+      ],
+      "packet_count": 10
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 mysql 子映射迁入 layers[].mysql"

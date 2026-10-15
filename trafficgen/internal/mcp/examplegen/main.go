@@ -66,7 +66,7 @@ func handExamples() []example {
 	// Packets = 8081 实跑 pcap 的实测包数（2026-10-13 第9轮验证批次回填，
 	// 展示口径：事务档判定与 LLM 预期包量）。
 	pkts := map[string]int{
-		"ftp_retr_file_id": 24, "http_body_file_id": 9, "tcp_raw_file_id": 9,
+		"ftp_retr_file_id": 26, "http_body_file_id": 9, "tcp_raw_file_id": 9,
 		"smtp_attachment_file_id": 20, "pop3_retr_file_id": 9, "smb_write_file_id": 31,
 		"nfs_write_file_id": 13, "wireguard_payload_file_id": 3, "shadowsocks_file_id": 8,
 		"vmess_payload_file_id": 11, "udp_raw_file_id": 1, "telnet_file_id": 14,
@@ -80,7 +80,7 @@ func handExamples() []example {
 		"icmpv6_data_file_id": 2, "imap_append_file_id": 10, "grpc_request_file_id": 15,
 		// P2 批
 		"pppoe_data_file_id": 8, "srv6_inner_file_id": 1, "ssh_command_file_id": 25,
-		"vnc_cuttext_file_id": 12, "goose_data_file_id": 3,
+		"vnc_cuttext_file_id": 82, "goose_data_file_id": 1, // 2026-10-15 A/B 定数（旧 12/3 系回填口径错位）
 	}
 	mk := func(proto, id, summary, cfg string) example {
 		return example{Protocol: proto, CaseID: id, Summary: summary,

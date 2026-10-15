@@ -30,7 +30,7 @@
       "negotiated": true,
       "terminates": true,
       "has_payload": true,
-      "min_packets": 13,
+      "min_packets": 15,
       "fields": [
         {
           "packet": 1,
@@ -166,7 +166,8 @@
         "tshark 在 f9/f10 帧末尾追加 'Decompressed Header' HPACK 展开块 (0000 起头)——verify.go parseTsharkHex 跳过该块，帧字节只取原始 TCP 段 (offset 54)",
         "gRPC 设计默认端口 8604 非 IANA 80，显式 dst_port 80；15 帧 = 3 握手 + 8 数据 + 4 终止；f12-f15 为 ACK/FIN 序列",
         "tshark 将 12345→80 判定为 h2c 需要 HTTP/2 解析器；PRI 魔法串逐字节确定"
-      ]
+      ],
+      "packet_count": 15
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 grpc 子映射迁入 layers[].grpc"

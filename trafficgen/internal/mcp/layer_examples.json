@@ -1328,7 +1328,7 @@
       "flows": 2
      }
     },
-    "packets": 4
+    "packets": 8
    },
    {
     "protocol": "coap",
@@ -2252,7 +2252,7 @@
       }
      ]
     },
-    "packets": 4
+    "packets": 8
    },
    {
     "protocol": "dnp3",
@@ -2364,7 +2364,7 @@
       }
      ]
     },
-    "packets": 4
+    "packets": 9
    }
   ],
   "dns": [
@@ -3848,7 +3848,7 @@
       }
      ]
     },
-    "packets": 24
+    "packets": 26
    }
   ],
   "gbt": [
@@ -4621,7 +4621,7 @@
       }
      ]
     },
-    "packets": 3
+    "packets": 1
    }
   ],
   "gre": [
@@ -4737,7 +4737,7 @@
       }
      ]
     },
-    "packets": 13
+    "packets": 15
    },
    {
     "protocol": "grpc",
@@ -4836,7 +4836,7 @@
       }
      ]
     },
-    "packets": 15
+    "packets": 16
    },
    {
     "protocol": "h323",
@@ -5288,7 +5288,7 @@
       }
      ]
     },
-    "packets": 6
+    "packets": 11
    },
    {
     "protocol": "hls",
@@ -5385,7 +5385,7 @@
       }
      ]
     },
-    "packets": 6
+    "packets": 9
    },
    {
     "protocol": "hls",
@@ -5429,7 +5429,7 @@
       }
      ]
     },
-    "packets": 6
+    "packets": 9
    }
   ],
   "http": [
@@ -6205,30 +6205,6 @@
   "imap": [
    {
     "protocol": "imap",
-    "case_id": "imap_t078_default_twoflow",
-    "summary": "T-078: 全缺省双流放行",
-    "config": {
-     "flow_control": {
-      "type": "flows",
-      "value": 2
-     },
-     "layers": [
-      {
-       "ip": {}
-      },
-      {
-       "tcp": {}
-      },
-      {
-       "imap": {}
-      }
-     ]
-    },
-    "flow_control_note": "flows=2（2 条流并发）",
-    "packets": 14
-   },
-   {
-    "protocol": "imap",
     "case_id": "imap_t010_pipelined",
     "summary": "T-010: 流水线双相位",
     "config": {
@@ -6277,7 +6253,31 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 15
+   },
+   {
+    "protocol": "imap",
+    "case_id": "imap_t078_default_twoflow",
+    "summary": "T-078: 全缺省双流放行",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "layers": [
+      {
+       "ip": {}
+      },
+      {
+       "tcp": {}
+      },
+      {
+       "imap": {}
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 14
    },
    {
     "protocol": "imap",
@@ -6344,7 +6344,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 23
    },
    {
     "protocol": "imap",
@@ -6397,7 +6397,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 16
    },
    {
     "protocol": "imap",
@@ -8326,7 +8326,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 9
    },
    {
     "protocol": "mms",
@@ -8358,7 +8358,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 9
    },
    {
     "protocol": "mms",
@@ -9490,7 +9490,7 @@
       }
      ]
     },
-    "packets": 9
+    "packets": 10
    }
   ],
   "nfs": [
@@ -11556,30 +11556,6 @@
   "pop3": [
    {
     "protocol": "pop3",
-    "case_id": "pop3_t046_default_twoflow",
-    "summary": "T-046: 全缺省双流放行",
-    "config": {
-     "flow_control": {
-      "type": "flows",
-      "value": 2
-     },
-     "layers": [
-      {
-       "ip": {}
-      },
-      {
-       "tcp": {}
-      },
-      {
-       "pop3": {}
-      }
-     ]
-    },
-    "flow_control_note": "flows=2（2 条流并发）",
-    "packets": 14
-   },
-   {
-    "protocol": "pop3",
     "case_id": "pop3_t026_abort_no_quit",
     "summary": "T-026: RETR 后无 QUIT 断线",
     "config": {
@@ -11626,7 +11602,31 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 14
+   },
+   {
+    "protocol": "pop3",
+    "case_id": "pop3_t046_default_twoflow",
+    "summary": "T-046: 全缺省双流放行",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "layers": [
+      {
+       "ip": {}
+      },
+      {
+       "tcp": {}
+      },
+      {
+       "pop3": {}
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 14
    },
    {
     "protocol": "pop3",
@@ -12000,8 +12000,8 @@
   "pptp": [
    {
     "protocol": "pptp",
-    "case_id": "pptp_calls_two",
-    "summary": "T-7 calls=2 多 call 并发：OCRQ/OCRP 两轮+SLI 逐 call",
+    "case_id": "pptp_full_session_ref",
+    "summary": "T-1 full 会话（smoke 改写，参考 pcap 逐字节）：SCCRQ/SCCRP/OCRQ/OCRP/SLI×5/CCRQ+CCDN 合并/CCDN/StopRQ/StopRP",
     "config": {
      "layers": [
       {
@@ -12011,14 +12011,11 @@
        }
       },
       {
-       "pptp": {
-        "calls": 2,
-        "scenario": "control_only"
-       }
+       "pptp": {}
       }
      ]
     },
-    "packets": 31
+    "packets": 26
    },
    {
     "protocol": "pptp",
@@ -12115,7 +12112,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 16
    }
   ],
   "radius": [
@@ -12375,7 +12372,7 @@
       "flows": 1
      }
     },
-    "packets": 8
+    "packets": 11
    }
   ],
   "rip": [
@@ -12815,8 +12812,8 @@
   "rtmp": [
    {
     "protocol": "rtmp",
-    "case_id": "rtmp_play_session_full",
-    "summary": "T-1 play 全会话（smoke 改写，等价覆盖）：握手3+RTMP 握手（C0C1/S0S1S2/C2 按 MSS 分段）+connect→窗口三件套→createStream→play 命令序+挥手",
+    "case_id": "rtmp_app_tc_url_custom",
+    "summary": "T-7 app/tc_url 显式：connect 命令对象属性字节钉（app=live2/tcUrl 显式构造，覆盖自动构造分支）",
     "config": {
      "layers": [
       {
@@ -12826,7 +12823,10 @@
        }
       },
       {
-       "rtmp": {}
+       "rtmp": {
+        "app": "live2",
+        "tc_url": "rtmp://20.0.0.1:1935/live2"
+       }
       }
      ]
     },
@@ -12867,29 +12867,7 @@
       }
      ]
     },
-    "packets": 0
-   },
-   {
-    "protocol": "rtmp",
-    "case_id": "rtmp_app_tc_url_custom",
-    "summary": "T-7 app/tc_url 显式：connect 命令对象属性字节钉（app=live2/tcUrl 显式构造，覆盖自动构造分支）",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "rtmp": {
-        "app": "live2",
-        "tc_url": "rtmp://20.0.0.1:1935/live2"
-       }
-      }
-     ]
-    },
-    "packets": 0
+    "packets": 22
    },
    {
     "protocol": "rtmp",
@@ -13007,7 +12985,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 16
    }
   ],
   "s7": [
@@ -13788,55 +13766,6 @@
   "smtp": [
    {
     "protocol": "smtp",
-    "case_id": "smtp-basic-session",
-    "summary": "SMTP (端口 25) 冒烟：完整 TCP 握手 + HELO/MAIL/RCPT/DATA/QUIT 命令对话 + 终止",
-    "config": {
-     "layers": [
-      {
-       "ip": {
-        "src": "10.0.0.1",
-        "dst": "20.0.0.1"
-       }
-      },
-      {
-       "tcp": {
-        "src_port": 12345,
-        "dst_port": 25
-       }
-      },
-      {
-       "smtp": {}
-      }
-     ]
-    },
-    "packets": 16
-   },
-   {
-    "protocol": "smtp",
-    "case_id": "smtp_t024_default_twoflow",
-    "summary": "T-024: 全缺省双流（静态复制门反例：无显式标量不触发，src_port保底+1）",
-    "config": {
-     "flow_control": {
-      "type": "flows",
-      "value": 2
-     },
-     "layers": [
-      {
-       "ip": {}
-      },
-      {
-       "tcp": {}
-      },
-      {
-       "smtp": {}
-      }
-     ]
-    },
-    "flow_control_note": "flows=2（2 条流并发）",
-    "packets": 40
-   },
-   {
-    "protocol": "smtp",
     "case_id": "smtp_t010_email_text",
     "summary": "T-010: Email声明式纯文本",
     "config": {
@@ -13889,7 +13818,31 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 20
+   },
+   {
+    "protocol": "smtp",
+    "case_id": "smtp_t024_default_twoflow",
+    "summary": "T-024: 全缺省双流（静态复制门反例：无显式标量不触发，src_port保底+1）",
+    "config": {
+     "flow_control": {
+      "type": "flows",
+      "value": 2
+     },
+     "layers": [
+      {
+       "ip": {}
+      },
+      {
+       "tcp": {}
+      },
+      {
+       "smtp": {}
+      }
+     ]
+    },
+    "flow_control_note": "flows=2（2 条流并发）",
+    "packets": 40
    },
    {
     "protocol": "smtp",
@@ -13926,7 +13879,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 12
    },
    {
     "protocol": "smtp",
@@ -14009,7 +13962,7 @@
       }
      ]
     },
-    "packets": 9
+    "packets": 11
    },
    {
     "protocol": "socks5",
@@ -14043,7 +13996,7 @@
       }
      ]
     },
-    "packets": 0
+    "packets": 20
    },
    {
     "protocol": "socks5",
@@ -14724,7 +14677,7 @@
       "flows": 1
      }
     },
-    "packets": 20
+    "packets": 23
    },
    {
     "protocol": "ssh",
@@ -15582,7 +15535,7 @@
       }
      ]
     },
-    "packets": 6
+    "packets": 7
    },
    {
     "protocol": "tcp",
@@ -15631,7 +15584,7 @@
       }
      ]
     },
-    "packets": 6
+    "packets": 7
    },
    {
     "protocol": "tcp",
@@ -15947,7 +15900,7 @@
       }
      ]
     },
-    "packets": 12
+    "packets": 13
    },
    {
     "protocol": "telnet",
@@ -17084,7 +17037,7 @@
       }
      ]
     },
-    "packets": 12
+    "packets": 82
    }
   ],
   "vxlan": [

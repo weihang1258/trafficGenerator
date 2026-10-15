@@ -26,7 +26,7 @@
       }
     },
     "expect": {
-      "min_packets": 8,
+      "min_packets": 11,
       "negotiated": true,
       "terminates": true,
       "fields": [
@@ -81,7 +81,8 @@
       "notes": [
         "tcp payload at offset 54 (eth14+ip20+tcp20); RESP encoding verified against /tmp/probe-iana/redis.pcap: SELECT 0 = *2\\r\\n$6\\r\\nSELECT\\r\\n$1\\r\\n0\\r\\n (23B), +OK\\r\\n (5B), PING = *1\\r\\n$4\\r\\nPING\\r\\n (14B), +PONG\\r\\n (7B)",
         "tshark 3.6 has no redis over TCP dissector; RESP bytes are asserted at raw frame level and via tcp.len"
-      ]
+      ],
+      "packet_count": 11
     },
     "notes": [
       "层链改造：顶层 count/redis 子映射迁入 layers[].redis，flows=1 入 flow_control"

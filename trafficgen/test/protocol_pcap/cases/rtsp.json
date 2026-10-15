@@ -391,7 +391,9 @@
       "terminates": true,
       "notes": [
         "RTP-Info 头+RTP 包序由 legacy emitRTSPMedia 实测形（包数跑后钉）"
-      ]
+      ],
+      "min_packets": 16,
+      "packet_count": 16
     }
   },
   {

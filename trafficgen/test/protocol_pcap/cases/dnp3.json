@@ -1862,7 +1862,7 @@
       ]
     },
     "expect": {
-      "min_packets": 4,
+      "min_packets": 9,
       "has_handshake": true,
       "terminates": true,
       "frames": [
@@ -1875,7 +1875,8 @@
       "notes": [
         "T41: FCV=0 强制 FCB=0, wire Control byte 末位=0 → 0xC0 (PRM=1,FC=0,FCV=0,FCB=0)",
         "注释 LinkFCB=1 不会被使用"
-      ]
+      ],
+      "packet_count": 9
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"
@@ -2216,7 +2217,7 @@
       ]
     },
     "expect": {
-      "min_packets": 4,
+      "min_packets": 8,
       "has_handshake": true,
       "terminates": true,
       "frames": [
@@ -2229,7 +2230,8 @@
       "notes": [
         "T53: byte1=Class1(0x40)+Class2(0x20)+Class3(0x10)+NeedTime(0x08)+DeviceTrouble(0x02)=0x7A",
         "byte2=FuncNotSupported(0x40)+ObjectUnknown(0x20)+ParameterError(0x10)+AlreadyExecuting(0x04)+EventBufferOverflow(0x08)=0x7C"
-      ]
+      ],
+      "packet_count": 8
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 dnp3 子映射迁入 layers[].dnp3"

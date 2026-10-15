@@ -24,7 +24,7 @@
       "negotiated": true,
       "terminates": true,
       "has_payload": true,
-      "min_packets": 15,
+      "min_packets": 16,
       "fields": [
         {
           "packet": 1,
@@ -103,7 +103,8 @@
         "D-H323-1 P5 改写：四元组→ip 层+h323 层端口、count 删、顶层 h323:{}→层内空；expect 断言全部等价保留（字节一致由 P5 实证）",
         "ITU-T H.225.0 §7.3：Q.931 over TCP 1720，TPKT(RFC 1006) 包裹；full 场景 16 包/呼叫（3+10+3，代码精算）",
         "参考 pcap 字节复刻：Display IE 'Administrator' 短帧面"
-      ]
+      ],
+      "packet_count": 16
     }
   },
   {

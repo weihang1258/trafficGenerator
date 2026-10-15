@@ -30,7 +30,7 @@
       "negotiated": true,
       "terminates": true,
       "has_payload": true,
-      "min_packets": 20,
+      "min_packets": 23,
       "fields": [
         {
           "packet": 1,
@@ -148,7 +148,8 @@
       "notes": [
         "SSH 协议报文类型字节 (payload 第 7 字节)：f4/f5=0x14 KEXINIT (cookie 确定)；f6=0x1e KEXDH_INIT；f7=0x1f KEXDH_REPLY；f8/f9=0x15 NEWKEYS；f10=0x05 SERVICE_REQUEST；f11=0x06 SERVICE_ACCEPT；f13=0x34 USERAUTH_SUCCESS；f16=0x5e CHANNEL_DATA (exit 负载)；f17=0x60 EOF；f18/f19=0x61 CLOSE",
         "SSH version banner 在 f3 (SSH-2.0-OpenSSH_7.4)；帧断言逐字节钉死 f4/f6/f7 头部"
-      ]
+      ],
+      "packet_count": 23
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 ssh 子映射迁入 layers[].ssh，count 删除"

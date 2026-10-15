@@ -1025,11 +1025,11 @@ func buildDefaultRegistry() {
 			"ll_hls":             {Type: "object"},
 			"ll_without_profile": {Type: "bool"},
 			"cross_session_ref":  {Type: "bool"},
-			"discontinuity_incr": {Type: "int"},
-			"sequence_regress":   {Type: "int"},
+			"discontinuity_incr": {Type: "bool"}, // 勘误：Go bool（负向标志族），int 为错标
+			"sequence_regress":   {Type: "bool"}, // 勘误：同上
 			"missing_extm3u":     {Type: "bool"},
 			"empty_body":         {Type: "bool"},
-			"truncate_body":      {Type: "int"},
+			"truncate_body":      {Type: "bool"}, // 勘误：同上
 			"invalid_uri":        {Type: "bool"},
 			"key_mismatch":       {Type: "bool"},
 			"bad_tag":            {Type: "string"},

@@ -853,7 +853,8 @@
       ]
     },
     "expect": {
-      "min_packets": 6
+      "min_packets": 9,
+      "packet_count": 9
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
@@ -902,7 +903,8 @@
       ]
     },
     "expect": {
-      "min_packets": 6
+      "min_packets": 9,
+      "packet_count": 9
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"
@@ -1312,7 +1314,8 @@
       ]
     },
     "expect": {
-      "min_packets": 6
+      "min_packets": 11,
+      "packet_count": 11
     },
     "notes": [
       "层链改造：扁平四元组并入 ip/tcp 层，顶层 hls 子映射迁入 layers[].hls"

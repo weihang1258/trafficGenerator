@@ -565,7 +565,9 @@
           "offset": 66,
           "hex": "a2"
         }
-      ]
+      ],
+      "min_packets": 9,
+      "packet_count": 9
     }
   },
   {
@@ -651,7 +653,9 @@
           "offset": 66,
           "hex": "a2"
         }
-      ]
+      ],
+      "min_packets": 9,
+      "packet_count": 9
     }
   },
   {

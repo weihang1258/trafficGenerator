@@ -387,7 +387,9 @@
       "terminates": true,
       "notes": [
         "inner_ip=object 内嵌 7 子键（registry object 型，srv6 先例）；payload 字符串=原文字节"
-      ]
+      ],
+      "min_packets": 16,
+      "packet_count": 16
     }
   },
   {

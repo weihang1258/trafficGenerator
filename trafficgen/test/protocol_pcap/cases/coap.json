@@ -1290,7 +1290,7 @@
       }
     },
     "expect": {
-      "min_packets": 4,
+      "min_packets": 8,
       "directional": true,
       "has_payload": true,
       "fields": [
@@ -1332,7 +1332,8 @@
       "notes": [
         "多流调度顺序不确定，distinct_values 按整个 pcap 聚合；请求目的端口为 5683，响应目的端口回到 56565/56566，源端口集合同时包含客户端和服务端端口",
         "聚合集合不能证明 Token/MID 与具体四元组绑定；需逐会话 verifier 扩展或独立抓包断言。"
-      ]
+      ],
+      "packet_count": 8
     }
   },
   {

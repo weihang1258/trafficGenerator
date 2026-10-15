@@ -1,3036 +1,3038 @@
 [
- {
-  "id": "pop3_t001_default_session",
-  "proto": "pop3",
-  "summary": "T-001: 默认会话冒烟",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "negotiated": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "tcp.dstport",
-     "value": "110"
-    },
-    {
-     "packet": 4,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    },
-    {
-     "packet": 5,
-     "field": "pop.request.command",
-     "value": "USER"
-    },
-    {
-     "packet": 5,
-     "field": "pop.request.parameter",
-     "value": "alice"
-    },
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "QUIT"
-    },
-    {
-     "packet": 10,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "改写 pop3_smoke_01 纯扁平→[ip,tcp,pop3]；包位落盘重钉"
-   ]
-  }
- },
- {
-  "id": "pop3_t002_user_empty_skipped",
-  "proto": "pop3",
-  "summary": "T-002: USER 空名跳过",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "",
-        "response": "+OK send password"
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 5,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    },
-    {
-     "packet": 6,
-     "field": "pop.request.command",
-     "value": "QUIT"
-    }
-   ],
-   "notes": [
-    "空 Cmd 只发响应（转离线 1_1_2）；110 缺省由 T-001 包 1 tcp.dstport=110 钉死"
-   ]
-  }
- },
- {
-  "id": "pop3_t003_apop_login",
-  "proto": "pop3",
-  "summary": "T-003: APOP 一条登录",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready <1896.697170952@dbc.mtview.ca.us>",
-      "commands": [
-       {
-        "cmd": "APOP alice c4f1844678c2f18b0f915c267cf01649",
-        "response": "+OK maildrop locked and ready"
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 5,
-     "field": "pop.request.command",
-     "value": "APOP"
-    },
-    {
-     "packet": 6,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "转离线 3_2_1；摘要原文提供，planner 不主动算"
-   ]
-  }
- },
- {
-  "id": "pop3_t004_user_in_transaction",
-  "proto": "pop3",
-  "summary": "T-004: 事务态 USER 照发",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "STAT",
-        "response": "+OK 1 100"
-       },
-       {
-        "cmd": "USER bob",
-        "response": "+OK bob"
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 5,
-     "field": "pop.request.command",
-     "value": "USER"
-    },
-    {
-     "packet": 11,
-     "field": "pop.request.command",
-     "value": "USER"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "转离线 1_1_3；C 类注记：回放不断状态机"
-   ]
-  }
- },
- {
-  "id": "pop3_t005_stat_empty",
-  "proto": "pop3",
-  "summary": "T-005: STAT 空信箱",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "STAT",
-        "response": "+OK 0 0"
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "STAT"
-    },
-    {
-     "packet": 10,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    },
-    {
-     "packet": 10,
-     "field": "pop.response.description",
-     "value": "0 0"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "转离线 1_4_1/4_1_1"
-   ]
-  }
- },
- {
-  "id": "pop3_t006_list_multi",
-  "proto": "pop3",
-  "summary": "T-006: LIST 多信",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "LIST",
-        "response": "+OK 2 messages\r\n1 100\r\n2 200\r\n.\r\n",
-        "multiline": true
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "LIST"
-    },
-    {
-     "packet": 10,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "多行响应自带终止符（Multiline=true）"
-   ]
-  }
- },
- {
-  "id": "pop3_t007_list_outofrange",
-  "proto": "pop3",
-  "summary": "T-007: LIST 越界",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "LIST 5",
-        "response": "-ERR no such message, only 2 messages"
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "LIST"
-    },
-    {
-     "packet": 10,
-     "field": "pop.response.indicator",
-     "value": "-ERR"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "回放台词，C 类边界；转离线 1_5_4"
-   ]
-  }
- },
- {
-  "id": "pop3_t008_retr_maildrop",
-  "proto": "pop3",
-  "summary": "T-008: RETR 信箱合成",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "mailbox": {
-       "messages": [
+  {
+    "id": "pop3_t001_default_session",
+    "proto": "pop3",
+    "summary": "T-001: 默认会话冒烟",
+    "spec_json": {
+      "layers": [
         {
-         "uid": "u1",
-         "headers": [
-          "From: a@b.c",
-          "Subject: T"
-         ],
-         "body": "hello"
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-         "uid": "u2",
-         "headers": [
-          "From: x@y.z"
-         ]
-        }
-       ]
-      },
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "RETR 1",
-        "emit_mail_drop": true,
-        "msg_num": 1
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "RETR"
-    },
-    {
-     "packet": 10,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "EmitMailDrop 合成；MsgNum 2 空信附带空正文形态；包位落盘重钉"
-   ]
-  }
- },
- {
-  "id": "pop3_t009_retr_missing",
-  "proto": "pop3",
-  "summary": "T-009: RETR 无此信",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "RETR 9",
-        "response": "-ERR no such message"
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "RETR"
-    },
-    {
-     "packet": 10,
-     "field": "pop.response.indicator",
-     "value": "-ERR"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "回放台词，C 类边界；转离线 1_6_6 变体"
-   ]
-  }
- },
- {
-  "id": "pop3_t010_dele",
-  "proto": "pop3",
-  "summary": "T-010: DELE 删信 + RSET 撤销",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "DELE 1",
-        "response": "+OK deleted"
-       },
-       {
-        "cmd": "RSET",
-        "response": "+OK maildrop has 5 messages (12345 octets)"
-       },
-       {
-        "cmd": "DELE 9",
-        "response": "-ERR no such message"
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "DELE"
-    },
-    {
-     "packet": 11,
-     "field": "pop.request.command",
-     "value": "RSET"
-    },
-    {
-     "packet": 13,
-     "field": "pop.request.command",
-     "value": "DELE"
-    },
-    {
-     "packet": 15,
-     "field": "pop.request.command",
-     "value": "QUIT"
-    }
-   ],
-   "notes": [
-    "转离线 1_7_1/1_7_2/3_11_1；RSET 撤销删除标记；包位落盘重钉"
-   ]
-  }
- },
- {
-  "id": "pop3_t011_top",
-  "proto": "pop3",
-  "summary": "T-011: TOP 合成",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "mailbox": {
-       "messages": [
-        {
-         "uid": "u1",
-         "headers": [
-          "From: a@b.c"
-         ],
-         "body": "l1\nl2\nl3"
-        }
-       ]
-      },
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "TOP 1 2",
-        "emit_top": true,
-        "msg_num": 1,
-        "top_lines": 2
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "TOP"
-    },
-    {
-     "packet": 10,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "EmitTop 前 2 行；N=0 仅头由离线 1_10_2 覆盖"
-   ]
-  }
- },
- {
-  "id": "pop3_t012_uidl",
-  "proto": "pop3",
-  "summary": "T-012: UIDL 多行单行",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "UIDL",
-        "response": "+OK\r\n1 u1\r\n2 u2\r\n.\r\n",
-        "multiline": true
-       },
-       {
-        "cmd": "UIDL 1",
-        "response": "+OK 1 u1"
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "UIDL"
-    },
-    {
-     "packet": 11,
-     "field": "pop.request.command",
-     "value": "UIDL"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "转离线 1_11_1/1_11_2"
-   ]
-  }
- },
- {
-  "id": "pop3_t012b_emit_top_no_mailbox_reject",
-  "proto": "pop3",
-  "summary": "T-012: TOP 无信箱拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "TOP 1 1",
-        "emit_top": true,
-        "msg_num": 1
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "but Mailbox is nil",
-   "notes": [
-    "负例，锚词 `but Mailbox is nil`；EmitTop/MailDrop 互斥同门"
-   ]
-  }
- },
- {
-  "id": "pop3_t013_dot_stuffing",
-  "proto": "pop3",
-  "summary": "T-013: RETR 点填充",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "mailbox": {
-       "messages": [
-        {
-         "uid": "u1",
-         "headers": [
-          "From: a@b.c"
-         ],
-         "body": ".dotline\nnormal"
-        }
-       ]
-      },
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "RETR 1",
-        "emit_mail_drop": true,
-        "msg_num": 1
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "RETR"
-    },
-    {
-     "packet": 10,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "转离线 3_10_3；MIME 附件形态转离线 MIME 基线"
-   ]
-  }
- },
- {
-  "id": "pop3_t014_user_toolong_reject",
-  "proto": "pop3",
-  "summary": "T-014: USER 超长拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "response": "+OK"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "USER name length",
-   "notes": [
-    "负例，锚词 `USER name length`；转离线 USERTooLong/1_1_6"
-   ]
-  }
- },
- {
-  "id": "pop3_t015_pass_toolong_reject",
-  "proto": "pop3",
-  "summary": "T-015: PASS 超长拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "PASS pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
-        "response": "+OK"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "PASS password length",
-   "notes": [
-    "负例，锚词 `PASS password length`；小载荷断文案（mailbox 超限同口径）"
-   ]
-  }
- },
- {
-  "id": "pop3_t016_cmd_crlf_reject",
-  "proto": "pop3",
-  "summary": "T-016: 命令 CRLF 注入拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER a\r\nDELE 1",
-        "response": "+OK"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "contains CRLF",
-   "notes": [
-    "负例，锚词 `contains CRLF`；转离线 CRLFInjectionRejected/1_1_4"
-   ]
-  }
- },
- {
-  "id": "pop3_t017_resp_crlf_reject",
-  "proto": "pop3",
-  "summary": "T-017: 单行响应 CRLF 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "STAT",
-        "response": "+OK 1\r\n2"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "Multiline=false",
-   "notes": [
-    "负例，锚词 `Multiline=false`；转离线 ResponseWithCRLFWithoutMultiline"
-   ]
-  }
- },
- {
-  "id": "pop3_t018_uid_toolong_reject",
-  "proto": "pop3",
-  "summary": "T-018: UID 超长拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "mailbox": {
-       "messages": [
-        {
-         "uid": "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu",
-         "body": "x"
-        }
-       ]
-      },
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "UID length",
-   "notes": [
-    "负例，锚词 `UID length`；转离线 UIDTooLong/1_11_7"
-   ]
-  }
- },
- {
-  "id": "pop3_t019_apop_bad_digest_reject",
-  "proto": "pop3",
-  "summary": "T-019: APOP 摘要非法拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "APOP alice NOTHEX!",
-        "response": "+OK"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "APOP digest",
-   "notes": [
-    "负例，锚词 `APOP digest`；转离线 APOPDigestLength/NotHex/1_3_2/1_3_3"
-   ]
-  }
- },
- {
-  "id": "pop3_t020_rfc10_sequence",
-  "proto": "pop3",
-  "summary": "T-020: RFC 官方示例序列",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "STAT",
-        "response": "+OK 2 320"
-       },
-       {
-        "cmd": "LIST",
-        "response": "+OK 2 messages\r\n1 120\r\n2 200\r\n.\r\n",
-        "multiline": true
-       },
-       {
-        "cmd": "RETR 1",
-        "response": "+OK 120 octets\r\nFrom: a@b.c\r\n\r\nhello\r\n.\r\n",
-        "multiline": true
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 5,
-     "field": "pop.request.command",
-     "value": "USER"
-    },
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "STAT"
-    },
-    {
-     "packet": 13,
-     "field": "pop.request.command",
-     "value": "RETR"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "RFC 1939 §10 官方序列；包位落盘重钉"
-   ]
-  }
- },
- {
-  "id": "pop3_t021_capa",
-  "proto": "pop3",
-  "summary": "T-021: CAPA 扩展列表",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "CAPA",
-        "response": "+OK List follows\r\nTOP\r\nUIDL\r\nSTLS\r\n.\r\n",
-        "multiline": true
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "CAPA"
-    },
-    {
-     "packet": 10,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "台词版，转离线 1_13_1；RFC 2449，真协商不做"
-   ]
-  }
- },
- {
-  "id": "pop3_t022_stls",
-  "proto": "pop3",
-  "summary": "T-022: STLS 台词",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "STLS",
-        "response": "+OK Begin TLS negotiation"
-       },
-       {
-        "cmd": "USER alice",
-        "response": "-ERR Must issue STLS first"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 5,
-     "field": "pop.request.command",
-     "value": "STLS"
-    },
-    {
-     "packet": 7,
-     "field": "pop.request.command",
-     "value": "USER"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "台词版，转离线 1_14_1/2_6_1；RFC 2595，真升级另立项"
-   ]
-  }
- },
- {
-  "id": "pop3_t023_auth",
-  "proto": "pop3",
-  "summary": "T-023: AUTH 三机制",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "AUTH PLAIN",
-        "response": "+ Ready for authentication"
-       },
-       {
-        "cmd": "AUTH LOGIN",
-        "response": "+ VXNlcm5hbWU6"
-       },
-       {
-        "cmd": "AUTH CRAM-MD5",
-        "response": "+ PDEyMzQ1 poseidon"
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 5,
-     "field": "pop.request.command",
-     "value": "AUTH"
-    },
-    {
-     "packet": 7,
-     "field": "pop.request.command",
-     "value": "AUTH"
-    },
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "AUTH"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "台词版，转离线 1_15_1/1_15_2/1_15_3；真认证不做"
-   ]
-  }
- },
- {
-  "id": "pop3_t024_mss_reject",
-  "proto": "pop3",
-  "summary": "T-024: MSS 过小拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110,
-      "mss": 100
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready"
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "out of range [536,65535]",
-   "notes": [
-    "负例，锚词 tcp 层 V9 门字面（smtp T-020 同款）；planner 门由扁平路径覆盖"
-   ]
-  }
- },
- {
-  "id": "pop3_t025_two_retr",
-  "proto": "pop3",
-  "summary": "T-025: 同连接两 RETR",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "mailbox": {
-       "messages": [
-        {
-         "uid": "u1",
-         "body": "a"
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
         },
         {
-         "uid": "u2",
-         "body": "b"
-        }
-       ]
-      },
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "RETR 1",
-        "emit_mail_drop": true,
-        "msg_num": 1
-       },
-       {
-        "cmd": "RETR 2",
-        "emit_mail_drop": true,
-        "msg_num": 2
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "RETR"
-    },
-    {
-     "packet": 11,
-     "field": "pop.request.command",
-     "value": "RETR"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "§3 多事务①：同连接两次 RETR；包位落盘重钉"
-   ]
-  }
- },
- {
-  "id": "pop3_t026_abort_no_quit",
-  "proto": "pop3",
-  "summary": "T-026: RETR 后无 QUIT 断线",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "mailbox": {
-       "messages": [
-        {
-         "uid": "u1",
-         "body": "a"
-        }
-       ]
-      },
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "RETR 1",
-        "emit_mail_drop": true,
-        "msg_num": 1
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "RETR"
-    },
-    {
-     "packet": 10,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "§3 多事务②：POP3 层无 QUIT，TCP 照常 FIN"
-   ]
-  }
- },
- {
-  "id": "pop3_t027_keepalive_noop",
-  "proto": "pop3",
-  "summary": "T-027: 三 NOOP 长保活",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "NOOP",
-        "response": "+OK"
-       },
-       {
-        "cmd": "NOOP",
-        "response": "+OK"
-       },
-       {
-        "cmd": "NOOP",
-        "response": "+OK"
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "NOOP"
-    },
-    {
-     "packet": 13,
-     "field": "pop.request.command",
-     "value": "NOOP"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "§3 多事务③：同连接 3×NOOP（离线 3_15_1 缩量）"
-   ]
-  }
- },
- {
-  "id": "pop3_t028_gmail",
-  "proto": "pop3",
-  "summary": "T-028: 现网 Gmail 形",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK Gpop ready for requests from 1.2.3.4 abc",
-      "commands": [
-       {
-        "cmd": "USER recent:alice@gmail.com",
-        "response": "+OK sent"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Welcome."
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    },
-    {
-     "packet": 5,
-     "field": "pop.request.command",
-     "value": "USER"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "gmail 映射：问候原文 + recent: 用户名；真服务器对接另立项"
-   ]
-  }
- },
- {
-  "id": "pop3_t029_outlook",
-  "proto": "pop3",
-  "summary": "T-029: 现网 Outlook 形",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK Outlook POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    },
-    {
-     "packet": 5,
-     "field": "pop.request.command",
-     "value": "USER"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "outlook 映射：问候原文；真服务器对接另立项"
-   ]
-  }
- },
- {
-  "id": "pop3_t030_dovecot",
-  "proto": "pop3",
-  "summary": "T-030: 现网 Dovecot 形",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK Dovecot ready.",
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "CAPA",
-        "response": "+OK\r\nTOP\r\nUIDL\r\nRESP-CODES\r\nPIPELINING\r\nSTLS\r\nUSER\r\nSASL\r\n.\r\n",
-        "multiline": true
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK Logging out."
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    },
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "CAPA"
-    }
-   ],
-   "notes": [
-    "dovecot 映射已亲验：问候 `+OK Dovecot ready.`（官方 login_greeting 缺省 `Dovecot ready`，多份现网 telnet 实录一致）；CAPA 含 TOP/UIDL/RESP-CODES/PIPELINING/STLS/USER/SASL（nmap pop3-capabilities 实扫）；QUIT 回 `+OK Logging out.`（Heinlein 实录会话）"
-   ]
-  }
- },
- {
-  "id": "pop3_t031_composite",
-  "proto": "pop3",
-  "summary": "T-031: 复合流登录+取删",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "mailbox": {
-       "messages": [
-        {
-         "uid": "u1",
-         "body": "a"
-        }
-       ]
-      },
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "STAT",
-        "response": "+OK 1 100"
-       },
-       {
-        "cmd": "RETR 1",
-        "emit_mail_drop": true,
-        "msg_num": 1
-       },
-       {
-        "cmd": "DELE 1",
-        "response": "+OK deleted"
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 5,
-     "field": "pop.request.command",
-     "value": "USER"
-    },
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "STAT"
-    },
-    {
-     "packet": 11,
-     "field": "pop.request.command",
-     "value": "RETR"
-    },
-    {
-     "packet": 13,
-     "field": "pop.request.command",
-     "value": "DELE"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "复合流：登录+STAT+RETR+DELE+QUIT 一条流（≥3 动作）"
-   ]
-  }
- },
- {
-  "id": "pop3_t032_pop3s_995",
-  "proto": "pop3",
-  "summary": "T-032: POP3S 端口 995",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 995
-     }
-    },
-    {
-     "tls": {}
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 1,
-     "field": "tcp.dstport",
-     "value": "995"
-    },
-    {
-     "packet": 4,
-     "field": "tls.record.content_type",
-     "value": "22"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "改写 pop3_over_tls：补 ip 层删 4 旧键；明文不断言 TLS 握手细节"
-   ]
-  }
- },
- {
-  "id": "pop3_t033_v6",
-  "proto": "pop3",
-  "summary": "T-033: v6 承载冒烟",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "2001:db8::1",
-      "dst": "2001:db8::2"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    }
-   ],
-   "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "mqtt_v6/smtp_t015 先例：字段名无回值则降级注记；包位落盘重钉"
-   ]
-  }
- },
- {
-  "id": "pop3_t034_bad_ip_reject",
-  "proto": "pop3",
-  "summary": "T-034: 坏 IP 拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "not-an-ip"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready"
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "invalid IP address: not-an-ip",
-   "notes": [
-    "链上坏 IP 走框架 ip 层门；validator 坏 IP 门由扁平路径覆盖，C 类"
-   ]
-  }
- },
- {
-  "id": "pop3_t035_presence_reject",
-  "proto": "pop3",
-  "summary": "T-035: 顶层 pop3 判死",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {}
-    }
-   ],
-   "pop3": {}
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "rejects a top-level pop3 sub-config",
-   "notes": [
-    "D-POP3-1 §5 新锚词；mqtt/dns/smtp 先例同构；failing 先行①"
-   ]
-  }
- },
- {
-  "id": "pop3_t036_static_pinned_reject",
-  "proto": "pop3",
-  "summary": "T-036: 显式标量双流拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {}
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "static",
-   "notes": [
-    "显式标量四元组+flows=2+无动态逃生→static 门拒；与 T-33 对照"
-   ]
-  },
-  "strategy_fc": {
-   "type": "flows",
-   "value": 2
-  }
- },
- {
-  "id": "pop3_t037_mime_multi_attach",
-  "proto": "pop3",
-  "summary": "T-037: RETR 双附件下载",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "mailbox": {
-       "messages": [
-        {
-         "uid": "u1",
-         "headers": [
-          "From: a@b.c",
-          "Subject: T"
-         ],
-         "mime_parts": [
-          {
-           "headers": [
-            "Content-Type: text/plain; charset=UTF-8"
-           ],
-           "body": "see attaches"
-          },
-          {
-           "headers": [
-            "Content-Type: text/markdown",
-            "Content-Transfer-Encoding: base64",
-            "Content-Disposition: attachment; filename=\"README.md\""
-           ],
-           "body_b64": "IyBUcmFmZmljR2VuZXJhdG9yIC0g6auY5oCn6IO9572R57uc5rWB6YeP55Sf5oiQ5ZmoCgrpnaLl\r\nkJHnvZHnu5zmtYvor5XkuI7mgKfog73or4TkvLDlnLrmma/nmoTmtYHph4/nlJ/miJDns7vnu5/v\r\nvIzmj5DkvpsgV2ViIOeuoeeQhueVjOmdouOAgVJFU1QgQVBJ44CB5a6e5pe25o6o6YCB5ZKM5a6M\r\n5pW05Y+v6KeC5rWL5oCn44CCCgojIyDlip/og73liJfooagKCiMjIyDmtYHph4/nlJ/miJAKCi0g\r\n5Yib5bu6IFRDUC9VRFAvSFRUUC9ETlMvSUNNUC9BUlAg5rWB6YeP5Lu75YqhCi0gVENQ77ya6YWN\r\n572u5piv5ZCm5ZCv55So5o+h5omL44CB5oyl5omL44CBTVNTCi0gSFRUUO+8mumFjee9ruivt+ax\r\nguaWueazlShHRVQvUE9TVOetiSnjgIFVUknjgIFCb2R544CBS2VlcC1BbGl2ZeOAgeS6i+WKoeaV\r\nsOOAgeaAneiAg+aXtumXtAotIEROU++8mumFjee9ruWfn+WQjeOAgeafpeivouexu+WeiyhBL0FB\r\nQUEvQ05BTUUvTVgpCi0g6K6+572u5rqQL+ebrueahCBJUOOAgeerr+WPo+OAgU1BQwotIOiuvue9\r\nrui+k+WHuuaooeW8j++8mue9keWNoeWPkemAgSAvIFBDQVAg5L+d5a2YIC8g5Y+M6Lev5ZCM5pe2\r\nCi0g6K6+572uIFZMQU4g5qCH562+CgojIyMg5rWB6YeP562W55WlCgotIOWIm+W7ui/nvJbovpEv\r\n5Yig6Zmk562W55Wl5qih5p2/77yI5Y+v5aSN55So55qE5rWB6YeP5Y+C5pWw5a6a5LmJ77yJCi0g\r\n562W55Wl5YyF5ZCr77ya5Y2P6K6u57G75Z6L44CB5Y2P6K6u5Y+C5pWw44CB5rWB6YeP5o6n5Yi2\r\n77yI5bm25Y+R5rWB5pWwL+i/nuaOpemAn+eOhy/lkJ7lkJDph48v5Y2g5q+UL+aXtumVv++8iQot\r\nIOetlueVpeWPr+iiq+WkmuS4quS7u+WKoeW8leeUqAoKIyMjIOS7u+WKoeeuoeeQhgoKLSDliJvl\r\nu7rku7vliqHvvJrlkb3lkI3jgIHpgInmi6nnrZbnlaXjgIHpgInmi6novpPlh7rnm67moIcKLSDl\r\nkK/liqgv5YGc5q2iL+WIoOmZpOS7u+WKoQotIOafpeeci+S7u+WKoeeKtuaAgShwZW5kaW5nL3J1\r\nbm5pbmcvc3RvcHBlZC9jb21wbGV0ZWQvZXJyb3Ip5ZKM6L+b5bqmCi0g5om56YeP5ZCv5YqoL+WB\r\nnOatoi/liKDpmaQKLSDmjInnirbmgIHlkozljY/orq7nsbvlnovnrZvpgIkKLSDlrp7ml7bnu5/o\r\nrqHvvJrlt7Llj5HmiqXmlofmlbDjgIHlrZfoioLmlbDjgIHlvZPliY0gUFBTL0JQUwoKIyMjIOe9\r\nkeWNoeS4juerr+WPowoKLSDmn6XnnIvns7vnu5/nvZHljaHkv6Hmga/vvIjlkI3np7DjgIFNQUPj\r\ngIFJUOOAgeeKtuaAge+8iQotIOmHjeaWsOWPkeeOsOe9keWNoQotIOWIm+W7uuerr+WPo+e7hO+8\r\niOWkmue9keWNoeiBmuWQiCArIOadg+mHjei0n+i9veWdh+ihoe+8iQotIOerr+WPo+iHquWKqOWI\r\nhumFjeS4jumHiuaUvgoKIyMjIOWOhuWPsuiusOW9lQoKLSDmjInml7bpl7TojIPlm7Tmn6Xor6Ll\r\nt7LlrozmiJDku7vliqEKLSDmn6XnnIvljoblj7Lnu5/orqHvvJrmiqXmlofmlbDjgIHlrZfoioLm\r\nlbDjgIHmjIHnu63ml7bpl7QKCiMjIyDnlKjmiLfkuI7mnYPpmZAKCi0g5rOo5YaML+eZu+W9lS/n\r\nmbvlh7oKLSDop5LoibLmnYPpmZDvvJrnrqHnkIblkZgo5YWo5p2D6ZmQKSAvIOeUqOaItyjku7vl\r\niqHlkoznrZbnlaXnrqHnkIYpIC8g6K6/5a6iKOWPquivuykKLSDnlKjmiLfoh6rnrqHnkIbvvJrk\r\nv67mlLnpgq7nrrEv5a+G56CB44CB5Yig6Zmk6LSm5oi3Ci0g566h55CG5ZGY77ya5Yib5bu6L+e8\r\nlui+kS/npoHnlKgv6YeN572u5a+G56CBL+WIoOmZpOeUqOaItwoKIyMjIOezu+e7n+ebkeaOpwoK\r\nLSBEYXNoYm9hcmTvvJrmtLvot4Pku7vliqHmlbDjgIHlkJ7lkJDph4/jgIHljY/orq7liIbluIPl\r\nm77ooagKLSDns7vnu5/nirbmgIHvvJrlvJXmk47ov5DooYznirbmgIHjgIFDUFUv5YaF5a2Y44CB\r\n6L+Q6KGM5pe26ZW/Ci0g5YGl5bq35qOA5p+l5LiO5bCx57uq5qOA5p+lCgojIyMg57O757uf6K6+\r\n572uCgotIOivreiogOWIh+aNoijkuK0v6IuxKQotIOacgOWkp+W5tuWPkeS7u+WKoeaVsAotIOe8\r\nk+WGsuWMuuWkp+WwjwotIOaXpeW/l+e6p+WIqwoKIyMg5a6J6KOF6YOo572yCgojIyMg5rqQ56CB\r\n57yW6K+RCgpgYGBiYXNoCmNkIHRyYWZmaWNnZW4KCiMg5ZCO56uvCmdvIG1vZCBkb3dubG9hZApt\r\na2RpciAtcCBiaW4gJiYgZ28gYnVpbGQgLW8gYmluL3RyYWZmaWNnZW4gLi9jbWQvc2VydmVyCgoj\r\nIOWJjeerrwpjZCB3ZWIgJiYgbnBtIGluc3RhbGwgJiYgbnBtIHJ1biBidWlsZCAmJiBjZCAuLgoK\r\nIyDlkK/liqgKLi9iaW4vdHJhZmZpY2dlbiAtY29uZmlnIGNvbmZpZ3MvY29uZmlnLnlhbWwKYGBg\r\nCgrpu5jorqTnrqHnkIblkZjvvJpgYWRtaW5gIC8gYGFkbWluYO+8jOiuv+mXriBodHRwOi8vbG9j\r\nYWxob3N0OjgwODAKCiMjIyBEb2NrZXIg5Y2V5a655ZmoCgpgYGBiYXNoCmNkIHRyYWZmaWNnZW4K\r\nZG9ja2VyIGJ1aWxkIC10IHRyYWZmaWNnZW46bGF0ZXN0IC4KZG9ja2VyIHJ1biAtZCAtLW5ldHdv\r\ncmsgaG9zdCAtdiAuL2RhdGE6L2RhdGEgdHJhZmZpY2dlbjpsYXRlc3QKYGBgCgojIyMgRG9ja2Vy\r\nIENvbXBvc2XvvIjlkKvnm5HmjqflpZfku7bvvIkKCmBgYGJhc2gKY2QgdHJhZmZpY2dlbgoKIyDm\r\noLjlv4PmnI3liqHvvIh0cmFmZmljZ2VuICsgUHJvbWV0aGV1cyArIEdyYWZhbmHvvIkKZG9ja2Vy\r\nIGNvbXBvc2UgdXAgLWQKCiMg5oyJ6ZyA5ZCv55So5Y+v6YCJ5pyN5YqhCmRvY2tlciBjb21wb3Nl\r\nIC0tcHJvZmlsZSBwb3N0Z3JlcyB1cCAtZCAgICAgICMgUG9zdGdyZVNRTApkb2NrZXIgY29tcG9z\r\nZSAtLXByb2ZpbGUgcmVkaXMgdXAgLWQgICAgICAgICAjIFJlZGlzCmRvY2tlciBjb21wb3NlIC0t\r\ncHJvZmlsZSBhbGVydG1hbmFnZXIgdXAgLWQgICMgQWxlcnRtYW5hZ2VyCmBgYAoKfCDmnI3liqEg\r\nfCDlnLDlnYAgfCDotKblj7cgfAp8LS0tLS0tfC0tLS0tLXwtLS0tLS18CnwgV2ViIOeVjOmdoiB8\r\nIGh0dHA6Ly9sb2NhbGhvc3Q6ODA4MCB8IGFkbWluIC8gYWRtaW4gfAp8IEdyYWZhbmEgfCBodHRw\r\nOi8vbG9jYWxob3N0OjMwMDAgfCBhZG1pbiAvIGFkbWluIHwKfCBQcm9tZXRoZXVzIHwgaHR0cDov\r\nL2xvY2FsaG9zdDo5MDkwIHwgLSB8CgojIyMgS3ViZXJuZXRlcwoKYGBgYmFzaApjZCB0cmFmZmlj\r\nZ2VuL2RlcGxveW1lbnRzL2s4cwprdWJlY3RsIGFwcGx5IC1mIHNlY3JldC55YW1sLGNvbmZpZ21h\r\ncC55YW1sLGRlcGxveW1lbnQueWFtbCxzZXJ2aWNlLnlhbWwKa3ViZWN0bCBhcHBseSAtZiBpbmdy\r\nZXNzLnlhbWwgICMg5oyJ6ZyACmt1YmVjdGwgYXBwbHkgLWYgaHBhLnlhbWwgICAgICAjIOaMiemc\r\ngApgYGAKCiMjIOmFjee9rgoK5Li76YWN572u5paH5Lu2IGBjb25maWdzL2NvbmZpZy55YW1sYO+8\r\njOWFs+mUrumhue+8mgoKfCDphY3nva4gfCDpu5jorqTlgLwgfCDor7TmmI4gfAp8LS0tLS0tfC0t\r\nLS0tLS0tfC0tLS0tLXwKfCBgc2VydmVyLnBvcnRgIHwgODA4MCB8IOebkeWQrOerr+WPoyB8Cnwg\r\nYGRhdGFiYXNlLnR5cGVgIHwgc3FsaXRlIHwgc3FsaXRlIC8gcG9zdGdyZXMgfAp8IGBlbmdpbmUu\r\nY29uZmlnX3dvcmtlcnNgIHwgNCB8IOmFjee9rueUn+aIkOWNj+eoi+aVsCB8CnwgYGVuZ2luZS5w\r\nYWNrZXRfd29ya2Vyc2AgfCA4IHwg5oql5paH5p6E6YCg5Y2P56iL5pWwIHwKfCBgZW5naW5lLmJ1\r\nZmZlcl9zaXplYCB8IDQwOTYgfCDnjq/lvaLnvJPlhrLlrrnph48gfAp8IGBhdXRoLmp3dF9zZWNy\r\nZXRgIHwgLSB8IOeUn+S6p+eOr+Wig+WKoeW/heS/ruaUuSB8CnwgYGF1dGguYWRtaW4ucGFzc3dv\r\ncmRgIHwgYWRtaW4gfCDnlJ/kuqfnjq/looPliqHlv4Xkv67mlLkgfAoKPiDnlJ/kuqfnjq/looPl\r\nu7rorq7kvb/nlKggYGNvbmZpZy5zdGFuZGFsb25lLnlhbWxg77yM6YCa6L+H546v5aKD5Y+Y6YeP\r\n5rOo5YWl5pWP5oSf6YWN572u44CC"
-          },
-          {
-           "headers": [
-            "Content-Type: text/plain",
-            "Content-Transfer-Encoding: base64",
-            "Content-Disposition: attachment; filename=\"b.txt\""
-           ],
-           "body_b64": "aGVsbG8="
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
           }
-         ]
         }
-       ]
-      },
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "RETR 1",
-        "emit_mail_drop": true,
-        "msg_num": 1
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
       ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 5,
-     "field": "pop.request.command",
-     "value": "USER"
     },
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "RETR"
-    },
-    {
-     "packet": 10,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    }
-   ],
-   "notes": [
-    "对标 smtp_t033（同结构双附件，附件一为仓库真实文件 README.md 3783 字节）；包 10-13 四分片，文件名整帧偏移 396 落盘钉死"
-   ],
-   "frames": [
-    {
-     "packet": 10,
-     "offset": 396,
-     "hex": "52 45 41 44 4d 45 2e 6d 64 22"
-    }
-   ]
-  }
- },
- {
-  "id": "pop3_t038_empty_body_retr",
-  "proto": "pop3",
-  "summary": "T-038: RETR 空正文信",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "mailbox": {
-       "messages": [
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
         {
-         "uid": "u1",
-         "headers": [
-          "From: a@b.c"
-         ]
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "110"
+        },
+        {
+          "packet": 4,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        },
+        {
+          "packet": 5,
+          "field": "pop.request.command",
+          "value": "USER"
+        },
+        {
+          "packet": 5,
+          "field": "pop.request.parameter",
+          "value": "alice"
+        },
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "QUIT"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.indicator",
+          "value": "+OK"
         }
-       ]
-      },
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "RETR 1",
-        "emit_mail_drop": true,
-        "msg_num": 1
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "改写 pop3_smoke_01 纯扁平→[ip,tcp,pop3]；包位落盘重钉"
       ]
-     }
     }
-   ]
   },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "RETR"
-    },
-    {
-     "packet": 10,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    }
-   ],
-   "notes": [
-    "对标 smtp_t034；包 10 状态行 `+OK 0 octets`（空体信 size=0，落盘实测）"
-   ],
-   "frames": [
-    {
-     "packet": 10,
-     "offset": 54,
-     "hex": "2b 4f 4b 20 30 20 6f 63 74 65 74 73"
-    }
-   ]
-  }
- },
- {
-  "id": "pop3_t039_attach_only",
-  "proto": "pop3",
-  "summary": "T-039: RETR 纯附件无正文",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "mailbox": {
-       "messages": [
+  {
+    "id": "pop3_t002_user_empty_skipped",
+    "proto": "pop3",
+    "summary": "T-002: USER 空名跳过",
+    "spec_json": {
+      "layers": [
         {
-         "uid": "u1",
-         "headers": [
-          "From: a@b.c",
-          "Subject: T"
-         ],
-         "mime_parts": [
-          {
-           "headers": [
-            "Content-Type: text/markdown",
-            "Content-Transfer-Encoding: base64",
-            "Content-Disposition: attachment; filename=\"README.md\""
-           ],
-           "body_b64": "IyBUcmFmZmljR2VuZXJhdG9yIC0g6auY5oCn6IO9572R57uc5rWB6YeP55Sf5oiQ5ZmoCgrpnaLl\r\nkJHnvZHnu5zmtYvor5XkuI7mgKfog73or4TkvLDlnLrmma/nmoTmtYHph4/nlJ/miJDns7vnu5/v\r\nvIzmj5DkvpsgV2ViIOeuoeeQhueVjOmdouOAgVJFU1QgQVBJ44CB5a6e5pe25o6o6YCB5ZKM5a6M\r\n5pW05Y+v6KeC5rWL5oCn44CCCgojIyDlip/og73liJfooagKCiMjIyDmtYHph4/nlJ/miJAKCi0g\r\n5Yib5bu6IFRDUC9VRFAvSFRUUC9ETlMvSUNNUC9BUlAg5rWB6YeP5Lu75YqhCi0gVENQ77ya6YWN\r\n572u5piv5ZCm5ZCv55So5o+h5omL44CB5oyl5omL44CBTVNTCi0gSFRUUO+8mumFjee9ruivt+ax\r\nguaWueazlShHRVQvUE9TVOetiSnjgIFVUknjgIFCb2R544CBS2VlcC1BbGl2ZeOAgeS6i+WKoeaV\r\nsOOAgeaAneiAg+aXtumXtAotIEROU++8mumFjee9ruWfn+WQjeOAgeafpeivouexu+WeiyhBL0FB\r\nQUEvQ05BTUUvTVgpCi0g6K6+572u5rqQL+ebrueahCBJUOOAgeerr+WPo+OAgU1BQwotIOiuvue9\r\nrui+k+WHuuaooeW8j++8mue9keWNoeWPkemAgSAvIFBDQVAg5L+d5a2YIC8g5Y+M6Lev5ZCM5pe2\r\nCi0g6K6+572uIFZMQU4g5qCH562+CgojIyMg5rWB6YeP562W55WlCgotIOWIm+W7ui/nvJbovpEv\r\n5Yig6Zmk562W55Wl5qih5p2/77yI5Y+v5aSN55So55qE5rWB6YeP5Y+C5pWw5a6a5LmJ77yJCi0g\r\n562W55Wl5YyF5ZCr77ya5Y2P6K6u57G75Z6L44CB5Y2P6K6u5Y+C5pWw44CB5rWB6YeP5o6n5Yi2\r\n77yI5bm25Y+R5rWB5pWwL+i/nuaOpemAn+eOhy/lkJ7lkJDph48v5Y2g5q+UL+aXtumVv++8iQot\r\nIOetlueVpeWPr+iiq+WkmuS4quS7u+WKoeW8leeUqAoKIyMjIOS7u+WKoeeuoeeQhgoKLSDliJvl\r\nu7rku7vliqHvvJrlkb3lkI3jgIHpgInmi6nnrZbnlaXjgIHpgInmi6novpPlh7rnm67moIcKLSDl\r\nkK/liqgv5YGc5q2iL+WIoOmZpOS7u+WKoQotIOafpeeci+S7u+WKoeeKtuaAgShwZW5kaW5nL3J1\r\nbm5pbmcvc3RvcHBlZC9jb21wbGV0ZWQvZXJyb3Ip5ZKM6L+b5bqmCi0g5om56YeP5ZCv5YqoL+WB\r\nnOatoi/liKDpmaQKLSDmjInnirbmgIHlkozljY/orq7nsbvlnovnrZvpgIkKLSDlrp7ml7bnu5/o\r\nrqHvvJrlt7Llj5HmiqXmlofmlbDjgIHlrZfoioLmlbDjgIHlvZPliY0gUFBTL0JQUwoKIyMjIOe9\r\nkeWNoeS4juerr+WPowoKLSDmn6XnnIvns7vnu5/nvZHljaHkv6Hmga/vvIjlkI3np7DjgIFNQUPj\r\ngIFJUOOAgeeKtuaAge+8iQotIOmHjeaWsOWPkeeOsOe9keWNoQotIOWIm+W7uuerr+WPo+e7hO+8\r\niOWkmue9keWNoeiBmuWQiCArIOadg+mHjei0n+i9veWdh+ihoe+8iQotIOerr+WPo+iHquWKqOWI\r\nhumFjeS4jumHiuaUvgoKIyMjIOWOhuWPsuiusOW9lQoKLSDmjInml7bpl7TojIPlm7Tmn6Xor6Ll\r\nt7LlrozmiJDku7vliqEKLSDmn6XnnIvljoblj7Lnu5/orqHvvJrmiqXmlofmlbDjgIHlrZfoioLm\r\nlbDjgIHmjIHnu63ml7bpl7QKCiMjIyDnlKjmiLfkuI7mnYPpmZAKCi0g5rOo5YaML+eZu+W9lS/n\r\nmbvlh7oKLSDop5LoibLmnYPpmZDvvJrnrqHnkIblkZgo5YWo5p2D6ZmQKSAvIOeUqOaItyjku7vl\r\niqHlkoznrZbnlaXnrqHnkIYpIC8g6K6/5a6iKOWPquivuykKLSDnlKjmiLfoh6rnrqHnkIbvvJrk\r\nv67mlLnpgq7nrrEv5a+G56CB44CB5Yig6Zmk6LSm5oi3Ci0g566h55CG5ZGY77ya5Yib5bu6L+e8\r\nlui+kS/npoHnlKgv6YeN572u5a+G56CBL+WIoOmZpOeUqOaItwoKIyMjIOezu+e7n+ebkeaOpwoK\r\nLSBEYXNoYm9hcmTvvJrmtLvot4Pku7vliqHmlbDjgIHlkJ7lkJDph4/jgIHljY/orq7liIbluIPl\r\nm77ooagKLSDns7vnu5/nirbmgIHvvJrlvJXmk47ov5DooYznirbmgIHjgIFDUFUv5YaF5a2Y44CB\r\n6L+Q6KGM5pe26ZW/Ci0g5YGl5bq35qOA5p+l5LiO5bCx57uq5qOA5p+lCgojIyMg57O757uf6K6+\r\n572uCgotIOivreiogOWIh+aNoijkuK0v6IuxKQotIOacgOWkp+W5tuWPkeS7u+WKoeaVsAotIOe8\r\nk+WGsuWMuuWkp+WwjwotIOaXpeW/l+e6p+WIqwoKIyMg5a6J6KOF6YOo572yCgojIyMg5rqQ56CB\r\n57yW6K+RCgpgYGBiYXNoCmNkIHRyYWZmaWNnZW4KCiMg5ZCO56uvCmdvIG1vZCBkb3dubG9hZApt\r\na2RpciAtcCBiaW4gJiYgZ28gYnVpbGQgLW8gYmluL3RyYWZmaWNnZW4gLi9jbWQvc2VydmVyCgoj\r\nIOWJjeerrwpjZCB3ZWIgJiYgbnBtIGluc3RhbGwgJiYgbnBtIHJ1biBidWlsZCAmJiBjZCAuLgoK\r\nIyDlkK/liqgKLi9iaW4vdHJhZmZpY2dlbiAtY29uZmlnIGNvbmZpZ3MvY29uZmlnLnlhbWwKYGBg\r\nCgrpu5jorqTnrqHnkIblkZjvvJpgYWRtaW5gIC8gYGFkbWluYO+8jOiuv+mXriBodHRwOi8vbG9j\r\nYWxob3N0OjgwODAKCiMjIyBEb2NrZXIg5Y2V5a655ZmoCgpgYGBiYXNoCmNkIHRyYWZmaWNnZW4K\r\nZG9ja2VyIGJ1aWxkIC10IHRyYWZmaWNnZW46bGF0ZXN0IC4KZG9ja2VyIHJ1biAtZCAtLW5ldHdv\r\ncmsgaG9zdCAtdiAuL2RhdGE6L2RhdGEgdHJhZmZpY2dlbjpsYXRlc3QKYGBgCgojIyMgRG9ja2Vy\r\nIENvbXBvc2XvvIjlkKvnm5HmjqflpZfku7bvvIkKCmBgYGJhc2gKY2QgdHJhZmZpY2dlbgoKIyDm\r\noLjlv4PmnI3liqHvvIh0cmFmZmljZ2VuICsgUHJvbWV0aGV1cyArIEdyYWZhbmHvvIkKZG9ja2Vy\r\nIGNvbXBvc2UgdXAgLWQKCiMg5oyJ6ZyA5ZCv55So5Y+v6YCJ5pyN5YqhCmRvY2tlciBjb21wb3Nl\r\nIC0tcHJvZmlsZSBwb3N0Z3JlcyB1cCAtZCAgICAgICMgUG9zdGdyZVNRTApkb2NrZXIgY29tcG9z\r\nZSAtLXByb2ZpbGUgcmVkaXMgdXAgLWQgICAgICAgICAjIFJlZGlzCmRvY2tlciBjb21wb3NlIC0t\r\ncHJvZmlsZSBhbGVydG1hbmFnZXIgdXAgLWQgICMgQWxlcnRtYW5hZ2VyCmBgYAoKfCDmnI3liqEg\r\nfCDlnLDlnYAgfCDotKblj7cgfAp8LS0tLS0tfC0tLS0tLXwtLS0tLS18CnwgV2ViIOeVjOmdoiB8\r\nIGh0dHA6Ly9sb2NhbGhvc3Q6ODA4MCB8IGFkbWluIC8gYWRtaW4gfAp8IEdyYWZhbmEgfCBodHRw\r\nOi8vbG9jYWxob3N0OjMwMDAgfCBhZG1pbiAvIGFkbWluIHwKfCBQcm9tZXRoZXVzIHwgaHR0cDov\r\nL2xvY2FsaG9zdDo5MDkwIHwgLSB8CgojIyMgS3ViZXJuZXRlcwoKYGBgYmFzaApjZCB0cmFmZmlj\r\nZ2VuL2RlcGxveW1lbnRzL2s4cwprdWJlY3RsIGFwcGx5IC1mIHNlY3JldC55YW1sLGNvbmZpZ21h\r\ncC55YW1sLGRlcGxveW1lbnQueWFtbCxzZXJ2aWNlLnlhbWwKa3ViZWN0bCBhcHBseSAtZiBpbmdy\r\nZXNzLnlhbWwgICMg5oyJ6ZyACmt1YmVjdGwgYXBwbHkgLWYgaHBhLnlhbWwgICAgICAjIOaMiemc\r\ngApgYGAKCiMjIOmFjee9rgoK5Li76YWN572u5paH5Lu2IGBjb25maWdzL2NvbmZpZy55YW1sYO+8\r\njOWFs+mUrumhue+8mgoKfCDphY3nva4gfCDpu5jorqTlgLwgfCDor7TmmI4gfAp8LS0tLS0tfC0t\r\nLS0tLS0tfC0tLS0tLXwKfCBgc2VydmVyLnBvcnRgIHwgODA4MCB8IOebkeWQrOerr+WPoyB8Cnwg\r\nYGRhdGFiYXNlLnR5cGVgIHwgc3FsaXRlIHwgc3FsaXRlIC8gcG9zdGdyZXMgfAp8IGBlbmdpbmUu\r\nY29uZmlnX3dvcmtlcnNgIHwgNCB8IOmFjee9rueUn+aIkOWNj+eoi+aVsCB8CnwgYGVuZ2luZS5w\r\nYWNrZXRfd29ya2Vyc2AgfCA4IHwg5oql5paH5p6E6YCg5Y2P56iL5pWwIHwKfCBgZW5naW5lLmJ1\r\nZmZlcl9zaXplYCB8IDQwOTYgfCDnjq/lvaLnvJPlhrLlrrnph48gfAp8IGBhdXRoLmp3dF9zZWNy\r\nZXRgIHwgLSB8IOeUn+S6p+eOr+Wig+WKoeW/heS/ruaUuSB8CnwgYGF1dGguYWRtaW4ucGFzc3dv\r\ncmRgIHwgYWRtaW4gfCDnlJ/kuqfnjq/looPliqHlv4Xkv67mlLkgfAoKPiDnlJ/kuqfnjq/looPl\r\nu7rorq7kvb/nlKggYGNvbmZpZy5zdGFuZGFsb25lLnlhbWxg77yM6YCa6L+H546v5aKD5Y+Y6YeP\r\n5rOo5YWl5pWP5oSf6YWN572u44CC"
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
           }
-         ]
-        }
-       ]
-      },
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "RETR 1",
-        "emit_mail_drop": true,
-        "msg_num": 1
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "RETR"
-    },
-    {
-     "packet": 10,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    }
-   ],
-   "notes": [
-    "对标 smtp_t012；附件为仓库真实文件 README.md（3783 字节，包 10-13 四分片）；文件名整帧偏移 314 落盘钉死"
-   ],
-   "frames": [
-    {
-     "packet": 10,
-     "offset": 314,
-     "hex": "52 45 41 44 4d 45 2e 6d 64 22"
-    }
-   ]
-  }
- },
- {
-  "id": "pop3_t040_pass_auth_failed",
-  "proto": "pop3",
-  "summary": "T-040: PASS 密码错 -ERR",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS wrong",
-        "response": "-ERR [AUTH] Authentication failed"
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 7,
-     "field": "pop.request.command",
-     "value": "PASS"
-    },
-    {
-     "packet": 8,
-     "field": "pop.response.indicator",
-     "value": "-ERR"
-    }
-   ],
-   "notes": [
-    "对标 smtp_t031；回放台词，C 类边界"
-   ]
-  }
- },
- {
-  "id": "pop3_t041_unknown_command",
-  "proto": "pop3",
-  "summary": "T-041: 未知命令 -ERR",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "FOO bar",
-        "response": "-ERR unknown command"
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "FOO"
-    },
-    {
-     "packet": 10,
-     "field": "pop.response.indicator",
-     "value": "-ERR"
-    }
-   ],
-   "notes": [
-    "对标 smtp_t023；转离线 3_16_1；回放不断言状态机"
-   ]
-  }
- },
- {
-  "id": "pop3_t042_maildrop_no_mailbox_reject",
-  "proto": "pop3",
-  "summary": "T-042: RETR 合成无信箱拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "RETR 1",
-        "emit_mail_drop": true,
-        "msg_num": 1
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "EmitMailDrop=true but Mailbox is nil",
-   "notes": [
-    "负例；与 T-012b（EmitTop 版）成对"
-   ]
-  }
- },
- {
-  "id": "pop3_t043_maildrop_msgnum_range_reject",
-  "proto": "pop3",
-  "summary": "T-043: RETR 信号越界拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "mailbox": {
-       "messages": [
+        },
         {
-         "uid": "u1",
-         "body": "a"
-        }
-       ]
-      },
-      "commands": [
-       {
-        "cmd": "RETR 5",
-        "emit_mail_drop": true,
-        "msg_num": 5
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "out of range",
-   "notes": [
-    "负例，锚词 `out of range`"
-   ]
-  }
- },
- {
-  "id": "pop3_t044_top_msgnum_range_reject",
-  "proto": "pop3",
-  "summary": "T-044: TOP 信号越界拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "mailbox": {
-       "messages": [
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
         {
-         "uid": "u1",
-         "body": "a"
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "",
+                "response": "+OK send password"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
         }
-       ]
-      },
-      "commands": [
-       {
-        "cmd": "TOP 3 1",
-        "emit_top": true,
-        "msg_num": 3,
-        "top_lines": 1
-       }
       ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "out of range",
-   "notes": [
-    "负例；与 T-043 分属不同分支（MailDrop/TOP 各一）"
-   ]
-  }
- },
- {
-  "id": "pop3_t045_emit_both_exclusive_reject",
-  "proto": "pop3",
-  "summary": "T-045: 双合成互斥拒绝",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
     },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "mailbox": {
-       "messages": [
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
         {
-         "uid": "u1",
-         "body": "a"
-        }
-       ]
-      },
-      "commands": [
-       {
-        "cmd": "RETR 1",
-        "emit_mail_drop": true,
-        "emit_top": true,
-        "msg_num": 1
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "expect_error": true,
-   "error_contains": "mutually exclusive",
-   "notes": [
-    "负例，锚词 `mutually exclusive`"
-   ]
-  }
- },
- {
-  "id": "pop3_t046_default_twoflow",
-  "proto": "pop3",
-  "summary": "T-046: 全缺省双流放行",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {}
-    },
-    {
-     "tcp": {}
-    },
-    {
-     "pop3": {}
-    }
-   ]
-  },
-  "expect": {
-   "packet_count": 14,
-   "has_handshake": true,
-   "notes": [
-    "对标 smtp_t024：空会话 7 包×2=14；src_port 保底 12345/12346 双流落盘钉死"
-   ]
-  },
-  "strategy_fc": {
-   "type": "flows",
-   "value": 2
-  }
- },
- {
-  "id": "pop3_t047_quit_bare",
-  "proto": "pop3",
-  "summary": "T-047: 未登录直接退出",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 4,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    },
-    {
-     "packet": 5,
-     "field": "pop.request.command",
-     "value": "QUIT"
-    },
-    {
-     "packet": 6,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    }
-   ],
-   "notes": [
-    "转离线 1_12_1；免登录退出形状"
-   ]
-  }
- },
- {
-  "id": "pop3_t048_list_single",
-  "proto": "pop3",
-  "summary": "T-048: LIST 单封单行",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "LIST 1",
-        "response": "+OK 1 100"
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
-      ]
-     }
-    }
-   ]
-  },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "LIST"
-    },
-    {
-     "packet": 10,
-     "field": "pop.response.indicator",
-     "value": "+OK"
-    },
-    {
-     "packet": 10,
-     "field": "pop.response.description",
-     "value": "1 100"
-    }
-   ],
-   "notes": [
-    "转离线 1_5_3；与 T-006 多行对称"
-   ]
-  }
- },
- {
-  "id": "pop3_t049_top_zero_lines",
-  "proto": "pop3",
-  "summary": "T-049: TOP 零行仅头",
-  "spec_json": {
-   "layers": [
-    {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
-    },
-    {
-     "tcp": {
-      "src_port": 13000,
-      "dst_port": 110
-     }
-    },
-    {
-     "pop3": {
-      "banner": "+OK POP3 server ready",
-      "mailbox": {
-       "messages": [
+          "packet": 5,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        },
         {
-         "uid": "u1",
-         "headers": [
-          "From: a@b.c"
-         ],
-         "body": "l1\nl2"
+          "packet": 6,
+          "field": "pop.request.command",
+          "value": "QUIT"
         }
-       ]
-      },
-      "commands": [
-       {
-        "cmd": "USER alice",
-        "response": "+OK alice"
-       },
-       {
-        "cmd": "PASS secret",
-        "response": "+OK Logged in"
-       },
-       {
-        "cmd": "TOP 1 0",
-        "emit_top": true,
-        "msg_num": 1,
-        "top_lines": 0
-       },
-       {
-        "cmd": "QUIT",
-        "response": "+OK bye"
-       }
+      ],
+      "notes": [
+        "空 Cmd 只发响应（转离线 1_1_2）；110 缺省由 T-001 包 1 tcp.dstport=110 钉死"
       ]
-     }
     }
-   ]
   },
-  "expect": {
-   "has_handshake": true,
-   "terminates": true,
-   "fields": [
-    {
-     "packet": 9,
-     "field": "pop.request.command",
-     "value": "TOP"
+  {
+    "id": "pop3_t003_apop_login",
+    "proto": "pop3",
+    "summary": "T-003: APOP 一条登录",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready <1896.697170952@dbc.mtview.ca.us>",
+            "commands": [
+              {
+                "cmd": "APOP alice c4f1844678c2f18b0f915c267cf01649",
+                "response": "+OK maildrop locked and ready"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
     },
-    {
-     "packet": 10,
-     "field": "pop.response.indicator",
-     "value": "+OK"
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "pop.request.command",
+          "value": "APOP"
+        },
+        {
+          "packet": 6,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "转离线 3_2_1；摘要原文提供，planner 不主动算"
+      ]
     }
-   ],
-   "notes": [
-    "转离线 1_10_2；N=0 头后直跟结束点"
-   ]
+  },
+  {
+    "id": "pop3_t004_user_in_transaction",
+    "proto": "pop3",
+    "summary": "T-004: 事务态 USER 照发",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "STAT",
+                "response": "+OK 1 100"
+              },
+              {
+                "cmd": "USER bob",
+                "response": "+OK bob"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "pop.request.command",
+          "value": "USER"
+        },
+        {
+          "packet": 11,
+          "field": "pop.request.command",
+          "value": "USER"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "转离线 1_1_3；C 类注记：回放不断状态机"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t005_stat_empty",
+    "proto": "pop3",
+    "summary": "T-005: STAT 空信箱",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "STAT",
+                "response": "+OK 0 0"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "STAT"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.description",
+          "value": "0 0"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "转离线 1_4_1/4_1_1"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t006_list_multi",
+    "proto": "pop3",
+    "summary": "T-006: LIST 多信",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "LIST",
+                "response": "+OK 2 messages\r\n1 100\r\n2 200\r\n.\r\n",
+                "multiline": true
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "LIST"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "多行响应自带终止符（Multiline=true）"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t007_list_outofrange",
+    "proto": "pop3",
+    "summary": "T-007: LIST 越界",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "LIST 5",
+                "response": "-ERR no such message, only 2 messages"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "LIST"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.indicator",
+          "value": "-ERR"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "回放台词，C 类边界；转离线 1_5_4"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t008_retr_maildrop",
+    "proto": "pop3",
+    "summary": "T-008: RETR 信箱合成",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "mailbox": {
+              "messages": [
+                {
+                  "uid": "u1",
+                  "headers": [
+                    "From: a@b.c",
+                    "Subject: T"
+                  ],
+                  "body": "hello"
+                },
+                {
+                  "uid": "u2",
+                  "headers": [
+                    "From: x@y.z"
+                  ]
+                }
+              ]
+            },
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "RETR 1",
+                "emit_mail_drop": true,
+                "msg_num": 1
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "RETR"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "EmitMailDrop 合成；MsgNum 2 空信附带空正文形态；包位落盘重钉"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t009_retr_missing",
+    "proto": "pop3",
+    "summary": "T-009: RETR 无此信",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "RETR 9",
+                "response": "-ERR no such message"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "RETR"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.indicator",
+          "value": "-ERR"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "回放台词，C 类边界；转离线 1_6_6 变体"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t010_dele",
+    "proto": "pop3",
+    "summary": "T-010: DELE 删信 + RSET 撤销",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "DELE 1",
+                "response": "+OK deleted"
+              },
+              {
+                "cmd": "RSET",
+                "response": "+OK maildrop has 5 messages (12345 octets)"
+              },
+              {
+                "cmd": "DELE 9",
+                "response": "-ERR no such message"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "DELE"
+        },
+        {
+          "packet": 11,
+          "field": "pop.request.command",
+          "value": "RSET"
+        },
+        {
+          "packet": 13,
+          "field": "pop.request.command",
+          "value": "DELE"
+        },
+        {
+          "packet": 15,
+          "field": "pop.request.command",
+          "value": "QUIT"
+        }
+      ],
+      "notes": [
+        "转离线 1_7_1/1_7_2/3_11_1；RSET 撤销删除标记；包位落盘重钉"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t011_top",
+    "proto": "pop3",
+    "summary": "T-011: TOP 合成",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "mailbox": {
+              "messages": [
+                {
+                  "uid": "u1",
+                  "headers": [
+                    "From: a@b.c"
+                  ],
+                  "body": "l1\nl2\nl3"
+                }
+              ]
+            },
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "TOP 1 2",
+                "emit_top": true,
+                "msg_num": 1,
+                "top_lines": 2
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "TOP"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "EmitTop 前 2 行；N=0 仅头由离线 1_10_2 覆盖"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t012_uidl",
+    "proto": "pop3",
+    "summary": "T-012: UIDL 多行单行",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "UIDL",
+                "response": "+OK\r\n1 u1\r\n2 u2\r\n.\r\n",
+                "multiline": true
+              },
+              {
+                "cmd": "UIDL 1",
+                "response": "+OK 1 u1"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "UIDL"
+        },
+        {
+          "packet": 11,
+          "field": "pop.request.command",
+          "value": "UIDL"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "转离线 1_11_1/1_11_2"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t012b_emit_top_no_mailbox_reject",
+    "proto": "pop3",
+    "summary": "T-012: TOP 无信箱拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "TOP 1 1",
+                "emit_top": true,
+                "msg_num": 1
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "but Mailbox is nil",
+      "notes": [
+        "负例，锚词 `but Mailbox is nil`；EmitTop/MailDrop 互斥同门"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t013_dot_stuffing",
+    "proto": "pop3",
+    "summary": "T-013: RETR 点填充",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "mailbox": {
+              "messages": [
+                {
+                  "uid": "u1",
+                  "headers": [
+                    "From: a@b.c"
+                  ],
+                  "body": ".dotline\nnormal"
+                }
+              ]
+            },
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "RETR 1",
+                "emit_mail_drop": true,
+                "msg_num": 1
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "RETR"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "转离线 3_10_3；MIME 附件形态转离线 MIME 基线"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t014_user_toolong_reject",
+    "proto": "pop3",
+    "summary": "T-014: USER 超长拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "response": "+OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "USER name length",
+      "notes": [
+        "负例，锚词 `USER name length`；转离线 USERTooLong/1_1_6"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t015_pass_toolong_reject",
+    "proto": "pop3",
+    "summary": "T-015: PASS 超长拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "PASS pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+                "response": "+OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "PASS password length",
+      "notes": [
+        "负例，锚词 `PASS password length`；小载荷断文案（mailbox 超限同口径）"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t016_cmd_crlf_reject",
+    "proto": "pop3",
+    "summary": "T-016: 命令 CRLF 注入拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER a\r\nDELE 1",
+                "response": "+OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "contains CRLF",
+      "notes": [
+        "负例，锚词 `contains CRLF`；转离线 CRLFInjectionRejected/1_1_4"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t017_resp_crlf_reject",
+    "proto": "pop3",
+    "summary": "T-017: 单行响应 CRLF 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "STAT",
+                "response": "+OK 1\r\n2"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "Multiline=false",
+      "notes": [
+        "负例，锚词 `Multiline=false`；转离线 ResponseWithCRLFWithoutMultiline"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t018_uid_toolong_reject",
+    "proto": "pop3",
+    "summary": "T-018: UID 超长拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "mailbox": {
+              "messages": [
+                {
+                  "uid": "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu",
+                  "body": "x"
+                }
+              ]
+            },
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "UID length",
+      "notes": [
+        "负例，锚词 `UID length`；转离线 UIDTooLong/1_11_7"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t019_apop_bad_digest_reject",
+    "proto": "pop3",
+    "summary": "T-019: APOP 摘要非法拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "APOP alice NOTHEX!",
+                "response": "+OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "APOP digest",
+      "notes": [
+        "负例，锚词 `APOP digest`；转离线 APOPDigestLength/NotHex/1_3_2/1_3_3"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t020_rfc10_sequence",
+    "proto": "pop3",
+    "summary": "T-020: RFC 官方示例序列",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "STAT",
+                "response": "+OK 2 320"
+              },
+              {
+                "cmd": "LIST",
+                "response": "+OK 2 messages\r\n1 120\r\n2 200\r\n.\r\n",
+                "multiline": true
+              },
+              {
+                "cmd": "RETR 1",
+                "response": "+OK 120 octets\r\nFrom: a@b.c\r\n\r\nhello\r\n.\r\n",
+                "multiline": true
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "pop.request.command",
+          "value": "USER"
+        },
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "STAT"
+        },
+        {
+          "packet": 13,
+          "field": "pop.request.command",
+          "value": "RETR"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "RFC 1939 §10 官方序列；包位落盘重钉"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t021_capa",
+    "proto": "pop3",
+    "summary": "T-021: CAPA 扩展列表",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "CAPA",
+                "response": "+OK List follows\r\nTOP\r\nUIDL\r\nSTLS\r\n.\r\n",
+                "multiline": true
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "CAPA"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "台词版，转离线 1_13_1；RFC 2449，真协商不做"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t022_stls",
+    "proto": "pop3",
+    "summary": "T-022: STLS 台词",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "STLS",
+                "response": "+OK Begin TLS negotiation"
+              },
+              {
+                "cmd": "USER alice",
+                "response": "-ERR Must issue STLS first"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "pop.request.command",
+          "value": "STLS"
+        },
+        {
+          "packet": 7,
+          "field": "pop.request.command",
+          "value": "USER"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "台词版，转离线 1_14_1/2_6_1；RFC 2595，真升级另立项"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t023_auth",
+    "proto": "pop3",
+    "summary": "T-023: AUTH 三机制",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "AUTH PLAIN",
+                "response": "+ Ready for authentication"
+              },
+              {
+                "cmd": "AUTH LOGIN",
+                "response": "+ VXNlcm5hbWU6"
+              },
+              {
+                "cmd": "AUTH CRAM-MD5",
+                "response": "+ PDEyMzQ1 poseidon"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "pop.request.command",
+          "value": "AUTH"
+        },
+        {
+          "packet": 7,
+          "field": "pop.request.command",
+          "value": "AUTH"
+        },
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "AUTH"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "台词版，转离线 1_15_1/1_15_2/1_15_3；真认证不做"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t024_mss_reject",
+    "proto": "pop3",
+    "summary": "T-024: MSS 过小拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110,
+            "mss": 100
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "out of range [536,65535]",
+      "notes": [
+        "负例，锚词 tcp 层 V9 门字面（smtp T-020 同款）；planner 门由扁平路径覆盖"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t025_two_retr",
+    "proto": "pop3",
+    "summary": "T-025: 同连接两 RETR",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "mailbox": {
+              "messages": [
+                {
+                  "uid": "u1",
+                  "body": "a"
+                },
+                {
+                  "uid": "u2",
+                  "body": "b"
+                }
+              ]
+            },
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "RETR 1",
+                "emit_mail_drop": true,
+                "msg_num": 1
+              },
+              {
+                "cmd": "RETR 2",
+                "emit_mail_drop": true,
+                "msg_num": 2
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "RETR"
+        },
+        {
+          "packet": 11,
+          "field": "pop.request.command",
+          "value": "RETR"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "§3 多事务①：同连接两次 RETR；包位落盘重钉"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t026_abort_no_quit",
+    "proto": "pop3",
+    "summary": "T-026: RETR 后无 QUIT 断线",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "mailbox": {
+              "messages": [
+                {
+                  "uid": "u1",
+                  "body": "a"
+                }
+              ]
+            },
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "RETR 1",
+                "emit_mail_drop": true,
+                "msg_num": 1
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "RETR"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "§3 多事务②：POP3 层无 QUIT，TCP 照常 FIN"
+      ],
+      "min_packets": 14,
+      "packet_count": 14
+    }
+  },
+  {
+    "id": "pop3_t027_keepalive_noop",
+    "proto": "pop3",
+    "summary": "T-027: 三 NOOP 长保活",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "NOOP",
+                "response": "+OK"
+              },
+              {
+                "cmd": "NOOP",
+                "response": "+OK"
+              },
+              {
+                "cmd": "NOOP",
+                "response": "+OK"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "NOOP"
+        },
+        {
+          "packet": 13,
+          "field": "pop.request.command",
+          "value": "NOOP"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "§3 多事务③：同连接 3×NOOP（离线 3_15_1 缩量）"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t028_gmail",
+    "proto": "pop3",
+    "summary": "T-028: 现网 Gmail 形",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK Gpop ready for requests from 1.2.3.4 abc",
+            "commands": [
+              {
+                "cmd": "USER recent:alice@gmail.com",
+                "response": "+OK sent"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Welcome."
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        },
+        {
+          "packet": 5,
+          "field": "pop.request.command",
+          "value": "USER"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "gmail 映射：问候原文 + recent: 用户名；真服务器对接另立项"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t029_outlook",
+    "proto": "pop3",
+    "summary": "T-029: 现网 Outlook 形",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK Outlook POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        },
+        {
+          "packet": 5,
+          "field": "pop.request.command",
+          "value": "USER"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "outlook 映射：问候原文；真服务器对接另立项"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t030_dovecot",
+    "proto": "pop3",
+    "summary": "T-030: 现网 Dovecot 形",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK Dovecot ready.",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "CAPA",
+                "response": "+OK\r\nTOP\r\nUIDL\r\nRESP-CODES\r\nPIPELINING\r\nSTLS\r\nUSER\r\nSASL\r\n.\r\n",
+                "multiline": true
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK Logging out."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        },
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "CAPA"
+        }
+      ],
+      "notes": [
+        "dovecot 映射已亲验：问候 `+OK Dovecot ready.`（官方 login_greeting 缺省 `Dovecot ready`，多份现网 telnet 实录一致）；CAPA 含 TOP/UIDL/RESP-CODES/PIPELINING/STLS/USER/SASL（nmap pop3-capabilities 实扫）；QUIT 回 `+OK Logging out.`（Heinlein 实录会话）"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t031_composite",
+    "proto": "pop3",
+    "summary": "T-031: 复合流登录+取删",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "mailbox": {
+              "messages": [
+                {
+                  "uid": "u1",
+                  "body": "a"
+                }
+              ]
+            },
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "STAT",
+                "response": "+OK 1 100"
+              },
+              {
+                "cmd": "RETR 1",
+                "emit_mail_drop": true,
+                "msg_num": 1
+              },
+              {
+                "cmd": "DELE 1",
+                "response": "+OK deleted"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "pop.request.command",
+          "value": "USER"
+        },
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "STAT"
+        },
+        {
+          "packet": 11,
+          "field": "pop.request.command",
+          "value": "RETR"
+        },
+        {
+          "packet": 13,
+          "field": "pop.request.command",
+          "value": "DELE"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "复合流：登录+STAT+RETR+DELE+QUIT 一条流（≥3 动作）"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t032_pop3s_995",
+    "proto": "pop3",
+    "summary": "T-032: POP3S 端口 995",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 995
+          }
+        },
+        {
+          "tls": {}
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "995"
+        },
+        {
+          "packet": 4,
+          "field": "tls.record.content_type",
+          "value": "22"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "改写 pop3_over_tls：补 ip 层删 4 旧键；明文不断言 TLS 握手细节"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t033_v6",
+    "proto": "pop3",
+    "summary": "T-033: v6 承载冒烟",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        }
+      ],
+      "notes": [
+        "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
+        "mqtt_v6/smtp_t015 先例：字段名无回值则降级注记；包位落盘重钉"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t034_bad_ip_reject",
+    "proto": "pop3",
+    "summary": "T-034: 坏 IP 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "not-an-ip"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid IP address: not-an-ip",
+      "notes": [
+        "链上坏 IP 走框架 ip 层门；validator 坏 IP 门由扁平路径覆盖，C 类"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t035_presence_reject",
+    "proto": "pop3",
+    "summary": "T-035: 顶层 pop3 判死",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {}
+        }
+      ],
+      "pop3": {}
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "rejects a top-level pop3 sub-config",
+      "notes": [
+        "D-POP3-1 §5 新锚词；mqtt/dns/smtp 先例同构；failing 先行①"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t036_static_pinned_reject",
+    "proto": "pop3",
+    "summary": "T-036: 显式标量双流拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {}
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "static",
+      "notes": [
+        "显式标量四元组+flows=2+无动态逃生→static 门拒；与 T-33 对照"
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    }
+  },
+  {
+    "id": "pop3_t037_mime_multi_attach",
+    "proto": "pop3",
+    "summary": "T-037: RETR 双附件下载",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "mailbox": {
+              "messages": [
+                {
+                  "uid": "u1",
+                  "headers": [
+                    "From: a@b.c",
+                    "Subject: T"
+                  ],
+                  "mime_parts": [
+                    {
+                      "headers": [
+                        "Content-Type: text/plain; charset=UTF-8"
+                      ],
+                      "body": "see attaches"
+                    },
+                    {
+                      "headers": [
+                        "Content-Type: text/markdown",
+                        "Content-Transfer-Encoding: base64",
+                        "Content-Disposition: attachment; filename=\"README.md\""
+                      ],
+                      "body_b64": "IyBUcmFmZmljR2VuZXJhdG9yIC0g6auY5oCn6IO9572R57uc5rWB6YeP55Sf5oiQ5ZmoCgrpnaLl\r\nkJHnvZHnu5zmtYvor5XkuI7mgKfog73or4TkvLDlnLrmma/nmoTmtYHph4/nlJ/miJDns7vnu5/v\r\nvIzmj5DkvpsgV2ViIOeuoeeQhueVjOmdouOAgVJFU1QgQVBJ44CB5a6e5pe25o6o6YCB5ZKM5a6M\r\n5pW05Y+v6KeC5rWL5oCn44CCCgojIyDlip/og73liJfooagKCiMjIyDmtYHph4/nlJ/miJAKCi0g\r\n5Yib5bu6IFRDUC9VRFAvSFRUUC9ETlMvSUNNUC9BUlAg5rWB6YeP5Lu75YqhCi0gVENQ77ya6YWN\r\n572u5piv5ZCm5ZCv55So5o+h5omL44CB5oyl5omL44CBTVNTCi0gSFRUUO+8mumFjee9ruivt+ax\r\nguaWueazlShHRVQvUE9TVOetiSnjgIFVUknjgIFCb2R544CBS2VlcC1BbGl2ZeOAgeS6i+WKoeaV\r\nsOOAgeaAneiAg+aXtumXtAotIEROU++8mumFjee9ruWfn+WQjeOAgeafpeivouexu+WeiyhBL0FB\r\nQUEvQ05BTUUvTVgpCi0g6K6+572u5rqQL+ebrueahCBJUOOAgeerr+WPo+OAgU1BQwotIOiuvue9\r\nrui+k+WHuuaooeW8j++8mue9keWNoeWPkemAgSAvIFBDQVAg5L+d5a2YIC8g5Y+M6Lev5ZCM5pe2\r\nCi0g6K6+572uIFZMQU4g5qCH562+CgojIyMg5rWB6YeP562W55WlCgotIOWIm+W7ui/nvJbovpEv\r\n5Yig6Zmk562W55Wl5qih5p2/77yI5Y+v5aSN55So55qE5rWB6YeP5Y+C5pWw5a6a5LmJ77yJCi0g\r\n562W55Wl5YyF5ZCr77ya5Y2P6K6u57G75Z6L44CB5Y2P6K6u5Y+C5pWw44CB5rWB6YeP5o6n5Yi2\r\n77yI5bm25Y+R5rWB5pWwL+i/nuaOpemAn+eOhy/lkJ7lkJDph48v5Y2g5q+UL+aXtumVv++8iQot\r\nIOetlueVpeWPr+iiq+WkmuS4quS7u+WKoeW8leeUqAoKIyMjIOS7u+WKoeeuoeeQhgoKLSDliJvl\r\nu7rku7vliqHvvJrlkb3lkI3jgIHpgInmi6nnrZbnlaXjgIHpgInmi6novpPlh7rnm67moIcKLSDl\r\nkK/liqgv5YGc5q2iL+WIoOmZpOS7u+WKoQotIOafpeeci+S7u+WKoeeKtuaAgShwZW5kaW5nL3J1\r\nbm5pbmcvc3RvcHBlZC9jb21wbGV0ZWQvZXJyb3Ip5ZKM6L+b5bqmCi0g5om56YeP5ZCv5YqoL+WB\r\nnOatoi/liKDpmaQKLSDmjInnirbmgIHlkozljY/orq7nsbvlnovnrZvpgIkKLSDlrp7ml7bnu5/o\r\nrqHvvJrlt7Llj5HmiqXmlofmlbDjgIHlrZfoioLmlbDjgIHlvZPliY0gUFBTL0JQUwoKIyMjIOe9\r\nkeWNoeS4juerr+WPowoKLSDmn6XnnIvns7vnu5/nvZHljaHkv6Hmga/vvIjlkI3np7DjgIFNQUPj\r\ngIFJUOOAgeeKtuaAge+8iQotIOmHjeaWsOWPkeeOsOe9keWNoQotIOWIm+W7uuerr+WPo+e7hO+8\r\niOWkmue9keWNoeiBmuWQiCArIOadg+mHjei0n+i9veWdh+ihoe+8iQotIOerr+WPo+iHquWKqOWI\r\nhumFjeS4jumHiuaUvgoKIyMjIOWOhuWPsuiusOW9lQoKLSDmjInml7bpl7TojIPlm7Tmn6Xor6Ll\r\nt7LlrozmiJDku7vliqEKLSDmn6XnnIvljoblj7Lnu5/orqHvvJrmiqXmlofmlbDjgIHlrZfoioLm\r\nlbDjgIHmjIHnu63ml7bpl7QKCiMjIyDnlKjmiLfkuI7mnYPpmZAKCi0g5rOo5YaML+eZu+W9lS/n\r\nmbvlh7oKLSDop5LoibLmnYPpmZDvvJrnrqHnkIblkZgo5YWo5p2D6ZmQKSAvIOeUqOaItyjku7vl\r\niqHlkoznrZbnlaXnrqHnkIYpIC8g6K6/5a6iKOWPquivuykKLSDnlKjmiLfoh6rnrqHnkIbvvJrk\r\nv67mlLnpgq7nrrEv5a+G56CB44CB5Yig6Zmk6LSm5oi3Ci0g566h55CG5ZGY77ya5Yib5bu6L+e8\r\nlui+kS/npoHnlKgv6YeN572u5a+G56CBL+WIoOmZpOeUqOaItwoKIyMjIOezu+e7n+ebkeaOpwoK\r\nLSBEYXNoYm9hcmTvvJrmtLvot4Pku7vliqHmlbDjgIHlkJ7lkJDph4/jgIHljY/orq7liIbluIPl\r\nm77ooagKLSDns7vnu5/nirbmgIHvvJrlvJXmk47ov5DooYznirbmgIHjgIFDUFUv5YaF5a2Y44CB\r\n6L+Q6KGM5pe26ZW/Ci0g5YGl5bq35qOA5p+l5LiO5bCx57uq5qOA5p+lCgojIyMg57O757uf6K6+\r\n572uCgotIOivreiogOWIh+aNoijkuK0v6IuxKQotIOacgOWkp+W5tuWPkeS7u+WKoeaVsAotIOe8\r\nk+WGsuWMuuWkp+WwjwotIOaXpeW/l+e6p+WIqwoKIyMg5a6J6KOF6YOo572yCgojIyMg5rqQ56CB\r\n57yW6K+RCgpgYGBiYXNoCmNkIHRyYWZmaWNnZW4KCiMg5ZCO56uvCmdvIG1vZCBkb3dubG9hZApt\r\na2RpciAtcCBiaW4gJiYgZ28gYnVpbGQgLW8gYmluL3RyYWZmaWNnZW4gLi9jbWQvc2VydmVyCgoj\r\nIOWJjeerrwpjZCB3ZWIgJiYgbnBtIGluc3RhbGwgJiYgbnBtIHJ1biBidWlsZCAmJiBjZCAuLgoK\r\nIyDlkK/liqgKLi9iaW4vdHJhZmZpY2dlbiAtY29uZmlnIGNvbmZpZ3MvY29uZmlnLnlhbWwKYGBg\r\nCgrpu5jorqTnrqHnkIblkZjvvJpgYWRtaW5gIC8gYGFkbWluYO+8jOiuv+mXriBodHRwOi8vbG9j\r\nYWxob3N0OjgwODAKCiMjIyBEb2NrZXIg5Y2V5a655ZmoCgpgYGBiYXNoCmNkIHRyYWZmaWNnZW4K\r\nZG9ja2VyIGJ1aWxkIC10IHRyYWZmaWNnZW46bGF0ZXN0IC4KZG9ja2VyIHJ1biAtZCAtLW5ldHdv\r\ncmsgaG9zdCAtdiAuL2RhdGE6L2RhdGEgdHJhZmZpY2dlbjpsYXRlc3QKYGBgCgojIyMgRG9ja2Vy\r\nIENvbXBvc2XvvIjlkKvnm5HmjqflpZfku7bvvIkKCmBgYGJhc2gKY2QgdHJhZmZpY2dlbgoKIyDm\r\noLjlv4PmnI3liqHvvIh0cmFmZmljZ2VuICsgUHJvbWV0aGV1cyArIEdyYWZhbmHvvIkKZG9ja2Vy\r\nIGNvbXBvc2UgdXAgLWQKCiMg5oyJ6ZyA5ZCv55So5Y+v6YCJ5pyN5YqhCmRvY2tlciBjb21wb3Nl\r\nIC0tcHJvZmlsZSBwb3N0Z3JlcyB1cCAtZCAgICAgICMgUG9zdGdyZVNRTApkb2NrZXIgY29tcG9z\r\nZSAtLXByb2ZpbGUgcmVkaXMgdXAgLWQgICAgICAgICAjIFJlZGlzCmRvY2tlciBjb21wb3NlIC0t\r\ncHJvZmlsZSBhbGVydG1hbmFnZXIgdXAgLWQgICMgQWxlcnRtYW5hZ2VyCmBgYAoKfCDmnI3liqEg\r\nfCDlnLDlnYAgfCDotKblj7cgfAp8LS0tLS0tfC0tLS0tLXwtLS0tLS18CnwgV2ViIOeVjOmdoiB8\r\nIGh0dHA6Ly9sb2NhbGhvc3Q6ODA4MCB8IGFkbWluIC8gYWRtaW4gfAp8IEdyYWZhbmEgfCBodHRw\r\nOi8vbG9jYWxob3N0OjMwMDAgfCBhZG1pbiAvIGFkbWluIHwKfCBQcm9tZXRoZXVzIHwgaHR0cDov\r\nL2xvY2FsaG9zdDo5MDkwIHwgLSB8CgojIyMgS3ViZXJuZXRlcwoKYGBgYmFzaApjZCB0cmFmZmlj\r\nZ2VuL2RlcGxveW1lbnRzL2s4cwprdWJlY3RsIGFwcGx5IC1mIHNlY3JldC55YW1sLGNvbmZpZ21h\r\ncC55YW1sLGRlcGxveW1lbnQueWFtbCxzZXJ2aWNlLnlhbWwKa3ViZWN0bCBhcHBseSAtZiBpbmdy\r\nZXNzLnlhbWwgICMg5oyJ6ZyACmt1YmVjdGwgYXBwbHkgLWYgaHBhLnlhbWwgICAgICAjIOaMiemc\r\ngApgYGAKCiMjIOmFjee9rgoK5Li76YWN572u5paH5Lu2IGBjb25maWdzL2NvbmZpZy55YW1sYO+8\r\njOWFs+mUrumhue+8mgoKfCDphY3nva4gfCDpu5jorqTlgLwgfCDor7TmmI4gfAp8LS0tLS0tfC0t\r\nLS0tLS0tfC0tLS0tLXwKfCBgc2VydmVyLnBvcnRgIHwgODA4MCB8IOebkeWQrOerr+WPoyB8Cnwg\r\nYGRhdGFiYXNlLnR5cGVgIHwgc3FsaXRlIHwgc3FsaXRlIC8gcG9zdGdyZXMgfAp8IGBlbmdpbmUu\r\nY29uZmlnX3dvcmtlcnNgIHwgNCB8IOmFjee9rueUn+aIkOWNj+eoi+aVsCB8CnwgYGVuZ2luZS5w\r\nYWNrZXRfd29ya2Vyc2AgfCA4IHwg5oql5paH5p6E6YCg5Y2P56iL5pWwIHwKfCBgZW5naW5lLmJ1\r\nZmZlcl9zaXplYCB8IDQwOTYgfCDnjq/lvaLnvJPlhrLlrrnph48gfAp8IGBhdXRoLmp3dF9zZWNy\r\nZXRgIHwgLSB8IOeUn+S6p+eOr+Wig+WKoeW/heS/ruaUuSB8CnwgYGF1dGguYWRtaW4ucGFzc3dv\r\ncmRgIHwgYWRtaW4gfCDnlJ/kuqfnjq/looPliqHlv4Xkv67mlLkgfAoKPiDnlJ/kuqfnjq/looPl\r\nu7rorq7kvb/nlKggYGNvbmZpZy5zdGFuZGFsb25lLnlhbWxg77yM6YCa6L+H546v5aKD5Y+Y6YeP\r\n5rOo5YWl5pWP5oSf6YWN572u44CC"
+                    },
+                    {
+                      "headers": [
+                        "Content-Type: text/plain",
+                        "Content-Transfer-Encoding: base64",
+                        "Content-Disposition: attachment; filename=\"b.txt\""
+                      ],
+                      "body_b64": "aGVsbG8="
+                    }
+                  ]
+                }
+              ]
+            },
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "RETR 1",
+                "emit_mail_drop": true,
+                "msg_num": 1
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "pop.request.command",
+          "value": "USER"
+        },
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "RETR"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        }
+      ],
+      "notes": [
+        "对标 smtp_t033（同结构双附件，附件一为仓库真实文件 README.md 3783 字节）；包 10-13 四分片，文件名整帧偏移 396 落盘钉死"
+      ],
+      "frames": [
+        {
+          "packet": 10,
+          "offset": 396,
+          "hex": "52 45 41 44 4d 45 2e 6d 64 22"
+        }
+      ]
+    }
+  },
+  {
+    "id": "pop3_t038_empty_body_retr",
+    "proto": "pop3",
+    "summary": "T-038: RETR 空正文信",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "mailbox": {
+              "messages": [
+                {
+                  "uid": "u1",
+                  "headers": [
+                    "From: a@b.c"
+                  ]
+                }
+              ]
+            },
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "RETR 1",
+                "emit_mail_drop": true,
+                "msg_num": 1
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "RETR"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        }
+      ],
+      "notes": [
+        "对标 smtp_t034；包 10 状态行 `+OK 0 octets`（空体信 size=0，落盘实测）"
+      ],
+      "frames": [
+        {
+          "packet": 10,
+          "offset": 54,
+          "hex": "2b 4f 4b 20 30 20 6f 63 74 65 74 73"
+        }
+      ]
+    }
+  },
+  {
+    "id": "pop3_t039_attach_only",
+    "proto": "pop3",
+    "summary": "T-039: RETR 纯附件无正文",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "mailbox": {
+              "messages": [
+                {
+                  "uid": "u1",
+                  "headers": [
+                    "From: a@b.c",
+                    "Subject: T"
+                  ],
+                  "mime_parts": [
+                    {
+                      "headers": [
+                        "Content-Type: text/markdown",
+                        "Content-Transfer-Encoding: base64",
+                        "Content-Disposition: attachment; filename=\"README.md\""
+                      ],
+                      "body_b64": "IyBUcmFmZmljR2VuZXJhdG9yIC0g6auY5oCn6IO9572R57uc5rWB6YeP55Sf5oiQ5ZmoCgrpnaLl\r\nkJHnvZHnu5zmtYvor5XkuI7mgKfog73or4TkvLDlnLrmma/nmoTmtYHph4/nlJ/miJDns7vnu5/v\r\nvIzmj5DkvpsgV2ViIOeuoeeQhueVjOmdouOAgVJFU1QgQVBJ44CB5a6e5pe25o6o6YCB5ZKM5a6M\r\n5pW05Y+v6KeC5rWL5oCn44CCCgojIyDlip/og73liJfooagKCiMjIyDmtYHph4/nlJ/miJAKCi0g\r\n5Yib5bu6IFRDUC9VRFAvSFRUUC9ETlMvSUNNUC9BUlAg5rWB6YeP5Lu75YqhCi0gVENQ77ya6YWN\r\n572u5piv5ZCm5ZCv55So5o+h5omL44CB5oyl5omL44CBTVNTCi0gSFRUUO+8mumFjee9ruivt+ax\r\nguaWueazlShHRVQvUE9TVOetiSnjgIFVUknjgIFCb2R544CBS2VlcC1BbGl2ZeOAgeS6i+WKoeaV\r\nsOOAgeaAneiAg+aXtumXtAotIEROU++8mumFjee9ruWfn+WQjeOAgeafpeivouexu+WeiyhBL0FB\r\nQUEvQ05BTUUvTVgpCi0g6K6+572u5rqQL+ebrueahCBJUOOAgeerr+WPo+OAgU1BQwotIOiuvue9\r\nrui+k+WHuuaooeW8j++8mue9keWNoeWPkemAgSAvIFBDQVAg5L+d5a2YIC8g5Y+M6Lev5ZCM5pe2\r\nCi0g6K6+572uIFZMQU4g5qCH562+CgojIyMg5rWB6YeP562W55WlCgotIOWIm+W7ui/nvJbovpEv\r\n5Yig6Zmk562W55Wl5qih5p2/77yI5Y+v5aSN55So55qE5rWB6YeP5Y+C5pWw5a6a5LmJ77yJCi0g\r\n562W55Wl5YyF5ZCr77ya5Y2P6K6u57G75Z6L44CB5Y2P6K6u5Y+C5pWw44CB5rWB6YeP5o6n5Yi2\r\n77yI5bm25Y+R5rWB5pWwL+i/nuaOpemAn+eOhy/lkJ7lkJDph48v5Y2g5q+UL+aXtumVv++8iQot\r\nIOetlueVpeWPr+iiq+WkmuS4quS7u+WKoeW8leeUqAoKIyMjIOS7u+WKoeeuoeeQhgoKLSDliJvl\r\nu7rku7vliqHvvJrlkb3lkI3jgIHpgInmi6nnrZbnlaXjgIHpgInmi6novpPlh7rnm67moIcKLSDl\r\nkK/liqgv5YGc5q2iL+WIoOmZpOS7u+WKoQotIOafpeeci+S7u+WKoeeKtuaAgShwZW5kaW5nL3J1\r\nbm5pbmcvc3RvcHBlZC9jb21wbGV0ZWQvZXJyb3Ip5ZKM6L+b5bqmCi0g5om56YeP5ZCv5YqoL+WB\r\nnOatoi/liKDpmaQKLSDmjInnirbmgIHlkozljY/orq7nsbvlnovnrZvpgIkKLSDlrp7ml7bnu5/o\r\nrqHvvJrlt7Llj5HmiqXmlofmlbDjgIHlrZfoioLmlbDjgIHlvZPliY0gUFBTL0JQUwoKIyMjIOe9\r\nkeWNoeS4juerr+WPowoKLSDmn6XnnIvns7vnu5/nvZHljaHkv6Hmga/vvIjlkI3np7DjgIFNQUPj\r\ngIFJUOOAgeeKtuaAge+8iQotIOmHjeaWsOWPkeeOsOe9keWNoQotIOWIm+W7uuerr+WPo+e7hO+8\r\niOWkmue9keWNoeiBmuWQiCArIOadg+mHjei0n+i9veWdh+ihoe+8iQotIOerr+WPo+iHquWKqOWI\r\nhumFjeS4jumHiuaUvgoKIyMjIOWOhuWPsuiusOW9lQoKLSDmjInml7bpl7TojIPlm7Tmn6Xor6Ll\r\nt7LlrozmiJDku7vliqEKLSDmn6XnnIvljoblj7Lnu5/orqHvvJrmiqXmlofmlbDjgIHlrZfoioLm\r\nlbDjgIHmjIHnu63ml7bpl7QKCiMjIyDnlKjmiLfkuI7mnYPpmZAKCi0g5rOo5YaML+eZu+W9lS/n\r\nmbvlh7oKLSDop5LoibLmnYPpmZDvvJrnrqHnkIblkZgo5YWo5p2D6ZmQKSAvIOeUqOaItyjku7vl\r\niqHlkoznrZbnlaXnrqHnkIYpIC8g6K6/5a6iKOWPquivuykKLSDnlKjmiLfoh6rnrqHnkIbvvJrk\r\nv67mlLnpgq7nrrEv5a+G56CB44CB5Yig6Zmk6LSm5oi3Ci0g566h55CG5ZGY77ya5Yib5bu6L+e8\r\nlui+kS/npoHnlKgv6YeN572u5a+G56CBL+WIoOmZpOeUqOaItwoKIyMjIOezu+e7n+ebkeaOpwoK\r\nLSBEYXNoYm9hcmTvvJrmtLvot4Pku7vliqHmlbDjgIHlkJ7lkJDph4/jgIHljY/orq7liIbluIPl\r\nm77ooagKLSDns7vnu5/nirbmgIHvvJrlvJXmk47ov5DooYznirbmgIHjgIFDUFUv5YaF5a2Y44CB\r\n6L+Q6KGM5pe26ZW/Ci0g5YGl5bq35qOA5p+l5LiO5bCx57uq5qOA5p+lCgojIyMg57O757uf6K6+\r\n572uCgotIOivreiogOWIh+aNoijkuK0v6IuxKQotIOacgOWkp+W5tuWPkeS7u+WKoeaVsAotIOe8\r\nk+WGsuWMuuWkp+WwjwotIOaXpeW/l+e6p+WIqwoKIyMg5a6J6KOF6YOo572yCgojIyMg5rqQ56CB\r\n57yW6K+RCgpgYGBiYXNoCmNkIHRyYWZmaWNnZW4KCiMg5ZCO56uvCmdvIG1vZCBkb3dubG9hZApt\r\na2RpciAtcCBiaW4gJiYgZ28gYnVpbGQgLW8gYmluL3RyYWZmaWNnZW4gLi9jbWQvc2VydmVyCgoj\r\nIOWJjeerrwpjZCB3ZWIgJiYgbnBtIGluc3RhbGwgJiYgbnBtIHJ1biBidWlsZCAmJiBjZCAuLgoK\r\nIyDlkK/liqgKLi9iaW4vdHJhZmZpY2dlbiAtY29uZmlnIGNvbmZpZ3MvY29uZmlnLnlhbWwKYGBg\r\nCgrpu5jorqTnrqHnkIblkZjvvJpgYWRtaW5gIC8gYGFkbWluYO+8jOiuv+mXriBodHRwOi8vbG9j\r\nYWxob3N0OjgwODAKCiMjIyBEb2NrZXIg5Y2V5a655ZmoCgpgYGBiYXNoCmNkIHRyYWZmaWNnZW4K\r\nZG9ja2VyIGJ1aWxkIC10IHRyYWZmaWNnZW46bGF0ZXN0IC4KZG9ja2VyIHJ1biAtZCAtLW5ldHdv\r\ncmsgaG9zdCAtdiAuL2RhdGE6L2RhdGEgdHJhZmZpY2dlbjpsYXRlc3QKYGBgCgojIyMgRG9ja2Vy\r\nIENvbXBvc2XvvIjlkKvnm5HmjqflpZfku7bvvIkKCmBgYGJhc2gKY2QgdHJhZmZpY2dlbgoKIyDm\r\noLjlv4PmnI3liqHvvIh0cmFmZmljZ2VuICsgUHJvbWV0aGV1cyArIEdyYWZhbmHvvIkKZG9ja2Vy\r\nIGNvbXBvc2UgdXAgLWQKCiMg5oyJ6ZyA5ZCv55So5Y+v6YCJ5pyN5YqhCmRvY2tlciBjb21wb3Nl\r\nIC0tcHJvZmlsZSBwb3N0Z3JlcyB1cCAtZCAgICAgICMgUG9zdGdyZVNRTApkb2NrZXIgY29tcG9z\r\nZSAtLXByb2ZpbGUgcmVkaXMgdXAgLWQgICAgICAgICAjIFJlZGlzCmRvY2tlciBjb21wb3NlIC0t\r\ncHJvZmlsZSBhbGVydG1hbmFnZXIgdXAgLWQgICMgQWxlcnRtYW5hZ2VyCmBgYAoKfCDmnI3liqEg\r\nfCDlnLDlnYAgfCDotKblj7cgfAp8LS0tLS0tfC0tLS0tLXwtLS0tLS18CnwgV2ViIOeVjOmdoiB8\r\nIGh0dHA6Ly9sb2NhbGhvc3Q6ODA4MCB8IGFkbWluIC8gYWRtaW4gfAp8IEdyYWZhbmEgfCBodHRw\r\nOi8vbG9jYWxob3N0OjMwMDAgfCBhZG1pbiAvIGFkbWluIHwKfCBQcm9tZXRoZXVzIHwgaHR0cDov\r\nL2xvY2FsaG9zdDo5MDkwIHwgLSB8CgojIyMgS3ViZXJuZXRlcwoKYGBgYmFzaApjZCB0cmFmZmlj\r\nZ2VuL2RlcGxveW1lbnRzL2s4cwprdWJlY3RsIGFwcGx5IC1mIHNlY3JldC55YW1sLGNvbmZpZ21h\r\ncC55YW1sLGRlcGxveW1lbnQueWFtbCxzZXJ2aWNlLnlhbWwKa3ViZWN0bCBhcHBseSAtZiBpbmdy\r\nZXNzLnlhbWwgICMg5oyJ6ZyACmt1YmVjdGwgYXBwbHkgLWYgaHBhLnlhbWwgICAgICAjIOaMiemc\r\ngApgYGAKCiMjIOmFjee9rgoK5Li76YWN572u5paH5Lu2IGBjb25maWdzL2NvbmZpZy55YW1sYO+8\r\njOWFs+mUrumhue+8mgoKfCDphY3nva4gfCDpu5jorqTlgLwgfCDor7TmmI4gfAp8LS0tLS0tfC0t\r\nLS0tLS0tfC0tLS0tLXwKfCBgc2VydmVyLnBvcnRgIHwgODA4MCB8IOebkeWQrOerr+WPoyB8Cnwg\r\nYGRhdGFiYXNlLnR5cGVgIHwgc3FsaXRlIHwgc3FsaXRlIC8gcG9zdGdyZXMgfAp8IGBlbmdpbmUu\r\nY29uZmlnX3dvcmtlcnNgIHwgNCB8IOmFjee9rueUn+aIkOWNj+eoi+aVsCB8CnwgYGVuZ2luZS5w\r\nYWNrZXRfd29ya2Vyc2AgfCA4IHwg5oql5paH5p6E6YCg5Y2P56iL5pWwIHwKfCBgZW5naW5lLmJ1\r\nZmZlcl9zaXplYCB8IDQwOTYgfCDnjq/lvaLnvJPlhrLlrrnph48gfAp8IGBhdXRoLmp3dF9zZWNy\r\nZXRgIHwgLSB8IOeUn+S6p+eOr+Wig+WKoeW/heS/ruaUuSB8CnwgYGF1dGguYWRtaW4ucGFzc3dv\r\ncmRgIHwgYWRtaW4gfCDnlJ/kuqfnjq/looPliqHlv4Xkv67mlLkgfAoKPiDnlJ/kuqfnjq/looPl\r\nu7rorq7kvb/nlKggYGNvbmZpZy5zdGFuZGFsb25lLnlhbWxg77yM6YCa6L+H546v5aKD5Y+Y6YeP\r\n5rOo5YWl5pWP5oSf6YWN572u44CC"
+                    }
+                  ]
+                }
+              ]
+            },
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "RETR 1",
+                "emit_mail_drop": true,
+                "msg_num": 1
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "RETR"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        }
+      ],
+      "notes": [
+        "对标 smtp_t012；附件为仓库真实文件 README.md（3783 字节，包 10-13 四分片）；文件名整帧偏移 314 落盘钉死"
+      ],
+      "frames": [
+        {
+          "packet": 10,
+          "offset": 314,
+          "hex": "52 45 41 44 4d 45 2e 6d 64 22"
+        }
+      ]
+    }
+  },
+  {
+    "id": "pop3_t040_pass_auth_failed",
+    "proto": "pop3",
+    "summary": "T-040: PASS 密码错 -ERR",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS wrong",
+                "response": "-ERR [AUTH] Authentication failed"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 7,
+          "field": "pop.request.command",
+          "value": "PASS"
+        },
+        {
+          "packet": 8,
+          "field": "pop.response.indicator",
+          "value": "-ERR"
+        }
+      ],
+      "notes": [
+        "对标 smtp_t031；回放台词，C 类边界"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t041_unknown_command",
+    "proto": "pop3",
+    "summary": "T-041: 未知命令 -ERR",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "FOO bar",
+                "response": "-ERR unknown command"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "FOO"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.indicator",
+          "value": "-ERR"
+        }
+      ],
+      "notes": [
+        "对标 smtp_t023；转离线 3_16_1；回放不断言状态机"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t042_maildrop_no_mailbox_reject",
+    "proto": "pop3",
+    "summary": "T-042: RETR 合成无信箱拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "RETR 1",
+                "emit_mail_drop": true,
+                "msg_num": 1
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "EmitMailDrop=true but Mailbox is nil",
+      "notes": [
+        "负例；与 T-012b（EmitTop 版）成对"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t043_maildrop_msgnum_range_reject",
+    "proto": "pop3",
+    "summary": "T-043: RETR 信号越界拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "mailbox": {
+              "messages": [
+                {
+                  "uid": "u1",
+                  "body": "a"
+                }
+              ]
+            },
+            "commands": [
+              {
+                "cmd": "RETR 5",
+                "emit_mail_drop": true,
+                "msg_num": 5
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "out of range",
+      "notes": [
+        "负例，锚词 `out of range`"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t044_top_msgnum_range_reject",
+    "proto": "pop3",
+    "summary": "T-044: TOP 信号越界拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "mailbox": {
+              "messages": [
+                {
+                  "uid": "u1",
+                  "body": "a"
+                }
+              ]
+            },
+            "commands": [
+              {
+                "cmd": "TOP 3 1",
+                "emit_top": true,
+                "msg_num": 3,
+                "top_lines": 1
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "out of range",
+      "notes": [
+        "负例；与 T-043 分属不同分支（MailDrop/TOP 各一）"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t045_emit_both_exclusive_reject",
+    "proto": "pop3",
+    "summary": "T-045: 双合成互斥拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "mailbox": {
+              "messages": [
+                {
+                  "uid": "u1",
+                  "body": "a"
+                }
+              ]
+            },
+            "commands": [
+              {
+                "cmd": "RETR 1",
+                "emit_mail_drop": true,
+                "emit_top": true,
+                "msg_num": 1
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "mutually exclusive",
+      "notes": [
+        "负例，锚词 `mutually exclusive`"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t046_default_twoflow",
+    "proto": "pop3",
+    "summary": "T-046: 全缺省双流放行",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "pop3": {}
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 14,
+      "has_handshake": true,
+      "notes": [
+        "对标 smtp_t024：空会话 7 包×2=14；src_port 保底 12345/12346 双流落盘钉死"
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    }
+  },
+  {
+    "id": "pop3_t047_quit_bare",
+    "proto": "pop3",
+    "summary": "T-047: 未登录直接退出",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        },
+        {
+          "packet": 5,
+          "field": "pop.request.command",
+          "value": "QUIT"
+        },
+        {
+          "packet": 6,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        }
+      ],
+      "notes": [
+        "转离线 1_12_1；免登录退出形状"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t048_list_single",
+    "proto": "pop3",
+    "summary": "T-048: LIST 单封单行",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "LIST 1",
+                "response": "+OK 1 100"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "LIST"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.description",
+          "value": "1 100"
+        }
+      ],
+      "notes": [
+        "转离线 1_5_3；与 T-006 多行对称"
+      ]
+    }
+  },
+  {
+    "id": "pop3_t049_top_zero_lines",
+    "proto": "pop3",
+    "summary": "T-049: TOP 零行仅头",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 13000,
+            "dst_port": 110
+          }
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "mailbox": {
+              "messages": [
+                {
+                  "uid": "u1",
+                  "headers": [
+                    "From: a@b.c"
+                  ],
+                  "body": "l1\nl2"
+                }
+              ]
+            },
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "TOP 1 0",
+                "emit_top": true,
+                "msg_num": 1,
+                "top_lines": 0
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "TOP"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        }
+      ],
+      "notes": [
+        "转离线 1_10_2；N=0 头后直跟结束点"
+      ]
+    }
   }
- }
 ]
