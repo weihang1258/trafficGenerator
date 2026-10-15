@@ -1,0 +1,97 @@
+<title>复测回执答复函：两项新发现当日修复，语料条目同步</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    --paper: #f5f4ef; --ink: #21261f; --accent: #2c6e49; --accent-soft: #e3ece4;
+    --warn: #a4431c; --warn-soft: #f3e4da; --muted: #6d7367; --line: #d9d7cb;
+    --card: #fbfaf6; --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #191d18; --ink: #e4e6de; --accent: #6fbf8f; --accent-soft: #22301f;
+      --warn: #e08a5c; --warn-soft: #38251a; --muted: #9aa093; --line: #353a31; --card: #20251f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #191d18; --ink: #e4e6de; --accent: #6fbf8f; --accent-soft: #22301f;
+    --warn: #e08a5c; --warn-soft: #38251a; --muted: #9aa093; --line: #353a31; --card: #20251f;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: "Noto Sans SC", sans-serif;
+    font-size: 15px; line-height: 1.75; padding: 48px 20px 80px; }
+  .wrap { max-width: 800px; margin: 0 auto; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .18em; color: var(--muted); text-transform: uppercase; }
+  h1 { font-family: "Noto Serif SC", serif; font-size: 28px; font-weight: 700; line-height: 1.35; margin: 8px 0 10px; }
+  .meta { font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 18px;
+    border-bottom: 1px solid var(--line); padding-bottom: 18px; }
+  .verdict { margin: 26px 0 0; padding: 16px 18px; background: var(--accent-soft); border-left: 3px solid var(--accent); font-size: 15.5px; }
+  h2 { font-family: "Noto Serif SC", serif; font-size: 19px; font-weight: 700; margin: 40px 0 12px; }
+  h2 .no { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-right: 10px; font-weight: 400; }
+  p { margin: 0 0 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 12px 0 8px; }
+  th { text-align: left; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; color: var(--muted);
+    font-weight: 600; border-bottom: 1px solid var(--ink); padding: 6px 10px 6px 0; }
+  td { border-bottom: 1px solid var(--line); padding: 9px 10px 9px 0; vertical-align: top; }
+  td.id { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+  .pill { display: inline-block; font-family: var(--mono); font-size: 10.5px; padding: 0 6px; margin-right: 6px; white-space: nowrap; }
+  .p-fixed { color: var(--accent); border: 1px solid var(--accent); }
+  .p-clear { color: var(--muted); border: 1px solid var(--muted); }
+  .ok { padding: 13px 16px; background: var(--accent-soft); border-left: 3px solid var(--accent); font-size: 13.5px; margin: 14px 0; }
+  code, .inline { font-family: var(--mono); font-size: 12.5px; background: var(--accent-soft); padding: 1px 5px; }
+  .foot { margin-top: 44px; padding-top: 14px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  @media (max-width: 640px) { h1 { font-size: 23px; } }
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">trafficgen · 复测回执答复函</div>
+  <h1>两个新发现当日修复上线，语料条目归因如约同步</h1>
+  <div class="meta">
+    <span>2026-10-15</span>
+    <span>对应文件：generate_traffic 缺陷答复函复测回执（17:00~17:35）</span>
+    <span>部署：8081 最新构建（含本函两项修复）</span>
+  </div>
+
+  <div class="verdict">
+    复测确认了全部修复面有效，两个新发现（都在批量入口）当日修复、当日上线、已按你们的复现步骤验证。<strong>批量入口现在与单任务入口执行同一套字段校验——同一份非法配置不会再出现"这条路拒、那条路收"的分叉。</strong>感谢回执中对 wireguard 一条的更正与致谢，双方对账到此闭环。
+  </div>
+
+  <h2><span class="no">01</span>N1：批量入口绕过建单期校验——已修复</h2>
+  <p>确认属实，且比报告表述更直接：批量入口此前<strong>完全没有走</strong>单任务入口那套字段校验，任何在建单入口会被拒的配置（数值越界、未知字段、类型不符），换个入口提交就能直达引擎。</p>
+  <p><strong>修法</strong>：批量任务创建时，每个非回放分项先过与单任务相同来源的字段校验（数值范围、未知字段、类型形状），拒绝时报错带分项编号与单任务一致的原文。两项刻意保留的批量特有权，说明如下：</p>
+  <table>
+    <tr><th style="width:200px">保留项</th><th>理由</th></tr>
+    <tr><td>静态四元组 + 按条数复制 不拒绝</td><td>批量的"按条数批量复制"本身就是它的设计语义（核心要求 §2.5：大量同类流量用条数批量）——需要逐流有别的场景，正确写法是分项内的 tuples 池或动态对象（你们 RETEST-F2 的写法）。策略入口的对应禁令针对的是"单模板靠复制充数"，批量是显式复制入口，二者语义不同。</td></tr>
+    <tr><td>扁平协议配置写法不受影响</td><td>批量分项既有的配置写法是合法契约，本轮只加字段校验、不改形状自由。已实测既有多流批量用例不误伤。</td></tr>
+  </table>
+  <p><strong>验证</strong>（按你们的复现口径）：</p>
+  <table>
+    <tr><td class="id">bgp version=7 经批量</td><td>建单即拒，报错带分项编号 + <span class="inline">out of range [4,4]</span>（原：受理跑完 13 包）</td></tr>
+    <tr><td class="id">未知字段经批量</td><td>建单即拒，报错含 unknown field 锚词（原：受理）</td></tr>
+    <tr><td class="id">tuples 多流 + 条数 3</td><td>照常受理（正确写法不误伤）</td></tr>
+    <tr><td class="id">既有批量用例</td><td>全量回归通过</td></tr>
+  </table>
+
+  <h2><span class="no">02</span>N2：flow_count 说明与实现不符——已修复（按你们建议方向）</h2>
+  <p>取你们建议的第二条：实现上<strong>缺省 1</strong>（与单任务"不写就是 1 条流"的语义一致），说明文字同步为"可省略=1"。实测：省略 flow_count 建单成功、产出 1 个数据报。</p>
+
+  <h2><span class="no">03</span>语料同步：sv_mac_dyn_inc 归因明细（按请求提供）</h2>
+  <table>
+    <tr><td class="id">EX-C-sv_mac_dyn_inc<br>3 → 1</td><td>该用例的策略级流数为 <strong>flows=3</strong>（eth 源 MAC 递增序列 01/02/回绕 01，每流 1 包）。语料导出工具此前漏带流数字段，回放按 1 流执行 → 1 包。你们看到的 FlowCount=0 是 10-14 修复前的统计缺陷（当日已修，现已正确计为 1）。<br><strong>语料备注建议写</strong>："基线 3 = 3 流 × 1 包；旧导出缺流数、照抄得 1 包；示例已内嵌 flow_control flows=3，照抄新导出即复现 3 包。"（线上已验证：imap_t078 同机制例照抄新导出 = 14 包 / 2 流精确复现。）</td></tr>
+  </table>
+
+  <h2><span class="no">04</span>其余事项对账</h2>
+  <table>
+    <tr><td class="id">wireguard.rekey_after</td><td>双方对账闭环，无需 further 动作。也感谢你们的严谨——探针构造错误主动认领并书面更正，这个对账质量很高。</td></tr>
+    <tr><td class="id">8082 留档</td><td>收讫。26,037 行连续日志与我方结论互证：测试窗口内该实例单进程稳定运行，仅版本旧于开发环境。按你们决定不展开，档案备查。</td></tr>
+    <tr><td class="id">BUG-02/11/13 未复测</td><td>知悉（依赖高负载/重启场景）。三项均已修复在当前版本：重启清扫可用你们报告里的 B1REPRO-25 直接验证（现已被标为失败并注明原因）；列表计数与写超时修复待你们下次高负载窗口自然复验即可。</td></tr>
+    <tr><td class="id">旧导出语料提醒</td><td>同意回执第 5 点的提醒并补充：修复前的旧导出语料（无内嵌流数、file_id 为占位符）已不具备照抄价值，请下游一律以线上 examples 为准刷新。后续我们也会在示例导出处加版本标记，便于识别过期语料。</td></tr>
+  </table>
+
+  <div class="ok">
+    <b>部署状态</b>：8081 已运行含本函两项修复的最新构建（重启后网口能力位已重打）。你们复测中验证过的其余修复面不受本轮改动影响（批量入口外的路径零接触）。
+  </div>
+
+  <div class="foot">
+    本函对应提交：7aa88f59（N1/N2 修复 + 三项红例先行）· 线上验证：bgp v7 建单即拒 / 省略 flow_count 1 包完成 / tuples 多流不误伤 · 前函：stress_report_reply.html（16 项逐条答复，2026-10-15）
+  </div>
+</div>
