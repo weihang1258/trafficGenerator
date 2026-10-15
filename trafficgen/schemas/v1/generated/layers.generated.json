@@ -226,7 +226,8 @@
         "version": {
           "type": "uint8",
           "default": 0,
-          "max": 255
+          "min": 4,
+          "max": 4
         },
         "wire_profile": {
           "type": "string",
@@ -1125,7 +1126,9 @@
           "type": "string"
         },
         "session_count": {
-          "type": "int"
+          "type": "int",
+          "min": 1,
+          "max": 1000
         },
         "transport": {
           "type": "string"
@@ -1640,7 +1643,8 @@
           "type": "list"
         },
         "response_status": {
-          "type": "int"
+          "type": "int",
+          "max": 16
         },
         "scheme": {
           "type": "string"
@@ -1717,7 +1721,7 @@
           "type": "bool"
         },
         "tcp_options": {
-          "type": "object"
+          "type": "list"
         },
         "teid": {
           "type": "uint32"
@@ -2370,7 +2374,7 @@
           "type": "int"
         },
         "keepalive": {
-          "type": "bool"
+          "type": "object"
         },
         "max_retransmits": {
           "type": "int"
@@ -4020,7 +4024,8 @@
           "type": "int"
         },
         "data_payload": {
-          "type": "list"
+          "type": "list",
+          "description": "双形：string（原文）或 uint8 数组（字节列表，getByteSlice 口径）"
         },
         "exit_notify_count": {
           "type": "uint8"

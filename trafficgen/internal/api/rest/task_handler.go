@@ -1097,7 +1097,12 @@ func (h *TaskHandler) List(c *gin.Context) {
 
 	// Count total
 	var total int64
-	query.Count(&total)
+	// D-SCHEMA-1（BUG-11）：Count 错误不得静默——吞掉后 total=0 造成"任务
+	// 全部消失"假象（SQLite busy 排队期间客户端误判数据丢失）。
+	if err := query.Count(&total).Error; err != nil {
+		InternalError(c, "count tasks failed: "+err.Error())
+		return
+	}
 
 	// Sorting
 	sortBy := c.DefaultQuery("sort_by", "created_at")
@@ -1851,7 +1856,12 @@ func (h *TaskHandler) History(c *gin.Context) {
 
 	// Count total
 	var total int64
-	query.Count(&total)
+	// D-SCHEMA-1（BUG-11）：Count 错误不得静默——吞掉后 total=0 造成"任务
+	// 全部消失"假象（SQLite busy 排队期间客户端误判数据丢失）。
+	if err := query.Count(&total).Error; err != nil {
+		InternalError(c, "count tasks failed: "+err.Error())
+		return
+	}
 
 	// Sorting
 	sortBy := c.DefaultQuery("sort_by", "created_at")

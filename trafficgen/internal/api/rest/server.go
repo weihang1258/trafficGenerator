@@ -1,11 +1,11 @@
 package rest
 
 import (
-	"go.uber.org/zap"
-	"strings"
 	"context"
 	"fmt"
+	"go.uber.org/zap"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -198,7 +198,7 @@ func (s *Server) setupRoutes() {
 			strategies.POST("", strategyHandler.Create)
 			strategies.GET("", strategyHandler.List)
 			strategies.GET("/:id", strategyHandler.Get)
-				strategies.GET("/:id/tasks", strategyHandler.ListTasks)
+			strategies.GET("/:id/tasks", strategyHandler.ListTasks)
 			strategies.PUT("/:id", strategyHandler.Update)
 			strategies.DELETE("/:id", strategyHandler.Delete)
 		}
@@ -291,10 +291,14 @@ func (s *Server) Start() error {
 	addr := fmt.Sprintf("%s:%d", s.config.Server.Host, s.config.Server.Port)
 
 	s.httpServer = &http.Server{
-		Addr:         addr,
-		Handler:      s.router,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		Addr:        addr,
+		Handler:     s.router,
+		ReadTimeout: 10 * time.Second,
+		// D-SCHEMA-1（BUG-11）：WriteTimeout 必须 ≥ SQLite busy_timeout
+		// （storage/db.go，60s——pcap 批插高峰读查询排队等待）。10s 曾把
+		// 排队中的列表查询掐断，客户端读成空响应（BUG-11 现场实证）。
+		// 65s = busy_timeout + 处理余量。
+		WriteTimeout: 65 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
@@ -482,4 +486,3 @@ func (s *Server) listPorts(c *gin.Context) {
 
 	Success(c, result)
 }
-

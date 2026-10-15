@@ -443,12 +443,12 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "44818"},
 		Fields: map[string]FieldSchema{
-			"transport":     {Type: "string"}, // "tcp"/"udp"（udp 由生成器拒绝：链单载体）
-			"scenario":      {Type: "string"}, // full/discovery_only/io_only/forward_open_only/custom
-			"commands":      {Type: "list"},   // ENIPCommand 数组（parseENIPCommands 消费键）
-			"io_data":       {Type: "object"}, // ENIPIOData（链上由生成器拒绝——UDP I/O 面）
-			"session_count": {Type: "int"},    // >1 由生成器拒绝（多单元展开 = G-ENIP-1）
-			"flow_count":    {Type: "int"},    // 同上
+			"transport":     {Type: "string"},                 // "tcp"/"udp"（udp 由生成器拒绝：链单载体）
+			"scenario":      {Type: "string"},                 // full/discovery_only/io_only/forward_open_only/custom
+			"commands":      {Type: "list"},                   // ENIPCommand 数组（parseENIPCommands 消费键）
+			"io_data":       {Type: "object"},                 // ENIPIOData（链上由生成器拒绝——UDP I/O 面）
+			"session_count": {Type: "int", Min: 1, Max: 1000}, // 生成器拒 1-1000 外（运行期同款，create 即拒）
+			"flow_count":    {Type: "int"},                    // 同上
 		},
 	})
 	// ---- P4a：a2a（tcp 终结层。HTTP/JSON-RPC over TCP——命令即数据段，
@@ -858,7 +858,7 @@ func buildDefaultRegistry() {
 			"mssfix":                {Type: "uint16"},
 			"tls_auth_hmac":         {Type: "list"},
 			"tls_crypt_wrapped_key": {Type: "list"},
-			"data_payload":          {Type: "list"},
+			"data_payload":          {Type: "list", Description: "双形：string（原文）或 uint8 数组（字节列表，getByteSlice 口径）"},
 			// D-FILE-2 裁定5：file_source → P_DATA 明文载荷（FileSource >
 			// data_payload > 默认填充；加密外层不校内容）。
 			"file_source":            {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错（→ P_DATA 明文载荷）"},
@@ -905,7 +905,7 @@ func buildDefaultRegistry() {
 			"inner_ttl":         {Type: "uint8"},
 			"inner_ipid":        {Type: "uint16"},
 			"inner_payload":     {Type: "string"},
-			"tcp_options":       {Type: "object"},
+			"tcp_options":       {Type: "list"}, // []TCPOption（复审勘误：object 为错标）
 			"frames":            {Type: "list"},
 			"scenarios":         {Type: "list"},
 			"direction":         {Type: "string"},
@@ -957,7 +957,7 @@ func buildDefaultRegistry() {
 			"direction":              {Type: "string"},
 			"initiator_spi":          {Type: "list"},
 			"responder_spi":          {Type: "list"},
-			"keepalive":              {Type: "bool"},
+			"keepalive":              {Type: "object"}, // *NATKeepaliveConfig（复审勘误：bool 为错标，bool 值被静默吞）
 			"interval":               {Type: "int"},
 			"timeout":                {Type: "int"},
 			"backoff":                {Type: "int"},
@@ -1855,7 +1855,7 @@ func buildDefaultRegistry() {
 		FieldContract: map[string]string{"tcp.dst_port": "179"},
 		Fields: map[string]FieldSchema{
 			"transport":    {Type: "string", Default: ""},
-			"version":      {Type: "uint8", Default: uint8(0), Min: 0, Max: 255},
+			"version":      {Type: "uint8", Default: uint8(0), Min: 4, Max: 4}, // 仅 BGP-4（validator 运行期同款，create 即拒——D-SCHEMA-1 下沉）
 			"asn":          {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
 			"hold_time":    {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 			"identifier":   {Type: "string", Default: ""},
@@ -2182,7 +2182,7 @@ func buildDefaultRegistry() {
 			"request_messages_b64":   {Type: "list"},
 			"response_messages":      {Type: "list"},
 			"response_messages_b64":  {Type: "list"},
-			"response_status":        {Type: "int"},
+			"response_status":        {Type: "int", Min: 0, Max: 16}, // validator 运行期同款，create 即拒
 			"response_message":       {Type: "string"},
 			"timeout":                {Type: "string"},
 			"metadata":               {Type: "object"},

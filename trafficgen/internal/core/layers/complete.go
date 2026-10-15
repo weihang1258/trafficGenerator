@@ -320,6 +320,15 @@ func (r *Registry) ValidateLayerConfig(l Layer) error {
 				return errf("layers: layer %q field %q must be a scalar (dynamic objects are validated via ValidateLayers)", l.Name, k)
 			}
 		}
+		// D-SCHEMA-1（BUG-05）：声明类型 vs 实收形状检查。此前 Type 纯文档
+		// 不参与校验，错形状被 parse* 的 v.([]interface{}) 硬断言静默吞成
+		// nil（无错无日志）——客户端按 schema 编程必踩雷。豁免清单=合法
+		// 多形字段。动态对象已在上一个分支放行，此处只见标量/静态结构。
+		if !typeShapeExempt[l.Name+"."+k] {
+			if msg := checkTypeShape(l.Name, k, f.Type, v); msg != "" {
+				return errf("%s", msg)
+			}
+		}
 		if f.Min == 0 && f.Max == 0 {
 			continue // no numeric bounds declared（bool/字符串字段由生成器转换兜底）
 		}
@@ -528,4 +537,67 @@ func (r *Registry) validateChain(chain []Layer) error {
 		}
 	}
 	return nil
+}
+
+// typeShapeExempt lists layer.field keys whose values legitimately take more
+// than one JSON shape (getByteSlice-style dual-form readers) — the generic
+// declared-type check skips them.
+var typeShapeExempt = map[string]bool{
+	"openvpn.data_payload":  true, // string 原文 | uint8 数组（getByteSlice 双形）
+	"coap.response_payload": true, // []byte：base64 string | uint8 数组（标准 json []byte 双形）
+	"coap.payload":          true, // 同上
+	"coap.token":            true, // 同上
+	"coap.error_payload":    true, // 同上
+	"tls.cert":              true, // 专属 validator 接管（tls chain: cert must be an object——锚词更准，勿抢先）
+}
+
+// checkTypeShape validates the JSON value shape against the declared field
+// type. Returns "" when the shape is acceptable, otherwise a create-time
+// rejection message naming the declared type and the received shape.
+// D-SCHEMA-1（BUG-05）：静默吞改显式拒。
+func checkTypeShape(layer, field, declared string, v interface{}) string {
+	if declared == "" {
+		return ""
+	}
+	shape := ""
+	switch v.(type) {
+	case nil:
+		return "" // 缺席/显式 null 的处置归既有语义（V9 numeric-null 等已管）
+	case map[string]interface{}:
+		shape = "object"
+	case []interface{}:
+		shape = "list"
+	case string:
+		shape = "string"
+	case bool:
+		shape = "bool"
+	case float64, int, uint16, uint32, uint64, int64, uint8:
+		shape = "number"
+	}
+	if shape == "" {
+		return ""
+	}
+	ok := false
+	switch declared {
+	case "list":
+		ok = shape == "list"
+	case "object":
+		ok = shape == "object"
+	case "bool":
+		// configBool 口径：bool 或 "true"/"false" 字符串皆合法
+		ok = shape == "bool" || (shape == "string" && (v.(string) == "true" || v.(string) == "false"))
+	case "string", "mac", "ip":
+		ok = shape == "string"
+	case "uint8", "uint16", "uint32", "uint64", "int", "int8":
+		// configUint64 口径：JSON 数值或数字字符串皆合法（非数字串由
+		// 既有 V9 转换拒绝——此处放行 string，数值合法性不放松）
+		ok = shape == "number" || shape == "string"
+	default:
+		return "" // 未登记类型（含动态策略对象）不在此检查
+	}
+	if ok {
+		return ""
+	}
+	return fmt.Sprintf("layers: layer %q field %q declared %s, got %s (check flowb_query_layers action=schema for the expected shape)",
+		layer, field, declared, shape)
 }
