@@ -330,3 +330,22 @@ func TestUDPMTU_PlanSyncBudgetError(t *testing.T) {
 		t.Fatal("Plan() channel must be nil on sync error")
 	}
 }
+
+// T-UDP-MTU 回归守卫（BUG-01 崩溃根因）：各分片的 Metadata 必须是独立
+// map 实例——ConfigWorker 回填循环对每包 Metadata 写键（worker.go:385），
+// 共享实例=跨包读写竞态（8081 线上 124 并发 fatal 实证）。指针恒不等。
+func TestUDPMTU_MetadataMapsIndependent(t *testing.T) {
+	var out []core.PacketConfig
+	req := mtuReq(nil, "10.0.0.1", bytes.Repeat([]byte{7}, 3000), nil)
+	req.Emit = emitCollector(&out)
+	if err := (&UDPGenerator{}).Generate(context.Background(), req); err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	for i := range out {
+		for j := i + 1; j < len(out); j++ {
+			if &out[i].Metadata == &out[j].Metadata {
+				t.Fatalf("slices %d and %d share one Metadata map instance (ConfigWorker backfill race)", i, j)
+			}
+		}
+	}
+}

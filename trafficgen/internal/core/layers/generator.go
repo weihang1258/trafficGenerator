@@ -1752,8 +1752,11 @@ func budgetFromParts(mtu int, srcIP, dstIP string, hbh []core.IPv6Option) (int, 
 
 // emitUDPSlices 按 budget 切 payload 逐包 emit（满片顺切、末片=余量；空
 // 载荷经 off==0 恒发 1 包，保留既有语义）。切片共享 payload 底层数组
-// （零拷贝）；Metadata 各包共享同一只读映射（builder 只读）。
-func emitUDPSlices(emit func(core.PacketConfig) error, md map[string]interface{}, dir string, sp, dp uint16, payload []byte, budget int) error {
+// （零拷贝，字节切片下游只读安全）；**每片独立 Metadata map**——payload
+// 可共享而 map 不行：ConfigWorker 回填循环会对每包 Metadata 写 task_id/
+// shard_idx 等五键（worker.go:385/523/667/842），共享实例=前包读后包写的
+// 跨包竞态（8081 线上 124 并发 fatal 实证）。metaFn 每包调一次。
+func emitUDPSlices(emit func(core.PacketConfig) error, metaFn func() map[string]interface{}, dir string, sp, dp uint16, payload []byte, budget int) error {
 	for off := 0; off < len(payload) || off == 0; off += budget {
 		end := off + budget
 		if end > len(payload) {
@@ -1767,7 +1770,7 @@ func emitUDPSlices(emit func(core.PacketConfig) error, md map[string]interface{}
 				DstPort:  dp,
 			},
 			Payload:  payload[off:end],
-			Metadata: md,
+			Metadata: metaFn(),
 		}
 		if err := emit(pkt); err != nil {
 			return err
@@ -1919,11 +1922,11 @@ func (g *UDPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	if err != nil {
 		return err
 	}
-	if err := emitUDPSlices(emit, meta(), "up", cfg.srcPort, cfg.dstPort, req.Meta.Payload, budget); err != nil {
+	if err := emitUDPSlices(emit, meta, "up", cfg.srcPort, cfg.dstPort, req.Meta.Payload, budget); err != nil {
 		return err
 	}
 	if req.Meta.UDP != nil && req.Meta.UDP.IsResponse {
-		if err := emitUDPSlices(emit, meta(), "down", cfg.dstPort, cfg.srcPort, req.Meta.Payload, budget); err != nil {
+		if err := emitUDPSlices(emit, meta, "down", cfg.dstPort, cfg.srcPort, req.Meta.Payload, budget); err != nil {
 			return err
 		}
 	}
