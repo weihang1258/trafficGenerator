@@ -866,6 +866,25 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 		return
 	}
 
+	// D-ROBUST-2（复测 N1/N2）：batch 每类建单期字段闸——与单任务入口对齐
+	// （V9 范围/未知字段/声明形状），消除"同一非法配置单任务拒、批量放行"
+	// 的校验分叉。flow_count 缺省 1（与单任务省略=1 流同语义；显式 0 同归
+	// 缺省，§6.4 0=默认惯例同源）。静态四元组守卫不适用：batch 的 flows=N
+	// 是 §2.5 明批的复制入口（见 schema.ValidateBatchClassLayerFields）。
+	for i := range req.Batch.Classes {
+		class := &req.Batch.Classes[i]
+		if class.Type == "replay" {
+			continue
+		}
+		if class.FlowCount == 0 {
+			class.FlowCount = 1
+		}
+		if msg := schema.ValidateBatchClassLayerFields(class.Config); msg != "" {
+			BadRequest(c, fmt.Sprintf("class[%d] %s: %s", i, class.ID, msg))
+			return
+		}
+	}
+
 	// Unified schema gate: task shape (batch form) + batch class semantics
 	// via core.ValidateBatchSpec. Output presence and historic messages
 	// preserved; engine SubmitTask re-validates as before.

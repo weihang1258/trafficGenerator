@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	sqlite "github.com/glebarez/sqlite"
 	"github.com/gin-gonic/gin"
+	sqlite "github.com/glebarez/sqlite"
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/protocol/tcp"
 	"github.com/trafficgen/trafficgen/internal/protocol/udp"
@@ -302,3 +302,124 @@ func TestOnEngineTaskComplete_BatchTask_MarksComplete(t *testing.T) {
 
 // fmt import guard: keep the symbol used by other tests in this file reachable.
 var _ = fmt.Sprintf
+
+// D-ROBUST-2（客户端复测 N1/N2）：
+// N1 batch 建单期字段闸——同一非法配置单任务口拒、批量口此前放行（分叉）。
+func TestCreateBatch_RejectsLayerFieldOutOfRange(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	gormDB, err := gorm.Open(sqlite.Open(t.TempDir()+"/test.db"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := storage.AutoMigrate(gormDB); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	e := core.NewEngine(core.EngineConfig{ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1, BufferSize: 256, QueueSize: 64})
+	if err := e.Start(); err != nil {
+		t.Fatalf("start engine: %v", err)
+	}
+	defer e.Stop()
+	h := NewTaskHandler(&storage.DB{DB: gormDB}, e, nil)
+	r := gin.New()
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.POST("/tasks/batch", h.CreateBatch)
+
+	body := `{"name":"n1-bgp-v7","batch":{"classes":[{"id":"c1","type":"bgp","flow_count":1,"config":{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"tcp":{"dst_port":179}},{"bgp":{"version":7}}]}}]},"output_type":"pcap","output_config":{"pcap_path":"/tmp/n1.pcap"}}`
+	req := httptest.NewRequest("POST", "/tasks/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != 400 {
+		t.Fatalf("bgp version=7 via batch = %d, want 400 (parity with single-task create)", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "[4,4]") {
+		t.Fatalf("body = %s, want range anchor [4,4]", w.Body.String())
+	}
+}
+
+// N1b：未知层字段同样拒绝（与单任务口一致）。
+func TestCreateBatch_RejectsUnknownLayerField(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	gormDB, _ := gorm.Open(sqlite.Open(t.TempDir()+"/test.db"), &gorm.Config{})
+	if err := storage.AutoMigrate(gormDB); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	e := core.NewEngine(core.EngineConfig{ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1, BufferSize: 256, QueueSize: 64})
+	if err := e.Start(); err != nil {
+		t.Fatalf("start engine: %v", err)
+	}
+	defer e.Stop()
+	h := NewTaskHandler(&storage.DB{DB: gormDB}, e, nil)
+	r := gin.New()
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.POST("/tasks/batch", h.CreateBatch)
+
+	body := `{"name":"n1-unknown","batch":{"classes":[{"id":"c1","type":"udp","flow_count":1,"config":{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"udp":{"dst_port":53,"bogus_field":1}}]}}]},"output_type":"pcap","output_config":{"pcap_path":"/tmp/n1u.pcap"}}`
+	req := httptest.NewRequest("POST", "/tasks/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != 400 || !strings.Contains(w.Body.String(), "unknown field") {
+		t.Fatalf("unknown layer field via batch = %d %s, want 400 + unknown-field anchor", w.Code, w.Body.String())
+	}
+}
+
+// N2：flow_count 可省略，缺省 1（与单任务"省略=1 流"同语义；显式 0 同归缺省，
+// §6.4 0=默认惯例同源）。
+func TestCreateBatch_FlowCountDefaultsToOne(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	gormDB, err := gorm.Open(sqlite.Open(t.TempDir()+"/test.db"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := storage.AutoMigrate(gormDB); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	db := &storage.DB{DB: gormDB}
+	e := core.NewEngine(core.EngineConfig{
+		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
+		BufferSize: 256, QueueSize: 64,
+	})
+	e.RegisterPlanner(udp.NewPlanner())
+	e.SetBuildFunc(core.NewBuilder().Build)
+	if err := e.Start(); err != nil {
+		t.Fatalf("start engine: %v", err)
+	}
+	defer e.Stop()
+
+	h := NewTaskHandler(db, e, nil)
+	r := gin.New()
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.POST("/tasks/batch", h.CreateBatch)
+
+	pcapPath := t.TempDir() + "/n2.pcap"
+	body := `{"name":"n2-nofc","batch":{"classes":[{"id":"c1","type":"udp","config":{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"udp":{"dst_port":9502}}]}}]},"output_type":"pcap","output_config":{"pcap_path":"` + pcapPath + `"}}`
+	req := httptest.NewRequest("POST", "/tasks/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != 201 {
+		t.Fatalf("flow_count omitted = %d %s, want 201 (default 1)", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil || resp.Data.ID == "" {
+		t.Fatalf("unparseable create response %s: %v", w.Body.String(), err)
+	}
+	// 等待完成：缺省 1 流应产出恰好 1 个 udp 数据报。
+	deadline := time.Now().Add(15 * time.Second)
+	var task storage.TaskModel
+	for time.Now().Before(deadline) {
+		if err := db.Where("id = ?", resp.Data.ID).First(&task).Error; err == nil && task.Status == "completed" {
+			if task.PacketsSent != 1 {
+				t.Fatalf("default flow_count task = %d packets, want 1 (one flow)", task.PacketsSent)
+			}
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("task %s did not complete in time (status=%s)", resp.Data.ID, task.Status)
+}
