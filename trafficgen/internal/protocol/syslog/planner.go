@@ -56,7 +56,9 @@ const (
 	// Default ports per RFC 5426/6587/5425.
 	DefaultPort       uint16 = 514  // UDP & TCP
 	DefaultTLSPort    uint16 = 6514 // TLS (RFC 5425)
-	MaxUDPPayloadBytes       = 65507 // 65535 - 20 IP - 8 UDP (RFC 5426 §6)
+	// MaxUDPPayloadBytes 单源化到 core（D-UDP-MTU 复审发现 5）：常量与
+	// 错误文案族两侧引用一份。
+	MaxUDPPayloadBytes = core.MaxUDPPayloadBytes
 
 	// UTF-8 BOM per RFC 5424 §6.4.4 (EF BB BF).
 	utf8BOM = "\xef\xbb\xbf"
@@ -254,7 +256,7 @@ func validateSyslogConfig(spec core.FlowSpec) error {
 			approx += len(sd) + 2 // brackets
 		}
 		if approx > MaxUDPPayloadBytes {
-			return fmt.Errorf("syslog: encoded message exceeds UDP payload limit %d (RFC 5426 §6)", MaxUDPPayloadBytes)
+			return core.SyslogUDPLimitError()
 		}
 	}
 

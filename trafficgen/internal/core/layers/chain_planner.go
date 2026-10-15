@@ -1345,13 +1345,19 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 	// 65507 字面量 = 65535−20−8（RFC 5426 §6；layers 不许 import protocol
 	// 包，文案与 syslog.MaxUDPPayloadBytes 族逐字一致）。
 	if spec.Syslog != nil && spec.Syslog.FileSource != nil {
+		// 每流浅拷贝 SyslogConfig 再写 Msg：worker 多流循环共享同一
+		// *SyslogConfig（浅拷贝 spec 直传），直写=改共享配置（当前流串行
+		// 无竞态，但属脆弱模式且有跨流残留毛刺——流 i 解析成功、流 i+1
+		// 失败时流 i+1 沿用流 i 的 Msg）。拷贝后失败自然落空 Msg。
+		cfgCopy := *spec.Syslog
 		if pc := core.PayloadCacheFrom(ctx); pc != nil {
-			if b, err := pc.GetOrLoad(ctx, *spec.Syslog.FileSource); err == nil {
-				spec.Syslog.Msg = string(b)
+			if b, err := pc.GetOrLoad(ctx, *cfgCopy.FileSource); err == nil {
+				cfgCopy.Msg = string(b)
+				spec.Syslog = &cfgCopy
 			}
 		}
-		if len(spec.Syslog.Msg) > 65507 {
-			return nil, fmt.Errorf("syslog: encoded message exceeds UDP payload limit %d (RFC 5426 §6)", 65507)
+		if len(spec.Syslog.Msg) > core.MaxUDPPayloadBytes {
+			return nil, core.SyslogUDPLimitError()
 		}
 	}
 	chain, err := p.completedChain()

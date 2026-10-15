@@ -49,7 +49,7 @@ func (g *SyslogGenerator) Generate(ctx context.Context, req *layers.GenRequest) 
 		// syslog 报文是结构整体不可拆，超限只能拒；文案与 planner.go:257
 		// 逐字同族（13.8）。
 		if len(cfg.Msg) > MaxUDPPayloadBytes {
-			return fmt.Errorf("syslog: encoded message exceeds UDP payload limit %d (RFC 5426 §6)", MaxUDPPayloadBytes)
+			return core.SyslogUDPLimitError()
 		}
 	}
 
