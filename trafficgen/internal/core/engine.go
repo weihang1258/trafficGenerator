@@ -823,6 +823,12 @@ func (e *Engine) StopTask(taskID string) error {
 	entry.cancel()
 	entry.status.Status = "stopped"
 	entry.status.CompletedAt = time.Now()
+	// 复测回执 #3 发现①：停止路径此前不删 taskStore 条目——完成/失败路径
+	// 均有 delete（OnTaskDone :858 / FailTask :997），唯停止泄漏，累计到
+	// max_tasks 后全部新提交被幻影 "max_tasks limit reached" 拒绝且不自愈
+	//（stop_all 无效，仅重启恢复；124 并发现场泄漏 20 分钟）。activeTaskCount
+	// = len(taskStore)（:1195）即判限面（:649），删除即释放槽位。
+	delete(e.taskStore, taskID)
 	delete(e.layerPlanners, taskID)
 
 	zap.L().Info("task stopped", zap.String("task_id", taskID))

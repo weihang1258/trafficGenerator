@@ -1124,8 +1124,10 @@ func TestHistory_DBFindFail(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	// D-SCHEMA-1（BUG-11）后 Count 先于 Find 失败——首报锚词随之更新
+	// （语义不变：DB 失败必须大声报错而非静默空结果）。
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "failed to list history") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "count tasks failed") { t.Errorf("msg=%q", msg) }
 }
 
 func TestHistory_Empty(t *testing.T) {

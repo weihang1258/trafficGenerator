@@ -551,7 +551,7 @@ func (h *StrategyHandler) Delete(c *gin.Context) {
 
 	var taskCount int64
 	h.db.Model(&storage.TaskModel{}).
-		Where("user_id = ? AND EXISTS (SELECT 1 FROM json_each(strategy_ids) WHERE json_each.value = ?)", userID, id).
+		Where("user_id = ? AND (CASE WHEN json_valid(strategy_ids) THEN EXISTS (SELECT 1 FROM json_each(strategy_ids) WHERE json_each.value = ?) ELSE 0 END)", userID, id, id).
 		Count(&taskCount)
 	if taskCount > 0 {
 		BadRequest(c, "strategy is used by tasks, cannot delete")
@@ -640,9 +640,12 @@ func (h *StrategyHandler) ListTasks(c *gin.Context) {
 	}
 
 	var tasks []storage.TaskModel
-	h.db.Where("user_id = ? AND EXISTS (SELECT 1 FROM json_each(strategy_ids) WHERE json_each.value = ?)", userID, id).
+	if err := h.db.Where("user_id = ? AND (CASE WHEN json_valid(strategy_ids) THEN EXISTS (SELECT 1 FROM json_each(strategy_ids) WHERE json_each.value = ?) ELSE 0 END)", userID, id, id).
 		Select("id, name, status").
-		Find(&tasks)
+		Find(&tasks).Error; err != nil {
+		InternalError(c, "failed to list tasks using strategy: "+err.Error())
+		return
+	}
 
 	result := make([]TaskBrief, len(tasks))
 	for i, t := range tasks {
