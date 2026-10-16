@@ -63,6 +63,7 @@ type Engine struct {
 	shardedPacketChan  []chan PacketOutput
 	shardSeed          maphash.Seed       // random seed for hash, anti-flooding
 	shardCounts        []atomic.Int64     // per-shard enqueue count, for imbalance monitor
+	shardPrevCounts    []int64            // 上次统计样本（差分快照，仅统计 ticker goroutine 触碰）——D-PERF-1 裁定 5
 	shardMonitorCancel context.CancelFunc // stops runShardMonitor on Engine.Stop
 
 	// Workers
@@ -571,19 +572,52 @@ func (e *Engine) runShardMonitor(ctx context.Context) {
 	}
 }
 
-// checkShardBalance warns if any shard has > 3x the average packet count.
-// Avoids div-by-zero; no-op when all shards are zero.
+// ConcurrencyStats returns the task-level concurrency surface (D-PERF-1
+// 裁定 4，复测回执 N1 前的 BUG-12 关单三条件之一)：worker 数、队列深度、
+// 输出 worker 数——"我的任务为什么排队"的可见性三元组。pending 任务数由
+// 调用方（DB 面）附带。
+func (e *Engine) ConcurrencyStats() map[string]interface{} {
+	stats := map[string]interface{}{
+		"config_workers": len(e.configWorkers),
+		"packet_workers": len(e.packetWorkers),
+		"queue_depth":    len(e.taskChan),
+	}
+	if e.outputWorkers != nil {
+		stats["output_workers"] = len(e.outputWorkers)
+	}
+	return stats
+}
+
+// shardPrevCounts holds the previous cumulative sample for the differential
+// shard-balance report (D-PERF-1 裁定 5)：checkShardBalance 由统计 ticker
+// 单 goroutine 每 10s 调用，普通切片即可。首调差分=全量（与旧累计口径
+// 首次观测一致，4 个既有置数后首调测试兼容）。
+var _ = struct{}{}
+
+// checkShardBalance warns if any shard's near-window packet count exceeds 3x
+// the window average. D-PERF-1（BUG-13）：旧口径用开机累计值对累计均值——
+// 早期偏斜永久保留在数字里（客户端实测"shard 0 为均值 8 倍"假象）。改为
+// 差分快照：本窗增量 = 当前累计 − 上次样本；首调差分=全量（口径平滑过渡）。
 func (e *Engine) checkShardBalance() {
 	n := len(e.shardCounts)
 	if n == 0 {
 		return
 	}
+	if len(e.shardPrevCounts) != n {
+		e.shardPrevCounts = make([]int64, n)
+	}
 	var sum int64
 	counts := make([]int64, n)
 	for i := range e.shardCounts {
-		c := e.shardCounts[i].Load()
-		counts[i] = c
-		sum += c
+		delta := e.shardCounts[i].Load() - e.shardPrevCounts[i]
+		if delta < 0 {
+			delta = 0 // 计数器不会回退，防御性钳制
+		}
+		counts[i] = delta
+		sum += delta
+	}
+	for i := range e.shardCounts {
+		e.shardPrevCounts[i] = e.shardCounts[i].Load()
 	}
 	avg := sum / int64(n)
 	if avg == 0 {
@@ -591,11 +625,11 @@ func (e *Engine) checkShardBalance() {
 	}
 	for i, c := range counts {
 		if c > avg*3 {
-			zap.L().Warn("shard load imbalance detected",
+			zap.L().Warn("shard load imbalance detected (near-window deltas)",
 				zap.Int("shard_idx", i),
 				zap.Int64("packets", c),
 				zap.Int64("avg", avg),
-				zap.String("hint", "consider checking group_id strategy distribution"),
+				zap.String("hint", "same 4-tuple/group_id keys stick to one shard by design (in-flow FIFO); rolling-window deltas only"),
 			)
 		}
 	}

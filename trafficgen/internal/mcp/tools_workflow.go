@@ -137,7 +137,19 @@ func (s *Server) handleGetTaskProgress(ctx context.Context, req *mcp.CallToolReq
 		return nil, getTaskProgressOutput{}, err
 	}
 	s.auditLog(req, "flowb_get_task_progress", time.Since(start), "success", "")
-	return nil, getTaskProgressOutput{Data: taskDataForTransport(ctx, resp.Data)}, nil
+
+	// D-PERF-1 裁定 4（BUG-12 关单条件 a）：附带引擎并发面——worker 数/
+	// 队列深度/pending 任务数。"我的任务为什么在排队"的可见性三元组；
+	// 波次算术：排队 ≈ ⌈pending/config_workers⌉ × 单任务时长（time 任务
+	// 占满 worker 直至 deadline）。
+	data := taskDataForTransport(ctx, resp.Data)
+	if m, ok := data.(map[string]interface{}); ok && s.engine != nil {
+		m["engine"] = s.engine.ConcurrencyStats()
+		if n, err := s.db.CountActiveTasks(); err == nil {
+			m["pending_tasks"] = n
+		}
+	}
+	return nil, getTaskProgressOutput{Data: data}, nil
 }
 
 // stopAllTasksInput is the input for flowb_stop_all_tasks.

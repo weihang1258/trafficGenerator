@@ -308,7 +308,12 @@ func (r *PcapRepository) CreatePackets(packets []PacketModel) error {
 	if len(packets) == 0 {
 		return nil
 	}
-	return r.db.CreateInBatches(packets, 500).Error
+	// D-PERF-1（BUG-14）：批大小 500→25。参数膝区实测（复测复审，30 列
+	// 生产形 + 434 万行大表）：500 行=15000 绑定参数 ≈14µs/参数（2245
+	// rows/s），25 行=750 参数 ≈3.5µs/参数（8581 rows/s，3.8x）；5000 包
+	// 资产入库 2.2s→0.58s。13 列多行单语句的"4.1x"是砍列假象（同列数
+	// 1.0x），已废弃；32766 参数上限内（30×25=750）。
+	return r.db.CreateInBatches(packets, 25).Error
 }
 
 // ListPacketsByFlow lists packets for a flow (scoped to userID), ordered by
