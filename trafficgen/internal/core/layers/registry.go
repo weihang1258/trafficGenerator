@@ -386,7 +386,7 @@ func buildDefaultRegistry() {
 			"routes":           {Type: "list"},
 			"auth":             {Type: "object"},
 			"multicast":        {Type: "bool"},
-			"scenario":         {Type: "string"}, // 有效值 response_default|request_full（无硬校验，未知值按普通场景静默处理）；缺省按 command 派生：request→request_full，否则 response_default
+			"scenario":         {Type: "string", Description: "有效值 response_default|request_full（无硬校验，未知值按普通场景静默处理）；缺省按 command 派生：request→request_full，否则 response_default"},
 			"routers":          {Type: "list"},
 			"rounds":           {Type: "int"},
 			"triggered_update": {Type: "bool"},
@@ -444,7 +444,7 @@ func buildDefaultRegistry() {
 		FieldContract: map[string]string{"tcp.dst_port": "44818"},
 		Fields: map[string]FieldSchema{
 			"transport":     {Type: "string"},                 // "tcp"/"udp"（udp 由生成器拒绝：链单载体）
-			"scenario":      {Type: "string"},                 // full/discovery_only/io_only/forward_open_only/custom, Description: "场景取值（validator 锚词全表）：full/discovery_only/io_only/forward_open_only/custom"},
+			"scenario":      {Type: "string", Description: "场景取值（validator 锚词全表）：full/discovery_only/io_only/forward_open_only/custom"},
 			"commands":      {Type: "list"},                   // ENIPCommand 数组（parseENIPCommands 消费键）
 			"io_data":       {Type: "object"},                 // ENIPIOData（链上由生成器拒绝——UDP I/O 面）
 			"session_count": {Type: "int", Min: 1, Max: 1000}, // 生成器拒 1-1000 外（运行期同款，create 即拒）
@@ -490,7 +490,7 @@ func buildDefaultRegistry() {
 			"app_func_code":             {Type: "uint8"},
 			"app_con":                   {Type: "uint8"},
 			"objects":                   {Type: "list"},
-			"scenario":                  {Type: "string"}, // 场景取值（17 值）：reset_link/read_class0/read_class123/write_single/select_operate/direct_operate/freeze/freeze_clear/enable_unsolicited/disable_unsolicited/assign_class/delay_measurement/cold_restart/warm_restart/unsolicited/multi_object_response/respond；空=按 app_func/app_func_code 自定义一问一答；错值任务期报错
+			"scenario":                  {Type: "string", Description: "场景取值（17 值）：reset_link/read_class0/read_class123/write_single/select_operate/direct_operate/freeze/freeze_clear/enable_unsolicited/disable_unsolicited/assign_class/delay_measurement/cold_restart/warm_restart/unsolicited/multi_object_response/respond；空=按 app_func/app_func_code 自定义一问一答；错值任务期报错"},
 			"is_event":                  {Type: "bool"},
 			"is_unsolicited":            {Type: "bool"},
 			"confirm_required":          {Type: "bool"},
@@ -829,7 +829,7 @@ func buildDefaultRegistry() {
 			"result_code":         {Type: "uint16"},
 			"error_code":          {Type: "uint16"},
 			"error_message":       {Type: "string"},
-			"scenario":            {Type: "string"}, // 仅 tunnel_with_data；与 scenarios/ppp_frames 互斥
+			"scenario":            {Type: "string", Description: "仅 tunnel_with_data；与 scenarios/ppp_frames 互斥"},
 			"inner_ip":            {Type: "string"},
 		},
 	})
@@ -922,7 +922,7 @@ func buildDefaultRegistry() {
 			"version_major":           {Type: "uint8"},
 			"version_minor":           {Type: "uint8"},
 			"role":                    {Type: "string"},
-			"scenario":                {Type: "string"}, // 场景取值（validator 全表 20 值）：standard_v2(缺省)/eap_md5/eap_tls/eap_only/multiple_child_sa/child_rekey/ike_rekey/dpd/delete_sa/informational/nat_detection/fragmented_auth/rekey/invalid_ke_retry/cookie_retry/cert_chain/ppk/null_auth/session_resume/ikev1；与 messages 互斥
+			"scenario":                {Type: "string", Description: "场景取值（validator 全表 20 值）：standard_v2(缺省)/eap_md5/eap_tls/eap_only/multiple_child_sa/child_rekey/ike_rekey/dpd/delete_sa/informational/nat_detection/fragmented_auth/rekey/invalid_ke_retry/cookie_retry/cert_chain/ppk/null_auth/session_resume/ikev1；与 messages 互斥"},
 			"initiator_spi":           {Type: "list"},
 			"responder_spi":           {Type: "list"},
 			"messages":                {Type: "list"},
