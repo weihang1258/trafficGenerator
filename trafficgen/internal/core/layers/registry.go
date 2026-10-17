@@ -1382,7 +1382,7 @@ func buildDefaultRegistry() {
 		// 2575；显式非默认端口合法，裁定3）。
 		FieldContract: map[string]string{"tcp.dst_port": "2575"},
 		Fields: map[string]FieldSchema{
-			"profile":         {Type: "string", Default: ""},  // mllp（唯一；缺省） // 取值 mllp
+			"profile":         {Type: "string", Default: "", Description: "取值 mllp（唯一；缺省）"},
 			"version":         {Type: "string", Default: ""},  // 2.3/2.4/2.5（缺省）/2.8
 			"field_separator": {Type: "string", Default: ""},  // 1 字符（缺省 "|"）
 			"encoding_chars":  {Type: "string", Default: ""},  // 恰 4 字符（缺省 "^~\&"）
