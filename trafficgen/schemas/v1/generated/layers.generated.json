@@ -2880,7 +2880,8 @@
           "description": "仅 tunnel_with_data；与 scenarios/ppp_frames 互斥"
         },
         "scenarios": {
-          "type": "list"
+          "type": "list",
+          "description": "多步编排列表；item 键集 type/direction/avps/tunnel_id_override/session_id_override；type 全表 15 值：sccrq,sccrp,scccn,stopccn,hello,ocrq,ocrp,occn,icrq,icrp,iccn,cdn,wen,sli,zlb；direction up/down（缺省按 role+type 自动）；未知 type 建单期校验拒绝"
         },
         "tie_breaker": {
           "type": "list"

@@ -443,7 +443,7 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "44818"},
 		Fields: map[string]FieldSchema{
-			"transport":     {Type: "string"},                 // "tcp"/"udp"（udp 由生成器拒绝：链单载体）
+			"transport":     {Type: "string"}, // "tcp"/"udp"（udp 由生成器拒绝：链单载体）
 			"scenario":      {Type: "string", Description: "场景取值（validator 锚词全表）：full/discovery_only/io_only/forward_open_only/custom"},
 			"commands":      {Type: "list"},                   // ENIPCommand 数组（parseENIPCommands 消费键）
 			"io_data":       {Type: "object"},                 // ENIPIOData（链上由生成器拒绝——UDP I/O 面）
@@ -822,7 +822,7 @@ func buildDefaultRegistry() {
 			"tie_breaker":         {Type: "list"},
 			"protocol_version":    {Type: "string"},
 			"cookie":              {Type: "string"},
-			"scenarios":           {Type: "list"}, // 多步编排列表；item 键集 type/direction/avps/tunnel_id_override/session_id_override；type 全表 15 值：sccrq,sccrp,scccn,stopccn,hello,ocrq,ocrp,occn,icrq,icrp,iccn,cdn,wen,sli,zlb；direction up/down（缺省按 role+type 自动）；未知 type 建单期校验拒绝
+			"scenarios":           {Type: "list", Description: "多步编排列表；item 键集 type/direction/avps/tunnel_id_override/session_id_override；type 全表 15 值：sccrq,sccrp,scccn,stopccn,hello,ocrq,ocrp,occn,icrq,icrp,iccn,cdn,wen,sli,zlb；direction up/down（缺省按 role+type 自动）；未知 type 建单期校验拒绝"},
 			"hello_interval":      {Type: "int"},
 			"ppp_frames":          {Type: "list"},
 			"custom_avps":         {Type: "list"},
