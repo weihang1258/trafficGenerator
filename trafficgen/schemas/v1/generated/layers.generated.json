@@ -1868,7 +1868,7 @@
           "type": "bool"
         },
         "discontinuity_incr": {
-          "type": "int"
+          "type": "bool"
         },
         "empty_body": {
           "type": "bool"
@@ -1896,13 +1896,13 @@
           "default": "rfc8216_v7"
         },
         "sequence_regress": {
-          "type": "int"
+          "type": "bool"
         },
         "sessions": {
           "type": "list"
         },
         "truncate_body": {
-          "type": "int"
+          "type": "bool"
         },
         "wire_fault": {
           "type": "string",
