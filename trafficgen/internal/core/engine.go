@@ -165,6 +165,9 @@ type taskEntry struct {
 	task   *Task
 	status *TaskStatus
 	cancel context.CancelFunc
+	// ctx 任务级派生上下文（含 time deadline）——D-PERF-2：限速等待感知
+	// 任务终态（引擎级 ctx 感知不到任务 deadline，复测 #3 P1 根因）。
+	ctx context.Context
 	// flowsSeen：FlowsCount 计数源（第14轮 B2：TaskStats.FlowsCount/BytesSent
 	// 曾"无计数源恒零"）。FlowID 在 OnPacketWritten 处可见，集合内存上界=
 	// 流数，任务完成即随 entry 释放。
@@ -760,7 +763,7 @@ func (e *Engine) SubmitTask(task Task) error {
 	// check and the snapshot) cleans up everything this task registered —
 	// including the layerPlanners entry inserted above.
 	e.taskMu.Lock()
-	e.taskStore[task.ID] = &taskEntry{task: &task, status: status, cancel: cancel}
+	e.taskStore[task.ID] = &taskEntry{task: &task, status: status, cancel: cancel, ctx: taskCtx}
 	e.taskMu.Unlock()
 
 	// Snapshot the channel pair under channelMu so the select below races
@@ -1198,6 +1201,26 @@ func (e *Engine) SetMaxTasks(n int) {
 		n = 0
 	}
 	e.maxTasks.Store(int64(n))
+}
+
+// TaskCtx returns the task's derived context (deadline/cancel aware), nil if
+// unknown. D-PERF-2：限速/pacer 等待用任务 ctx 替代引擎 ctx，使任务级 time
+// 截止可打断限速等待。
+func (e *Engine) TaskCtx(taskID string) context.Context {
+	e.taskMu.RLock()
+	defer e.taskMu.RUnlock()
+	if entry, ok := e.taskStore[taskID]; ok {
+		return entry.ctx
+	}
+	return nil
+}
+
+// TaskCtxFor resolves the task ctx from packet metadata (task_id key).
+func (e *Engine) TaskCtxFor(metadata map[string]interface{}) context.Context {
+	if id, ok := metadata["task_id"].(string); ok {
+		return e.TaskCtx(id)
+	}
+	return nil
 }
 
 // activeTaskCount returns the number of tasks currently in the store.

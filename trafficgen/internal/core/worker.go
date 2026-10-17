@@ -1029,15 +1029,24 @@ func (w *PacketWorker) processConfig(config PacketConfig) {
 		if rp, ok := pacer.(interface {
 			Wait(context.Context, PacketConfig, int) error
 		}); ok {
-			if err := rp.Wait(w.ctx, config, len(packet)); err != nil {
-				return // context cancelled while waiting
+			waitCtx := w.ctx
+			if tctx := w.engine.TaskCtxFor(config.Metadata); tctx != nil {
+				waitCtx = tctx
+			}
+			if err := rp.Wait(waitCtx, config, len(packet)); err != nil {
+				// 任务 deadline/停止打断了节拍等待：剩余包不再按节拍，
+				// 立即落写（保计数完整）。丢弃会卡死完成条件（回执 #3）。
 			}
 		}
 	} else if w.engine != nil && config.ClassID != "" {
 		// Child bucket: per-strategy rate limit.
+		waitCtx := w.ctx
+		if tctx := w.engine.TaskCtxFor(config.Metadata); tctx != nil {
+			waitCtx = tctx
+		}
 		if limiter := w.engine.GetRateLimiter(config.ClassID); limiter != nil {
-			if err := limiter.Wait(w.ctx, int64(len(packet))); err != nil {
-				return // context cancelled while waiting
+			if err := limiter.Wait(waitCtx, int64(len(packet))); err != nil {
+				// 任务终态打断节拍：立即落写剩余包（不丢包、不卡计数）。
 			}
 		}
 	}
@@ -1052,8 +1061,12 @@ func (w *PacketWorker) processConfig(config PacketConfig) {
 	if w.engine != nil {
 		if parentID, ok := config.Metadata["parent_task_id"].(string); ok && parentID != "" {
 			if parentLimiter := w.engine.GetRateLimiter(parentID); parentLimiter != nil {
-				if err := parentLimiter.Wait(w.ctx, int64(len(packet))); err != nil {
-					return // context cancelled while waiting
+				waitCtx := w.ctx
+				if tctx := w.engine.TaskCtxFor(config.Metadata); tctx != nil {
+					waitCtx = tctx
+				}
+				if err := parentLimiter.Wait(waitCtx, int64(len(packet))); err != nil {
+					// 同上：终态后快速清空。
 				}
 			}
 		}
