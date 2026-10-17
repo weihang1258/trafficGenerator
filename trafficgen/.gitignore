@@ -26,3 +26,4 @@ configs/config.yaml
 
 # Release artifacts (make dist)
 dist/
+examplegen
