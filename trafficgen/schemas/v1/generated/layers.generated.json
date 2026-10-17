@@ -4331,7 +4331,8 @@
         },
         "wire_profile": {
           "type": "string",
-          "default": "postgresql_v3"
+          "default": "postgresql_v3",
+          "description": "必填。取值 postgresql_v3/kingbase_es_v8_pg_compatible/postgresql_v3_compatible_reference"
         }
       }
     },

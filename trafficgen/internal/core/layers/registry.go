@@ -1342,7 +1342,7 @@ func buildDefaultRegistry() {
 		FieldContract: map[string]string{"tcp.dst_port": "5432"},
 		Fields: map[string]FieldSchema{
 			"dialect":      {Type: "string", Default: "postgresql"},
-			"wire_profile": {Type: "string", Default: "postgresql_v3"}, // 必填。取值 postgresql_v3/kingbase_es_v8_pg_compatible/postgresql_v3_compatible_reference
+			"wire_profile": {Type: "string", Default: "postgresql_v3", Description: "必填。取值 postgresql_v3/kingbase_es_v8_pg_compatible/postgresql_v3_compatible_reference"},
 			"events":       {Type: "list", Default: []interface{}{}},
 			"sessions":     {Type: "list", Default: []interface{}{}},
 			// wire_fault is a negative-test fault object {"kind":..., "value":...}.
