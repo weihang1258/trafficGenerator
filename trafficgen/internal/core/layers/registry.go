@@ -113,7 +113,7 @@ func buildDefaultRegistry() {
 			"sessions":  {Type: "int", Default: 0, Min: 0, Max: 0},
 			"pdu_ref":   {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 			"pdu_size":  {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
-			"commands":  {Type: "list", Default: []interface{}{}},
+			"commands":  {Type: "list", Default: []interface{}{}}, // 命令列表；item 键集 kind/rosctr/pdu_ref/items/value/err_class/err_code/force_rosctr/pad_pdu_len/szl_id/szl_index；kind 取值 read(缺省)/write/keepalive/readsZL/read_szl/error；items 子键 area/db_number/address/bit/transport_size/length/data；[] = setup-only 形
 		}})
 	r.Register(LayerSchema{Name: "http", Category: CategoryTerminal,
 		DependsOn:       []string{"tcp"},
@@ -386,7 +386,7 @@ func buildDefaultRegistry() {
 			"routes":           {Type: "list"},
 			"auth":             {Type: "object"},
 			"multicast":        {Type: "bool"},
-			"scenario":         {Type: "string"},
+			"scenario":         {Type: "string"}, // 有效值 response_default|request_full（无硬校验，未知值按普通场景静默处理）；缺省按 command 派生：request→request_full，否则 response_default
 			"routers":          {Type: "list"},
 			"rounds":           {Type: "int"},
 			"triggered_update": {Type: "bool"},
@@ -490,7 +490,7 @@ func buildDefaultRegistry() {
 			"app_func_code":             {Type: "uint8"},
 			"app_con":                   {Type: "uint8"},
 			"objects":                   {Type: "list"},
-			"scenario":                  {Type: "string"},
+			"scenario":                  {Type: "string"}, // 场景取值（17 值）：reset_link/read_class0/read_class123/write_single/select_operate/direct_operate/freeze/freeze_clear/enable_unsolicited/disable_unsolicited/assign_class/delay_measurement/cold_restart/warm_restart/unsolicited/multi_object_response/respond；空=按 app_func/app_func_code 自定义一问一答；错值任务期报错
 			"is_event":                  {Type: "bool"},
 			"is_unsolicited":            {Type: "bool"},
 			"confirm_required":          {Type: "bool"},
@@ -822,14 +822,14 @@ func buildDefaultRegistry() {
 			"tie_breaker":         {Type: "list"},
 			"protocol_version":    {Type: "string"},
 			"cookie":              {Type: "string"},
-			"scenarios":           {Type: "list"},
+			"scenarios":           {Type: "list"}, // 多步编排列表；item 键集 type/direction/avps/tunnel_id_override/session_id_override；type 全表 15 值：sccrq,sccrp,scccn,stopccn,hello,ocrq,ocrp,occn,icrq,icrp,iccn,cdn,wen,sli,zlb；direction up/down（缺省按 role+type 自动）；未知 type 建单期校验拒绝
 			"hello_interval":      {Type: "int"},
 			"ppp_frames":          {Type: "list"},
 			"custom_avps":         {Type: "list"},
 			"result_code":         {Type: "uint16"},
 			"error_code":          {Type: "uint16"},
 			"error_message":       {Type: "string"},
-			"scenario":            {Type: "string"},
+			"scenario":            {Type: "string"}, // 仅 tunnel_with_data；与 scenarios/ppp_frames 互斥
 			"inner_ip":            {Type: "string"},
 		},
 	})
@@ -922,7 +922,7 @@ func buildDefaultRegistry() {
 			"version_major":           {Type: "uint8"},
 			"version_minor":           {Type: "uint8"},
 			"role":                    {Type: "string"},
-			"scenario":                {Type: "string"},
+			"scenario":                {Type: "string"}, // 场景取值（validator 全表 20 值）：standard_v2(缺省)/eap_md5/eap_tls/eap_only/multiple_child_sa/child_rekey/ike_rekey/dpd/delete_sa/informational/nat_detection/fragmented_auth/rekey/invalid_ke_retry/cookie_retry/cert_chain/ppk/null_auth/session_resume/ikev1；与 messages 互斥
 			"initiator_spi":           {Type: "list"},
 			"responder_spi":           {Type: "list"},
 			"messages":                {Type: "list"},
@@ -983,7 +983,7 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "5672"},
 		Fields: map[string]FieldSchema{
-			"profile":     {Type: "string", Default: ""},
+			"profile":     {Type: "string", Default: ""}, // 取值 amqp091_rabbitmq/amqp091_minimal/amqp091_tls_boundary
 			"frame_max":   {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
 			"channel_max": {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 			"heartbeat":   {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
@@ -1077,8 +1077,8 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"http"},
 		FieldContract: map[string]string{"tcp.dst_port": "7547"},
 		Fields: map[string]FieldSchema{
-			"profile":    {Type: "string", Default: ""},
-			"namespace":  {Type: "string", Default: ""},
+			"profile":    {Type: "string", Default: ""}, // 取值 cwmp_http_v1/cwmp_ipv6_v1
+			"namespace":  {Type: "string", Default: ""}, // 取值 cwmp-1-0/cwmp-1-1/cwmp-1-2
 			"concurrent": {Type: "bool", Default: false},
 			"sessions":   {Type: "list", Default: []interface{}{}},
 			"flows":      {Type: "list", Default: []interface{}{}},
@@ -1170,7 +1170,7 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"http"},
 		FieldContract: map[string]string{"tcp.dst_port": "80"},
 		Fields: map[string]FieldSchema{
-			"profile":    {Type: "string"},
+			"profile":    {Type: "string"}, // 取值 doh_http1_plain
 			"method":     {Type: "string"},
 			"uri":        {Type: "string"},
 			"concurrent": {Type: "bool"},
@@ -1186,7 +1186,7 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"http"},
 		FieldContract: map[string]string{"tcp.dst_port": "80"},
 		Fields: map[string]FieldSchema{
-			"profile":      {Type: "string"},
+			"profile":      {Type: "string"}, // 取值 onvif_soap12_http
 			"soap_version": {Type: "string"},
 			"charset":      {Type: "string"},
 			"content_type": {Type: "string"},
@@ -1324,7 +1324,7 @@ func buildDefaultRegistry() {
 			// wire_profile/wire_fault 字符串走 completedConfig 缺省回填；
 			// events/sessions 数组缺省 []interface{}{}（postgresql 同款）；
 			// payload_size 缺省 ""（validator 仅接受 profile_minimum_nonempty）。
-			"wire_profile": {Type: "string", Default: ""},
+			"wire_profile": {Type: "string", Default: ""}, // 必填。取值 dm8_profile_pending/length_boundary
 			"events":       {Type: "list", Default: []interface{}{}},
 			"sessions":     {Type: "list", Default: []interface{}{}},
 			"payload_size": {Type: "string", Default: ""},
@@ -1342,7 +1342,7 @@ func buildDefaultRegistry() {
 		FieldContract: map[string]string{"tcp.dst_port": "5432"},
 		Fields: map[string]FieldSchema{
 			"dialect":      {Type: "string", Default: "postgresql"},
-			"wire_profile": {Type: "string", Default: "postgresql_v3"},
+			"wire_profile": {Type: "string", Default: "postgresql_v3"}, // 必填。取值 postgresql_v3/kingbase_es_v8_pg_compatible/postgresql_v3_compatible_reference
 			"events":       {Type: "list", Default: []interface{}{}},
 			"sessions":     {Type: "list", Default: []interface{}{}},
 			// wire_fault is a negative-test fault object {"kind":..., "value":...}.
@@ -1382,7 +1382,7 @@ func buildDefaultRegistry() {
 		// 2575；显式非默认端口合法，裁定3）。
 		FieldContract: map[string]string{"tcp.dst_port": "2575"},
 		Fields: map[string]FieldSchema{
-			"profile":         {Type: "string", Default: ""},  // mllp（唯一；缺省）
+			"profile":         {Type: "string", Default: ""},  // mllp（唯一；缺省） // 取值 mllp
 			"version":         {Type: "string", Default: ""},  // 2.3/2.4/2.5（缺省）/2.8
 			"field_separator": {Type: "string", Default: ""},  // 1 字符（缺省 "|"）
 			"encoding_chars":  {Type: "string", Default: ""},  // 恰 4 字符（缺省 "^~\&"）
@@ -1413,7 +1413,7 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "4472"},
 		Fields: map[string]FieldSchema{
-			"profile":    {Type: "string", Default: ""},  // edp_tcp_plain_v1（缺省）/ edp_ipv6_v1
+			"profile":    {Type: "string", Default: ""},  // edp_tcp_plain_v1（缺省）/ edp_ipv6_v1 // 取值 edp_tcp_plain_v1/edp_ipv6_v1（空=缺省）
 			"concurrent": {Type: "bool", Default: false}, // 双会话交错回放（v2.1 C-2 翻案）
 			"sessions":   {Type: "list", Default: []interface{}{}},
 			"wire_fault": {Type: "string", Default: ""}, // 28 值枚举（D-EDP-1 §7 表）；""=无故障
@@ -1576,7 +1576,7 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "cql", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "9042"},
 		Fields: map[string]FieldSchema{
-			"wire_profile": {Type: "string", Default: ""},
+			"wire_profile": {Type: "string", Default: ""}, // 必填。取值 cql_v4/cql_v4_auth/cql_v5
 			"events":       {Type: "list", Default: []interface{}{}},
 			"sessions":     {Type: "list", Default: []interface{}{}},
 			// wire_fault is a negative-test fault object {"kind":...,"value":...}.
@@ -1597,8 +1597,8 @@ func buildDefaultRegistry() {
 		Fields: map[string]FieldSchema{
 			"transport":       {Type: "string", Default: ""},
 			"common_address":  {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
-			"events":          {Type: "list", Default: []interface{}{}},
-			"commands":        {Type: "list", Default: []interface{}{}},
+			"events":          {Type: "list", Default: []interface{}{}}, // 事件列表；item 键集 direction/kind/type_id/cause/ioa/value/rx/siq/qds/diq/sco/dco/qoi/select/time；kind 必填 8 值：startdt_act/startdt_con/stopdt_act/stopdt_con/testfr_act/testfr_con/s/i；direction up/down
+			"commands":        {Type: "list", Default: []interface{}{}}, // 命令列表；item 键集 type_id/cause/common_address/ioa/value（全数值：type_id 走合法类型表，cause 1-63，value 0-65535）；events+commands 全空时注入缺省遥测序列
 			"type_id":         {Type: "uint8", Default: uint8(0), Min: 0, Max: 255},
 			"cause":           {Type: "uint8", Default: uint8(0), Min: 0, Max: 255},
 			"ioa":             {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
@@ -1760,7 +1760,7 @@ func buildDefaultRegistry() {
 	// wire_profile→iso10589_llc）。无 FieldContract（无端口/IP 载体）。
 	r.Register(LayerSchema{Name: "isis", Category: CategoryTerminal, DependsOn: []string{"eth"},
 		Fields: map[string]FieldSchema{
-			"wire_profile":       {Type: "string"},
+			"wire_profile":       {Type: "string"}, // 取值 iso10589_llc/iso10589_ethertype
 			"level":              {Type: "string"},
 			"pdu_type":           {Type: "string", Description: "场景取值（validator 锚词全表）：lan_hello/p2p_hello/lsp/psnp/csnp/events（空=缺省事件集）"},
 			"system_id":          {Type: "string"},
@@ -1861,7 +1861,7 @@ func buildDefaultRegistry() {
 			"identifier":   {Type: "string", Default: ""},
 			"marker":       {Type: "list", Default: []interface{}{}},
 			"length":       {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
-			"wire_profile": {Type: "string", Default: ""},
+			"wire_profile": {Type: "string", Default: ""}, // 取值 bgp_rfc4271_ipv4_unicast（缺省）
 			"capabilities": {Type: "list", Default: []interface{}{}},
 			"update":       {Type: "list", Default: []interface{}{}},
 			"notification": {Type: "list", Default: []interface{}{}},
@@ -1884,7 +1884,7 @@ func buildDefaultRegistry() {
 		TransportOn: []string{"udp", "tcp"},
 		Fields: map[string]FieldSchema{
 			"transport":           {Type: "string"},
-			"wire_profile":        {Type: "string"},
+			"wire_profile":        {Type: "string"}, // 取值 ldp_rfc5036_ipv4_basic；IPv6 载体不可用该值
 			"carrier":             {Type: "string"},
 			"events":              {Type: "list"},
 			"sessions":            {Type: "list"},
@@ -1923,7 +1923,7 @@ func buildDefaultRegistry() {
 		DependsOn:   []string{"udp"},
 		TransportOn: []string{"udp"}, // cflow 仅 UDP 载体（RFC 3954/7011 数据报）——transport-dup 检查据此报 carrier 锚词（bacnet/dtls 先例，G-CFLOW-4）
 		Fields: map[string]FieldSchema{
-			"profile":               {Type: "string"},
+			"profile":               {Type: "string"}, // 取值 netflow_v9_rfc3954/ipfix_rfc7011
 			"version":               {Type: "uint16"},
 			"source_id":             {Type: "uint32"},
 			"sequence":              {Type: "uint32"},
@@ -2082,8 +2082,8 @@ func buildDefaultRegistry() {
 			// transactions 是多会话形状。值语义归 planner；层字段动态名单
 			// 见 layerDynAllowlist，ftp 业务字段动态走 spec.FTP。
 			"banner":       {Type: "string", Default: ""},
-			"sessions":     {Type: "list", Default: []interface{}{}},
-			"transactions": {Type: "list", Default: []interface{}{}},
+			"sessions":     {Type: "list", Default: []interface{}{}}, // 会话列表；item 键集 src_port/banner/transactions
+			"transactions": {Type: "list", Default: []interface{}{}}, // 事务列表；item 键集 commands/data_channel；commands 子键 cmd/response/emit_data_channel；data_channel 键集 mode(active|passive,缺省 passive)/src_port/dst_port/direction(up|down,缺省 down)/payload/payload_b64/mss/abort_after_bytes/file_source
 			"commands":     {Type: "list", Default: []interface{}{}},
 			"data_channel": {Type: "object"},
 		},
@@ -2490,7 +2490,7 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "61616"},
 		Fields: map[string]FieldSchema{
-			"profile":        {Type: "string", Default: "ams_management_v1"},
+			"profile":        {Type: "string", Default: "ams_management_v1"}, // 取值 ams_management_v1/ams_observer_v1
 			"frame_max":      {Type: "uint32"},
 			"heartbeat":      {Type: "uint16"},
 			"client_name":    {Type: "string"},
@@ -2539,7 +2539,7 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "6346"},
 		Fields: map[string]FieldSchema{
-			"profile":        {Type: "string", Default: "gnutella_v060"},
+			"profile":        {Type: "string", Default: "gnutella_v060"}, // 取值 gnutella_v060/gnutella_ipv6_v1
 			"frame_max":      {Type: "uint32"},
 			"client_headers": {Type: "object"},
 			"server_headers": {Type: "object"},
@@ -2604,7 +2604,7 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "sip", Category: CategoryTerminal, DependsOn: []string{"ip"},
 		OptionalOn: []string{"tls"}, // D-SIP-2 WP-D：SIPS——显式写 tls 层启用（事件面）
 		Fields: map[string]FieldSchema{
-			"dialog": {Type: "list"},
+			"dialog": {Type: "list"}, // 对话消息列表；item 键集 method/uri/status_code/status_text/headers/body/direction(up|down,缺省按 method/status_code 推断)/emit_media
 			// D-SIP-2+D-FILE-2：RTP 媒体流；item 内 file_source=RTP 帧载荷
 			// 文件源（须 dialog[] 消息带 emit_media:true 且 media.enabled:true
 			// 才发射——媒体流锚在对话消息上）。
