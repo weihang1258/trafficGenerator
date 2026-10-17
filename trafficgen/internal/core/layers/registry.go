@@ -297,7 +297,7 @@ func buildDefaultRegistry() {
 		Fields: map[string]FieldSchema{
 			"role":                       {Type: "string"},
 			"xid":                        {Type: "uint32"},
-			"scenario":                   {Type: "string"},
+			"scenario":                   {Type: "string", Description: "场景取值（validator 锚词全表）：dora/nak/release/inform/renew/rebind"},
 			"messages":                   {Type: "list"},
 			"client_mac":                 {Type: "string"},
 			"h_type":                     {Type: "uint8"},
@@ -331,7 +331,7 @@ func buildDefaultRegistry() {
 		DependsOn: []string{"udp"},
 		Fields: map[string]FieldSchema{
 			"messages":                   {Type: "list"},
-			"scenario":                   {Type: "string"},
+			"scenario":                   {Type: "string", Description: "场景取值（validator 锚词全表）：sarr/sarr_rapid/renew/rebind/release/decline/confirm/information_request/reconfigure/relay"},
 			"client_duid":                {Type: "object"},
 			"server_duid":                {Type: "object"},
 			"relay_config":               {Type: "object"},
@@ -444,7 +444,7 @@ func buildDefaultRegistry() {
 		FieldContract: map[string]string{"tcp.dst_port": "44818"},
 		Fields: map[string]FieldSchema{
 			"transport":     {Type: "string"},                 // "tcp"/"udp"（udp 由生成器拒绝：链单载体）
-			"scenario":      {Type: "string"},                 // full/discovery_only/io_only/forward_open_only/custom
+			"scenario":      {Type: "string"},                 // full/discovery_only/io_only/forward_open_only/custom, Description: "场景取值（validator 锚词全表）：full/discovery_only/io_only/forward_open_only/custom"},
 			"commands":      {Type: "list"},                   // ENIPCommand 数组（parseENIPCommands 消费键）
 			"io_data":       {Type: "object"},                 // ENIPIOData（链上由生成器拒绝——UDP I/O 面）
 			"session_count": {Type: "int", Min: 1, Max: 1000}, // 生成器拒 1-1000 外（运行期同款，create 即拒）
@@ -1762,7 +1762,7 @@ func buildDefaultRegistry() {
 		Fields: map[string]FieldSchema{
 			"wire_profile":       {Type: "string"},
 			"level":              {Type: "string"},
-			"pdu_type":           {Type: "string"},
+			"pdu_type":           {Type: "string", Description: "场景取值（validator 锚词全表）：lan_hello/p2p_hello/lsp/psnp/csnp/events（空=缺省事件集）"},
 			"system_id":          {Type: "string"},
 			"holding_timer":      {Type: "int", Min: 0, Max: 65535},
 			"priority":           {Type: "int", Min: 0, Max: 255},
@@ -1840,7 +1840,7 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "h323", Category: CategoryTerminal, DependsOn: []string{"ip"},
 		Fields: map[string]FieldSchema{
 			"role":         {Type: "string"},
-			"scenario":     {Type: "string"},
+			"scenario":     {Type: "string", Description: "场景取值（validator 锚词全表）：full/tunnel_only/ras_only/data_only"},
 			"crv":          {Type: "uint16", Min: 0, Max: 65535},
 			"display_name": {Type: "string"},
 			"calls":        {Type: "uint16", Min: 0, Max: 65535},
@@ -2213,7 +2213,7 @@ func buildDefaultRegistry() {
 			"channels":               {Type: "list"},
 			"rekey_after":            {Type: "uint32"},
 			"disconnect_on_close":    {Type: "bool"},
-			"scenario":               {Type: "string"},
+			"scenario":               {Type: "string", Description: "场景取值（validator 锚词全表）：exec/shell/pty-exec/publickey/auth_fail_retry/long_output"},
 			"command":                {Type: "string"},
 			"file_source":            {Type: "object", Description: "上传回执 file_id（内容 sha256 hex），引用已上传文件免重传。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错（→ exec 命令文本，文本语义，优先级 file_source > command）（D-FILE-2 P2）"},
 			"stdout":                 {Type: "list"},
@@ -2266,7 +2266,7 @@ func buildDefaultRegistry() {
 			"server_random":                   {Type: "list"},
 			"server_cert_version":             {Type: "uint32"},
 			"security_exchange_rsa_key_bytes": {Type: "int"},
-			"scenario":                        {Type: "string"},
+			"scenario":                        {Type: "string", Description: "场景取值（validator 锚词全表）：full_session/multi_channel/cliprdr/rdpdr/input_events/bitmap_update/channel_join_failure/disconnect"},
 			// D-FILE-2 裁定6：逐事件 item 支持 file_source（优先级
 			// FileSource > payload > payload_b64）。
 			"data_events":      {Type: "list", Description: "Active 相位事件列表；item 键 type/channel/direction/payload/payload_b64/file_source——file_source=上传回执 file_id（内容 sha256 hex），引用已上传文件免重传；file_source 键集 file/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
@@ -2593,7 +2593,7 @@ func buildDefaultRegistry() {
 			"window_cols":   {Type: "uint16", Min: 0, Max: 65535},
 			"window_rows":   {Type: "uint16", Min: 0, Max: 65535},
 			"file_source":   {Type: "object", Description: "上传回执 file_id（内容 sha256 hex）：引用已上传文件内容免重传；同内容自动去重，先 flowb_manage_filesystem query(sha256) 查重更省流量。键集 file(路径)/file_id/literal/fill/random；可双填，优先级 file > file_id > literal > fill > random；未知键在配置校验即报错"},
-			"scenario":      {Type: "string"},
+			"scenario":      {Type: "string", Description: "场景取值（validator 锚词全表）：login_full/login_fail/multi_command/long_output/option_reject/synch"},
 			"username":      {Type: "string"},
 			"password":      {Type: "string"},
 			"commands":      {Type: "list"},
@@ -2695,7 +2695,7 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "pptp", Category: CategoryTerminal, DependsOn: []string{"ip"},
 		Fields: map[string]FieldSchema{
 			"role":                {Type: "string"},
-			"scenario":            {Type: "string"},
+			"scenario":            {Type: "string", Description: "场景取值（validator 锚词全表）：full/control_only/tunnel_only/data_only"},
 			"calls":               {Type: "int", Min: 0, Max: 65535},
 			"echo":                {Type: "bool"},
 			"version":             {Type: "uint16", Min: 0, Max: 65535},

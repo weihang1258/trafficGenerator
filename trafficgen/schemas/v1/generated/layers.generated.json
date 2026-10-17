@@ -631,7 +631,8 @@
           "type": "string"
         },
         "scenario": {
-          "type": "string"
+          "type": "string",
+          "description": "场景取值（validator 锚词全表）：dora/nak/release/inform/renew/rebind"
         },
         "secs": {
           "type": "uint16"
@@ -702,7 +703,8 @@
           "type": "object"
         },
         "scenario": {
-          "type": "string"
+          "type": "string",
+          "description": "场景取值（validator 锚词全表）：sarr/sarr_rapid/renew/rebind/release/decline/confirm/information_request/reconfigure/relay"
         },
         "server_duid": {
           "type": "object"
@@ -1765,7 +1767,8 @@
           "type": "string"
         },
         "scenario": {
-          "type": "string"
+          "type": "string",
+          "description": "场景取值（validator 锚词全表）：full/tunnel_only/ras_only/data_only"
         },
         "src_port": {
           "type": "uint16",
@@ -2524,7 +2527,8 @@
           "max": 1
         },
         "pdu_type": {
-          "type": "string"
+          "type": "string",
+          "description": "场景取值（validator 锚词全表）：lan_hello/p2p_hello/lsp/psnp/csnp/events（空=缺省事件集）"
         },
         "priority": {
           "type": "int",
@@ -4522,7 +4526,8 @@
           "type": "string"
         },
         "scenario": {
-          "type": "string"
+          "type": "string",
+          "description": "场景取值（validator 锚词全表）：full/control_only/tunnel_only/data_only"
         },
         "scrp_bearer_caps": {
           "type": "uint32",
@@ -4732,7 +4737,8 @@
           "type": "bool"
         },
         "scenario": {
-          "type": "string"
+          "type": "string",
+          "description": "场景取值（validator 锚词全表）：full_session/multi_channel/cliprdr/rdpdr/input_events/bitmap_update/channel_join_failure/disconnect"
         },
         "security_exchange_rsa_key_bytes": {
           "type": "int"
@@ -5793,7 +5799,8 @@
           "type": "uint32"
         },
         "scenario": {
-          "type": "string"
+          "type": "string",
+          "description": "场景取值（validator 锚词全表）：exec/shell/pty-exec/publickey/auth_fail_retry/long_output"
         },
         "server_version": {
           "type": "string"
@@ -6223,7 +6230,8 @@
           "type": "string"
         },
         "scenario": {
-          "type": "string"
+          "type": "string",
+          "description": "场景取值（validator 锚词全表）：login_full/login_fail/multi_command/long_output/option_reject/synch"
         },
         "src_port": {
           "type": "uint16",

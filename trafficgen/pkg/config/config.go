@@ -249,9 +249,13 @@ func expandEnv(s string) string {
 func setDefaults(v *viper.Viper) {
 	// Server defaults
 	v.SetDefault("server.host", "0.0.0.0")
-	v.SetDefault("server.port", 8082)
+	// D-PORT-1：发布版唯一对外端口 = MCP（见 mcp.http.listen，默认 8086）。
+	// REST HTTP 不再占用独立对外端口——server.port=0 时仅构建 Server 对象
+	// （引擎回调落库依赖它）而不起 HTTP 监听。如需本地调试 REST，显式配置
+	// 非零端口（建议 127.0.0.1）。
+	v.SetDefault("server.port", 0)
 	v.SetDefault("server.mode", "release")
-	v.SetDefault("server.allowed_origins", []string{"http://localhost:3000", "http://localhost:8082"})
+	v.SetDefault("server.allowed_origins", []string{"http://localhost:3000"})
 
 	// Database defaults
 	v.SetDefault("database.type", "sqlite")

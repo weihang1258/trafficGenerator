@@ -89,3 +89,44 @@ func TestBenchPcapInsert(t *testing.T) {
 	benchInsert(t, "生产形 (30列+批25+WAL/NORMAL DSN)", "?_journal_mode=WAL&_busy_timeout=60000&_txlock=immediate", false, rows, 25)
 	benchInsert(t, "旧形对照 (30列+批500)", "?_journal_mode=WAL&_busy_timeout=60000&_txlock=immediate", false, rows, 500)
 }
+
+// D-PERF-1 同源基准：CreateFlows（79 列）批 250 vs 25 的膝区对照。
+func TestBenchFlowInsert(t *testing.T) {
+	if os.Getenv("PERF_BENCH") == "" {
+		t.Skip("perf benchmark: run with PERF_BENCH=1")
+	}
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "f.db")+"?_journal_mode=WAL&_busy_timeout=60000&_txlock=immediate"), &gorm.Config{Logger: logger.Discard})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := AutoMigrate(db); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	rows := 20000
+	for _, batch := range []int{250, 25} {
+		flows := make([]FlowModel, 0, batch)
+		start := time.Now()
+		for off := 0; off < rows; off += batch {
+			for i := 0; i < batch && off+i < rows; i++ {
+				n := off + i
+				flows = append(flows, FlowModel{
+					ID: fmt.Sprintf("f-%d-%d", off, i), PcapAssetID: "bench",
+					UserID: "u1", FlowKey: fmt.Sprintf("key-%d", n),
+					L4Protocol: "tcp", IPVersion: 4,
+					SrcIP: "10.0.0.1", SrcPort: uint16(1000 + n%60000),
+					DstIP: "20.0.0.1", DstPort: 80,
+					Client: "10.0.0.1:1234", Server: "20.0.0.1:80",
+					PacketCount: 1, ByteCount: 64,
+				})
+			}
+			if err := db.CreateInBatches(&flows, batch).Error; err != nil {
+				t.Fatalf("batch %d insert: %v", batch, err)
+			}
+			flows = flows[:0]
+		}
+		el := time.Since(start)
+		t.Logf("CreateFlows 批 %-4d %d rows in %v = %.0f rows/s", batch, rows, el.Round(time.Millisecond), float64(rows)/el.Seconds())
+		flows = flows[:0]
+		db.Where("1=1").Delete(&FlowModel{})
+	}
+}
