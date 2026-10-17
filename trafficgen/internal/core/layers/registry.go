@@ -113,7 +113,7 @@ func buildDefaultRegistry() {
 			"sessions":  {Type: "int", Default: 0, Min: 0, Max: 0},
 			"pdu_ref":   {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 			"pdu_size":  {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
-			"commands":  {Type: "list", Default: []interface{}{}}, // 命令列表；item 键集 kind/rosctr/pdu_ref/items/value/err_class/err_code/force_rosctr/pad_pdu_len/szl_id/szl_index；kind 取值 read(缺省)/write/keepalive/readsZL/read_szl/error；items 子键 area/db_number/address/bit/transport_size/length/data；[] = setup-only 形
+			"commands":  {Type: "list", Default: []interface{}{}, Description: "命令列表；item 键集 kind/rosctr/pdu_ref/items/value/err_class/err_code/force_rosctr/pad_pdu_len/szl_id/szl_index；kind 取值 read(缺省)/write/keepalive/readsZL/read_szl/error；items 子键 area/db_number/address/bit/transport_size/length/data；[] = setup-only 形"},
 		}})
 	r.Register(LayerSchema{Name: "http", Category: CategoryTerminal,
 		DependsOn:       []string{"tcp"},
@@ -1576,7 +1576,7 @@ func buildDefaultRegistry() {
 	r.Register(LayerSchema{Name: "cql", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "9042"},
 		Fields: map[string]FieldSchema{
-			"wire_profile": {Type: "string", Default: ""}, // 必填。取值 cql_v4/cql_v4_auth/cql_v5
+			"wire_profile": {Type: "string", Default: "", Description: "必填。取值 cql_v4/cql_v4_auth/cql_v5"},
 			"events":       {Type: "list", Default: []interface{}{}},
 			"sessions":     {Type: "list", Default: []interface{}{}},
 			// wire_fault is a negative-test fault object {"kind":...,"value":...}.
@@ -1597,7 +1597,7 @@ func buildDefaultRegistry() {
 		Fields: map[string]FieldSchema{
 			"transport":       {Type: "string", Default: ""},
 			"common_address":  {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
-			"events":          {Type: "list", Default: []interface{}{}}, // 事件列表；item 键集 direction/kind/type_id/cause/ioa/value/rx/siq/qds/diq/sco/dco/qoi/select/time；kind 必填 8 值：startdt_act/startdt_con/stopdt_act/stopdt_con/testfr_act/testfr_con/s/i；direction up/down
+			"events":          {Type: "list", Default: []interface{}{}, Description: "事件列表；item 键集 direction/kind/type_id/cause/ioa/value/rx/siq/qds/diq/sco/dco/qoi/select/time；kind 必填 8 值：startdt_act/startdt_con/stopdt_act/stopdt_con/testfr_act/testfr_con/s/i；direction up/down"},
 			"commands":        {Type: "list", Default: []interface{}{}}, // 命令列表；item 键集 type_id/cause/common_address/ioa/value（全数值：type_id 走合法类型表，cause 1-63，value 0-65535）；events+commands 全空时注入缺省遥测序列
 			"type_id":         {Type: "uint8", Default: uint8(0), Min: 0, Max: 255},
 			"cause":           {Type: "uint8", Default: uint8(0), Min: 0, Max: 255},
@@ -1861,7 +1861,7 @@ func buildDefaultRegistry() {
 			"identifier":   {Type: "string", Default: ""},
 			"marker":       {Type: "list", Default: []interface{}{}},
 			"length":       {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
-			"wire_profile": {Type: "string", Default: ""}, // 取值 bgp_rfc4271_ipv4_unicast（缺省）
+			"wire_profile": {Type: "string", Default: "", Description: "取值 bgp_rfc4271_ipv4_unicast（缺省）"},
 			"capabilities": {Type: "list", Default: []interface{}{}},
 			"update":       {Type: "list", Default: []interface{}{}},
 			"notification": {Type: "list", Default: []interface{}{}},
@@ -2083,7 +2083,7 @@ func buildDefaultRegistry() {
 			// 见 layerDynAllowlist，ftp 业务字段动态走 spec.FTP。
 			"banner":       {Type: "string", Default: ""},
 			"sessions":     {Type: "list", Default: []interface{}{}}, // 会话列表；item 键集 src_port/banner/transactions
-			"transactions": {Type: "list", Default: []interface{}{}}, // 事务列表；item 键集 commands/data_channel；commands 子键 cmd/response/emit_data_channel；data_channel 键集 mode(active|passive,缺省 passive)/src_port/dst_port/direction(up|down,缺省 down)/payload/payload_b64/mss/abort_after_bytes/file_source
+			"transactions": {Type: "list", Default: []interface{}{}, Description: "事务列表；item 键集 commands/data_channel；commands 子键 cmd/response/emit_data_channel；data_channel 键集 mode(active|passive,缺省 passive)/src_port/dst_port/direction(up|down,缺省 down)/payload/payload_b64/mss/abort_after_bytes/file_source"},
 			"commands":     {Type: "list", Default: []interface{}{}},
 			"data_channel": {Type: "object"},
 		},

@@ -231,7 +231,8 @@
         },
         "wire_profile": {
           "type": "string",
-          "default": ""
+          "default": "",
+          "description": "取值 bgp_rfc4271_ipv4_unicast（缺省）"
         }
       }
     },
@@ -449,7 +450,8 @@
         },
         "wire_profile": {
           "type": "string",
-          "default": ""
+          "default": "",
+          "description": "必填。取值 cql_v4/cql_v4_auth/cql_v5"
         }
       }
     },
@@ -1276,7 +1278,8 @@
         },
         "transactions": {
           "type": "list",
-          "default": []
+          "default": [],
+          "description": "事务列表；item 键集 commands/data_channel；commands 子键 cmd/response/emit_data_channel；data_channel 键集 mode(active|passive,缺省 passive)/src_port/dst_port/direction(up|down,缺省 down)/payload/payload_b64/mss/abort_after_bytes/file_source"
         },
         "username": {
           "type": "string",
@@ -2151,7 +2154,8 @@
         },
         "events": {
           "type": "list",
-          "default": []
+          "default": [],
+          "description": "事件列表；item 键集 direction/kind/type_id/cause/ioa/value/rx/siq/qds/diq/sco/dco/qoi/select/time；kind 必填 8 值：startdt_act/startdt_con/stopdt_act/stopdt_con/testfr_act/testfr_con/s/i；direction up/down"
         },
         "ioa": {
           "type": "uint32",
@@ -4958,7 +4962,8 @@
       "fields": {
         "commands": {
           "type": "list",
-          "default": []
+          "default": [],
+          "description": "命令列表；item 键集 kind/rosctr/pdu_ref/items/value/err_class/err_code/force_rosctr/pad_pdu_len/szl_id/szl_index；kind 取值 read(缺省)/write/keepalive/readsZL/read_szl/error；items 子键 area/db_number/address/bit/transport_size/length/data；[] = setup-only 形"
         },
         "pdu_ref": {
           "type": "uint16",
