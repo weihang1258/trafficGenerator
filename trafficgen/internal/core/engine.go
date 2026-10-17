@@ -454,10 +454,13 @@ func (e *Engine) Start() error {
 		e.startCPUTime = usage
 	}
 
+	// D-PERF-1（复测回执 J1 小注）：output_workers 打生效值（shard 1:1
+	// 映射强制 = packet_workers），配置值在上方 forcing 日志——两处口径
+	// 不再一个打配置一个打生效。
 	zap.L().Info("engine started",
 		zap.Int("config_workers", e.config.ConfigWorkers),
 		zap.Int("packet_workers", e.config.PacketWorkers),
-		zap.Int("output_workers", e.config.OutputWorkers),
+		zap.Int("output_workers", len(e.outputWorkers)),
 	)
 
 	return nil

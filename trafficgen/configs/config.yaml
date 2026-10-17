@@ -1,7 +1,7 @@
 # Server configuration
 server:
   host: "0.0.0.0"
-  port: 8082
+  port: 0 # REST HTTP 对外口关闭（发布版唯一对外端口=MCP，见 mcp.http.listen；server.port=0 时 REST 对象仅承担引擎回调落库）
   mode: "release" # debug, release, test
 
 # Database configuration
@@ -76,9 +76,9 @@ metrics:
 filesystem:
   root: "data/filesystem"
 
-# MCP configuration (flowB). stdio off -- we use HTTP so the same trafficgen
-# process can serve both REST (port 8082) and MCP HTTP (port 8081) without
-# stdout conflicts.
+# MCP configuration (flowB). stdio off -- HTTP transport (mcp.http.listen,
+# default 8086) is the ONLY external surface in release builds; REST HTTP is
+# disabled by default (server.port=0, D-PORT-1).
 mcp:
   enabled: true
   service_user_id: "admin"

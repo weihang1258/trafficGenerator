@@ -805,6 +805,13 @@ func (app *Application) Start() error {
 			zap.String("host", app.config.Server.Host),
 			zap.Int("port", app.config.Server.Port),
 		)
+		// D-PORT-1：server.port=0（发布缺省）→ 不起 REST HTTP 监听，唯一
+		// 对外端口是 MCP（mcp.http.listen）。Server 对象已在 initServer
+		// 构建并注册引擎回调（任务状态落库依赖），此处只跳过 HTTP。
+		if app.config.Server.Port == 0 {
+			zap.L().Info("REST HTTP disabled (server.port=0); MCP is the only external listener")
+			return
+		}
 		if err := app.server.Start(); err != nil && err != http.ErrServerClosed {
 			zap.L().Fatal("server error", zap.Error(err))
 		}
