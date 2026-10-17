@@ -503,7 +503,8 @@
       "fields": {
         "events": {
           "type": "list",
-          "default": []
+          "default": [],
+          "description": "事件编排列表；item 键集 kind/result/connect_auth 面；kind 取值 connect/auth_request/auth_response/sql_request/sql_response/close；result 取值 success/error"
         },
         "payload_size": {
           "type": "string",
@@ -936,10 +937,12 @@
           "type": "bool"
         },
         "method": {
-          "type": "string"
+          "type": "string",
+          "description": "取值 getwork（唯一）"
         },
         "profile": {
-          "type": "string"
+          "type": "string",
+          "description": "取值 doh_http1_plain"
         },
         "sessions": {
           "type": "list"
@@ -3946,7 +3949,8 @@
           "type": "string"
         },
         "profile": {
-          "type": "string"
+          "type": "string",
+          "description": "取值 onvif_soap12_http"
         },
         "sessions": {
           "type": "list"
@@ -4899,7 +4903,8 @@
         },
         "profile": {
           "type": "string",
-          "default": ""
+          "default": "",
+          "description": "取值 rtmfp_baseline/rtmfp_low_latency"
         },
         "role": {
           "type": "string",

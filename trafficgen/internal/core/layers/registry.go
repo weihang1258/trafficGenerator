@@ -760,7 +760,7 @@ func buildDefaultRegistry() {
 		DependsOn:   []string{"udp"},
 		TransportOn: []string{"udp"}, // RTMFP 仅 UDP 载体——transport-dup 检查据此报 carrier 锚词
 		Fields: map[string]FieldSchema{
-			"profile":            {Type: "string", Default: ""},
+			"profile":            {Type: "string", Default: "", Description: "取值 rtmfp_baseline/rtmfp_low_latency"},
 			"role":               {Type: "string", Default: ""},
 			"keepalive_interval": {Type: "int", Default: 0, Min: 0, Max: 0},
 			"ping_count":         {Type: "int", Default: 0, Min: 0, Max: 0},
@@ -1170,8 +1170,8 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"http"},
 		FieldContract: map[string]string{"tcp.dst_port": "80"},
 		Fields: map[string]FieldSchema{
-			"profile":    {Type: "string"}, // 取值 doh_http1_plain
-			"method":     {Type: "string"},
+			"profile":    {Type: "string", Description: "取值 doh_http1_plain"},
+			"method":     {Type: "string", Description: "取值 getwork（唯一）"},
 			"uri":        {Type: "string"},
 			"concurrent": {Type: "bool"},
 			"sessions":   {Type: "list"},
@@ -1186,7 +1186,7 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"http"},
 		FieldContract: map[string]string{"tcp.dst_port": "80"},
 		Fields: map[string]FieldSchema{
-			"profile":      {Type: "string"}, // 取值 onvif_soap12_http
+			"profile":      {Type: "string", Description: "取值 onvif_soap12_http"},
 			"soap_version": {Type: "string"},
 			"charset":      {Type: "string"},
 			"content_type": {Type: "string"},
@@ -1325,7 +1325,7 @@ func buildDefaultRegistry() {
 			// events/sessions 数组缺省 []interface{}{}（postgresql 同款）；
 			// payload_size 缺省 ""（validator 仅接受 profile_minimum_nonempty）。
 			"wire_profile": {Type: "string", Default: ""}, // 必填。取值 dm8_profile_pending/length_boundary
-			"events":       {Type: "list", Default: []interface{}{}},
+			"events":       {Type: "list", Default: []interface{}{}, Description: "事件编排列表；item 键集 kind/result/connect_auth 面；kind 取值 connect/auth_request/auth_response/sql_request/sql_response/close；result 取值 success/error"},
 			"sessions":     {Type: "list", Default: []interface{}{}},
 			"payload_size": {Type: "string", Default: ""},
 			// wire_fault 否定测试故障对象 {"kind":..., "value":...}——
