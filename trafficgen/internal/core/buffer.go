@@ -142,12 +142,20 @@ func (rb *RingBuffer) IsFull() bool {
 func (rb *RingBuffer) Status() map[string]interface{} {
 	rb.mu.RLock()
 	defer rb.mu.RUnlock()
+	// D-REQ-1 批 5（客户端回执 #3 §四.1）：环形快照缓冲的 "full" 在稳态下
+	// 恒真（count=4096=size 属正常——旧条目保留至被覆盖，非积压信号）。
+	// note 键显式说明语义，防下游把 full 当积压误判。
+	note := ""
+	if rb.count >= rb.size {
+		note = "ring snapshot full is normal steady state (old entries retained until overwritten); not a backpressure signal"
+	}
 	return map[string]interface{}{
 		"count":     rb.count,
 		"size":      rb.size,
 		"bytes":     rb.bytes,
 		"max_bytes": rb.maxBytes,
 		"full":      rb.count >= rb.size,
+		"note":      note,
 	}
 }
 

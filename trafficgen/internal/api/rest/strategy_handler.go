@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -333,6 +334,33 @@ func (h *StrategyHandler) List(c *gin.Context) {
 			CreatedAt:   s.CreatedAt.Unix(),
 			UpdatedAt:   s.UpdatedAt.Unix(),
 		}
+	}
+
+	// D-REQ-1 批 5（客户端回执 #3 §四.2）：可选分页——page/size 任一给定时
+	// 返回 {items,page,size,total} 封装（与 tasks/list 同风格）；缺省保持
+	// 裸数组向后兼容（既有调用方零破坏）。size≤0 视为缺省 50。
+	page := c.Query("page")
+	size := c.Query("size")
+	if page != "" || size != "" {
+		pg, sz := 1, 50
+		if v, err := strconv.Atoi(page); err == nil && v > 0 {
+			pg = v
+		}
+		if v, err := strconv.Atoi(size); err == nil && v > 0 {
+			sz = v
+		}
+		start := (pg - 1) * sz
+		if start > len(result) {
+			start = len(result)
+		}
+		end := start + sz
+		if end > len(result) {
+			end = len(result)
+		}
+		Success(c, map[string]interface{}{
+			"items": result[start:end], "page": pg, "size": sz, "total": len(result),
+		})
+		return
 	}
 
 	Success(c, result)
