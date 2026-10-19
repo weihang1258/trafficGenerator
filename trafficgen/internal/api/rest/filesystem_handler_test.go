@@ -1,6 +1,7 @@
 package rest
 
 import (
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ftp"
 	"bytes"
 	"context"
 	"crypto/sha256"
