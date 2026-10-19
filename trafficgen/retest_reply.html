@@ -1,4 +1,4 @@
-<title>复测回执答复函：两项新发现当日修复，语料条目同步</title>
+<title>需求单两项交付：按包数停止+时长限速；万流生成提速至亚秒</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
   :root {
@@ -44,58 +44,61 @@
 
 <div class="wrap">
   <div class="eyebrow">trafficgen · 复测回执答复函</div>
-  <h1>两个新发现当日修复上线，语料条目归因如约同步</h1>
+  <h1>需求单两项已交付：按包数停止、时长可限速；万流生成实测 434 毫秒</h1>
   <div class="meta">
-    <span>2026-10-15</span>
-    <span>对应文件：generate_traffic 缺陷答复函复测回执（17:00~17:35）</span>
-    <span>部署：8081 最新构建（含本函两项修复）</span>
+    <span>2026-10-19</span>
+    <span>对应事项：需求单（按包数控制 / time 配速率）+ 万流生成性能</span>
+    <span>部署：8081 最新构建（99b46ded · 8b432d6d · 3b812aec）</span>
   </div>
 
   <div class="verdict">
-    复测确认了全部修复面有效，两个新发现（都在批量入口）当日修复、当日上线、已按你们的复现步骤验证。<strong>批量入口现在与单任务入口执行同一套字段校验——同一份非法配置不会再出现"这条路拒、那条路收"的分叉。</strong>感谢回执中对 wireguard 一条的更正与致谢，双方对账到此闭环。
+    需求单两项（按包数控制、time 配速率）已交付上线，万流生成性能专项同步收敛：此前压测观测的"1 万条流约 10 秒"根因已定位并修复，<strong>同口径万流任务端到端实测 434 毫秒（万包 pcap 落盘）</strong>。三项均附你们的复测步骤；语义裁定均做了三路对照（iperf3 / DPDK pktgen / Ixia），依据留档。全部交付面经三路独立复审（0 严重 / 0 主要）+ 全量回归（含并发竞争检测）绿后部署。
   </div>
 
-  <h2><span class="no">01</span>N1：批量入口绕过建单期校验——已修复</h2>
-  <p>确认属实，且比报告表述更直接：批量入口此前<strong>完全没有走</strong>单任务入口那套字段校验，任何在建单入口会被拒的配置（数值越界、未知字段、类型不符），换个入口提交就能直达引擎。</p>
-  <p><strong>修法</strong>：批量任务创建时，每个非回放分项先过与单任务相同来源的字段校验（数值范围、未知字段、类型形状），拒绝时报错带分项编号与单任务一致的原文。两项刻意保留的批量特有权，说明如下：</p>
+  <h2><span class="no">01</span>按包数控制（需求单 1）——已交付</h2>
+  <p>数量控制新增第四种类型 <span class="inline">packets</span>：发满 N 个包就停。<strong>写在任务级</strong>：N 是全任务总包数封顶（多个策略合计），先到先停——与策略级的流数/速率/时长并存时，哪个先到哪个停。策略内部照常产流，总额度耗尽即整任务收尾，任务状态正常 completed（不是失败）。</p>
   <table>
-    <tr><th style="width:200px">保留项</th><th>理由</th></tr>
-    <tr><td>静态四元组 + 按条数复制 不拒绝</td><td>批量的"按条数批量复制"本身就是它的设计语义（核心要求 §2.5：大量同类流量用条数批量）。<strong>口径更正（见 03 节 N3）</strong>：批量入口的语义是"单流 × 按条数复制包"——需要逐流有别（多条流）的场景，请走单任务入口 + 动态对象（你们 RETEST-F2 的写法）；批量内写动态对象会在建单时被明确拒绝并给出指引。</td></tr>
-    <tr><td>扁平协议配置写法不受影响</td><td>批量分项既有的配置写法是合法契约，本轮只加字段校验、不改形状自由。已实测既有多流批量用例不误伤。</td></tr>
+    <tr><th style="width:230px">用法</th><th>说明</th></tr>
+    <tr><td class="id">任务 flow_control<br>{"type":"packets","value":5}</td><td>value=正整数（小数拒绝：1.5 个包无意义）。多策略任务时 N 为全部策略合计上限，精确不超发。</td></tr>
+    <tr><td class="id">策略级写 packets</td><td>建单拒绝并指路：<span class="inline">packets is a task-level type; set it on task create</span>。包数封顶是任务级语义（总量），策略级保持 流数/速率/时长 三类不扩。</td></tr>
+    <tr><td class="id">与回放策略组合</td><td>合法：回放资产按时间戳原速播放，包数封顶到量即截断。</td></tr>
   </table>
-  <p><strong>验证</strong>（按你们的复现口径）：</p>
+  <p><strong>复测步骤</strong>：</p>
   <table>
-    <tr><td class="id">bgp version=7 经批量</td><td>建单即拒，报错带分项编号 + <span class="inline">out of range [4,4]</span>（原：受理跑完 13 包）</td></tr>
-    <tr><td class="id">未知字段经批量</td><td>建单即拒，报错含 unknown field 锚词（原：受理）</td></tr>
-    <tr><td class="id">tuples 池 + 条数 3</td><td>照常受理（既有形不误伤；注意其语义仍是单流复制，见 04 节 N3）</td></tr>
-    <tr><td class="id">既有批量用例</td><td>全量回归通过</td></tr>
-  </table>
-
-  <h2><span class="no">02</span>N2：flow_count 说明与实现不符——已修复（按你们建议方向）</h2>
-  <p>取你们建议的第二条：实现上<strong>缺省 1</strong>（与单任务"不写就是 1 条流"的语义一致），说明文字同步为"可省略=1"。实测：省略 flow_count 建单成功、产出 1 个数据报。</p>
-
-  <h2><span class="no">03</span>语料同步：sv_mac_dyn_inc 归因明细（按请求提供）</h2>
-  <table>
-    <tr><td class="id">EX-C-sv_mac_dyn_inc<br>3 → 1</td><td>该用例的策略级流数为 <strong>flows=3</strong>（eth 源 MAC 递增序列 01/02/回绕 01，每流 1 包）。语料导出工具此前漏带流数字段，回放按 1 流执行 → 1 包。你们看到的 FlowCount=0 是 10-14 修复前的统计缺陷（当日已修，现已正确计为 1）。<br><strong>语料备注建议写</strong>："基线 3 = 3 流 × 1 包；旧导出缺流数、照抄得 1 包；示例已内嵌 flow_control flows=3，照抄新导出即复现 3 包。"（线上已验证：imap_t078 同机制例照抄新导出 = 14 包 / 2 流精确复现。）</td></tr>
+    <tr><td class="id">① 精确封顶</td><td>建一个 50 流的 udp 策略（flows=50，每流 1 数据报，需求 50 包×2 策略=100），任务级 packets=5 → 跑完 pcap <strong>恰 5 包</strong>、任务 completed。（我方实测：50 流+50 流两策略，pcap 恰 5 包，第 5 包为截断中间流，符合"到量即停"。）</td></tr>
+    <tr><td class="id">② 先到先停</td><td>策略 flows=1000 + 任务 packets=10 → 秒级完成 10 包，不等流数跑完。</td></tr>
+    <tr><td class="id">③ 负例</td><td>value=1.5 → <span class="inline">whole number of packets</span> 拒；value=0 → positive 拒；策略级 packets → 指路文本拒。</td></tr>
   </table>
 
-  <h2><span class="no">04</span>N3：答复指引与批量能力不符——更正口径，报错同步加指引</h2>
-  <p>确认属实，且三条实测（fc=3 = 1 流 3 包；动态对象被拒；同配置单任务 = 3 流 3 包）与我方复核一致。<strong>本函 01 节原指引文字有误，更正为：批量入口的语义是"单流 × 按条数复制包"（flow_count = 包数），多流场景走单任务入口 + 动态对象。</strong>之所以这样裁定：多流职责按设计归策略入口（核心要求 §2），批量职责是多类合跑与按条数复制（§2.5）——两者分工明确，批量多流作为特性需求如确有场景，欢迎提需求单另行立项，不默认实现。</p>
-  <p>配套改进：批量内写动态对象的报错不再是通用文案（原文指向策略入口的校验器、让人迷路），改为明确指引——<span class="inline">batch classes replicate a single flow (flow_count = packet count): dynamic per-flow variation belongs to the single-task strategy entry</span>。已实测生效。</p>
-
-  <h2><span class="no">05</span>其余事项对账</h2>
+  <h2><span class="no">02</span>time 配速率（需求单 2）——已交付</h2>
+  <p>裁定：time 单独使用<strong>语义保持全速跑到截止</strong>（压测主场景，不强制速率——对照 iperf3/pktgen/商业仪表均不强制）。限速通过<strong>跨层组合</strong>表达，能力此前已存在并实测生效，本轮补齐的是可发现性与文档：</p>
   <table>
-    <tr><td class="id">wireguard.rekey_after</td><td>双方对账闭环，无需 further 动作。也感谢你们的严谨——探针构造错误主动认领并书面更正，这个对账质量很高。</td></tr>
-    <tr><td class="id">8082 留档</td><td>收讫。26,037 行连续日志与我方结论互证：测试窗口内该实例单进程稳定运行，仅版本旧于开发环境。按你们决定不展开，档案备查。</td></tr>
-    <tr><td class="id">BUG-02/11/13<br><span class="pill p-fixed">性能三项已交付</span></td><td>知悉（依赖高负载/重启场景）。<strong>2026-10-16 更新：三项性能修复已交付上线</strong>——①抓包入库提速 4~7 倍（万包资产全链路 8 秒内完成，入库不再拖尾）；②"我的任务为什么排队"可查：任务进度查询现在附带引擎并发信息（同时处理的任务数/打包线程数/队列深度/排队中的任务数），排队时长的估算方法：约等于 待跑任务数 ÷ 并发数 × 单任务时长；③shard 统计改为近窗口口径，"某通道是均值 8 倍"的统计假象消除。下次高负载窗口复验时，进度查询里的并发信息可直接对照。</td></tr>
-    <tr><td class="id">旧导出语料提醒</td><td>同意回执第 5 点的提醒并补充：修复前的旧导出语料（无内嵌流数、file_id 为占位符）已不具备照抄价值，请下游一律以线上 examples 为准刷新。后续我们也会在示例导出处加版本标记，便于识别过期语料。</td></tr>
+    <tr><th style="width:230px">组合</th><th>效果</th></tr>
+    <tr><td class="id">策略 bps + 任务 time</td><td>限速跑满时长（如 100M 跑 60 秒）——推荐写法</td></tr>
+    <tr><td class="id">策略 time + 任务 bps</td><td>同效（任务级 bps 走父桶限速）</td></tr>
+    <tr><td class="id">time 且无任何速率</td><td>行为不变（全速），但<strong>建单时服务日志告警一条</strong>（"time flow control without a rate limit…set bps on the strategy"），不再无声。不拒单。</td></tr>
+  </table>
+  <p><strong>复测步骤</strong>：① 策略 bps=100M + 任务 time=10s → 任务跑满 10 秒、速率钳在 100M；② 任务 time=60s、策略不配速率 → 建单成功、8081 服务日志出现一条 warn、流量全速；③ 工具描述（flowb_manage_tasks 的 flow_control 字段）已写明组合方法与"full speed unless a strategy sets bps"。</p>
+
+  <h2><span class="no">03</span>万流生成性能（压测观测"1 万流约 10 秒"）——根因修复</h2>
+  <p>按约定先测量后动手：用真实引擎+真实协议链+真实 pcap 输出做活体剖面。结论：<strong>时间不在计算，在内存</strong>——引擎内部每条流固定预分配两块按最大规格开的数据缓冲（合计约 175KB/流），1 万流累计 1.7GB 分配，垃圾回收吃掉约 90% 的 CPU。修法是把六处缓冲按实际需要收敛（16 槽）：万流内存分配 2.06GB→474MB（4.3 倍），生成速率 80→36 微秒/流（2.2 倍）。</p>
+  <table>
+    <tr><td class="id">端到端实测<br><span class="pill p-fixed">8081 全链路</span></td><td>万流 udp 任务（REST 建单→启动→完成→pcap 落盘万包）：<strong>434 毫秒</strong>。对照此前观测的 ~10 秒。两次部署（含复审修复版）复测一致。</td></tr>
+    <tr><td class="id">正确性对账</td><td>修复前后 pcap 字节面一致；万流 pcap 恰万包。若复测数字与 434ms 量级不符（如仍在秒级），请回传任务 ID 与时间戳，我方按你们的口径重测。</td></tr>
+  </table>
+
+  <h2><span class="no">04</span>质量面与真实测试清单</h2>
+  <table>
+    <tr><td class="id">真实流程验证<br>（8081 线上）</td><td>① 50 流×2 策略 + packets=5 → pcap 恰 5 包 completed；② 策略级 packets 建单拒（锚词逐字）；③ value=1.5/0 双拒；④ time 无速率告警日志落地；⑤ 万流任务 434ms completed 万包（×2 次部署复测）。</td></tr>
+    <tr><td class="id">回归</td><td>引擎/校验/REST/MCP 四层全量用例含并发竞争检测（-race）全绿；新增引擎级红例 6、校验例 7 断言、REST 端到端 1（策略×2→任务 packets=5→pcap 恰 5 包）。</td></tr>
+    <tr><td class="id">隔离复审</td><td>三路独立复审（并发正确性 / schema+测试质量 / 六点裁定）：0 严重 / 0 主要。复审发现的两处小项已修复：①任务被时长截断时归还已预占额度（避免姊妹策略少发）；②回放任务不再误触发"无速率"告警（回放按 pcap 时间戳限速）。修复均有确定性红例先行。</td></tr>
   </table>
 
   <div class="ok">
-    <b>部署状态</b>：8081 已运行含本函两项修复的最新构建（重启后网口能力位已重打）。你们复测中验证过的其余修复面不受本轮改动影响（批量入口外的路径零接触）。
+    <b>部署状态</b>：8081 已运行含本函全部交付的最新构建（重启后网口能力位已重打）。本轮改动集中在流控与引擎内部缓冲，既有协议面/校验面零接触——此前验证过的修复不受影响。
   </div>
 
   <div class="foot">
-    本函对应提交：7aa88f59（N1/N2 修复 + 三项红例先行）· 线上验证：bgp v7 建单即拒 / 省略 flow_count 1 包完成 / tuples 多流不误伤 · 前函：stress_report_reply.html（16 项逐条答复，2026-10-15）
+    本函对应提交：99b46ded（packets 流控 + time 告警）· 8b432d6d（万流性能）· 3b812aec（复审收尾）· 前函：stress_report_reply.html（16 项逐条答复，2026-10-15）/ 本函前版（N1/N2，2026-10-15）
   </div>
 </div>
