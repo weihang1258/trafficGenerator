@@ -16,17 +16,18 @@
       "properties": {
         "type": {
           "title": "Flow control type",
-          "description": "flows = flow count, bps = bits per second, time = seconds.",
+          "description": "flows = flow count, bps = bits per second, time = seconds, packets = total packets before stopping (task level only: caps the aggregate across all strategies, first ceiling reached wins; rejected at strategy level).",
           "type": "string",
           "enum": [
             "flows",
             "bps",
-            "time"
+            "time",
+            "packets"
           ]
         },
         "value": {
           "title": "Flow control value",
-          "description": "Flow count, bits per second, or seconds. Must be positive.",
+          "description": "Flow count, bits per second, seconds, or packet count (packets type). Must be positive; packets must be a whole number.",
           "type": "number",
           "exclusiveMinimum": 0
         }

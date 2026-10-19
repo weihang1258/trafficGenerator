@@ -60,7 +60,7 @@ type CreateStrategyRequest struct {
 
 // FlowControlRequest represents flow control configuration.
 type FlowControlRequest struct {
-	Type  string  `json:"type" binding:"required"`  // "flows", "bps", "time" (cps/ratio dropped)
+	Type  string  `json:"type" binding:"required"`  // "flows", "bps", "time" (cps/ratio dropped; "packets" is task level only)
 	Value float64 `json:"value" binding:"required"` // 流数/速率/时间
 }
 
@@ -236,7 +236,7 @@ func (h *StrategyHandler) createReplayStrategy(c *gin.Context, userID string, re
 
 // createSynthStrategy validates + persists a synth-mode strategy (the original
 // path). cps/ratio flow-control types are rejected; only flows/bps/time are
-// accepted.
+// accepted ("packets" is a task-level type — rejected here with a pointer).
 func (h *StrategyHandler) createSynthStrategy(c *gin.Context, userID, mode string, req *CreateStrategyRequest) {
 	// Unified schema gate (shape + network formats, ranges, layers inference,
 	// protocol allowlist, sub-config ranges, TFTP tid rule). Inferred protocol

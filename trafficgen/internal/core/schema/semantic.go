@@ -102,6 +102,10 @@ func validateStrategySemantic(mode, protocol string, config map[string]any, fc *
 	if fc != nil {
 		switch fc.Type {
 		case "flows", "bps", "time":
+		case "packets":
+			// D-REQ-1 批 1：packets 是任务级类型（总包数封顶），策略级
+			// 不做半吊子语义——拒绝并指路。
+			fail("invalid flow_control type: must be flows, bps, or time (packets is a task-level type; set it on task create)")
 		default:
 			fail("invalid flow_control type: must be flows, bps, or time")
 		}
@@ -531,13 +535,18 @@ func ValidateTaskCreate(doc map[string]any, strategies []StrategyView) Validatio
 		if fc, ok := doc["flow_control"].(map[string]any); ok {
 			if t, _ := fc["type"].(string); t != "" {
 				switch t {
-				case "flows", "bps", "time":
+				case "flows", "bps", "time", "packets": // packets: D-REQ-1 批 1（任务级总包数封顶）
 				default:
-					return ValidationErrors{{Message: "invalid flow_control type: must be flows, bps, or time"}}
+					return ValidationErrors{{Message: "invalid flow_control type: must be flows, bps, packets, or time"}}
 				}
 			}
 			if v, ok := fc["value"].(float64); ok && v <= 0 {
 				return ValidationErrors{{Message: "flow_control value must be positive"}}
+			}
+			if t, _ := fc["type"].(string); t == "packets" {
+				if v, ok := fc["value"].(float64); ok && v > 0 && v != float64(int64(v)) {
+					return ValidationErrors{{Message: "flow_control packets value must be a whole number of packets"}}
+				}
 			}
 		}
 		return shapeErrs
@@ -546,13 +555,18 @@ func ValidateTaskCreate(doc map[string]any, strategies []StrategyView) Validatio
 	if fc, ok := doc["flow_control"].(map[string]any); ok {
 		if t, _ := fc["type"].(string); t != "" {
 			switch t {
-			case "flows", "bps", "time":
+			case "flows", "bps", "time", "packets": // packets: D-REQ-1 批 1（任务级总包数封顶）
 			default:
-				errs = append(errs, &FieldError{Message: "invalid flow_control type: must be flows, bps, or time"})
+				errs = append(errs, &FieldError{Message: "invalid flow_control type: must be flows, bps, packets, or time"})
 			}
 		}
 		if v, ok := fc["value"].(float64); ok && v <= 0 {
 			errs = append(errs, &FieldError{Message: "flow_control value must be positive"})
+		}
+		if t, _ := fc["type"].(string); t == "packets" {
+			if v, ok := fc["value"].(float64); ok && v > 0 && v != float64(int64(v)) {
+				errs = append(errs, &FieldError{Message: "flow_control packets value must be a whole number of packets"})
+			}
 		}
 		if t, _ := fc["type"].(string); t == "bps" {
 			for _, s := range strategies {

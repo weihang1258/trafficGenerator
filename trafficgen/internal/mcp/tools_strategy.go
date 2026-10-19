@@ -14,12 +14,12 @@ import (
 
 // flowControlInput mirrors rest.FlowControlRequest for tool input.
 type flowControlInput struct {
-	Type  string  `json:"type" jsonschema:"flow control type: flows, bps, or time"`
-	Value float64 `json:"value" jsonschema:"flow control value (flow count, bps, or seconds)"`
+	Type  string  `json:"type" jsonschema:"flow control type: flows, bps, or time at strategy level; packets (stop after N total packets) is task level only"`
+	Value float64 `json:"value" jsonschema:"flow control value: flow count / bits per second / seconds / packets — positive; packets must be a whole number"`
 }
 
 type manageStrategiesInput struct {
-	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
+	Description string                 `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
 	Action      string                 `json:"action" jsonschema:"operation: create|list|get|update|delete|list_tasks — update is a FULL replace: it requires config (create-shaped body), not partial fields"`
 	ID          string                 `json:"id,omitempty" jsonschema:"strategy id (for get/update/delete/list_tasks)"`
 	Name        string                 `json:"name,omitempty" jsonschema:"strategy name (for create/update)"`

@@ -65,6 +65,17 @@ type Task struct {
 	Ctx context.Context `json:"-"` // per-task context for cancellation
 }
 
+// fcKey returns the key for task-level shared ceiling state (rate bucket /
+// flow counter / packet counter): the parent task ID so all strategies of
+// one REST task share the ceiling, falling back to the engine task ID for
+// standalone tasks (same rule as the bps parent bucket).
+func (t Task) fcKey() string {
+	if t.ParentTaskID != "" {
+		return t.ParentTaskID
+	}
+	return t.ID
+}
+
 // TaskStatus represents the current status of a task.
 type TaskStatus struct {
 	TaskID      string    `json:"task_id"`
@@ -757,23 +768,23 @@ type MOXAStreamBlock struct {
 // Flat keys (spec.SOMEIP.*) drive the message header, SD/TP sub-configs, and
 // event lists. Auto-response generates REQUEST→RESPONSE pairs.
 type SOMEIPConfig struct {
-	ServiceID        uint16          `json:"service_id,omitempty"`
-	MethodID         uint16          `json:"method_id,omitempty"`
-	ClientID         uint16          `json:"client_id,omitempty"`
-	SessionStart     uint16          `json:"session_start,omitempty"`
-	SessionInc       uint16          `json:"session_inc,omitempty"`
-	ProtocolVersion  uint8           `json:"protocol_version,omitempty"`
-	InterfaceVersion uint8           `json:"interface_version,omitempty"`
-	MessageType      string          `json:"message_type,omitempty"`
-	ReturnCode       uint8           `json:"return_code,omitempty"`
-	AutoResponse     *bool           `json:"auto_response,omitempty"`
-	Direction        string          `json:"direction,omitempty"`
-	Payload          []byte          `json:"payload,omitempty"`
+	ServiceID        uint16 `json:"service_id,omitempty"`
+	MethodID         uint16 `json:"method_id,omitempty"`
+	ClientID         uint16 `json:"client_id,omitempty"`
+	SessionStart     uint16 `json:"session_start,omitempty"`
+	SessionInc       uint16 `json:"session_inc,omitempty"`
+	ProtocolVersion  uint8  `json:"protocol_version,omitempty"`
+	InterfaceVersion uint8  `json:"interface_version,omitempty"`
+	MessageType      string `json:"message_type,omitempty"`
+	ReturnCode       uint8  `json:"return_code,omitempty"`
+	AutoResponse     *bool  `json:"auto_response,omitempty"`
+	Direction        string `json:"direction,omitempty"`
+	Payload          []byte `json:"payload,omitempty"`
 	// FileSource（D-FILE-2 P1）：payload 来自文件源。优先级 FileSource > Payload。
-	FileSource       *filesystem.FileSource `json:"file_source,omitempty"`
-	SD               *SOMEIPSDConfig `json:"sd,omitempty"`
-	TP               *SOMEIPTPConfig `json:"tp,omitempty"`
-	Events           []SOMEIPEvent   `json:"events,omitempty"`
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
+	SD         *SOMEIPSDConfig        `json:"sd,omitempty"`
+	TP         *SOMEIPTPConfig        `json:"tp,omitempty"`
+	Events     []SOMEIPEvent          `json:"events,omitempty"`
 }
 
 // ThriftConfig configures an Apache Thrift Binary Protocol session (TCP 9090).
@@ -10050,16 +10061,16 @@ type MQTTWill struct {
 // (client publishes), "down" = server→client (server publishes down to the
 // subscribing client — models broker forwarding a retained/matched message).
 type MQTTMessage struct {
-	Topic     string `json:"topic,omitempty"`     // PUBLISH topic; empty = error (除非 Topic Alias已建映射)
-	Payload   string `json:"payload,omitempty"`   // application message bytes
+	Topic   string `json:"topic,omitempty"`   // PUBLISH topic; empty = error (除非 Topic Alias已建映射)
+	Payload string `json:"payload,omitempty"` // application message bytes
 	// FileSource（D-FILE-2 P1）：PUBLISH 载荷来自文件源——生成器解析注入
 	// Payload（Go string 保字节序，二进制无损）。优先级 FileSource > Payload。
 	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
-	QoS       int    `json:"qos,omitempty"`       // 0 (default), 1, 2
-	Retain    bool   `json:"retain,omitempty"`    // PUBLISH retain flag
-	DUP       bool   `json:"dup,omitempty"`       // PUBLISH dup flag (QoS>0 only)
-	PacketID  uint16 `json:"packet_id,omitempty"` // 0 = auto-increment from 1
-	Direction string `json:"direction,omitempty"` // "up" (default) or "down"
+	QoS        int                    `json:"qos,omitempty"`       // 0 (default), 1, 2
+	Retain     bool                   `json:"retain,omitempty"`    // PUBLISH retain flag
+	DUP        bool                   `json:"dup,omitempty"`       // PUBLISH dup flag (QoS>0 only)
+	PacketID   uint16                 `json:"packet_id,omitempty"` // 0 = auto-increment from 1
+	Direction  string                 `json:"direction,omitempty"` // "up" (default) or "down"
 
 	// Properties (5.0 only): PUBLISH-level properties. Ignored when
 	// MQTTConfig.Version=4.

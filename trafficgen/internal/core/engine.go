@@ -89,6 +89,11 @@ type Engine struct {
 	// Flow counters for task-level flows ceiling. Keyed by parentTaskID.
 	flowCounters map[string]*int64
 
+	// Packet counters for task-level packets ceiling (D-REQ-1 批 1: total
+	// packets across all strategies of the parent task). Keyed by
+	// parentTaskID (or task ID when standalone).
+	packetCounters map[string]*int64
+
 	// State
 	running   atomic.Bool
 	wg        sync.WaitGroup
@@ -208,14 +213,15 @@ type EngineConfig struct {
 // NewEngine creates a new traffic engine.
 func NewEngine(config EngineConfig) *Engine {
 	return &Engine{
-		config:        config,
-		planners:      make(map[string]ProtocolPlanner),
-		rateLimiters:  make(map[string]*TokenBucket),
-		flowCounters:  make(map[string]*int64),
-		taskStore:     make(map[string]*taskEntry),
-		outputWriters: make(map[string]PacketWriter),
-		dualWriters:   make(map[string]*DualPortWriter),
-		layerPlanners: make(map[string]ProtocolPlanner),
+		config:         config,
+		planners:       make(map[string]ProtocolPlanner),
+		rateLimiters:   make(map[string]*TokenBucket),
+		flowCounters:   make(map[string]*int64),
+		packetCounters: make(map[string]*int64),
+		taskStore:      make(map[string]*taskEntry),
+		outputWriters:  make(map[string]PacketWriter),
+		dualWriters:    make(map[string]*DualPortWriter),
+		layerPlanners:  make(map[string]ProtocolPlanner),
 	}
 }
 
@@ -706,6 +712,10 @@ func (e *Engine) SubmitTask(task Task) error {
 	if task.TaskFCType == "flows" && task.ParentTaskID != "" {
 		e.getOrCreateFlowCounter(task.ParentTaskID)
 	}
+	// Task-level packets ceiling (D-REQ-1 批 1): same lazy-create pattern.
+	if task.TaskFCType == "packets" {
+		e.getOrCreatePacketCounter(task.fcKey())
+	}
 
 	// P2c 层链驱动生成: a task carrying a "layers" config gets a per-task
 	// ChainPlanner from the injected factory (wired to layers.BuildLayersPlanner
@@ -746,6 +756,17 @@ func (e *Engine) SubmitTask(task Task) error {
 		taskCtx, cancel = context.WithTimeout(e.ctx, time.Duration(task.Spec.Duration)*time.Second)
 	default:
 		taskCtx, cancel = context.WithCancel(e.ctx)
+	}
+
+	// D-REQ-1 批 2（time 配速率）：time 截止默认全速——语义保持（§4.17
+	// 候选 c 强制 bps 被否，破坏满速压测），但建单期告警一次保证可发现性
+	// （候选 b）。限速表达=跨层组合：策略 bps + 任务 time（D-ROBUST-2 实测）。
+	// batch 入口不可达：batch 引擎任务 TaskFCType 恒空且 Spec 零值。
+	// TaskFCType=bps 时流量已被父桶限速（策略 time + 任务 bps 的合法组合），
+	// 不属"无速率"，排除。
+	if task.TaskFCType != "bps" && (task.TaskFCType == "time" || task.Spec.Duration > 0) && task.Spec.BPS == "" {
+		zap.L().Warn("time flow control without a rate limit: traffic runs at full speed until the deadline; to pace it, set bps on the strategy (strategy bps + task time compose, first reached wins)",
+			zap.String("task_id", task.ID))
 	}
 
 	// Initialize task status
@@ -1149,8 +1170,23 @@ func (e *Engine) getOrCreateFlowCounter(parentTaskID string) *int64 {
 	return &v
 }
 
+// getOrCreatePacketCounter returns the shared packet counter for a parent
+// task, creating it on first access. Used by task-level "packets" ceilings
+// (D-REQ-1 批 1): each engine task claims one slot per forwarded config and
+// stops once the task-level total is reached (first ceiling wins).
+func (e *Engine) getOrCreatePacketCounter(key string) *int64 {
+	e.rateMu.Lock()
+	defer e.rateMu.Unlock()
+	if c, ok := e.packetCounters[key]; ok {
+		return c
+	}
+	var v int64
+	e.packetCounters[key] = &v
+	return &v
+}
+
 // CleanupTaskFlowControl removes the parent rate-limiter bucket and shared
-// flow counter for a parent task, plus any leftover child buckets (safety
+// flow/packet counters for a parent task, plus any leftover child buckets (safety
 // net). Called by the task handler once ALL strategies of a parent task have
 // finished (completed/failed/stopped), so the rateLimiters/flowCounters maps
 // don't grow unbounded over the engine lifetime.
@@ -1159,6 +1195,7 @@ func (e *Engine) CleanupTaskFlowControl(parentTaskID string) {
 	defer e.rateMu.Unlock()
 	delete(e.rateLimiters, parentTaskID)
 	delete(e.flowCounters, parentTaskID)
+	delete(e.packetCounters, parentTaskID)
 	// Child buckets are keyed "parentTaskID-strategyID"; sweep any leftovers.
 	prefix := parentTaskID + "-"
 	for k := range e.rateLimiters {

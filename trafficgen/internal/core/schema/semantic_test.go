@@ -281,3 +281,44 @@ func TestSemanticStaticCopyRejection(t *testing.T) {
 		t.Fatalf("⑤ flows=1 flat must also reject, got clean")
 	}
 }
+
+// D-REQ-1 批 1：flow_control type=packets——任务级合法、策略级拒绝、
+// 小数值拒绝、非法类型文本更新。设计：CODE_DESIGN.md D-REQ-1 批 1 定稿。
+func TestTaskCreatePacketsFC(t *testing.T) {
+	// ① 任务级 packets 合法（正整数）→ 无 flow_control 相关错误
+	doc := map[string]any{
+		"name": "t1", "strategy_ids": []any{"s1"},
+		"output_type": "pcap", "output_config": map[string]any{"pcap_path": "x.pcap"},
+		"flow_control": map[string]any{"type": "packets", "value": float64(1000)},
+	}
+	if errs := ValidateTaskCreate(doc, nil); len(errs) != 0 {
+		t.Fatalf("① task-level packets should pass, got %v", errs)
+	}
+	// ② 任务级 packets 小数值拒绝（1.5 个包无意义）
+	doc2 := map[string]any{
+		"name": "t1", "strategy_ids": []any{"s1"},
+		"output_type": "pcap", "output_config": map[string]any{"pcap_path": "x.pcap"},
+		"flow_control": map[string]any{"type": "packets", "value": float64(1.5)},
+	}
+	if errs := ValidateTaskCreate(doc2, nil); len(errs) == 0 || !contains(errs.Error(), "whole number") {
+		t.Fatalf("② want whole-number reject, got %v", errs)
+	}
+	// ③ 策略级 packets 拒绝（报错指路任务级）
+	_, errs := ValidateStrategy("synth", "tcp", map[string]any{"tcp": map[string]any{}},
+		&FlowControl{Type: "packets", Value: 10})
+	if len(errs) == 0 || !contains(errs[0].Message, "invalid flow_control type") {
+		t.Fatalf("③ strategy-level packets should be rejected, got %v", errs)
+	}
+	if !contains(errs[0].Message, "task-level") {
+		t.Fatalf("③ want task-level pointer in message, got %q", errs[0].Message)
+	}
+	// ④ 任务级非法类型文本更新为四类型列举
+	doc4 := map[string]any{
+		"name": "t1", "strategy_ids": []any{"s1"},
+		"output_type": "pcap", "output_config": map[string]any{"pcap_path": "x.pcap"},
+		"flow_control": map[string]any{"type": "xyz", "value": float64(1)},
+	}
+	if errs := ValidateTaskCreate(doc4, nil); len(errs) == 0 || !contains(errs.Error(), "flows, bps, packets, or time") {
+		t.Fatalf("④ want updated type list, got %v", errs)
+	}
+}

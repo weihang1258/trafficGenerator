@@ -277,6 +277,17 @@ func (w *ConfigWorker) processTask(task Task) {
 		flowCounter = w.engine.getOrCreateFlowCounter(task.ParentTaskID)
 	}
 
+	// D-REQ-1 批 1：任务级 packets 封顶——总包数（config 与包 1:1）跨策略
+	// 共享计数，预留式（每包先占槽，超出的一个回吐不转发），合计 ≤N 精确；
+	// 与 time/bps/flows 先到先停。命中后任务按正常完成收敛（下方 0 包守卫
+	// 豁免 pktCeilingHit——姊妹策略吃满额度=封顶履职，非坏 planner）。
+	hasPktCeiling := task.TaskFCType == "packets"
+	var pktCounter *int64
+	pktCeilingHit := false
+	if hasPktCeiling {
+		pktCounter = w.engine.getOrCreatePacketCounter(task.fcKey())
+	}
+
 	// Forward configs to packet workers
 	var configCount int64
 	// 第14轮 B1：time 流控 = 持续发送直到 deadline。此前流循环以 flowCount
@@ -350,9 +361,14 @@ func (w *ConfigWorker) processTask(task Task) {
 		// D-ROBUST-1（BUG-16）：每流一个 plan-error sink——drive 异步错误经
 		// 此透出到 0 包报错，不再只剩掩蔽文案。
 		sink = &PlanErrorSink{}
+		// D-REQ-1 批 1：每流派生可取消子 ctx——packets 封顶命中时 cancel
+		// 它，慢 planner（20ms/包的千包流）在下一次 send 即退出，drain
+		// 秒级完成而非等全流发完。父 taskCtx 的 deadline/cancel 照常传播。
+		taskCtx, planCancel := context.WithCancel(taskCtx)
 		taskCtx = WithPlanErrorSink(taskCtx, sink)
 		configChan, err := planner.Plan(taskCtx, spec)
 		if err != nil {
+			planCancel()
 			// Release the flows-ceiling slot this iteration reserved: a failed
 			// flow produces no traffic, so it must not permanently consume a
 			// slot that sibling strategies could use. (AddInt64 is atomic, so
@@ -373,6 +389,16 @@ func (w *ConfigWorker) processTask(task Task) {
 		}
 
 		for config := range configChan {
+			// D-REQ-1 批 1：每包预留一槽，超出回吐并截断（drain 防 planner
+			// goroutine 阻塞泄漏，镜像 ctx.Done 分支的排空语义）。
+			if hasPktCeiling && atomic.AddInt64(pktCounter, 1) > int64(task.TaskFCValue) {
+				atomic.AddInt64(pktCounter, -1)
+				pktCeilingHit = true
+				planCancel() // 打断慢 planner：下一次 send 即走 ctx.Done 分支
+				for range configChan {
+				}
+				break
+			}
 			config.ClassID = task.ClassID
 			// Propagate flow-level VLAN to the packet's L2 config. Planners do not
 			// copy spec.VLAN into L2Config, so without this the builder never sees
@@ -400,6 +426,7 @@ func (w *ConfigWorker) processTask(task Task) {
 				// Drain remaining configs so the planner goroutine is not blocked
 				// on configChan <- (which would leak it permanently). Planners
 				// generate a finite number of packets, so this drain is bounded.
+				planCancel() // 释放子 ctx；父 deadline 已传播，drain 即时收敛
 				for range configChan {
 				}
 				if w.onTaskDone != nil {
@@ -414,6 +441,10 @@ func (w *ConfigWorker) processTask(task Task) {
 				w.engine.shardCounts[shardIdx].Add(1)
 				configCount++
 			}
+		}
+		planCancel() // 本流通道已耗尽（或封顶后已 cancel），释放子 ctx 资源
+		if pktCeilingHit {
+			break // 封顶命中：后续流只会空转占槽，直接收尾
 		}
 	}
 
@@ -435,7 +466,7 @@ func (w *ConfigWorker) processTask(task Task) {
 		// guard exempts the ceilingHit && !ranFlow case only. If the task
 		// ran a flow (ranFlow) or never hit the ceiling, 0 configs still
 		// mean a broken planner and must fail.
-		if configCount == 0 && taskCtx.Err() == nil && !(ceilingHit && !ranFlow) {
+		if configCount == 0 && taskCtx.Err() == nil && !(ceilingHit && !ranFlow) && !pktCeilingHit {
 			if perr := sink.Load(); perr != nil {
 				w.onTaskDone(task.ID, fmt.Errorf("planner produced 0 packet configs: %w", perr), 0)
 				return
@@ -500,8 +531,27 @@ func (w *ConfigWorker) processReplayTask(task Task) {
 		fc.Ceiling = int64(task.TaskFCValue)
 	}
 
-	configChan, err := w.replayPlanner.PlanReplay(taskCtx, task.Replay, task.ID, task.ClassID, task.UserID, fc)
+	// D-REQ-1 批 1：任务级 packets 封顶在转发点截断（预留式，合计 ≤N）。
+	// 不走 planner 内 fc：截断语义与 synth 同一处收敛（worker 侧），
+	// planner 照常产包、多余的被排空。
+	hasPktCeiling := task.TaskFCType == "packets"
+	var pktCounter *int64
+	pktCeilingHit := false
+	if hasPktCeiling {
+		pktCounter = w.engine.getOrCreatePacketCounter(task.fcKey())
+	}
+
+	// D-REQ-1 批 1：派生可取消子 ctx——packets 封顶命中时打断慢 replay
+	// planner（真实 pcap 需逐包重放，drain 不许等全量发完）。父 deadline/
+	// cancel 照常传播。新名 planCtx（不复用 taskCtx）：下方完成块的
+	// taskCtx.Err() 判定必须读父 ctx——子 ctx 被 planCancel 后 Canceled
+	// 会把正常完成误报成 "task cancelled"（TestEngine_ReplayFlowCeiling
+	// SkippedCompletes 抓到的回归）。
+	planCtx, planCancel := context.WithCancel(taskCtx)
+	configChan, err := w.replayPlanner.PlanReplay(planCtx, task.Replay, task.ID, task.ClassID, task.UserID, fc)
 	if err != nil {
+		planCancel()
+
 		zap.L().Error("replay plan failed",
 			zap.String("task_id", task.ID),
 			zap.Error(err),
@@ -515,6 +565,16 @@ func (w *ConfigWorker) processReplayTask(task Task) {
 
 	var configCount int64
 	for config := range configChan {
+		// D-REQ-1 批 1：每包预留一槽，超出回吐并截断（drain 防 planner
+		// 阻塞泄漏）。
+		if hasPktCeiling && atomic.AddInt64(pktCounter, 1) > int64(task.TaskFCValue) {
+			atomic.AddInt64(pktCounter, -1)
+			pktCeilingHit = true
+			planCancel() // 打断慢 planner
+			for range configChan {
+			}
+			break
+		}
 		config.ClassID = task.ClassID
 		if config.Metadata == nil {
 			config.Metadata = make(map[string]interface{})
@@ -537,9 +597,10 @@ func (w *ConfigWorker) processReplayTask(task Task) {
 		config.Metadata["shard_idx"] = shardIdx
 
 		select {
-		case <-taskCtx.Done():
+		case <-planCtx.Done():
 			// Drain remaining configs so the planner goroutine is not blocked
 			// on configChan <- (leak). Bounded: planner emits a finite count.
+			planCancel() // 释放子 ctx；父 deadline 已传播，drain 即时收敛
 			for range configChan {
 			}
 			if w.onTaskDone != nil {
@@ -555,10 +616,18 @@ func (w *ConfigWorker) processReplayTask(task Task) {
 			configCount++
 		}
 	}
+	planCancel() // 释放子 ctx 资源（循环内所有提前 return 均已各自 cancel）
 
 	atomic.AddInt64(&w.stats.TasksProcessed, 1)
 	atomic.AddInt64(&w.stats.PacketsGenerated, configCount)
 	if w.onTaskDone != nil {
+		// D-REQ-1 批 1：packets 封顶命中=封顶履职，正常完成——先于
+		// ctx.Err 判定（子 ctx 已被 planCancel，Err==Canceled 会误报
+		// "task cancelled"）。
+		if pktCeilingHit {
+			w.onTaskDone(task.ID, nil, configCount)
+			return
+		}
 		// A replay that emitted zero configs is a broken replay (e.g. an
 		// asset that failed to load). Report it as a failure instead of
 		// silent completion with 0 packets. The only benign zero-config
@@ -571,7 +640,7 @@ func (w *ConfigWorker) processReplayTask(task Task) {
 		// signal (set when countFlow actually returned false for some
 		// flow); the counter alone would retroactively mask a genuinely
 		// broken replay that happened to run after the ceiling was hit.
-		if configCount == 0 && taskCtx.Err() == nil && !fc.SkippedAll {
+		if configCount == 0 && taskCtx.Err() == nil && !fc.SkippedAll && !pktCeilingHit {
 			w.onTaskDone(task.ID, fmt.Errorf("replay planner produced 0 packet configs"), 0)
 			return
 		}

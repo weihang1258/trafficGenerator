@@ -1,14 +1,19 @@
 package core
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/trafficgen/trafficgen/internal/storage"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // fixedPacketsPlanner produces a fixed number of packet configs per flow,
@@ -585,5 +590,249 @@ func TestTaskLevelTime_SubSecondNotTruncated(t *testing.T) {
 	}
 	if elapsed > 2*time.Second {
 		t.Errorf("elapsed = %v, want < 2s (0.5s ceiling should not run long)", elapsed)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// D-REQ-1 批 1: task-level flow_control type=packets —— 总包数封顶
+// 设计：CODE_DESIGN.md D-REQ-1 批 1 定稿（2026-10-19）。
+// ---------------------------------------------------------------------------
+
+// pktTestEngine builds an engine wired BEFORE Start (build func / replay
+// planner are captured by workers at Start).
+func pktTestEngine(t *testing.T, build func(PacketConfig) ([]byte, error)) *Engine {
+	t.Helper()
+	e := NewEngine(EngineConfig{
+		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
+		BufferSize: 4096, QueueSize: 256,
+	})
+	e.SetBuildFunc(build)
+	if err := e.Start(); err != nil {
+		t.Fatalf("start engine: %v", err)
+	}
+	t.Cleanup(func() { e.Stop() })
+	return e
+}
+
+// TestTaskLevelPackets_CeilsAggregate: 两策略各产 100 包/流，任务级
+// packets=37 —— 合计转发的 config 必须恰好 37（预留式封顶，超出的一个
+// 回吐不转发）；两引擎任务都须正常完成——额度被姊妹吃满的一方 0 包属
+// 封顶履职，0 包守卫不得误报 failed。
+func TestTaskLevelPackets_CeilsAggregate(t *testing.T) {
+	var built int64
+	e := pktTestEngine(t, func(c PacketConfig) ([]byte, error) {
+		atomic.AddInt64(&built, 1)
+		return make([]byte, 100), nil
+	})
+	pl := &fixedPacketsPlanner{name: "tcp", perFlow: 100}
+	e.RegisterPlanner(pl)
+
+	var failed sync.Map
+	e.OnTaskFailed = func(taskID string, errMsg string) { failed.Store(taskID, errMsg) }
+
+	mk := func(id string) Task {
+		return Task{
+			ID: id, Name: id, Protocol: "tcp", ClassID: id,
+			ParentTaskID: "t15-parent",
+			Spec:         FlowSpec{Count: 1},
+			TaskFCType:   "packets",
+			TaskFCValue:  37,
+		}
+	}
+	if err := e.SubmitTask(mk("t15-parent-stratA")); err != nil {
+		t.Fatalf("submit A: %v", err)
+	}
+	if err := e.SubmitTask(mk("t15-parent-stratB")); err != nil {
+		t.Fatalf("submit B: %v", err)
+	}
+	waitTaskDone(t, e, "t15-parent-stratA", 5*time.Second)
+	waitTaskDone(t, e, "t15-parent-stratB", 5*time.Second)
+
+	if got := atomic.LoadInt64(&built); got != 37 {
+		t.Errorf("total packets = %d, want exactly 37 (reserve-per-config cap)", got)
+	}
+	failed.Range(func(k, v interface{}) bool {
+		t.Errorf("task %v failed: %v (packets ceiling must complete cleanly, 0-config guard must exempt)", k, v)
+		return true
+	})
+}
+
+// TestTaskLevelPackets_FirstToStopWithTime: 策略级 time=60s + 任务级
+// packets=5 —— 先到先停：包数封顶先命中，任务须在 2s 内以恰好 5 包正常
+// 完成（不等 60s deadline；满速 20ms/包 → 5 包 0.1s，60s 永远追不上）。
+func TestTaskLevelPackets_FirstToStopWithTime(t *testing.T) {
+	var built int64
+	e := pktTestEngine(t, func(c PacketConfig) ([]byte, error) {
+		atomic.AddInt64(&built, 1)
+		return make([]byte, 100), nil
+	})
+	pl := &fixedPacketsPlanner{name: "tcp", perFlow: 1000, delay: 20 * time.Millisecond}
+	e.RegisterPlanner(pl)
+
+	var failed sync.Map
+	e.OnTaskFailed = func(taskID string, errMsg string) { failed.Store(taskID, errMsg) }
+
+	task := Task{
+		ID: "t16-combo", Name: "combo", Protocol: "tcp", ClassID: "t16-combo",
+		ParentTaskID: "t16-parent",
+		Spec:         FlowSpec{Count: 1, Duration: 60}, // 策略级 60s deadline
+		TaskFCType:   "packets",
+		TaskFCValue:  5,
+	}
+	start := time.Now()
+	if err := e.SubmitTask(task); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	waitTaskDone(t, e, "t16-combo", 5*time.Second)
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Errorf("elapsed = %v, want < 2s (packets ceiling must win first-to-stop)", elapsed)
+	}
+	if got := atomic.LoadInt64(&built); got != 5 {
+		t.Errorf("packets = %d, want exactly 5", got)
+	}
+	failed.Range(func(k, v interface{}) bool {
+		t.Errorf("task %v failed: %v", k, v)
+		return true
+	})
+}
+
+// TestTaskLevelPackets_CounterCleaned: CleanupTaskFlowControl 须同时清理
+// packets 共享计数器（防引擎生命周期泄漏，镜像 flowCounters）。
+func TestTaskLevelPackets_CounterCleaned(t *testing.T) {
+	e, _ := setupEngine(t, 1, 0)
+
+	e.getOrCreatePacketCounter("t17-parent")
+	e.CleanupTaskFlowControl("t17-parent")
+
+	e.rateMu.RLock()
+	_, ok := e.packetCounters["t17-parent"]
+	e.rateMu.RUnlock()
+	if ok {
+		t.Error("packet counter survived CleanupTaskFlowControl (leak)")
+	}
+}
+
+// emittingReplayPlanner emits n configs then closes (replay packets-cap test).
+type emittingReplayPlanner struct{ n int }
+
+func (p *emittingReplayPlanner) PlanReplay(ctx context.Context, specJSON json.RawMessage, taskID, classID, userID string, fc *ReplayFC) (<-chan PacketConfig, error) {
+	ch := make(chan PacketConfig)
+	go func() {
+		defer close(ch)
+		for i := 0; i < p.n; i++ {
+			select {
+			case <-ctx.Done():
+				return
+			case ch <- PacketConfig{FlowID: "rf", PacketIndex: uint64(i)}:
+			}
+		}
+	}()
+	return ch, nil
+}
+
+// TestTaskLevelPackets_ReplayTruncates: replay 任务 packets 封顶在 config
+// 转发点截断——planner 产 100，cap=10 → 恰好 10 包、正常完成不误报
+// （封顶完成分支先于子 ctx cancel 判定）。
+func TestTaskLevelPackets_ReplayTruncates(t *testing.T) {
+	var built int64
+	// replayPlanner 由 Start 的 NewConfigWorker 捕获——须先装配再启动。
+	e := NewEngine(EngineConfig{
+		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
+		BufferSize: 4096, QueueSize: 256,
+	})
+	e.SetBuildFunc(func(c PacketConfig) ([]byte, error) {
+		atomic.AddInt64(&built, 1)
+		return make([]byte, 100), nil
+	})
+	e.SetReplayPlanner(&emittingReplayPlanner{n: 100})
+	if err := e.Start(); err != nil {
+		t.Fatalf("start engine: %v", err)
+	}
+	t.Cleanup(func() { e.Stop() })
+
+	var failed sync.Map
+	e.OnTaskFailed = func(taskID string, errMsg string) { failed.Store(taskID, errMsg) }
+
+	task := Task{
+		ID: "t18-replay", Name: "replay-cap", Mode: "replay",
+		Replay:       []byte(`{"pcap_asset_id":"a1"}`),
+		ClassID:      "t18-replay",
+		ParentTaskID: "t18-parent",
+		TaskFCType:   "packets",
+		TaskFCValue:  10,
+		UserID:       "u1",
+	}
+	if err := e.SubmitTask(task); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	waitTaskDone(t, e, "t18-replay", 5*time.Second)
+
+	if got := atomic.LoadInt64(&built); got != 10 {
+		t.Errorf("packets = %d, want exactly 10 (replay truncated at forward point)", got)
+	}
+	failed.Range(func(k, v interface{}) bool {
+		t.Errorf("task %v failed: %v", k, v)
+		return true
+	})
+}
+
+// ---------------------------------------------------------------------------
+// D-REQ-1 批 2: time 无任何速率 → 建单告警一次（可发现性，语义保持全速）
+// ---------------------------------------------------------------------------
+
+// syncBuffer is a thread-safe bytes.Buffer for log capture (load_balance_test.go 同款).
+type fcSyncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *fcSyncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+func (b *fcSyncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+// TestTimeWithoutBPS_WarnsAtSubmit: 任务级 time / 策略级 time 且策略无 bps
+// → SubmitTask 告警 "time flow control without a rate limit"；配了 bps 不告警。
+func TestTimeWithoutBPS_WarnsAtSubmit(t *testing.T) {
+	var buf fcSyncBuffer
+	encoder := zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig())
+	zap.ReplaceGlobals(zap.New(zapcore.NewCore(encoder, zapcore.AddSync(&buf), zapcore.DebugLevel)))
+	t.Cleanup(func() { zap.ReplaceGlobals(zap.NewNop()) })
+
+	// ① 任务级 time、策略无 bps → 告警
+	e, _ := setupEngine(t, 1, 0)
+	submit := func(id string, spec FlowSpec, fcType string) {
+		t.Helper()
+		task := Task{
+			ID: id, Name: id, Protocol: "tcp", ClassID: id,
+			ParentTaskID: id + "-parent", Spec: spec,
+			TaskFCType: fcType, TaskFCValue: 60,
+		}
+		if err := e.SubmitTask(task); err != nil {
+			t.Fatalf("submit %s: %v", id, err)
+		}
+	}
+	submit("tw1", FlowSpec{Count: 1}, "time")
+	if out := buf.String(); !strings.Contains(out, "time flow control without a rate limit") {
+		t.Errorf("① want warn for task time without bps, got: %s", out)
+	}
+
+	// ② 策略级 Duration、无 bps → 告警
+	submit("tw2", FlowSpec{Count: 1, Duration: 60}, "")
+	if out := buf.String(); !strings.Contains(out, "time flow control without a rate limit") {
+		t.Errorf("② want warn for strategy time without bps, got: %s", out)
+	}
+
+	// ③ 策略配了 bps → 不告警
+	before := len(buf.String())
+	submit("tw3", FlowSpec{Count: 1, BPS: "100M"}, "time")
+	if out := buf.String()[before:]; strings.Contains(out, "time flow control without a rate limit") {
+		t.Errorf("③ must not warn when strategy bps present, got: %s", out)
 	}
 }
