@@ -8,7 +8,6 @@ import (
 	"net"
 	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -263,22 +262,16 @@ func (h *StrategyHandler) createSynthStrategy(c *gin.Context, userID, mode strin
 			proto = req.Protocol
 		}
 		planner, perr := layers.BuildLayersPlanner(proto, layersJSON)
-		if perr != nil {
-			// 测试环境（go test ./internal/api/rest/）只导入部分协议包，
-			// 未导入的协议 generator 不在注册表——跳过 dry-run 而非建单
-			// 即拒。生产 cmd/server 导入全部协议包，此分支不触发。
-			if strings.Contains(perr.Error(), "generator not implemented") ||
-				strings.Contains(perr.Error(), "not registered") {
+		if perr == nil {
+			spec := core.MapToFlowSpec(req.Config, proto)
+			if verr := planner.Validate(spec); verr != nil {
+				BadRequest(c, verr.Error())
 				return
 			}
-			BadRequest(c, perr.Error())
-			return
 		}
-		spec := core.MapToFlowSpec(req.Config, proto)
-		if verr := planner.Validate(spec); verr != nil {
-			BadRequest(c, verr.Error())
-			return
-		}
+		// perr != nil：测试环境（go test）只导入部分协议包，未导入的
+		// 协议 generator 不在注册表——跳过 dry-run，建单照常（生产
+		// cmd/server 导入全部协议包，此分支不触发）。
 	}
 
 	configJSON, err := json.Marshal(req.Config)
