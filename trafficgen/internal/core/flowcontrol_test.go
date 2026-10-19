@@ -835,4 +835,116 @@ func TestTimeWithoutBPS_WarnsAtSubmit(t *testing.T) {
 	if out := buf.String()[before:]; strings.Contains(out, "time flow control without a rate limit") {
 		t.Errorf("③ must not warn when strategy bps present, got: %s", out)
 	}
+
+	// ④ replay 任务（original/multiplier 速度=按 pcap 时间戳限速）→ 不告警
+	// （复审 MINOR-2b：Spec.BPS 仅 speed.mode=bps 时写入，原条件会误报）。
+	task := Task{
+		ID: "tw4", Name: "tw4", ClassID: "tw4", ParentTaskID: "tw4-parent",
+		Mode: "replay", Replay: []byte(`{"pcap_asset_id":"a"}`),
+		TaskFCType: "time", TaskFCValue: 60,
+	}
+	if err := e.SubmitTask(task); err != nil {
+		t.Fatalf("submit tw4: %v", err)
+	}
+	if out := buf.String(); strings.Count(out, "time flow control without a rate limit") != 2 {
+		t.Errorf("④ must not warn for replay task (warn count=%d, want 2 from ①②)",
+			strings.Count(out, "time flow control without a rate limit"))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 复审 MINOR-1 红例：转发 select 走 Done 分支时必须回吐已预留的槽
+// ---------------------------------------------------------------------------
+
+// TestTaskLevelPackets_DeadlineDoesNotBurnSlot：确定性构造"claim 已成功、
+// send 未就绪"的窗口——首个 build 卡死包管线（shard 通道填满后转发 select
+// 只剩 Done 一个就绪分支，deadline 一到必走 Done）。无回吐时该槽永久烧掉：
+// 计数器 = 实发 +1 ≠ 构建数；有回吐则计数器 == 实发 == 构建数。
+func TestTaskLevelPackets_DeadlineDoesNotBurnSlot(t *testing.T) {
+	var built int64
+	block := make(chan struct{})
+	e := NewEngine(EngineConfig{
+		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
+		BufferSize: 4, QueueSize: 8, MaxBufferBytes: 1 << 20,
+	})
+	// QueueSize=8 → shard chan cap 16；planner 产 64 包 → 转发必在通道
+	// 填满后阻塞在 select（首个 build 又卡死在 PacketWorker）。
+	e.SetBuildFunc(func(c PacketConfig) ([]byte, error) {
+		if atomic.AddInt64(&built, 1) == 1 {
+			<-block
+		}
+		return make([]byte, 10), nil
+	})
+	e.RegisterPlanner(&fixedPacketsPlanner{name: "tcp", perFlow: 64})
+	if err := e.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	t.Cleanup(func() { e.Stop() })
+
+	task := Task{
+		ID: "t19-burn", Name: "burn", Protocol: "tcp", ClassID: "t19-burn",
+		ParentTaskID: "t19-parent",
+		Spec:         FlowSpec{Count: 1, Duration: 1}, // 策略级 1s deadline
+		TaskFCType:   "packets",
+		TaskFCValue:  100, // 需求(64)之上：烧槽≠封顶命中
+	}
+	if err := e.SubmitTask(task); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	// 阻塞窗口必须跨过 deadline(1s)：约 50ms 即填满通道并卡死在 select，
+	// 1.2s 时 Done 已就绪而 send 未就绪 → select 必走 Done 分支。
+	time.Sleep(1200 * time.Millisecond)
+	close(block) // 放行管线，让已转发的包排空、任务收敛
+	waitTaskDone(t, e, "t19-burn", 10*time.Second)
+
+	e.rateMu.RLock()
+	counter := *e.packetCounters["t19-parent"]
+	e.rateMu.RUnlock()
+	got := atomic.LoadInt64(&built)
+	if counter != got {
+		t.Errorf("packet counter = %d, built = %d: deadline 分支烧掉了 %d 个已预留槽（回吐缺失）",
+			counter, got, counter-got)
+	}
+}
+
+// TestTaskLevelPackets_ReplayZeroConfigSibling：replay 路径 0 包豁免——
+// 姊妹吃满 packets 额度后，本 replay 任务产 0 包须正常完成（封顶履职），
+// 不得落 0 包守卫误报（复审 MINOR-3：此路径此前无测试）。
+func TestTaskLevelPackets_ReplayZeroConfigSibling(t *testing.T) {
+	e := NewEngine(EngineConfig{
+		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1, // 串行：A 完成后 B 才跑
+		BufferSize: 512, QueueSize: 128, MaxBufferBytes: 1 << 20,
+	})
+	e.SetBuildFunc(func(c PacketConfig) ([]byte, error) { return make([]byte, 64), nil })
+	e.SetReplayPlanner(&stubReplayPlanner{packetsPerCall: 1})
+
+	var failed sync.Map
+	e.OnTaskFailed = func(taskID string, errMsg string) { failed.Store(taskID, errMsg) }
+	if err := e.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	t.Cleanup(func() { e.Stop() })
+
+	replayJSON := []byte(`{"pcap_asset_id":"a","speed":{"mode":"original"}}`)
+	mk := func(id string) Task {
+		return Task{
+			ID: id, Name: id, ClassID: id, ParentTaskID: "t20-parent",
+			Mode: "replay", Replay: replayJSON,
+			TaskFCType:  "packets",
+			TaskFCValue: 1, // A 吃满
+		}
+	}
+	if err := e.SubmitTask(mk("t20-A")); err != nil {
+		t.Fatalf("submit A: %v", err)
+	}
+	waitTaskDone(t, e, "t20-A", 5*time.Second)
+	if err := e.SubmitTask(mk("t20-B")); err != nil {
+		t.Fatalf("submit B: %v", err)
+	}
+	waitTaskDone(t, e, "t20-B", 5*time.Second)
+
+	failed.Range(func(k, v interface{}) bool {
+		t.Errorf("task %v failed: %v (0 包豁免必须生效)", k, v)
+		return true
+	})
 }

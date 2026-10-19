@@ -56,9 +56,10 @@ type Task struct {
 
 	// TaskFCType/TaskFCValue carry the task-level flow-control ceiling
 	// (from TaskModel.FlowControl). Empty TaskFCType = no task-level ceiling.
-	// Type is "bps" (parent bucket), "flows" (shared counter), or "time"
-	// (parent context deadline). Unlike strategy-level FC, this does NOT
-	// override the per-strategy spec; it caps the aggregate.
+	// Type is "bps" (parent bucket), "flows" (shared flow counter),
+	// "packets" (shared packet counter, D-REQ-1 批 1), or "time" (parent
+	// context deadline). Unlike strategy-level FC, this does NOT override
+	// the per-strategy spec; it caps the aggregate.
 	TaskFCType  string  `json:"task_fc_type,omitempty"`
 	TaskFCValue float64 `json:"task_fc_value,omitempty"`
 

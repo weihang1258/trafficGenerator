@@ -762,9 +762,11 @@ func (e *Engine) SubmitTask(task Task) error {
 	// 候选 c 强制 bps 被否，破坏满速压测），但建单期告警一次保证可发现性
 	// （候选 b）。限速表达=跨层组合：策略 bps + 任务 time（D-ROBUST-2 实测）。
 	// batch 入口不可达：batch 引擎任务 TaskFCType 恒空且 Spec 零值。
-	// TaskFCType=bps 时流量已被父桶限速（策略 time + 任务 bps 的合法组合），
-	// 不属"无速率"，排除。
-	if task.TaskFCType != "bps" && (task.TaskFCType == "time" || task.Spec.Duration > 0) && task.Spec.BPS == "" {
+	// 两个已限速形态不属"无速率"：TaskFCType=bps（父桶限速，策略 time +
+	// 任务 bps 的合法组合）；replay 任务（original/multiplier 速度按 pcap
+	// 时间戳限速，Spec.BPS 仅 speed.mode=bps 时写入）。
+	if task.Mode != "replay" && task.TaskFCType != "bps" &&
+		(task.TaskFCType == "time" || task.Spec.Duration > 0) && task.Spec.BPS == "" {
 		zap.L().Warn("time flow control without a rate limit: traffic runs at full speed until the deadline; to pace it, set bps on the strategy (strategy bps + task time compose, first reached wins)",
 			zap.String("task_id", task.ID))
 	}

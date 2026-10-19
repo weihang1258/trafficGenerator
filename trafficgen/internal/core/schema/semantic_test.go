@@ -321,4 +321,34 @@ func TestTaskCreatePacketsFC(t *testing.T) {
 	if errs := ValidateTaskCreate(doc4, nil); len(errs) == 0 || !contains(errs.Error(), "flows, bps, packets, or time") {
 		t.Fatalf("④ want updated type list, got %v", errs)
 	}
+	// ⑤ shape-fail 分支的整数检查（独立第二路径，复审 MINOR-3a）：
+	// 文档同时缺 name（形状失败）→ 提前分支处理 FC，整数误仍须报。
+	doc5 := map[string]any{
+		"strategy_ids": []any{"s1"},
+		"output_type":  "pcap", "output_config": map[string]any{"pcap_path": "x.pcap"},
+		"flow_control": map[string]any{"type": "packets", "value": float64(1.5)},
+	}
+	errs5 := ValidateTaskCreate(doc5, nil)
+	if len(errs5) == 0 || !contains(errs5.Error(), "whole number") {
+		t.Fatalf("⑤ shape-fail branch must report whole-number, got %v", errs5)
+	}
+	// ⑥ replay 策略 + 任务级 packets 合法（截断兼容，复审 MINOR-3b）
+	doc6 := map[string]any{
+		"name": "t1", "strategy_ids": []any{"s1"},
+		"output_type": "pcap", "output_config": map[string]any{"pcap_path": "x.pcap"},
+		"flow_control": map[string]any{"type": "packets", "value": float64(1000)},
+	}
+	strats6 := []StrategyView{{Name: "r1", Mode: "replay", SpeedMode: "original"}}
+	if errs := ValidateTaskCreate(doc6, strats6); len(errs) != 0 {
+		t.Fatalf("⑥ replay+task-packets must pass (worker truncates), got %v", errs)
+	}
+	// ⑦ value=0 → 既有 positive 文本（复审 MINOR-3c）
+	doc7 := map[string]any{
+		"name": "t1", "strategy_ids": []any{"s1"},
+		"output_type": "pcap", "output_config": map[string]any{"pcap_path": "x.pcap"},
+		"flow_control": map[string]any{"type": "packets", "value": float64(0)},
+	}
+	if errs := ValidateTaskCreate(doc7, nil); len(errs) == 0 || !contains(errs.Error(), "must be positive") {
+		t.Fatalf("⑦ want positive reject for value=0, got %v", errs)
+	}
 }

@@ -427,6 +427,11 @@ func (w *ConfigWorker) processTask(task Task) {
 				// on configChan <- (which would leak it permanently). Planners
 				// generate a finite number of packets, so this drain is bounded.
 				planCancel() // 释放子 ctx；父 deadline 已传播，drain 即时收敛
+				// 复审 MINOR-1：本 config 的槽在循环顶已成功预留，此处丢弃
+				// 必须回吐——否则姊妹策略永久少一个额度（只少发不超发）。
+				if hasPktCeiling {
+					atomic.AddInt64(pktCounter, -1)
+				}
 				for range configChan {
 				}
 				if w.onTaskDone != nil {
@@ -601,6 +606,10 @@ func (w *ConfigWorker) processReplayTask(task Task) {
 			// Drain remaining configs so the planner goroutine is not blocked
 			// on configChan <- (leak). Bounded: planner emits a finite count.
 			planCancel() // 释放子 ctx；父 deadline 已传播，drain 即时收敛
+			// 复审 MINOR-1 同款：回吐本 config 已预留的槽。
+			if hasPktCeiling {
+				atomic.AddInt64(pktCounter, -1)
+			}
 			for range configChan {
 			}
 			if w.onTaskDone != nil {

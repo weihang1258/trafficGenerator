@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	sqlite "github.com/glebarez/sqlite"
 	"github.com/gin-gonic/gin"
+	sqlite "github.com/glebarez/sqlite"
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/core/layers"
 	"github.com/trafficgen/trafficgen/internal/protocol/arp"
@@ -334,4 +334,61 @@ func waitForTaskStatus(t *testing.T, r *gin.Engine, taskID string, target map[st
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+}
+
+// IT5（D-REQ-1 批 1 复审补）：任务级 packets 封顶 handler→engine→pcap 全链
+// ——两个 udp 策略各 flows=50（需求 100 包），任务 packets=5 → pcap 恰 5 包。
+// D-FILE-2 B1/B2 死 FC 缺陷类（存储→StrategyModelToTask 断链）就住这条缝，
+// 引擎级单测覆盖不到，必须端到端锁。
+func TestIntegration_TaskLevelPackets_CapsPcapExactly(t *testing.T) {
+	r, _, _, cleanup := setupIntegrationTest(t)
+	defer cleanup()
+
+	pcapPath := t.TempDir() + "/it5.pcap"
+	stratA := createStrategy(t, r, "udp",
+		`{"layers":[{"ip":{"src":"10.0.0.1","dst":"10.0.0.2"}},{"udp":{"src_port":{"strategy":"inc","range":[30000,30049]},"dst_port":9000}}]}`,
+		`{"type":"flows","value":50}`,
+	)
+	stratB := createStrategy(t, r, "udp",
+		`{"layers":[{"ip":{"src":"10.0.0.3","dst":"10.0.0.4"}},{"udp":{"src_port":{"strategy":"inc","range":[31000,31049]},"dst_port":9000}}]}`,
+		`{"type":"flows","value":50}`,
+	)
+	taskID := createTask(t, r, "it5", []string{stratA, stratB}, pcapPath,
+		`{"type":"packets","value":5}`,
+	)
+
+	if code, body := startTask(t, r, taskID); code != http.StatusOK {
+		t.Fatalf("start: code=%d body=%s", code, body)
+	}
+	status := waitForTaskStatus(t, r, taskID, map[string]bool{"completed": true, "failed": true}, 30*time.Second)
+	if status != "completed" {
+		t.Fatalf("task status=%s (packets 封顶必须正常完成)", status)
+	}
+
+	n := countPcapRecords(t, pcapPath)
+	if n != 5 {
+		t.Errorf("pcap records = %d, want exactly 5 (task-level packets cap, e2e)", n)
+	}
+}
+
+// countPcapRecords 数 pcap 记录数：24B 全局头 + 每记录 16B 头。
+func countPcapRecords(t *testing.T, path string) int64 {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read pcap: %v", err)
+	}
+	if len(data) < 24 {
+		return 0
+	}
+	var n int64
+	for off := 24; off+16 <= len(data); {
+		recLen := int64(data[off+8]) | int64(data[off+9])<<8 | int64(data[off+10])<<16 | int64(data[off+11])<<24
+		if recLen < 0 || off+16+int(recLen) > len(data) {
+			t.Fatalf("corrupt pcap record at offset %d (len=%d)", off, recLen)
+		}
+		n++
+		off += 16 + int(recLen)
+	}
+	return n
 }
