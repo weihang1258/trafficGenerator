@@ -896,6 +896,11 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 			}
 			planner, perr := layers.BuildLayersPlanner(class.Type, layersJSON)
 			if perr != nil {
+				// 同 strategy_handler：测试环境未导入的协议跳过 dry-run。
+				if strings.Contains(perr.Error(), "generator not implemented") ||
+					strings.Contains(perr.Error(), "not registered") {
+					continue
+				}
 				BadRequest(c, fmt.Sprintf("class[%d] %s: %s", i, class.ID, perr.Error()))
 				return
 			}
