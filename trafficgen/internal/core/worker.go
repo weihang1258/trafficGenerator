@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -296,7 +297,11 @@ func (w *ConfigWorker) processTask(task Task) {
 	// 既有 deadline 检查负责正常完成（onTaskDone(nil)→SetTaskTotalConfigs
 	// →包排空后 completed，既有机制闭环）；stop（非 deadline 取消）照旧
 	// 走取消分支。spec.Count 在 time 模式不参与（持续生成即语义）。
-	timeMode := task.TaskFCType == "time"
+	// R7 02②：timeMode 须同看策略级 Duration——flow_control 单对象下
+	// Count 与 Duration 天然互斥（策略 time ⟹ 无 Count ⟹ flowCount=1），
+	// 放开 flowLimit 无副作用；策略 time 单流任务此前 1 包瞬完、deadline
+	// 完全失效，「策略 time + 任务 bps」组合无法限速跑满时长。
+	timeMode := task.TaskFCType == "time" || task.Spec.Duration > 0
 	flowLimit := flowCount
 	if timeMode {
 		flowLimit = int(^uint(0) >> 1) // MaxInt：由 deadline 终止
@@ -1195,6 +1200,8 @@ type OutputWorker struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 	stats     WorkerStats
+	// R7 放大器 B：溢出告警限速——上次告警的 Unix 秒（0=未告警过）。
+	lastOverflowWarn atomic.Int64
 
 	// NOTE: Resequencing fields removed; sharded channel guarantees ordering.
 }
@@ -1316,8 +1323,19 @@ func (w *OutputWorker) writePacket(out PacketOutput) {
 	direction := "combined"
 	if w.buffer != nil {
 		if !w.buffer.Put(packet, direction) {
-			zap.L().Warn("buffer overflow", zap.Int("worker_id", w.id))
-			atomic.AddInt64(&w.stats.Errors, 1)
+			// R7 放大器 B：溢出告警逐包一条——压测时段 80 万条 warn 把日志
+			// 刷到 897MB 且 I/O 反压输出。限速：每 worker 首条 + 每 5s 一条，
+			// 累计丢弃数随行携带；计数本身不受限速影响（stats.Errors 照加）。
+			total := atomic.AddInt64(&w.stats.Errors, 1)
+			now := time.Now().Unix()
+			last := w.lastOverflowWarn.Load()
+			if last == 0 || now-last >= 5 {
+				if w.lastOverflowWarn.CompareAndSwap(last, now) {
+					zap.L().Warn("buffer overflow (rate-limited; drops still counted)",
+						zap.Int("worker_id", w.id),
+						zap.Int64("total_dropped", total))
+				}
+			}
 			if w.engine != nil && w.engine.OnBufferOverflow != nil {
 				if taskID, ok := out.Metadata["task_id"].(string); ok {
 					w.engine.OnBufferOverflow(taskID, 1)

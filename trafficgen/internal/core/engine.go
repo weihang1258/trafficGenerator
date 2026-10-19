@@ -890,10 +890,18 @@ func (e *Engine) SetTaskTotalConfigs(taskID string, count int64) {
 		entry.status.Progress = 100
 		entry.status.CompletedAt = time.Now()
 		entry.cancel()
+		// R7 缺陷 B：drain 完成路径与 OnPacketWritten 完成路径对称——补发
+		// 终态 OnProgress(100, 实发统计)。否则快任务（ConfigWorker 收尾时
+		// 包已全部写完）从没触发过中间 progress，handler 落库 packets_sent=0
+		// 而 pcap 实有数万包（复测回执 R7-CONF-B 实证）。
+		finalStats := *entry.status
 		delete(e.taskStore, taskID)
 		delete(e.layerPlanners, taskID)
 		e.taskMu.Unlock()
 		e.cleanupTaskRateLimiters(taskID)
+		if e.OnProgress != nil {
+			e.OnProgress(taskID, 100, finalStats.Stats)
+		}
 		zap.L().Info("task completed (totalConfigs set after drain)", zap.String("task_id", taskID), zap.Int64("configs", count))
 		if e.OnTaskComplete != nil {
 			e.OnTaskComplete(taskID)

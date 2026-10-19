@@ -93,7 +93,7 @@ func TestMCP_ManagePcaps_ImportAndList(t *testing.T) {
 	}
 	found := false
 	for _, item := range listData.Items {
-		if item["ID"] == id {
+		if item["id"] == id { // R7：assets 键已归一 snake_case
 			found = true
 			break
 		}
@@ -120,12 +120,13 @@ func TestMCP_ManagePcaps_Get(t *testing.T) {
 	if err := json.Unmarshal(asRaw(out.Data), &asset); err != nil {
 		t.Fatalf("get returned non-object: %s", string(asRaw(out.Data)))
 	}
-	// PcapAssetModel has no JSON tags, so Go uses capitalized field names.
-	if asset["ID"] != id {
-		t.Errorf("get.id: got %v, want %s", asset["ID"], id)
+	// R7：list/get 输出面键归一为 snake_case（storage 模型无 JSON tag，
+	// REST/前端契约不变，仅 MCP 传输层转换）。
+	if asset["id"] != id {
+		t.Errorf("get.id: got %v, want %s", asset["id"], id)
 	}
-	if asset["Status"] != "ready" {
-		t.Errorf("get.status: got %v, want ready", asset["Status"])
+	if asset["status"] != "ready" {
+		t.Errorf("get.status: got %v, want ready", asset["status"])
 	}
 }
 

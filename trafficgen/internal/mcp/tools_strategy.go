@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
@@ -28,6 +29,8 @@ type manageStrategiesInput struct {
 	Config      map[string]interface{} `json:"config,omitempty" jsonschema:"strategy config. layer-chain is the only accepted format (flat config is gone): {\"layers\":[{\"ip\":{\"src\":\"10.0.0.1\",\"dst\":\"20.0.0.1\"}},{\"udp\":{\"dst_port\":53}},{\"dns\":{\"name\":\"a.com\"}}],\"flow_control\":{\"type\":\"flows\",\"value\":1}} — EACH layers element must hold EXACTLY ONE layer key (merging layers into one element, e.g. {\"layers\":[{\"ip\":{...},\"tcp\":{...}}]}, is rejected with 'each layer entry must contain exactly one layer name') — ordered layers, outermost (L2/L3) first, and the chain must END with a terminal (application) layer (a chain ending at a bare transport layer is rejected with 'layer chain must end with a terminal layer'); protocol inferred from outermost non-scaffolding layer, explicit protocol must match. Only schema-declared fields accepted: unknown fields rejected (all reported at once), hard depends_on auto-completed. ALWAYS call flowb_query_layers action=examples for the target protocol BEFORE composing a config — it returns verified copy-paste examples (field names like ip.src / http.response_status_code come from there, do not guess); action=schema lists fields/types/defaults/depends_on. Top-level src_ip/dst_ip/src_port/dst_port/count are rejected (flat config is gone). group_id binds same-id flows to one worker, e.g. {\"strategy\":\"fixed\",\"value\":7} | {\"strategy\":\"inc\",\"range\":[1024,2048],\"step\":1} | {\"strategy\":\"rand\",\"range\":[1,254],\"seed\":42} | {\"strategy\":\"list\",\"list\":[3,4]} | {\"strategy\":\"pattern\",\"pattern\":\"host{n}\",\"n_range\":[1,100]} (range is a two-element array [lo,hi])."`
 	FlowControl *flowControlInput      `json:"flow_control,omitempty" jsonschema:"optional strategy-level flow control — overrides any flow_control embedded in config; omit it to use the config's own (type: flows|bps|time, value > 0)"`
 	OutputPath  string                 `json:"output_path,omitempty" jsonschema:"optional — force the FULL result into a file instead of returning it inline (large lists, extracts, stream bodies); the response becomes a small receipt {written_to, bytes, export_id, download_url}. Remote (HTTP): give just a file name like 'flows.json' — the server stores it and the receipt carries a ready download_url. Local (stdio): give an absolute path on this host. Without output_path, responses above 64 KB are auto-exported the same way, so huge results never flood the conversation"`
+	Page        int                    `json:"page,omitempty" jsonschema:"list only: page number (1-based; pagination is optional — omit page/size for the FULL result as a bare array, backward compatible)"`
+	Size        int                    `json:"size,omitempty" jsonschema:"list only: page size (default 50); given together with page the response becomes {items,page,size,total}"`
 }
 
 type manageStrategiesOutput struct {
@@ -64,7 +67,15 @@ func (s *Server) handleManageStrategies(ctx context.Context, req *mcp.CallToolRe
 		})
 		resp, err = s.callHandler(ctx, body, "", nil, h.Create)
 	case "list":
-		resp, err = s.callHandler(ctx, nil, "", nil, h.List)
+		// R7：MCP 侧放行可选分页（REST strategies/list 批 5 已支持）。
+		q := url.Values{}
+		if in.Page > 0 {
+			q.Set("page", strconv.Itoa(in.Page))
+		}
+		if in.Size > 0 {
+			q.Set("size", strconv.Itoa(in.Size))
+		}
+		resp, err = s.callHandler(ctx, nil, "", q, h.List)
 	case "get":
 		resp, err = s.callHandler(ctx, nil, in.ID, nil, h.Get)
 	case "update":

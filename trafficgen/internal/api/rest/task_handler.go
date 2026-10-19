@@ -20,12 +20,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/trafficgen/trafficgen/internal/api/websocket"
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/core/layers"
 	"github.com/trafficgen/trafficgen/internal/core/schema"
 	"github.com/trafficgen/trafficgen/internal/output"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/auth"
 	"github.com/trafficgen/trafficgen/pkg/netif"
-"github.com/trafficgen/trafficgen/internal/core/layers"
 	"gorm.io/gorm"
 )
 
@@ -210,6 +210,38 @@ type TaskHandler struct {
 	failMu             sync.Mutex
 	lastProgressUpdate map[string]time.Time // parentTaskID -> last DB update time
 	progressMu         sync.Mutex
+	// R7 缺陷 A：多策略聚合槽位制。已完成子任务从引擎 store 摘除后，旧实现
+	// （RangeTaskStore 只见存活者）把已完成策略的统计从父任务合计里丢掉
+	// （3×50 流 → pcap 150 包而 packets_sent=55；进度 83%/87% 跳变）。
+	// 每个引擎子任务一个槽位，进度/统计以最后一次上报为准，完成后保留；
+	// 父合计 = 全槽位求和（进度取均值）。父任务终态后整组删除。
+	aggSlots map[string]map[string]*engineAggSlot // parentTaskID -> engineTaskID -> slot
+	aggMu    sync.Mutex
+}
+
+// engineAggSlot is one engine sub-task's latest reported progress/stats.
+type engineAggSlot struct {
+	progress float64
+	packets  int64
+	bytes    int64
+	flows    int64
+}
+
+// aggregateParent sums all slots of a parent (caller must hold aggMu).
+func (h *TaskHandler) aggregateParent(parentTaskID string) (avg float64, packets, bytes, flows int64, count int) {
+	slots := h.aggSlots[parentTaskID]
+	var total float64
+	for _, sl := range slots {
+		total += sl.progress
+		packets += sl.packets
+		bytes += sl.bytes
+		flows += sl.flows
+	}
+	count = len(slots)
+	if count > 0 {
+		avg = total / float64(count)
+	}
+	return
 }
 
 // SetPcapHandler enables task pcap auto-registration: on every completed
@@ -254,6 +286,7 @@ func NewTaskHandlerWithCallbacks(db *storage.DB, engine *core.Engine, wsHandler 
 		wsHub:              hub,
 		failedTasks:        make(map[string]string),
 		lastProgressUpdate: make(map[string]time.Time),
+		aggSlots:           make(map[string]map[string]*engineAggSlot),
 	}
 
 	if registerCallbacks {
@@ -345,29 +378,22 @@ func (h *TaskHandler) onEngineProgress(engineTaskID string, progress float64, st
 	h.lastProgressUpdate[parentTaskID] = now
 	h.progressMu.Unlock()
 
-	// Calculate aggregate progress for the parent task
-	// Get all engine sub-tasks from the task store and average their progress.
-	// NOTE: Progress values read within RangeTaskStore are approximate snapshots;
-	// concurrent updates may cause slight inconsistency, which is acceptable
-	// given the 2-second throttle and 1% granularity.
-	totalProgress := progress
-	subTaskCount := 1
-	aggPackets, aggBytes, aggFlows := stats.PacketsSent, stats.BytesSent, stats.FlowsCount
-
-	// Try to find other sub-tasks for the same parent
-	h.engine.RangeTaskStore(func(id string, status *core.TaskStatus) bool {
-		// 前缀判定而非 SplitN——UUID 含连字符（同上）。
-		if strings.HasPrefix(id, parentTaskID+"-") && id != engineTaskID {
-			totalProgress += status.Progress
-			subTaskCount++
-			aggPackets += status.Stats.PacketsSent
-			aggBytes += status.Stats.BytesSent
-			aggFlows += status.Stats.FlowsCount
-		}
-		return true
-	})
-
-	avgProgress := totalProgress / float64(subTaskCount)
+	// R7 缺陷 A：槽位制聚合（见 aggSlots 注释）——RangeTaskStore 只见存活
+	// 子任务，已完成者的统计会在父合计里丢失；槽位以最后一次上报为准。
+	h.aggMu.Lock()
+	slots, ok := h.aggSlots[parentTaskID]
+	if !ok {
+		slots = make(map[string]*engineAggSlot)
+		h.aggSlots[parentTaskID] = slots
+	}
+	slots[engineTaskID] = &engineAggSlot{
+		progress: progress,
+		packets:  stats.PacketsSent,
+		bytes:    stats.BytesSent,
+		flows:    int64(stats.FlowsCount),
+	}
+	avgProgress, aggPackets, aggBytes, aggFlows, _ := h.aggregateParent(parentTaskID)
+	h.aggMu.Unlock()
 
 	// Update parent task progress + aggregate stats in DB
 	h.db.Model(&storage.TaskModel{}).
@@ -468,6 +494,10 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 		h.engine.UnregisterDualWriter(taskID)
 		h.engine.CleanupTaskFlowControl(taskID)
 		h.maybeAutoRegisterPcap(&task)
+		// R7 缺陷 A：父任务终态后整组删除聚合槽位（防 handler 生命周期泄漏）。
+		h.aggMu.Lock()
+		delete(h.aggSlots, taskID)
+		h.aggMu.Unlock()
 		return
 	}
 
@@ -550,6 +580,11 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 		// Unregister closes the output writers (pcap fsync) — the file is
 		// only final after this, so auto-registration must come later.
 		h.maybeAutoRegisterPcap(&task)
+
+		// R7 缺陷 A：父任务终态后整组删除聚合槽位。
+		h.aggMu.Lock()
+		delete(h.aggSlots, taskID)
+		h.aggMu.Unlock()
 	}
 }
 

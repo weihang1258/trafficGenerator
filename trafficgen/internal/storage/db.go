@@ -45,7 +45,13 @@ func sqliteDSN(path string) string {
 	// 行级持久化使 4 路并行套件的 500 行/批插入把 WAL 写锁队列压满，10s
 	// 等待在尖峰随机过期（modbus/tftp 大套件 13 例随机 BUSY，两次重跑
 	// 失败集不同=非确定性竞争）。60s 让创建请求排队越过 pcap 批插尖峰。
-	const pragma = "_pragma=journal_mode(WAL)&_pragma=busy_timeout(60000)&_txlock=immediate"
+	// synchronous(NORMAL)（R7 放大器 A，2026-10-19）：FULL 下每批提交双
+	// fsync，6.5 万包入库 ≈2600 批×~1.5ms——写锁被连续重取，下一个任务
+	// 的 create INSERT 排队 2.15~2.46s（客户端实测）。NORMAL（WAL 标准搭配）
+	// 提交降为 WAL 追加不入 fsync：单批 ~µs，入库总时长与 create 排队同步
+	// 塌缩。取舍：应用崩溃不丢（WAL 完整），OS 掉电可能回滚最后一笔——
+	// 流量工具可接受；掉电 durability 用 checkpoint 官方建议即可。
+	const pragma = "_pragma=journal_mode(WAL)&_pragma=busy_timeout(60000)&_txlock=immediate&_pragma=synchronous(NORMAL)"
 	if strings.Contains(path, "?") {
 		return path + "&" + pragma
 	}

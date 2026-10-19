@@ -948,3 +948,131 @@ func TestTaskLevelPackets_ReplayZeroConfigSibling(t *testing.T) {
 		return true
 	})
 }
+
+// ---------------------------------------------------------------------------
+// R7 缺陷 B 红例：SetTaskTotalConfigs 的 drain 完成路径丢终态 stats
+// ---------------------------------------------------------------------------
+
+// drainSignalPlanner closes its channel only after all emitted configs have
+// been written (observes the engine's written count via the callback). This
+// forces the completion through the "totalConfigs set after drain" path
+// (written >= count when onTaskDone fires) instead of the OnPacketWritten
+// path.
+type drainSignalPlanner struct {
+	n          int
+	written    *int64
+	closeAfter int64
+}
+
+func (p *drainSignalPlanner) Name() string                 { return "tcp" }
+func (p *drainSignalPlanner) Validate(spec FlowSpec) error { return nil }
+func (p *drainSignalPlanner) Plan(ctx context.Context, spec FlowSpec) (<-chan PacketConfig, error) {
+	ch := make(chan PacketConfig)
+	go func() {
+		defer close(ch)
+		for i := 0; i < p.n; i++ {
+			ch <- PacketConfig{FlowID: "df", PacketIndex: uint64(i)}
+		}
+		// 等全部包写完再关通道：ConfigWorker 的 onTaskDone 触发时
+		// written 已达 totalConfigs → 走 drain 完成路径。
+		for atomic.LoadInt64(p.written) < p.closeAfter {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				time.Sleep(time.Millisecond)
+			}
+		}
+	}()
+	return ch, nil
+}
+
+// TestDrainCompletionPath_EmitsFinalStats：drain 路径完成必须补发
+// OnProgress(100, 实发统计)——否则 handler 落库 packets_sent=0
+// （R7 缺陷 B：库内 0 包、pcap 实有 64975 包）。
+func TestDrainCompletionPath_EmitsFinalStats(t *testing.T) {
+	var written int64
+	e := NewEngine(EngineConfig{
+		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
+		BufferSize: 64, QueueSize: 32, MaxBufferBytes: 1 << 20,
+	})
+	e.SetBuildFunc(func(c PacketConfig) ([]byte, error) {
+		atomic.AddInt64(&written, 1) // planner 依此判定"全部写完"再关通道
+		return make([]byte, 20), nil
+	})
+	e.RegisterPlanner(&drainSignalPlanner{n: 5, written: &written, closeAfter: 5})
+
+	type finalEvt struct {
+		progress float64
+		stats    TaskStats
+	}
+	finalCh := make(chan finalEvt, 4)
+	e.OnProgress = func(taskID string, progress float64, stats TaskStats) {
+		if progress >= 100 {
+			finalCh <- finalEvt{progress, stats}
+		}
+	}
+	if err := e.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	t.Cleanup(func() { e.Stop() })
+
+	task := Task{
+		ID: "t21-drain", Name: "drain", Protocol: "tcp", ClassID: "t21-drain",
+		ParentTaskID: "t21-parent",
+		Spec:         FlowSpec{Count: 1},
+	}
+	if err := e.SubmitTask(task); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	waitTaskDone(t, e, "t21-drain", 5*time.Second)
+	t.Logf("written=%d", atomic.LoadInt64(&written))
+
+	select {
+	case evt := <-finalCh:
+		if evt.stats.PacketsSent != 5 {
+			t.Errorf("final stats PacketsSent = %d, want 5 (drain path must emit real totals)", evt.stats.PacketsSent)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no final OnProgress(100) on the drain completion path (R7 缺陷 B 复现)")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// R7 02② 红例：策略级 time 须与任务级 time 同语义（持续生成到截止）
+// ---------------------------------------------------------------------------
+
+// TestStrategyTime_ContinuousUntilDeadline：策略级 time=1s（Spec.Duration）
+// 且任务级无 time → 流循环必须持续生成到 deadline（flowLimit 不设上界）。
+// 修复前：timeMode 只看 TaskFCType，策略级 time 的 flowLimit=1 → 1 流 1 包
+// 瞬完，deadline 形同虚设（R7 六次复现：1 包 completed、策略 time=3~5s 被
+// 完全忽略）。这正是「策略 time + 任务 bps」限速跑满时长的基础。
+func TestStrategyTime_ContinuousUntilDeadline(t *testing.T) {
+	e, pl := setupEngine(t, 1, 0) // 每流 1 包、零延迟：全速持续产流
+
+	var failed sync.Map
+	e.OnTaskFailed = func(taskID string, errMsg string) { failed.Store(taskID, errMsg) }
+
+	task := Task{
+		ID: "t22-stime", Name: "stime", Protocol: "tcp", ClassID: "t22-stime",
+		ParentTaskID: "t22-parent",
+		Spec:         FlowSpec{Duration: 1}, // 策略级 time=1s；无 Count
+	}
+	start := time.Now()
+	if err := e.SubmitTask(task); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	waitTaskDone(t, e, "t22-stime", 5*time.Second)
+	elapsed := time.Since(start)
+
+	if got := pl.FlowsRun(); got < 5 {
+		t.Errorf("flows = %d, want >= 5 (策略级 time 必须持续生成到截止，而非 1 流瞬完)", got)
+	}
+	if elapsed < 900*time.Millisecond {
+		t.Errorf("elapsed = %v, want >= 0.9s (deadline 应当兜住生成时长)", elapsed)
+	}
+	failed.Range(func(k, v interface{}) bool {
+		t.Errorf("task %v failed: %v", k, v)
+		return true
+	})
+}

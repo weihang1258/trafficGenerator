@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,7 +26,7 @@ const pcapToolDescription = "Manage PCAP assets and drill from flows down to pac
 // only `action` is always required. The LLM fills in whichever fields the
 // chosen action needs (documented per-field below).
 type managePcapsInput struct {
-	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
+	Description  string                 `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
 	Action       string                 `json:"action" jsonschema:"operation — packet-level inspection ladder (spot the flow, then drill to bytes): list (assets) | list_flows (per-flow stats: counts, flags, vlan/encap, per-direction payload+body sha256+preview, pairing, icmp/sctp aggregates, typed L7 detail, readable first_time/last_time — find the suspicious flow) | list_packets (packets of one flow with per-packet header fields ip_id/ttl/dscp/ecn/tcp seq-ack-flags-window/udp_len/icmp type-code-id-seq/payload_len, needs flow_id; page with page/size) | list_packets_by_asset | get_packet (full header fields of one packet incl. icmpv6 + icmp-embedded headers + self-decoded dns layer, needs packet_id) | get_packet_payload (raw bytes of one packet, needs packet_id) | get_stream (reassembled byte stream, needs flow_id + direction c2s|s2c, optional offset/limit) | get_body (like get_stream) | get_flow | search | match_preview | extract (batch fields for the given packet_ids) | extract_bulk {id, flow_id?, extract_rules:{fields:[..]}} (WHOLE flow or WHOLE asset — no packet_ids needed; big results auto-export with total) | extract_streams {id, flow_id?} (reassembled stream text for one flow or every flow; auto-exports too) | import | get | delete | reparse | download"`
 	ID           string                 `json:"id,omitempty" jsonschema:"asset id (required for all actions except import/list)"`
 	AssetID      string                 `json:"asset_id,omitempty" jsonschema:"alias for id — tasks return the product as 'pcap_asset_id', so both spellings are accepted here; prefer id"`
@@ -40,8 +41,8 @@ type managePcapsInput struct {
 	ExtractRules map[string]interface{} `json:"extract_rules,omitempty" jsonschema:"extract request — REQUIRES packet_ids from a prior list_packets (get them first); real example: {'packet_ids':['<id1>','<id2>'],'fields':['src_ip','dst_port','tcp_flags']} (max 500 packet_ids); fields are layer field names: src_ip, dst_ip, src_port, dst_port, seq, ack, tcp_flags, payload_len, window, ttl, protocol, ip_id, dscp, ecn, direction(c2s/s2c), icmp id/seq, embedded_* (icmp-embedded headers) — matching is case-sensitive snake_case: wrong case (SrcIP) and typos (no_such_field) are treated identically, all reported back in the response's unknown_fields array; use get_packet first to see available fields"`
 	Matcher      map[string]interface{} `json:"matcher,omitempty" jsonschema:"match_preview flow matcher: {Protocol:'tcp|udp|icmp|arp|any', SrcIP:'exact or CIDR', SrcPort, DstIP, DstPort} — 0/empty = any; real example: {'Protocol':'tcp','DstPort':80}"`
 	Force        bool                   `json:"force,omitempty" jsonschema:"force delete even if referenced (delete)"`
-	Page        int                    `json:"page,omitempty" jsonschema:"page number (list/list_flows/list_packets); pagination is optional — omit page/size for the FULL result"`
-	Size        int                    `json:"size,omitempty" jsonschema:"omit page/size (or size=0) → FULL result; give size to cap a page (assets max 200, flows/packets max 500) and page to navigate — full pulls are safe, over 64 KB auto-exports to a file with a download link"`
+	Page         int                    `json:"page,omitempty" jsonschema:"page number (list/list_flows/list_packets); pagination is optional — omit page/size for the FULL result"`
+	Size         int                    `json:"size,omitempty" jsonschema:"omit page/size (or size=0) → FULL result; give size to cap a page (assets max 200, flows/packets max 500) and page to navigate — full pulls are safe, over 64 KB auto-exports to a file with a download link"`
 	Status       string                 `json:"status,omitempty" jsonschema:"filter by asset status (list)"`
 	OutputPath   string                 `json:"output_path,omitempty" jsonschema:"optional — force the FULL result into a file instead of returning it inline (large lists, extracts, stream bodies); the response becomes a small receipt {written_to, bytes, export_id, download_url}. Remote (HTTP): give just a file name like 'flows.json' — the server stores it and the receipt carries a ready download_url. Local (stdio): give an absolute path on this host. Without output_path, responses above 64 KB are auto-exported the same way, so huge results never flood the conversation"`
 }
@@ -201,7 +202,58 @@ func (s *Server) handleManagePcaps(ctx context.Context, req *mcp.CallToolRequest
 	}
 
 	s.auditLog(req, "flowb_manage_pcaps", duration, "success", "")
-	return nil, managePcapsOutput{Action: in.Action, Data: taskDataForTransport(ctx, s.maybeExport(in.Action, resp.Data))}, nil
+	data := taskDataForTransport(ctx, s.maybeExport(in.Action, resp.Data))
+	// R7：list/get 返回的资产结构是 storage 模型直出（PascalCase：ID/Name/
+	// PacketCount），与其余工具的 snake_case 不一致。只在 MCP 输出面递归转
+	// 键（REST/前端契约零接触——它们直接序列化模型）。
+	if in.Action == "list" || in.Action == "get" {
+		data = snakeCaseKeys(data)
+	}
+	return nil, managePcapsOutput{Action: in.Action, Data: data}, nil
+}
+
+// snakeCaseKeys recursively rewrites map keys from PascalCase (or camelCase)
+// to snake_case. Storage models carry no json tags (REST/frontend consume the
+// Go field names), so the MCP transport layer normalizes its own output here.
+func snakeCaseKeys(v interface{}) interface{} {
+	switch t := v.(type) {
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(t))
+		for k, val := range t {
+			out[toSnakeCase(k)] = snakeCaseKeys(val)
+		}
+		return out
+	case []interface{}:
+		for i, val := range t {
+			t[i] = snakeCaseKeys(val)
+		}
+		return t
+	default:
+		return v
+	}
+}
+
+// toSnakeCase converts "PacketCount"→"packet_count", "ID"→"id",
+// "UserID"→"user_id", "CreatedAt"→"created_at", "PcapAssetID"→"pcap_asset_id".
+// Runs of uppercase (ID, TS) collapse into one word boundary.
+func toSnakeCase(k string) string {
+	var b strings.Builder
+	runes := []rune(k)
+	for i, r := range runes {
+		if r >= 'A' && r <= 'Z' {
+			prevLower := i > 0 && !(runes[i-1] >= 'A' && runes[i-1] <= 'Z')
+			// 边界：大写前是小写（PacketCount 的 C），或大写串结束于下一个
+			// 小写前（UserID 的 I——D 后是小写则 I 是新词首）。
+			nextLower := i+1 < len(runes) && runes[i+1] >= 'a' && runes[i+1] <= 'z'
+			if i > 0 && (prevLower || nextLower) {
+				b.WriteRune('_')
+			}
+			b.WriteRune(r + 32)
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // handlePcapImport reads a local file via ImportFromPath (bypasses multipart).

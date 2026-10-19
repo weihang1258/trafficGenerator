@@ -15,7 +15,7 @@ import (
 // generateTrafficInput is the input for flowb_generate_traffic, the one-shot
 // "create strategy + create task + start task" workflow.
 type generateTrafficInput struct {
-	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
+	Description         string                 `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
 	TaskName            string                 `json:"task_name" jsonschema:"task name"`
 	Protocol            string                 `json:"protocol" jsonschema:"protocol name, e.g. modbus/http/dns/a2a — 123 protocols supported; run flowb_query_layers action=examples (no protocol) for the full list"`
 	Config              map[string]interface{} `json:"config" jsonschema:"strategy config. layer-chain is the only accepted format (flat config is gone): {\"layers\":[{\"ip\":{\"src\":\"10.0.0.1\",\"dst\":\"20.0.0.1\"}},{\"udp\":{\"dst_port\":53}},{\"dns\":{\"name\":\"a.com\"}}],\"flow_control\":{\"type\":\"flows\",\"value\":1}} — EACH layers element must hold EXACTLY ONE layer key (merging layers into one element, e.g. {\"layers\":[{\"ip\":{...},\"tcp\":{...}}]}, is rejected with 'each layer entry must contain exactly one layer name') — ordered layers, outermost (L2/L3) first, and the chain must END with a terminal (application) layer (a chain ending at a bare transport layer is rejected with 'layer chain must end with a terminal layer'); protocol inferred from outermost non-scaffolding layer, explicit protocol must match. Only schema-declared fields accepted: unknown fields rejected (all reported at once), hard depends_on auto-completed. ALWAYS call flowb_query_layers action=examples for the target protocol BEFORE composing a config — it returns verified copy-paste examples (field names like ip.src / http.response_status_code come from there, do not guess); action=schema lists fields/types/defaults/depends_on. Top-level src_ip/dst_ip/src_port/dst_port/count are rejected (flat config is gone). group_id binds same-id flows to one worker, e.g. {\"strategy\":\"fixed\",\"value\":7} | {\"strategy\":\"inc\",\"range\":[1024,2048],\"step\":1} | {\"strategy\":\"rand\",\"range\":[1,254],\"seed\":42} | {\"strategy\":\"list\",\"list\":[3,4]} | {\"strategy\":\"pattern\",\"pattern\":\"host{n}\",\"n_range\":[1,100]} (range is a two-element array [lo,hi])."`
@@ -48,7 +48,7 @@ func (s *Server) registerWorkflowTools() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
 			Name:        "flowb_generate_traffic",
-			Description: "One-shot workflow: create strategy + create task + start task. Returns task_id and strategy_id. Most common way to generate traffic. NIC output: give output_config.ports=[{interface, weight}] to auto-create the port group (idempotent — same interfaces reuse the group, returns port_group_reused=true), or output_config.port_group_id for an existing group (the two are mutually exclusive). Completed pcap tasks are auto-registered into the asset library (up to 64MB) — flowb_get_task_progress then returns pcap_asset_id, and flowb_manage_pcaps lists/analyzes/downloads the file (list_flows, get_packet, extract).",
+			Description: "One-shot workflow: create strategy + create task + start task. Returns task_id and strategy_id. Most common way to generate traffic. Quantity/rate envelope: strategy_flow_control or task_flow_control with type=flows|bps|time|packets (value>0; packets = stop after N total packets across all strategies, task level only; whole number). Pacing a duration run = cross-level composition 'strategy bps + task time' (first reached wins); time with no rate runs at FULL speed until the deadline (a submit-time warn is logged). NIC output: give output_config.ports=[{interface, weight}] to auto-create the port group (idempotent — same interfaces reuse the group, returns port_group_reused=true), or output_config.port_group_id for an existing group (the two are mutually exclusive). Completed pcap tasks are auto-registered into the asset library (up to 64MB) — flowb_get_task_progress then returns pcap_asset_id, and flowb_manage_pcaps lists/analyzes/downloads the file (list_flows, get_packet, extract).",
 		},
 		s.handleGenerateTraffic,
 	)
@@ -115,7 +115,7 @@ func (s *Server) handleGenerateTraffic(ctx context.Context, req *mcp.CallToolReq
 // getTaskProgressInput is the input for flowb_get_task_progress.
 type getTaskProgressInput struct {
 	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
-	TaskID string `json:"task_id" jsonschema:"task id to query"`
+	TaskID      string `json:"task_id" jsonschema:"task id to query"`
 }
 
 // getTaskProgressOutput wraps the raw task JSON. TaskResponse has many fields
@@ -227,7 +227,7 @@ func (s *Server) handleStopAllTasks(ctx context.Context, req *mcp.CallToolReques
 
 // waitForTaskInput is the input for flowb_wait_for_task.
 type waitForTaskInput struct {
-	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
+	Description         string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
 	TaskID              string `json:"task_id" jsonschema:"task id to wait for"`
 	TimeoutSeconds      int    `json:"timeout_seconds,omitempty" jsonschema:"max wait time (default 60, max 300)"`
 	PollIntervalSeconds int    `json:"poll_interval_seconds,omitempty" jsonschema:"poll interval (default 2, min 1)"`
@@ -303,7 +303,7 @@ func (s *Server) handleWaitForTask(ctx context.Context, req *mcp.CallToolRequest
 
 // replayPcapInput is the input for flowb_replay_pcap.
 type replayPcapInput struct {
-	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
+	Description         string                   `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
 	TaskName            string                   `json:"task_name" jsonschema:"task name"`
 	PcapAssetID         string                   `json:"pcap_asset_id" jsonschema:"imported pcap asset id to replay"`
 	Loop                *int                     `json:"loop,omitempty" jsonschema:"loop count — omit for a single pass; 0 = infinite (stop the task to end it); N = N passes"`

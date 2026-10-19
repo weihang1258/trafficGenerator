@@ -392,3 +392,57 @@ func countPcapRecords(t *testing.T, path string) int64 {
 	}
 	return n
 }
+
+// IT6（R7 缺陷 A 红例）：多策略任务父统计聚合——3 策略各 50 流 → pcap 150
+// 包，父任务 packets_sent 库内必须同为 150（修复前存活者聚合把已完成策略
+// 的统计丢掉，pcap 150 / 库内 55）。
+func TestIntegration_MultiStrategy_ParentStatsAggregated(t *testing.T) {
+	r, db, _, cleanup := setupIntegrationTest(t)
+	defer cleanup()
+
+	pcapPath := t.TempDir() + "/it6.pcap"
+	var sids []string
+	for i, base := range []int{32000, 33000, 34000} {
+		_ = i
+		sids = append(sids, createStrategy(t, r, "udp",
+			fmt.Sprintf(`{"layers":[{"ip":{"src":"10.0.%d.1","dst":"10.0.%d.2"}},{"udp":{"src_port":{"strategy":"inc","range":[%d,%d]},"dst_port":9000}}]}`,
+				base/1000, base/1000, base, base+49),
+			`{"type":"flows","value":50}`,
+		))
+	}
+	// 任务级 FC 必须显式给出：缺省时继承首个策略的 flow_control（D-FILE-2
+	// 继承规则）→ flows=50 会被当成全任务总额封顶（复审 R7 中实测三策略
+	// 合计恰 50 流即此规则履职，非缺陷）。显式 150 = 3×50 全额放行。
+	taskID := createTask(t, r, "it6", sids, pcapPath, `{"type":"flows","value":150}`)
+
+	if code, body := startTask(t, r, taskID); code != http.StatusOK {
+		t.Fatalf("start: code=%d body=%s", code, body)
+	} else {
+		t.Logf("DBG start body: %s", body)
+	}
+	status := waitForTaskStatus(t, r, taskID, map[string]bool{"completed": true, "failed": true}, 30*time.Second)
+	if status != "completed" {
+		t.Fatalf("task status=%s", status)
+	}
+
+	var task struct {
+		PacketsSent int64   `json:"packets_sent"`
+		Progress    float64 `json:"progress"`
+	}
+	row := db.Model(&storage.TaskModel{}).Where("id = ?", taskID).Take(&storage.TaskModel{})
+	_ = row
+	if err := db.Raw("SELECT packets_sent, progress FROM tasks WHERE id = ?", taskID).Scan(&task).Error; err != nil {
+		t.Fatalf("query parent: %v", err)
+	}
+
+	n := countPcapRecords(t, pcapPath)
+	if n != 150 {
+		t.Errorf("pcap records = %d, want 150 (3×50 flows)", n)
+	}
+	if task.PacketsSent != 150 {
+		t.Errorf("parent packets_sent = %d, want 150 (R7 缺陷 A：已完成策略统计不得从合计丢失)", task.PacketsSent)
+	}
+	if task.Progress != 100 {
+		t.Errorf("parent progress = %v, want 100", task.Progress)
+	}
+}
