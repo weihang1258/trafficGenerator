@@ -11,6 +11,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/core/layers"
 	"github.com/trafficgen/trafficgen/internal/core/schema"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/auth"
@@ -244,6 +246,32 @@ func (h *StrategyHandler) createSynthStrategy(c *gin.Context, userID, mode strin
 		return
 	}
 	req.Protocol = eff
+
+	// D-REQ-1 批 4（BUG-09 剩余面）：建单期全量语义 dry-run——复用
+	// BuildLayersPlanner + ChainPlanner.ValidateSpec 流水线，使 131 个
+	// 协议语义校验器在策略建单即拒（原：任务启动期才报"validation
+	// failed"）。纯函数无运行态依赖；file 存在性/NIC/端口组仍留启动期。
+	if layersRaw, ok := req.Config["layers"]; ok {
+		layersJSON, lerr := json.Marshal(layersRaw)
+		if lerr != nil {
+			BadRequest(c, "invalid layers format: "+lerr.Error())
+			return
+		}
+		proto := eff
+		if proto == "" {
+			proto = req.Protocol
+		}
+		planner, perr := layers.BuildLayersPlanner(proto, layersJSON)
+		if perr != nil {
+			BadRequest(c, perr.Error())
+			return
+		}
+		spec := core.MapToFlowSpec(req.Config, proto)
+		if verr := planner.Validate(spec); verr != nil {
+			BadRequest(c, verr.Error())
+			return
+		}
+	}
 
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {

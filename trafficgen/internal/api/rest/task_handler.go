@@ -25,6 +25,7 @@ import (
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/auth"
 	"github.com/trafficgen/trafficgen/pkg/netif"
+"github.com/trafficgen/trafficgen/internal/core/layers"
 	"gorm.io/gorm"
 )
 
@@ -882,6 +883,27 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 		if msg := schema.ValidateBatchClassLayerFields(class.Config); msg != "" {
 			BadRequest(c, fmt.Sprintf("class[%d] %s: %s", i, class.ID, msg))
 			return
+		}
+		// D-REQ-1 批 4（BUG-09 剩余面）：每类建单期全量语义 dry-run——
+		// 复用 BuildLayersPlanner + ChainPlanner.ValidateSpec 流水线（131
+		// 协议语义校验器），使"建单通过、开跑才报 validation failed"的
+		// 延迟拒绝与单任务入口行为一致。纯函数无运行态依赖。
+		if layersRaw, lok := class.Config["layers"]; lok {
+			layersJSON, lerr := json.Marshal(layersRaw)
+			if lerr != nil {
+				BadRequest(c, fmt.Sprintf("class[%d] %s: layers marshal: %s", i, class.ID, lerr.Error()))
+				return
+			}
+			planner, perr := layers.BuildLayersPlanner(class.Type, layersJSON)
+			if perr != nil {
+				BadRequest(c, fmt.Sprintf("class[%d] %s: %s", i, class.ID, perr.Error()))
+				return
+			}
+			spec := core.MapToFlowSpec(class.Config, class.Type)
+			if verr := planner.Validate(spec); verr != nil {
+				BadRequest(c, fmt.Sprintf("class[%d] %s: %s", i, class.ID, verr.Error()))
+				return
+			}
 		}
 	}
 
