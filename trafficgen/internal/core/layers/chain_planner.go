@@ -1672,7 +1672,9 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 		}
 	}
 
-	out := make(chan core.PacketConfig, 256)
+	// J2：同 drive innerCh——中继在收集完整返回后才逐包补发，消费方
+	// （worker）同步在收，16 槽足够；256 槽=每流白付 ~84KB 分配。
+	out := make(chan core.PacketConfig, 16)
 	go func() {
 		// 关闭协议（review CRITICAL-1 修复）：驱动失败或取消时，ip 生成器
 		// goroutine 可能仍在消费 innerCh 并向 out 发送 → 必须先等生产完全

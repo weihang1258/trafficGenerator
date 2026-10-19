@@ -300,7 +300,11 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 
 	// 2. 自内向外实例化生成器；相邻层用通道连接（内层产出 → 外层消费）。
 	//    gens 已由 Plan 预实例化（instantiateGens），此处直接使用。
-	innerCh := make(chan core.PacketConfig, 256)
+	// J2 profile 实测（D-REQ-1 批 3，/tmp/j2_chain.pprof）：256 槽
+	// PacketConfig 通道每流 ~88KB 分配（PacketConfig ≈330B），万流任务
+	// GC cum 占 CPU ~90%。innerCh 只是生成器 goroutine 与收集循环间的
+	// 解耦缓冲，16 槽足够重叠；万流分配 1.7GB→<100MB。
+	innerCh := make(chan core.PacketConfig, 16)
 
 	// 3. 驱动：最外层生成器（ip）包内层；最内层生成器（tcp 或 http）产出。
 	//    通用模式：外层生成器消费内层通道；最内层生成器不消费 innerCh。
