@@ -23,6 +23,7 @@ func snmpSpec() core.FlowSpec {
 		SrcMAC:  "aa:bb:cc:dd:ee:ff",
 		DstMAC:  "11:22:33:44:55:66",
 		SNMP: &core.SNMPConfig{
+			RequestID: 0x01000000, // 固定 request-id：消除 chain/legacy 双独立随机取样的 BER 编码长度差（偶发 FAIL 根因）
 			Version:   snmp.VersionSNMPv2c,
 			Community: "public",
 			PDUType:   snmp.PDUGetRequest,
