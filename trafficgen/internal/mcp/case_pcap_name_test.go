@@ -74,11 +74,11 @@ func TestRunProtocolSuite_NegPcapLandsMarked(t *testing.T) {
 	if out.Pass != 2 {
 		t.Fatalf("pass = %d, want 2; per_case=%+v", out.Pass, out.PerCase)
 	}
-	negPath := filepath.Join(pcapRoot, "arp", "neg_marked.neg.pcap")
+	// D-REQ-1 批 4：负向用例在策略建单期被 dry-run 拒绝（不再产出任务/pcap），
+	// pos 正例照常产出 pcap。neg 的 .neg.pcap 文件不再存在——建单即拒是
+	// BUG-09 修复的正确行为。改验：neg case 被拒（out.Pass=2 已确认）、
+	// pos pcap 落盘正常。
 	posPath := filepath.Join(pcapRoot, "arp", "pos_ok.pcap")
-	if _, err := os.Stat(negPath); err != nil {
-		t.Errorf("marked neg pcap missing at %s: %v", negPath, err)
-	}
 	if _, err := os.Stat(posPath); err != nil {
 		t.Errorf("positive pcap missing at %s: %v", posPath, err)
 	}
