@@ -1,4 +1,4 @@
-<title>需求单两项交付：按包数停止+时长限速；万流生成提速至亚秒</title>
+<title>R7 回执答复：策略 time 语义修复+统计两缺陷+放大器消除，端到端落回 465ms</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
   :root {
@@ -44,61 +44,58 @@
 
 <div class="wrap">
   <div class="eyebrow">trafficgen · 复测回执答复函</div>
-  <h1>需求单两项已交付：按包数停止、时长可限速；万流生成实测 434 毫秒</h1>
+  <h1>R7 回执处置：02② 策略 time 语义修复，统计两缺陷修复，端到端放大器消除</h1>
   <div class="meta">
-    <span>2026-10-19</span>
-    <span>对应事项：需求单（按包数控制 / time 配速率）+ 万流生成性能</span>
-    <span>部署：8081 最新构建（99b46ded · 8b432d6d · 3b812aec）</span>
+    <span>2026-10-19 深夜</span>
+    <span>对应文件：复测回执 R7（21:31–22:00）</span>
+    <span>部署：8081 最新构建（a1703ab3 + c6b2b35f，二进制 md5 79f0f9ee…）</span>
   </div>
 
   <div class="verdict">
-    需求单两项（按包数控制、time 配速率）已交付上线，万流生成性能专项同步收敛：此前压测观测的"1 万条流约 10 秒"根因已定位并修复，<strong>同口径万流任务端到端实测 434 毫秒（万包 pcap 落盘）</strong>。三项均附你们的复测步骤；语义裁定均做了三路对照（iperf3 / DPDK pktgen / Ixia），依据留档。全部交付面经三路独立复审（0 严重 / 0 主要）+ 全量回归（含并发竞争检测）绿后部署。
+    感谢这份高密度回执——02② 是真缺陷（我方答复函"同效"表述在先，引擎只认任务级 time），当日修复并让该表述成真；统计两缺陷全盘认领修复；端到端 3.6–4.1s 的两个放大器（入库 fsync + 溢出告警刷日志）分别消除，<strong>紧跟入库的 create 排队 2.2s → 实测 13ms，time 截止尾部 13s → 实测 103ms，万流端到端保持 465ms</strong>。01 与 02①③ 通过项零接触。你们回传的任务 ID 与证据全部对账入函。
   </div>
 
-  <h2><span class="no">01</span>按包数控制（需求单 1）——已交付</h2>
-  <p>数量控制新增第四种类型 <span class="inline">packets</span>：发满 N 个包就停。<strong>写在任务级</strong>：N 是全任务总包数封顶（多个策略合计），先到先停——与策略级的流数/速率/时长并存时，哪个先到哪个停。策略内部照常产流，总额度耗尽即整任务收尾，任务状态正常 completed（不是失败）。</p>
+  <h2><span class="no">01</span>02②「策略 time + 任务 bps」1 包瞬完——属实，已修复（严重）</h2>
+  <p>确认属实，且根因定位与我方一致：流循环上界只认任务级 time，策略级 time 的 flowLimit 恒为 1——单流任务微秒级耗尽，deadline 形同虚设（你们 6 次复现全部 1 包 completed 即此）。<strong>修法</strong>：timeMode 同看策略级 Duration，流循环持续生成到截止。flow_control 单对象下 策略 Count 与 Duration 天然互斥（策略 time ⟹ 无 Count），放开无副作用；既有时长/流数全家族回归绿。答复函"策略 time + 任务 bps 同效"的表述自此为真。</p>
+  <p><strong>复测锚点</strong>：策略 time=3 + 任务 bps=1M → 持续跑满 3 秒。我方实测：15440 包 / 926KB / completed（修复前同一形态 1 包 0.001s）。</p>
   <table>
-    <tr><th style="width:230px">用法</th><th>说明</th></tr>
-    <tr><td class="id">任务 flow_control<br>{"type":"packets","value":5}</td><td>value=正整数（小数拒绝：1.5 个包无意义）。多策略任务时 N 为全部策略合计上限，精确不超发。</td></tr>
-    <tr><td class="id">策略级写 packets</td><td>建单拒绝并指路：<span class="inline">packets is a task-level type; set it on task create</span>。包数封顶是任务级语义（总量），策略级保持 流数/速率/时长 三类不扩。</td></tr>
-    <tr><td class="id">与回放策略组合</td><td>合法：回放资产按时间戳原速播放，包数封顶到量即截断。</td></tr>
-  </table>
-  <p><strong>复测步骤</strong>：</p>
-  <table>
-    <tr><td class="id">① 精确封顶</td><td>建一个 50 流的 udp 策略（flows=50，每流 1 数据报，需求 50 包×2 策略=100），任务级 packets=5 → 跑完 pcap <strong>恰 5 包</strong>、任务 completed。（我方实测：50 流+50 流两策略，pcap 恰 5 包，第 5 包为截断中间流，符合"到量即停"。）</td></tr>
-    <tr><td class="id">② 先到先停</td><td>策略 flows=1000 + 任务 packets=10 → 秒级完成 10 包，不等流数跑完。</td></tr>
-    <tr><td class="id">③ 负例</td><td>value=1.5 → <span class="inline">whole number of packets</span> 拒；value=0 → positive 拒；策略级 packets → 指路文本拒。</td></tr>
+    <tr><td class="id">②① 附注：速率口径<br><span class="pill p-clear">口径说明非缺陷</span></td><td>你们的对账已点破：bps 按线上帧长计（含以太头），非载荷口径。+15%（42B 头 / ~240B 帧）与 +37.5%（42B / ~112B 帧）两笔恰好吻合帧头占比——与线速(line-rate)口径一致，现网仪表同口径。如需"载荷口径"另提需求单。</td></tr>
+    <tr><td class="id">②③ 附注：纯 time 尾部<br><span class="pill p-fixed">已消除</span></td><td>time=2 实测 14.99s 的尾部与本函 03 节两个放大器同根（入库 fsync 锁 + 溢出日志 I/O 拖住输出排空）。放大器消除后我方实测 time=2 全速任务 <strong>wall 2103ms（deadline 2s + 排空 103ms）</strong>。</td></tr>
   </table>
 
-  <h2><span class="no">02</span>time 配速率（需求单 2）——已交付</h2>
-  <p>裁定：time 单独使用<strong>语义保持全速跑到截止</strong>（压测主场景，不强制速率——对照 iperf3/pktgen/商业仪表均不强制）。限速通过<strong>跨层组合</strong>表达，能力此前已存在并实测生效，本轮补齐的是可发现性与文档：</p>
-  <table>
-    <tr><th style="width:230px">组合</th><th>效果</th></tr>
-    <tr><td class="id">策略 bps + 任务 time</td><td>限速跑满时长（如 100M 跑 60 秒）——推荐写法</td></tr>
-    <tr><td class="id">策略 time + 任务 bps</td><td>同效（任务级 bps 走父桶限速）</td></tr>
-    <tr><td class="id">time 且无任何速率</td><td>行为不变（全速），但<strong>建单时服务日志告警一条</strong>（"time flow control without a rate limit…set bps on the strategy"），不再无声。不拒单。</td></tr>
-  </table>
-  <p><strong>复测步骤</strong>：① 策略 bps=100M + 任务 time=10s → 任务跑满 10 秒、速率钳在 100M；② 任务 time=60s、策略不配速率 → 建单成功、8081 服务日志出现一条 warn、流量全速；③ 工具描述（flowb_manage_tasks 的 flow_control 字段）已写明组合方法与"full speed unless a strategy sets bps"。</p>
+  <h2><span class="no">02</span>新增缺陷 A：多策略统计错——属实，已修复</h2>
+  <p>确认属实。根因即你们指的方向再深一层：父任务进度/统计聚合遍历的是引擎<strong>存活</strong>子任务表，而完成的子任务即被摘除——已完成策略的统计从合计里消失（3×50 流 pcap 150 / 库内 55；进度均值分母缩水出现 83.33/87.5/90 后跳完成）。<strong>修法</strong>：聚合改槽位制——每个引擎子任务在父任务名下有一个槽位（进度/统计以最后一次上报为准，完成后保留），父合计=全槽求和、进度取全槽均值，父任务终态后整组清理。<strong>复测锚点</strong>：3 策略各 50 流 → pcap 150 且库内 packets_sent=150、progress 平滑走到 100。我方端到端实测 150/150/progress=100（修复前同形态库内 50）。</p>
+  <p>顺带澄清一个本轮实测发现的行为（非缺陷，避免后续误报）：任务创建<strong>不填 flow_control</strong> 时会继承首个策略的 flow_control 当作全任务上限——若策略各 flows=50 而任务不显式给流控，三策略合计会被封顶 50 流（本函 01 的精确封顶规则同源）。多策略合计测试请显式给任务级 flow_control。</p>
 
-  <h2><span class="no">03</span>万流生成性能（压测观测"1 万流约 10 秒"）——根因修复</h2>
-  <p>按约定先测量后动手：用真实引擎+真实协议链+真实 pcap 输出做活体剖面。结论：<strong>时间不在计算，在内存</strong>——引擎内部每条流固定预分配两块按最大规格开的数据缓冲（合计约 175KB/流），1 万流累计 1.7GB 分配，垃圾回收吃掉约 90% 的 CPU。修法是把六处缓冲按实际需要收敛（16 槽）：万流内存分配 2.06GB→474MB（4.3 倍），生成速率 80→36 微秒/流（2.2 倍）。</p>
+  <h2><span class="no">03</span>新增缺陷 B：完成路径丢统计——属实，已修复</h2>
+  <p>确认属实，根因与你们判断一致：97c35d5c 这类快任务走的是"规划收尾时包已全部写完"的完成路径，该路径只发完成通知、不发最后一次带实发统计的进度事件——库内 packets_sent=0 而 pcap 64975 包。<strong>修法</strong>：该路径与另一条完成路径对称，终态补发 OnProgress(100, 实发统计)。红例先行（drain 路径无终态事件→红，补发→绿）。<strong>复测锚点</strong>：任意快任务完成后库内 packets_sent == pcap 包数（我方 02② 复测任务 15440/15440 一致）。</p>
+
+  <h2><span class="no">04</span>03 万流：引擎侧数据互证，端到端放大器消除</h2>
+  <p>引擎侧 0.39–0.43s 与我方 434ms 互证，感谢双端对账。两个放大器如约消除：</p>
   <table>
-    <tr><td class="id">端到端实测<br><span class="pill p-fixed">8081 全链路</span></td><td>万流 udp 任务（REST 建单→启动→完成→pcap 落盘万包）：<strong>434 毫秒</strong>。对照此前观测的 ~10 秒。两次部署（含复审修复版）复测一致。</td></tr>
-    <tr><td class="id">正确性对账</td><td>修复前后 pcap 字节面一致；万流 pcap 恰万包。若复测数字与 434ms 量级不符（如仍在秒级），请回传任务 ID 与时间戳，我方按你们的口径重测。</td></tr>
+    <tr><td class="id">A 入库 fsync<br><span class="pill p-fixed">2.2s → 13ms</span></td><td>根因比"同步入库"更窄：sqlite 此前每批提交双 fsync（synchronous=FULL），6.5 万包 ≈2600 批连续重取写锁，下一任务 create 排队 2.15–2.46s。改 synchronous=NORMAL（WAL 标准搭配，提交降为 WAL 追加）：应用崩溃不丢、OS 掉电可能回滚最后一笔——流量工具可接受。<strong>实测：入库进行中紧跟 create 13ms。</strong></td></tr>
+    <tr><td class="id">B 溢出告警<br><span class="pill p-fixed">80 万条 → 限速</span></td><td>告警改每 worker 首条 + 每 5s 一条、累计丢弃数随行携带；计数不受限速影响。历史 897MB 日志为本轮前存量，未清理（需要的话告知口径我们按窗口清理）。</td></tr>
+    <tr><td class="id">万流端到端</td><td>两放大器消除后我方复测：万流 465ms；你们口径的"创建→ready→跑完"链路建议复测，预期进入亚秒+毫秒级排队。内存侧你们实测 RSS 295MB 与我方 474MB 分配口径同量级，互证成立。</td></tr>
   </table>
 
-  <h2><span class="no">04</span>质量面与真实测试清单</h2>
+  <h2><span class="no">05</span>MCP 三小项——全部处理</h2>
   <table>
-    <tr><td class="id">真实流程验证<br>（8081 线上）</td><td>① 50 流×2 策略 + packets=5 → pcap 恰 5 包 completed；② 策略级 packets 建单拒（锚词逐字）；③ value=1.5/0 双拒；④ time 无速率告警日志落地；⑤ 万流任务 434ms completed 万包（×2 次部署复测）。</td></tr>
-    <tr><td class="id">回归</td><td>引擎/校验/REST/MCP 四层全量用例含并发竞争检测（-race）全绿；新增引擎级红例 6、校验例 7 断言、REST 端到端 1（策略×2→任务 packets=5→pcap 恰 5 包）。</td></tr>
-    <tr><td class="id">隔离复审</td><td>三路独立复审（并发正确性 / schema+测试质量 / 六点裁定）：0 严重 / 0 主要。复审发现的两处小项已修复：①任务被时长截断时归还已预占额度（避免姊妹策略少发）；②回放任务不再误触发"无速率"告警（回放按 pcap 时间戳限速）。修复均有确定性红例先行。</td></tr>
+    <tr><td class="id">strategies list 分页</td><td>MCP manage_strategies 已放行 page/size（REST 侧批 5 能力对齐）；缺省仍返回裸数组向后兼容。</td></tr>
+    <tr><td class="id">generate_traffic 描述</td><td>顶层描述已补 packets 类型与 time+bps 组合方式（"strategy bps + task time, first reached wins; time with no rate runs at FULL speed"）。</td></tr>
+    <tr><td class="id">assets 键风格</td><td>manage_pcaps 的 list/get 资产键已归一 snake_case（id/name/packet_count/…）。范围说明：仅资产两动作转换，flows/packets 等其余动作的输出形状本轮未动——避免破坏你们既有脚本；如需同规则统一，回执确认即做。</td></tr>
+  </table>
+
+  <h2><span class="no">06</span>01 与 02①③ 通过项</h2>
+  <table>
+    <tr><td class="id">01 按包数控制</td><td>全项通过，零接触。上限精度 7/99/100/150/250 对 100 的边界组、负例四连、耗尽 completed 口径均与设计一致，感谢逐条对账。</td></tr>
+    <tr><td class="id">02①③</td><td>通过项零接触。③ 的 7 任务 7 条告警（无一重复刷屏）即限速前哨——本轮进一步把溢出类告警也纳入限速（04 节 B）。</td></tr>
   </table>
 
   <div class="ok">
-    <b>部署状态</b>：8081 已运行含本函全部交付的最新构建（重启后网口能力位已重打）。本轮改动集中在流控与引擎内部缓冲，既有协议面/校验面零接触——此前验证过的修复不受影响。
+    <b>部署状态</b>：8081 已运行含本函全部修复的最新构建（二进制 md5 79f0f9ee…，重启后网口能力位已重打）。02①③ 与 01 通过面零接触；你们留档的证据任务（0f21ec20 组 / 97c35d5c / 7a47fb37 组）未触碰。
   </div>
 
   <div class="foot">
-    本函对应提交：99b46ded（packets 流控 + time 告警）· 8b432d6d（万流性能）· 3b812aec（复审收尾）· 前函：stress_report_reply.html（16 项逐条答复，2026-10-15）/ 本函前版（N1/N2，2026-10-15）
+    本函对应提交：c6b2b35f（02② + 缺陷 A/B + 放大器 A/B + MCP 三小项；红例先行）· 前函：需求单交付函（2026-10-19，99b46ded·8b432d6d·3b812aec）· 线上复测：策略 time=3+任务 bps=1M → 15440 包跑满 3s / time=2 全速 wall 2103ms / 入库中 create 13ms / 万流 465ms
   </div>
 </div>
