@@ -1076,3 +1076,62 @@ func TestStrategyTime_ContinuousUntilDeadline(t *testing.T) {
 		return true
 	})
 }
+
+// ---------------------------------------------------------------------------
+// R8 附带观察红例：时间模式进度按 elapsed/budget 映射（不再恒 0 跳 100）
+// ---------------------------------------------------------------------------
+
+// TestTimeMode_ProgressTracksDeadline：任务级 time=1s 的任务在运行中段
+// 进度必须可见（≥20%）且 <100——修复前 drain 前 totalConfigs 未知，进度
+// 恒 0、结束时直接跳 100（客户端 R8："进度条实际不可用"）。
+func TestTimeMode_ProgressTracksDeadline(t *testing.T) {
+	e, _ := setupEngine(t, 1, 0) // 每流 1 包零延迟：持续产流，写侧持续触发进度
+
+	// 原子存百分位整数：回调 goroutine 写、测试 goroutine 读（-race）。
+	var maxProgressPct atomic.Int64
+	e.OnProgress = func(taskID string, progress float64, stats TaskStats) {
+		pct := int64(progress)
+		for {
+			cur := maxProgressPct.Load()
+			if pct <= cur || maxProgressPct.CompareAndSwap(cur, pct) {
+				return
+			}
+		}
+	}
+
+	task := Task{
+		ID: "t23-tprog", Name: "tprog", Protocol: "tcp", ClassID: "t23-tprog",
+		ParentTaskID: "t23-parent",
+		TaskFCType:   "time",
+		TaskFCValue:  1,
+	}
+	if err := e.SubmitTask(task); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+
+	// 运行中段持续采样（200~900ms，取最大）——消除启动延迟导致的单点
+	// 采样过早（全套件 -race 下偶发）。
+	deadline := time.Now().Add(900 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		e.taskMu.RLock()
+		if entry, ok := e.taskStore["t23-tprog"]; ok {
+			pct := int64(entry.status.Progress)
+			for {
+				cur := maxProgressPct.Load()
+				if pct <= cur || maxProgressPct.CompareAndSwap(cur, pct) {
+					break
+				}
+			}
+		} else {
+			e.taskMu.RUnlock()
+			break // 已终态
+		}
+		e.taskMu.RUnlock()
+		time.Sleep(50 * time.Millisecond)
+	}
+	waitTaskDone(t, e, "t23-tprog", 5*time.Second)
+
+	if maxProgressPct.Load() < 20 {
+		t.Errorf("max mid-run progress = %d%%, want >= 20%% (时间模式进度须按 elapsed/budget 映射；旧实现恒 0)", maxProgressPct.Load())
+	}
+}

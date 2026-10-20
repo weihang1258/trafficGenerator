@@ -178,6 +178,11 @@ type taskEntry struct {
 	// 流数，任务完成即随 entry 释放。
 	flowsSeen map[string]struct{}
 
+	// timeBudget：时间模式（任务级 time / 策略级 Duration / 批量 Duration）
+	// 的截止时长——R8 附带观察：时间模式 drain 前 totalConfigs 未知，进度
+	// 恒 0 直到跳 100。有预算时进度按 elapsed/budget 映射，进度条可用。
+	timeBudget time.Duration
+
 	// Pipeline drain tracking: ConfigWorker sets totalConfigs when done,
 	// OutputWorker increments writtenPackets per write, PacketWorker reports
 	// build failures via OnPacketBuildError.
@@ -744,17 +749,21 @@ func (e *Engine) SubmitTask(task Task) error {
 	//  4. no timeout (WithCancel)
 	var taskCtx context.Context
 	var cancel context.CancelFunc
+	var timeBudget time.Duration
 	switch {
 	case task.Batch != nil && task.Batch.Global.DurationSeconds > 0:
-		taskCtx, cancel = context.WithTimeout(e.ctx, time.Duration(task.Batch.Global.DurationSeconds)*time.Second)
+		timeBudget = time.Duration(task.Batch.Global.DurationSeconds) * time.Second
+		taskCtx, cancel = context.WithTimeout(e.ctx, timeBudget)
 	case task.TaskFCType == "time":
 		eff := task.TaskFCValue
 		if task.Spec.Duration > 0 && time.Duration(task.Spec.Duration)*time.Second < time.Duration(eff*float64(time.Second)) {
 			eff = float64(task.Spec.Duration) // min(strategy, task-level)
 		}
-		taskCtx, cancel = context.WithTimeout(e.ctx, time.Duration(eff*float64(time.Second)))
+		timeBudget = time.Duration(eff * float64(time.Second))
+		taskCtx, cancel = context.WithTimeout(e.ctx, timeBudget)
 	case task.Spec.Duration > 0:
-		taskCtx, cancel = context.WithTimeout(e.ctx, time.Duration(task.Spec.Duration)*time.Second)
+		timeBudget = time.Duration(task.Spec.Duration) * time.Second
+		taskCtx, cancel = context.WithTimeout(e.ctx, timeBudget)
 	default:
 		taskCtx, cancel = context.WithCancel(e.ctx)
 	}
@@ -787,7 +796,7 @@ func (e *Engine) SubmitTask(task Task) error {
 	// check and the snapshot) cleans up everything this task registered —
 	// including the layerPlanners entry inserted above.
 	e.taskMu.Lock()
-	e.taskStore[task.ID] = &taskEntry{task: &task, status: status, cancel: cancel, ctx: taskCtx}
+	e.taskStore[task.ID] = &taskEntry{task: &task, status: status, cancel: cancel, ctx: taskCtx, timeBudget: timeBudget}
 	e.taskMu.Unlock()
 
 	// Snapshot the channel pair under channelMu so the select below races
@@ -1012,6 +1021,26 @@ func (e *Engine) OnPacketWritten(taskID, flowID string, nbytes int) {
 				e.OnProgress(taskID, newProgress, interimStats)
 			}
 			return
+		}
+	} else if entry.timeBudget > 0 {
+		// R8 附带观察：时间模式 drain 前 totalConfigs 未知——进度按
+		// elapsed/budget 映射（1% 步进），进度条全程可用而非恒 0 跳 100。
+		if st := entry.status; !st.StartedAt.IsZero() {
+			elapsed := time.Since(st.StartedAt)
+			newProgress := elapsed.Seconds() / entry.timeBudget.Seconds() * 100
+			if newProgress > 99 {
+				newProgress = 99 // 终态 100 由完成路径补发，中途封顶防虚标
+			}
+			oldProgress := st.Progress
+			if newProgress-oldProgress >= 1.0 {
+				st.Progress = newProgress
+				interimStats := st.Stats
+				e.taskMu.Unlock()
+				if e.OnProgress != nil {
+					e.OnProgress(taskID, newProgress, interimStats)
+				}
+				return
+			}
 		}
 	}
 	e.taskMu.Unlock()
