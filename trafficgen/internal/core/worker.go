@@ -288,6 +288,12 @@ func (w *ConfigWorker) processTask(task Task) {
 	if hasPktCeiling {
 		pktCounter = w.engine.getOrCreatePacketCounter(task.fcKey())
 	}
+	// R9 设计对齐：任务级 bps 配额任务的生成端在途窗口 key（空=无窗口，
+	// 生成不被限流，仅打包端限速——策略级 bps 语义不变）。
+	gateKey := ""
+	if task.TaskFCType == "bps" && task.TaskFCValue > 0 {
+		gateKey = task.fcKey()
+	}
 
 	// Forward configs to packet workers
 	var configCount int64
@@ -404,6 +410,22 @@ func (w *ConfigWorker) processTask(task Task) {
 				}
 				break
 			}
+			// R9 设计对齐：配额任务生成端在途窗口——通道深度有界（常态近
+			// 空），deadline 时在途仅窗口量级，限速排空即可零丢弃收尾。
+			if gateKey != "" && !w.engine.acquireTaskGate(gateKey, taskCtx) {
+				// 窗口等待被终态打断：排空并按对应终态收敛（镜像 Done 分支）。
+				planCancel()
+				for range configChan {
+				}
+				if w.onTaskDone != nil {
+					if taskCtx.Err() == context.DeadlineExceeded {
+						w.onTaskDone(task.ID, nil, configCount)
+					} else {
+						w.onTaskDone(task.ID, fmt.Errorf("task cancelled"), configCount)
+					}
+				}
+				return
+			}
 			config.ClassID = task.ClassID
 			// Propagate flow-level VLAN to the packet's L2 config. Planners do not
 			// copy spec.VLAN into L2Config, so without this the builder never sees
@@ -431,6 +453,9 @@ func (w *ConfigWorker) processTask(task Task) {
 				// Drain remaining configs so the planner goroutine is not blocked
 				// on configChan <- (which would leak it permanently). Planners
 				// generate a finite number of packets, so this drain is bounded.
+				if gateKey != "" {
+					w.engine.releaseTaskGate(gateKey) // 本包未送出，归还窗口槽
+				}
 				planCancel() // 释放子 ctx；父 deadline 已传播，drain 即时收敛
 				// 复审 MINOR-1：本 config 的槽在循环顶已成功预留，此处丢弃
 				// 必须回吐——否则姊妹策略永久少一个额度（只少发不超发）。
@@ -1007,30 +1032,23 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 	}
 }
 
-// paceOrDropAtDeadline：限速等待的终态语义（R8-D3，与复测 #3 P1 合并裁
-// 定）。任务级/策略级 bps + 截止 = **速率配额**：deadline 到期时，生成期
-// 压入分片通道的在途包若继续免速冲出=限速窗口末尾超发（客户端实测
-// +105%），若继续限速排空=截止无法终止（#3 P1：40s 拖尾）。裁定：超出
-// 预算的在途包**带核算丢弃**（OnPacketDeadlineDrop 计入完成对账，不误报
-// 失败），实发 ≈ 速率×时长，pcap/库内/统计三者一致，截止照常快速终止。
-// 仅用户主动 stop（Canceled）保留免速快速清空——被放弃产物快速收敛优先。
-// 返回 false = 该包已被配额截断丢弃（已核算），调用方必须跳过写出。
-func (w *PacketWorker) paceOrDropAtDeadline(tb *TokenBucket, waitCtx context.Context, config PacketConfig, nbytes int64) bool {
+// pacedDrainAtDeadline：限速等待的终态语义（R9 设计对齐）。
+// 任务级 bps = 速率配额（budget = bps×duration）。生成端有界在途窗口
+// （taskGate，ConfigWorker 侧）保证 deadline 时刻在途仅窗口量级——此时
+// 在途包**限速排空**（时长=在途量/速率，亚秒级）：速率口径保持到最后一
+// 字节、零丢弃、截止快速终止，三者同时成立。
+// 用户主动 stop（Canceled）仍免速快速清空——被放弃产物快速收敛优先。
+// 策略级 bps（子桶）不经此路径：子桶限速下生成自节流，deadline 沿用
+// 免速清空（帧口径 +15% 为既定语义）。
+func pacedDrainAtDeadline(tb *TokenBucket, waitCtx context.Context, nbytes int64) {
 	if err := tb.Wait(waitCtx, nbytes); err == nil {
-		return true
+		return
 	}
-	switch waitCtx.Err() {
-	case context.Canceled:
-		return true // 用户 stop：免速快速清空（照常写出）
-	default:
-		// DeadlineExceeded（或其他终态）：配额截断——丢弃并核算。
-		if w.engine != nil {
-			if taskID, ok := config.Metadata["task_id"].(string); ok && taskID != "" {
-				w.engine.OnPacketDeadlineDrop(taskID, 1)
-			}
-		}
-		return false
+	if waitCtx.Err() == context.Canceled {
+		return // 用户 stop：免速快速清空
 	}
+	// DeadlineExceeded：限速排空在途包（窗口有界，亚秒级）。
+	_ = tb.Wait(context.Background(), nbytes)
 }
 
 // GetStats returns worker statistics.
@@ -1104,6 +1122,20 @@ func (w *PacketWorker) run() {
 
 // processConfig processes a single packet configuration.
 func (w *PacketWorker) processConfig(config PacketConfig) {
+	// R9 设计对齐：配额任务的生成端窗口槽在本包交付（进入输出通道）后
+	// 归还。构建失败早退同样归还。metadata 取键与 fcKey 一致（parent
+	// 优先、standalone 回退 task id）；无窗口任务 release 为无锁空转。
+	if w.engine != nil {
+		parentID, _ := config.Metadata["parent_task_id"].(string)
+		taskID, _ := config.Metadata["task_id"].(string)
+		key := parentID
+		if key == "" {
+			key = taskID
+		}
+		if key != "" {
+			defer w.engine.releaseTaskGate(key)
+		}
+	}
 	if w.buildFunc == nil {
 		return
 	}
@@ -1154,8 +1186,10 @@ func (w *PacketWorker) processConfig(config PacketConfig) {
 			waitCtx = tctx
 		}
 		if limiter := w.engine.GetRateLimiter(config.ClassID); limiter != nil {
-			if !w.paceOrDropAtDeadline(limiter, waitCtx, config, int64(len(packet))) {
-				return // 配额截断：已核算，跳过写出
+			// 策略级 bps：deadline 免速清空（#3 P1 既定语义；帧口径 +15%
+			// 为既定语义，R9 §四确认未波及）。
+			if err := limiter.Wait(waitCtx, int64(len(packet))); err != nil {
+				// 任务终态打断节拍：立即落写剩余包（不丢包、不卡计数）。
 			}
 		}
 	}
@@ -1174,9 +1208,7 @@ func (w *PacketWorker) processConfig(config PacketConfig) {
 				if tctx := w.engine.TaskCtxFor(config.Metadata); tctx != nil {
 					waitCtx = tctx
 				}
-				if !w.paceOrDropAtDeadline(parentLimiter, waitCtx, config, int64(len(packet))) {
-					return // 配额截断：已核算，跳过写出
-				}
+				pacedDrainAtDeadline(parentLimiter, waitCtx, int64(len(packet)))
 			}
 		}
 	}
@@ -1228,6 +1260,8 @@ type OutputWorker struct {
 	stats     WorkerStats
 	// R7 放大器 B：溢出告警限速——上次告警的 Unix 秒（0=未告警过）。
 	lastOverflowWarn atomic.Int64
+	// R9 设计对齐：视图滑动窗口的累计淘汰数（非错误，独立观测）。
+	viewEvictions atomic.Int64
 
 	// NOTE: Resequencing fields removed; sharded channel guarantees ordering.
 }
@@ -1339,27 +1373,22 @@ func (w *OutputWorker) writePacket(out PacketOutput) {
 		}
 	}
 
-	// 2. Store in buffer for API retrieval (best-effort). Overflow does NOT
-	// fail the task: the packet was already written to the output writer
-	// above; the buffer is only a snapshot for get_packets. We log and count
-	// the drop but still count the packet as written so task completion
-	// accounting is not stalled (otherwise a task generating more than
-	// BufferSize packets would never reach writtenPackets==totalConfigs and
-	// leak forever).
+	// 2. Store in buffer for API retrieval. R9 设计对齐：实时视图=滑动窗口
+	// （挤旧留新），不存在"溢出丢弃"——淘汰的是视图里最旧的展示副本，
+	// pcap/统计在进视图之前已落账，不受影响。淘汰数独立观测（非错误）；
+	// ok=false 仅当单包超视图字节上限（罕见异常，保留计数）。
 	direction := "combined"
 	if w.buffer != nil {
-		if !w.buffer.Put(packet, direction) {
-			// R7 放大器 B：溢出告警逐包一条——压测时段 80 万条 warn 把日志
-			// 刷到 897MB 且 I/O 反压输出。限速：每 worker 首条 + 每 5s 一条，
-			// 累计丢弃数随行携带；计数本身不受限速影响（stats.Errors 照加）。
+		evicted, ok := w.buffer.Put(packet, direction)
+		if !ok {
 			total := atomic.AddInt64(&w.stats.Errors, 1)
 			now := time.Now().Unix()
 			last := w.lastOverflowWarn.Load()
 			if last == 0 || now-last >= 5 {
 				if w.lastOverflowWarn.CompareAndSwap(last, now) {
-					zap.L().Warn("buffer overflow (rate-limited; drops still counted)",
+					zap.L().Warn("view rejected oversized packet (rate-limited)",
 						zap.Int("worker_id", w.id),
-						zap.Int64("total_dropped", total))
+						zap.Int64("total_rejected", total))
 				}
 			}
 			if w.engine != nil && w.engine.OnBufferOverflow != nil {
@@ -1367,6 +1396,8 @@ func (w *OutputWorker) writePacket(out PacketOutput) {
 					w.engine.OnBufferOverflow(taskID, 1)
 				}
 			}
+		} else if evicted > 0 {
+			w.viewEvictions.Add(int64(evicted))
 		}
 	}
 

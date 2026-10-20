@@ -30,9 +30,9 @@ func TestNewRingBuffer_Normal(t *testing.T) {
 
 func TestNewRingBuffer_SizeZero(t *testing.T) {
 	rb := NewRingBuffer(0, 0)
-	// count(0) >= size(0) -> Put always false.
-	if rb.Put([]byte("x")) {
-		t.Error("size=0 Put should return false (0>=0)")
+	// 零容量视图：无处挤旧（mod 0 无意义），Put 拒绝——语义=不展示。
+	if _, ok := rb.Put([]byte("x")); ok {
+		t.Error("size=0 Put should return false (zero-capacity view)")
 	}
 }
 
@@ -50,7 +50,7 @@ func TestNewRingBuffer_SizeNegative_Panics(t *testing.T) {
 func TestPut_Closed(t *testing.T) {
 	rb := NewRingBuffer(10, 0)
 	rb.Close()
-	if rb.Put([]byte("x")) {
+	if _, ok := rb.Put([]byte("x")); ok {
 		t.Error("Put after Close should return false")
 	}
 }
@@ -58,7 +58,7 @@ func TestPut_Closed(t *testing.T) {
 func TestPut_MaxBytesZero_NoLimit(t *testing.T) {
 	rb := NewRingBuffer(10, 0)
 	big := make([]byte, 1000)
-	if !rb.Put(big) {
+	if _, ok := rb.Put(big); !ok {
 		t.Error("maxBytes=0 should impose no byte limit")
 	}
 }
@@ -66,22 +66,23 @@ func TestPut_MaxBytesZero_NoLimit(t *testing.T) {
 func TestPut_ExactlyFills_WrapsTail(t *testing.T) {
 	rb := NewRingBuffer(3, 0)
 	for i := 0; i < 3; i++ {
-		if !rb.Put([]byte{byte(i)}) {
+		if _, ok := rb.Put([]byte{byte(i)}); !ok {
 			t.Errorf("Put %d should succeed", i)
 		}
 	}
-	// tail wrapped to 0; 4th Put must fail (full).
-	if rb.Put([]byte{4}) {
-		t.Error("Put on full buffer should fail")
+	// R9 滑动窗口：4th Put 挤旧留新成功；tail 推进环绕。
+	_, ok := rb.Put([]byte{4})
+	if !ok {
+		t.Fatal("sliding window must accept after full")
 	}
-	if rb.tail != 0 {
-		t.Errorf("tail=%d want 0 (wrapped)", rb.tail)
+	if rb.tail != 1 {
+		t.Errorf("tail=%d want 1 (挤旧后 tail 环绕推进)", rb.tail)
 	}
 }
 
 func TestPut_NilPacket(t *testing.T) {
 	rb := NewRingBuffer(10, 0)
-	if !rb.Put(nil) {
+	if _, ok := rb.Put(nil); !ok {
 		t.Error("Put(nil) should succeed (count increments)")
 	}
 	if rb.Len() != 1 {
@@ -94,8 +95,8 @@ func TestPut_NilPacket(t *testing.T) {
 
 func TestPut_ConcurrentSafe(t *testing.T) {
 	const workers, perWorker = 100, 100
-	rb := NewRingBuffer(workers, 0) // small buffer -> many drops
-	var success int64
+	rb := NewRingBuffer(workers, 0) // small buffer -> many evictions (滑动窗口)
+	var success, evicted int64
 	var wg sync.WaitGroup
 	start := make(chan struct{})
 	for i := 0; i < workers; i++ {
@@ -104,20 +105,20 @@ func TestPut_ConcurrentSafe(t *testing.T) {
 			defer wg.Done()
 			<-start
 			for j := 0; j < perWorker; j++ {
-				if rb.Put([]byte{1}) {
+				e, ok := rb.Put([]byte{1})
+				if ok {
 					atomic.AddInt64(&success, 1)
+					atomic.AddInt64(&evicted, int64(e))
 				}
 			}
 		}()
 	}
 	close(start)
 	wg.Wait()
-	// Conservation: successful puts can never exceed buffer size (bounded buffer).
-	if success > int64(workers) {
-		t.Errorf("success=%d exceeds buffer size %d", success, workers)
-	}
-	if success < 0 {
-		t.Errorf("success=%d negative", success)
+	// Conservation (滑动窗口)：成功 puts == Len + 淘汰数。
+	if success != int64(rb.Len())+atomic.LoadInt64(&evicted) {
+		t.Errorf("conservation: success=%d len=%d evicted=%d",
+			success, rb.Len(), atomic.LoadInt64(&evicted))
 	}
 }
 
@@ -125,7 +126,7 @@ func TestPut_ConcurrentSafe(t *testing.T) {
 
 func TestGet_Closed(t *testing.T) {
 	rb := NewRingBuffer(10, 0)
-	rb.Put([]byte("x"))
+	_, _ = rb.Put([]byte("x"))
 	rb.Close()
 	if _, ok := rb.Get(); ok {
 		t.Error("Get after Close should return false")
@@ -141,8 +142,8 @@ func TestGet_Empty(t *testing.T) {
 
 func TestGet_WrapAround(t *testing.T) {
 	rb := NewRingBuffer(3, 0)
-	rb.Put([]byte("a"))
-	rb.Put([]byte("b"))
+	_, _ = rb.Put([]byte("a"))
+	_, _ = rb.Put([]byte("b"))
 	rb.Get()            // head -> 1
 	rb.Put([]byte("c")) // tail wraps to 0
 	rb.Put([]byte("d")) // tail -> 1? 3 slots: indices 0,1,2. After Put a,b: tail=2. Get: head=1. Put c: buffer[2]=c, tail=0. Put d: buffer[0]=d, tail=1. count=3.
@@ -155,7 +156,7 @@ func TestGet_WrapAround(t *testing.T) {
 
 func TestGet_SlotFreedForGC(t *testing.T) {
 	rb := NewRingBuffer(10, 0)
-	rb.Put([]byte("x"))
+	_, _ = rb.Put([]byte("x"))
 	rb.Get()
 	// Same-package: head slot should be nil after Get (frees reference for GC).
 	if rb.buffer[rb.head] != nil {
@@ -167,7 +168,7 @@ func TestGet_SlotFreedForGC(t *testing.T) {
 
 func TestGetBatch_Closed(t *testing.T) {
 	rb := NewRingBuffer(10, 0)
-	rb.Put([]byte("x"))
+	_, _ = rb.Put([]byte("x"))
 	rb.Close()
 	if pkts := rb.GetBatch(1); pkts != nil {
 		t.Errorf("GetBatch after Close = %v, want nil", pkts)
@@ -183,9 +184,9 @@ func TestGetBatch_Empty(t *testing.T) {
 
 func TestGetBatch_MaxGreaterThanCount(t *testing.T) {
 	rb := NewRingBuffer(10, 0)
-	rb.Put([]byte("a"))
-	rb.Put([]byte("b"))
-	rb.Put([]byte("c"))
+	_, _ = rb.Put([]byte("a"))
+	_, _ = rb.Put([]byte("b"))
+	_, _ = rb.Put([]byte("c"))
 	if pkts := rb.GetBatch(10); len(pkts) != 3 {
 		t.Errorf("GetBatch(10) with 3 items = %d, want 3 (capped)", len(pkts))
 	}
@@ -194,7 +195,7 @@ func TestGetBatch_MaxGreaterThanCount(t *testing.T) {
 func TestGetBatch_MaxEqualsCount(t *testing.T) {
 	rb := NewRingBuffer(10, 0)
 	for i := 0; i < 3; i++ {
-		rb.Put([]byte{byte(i)})
+		_, _ = rb.Put([]byte{byte(i)})
 	}
 	if pkts := rb.GetBatch(3); len(pkts) != 3 {
 		t.Errorf("GetBatch(3) = %d, want 3", len(pkts))
@@ -204,7 +205,7 @@ func TestGetBatch_MaxEqualsCount(t *testing.T) {
 func TestGetBatch_MaxZero(t *testing.T) {
 	rb := NewRingBuffer(10, 0)
 	for i := 0; i < 3; i++ {
-		rb.Put([]byte{byte(i)})
+		_, _ = rb.Put([]byte{byte(i)})
 	}
 	if pkts := rb.GetBatch(0); len(pkts) != 0 {
 		t.Errorf("GetBatch(0) = %d, want 0", len(pkts))
@@ -222,7 +223,7 @@ func TestGetBatch_NegativeNonEmpty_Panics(t *testing.T) {
 		}
 	}()
 	rb := NewRingBuffer(10, 0)
-	rb.Put([]byte("x"))
+	_, _ = rb.Put([]byte("x"))
 	rb.GetBatch(-1)
 }
 
@@ -241,10 +242,10 @@ func TestGetBatch_NegativeEmpty_NoPanic(t *testing.T) {
 
 func TestGetBatch_WrapAround(t *testing.T) {
 	rb := NewRingBuffer(3, 0)
-	rb.Put([]byte("a"))
-	rb.Put([]byte("b"))
+	_, _ = rb.Put([]byte("a"))
+	_, _ = rb.Put([]byte("b"))
 	rb.Get() // head -> 1
-	rb.Put([]byte("c"))
+	_, _ = rb.Put([]byte("c"))
 	rb.Put([]byte("d")) // tail wrapped
 	// head=1: b,c,d. GetBatch(3) crosses the wrap.
 	pkts := rb.GetBatch(3)
@@ -261,8 +262,8 @@ func TestGetBatch_WrapAround(t *testing.T) {
 
 func TestGetBatch_ConcurrentSafe(t *testing.T) {
 	const producers, consumers, perProducer = 4, 4, 1000
-	rb := NewRingBuffer(50, 0) // small -> forces drops
-	var success, got int64
+	rb := NewRingBuffer(50, 0) // small -> 滑动窗口大量淘汰
+	var success, got, evictedTotal int64
 	var pwg sync.WaitGroup
 	producersDone := make(chan struct{})
 	for i := 0; i < producers; i++ {
@@ -270,8 +271,10 @@ func TestGetBatch_ConcurrentSafe(t *testing.T) {
 		go func(id int) {
 			defer pwg.Done()
 			for j := 0; j < perProducer; j++ {
-				if rb.Put([]byte{byte(id), byte(j)}) {
+				e, ok := rb.Put([]byte{byte(id), byte(j)})
+				if ok {
 					atomic.AddInt64(&success, 1)
+					atomic.AddInt64(&evictedTotal, int64(e))
 				}
 			}
 		}(i)
@@ -301,9 +304,11 @@ func TestGetBatch_ConcurrentSafe(t *testing.T) {
 		}()
 	}
 	cwg.Wait()
-	// Conservation: every successful put is eventually consumed.
-	if success != got {
-		t.Errorf("conservation broken: successful puts=%d, consumed=%d", success, got)
+	// Conservation (滑动窗口)：成功 puts == 消费 + 残留 + 淘汰。
+	remaining := int64(rb.Len())
+	if success != got+remaining+atomic.LoadInt64(&evictedTotal) {
+		t.Errorf("conservation broken: puts=%d consumed=%d remaining=%d evicted=%d",
+			success, got, remaining, atomic.LoadInt64(&evictedTotal))
 	}
 }
 
@@ -318,7 +323,7 @@ func TestLen_Empty(t *testing.T) {
 func TestLen_500(t *testing.T) {
 	rb := NewRingBuffer(1000, 0)
 	for i := 0; i < 500; i++ {
-		rb.Put([]byte{byte(i)})
+		_, _ = rb.Put([]byte{byte(i)})
 	}
 	if rb.Len() != 500 {
 		t.Errorf("Len=%d want 500", rb.Len())
@@ -333,8 +338,8 @@ func TestBytes_Empty(t *testing.T) {
 
 func TestBytes_1000(t *testing.T) {
 	rb := NewRingBuffer(100, 0)
-	rb.Put(make([]byte, 400))
-	rb.Put(make([]byte, 600))
+	_, _ = rb.Put(make([]byte, 400))
+	_, _ = rb.Put(make([]byte, 600))
 	if rb.Bytes() != 1000 {
 		t.Errorf("Bytes=%d want 1000", rb.Bytes())
 	}
@@ -349,7 +354,7 @@ func TestIsFull_Empty(t *testing.T) {
 func TestIsFull_Full(t *testing.T) {
 	rb := NewRingBuffer(3, 0)
 	for i := 0; i < 3; i++ {
-		rb.Put([]byte{byte(i)})
+		_, _ = rb.Put([]byte{byte(i)})
 	}
 	if !rb.IsFull() {
 		t.Error("full buffer should report full")
@@ -359,7 +364,7 @@ func TestIsFull_Full(t *testing.T) {
 func TestStatus_Normal(t *testing.T) {
 	rb := NewRingBuffer(10, 0)
 	for i := 0; i < 5; i++ {
-		rb.Put([]byte{byte(i)})
+		_, _ = rb.Put([]byte{byte(i)})
 	}
 	s := rb.Status()
 	if s["count"].(int) != 5 {
@@ -379,7 +384,7 @@ func TestClose_Open(t *testing.T) {
 	if !rb.closed.Load() {
 		t.Error("closed flag not set after Close")
 	}
-	if rb.Put([]byte("x")) {
+	if _, ok := rb.Put([]byte("x")); ok {
 		t.Error("Put should fail after Close")
 	}
 }
@@ -440,7 +445,7 @@ func TestNewPacketBuffer_AllDisabled(t *testing.T) {
 
 func TestPut_UpAllEnabled(t *testing.T) {
 	pb := NewPacketBuffer(PacketBufferConfig{Size: 10, EnableUp: true, EnableDown: true, EnableCombined: true})
-	if !pb.Put([]byte("x"), "up") {
+	if _, ok := pb.Put([]byte("x"), "up"); !ok {
 		t.Error("Put up should succeed (up enabled)")
 	}
 	if pb.upBuffer.Len() != 1 || pb.combinedBuffer.Len() != 1 {
@@ -450,7 +455,7 @@ func TestPut_UpAllEnabled(t *testing.T) {
 
 func TestPut_DownAllEnabled(t *testing.T) {
 	pb := NewPacketBuffer(PacketBufferConfig{Size: 10, EnableUp: true, EnableDown: true, EnableCombined: true})
-	if !pb.Put([]byte("x"), "down") {
+	if _, ok := pb.Put([]byte("x"), "down"); !ok {
 		t.Error("Put down should succeed")
 	}
 	if pb.downBuffer.Len() != 1 || pb.combinedBuffer.Len() != 1 {
@@ -460,7 +465,7 @@ func TestPut_DownAllEnabled(t *testing.T) {
 
 func TestPut_DefaultDirection(t *testing.T) {
 	pb := NewPacketBuffer(PacketBufferConfig{Size: 10, EnableUp: true, EnableDown: true, EnableCombined: true})
-	if !pb.Put([]byte("x"), "default") {
+	if _, ok := pb.Put([]byte("x"), "default"); !ok {
 		t.Error("Put default should succeed (combined)")
 	}
 	if pb.combinedBuffer.Len() != 1 {
@@ -474,8 +479,9 @@ func TestPut_DefaultDirection(t *testing.T) {
 func TestPut_UpDisabled(t *testing.T) {
 	pb := NewPacketBuffer(PacketBufferConfig{Size: 10, EnableDown: true, EnableCombined: true})
 	// up disabled -> success tracks up (false), but combined still receives.
-	if pb.Put([]byte("x"), "up") {
-		t.Error("Put up with up disabled should return false (success tracks up)")
+	// R9 滑动窗口语义：ok=已存入某视图。up 禁用但 combined 兜底接收 → true。
+	if _, ok := pb.Put([]byte("x"), "up"); !ok {
+		t.Error("Put up with up disabled should still store to combined (ok=true)")
 	}
 	if pb.combinedBuffer.Len() != 1 {
 		t.Errorf("combined should still receive: %d want 1", pb.combinedBuffer.Len())
@@ -484,8 +490,8 @@ func TestPut_UpDisabled(t *testing.T) {
 
 func TestPut_DownDisabled(t *testing.T) {
 	pb := NewPacketBuffer(PacketBufferConfig{Size: 10, EnableUp: true, EnableCombined: true})
-	if pb.Put([]byte("x"), "down") {
-		t.Error("Put down with down disabled should return false")
+	if _, ok := pb.Put([]byte("x"), "down"); !ok {
+		t.Error("Put down with down disabled should still store to combined (ok=true)")
 	}
 	if pb.combinedBuffer.Len() != 1 {
 		t.Errorf("combined should still receive: %d want 1", pb.combinedBuffer.Len())
@@ -494,7 +500,7 @@ func TestPut_DownDisabled(t *testing.T) {
 
 func TestPut_UpCombinedDisabled(t *testing.T) {
 	pb := NewPacketBuffer(PacketBufferConfig{Size: 10, EnableUp: true, EnableDown: true})
-	if !pb.Put([]byte("x"), "up") {
+	if _, ok := pb.Put([]byte("x"), "up"); !ok {
 		t.Error("Put up (combined disabled) should return true (up succeeded)")
 	}
 	if pb.upBuffer.Len() != 1 {
@@ -504,7 +510,7 @@ func TestPut_UpCombinedDisabled(t *testing.T) {
 
 func TestPut_DefaultCombinedDisabled(t *testing.T) {
 	pb := NewPacketBuffer(PacketBufferConfig{Size: 10, EnableUp: true, EnableDown: true})
-	if pb.Put([]byte("x"), "default") {
+	if _, ok := pb.Put([]byte("x"), "default"); ok {
 		t.Error("Put default with combined disabled should return false (nothing to write)")
 	}
 }
@@ -528,8 +534,13 @@ func TestPut_UpBufferFull(t *testing.T) {
 	pb.upBuffer = NewRingBuffer(1, 0) // up fills after 1
 	pb.combinedBuffer = NewRingBuffer(10, 0)
 	pb.Put([]byte("a"), "up") // fills up
-	if pb.Put([]byte("b"), "up") {
-		t.Error("Put up with up full should return false (tracks primary up)")
+	// R9 滑动窗口：up 满时挤旧留新（ok=true），"a" 被挤出视图。
+	evicted, ok := pb.Put([]byte("b"), "up")
+	if !ok {
+		t.Fatal("sliding window must accept after full")
+	}
+	if evicted < 1 {
+		t.Errorf("evicted=%d want >=1 (挤掉视图最旧)", evicted)
 	}
 	if pb.upBuffer.Len() != 1 {
 		t.Errorf("up=%d want 1", pb.upBuffer.Len())
@@ -545,7 +556,7 @@ func TestPut_UpSucceedsCombinedFails(t *testing.T) {
 	pb.combinedBuffer = NewRingBuffer(1, 0) // combined fills after 1
 	pb.Put([]byte("a"), "combined")         // fill combined via default
 	// Now Put up: up succeeds, combined full -> combined.Put false (ignored).
-	if !pb.Put([]byte("b"), "up") {
+	if _, ok := pb.Put([]byte("b"), "up"); !ok {
 		t.Error("Put up should return true (success tracks primary up even if combined fails)")
 	}
 	if pb.upBuffer.Len() != 1 {
@@ -557,7 +568,7 @@ func TestPut_UpSucceedsCombinedFails(t *testing.T) {
 
 func TestGet_UpEnabled(t *testing.T) {
 	pb := NewPacketBuffer(PacketBufferConfig{Size: 10, EnableUp: true, EnableCombined: true})
-	pb.Put([]byte("x"), "up")
+	_, _ = pb.Put([]byte("x"), "up")
 	if pkts := pb.Get(10, "up"); len(pkts) != 1 {
 		t.Errorf("Get up = %d, want 1", len(pkts))
 	}
@@ -565,7 +576,7 @@ func TestGet_UpEnabled(t *testing.T) {
 
 func TestGet_DownEnabled(t *testing.T) {
 	pb := NewPacketBuffer(PacketBufferConfig{Size: 10, EnableDown: true, EnableCombined: true})
-	pb.Put([]byte("x"), "down")
+	_, _ = pb.Put([]byte("x"), "down")
 	if pkts := pb.Get(10, "down"); len(pkts) != 1 {
 		t.Errorf("Get down = %d, want 1", len(pkts))
 	}
@@ -573,7 +584,7 @@ func TestGet_DownEnabled(t *testing.T) {
 
 func TestGet_CombinedEnabled(t *testing.T) {
 	pb := NewPacketBuffer(PacketBufferConfig{Size: 10, EnableCombined: true})
-	pb.Put([]byte("x"), "combined")
+	_, _ = pb.Put([]byte("x"), "combined")
 	if pkts := pb.Get(10, "combined"); len(pkts) != 1 {
 		t.Errorf("Get combined = %d, want 1", len(pkts))
 	}
@@ -588,7 +599,7 @@ func TestGet_UpDisabled(t *testing.T) {
 
 func TestGet_UnknownMode(t *testing.T) {
 	pb := NewPacketBuffer(PacketBufferConfig{Size: 10, EnableCombined: true})
-	pb.Put([]byte("x"), "combined")
+	_, _ = pb.Put([]byte("x"), "combined")
 	if pkts := pb.Get(10, "xyz"); pkts != nil {
 		t.Errorf("Get unknown mode = %v, want nil", pkts)
 	}
@@ -641,13 +652,13 @@ func TestStatus_AllDisabled(t *testing.T) {
 func TestClose_AllExist(t *testing.T) {
 	pb := NewPacketBuffer(PacketBufferConfig{Size: 10, EnableUp: true, EnableDown: true, EnableCombined: true})
 	pb.Close()
-	if pb.upBuffer.Put([]byte("x")) {
+	if _, ok := pb.upBuffer.Put([]byte("x")); ok {
 		t.Error("upBuffer should be closed")
 	}
-	if pb.downBuffer.Put([]byte("x")) {
+	if _, ok := pb.downBuffer.Put([]byte("x")); ok {
 		t.Error("downBuffer should be closed")
 	}
-	if pb.combinedBuffer.Put([]byte("x")) {
+	if _, ok := pb.combinedBuffer.Put([]byte("x")); ok {
 		t.Error("combinedBuffer should be closed")
 	}
 }
@@ -781,8 +792,8 @@ func TestAllow_LargeElapsedOverflow(t *testing.T) {
 	// Assert no panic (int64 wrap is defined, not a panic); value is undefined.
 	tb := NewTokenBucket(1000, 1000)
 	tb.mu.Lock()
-	tb.lastTime = 1            // ~1970 -> elapsed ~now (huge ns)
-	tb.rate = int64(1) << 62   // huge rate to force elapsed*rate overflow
+	tb.lastTime = 1          // ~1970 -> elapsed ~now (huge ns)
+	tb.rate = int64(1) << 62 // huge rate to force elapsed*rate overflow
 	tb.mu.Unlock()
 	defer func() {
 		if r := recover(); r != nil {
@@ -855,7 +866,7 @@ func TestRingBuffer_ConcurrentClose(t *testing.T) {
 			defer wg.Done()
 			<-start
 			for j := 0; j < 100; j++ {
-				rb.Put([]byte{1})
+				_, _ = rb.Put([]byte{1})
 				rb.Get()
 			}
 		}()
@@ -870,7 +881,7 @@ func TestRingBuffer_ConcurrentClose(t *testing.T) {
 	}()
 	wg.Wait()
 	// After Close, Put must return false.
-	if rb.Put([]byte{1}) {
+	if _, ok := rb.Put([]byte{1}); ok {
 		t.Error("Put after concurrent Close should return false")
 	}
 }

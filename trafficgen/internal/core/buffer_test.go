@@ -9,7 +9,7 @@ func TestRingBuffer_PutAndGet(t *testing.T) {
 
 	// Test put
 	packet := []byte("test packet")
-	if !rb.Put(packet) {
+	if _, ok := rb.Put(packet); !ok {
 		t.Error("Put should succeed")
 	}
 
@@ -24,23 +24,51 @@ func TestRingBuffer_PutAndGet(t *testing.T) {
 }
 
 func TestRingBuffer_Overflow(t *testing.T) {
+	// R9 设计对齐：实时视图=滑动窗口——满时挤旧留新，绝不拒新。
 	rb := NewRingBuffer(3, 0)
 
-	// Fill buffer
 	for i := 0; i < 3; i++ {
-		if !rb.Put([]byte{byte(i)}) {
+		if _, ok := rb.Put([]byte{byte(i)}); !ok {
 			t.Errorf("Put %d should succeed", i)
 		}
 	}
 
-	// Next put should fail
-	if rb.Put([]byte{4}) {
-		t.Error("Put should fail when buffer is full")
+	// 满后第 4 包：挤掉最旧（0），保留最新三个。
+	evicted, ok := rb.Put([]byte{4})
+	if !ok {
+		t.Fatal("sliding window must never reject a fitting packet")
 	}
-
-	// Check length
+	if evicted != 1 {
+		t.Errorf("evicted = %d, want 1", evicted)
+	}
 	if rb.Len() != 3 {
 		t.Errorf("Len = %d, want 3", rb.Len())
+	}
+	// 最旧（0）已被挤出：取出顺序 1,2,4。
+	want := []byte{1, 2, 4}
+	for _, w := range want {
+		got, ok := rb.Get()
+		if !ok || got[0] != w {
+			t.Errorf("got %v, want %d (滑动窗口应保留最新)", got, w)
+		}
+	}
+}
+
+// TestRingBuffer_SlidingWindowEvictsOldest：显式锁滑动窗口语义。
+func TestRingBuffer_SlidingWindowEvictsOldest(t *testing.T) {
+	rb := NewRingBuffer(5, 0)
+	for i := 0; i < 12; i++ {
+		_, _ = rb.Put([]byte{byte(i)})
+	}
+	if rb.Len() != 5 {
+		t.Errorf("Len = %d, want 5", rb.Len())
+	}
+	// 12 包进 5 槽：保留 7..11，7+12=19 取模还原字节值 byte(7..11)。
+	for _, w := range []byte{7, 8, 9, 10, 11} {
+		got, ok := rb.Get()
+		if !ok || got[0] != w {
+			t.Errorf("got %v, want %d (最新包必须保留)", got, w)
+		}
 	}
 }
 
@@ -48,13 +76,19 @@ func TestRingBuffer_MaxBytes(t *testing.T) {
 	rb := NewRingBuffer(10, 5)
 
 	// Should succeed (3 bytes)
-	if !rb.Put([]byte("abc")) {
+	if _, ok := rb.Put([]byte("abc")); !ok {
 		t.Error("Put should succeed")
 	}
 
-	// Should fail (would exceed max bytes)
-	if rb.Put([]byte("xyz")) {
-		t.Error("Put should fail when max bytes exceeded")
+	// Should fail (single packet exceeds max bytes — cannot ever fit)
+	if _, ok := rb.Put([]byte("xyzwv")); !ok {
+		t.Error("oversized single packet should be rejected")
+	}
+	// 未超限的单包在满时挤旧保留（滑动窗口）。
+	if evicted, ok := rb.Put([]byte("de")); !ok {
+		t.Error("fitting packet must be stored (evicting oldest)")
+	} else if evicted < 1 {
+		t.Errorf("evicted = %d, want >= 1 (挤旧腾位)", evicted)
 	}
 }
 
@@ -63,7 +97,7 @@ func TestRingBuffer_GetBatch(t *testing.T) {
 
 	// Put multiple packets
 	for i := 0; i < 5; i++ {
-		rb.Put([]byte{byte(i)})
+		_, _ = rb.Put([]byte{byte(i)})
 	}
 
 	// Get batch
@@ -88,17 +122,17 @@ func TestPacketBuffer(t *testing.T) {
 	})
 
 	// Test up buffer
-	if !pb.Put([]byte("up"), "up") {
+	if _, ok := pb.Put([]byte("up"), "up"); !ok {
 		t.Error("Put to up buffer should succeed")
 	}
 
 	// Test down buffer
-	if !pb.Put([]byte("down"), "down") {
+	if _, ok := pb.Put([]byte("down"), "down"); !ok {
 		t.Error("Put to down buffer should succeed")
 	}
 
 	// Test combined buffer
-	if !pb.Put([]byte("combined"), "combined") {
+	if _, ok := pb.Put([]byte("combined"), "combined"); !ok {
 		t.Error("Put to combined buffer should succeed")
 	}
 
@@ -154,7 +188,7 @@ func TestTokenBucket_RateLimit(t *testing.T) {
 func TestRingBuffer_PutHoldsReference(t *testing.T) {
 	rb := NewRingBuffer(10, 0)
 	packet := []byte("hello world packet data xyz")
-	if !rb.Put(packet) {
+	if _, ok := rb.Put(packet); !ok {
 		t.Fatal("Put failed")
 	}
 	got, ok := rb.Get()

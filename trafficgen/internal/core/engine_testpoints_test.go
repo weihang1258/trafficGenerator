@@ -131,7 +131,7 @@ func TestRegisterPlanner_NilPanics(t *testing.T) {
 // ========================================================================
 
 type fakePacketWriter struct {
-	closed int32
+	closed  int32
 	closeFn func()
 }
 
@@ -403,7 +403,7 @@ func TestStart_BufferSizeZero(t *testing.T) {
 		t.Fatal("buffer is nil")
 	}
 	// size=0 -> count(0)>=size(0) -> Put always returns false.
-	if e.buffer.Put([]byte{1}, "combined") {
+	if _, ok := e.buffer.Put([]byte{1}, "combined"); ok {
 		t.Error("Put with BufferSize=0 should return false (always full)")
 	}
 }
@@ -1383,11 +1383,12 @@ func TestSharedTokenBucket_NWorkers_AggregateRate(t *testing.T) {
 // ========================================================================
 
 // TestRingBuffer_ConcurrentPutGet_Aggregate verifies conservation: total
-// successful puts == total gets + remaining items in buffer.
+// puts == total gets + remaining items + evicted (滑动窗口第三条腿，
+// R9 设计对齐——满时挤旧留新，被挤出的计入 evicted 而非拒绝)。
 func TestRingBuffer_ConcurrentPutGet_Aggregate(t *testing.T) {
 	const producers, consumers, perProducer = 4, 4, 100
 	rb := NewRingBuffer(50, 0)
-	var puts, gets int64
+	var puts, gets, evicted int64
 	var prodWg, consWg sync.WaitGroup
 
 	producersDone := make(chan struct{})
@@ -1396,8 +1397,10 @@ func TestRingBuffer_ConcurrentPutGet_Aggregate(t *testing.T) {
 		go func() {
 			defer prodWg.Done()
 			for j := 0; j < perProducer; j++ {
-				if rb.Put([]byte{1}) {
+				e, ok := rb.Put([]byte{1})
+				if ok {
 					atomic.AddInt64(&puts, 1)
+					atomic.AddInt64(&evicted, int64(e))
 				}
 			}
 		}()
@@ -1429,8 +1432,10 @@ func TestRingBuffer_ConcurrentPutGet_Aggregate(t *testing.T) {
 		}()
 	}
 	consWg.Wait()
-	if puts != gets {
-		t.Errorf("conservation: puts=%d gets=%d, want equal", puts, gets)
+	remaining := int64(rb.Len())
+	if puts != gets+remaining+atomic.LoadInt64(&evicted) {
+		t.Errorf("conservation: puts=%d gets=%d remaining=%d evicted=%d (和应守恒)",
+			puts, gets, remaining, atomic.LoadInt64(&evicted))
 	}
 }
 

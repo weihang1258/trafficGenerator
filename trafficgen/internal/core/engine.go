@@ -94,6 +94,11 @@ type Engine struct {
 	// parentTaskID (or task ID when standalone).
 	packetCounters map[string]*int64
 
+	// taskGates：任务级 bps 的生成端有界在途窗口（R9 设计对齐）。容量 =
+	// max(2, rateBytes/512) 包——deadline 时在途仅窗口量级，限速排空亚秒
+	// 级，配额路径零丢弃。Keyed by task.fcKey()。
+	taskGates map[string]chan struct{}
+
 	// State
 	running   atomic.Bool
 	wg        sync.WaitGroup
@@ -190,7 +195,6 @@ type taskEntry struct {
 	// accounted for (writtenPackets + errorPackets >= totalConfigs).
 	totalConfigs   int64
 	writtenPackets int64
-	droppedPackets int64 // R8-D3：deadline 配额截断的在途包（计入完成对账，不误报失败）
 	errorPackets   int64
 	firstBuildErr  string
 }
@@ -224,6 +228,7 @@ func NewEngine(config EngineConfig) *Engine {
 		rateLimiters:   make(map[string]*TokenBucket),
 		flowCounters:   make(map[string]*int64),
 		packetCounters: make(map[string]*int64),
+		taskGates:      make(map[string]chan struct{}),
 		taskStore:      make(map[string]*taskEntry),
 		outputWriters:  make(map[string]PacketWriter),
 		dualWriters:    make(map[string]*DualPortWriter),
@@ -712,6 +717,17 @@ func (e *Engine) SubmitTask(task Task) error {
 			} else {
 				e.SetClassRateLimit(task.ID, bps)
 			}
+			// R9 设计对齐：生成端有界在途窗口。速率配额下 ConfigWorker 每
+			// 转发一个配置占一槽，写出后归还——队列常态近空，deadline 时
+			// 在途仅窗口量级（限速排空亚秒级），配额路径零丢弃。
+			rateBytes := bps / 8
+			w := rateBytes / 512
+			if w < 2 {
+				w = 2
+			}
+			e.rateMu.Lock()
+			e.taskGates[task.fcKey()] = make(chan struct{}, w)
+			e.rateMu.Unlock()
 		}
 	}
 	// Task-level flows ceiling: lazily create a shared counter.
@@ -890,7 +906,7 @@ func (e *Engine) SetTaskTotalConfigs(taskID string, count int64) {
 	// legal only for time-capped tasks whose deadline fired before the first
 	// config (planners that produce 0 configs without a deadline are failed
 	// by the worker's 0-config guard before reaching here).
-	if count == 0 || entry.writtenPackets+entry.errorPackets+entry.droppedPackets >= count {
+	if count == 0 || entry.writtenPackets+entry.errorPackets >= count {
 		if entry.errorPackets > 0 {
 			e.taskMu.Unlock()
 			e.FailTask(taskID, fmt.Sprintf("packet build failed: %s", entry.firstBuildErr))
@@ -974,7 +990,7 @@ func (e *Engine) OnPacketWritten(taskID, flowID string, nbytes int) {
 		e.taskMu.Unlock()
 		return
 	}
-	if entry.totalConfigs > 0 && entry.writtenPackets+entry.errorPackets+entry.droppedPackets >= entry.totalConfigs {
+	if entry.totalConfigs > 0 && entry.writtenPackets+entry.errorPackets >= entry.totalConfigs {
 		// All planned configs accounted for. If any build failed, the task
 		// cannot be reported completed: fail it with the first error.
 		if entry.errorPackets > 0 {
@@ -1044,46 +1060,6 @@ func (e *Engine) OnPacketWritten(taskID, flowID string, nbytes int) {
 		}
 	}
 	e.taskMu.Unlock()
-}
-
-// OnPacketDeadlineDrop accounts an in-flight packet discarded at the rate
-// quota cut (R8-D3): counted toward completion reconciliation (written +
-// errors + dropped >= totalConfigs) but NOT a build failure — the task still
-// completes normally when the accounting closes.
-func (e *Engine) OnPacketDeadlineDrop(taskID string, n int) {
-	e.taskMu.Lock()
-	entry, ok := e.taskStore[taskID]
-	if !ok {
-		e.taskMu.Unlock()
-		return
-	}
-	entry.droppedPackets += int64(n)
-	entry.status.Stats.PacketsDropped = entry.droppedPackets
-	done := entry.totalConfigs > 0 &&
-		entry.writtenPackets+entry.errorPackets+entry.droppedPackets >= entry.totalConfigs
-	if !done {
-		e.taskMu.Unlock()
-		return
-	}
-	entry.status.Status = "completed"
-	entry.status.Progress = 100
-	entry.status.CompletedAt = time.Now()
-	entry.cancel()
-	finalStats := *entry.status
-	delete(e.taskStore, taskID)
-	delete(e.layerPlanners, taskID)
-	e.taskMu.Unlock()
-	e.cleanupTaskRateLimiters(taskID)
-	if e.OnProgress != nil {
-		e.OnProgress(taskID, 100, finalStats.Stats)
-	}
-	zap.L().Info("task completed (quota cut; deadline drops reconciled)",
-		zap.String("task_id", taskID),
-		zap.Int64("written", finalStats.Stats.PacketsSent),
-		zap.Int64("dropped", entry.droppedPackets))
-	if e.OnTaskComplete != nil {
-		e.OnTaskComplete(taskID)
-	}
 }
 
 // FailTask marks a task as failed.
@@ -1265,6 +1241,37 @@ func (e *Engine) getOrCreatePacketCounter(key string) *int64 {
 	return &v
 }
 
+// acquireTaskGate blocks until an in-flight slot is free or ctx is done.
+// Returns false when ctx fired (generation stops; slot not held). No gate
+// (non-quota tasks) → always true, pass-through.
+func (e *Engine) acquireTaskGate(key string, ctx context.Context) bool {
+	e.rateMu.RLock()
+	gate, ok := e.taskGates[key]
+	e.rateMu.RUnlock()
+	if !ok {
+		return true
+	}
+	select {
+	case gate <- struct{}{}:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+// releaseTaskGate returns one in-flight slot (after write accounting).
+func (e *Engine) releaseTaskGate(key string) {
+	e.rateMu.RLock()
+	gate, ok := e.taskGates[key]
+	e.rateMu.RUnlock()
+	if ok {
+		select {
+		case <-gate:
+		default:
+		}
+	}
+}
+
 // CleanupTaskFlowControl removes the parent rate-limiter bucket and shared
 // flow/packet counters for a parent task, plus any leftover child buckets (safety
 // net). Called by the task handler once ALL strategies of a parent task have
@@ -1276,6 +1283,7 @@ func (e *Engine) CleanupTaskFlowControl(parentTaskID string) {
 	delete(e.rateLimiters, parentTaskID)
 	delete(e.flowCounters, parentTaskID)
 	delete(e.packetCounters, parentTaskID)
+	delete(e.taskGates, parentTaskID)
 	// Child buckets are keyed "parentTaskID-strategyID"; sweep any leftovers.
 	prefix := parentTaskID + "-"
 	for k := range e.rateLimiters {

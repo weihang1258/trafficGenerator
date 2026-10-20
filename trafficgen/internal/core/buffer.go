@@ -30,23 +30,35 @@ func NewRingBuffer(size int, maxBytes int64) *RingBuffer {
 	}
 }
 
-// Put adds a packet to the buffer. Returns false if buffer is full.
-func (rb *RingBuffer) Put(packet []byte) bool {
+// Put adds a packet to the buffer. 滑动窗口语义（R9 设计对齐）：这是"最近包
+// 的实时视图"而非队列——容量满时挤掉最旧、保留最新（视图要的恰恰是最
+// 新），绝不拒新。返回值：evicted=本次挤出（淘汰）的最旧包数；ok=false 仅
+// 当单包超过 maxBytes 上限（空缓冲也放不下，视图无法容纳）。
+func (rb *RingBuffer) Put(packet []byte) (evicted int, ok bool) {
 	if rb.closed.Load() {
-		return false
+		return 0, false
 	}
 
 	rb.mu.Lock()
 	defer rb.mu.Unlock()
 
-	// Check if full
-	if rb.count >= rb.size {
-		return false
+	// 单包超字节上限：空缓冲也容纳不下，视图无法展示，拒绝（罕见）。
+	if rb.maxBytes > 0 && int64(len(packet)) > rb.maxBytes {
+		return 0, false
 	}
 
-	// Check byte limit
-	if rb.maxBytes > 0 && rb.bytes+int64(len(packet)) > rb.maxBytes {
-		return false
+	// 满了/超字节：挤最旧，直到能容纳新包。
+	// size=0（零容量视图）：循环条件恒真且无处挤——直接拒绝（语义=不展示）。
+	if rb.size == 0 {
+		return 0, false
+	}
+	for rb.count >= rb.size || (rb.maxBytes > 0 && rb.bytes+int64(len(packet)) > rb.maxBytes) {
+		oldest := rb.buffer[rb.head]
+		rb.buffer[rb.head] = nil
+		rb.head = (rb.head + 1) % rb.size
+		rb.count--
+		rb.bytes -= int64(len(oldest))
+		evicted++
 	}
 
 	// Hold the original slice reference directly. The builder returns a fresh
@@ -57,7 +69,7 @@ func (rb *RingBuffer) Put(packet []byte) bool {
 	rb.count++
 	rb.bytes += int64(len(packet))
 
-	return true
+	return evicted, true
 }
 
 // Get retrieves a packet from the buffer.
@@ -161,13 +173,13 @@ func (rb *RingBuffer) Status() map[string]interface{} {
 
 // PacketBuffer is a multi-view buffer for up/down/combined directions.
 type PacketBuffer struct {
-	upBuffer      *RingBuffer
-	downBuffer    *RingBuffer
+	upBuffer       *RingBuffer
+	downBuffer     *RingBuffer
 	combinedBuffer *RingBuffer
-	enableUp      bool
-	enableDown    bool
+	enableUp       bool
+	enableDown     bool
 	enableCombined bool
-	mu            sync.RWMutex
+	mu             sync.RWMutex
 }
 
 // PacketBufferConfig for packet buffer configuration.
@@ -201,34 +213,46 @@ func NewPacketBuffer(cfg PacketBufferConfig) *PacketBuffer {
 }
 
 // Put adds a packet to the appropriate buffer based on direction.
-func (pb *PacketBuffer) Put(packet []byte, direction string) bool {
+// Put 存入实时视图（滑动窗口）。返回：evicted=各视图挤出最旧的总数；
+// ok=false 仅当主方向视图无法容纳（单包超上限）。
+func (pb *PacketBuffer) Put(packet []byte, direction string) (evicted int, ok bool) {
 	pb.mu.RLock()
 	defer pb.mu.RUnlock()
 
-	success := false
+	ok = true
 
 	switch direction {
 	case "up":
 		if pb.enableUp && pb.upBuffer != nil {
-			success = pb.upBuffer.Put(packet)
+			e, o := pb.upBuffer.Put(packet)
+			evicted += e
+			ok = o
 		}
 		if pb.enableCombined && pb.combinedBuffer != nil {
-			pb.combinedBuffer.Put(packet)
+			e, _ := pb.combinedBuffer.Put(packet)
+			evicted += e
 		}
 	case "down":
 		if pb.enableDown && pb.downBuffer != nil {
-			success = pb.downBuffer.Put(packet)
+			e, o := pb.downBuffer.Put(packet)
+			evicted += e
+			ok = o
 		}
 		if pb.enableCombined && pb.combinedBuffer != nil {
-			pb.combinedBuffer.Put(packet)
+			e, _ := pb.combinedBuffer.Put(packet)
+			evicted += e
 		}
 	default:
 		if pb.enableCombined && pb.combinedBuffer != nil {
-			success = pb.combinedBuffer.Put(packet)
+			e, o := pb.combinedBuffer.Put(packet)
+			evicted += e
+			ok = o
+		} else {
+			ok = false // 无任何视图接收（default 且 combined 禁用）
 		}
 	}
 
-	return success
+	return evicted, ok
 }
 
 // Get retrieves packets from the specified buffer.
@@ -297,11 +321,11 @@ func (pb *PacketBuffer) Close() {
 
 // TokenBucket for rate limiting.
 type TokenBucket struct {
-	rate      int64 // bytes per second
-	burst     int64 // max burst in bytes
-	tokens    int64
-	lastTime  int64 // nanoseconds
-	mu        sync.Mutex
+	rate     int64 // bytes per second
+	burst    int64 // max burst in bytes
+	tokens   int64
+	lastTime int64 // nanoseconds
+	mu       sync.Mutex
 }
 
 // NewTokenBucket creates a new token bucket.

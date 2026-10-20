@@ -28,9 +28,6 @@ type TaskModel struct {
 	PacketsSent int64 `gorm:"default:0"`
 	BytesSent   int64 `gorm:"default:0"`
 	FlowsCount  int64 `gorm:"default:0"`
-	// PacketsDropped：速率配额截断的在途包（R8-D3/R9 ②）——生成 ≈
-	// packets_sent + packets_dropped，pcap<预期的对账口径。
-	PacketsDropped int64 `gorm:"default:0"`
 	// pcap 产物自动注册资产库的结果（AutoRegisterTaskPcap 回填）：
 	// PcapAssetID=注册成功的资产 id；PcapAssetNote=跳过/失败原因（超阈值
 	// 时含主动注册指引），注册成功时留空（响应层会补默认提示语）。
