@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"time"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -261,7 +262,19 @@ func (r *PcapRepository) CreateFlows(flows []FlowModel) error {
 	if len(flows) == 0 {
 		return nil
 	}
-	return r.db.CreateInBatches(flows, 25).Error
+	// 同 CreatePackets 的让锁节奏（R8-D2 后遗）：大 pcap 的流表同样分块。
+	const chunk = 500
+	for i := 0; i < len(flows); i += chunk {
+		end := i + chunk
+		if end > len(flows) {
+			end = len(flows)
+		}
+		if err := r.db.CreateInBatches(flows[i:end], 25).Error; err != nil {
+			return err
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return nil
 }
 
 // ListFlowsByAsset lists flows for an asset (scoped to userID) with pagination,
@@ -314,7 +327,23 @@ func (r *PcapRepository) CreatePackets(packets []PacketModel) error {
 	// rows/s），25 行=750 参数 ≈3.5µs/参数（8581 rows/s，3.8x）；5000 包
 	// 资产入库 2.2s→0.58s。13 列多行单语句的"4.1x"是砍列假象（同列数
 	// 1.0x），已废弃；32766 参数上限内（30×25=750）。
-	return r.db.CreateInBatches(packets, 25).Error
+	// R8-D2 后遗（2026-10-20）：入库改异步后与热路写并发——WAL 写锁被
+	// 2600 个背靠背小事务连续重取，等待者（进度聚合的父行 UPDATE，D1
+	// 锁内串行写）busy 重试按 100ms 步进节节败退，实测父任务终态拖
+	// +10.7s。每 500 包（20 批）让锁 5ms，等待者必能插入：入库自身
+	// +~0.7s，热路写等待塌缩到毫秒级。
+	const chunk = 500
+	for i := 0; i < len(packets); i += chunk {
+		end := i + chunk
+		if end > len(packets) {
+			end = len(packets)
+		}
+		if err := r.db.CreateInBatches(packets[i:end], 25).Error; err != nil {
+			return err
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return nil
 }
 
 // ListPacketsByFlow lists packets for a flow (scoped to userID), ordered by
