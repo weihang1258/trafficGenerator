@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -37,6 +38,16 @@ func TestTaskLevelBPS_PacedTailDrain(t *testing.T) {
 	})
 	e.SetBuildFunc(func(c PacketConfig) ([]byte, error) { return make([]byte, 100), nil })
 	e.RegisterOutputWriter("d3", &d3CountWriter{n: &writtenBytes, mu: &mu})
+
+	// R9 ②：终态 stats 须携带 packets_dropped（对账闭环：生成=实发+截断）。
+	// 原子：回调 goroutine 写、测试 goroutine 读（-race）。
+	var droppedSeen atomic.Int64
+	droppedSeen.Store(-1)
+	e.OnProgress = func(taskID string, progress float64, stats TaskStats) {
+		if progress >= 100 {
+			droppedSeen.Store(stats.PacketsDropped)
+		}
+	}
 	pl := &d3Planner{}
 	e.RegisterPlanner(pl)
 	if err := e.Start(); err != nil {
@@ -72,6 +83,14 @@ func TestTaskLevelBPS_PacedTailDrain(t *testing.T) {
 	if rateMbps < 0.75 {
 		t.Errorf("sent rate %.2fMbps << 1.00Mbps nominal (限速器欠发)", rateMbps)
 	}
+	dropped := droppedSeen.Load()
+	if dropped < 0 {
+		t.Fatal("终态 stats 未携带 packets_dropped (R9 ②：截断量须对外可查)")
+	}
+	if dropped == 0 {
+		t.Errorf("dropped=0：deadline 配额截断应产生可对账的丢弃量")
+	}
+	t.Logf("D3 对账: sentBytes=%d dropped=%d", sent, dropped)
 }
 
 // d3CountWriter counts written frame bytes (the rate-audit observation point).

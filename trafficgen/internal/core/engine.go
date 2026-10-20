@@ -1058,6 +1058,7 @@ func (e *Engine) OnPacketDeadlineDrop(taskID string, n int) {
 		return
 	}
 	entry.droppedPackets += int64(n)
+	entry.status.Stats.PacketsDropped = entry.droppedPackets
 	done := entry.totalConfigs > 0 &&
 		entry.writtenPackets+entry.errorPackets+entry.droppedPackets >= entry.totalConfigs
 	if !done {

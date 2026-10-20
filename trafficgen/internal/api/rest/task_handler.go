@@ -225,10 +225,11 @@ type engineAggSlot struct {
 	packets  int64
 	bytes    int64
 	flows    int64
+	dropped  int64
 }
 
 // aggregateParent sums all slots of a parent (caller must hold aggMu).
-func (h *TaskHandler) aggregateParent(parentTaskID string) (avg float64, packets, bytes, flows int64, count int) {
+func (h *TaskHandler) aggregateParent(parentTaskID string) (avg float64, packets, bytes, flows, dropped int64, count int) {
 	slots := h.aggSlots[parentTaskID]
 	var total float64
 	for _, sl := range slots {
@@ -236,6 +237,7 @@ func (h *TaskHandler) aggregateParent(parentTaskID string) (avg float64, packets
 		packets += sl.packets
 		bytes += sl.bytes
 		flows += sl.flows
+		dropped += sl.dropped
 	}
 	count = len(slots)
 	if count > 0 {
@@ -409,6 +411,7 @@ func (h *TaskHandler) onEngineProgress(engineTaskID string, progress float64, st
 		packets:  stats.PacketsSent,
 		bytes:    stats.BytesSent,
 		flows:    int64(stats.FlowsCount),
+		dropped:  stats.PacketsDropped,
 	}
 	// R8-D1：求和与父行落库必须同一把锁串行——旧实现求和在 upsert 时算、
 	// DB 写在校锁外，先完成策略的写（旧的部分和）会乱序晚到覆盖最后的
@@ -416,17 +419,18 @@ func (h *TaskHandler) onEngineProgress(engineTaskID string, progress float64, st
 	// 写后写序=upsert 序，最后一次写必为最新全和。
 	// R8-D1：求和与父行落库同一把锁串行——写序=upsert 序，最后一次写必
 	// 为最新全和（旧序的迟到部分和覆盖在此结构下不可能）。
-	avgProgress, aggPackets, aggBytes, aggFlows, _ := h.aggregateParent(parentTaskID)
+	avgProgress, aggPackets, aggBytes, aggFlows, aggDropped, _ := h.aggregateParent(parentTaskID)
 	if parentAggregateWriteHook != nil {
 		parentAggregateWriteHook()
 	}
 	h.db.Model(&storage.TaskModel{}).
 		Where("id = ?", parentTaskID).
 		Updates(map[string]interface{}{
-			"progress":     avgProgress,
-			"packets_sent": aggPackets,
-			"bytes_sent":   aggBytes,
-			"flows_count":  aggFlows,
+			"progress":        avgProgress,
+			"packets_sent":    aggPackets,
+			"bytes_sent":      aggBytes,
+			"flows_count":     aggFlows,
+			"packets_dropped": aggDropped,
 		})
 	h.aggMu.Unlock()
 

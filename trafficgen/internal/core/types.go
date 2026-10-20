@@ -97,6 +97,10 @@ type TaskStats struct {
 	CurrentPPS    float64 `json:"current_pps"`
 	CurrentBPS    float64 `json:"current_bps"`
 	PacketsFailed int64   `json:"packets_failed"`
+	// PacketsDropped：速率配额截断的在途包（R8-D3/R9 ②）——deadline 时
+	// 超出 bps 预算未发送的量。用户按"生成数"对账 pcap<预期 时可直接
+	// 对账：生成 ≈ packets_sent + packets_dropped。
+	PacketsDropped int64 `json:"packets_dropped,omitempty"`
 }
 
 // BGPConfig configures a minimal RFC 4271 BGP session over TCP.
