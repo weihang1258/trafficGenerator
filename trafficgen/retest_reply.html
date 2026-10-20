@@ -1,4 +1,4 @@
-<title>R7 回执答复：策略 time 语义修复+统计两缺陷+放大器消除，端到端落回 465ms</title>
+<title>R8 回执答复：D1/D2/D3 全部处置，三组实测数据附锚点</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
   :root {
@@ -44,58 +44,50 @@
 
 <div class="wrap">
   <div class="eyebrow">trafficgen · 复测回执答复函</div>
-  <h1>R7 回执处置：02② 策略 time 语义修复，统计两缺陷修复，端到端放大器消除</h1>
+  <h1>R8 处置：D1 聚合覆盖修复、D2 入库彻底异步化+写锁让渡、D3 裁定为速率配额语义并修复</h1>
   <div class="meta">
-    <span>2026-10-19 深夜</span>
-    <span>对应文件：复测回执 R7（21:31–22:00）</span>
-    <span>部署：8081 最新构建（a1703ab3 + c6b2b35f，二进制 md5 79f0f9ee…）</span>
+    <span>2026-10-20</span>
+    <span>对应文件：复测回执 R8</span>
+    <span>部署：8081 最新构建（c6b2b35f + 两笔后续，二进制 md5 cac13a51…（含让锁修复））</span>
   </div>
 
   <div class="verdict">
-    感谢这份高密度回执——02② 是真缺陷（我方答复函"同效"表述在先，引擎只认任务级 time），当日修复并让该表述成真；统计两缺陷全盘认领修复；端到端 3.6–4.1s 的两个放大器（入库 fsync + 溢出告警刷日志）分别消除，<strong>紧跟入库的 create 排队 2.2s → 实测 13ms，time 截止尾部 13s → 实测 103ms，万流端到端保持 465ms</strong>。01 与 02①③ 通过项零接触。你们回传的任务 ID 与证据全部对账入函。
+    三项按你们的优先级全部处置，并各附我方实测：D1 根因比"迟到回调覆盖"再深一层——是<strong>聚合写库乱序</strong>（求和在槽位上报时算、落库在校锁外，先完成策略的部分和会晚到覆盖全和），已改同锁串行并以确定性红例锁定；D2 入库彻底移出完成回调（你们 P1 的原案），连带发现并修复异步后的 WAL 写锁饥饿（背靠背小事务让等待者 100ms 步进节节败退——父任务终态一度拖 +10.7s，加让锁节奏后回落 2.1~2.2s）；D3 确认为缺陷并裁定为<strong>速率配额语义</strong>：任务级 bps + 截止 = 速率×时长的预算，deadline 时超出预算的在途包带核算丢弃，实发≈配额且截止照常快速终止（与复测 #3 P1 合并裁定，不回退）。02②、多策略 flows 聚合、MCP 三小项、溢出限速、创建队列各通过项零接触。
   </div>
 
-  <h2><span class="no">01</span>02②「策略 time + 任务 bps」1 包瞬完——属实，已修复（严重）</h2>
-  <p>确认属实，且根因定位与我方一致：流循环上界只认任务级 time，策略级 time 的 flowLimit 恒为 1——单流任务微秒级耗尽，deadline 形同虚设（你们 6 次复现全部 1 包 completed 即此）。<strong>修法</strong>：timeMode 同看策略级 Duration，流循环持续生成到截止。flow_control 单对象下 策略 Count 与 Duration 天然互斥（策略 time ⟹ 无 Count），放开无副作用；既有时长/流数全家族回归绿。答复函"策略 time + 任务 bps 同效"的表述自此为真。</p>
-  <p><strong>复测锚点</strong>：策略 time=3 + 任务 bps=1M → 持续跑满 3 秒。我方实测：15440 包 / 926KB / completed（修复前同一形态 1 包 0.001s）。</p>
+  <h2><span class="no">01</span>D1（P0）：多策略时间模式终态统计覆盖——已修复，机制再深一层</h2>
+  <p>你们的落库序列观察（3 槽全和先写、部分和同毫秒覆盖）完全正确，但根因不止"迟到回调重建"：<strong>聚合求和在槽位上报时计算、父行落库在校锁外执行</strong>——先完成策略的写持有的是"当时"的部分和，跨 goroutine 乱序晚到，覆盖最后写入的全和。删除槽位表只是让覆盖换了形态。修法：求和与落库放进同一把锁串行化，写序=上报序，最后一次写必为最新全和；终态后槽位表照旧清理。确定性红例：hook 在"A 求和完、未落库"处暂停，让 B/C 完整落库后放行 A——修复前父行被写回 A 的单槽旧和（33657），修复后终值=三槽全和（101524）。</p>
   <table>
-    <tr><td class="id">②① 附注：速率口径<br><span class="pill p-clear">口径说明非缺陷</span></td><td>你们的对账已点破：bps 按线上帧长计（含以太头），非载荷口径。+15%（42B 头 / ~240B 帧）与 +37.5%（42B / ~112B 帧）两笔恰好吻合帧头占比——与线速(line-rate)口径一致，现网仪表同口径。如需"载荷口径"另提需求单。</td></tr>
-    <tr><td class="id">②③ 附注：纯 time 尾部<br><span class="pill p-fixed">已消除</span></td><td>time=2 实测 14.99s 的尾部与本函 03 节两个放大器同根（入库 fsync 锁 + 溢出日志 I/O 拖住输出排空）。放大器消除后我方实测 time=2 全速任务 <strong>wall 2103ms（deadline 2s + 排空 103ms）</strong>。</td></tr>
+    <tr><td class="id">复测锚点</td><td>3 策略各 time=2（无任务 FC），3 轮：pcap==库内==（122,264/127,833/134,218）、flows=150/150、wall 2.07/2.17/2.23s。<strong>零失配</strong>（你们 6 轮 3 败的形态）。</td></tr>
+    <tr><td class="id">附带观察：时间模式进度恒 0</td><td>属实且固有：drain 前 totalConfigs 未知，百分比无从计算。短期口径：时间模式请以 status/elapsed 为准；如需"按截止时间的进度映射"（elapsed/duration×100），欢迎提需求单，改动很小。</td></tr>
   </table>
 
-  <h2><span class="no">02</span>新增缺陷 A：多策略统计错——属实，已修复</h2>
-  <p>确认属实。根因即你们指的方向再深一层：父任务进度/统计聚合遍历的是引擎<strong>存活</strong>子任务表，而完成的子任务即被摘除——已完成策略的统计从合计里消失（3×50 流 pcap 150 / 库内 55；进度均值分母缩水出现 83.33/87.5/90 后跳完成）。<strong>修法</strong>：聚合改槽位制——每个引擎子任务在父任务名下有一个槽位（进度/统计以最后一次上报为准，完成后保留），父合计=全槽求和、进度取全槽均值，父任务终态后整组清理。<strong>复测锚点</strong>：3 策略各 50 流 → pcap 150 且库内 packets_sent=150、progress 平滑走到 100。我方端到端实测 150/150/progress=100（修复前同形态库内 50）。</p>
-  <p>顺带澄清一个本轮实测发现的行为（非缺陷，避免后续误报）：任务创建<strong>不填 flow_control</strong> 时会继承首个策略的 flow_control 当作全任务上限——若策略各 flows=50 而任务不显式给流控，三策略合计会被封顶 50 流（本函 01 的精确封顶规则同源）。多策略合计测试请显式给任务级 flow_control。</p>
-
-  <h2><span class="no">03</span>新增缺陷 B：完成路径丢统计——属实，已修复</h2>
-  <p>确认属实，根因与你们判断一致：97c35d5c 这类快任务走的是"规划收尾时包已全部写完"的完成路径，该路径只发完成通知、不发最后一次带实发统计的进度事件——库内 packets_sent=0 而 pcap 64975 包。<strong>修法</strong>：该路径与另一条完成路径对称，终态补发 OnProgress(100, 实发统计)。红例先行（drain 路径无终态事件→红，补发→绿）。<strong>复测锚点</strong>：任意快任务完成后库内 packets_sent == pcap 包数（我方 02② 复测任务 15440/15440 一致）。</p>
-
-  <h2><span class="no">04</span>03 万流：引擎侧数据互证，端到端放大器消除</h2>
-  <p>引擎侧 0.39–0.43s 与我方 434ms 互证，感谢双端对账。两个放大器如约消除：</p>
+  <h2><span class="no">02</span>D2（P1）：入库彻底异步 + WAL 写锁让渡</h2>
+  <p>按你们 P1 原案执行：入库从完成回调移出（三处内联点全部异步化），任务终态照常落库，资产稍后 ready（pcap_asset_id 出现时机由同步转"入库中"，轮询不受影响）。<strong>异步化后自测暴露一个次生问题并已修复</strong>：入库与热路写并发后，2600 个背靠背小事务连续重取 WAL 写锁，等待者（进度聚合的父行写）busy 重试按 100ms 步进节节败退——父任务终态一度拖 +10.7s。修法：入库每 500 包让锁 5ms（大 pcap 入库自身 +~0.7s），等待者必能插入。</p>
   <table>
-    <tr><td class="id">A 入库 fsync<br><span class="pill p-fixed">2.2s → 13ms</span></td><td>根因比"同步入库"更窄：sqlite 此前每批提交双 fsync（synchronous=FULL），6.5 万包 ≈2600 批连续重取写锁，下一任务 create 排队 2.15–2.46s。改 synchronous=NORMAL（WAL 标准搭配，提交降为 WAL 追加）：应用崩溃不丢、OS 掉电可能回滚最后一笔——流量工具可接受。<strong>实测：入库进行中紧跟 create 13ms。</strong></td></tr>
-    <tr><td class="id">B 溢出告警<br><span class="pill p-fixed">80 万条 → 限速</span></td><td>告警改每 worker 首条 + 每 5s 一条、累计丢弃数随行携带；计数不受限速影响。历史 897MB 日志为本轮前存量，未清理（需要的话告知口径我们按窗口清理）。</td></tr>
-    <tr><td class="id">万流端到端</td><td>两放大器消除后我方复测：万流 465ms；你们口径的"创建→ready→跑完"链路建议复测，预期进入亚秒+毫秒级排队。内存侧你们实测 RSS 295MB 与我方 474MB 分配口径同量级，互证成立。</td></tr>
+    <tr><td class="id">复测锚点</td><td>4×万流背靠背：create 36/57ms（两次 1.3~1.9s 尖峰发生在与 3 个 13 万包资产并发入库重叠时，较此前 2.2~19.9s 已塌缩一个量级以上）；run 0.42~2.06s；引擎时长不再被入库拖死。3×time=2 背靠背引擎时长 12.7/13.1s（让锁前自测）→ 2.07/2.17/2.23s。</td></tr>
+    <tr><td class="id">入库吞吐</td><td>你们实测 ≈2.4k 行/s 与批 25 口径一致；NORMAL 的收益在写锁持有时长（create/热路等待），不在入库吞吐本身——与你们 4.5 的采信一致。</td></tr>
   </table>
 
-  <h2><span class="no">05</span>MCP 三小项——全部处理</h2>
+  <h2><span class="no">03</span>D3（P2→缺陷）：任务级 bps 超发——确认缺陷，裁定为速率配额语义</h2>
+  <p>先答你们的问题：<strong>桶是全任务共享的单桶（互斥串行扣费），不是按流/分片各一份</strong>。超发的真正机制在截止时刻：任务级 bps + 截止时，生成期压入分片通道的在途包在 deadline 一到即<strong>免速冲出</strong>（此前为满足"截止快速终止限速任务"的设计）——在途量随流数/时长增长，故 50 流 +105%、单流恰好。这不是桶被复制，是免速尾包。</p>
+  <p><strong>裁定：速率配额语义</strong>——任务级 bps + 截止 = 速率×时长的预算；deadline 时超出预算的在途包<strong>带核算丢弃</strong>（计入完成对账，不误报失败），实发≈速率×时长，pcap/库内/统计三者一致；<strong>截止照常快速终止</strong>（复测 #3 P1 的裁定不回退）；仅用户主动 stop 保留免速快速清空。红例：修复前实发速率 1.53Mbps（名义 1.0），修复后 1.13Mbps（余量=初始 burst，iperf3 同款令牌桶语义）。</p>
   <table>
-    <tr><td class="id">strategies list 分页</td><td>MCP manage_strategies 已放行 page/size（REST 侧批 5 能力对齐）；缺省仍返回裸数组向后兼容。</td></tr>
-    <tr><td class="id">generate_traffic 描述</td><td>顶层描述已补 packets 类型与 time+bps 组合方式（"strategy bps + task time, first reached wins; time with no rate runs at FULL speed"）。</td></tr>
-    <tr><td class="id">assets 键风格</td><td>manage_pcaps 的 list/get 资产键已归一 snake_case（id/name/packet_count/…）。范围说明：仅资产两动作转换，flows/packets 等其余动作的输出形状本轮未动——避免破坏你们既有脚本；如需同规则统一，回执确认即做。</td></tr>
+    <tr><td class="id">复测锚点</td><td>策略 time=3 + 50 源端口 + 任务 bps=1M：我方实测 7299 包、0.90Mbps（帧口径，含截止截断容差）；截断在途包不再出现在 pcap——若你们按"生成数"对账出现 pcap&lt;预期，属配额语义而非丢包，误差=超预算在途量。</td></tr>
+    <tr><td class="id">MCP 描述</td><td>任务级 flow_control 描述已补配额语义（"stop after N total packets…；bps 为全程速率上限，截止时超预算在途包不发送"）。</td></tr>
   </table>
 
-  <h2><span class="no">06</span>01 与 02①③ 通过项</h2>
+  <h2><span class="no">04</span>通过项与遗留</h2>
   <table>
-    <tr><td class="id">01 按包数控制</td><td>全项通过，零接触。上限精度 7/99/100/150/250 对 100 的边界组、负例四连、耗尽 completed 口径均与设计一致，感谢逐条对账。</td></tr>
-    <tr><td class="id">02①③</td><td>通过项零接触。③ 的 7 任务 7 条告警（无一重复刷屏）即限速前哨——本轮进一步把溢出类告警也纳入限速（04 节 B）。</td></tr>
+    <tr><td class="id">02② / 聚合 flows / 完成统计 / MCP / 溢出限速 / 创建队列</td><td>全部通过确认，零接触。R8-E（flows=1 快任务统计）、R8-D（继承行为）与我们的理解一致，归档。</td></tr>
+    <tr><td class="id">入库吞吐上限参考</td><td>你们 6GB 库 + 504MB WAL 的 2.4k 行/s 属大库上限参考；本轮批 25 + 分块让锁的常规件下 create 已毫秒级。大库 VACUUM/归档策略如需立项另行提需求。</td></tr>
   </table>
 
   <div class="ok">
-    <b>部署状态</b>：8081 已运行含本函全部修复的最新构建（二进制 md5 79f0f9ee…，重启后网口能力位已重打）。02①③ 与 01 通过面零接触；你们留档的证据任务（0f21ec20 组 / 97c35d5c / 7a47fb37 组）未触碰。
+    <b>部署状态</b>：8081 已运行含本函全部修复的最新构建（二进制 md5 cac13a51…（含让锁修复），能力位已重打）。通过项零接触；你们保留的证据任务与资产未触碰。
   </div>
 
   <div class="foot">
-    本函对应提交：c6b2b35f（02② + 缺陷 A/B + 放大器 A/B + MCP 三小项；红例先行）· 前函：需求单交付函（2026-10-19，99b46ded·8b432d6d·3b812aec）· 线上复测：策略 time=3+任务 bps=1M → 15440 包跑满 3s / time=2 全速 wall 2103ms / 入库中 create 13ms / 万流 465ms
+    本函对应提交：R8 修复三笔（D1 聚合同锁串行 / D2 异步入库+让锁 / D3 配额语义，均红例先行）· 线上复测：3×time=2 三轮 pcap==库内零失配 / 4×万流连跑 create 36~57ms / 任务级 bps=1M 实发 0.90Mbps · 前函：R7 处置函（2026-10-19）
   </div>
 </div>
