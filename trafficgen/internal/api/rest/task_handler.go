@@ -749,6 +749,9 @@ type TaskStatsResponse struct {
 	FlowsCount  int64   `json:"flows_count"`
 	CurrentPPS  float64 `json:"current_pps"`
 	CurrentBPS  float64 `json:"current_bps"`
+	// PacketsDropped：速率配额截断的在途包（R8-D3/R9 ②）。生成对账：
+	// packets_sent + packets_dropped ≈ 生成全量，pcap<预期的口径来源。
+	PacketsDropped int64 `json:"packets_dropped"`
 }
 
 // StrategyBrief represents a strategy summary in the task response.
@@ -2045,9 +2048,10 @@ func convertTaskToResponse(t *storage.TaskModel) TaskResponse {
 	// 全零 → 保持 nil，不为没跑过的任务伪造 stats。
 	if t.PacketsSent > 0 || t.BytesSent > 0 || t.FlowsCount > 0 {
 		response.Stats = &TaskStatsResponse{
-			PacketsSent: t.PacketsSent,
-			BytesSent:   t.BytesSent,
-			FlowsCount:  t.FlowsCount,
+			PacketsSent:    t.PacketsSent,
+			BytesSent:      t.BytesSent,
+			FlowsCount:     t.FlowsCount,
+			PacketsDropped: t.PacketsDropped,
 		}
 	}
 	if t.OutputType == "pcap" || t.OutputType == "both" {
