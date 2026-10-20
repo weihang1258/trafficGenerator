@@ -259,11 +259,29 @@ func (h *TaskHandler) maybeAutoRegisterPcap(task *storage.TaskModel) {
 	AutoRegisterTaskPcap(h.db, h.pcap, task)
 }
 
+// maybeAutoRegisterPcapAsync 在独立 goroutine 里跑入库（R8-D2）：完成回调
+// 内联解析万包 pcap 需秒级，占用与后续任务共用的回调路径——连跑被上一产物
+// 入库拖住（run 4s+）、create 排队 2.2~19.9s、time 截止尾部放大 5.8~13.2s，
+// 三症状同根。异步后：任务终态照常落库，资产稍后 ready（pcap_asset_id 出现
+// 时机由同步转"入库中"，轮询 get_task_progress 的调用方不受影响）。
+// 解析本身与 MCP import 路径同为并发可达（sqlite 写锁自然串行化落库）。
+func (h *TaskHandler) maybeAutoRegisterPcapAsync(task *storage.TaskModel) {
+	if h.pcap == nil {
+		return
+	}
+	go AutoRegisterTaskPcap(h.db, h.pcap, task)
+}
+
 // startSubmitHook is a test-only hook. When non-nil it is invoked after
 // every engine task is submitted, letting tests deterministically simulate
 // the engine completing/failing a task in the pre-fix "starting"-status
 // window. Always nil in production.
 var startSubmitHook func()
+
+// parentAggregateWriteHook is a test-only hook invoked inside aggMu just
+// before the parent aggregate row write (R8-D1 red test interleaves here to
+// reproduce the out-of-order partial-sum overwrite). Always nil in production.
+var parentAggregateWriteHook func()
 
 // NewTaskHandler creates a new task handler and registers engine callbacks.
 func NewTaskHandler(db *storage.DB, engine *core.Engine, wsHandler *websocket.Handler) *TaskHandler {
@@ -392,10 +410,16 @@ func (h *TaskHandler) onEngineProgress(engineTaskID string, progress float64, st
 		bytes:    stats.BytesSent,
 		flows:    int64(stats.FlowsCount),
 	}
+	// R8-D1：求和与父行落库必须同一把锁串行——旧实现求和在 upsert 时算、
+	// DB 写在校锁外，先完成策略的写（旧的部分和）会乱序晚到覆盖最后的
+	// 全和（客户端 6 轮中 3 轮：pcap 101,524 / 库 67,778=两策略和）。锁内
+	// 写后写序=upsert 序，最后一次写必为最新全和。
+	// R8-D1：求和与父行落库同一把锁串行——写序=upsert 序，最后一次写必
+	// 为最新全和（旧序的迟到部分和覆盖在此结构下不可能）。
 	avgProgress, aggPackets, aggBytes, aggFlows, _ := h.aggregateParent(parentTaskID)
-	h.aggMu.Unlock()
-
-	// Update parent task progress + aggregate stats in DB
+	if parentAggregateWriteHook != nil {
+		parentAggregateWriteHook()
+	}
 	h.db.Model(&storage.TaskModel{}).
 		Where("id = ?", parentTaskID).
 		Updates(map[string]interface{}{
@@ -404,6 +428,7 @@ func (h *TaskHandler) onEngineProgress(engineTaskID string, progress float64, st
 			"bytes_sent":   aggBytes,
 			"flows_count":  aggFlows,
 		})
+	h.aggMu.Unlock()
 
 	// Broadcast progress update via WebSocket
 	if h.wsHub != nil {
@@ -493,7 +518,7 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 		h.engine.UnregisterOutputWriter(taskID)
 		h.engine.UnregisterDualWriter(taskID)
 		h.engine.CleanupTaskFlowControl(taskID)
-		h.maybeAutoRegisterPcap(&task)
+		h.maybeAutoRegisterPcapAsync(&task)
 		// R7 缺陷 A：父任务终态后整组删除聚合槽位（防 handler 生命周期泄漏）。
 		h.aggMu.Lock()
 		delete(h.aggSlots, taskID)
@@ -579,7 +604,7 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 
 		// Unregister closes the output writers (pcap fsync) — the file is
 		// only final after this, so auto-registration must come later.
-		h.maybeAutoRegisterPcap(&task)
+		h.maybeAutoRegisterPcapAsync(&task)
 
 		// R7 缺陷 A：父任务终态后整组删除聚合槽位。
 		h.aggMu.Lock()
@@ -1317,7 +1342,7 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		task.CompletedAt = &now
 		h.db.Save(&task)
 		log.Printf("task %s reconciled stale status -> %s before restart", task.ID, task.Status)
-		h.maybeAutoRegisterPcap(&task)
+		h.maybeAutoRegisterPcapAsync(&task)
 	}
 
 	// Optimistic lock: atomically set status to prevent concurrent starts

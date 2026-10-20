@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -444,5 +445,65 @@ func TestIntegration_MultiStrategy_ParentStatsAggregated(t *testing.T) {
 	}
 	if task.Progress != 100 {
 		t.Errorf("parent progress = %v, want 100", task.Progress)
+	}
+}
+
+// IT7（R8-D1 红例，确定性）：聚合求和与父行写必须同锁串行——复刻乱序交错：
+// 策略 A 完成求和、尚未落库时（hook），策略 B、C 完整跑完落库；随后 A 的
+// 迟写落地。修复前 A 以"单槽旧和"最后落库覆盖全和（R8 症状：全和先写、
+// 部分和同毫秒覆盖）；修复后锁内串行化，写序=upsert 序，终值=三槽全和。
+func TestR8D1_ParentAggregateLateWriteDoesNotOverwrite(t *testing.T) {
+	_, db, _, cleanup := setupIntegrationTest(t)
+	defer cleanup()
+
+	// 父任务行必须恰 36 字符（onEngineProgress 对 >36 的引擎任务 ID 截前
+	// 36 位提取父 ID；同长则截断不发生）。
+	parentID := "aaaaaaaa-bbbb-cccc-dddd-eeeeffff0000"
+	if err := db.Exec("INSERT INTO tasks (id, user_id, name, status, protocol, created_at, updated_at) VALUES (?, 'u1', 'r8d1', 'running', 'udp', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", parentID).Error; err != nil {
+		t.Fatalf("seed parent: %v", err)
+	}
+	h := &TaskHandler{db: db, aggSlots: make(map[string]map[string]*engineAggSlot),
+		lastProgressUpdate: make(map[string]time.Time)}
+
+	// hook：A 求和完毕、写库前——让 B、C 上报落库（复刻乱序）。等待带
+	// 200ms 上限：旧形状（锁外 hook）B/C 立即可跑、等到后再放 A = A 最后
+	// 写（红）；新形状（锁内 hook）B/C 等 A 放锁，超时放行 A，B/C 在锁后
+	// 串行补写、终值仍为全和（绿）。
+	var hookCalls atomic.Int64 // 一次性守卫：只拦截 A 的那次写（B/C 的调用直通）
+	parentAggregateWriteHook = func() {
+		if hookCalls.Add(1) != 1 {
+			return
+		}
+		done := make(chan struct{}, 2)
+		go func() {
+			h.onEngineProgress(parentID+"-stratB", 100, core.TaskStats{PacketsSent: 34121, FlowsCount: 1})
+			done <- struct{}{}
+		}()
+		go func() {
+			h.onEngineProgress(parentID+"-stratC", 100, core.TaskStats{PacketsSent: 33746, FlowsCount: 1})
+			done <- struct{}{}
+		}()
+		select {
+		case <-done:
+			<-done
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+	defer func() { parentAggregateWriteHook = nil }()
+
+	// A：upsert{A} → 求和 → hook（B/C 落库）→ A 落库（旧序：最后写者）。
+	h.onEngineProgress(parentID+"-stratA", 100, core.TaskStats{PacketsSent: 33657, FlowsCount: 1})
+
+	// 等 B/C（新形状在 A 放锁后串行补写）落库。
+	time.Sleep(500 * time.Millisecond)
+
+	var packets int64
+	if err := db.Raw("SELECT packets_sent FROM tasks WHERE id = ?", parentID).Scan(&packets).Error; err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	// 修复后：写序=upsert 序（A→B→C），终值=C 的三槽全和 101524。
+	// 修复前：A 的单槽旧和 33657 最后落库覆盖全和（R8-D1 复现）。
+	if packets != 101524 {
+		t.Errorf("parent packets_sent = %d, want 101524 (A+B+C 全和；R8-D1 旧序写回 33657)", packets)
 	}
 }

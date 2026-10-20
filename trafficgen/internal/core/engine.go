@@ -185,6 +185,7 @@ type taskEntry struct {
 	// accounted for (writtenPackets + errorPackets >= totalConfigs).
 	totalConfigs   int64
 	writtenPackets int64
+	droppedPackets int64 // R8-D3：deadline 配额截断的在途包（计入完成对账，不误报失败）
 	errorPackets   int64
 	firstBuildErr  string
 }
@@ -880,7 +881,7 @@ func (e *Engine) SetTaskTotalConfigs(taskID string, count int64) {
 	// legal only for time-capped tasks whose deadline fired before the first
 	// config (planners that produce 0 configs without a deadline are failed
 	// by the worker's 0-config guard before reaching here).
-	if count == 0 || entry.writtenPackets+entry.errorPackets >= count {
+	if count == 0 || entry.writtenPackets+entry.errorPackets+entry.droppedPackets >= count {
 		if entry.errorPackets > 0 {
 			e.taskMu.Unlock()
 			e.FailTask(taskID, fmt.Sprintf("packet build failed: %s", entry.firstBuildErr))
@@ -964,7 +965,7 @@ func (e *Engine) OnPacketWritten(taskID, flowID string, nbytes int) {
 		e.taskMu.Unlock()
 		return
 	}
-	if entry.totalConfigs > 0 && entry.writtenPackets+entry.errorPackets >= entry.totalConfigs {
+	if entry.totalConfigs > 0 && entry.writtenPackets+entry.errorPackets+entry.droppedPackets >= entry.totalConfigs {
 		// All planned configs accounted for. If any build failed, the task
 		// cannot be reported completed: fail it with the first error.
 		if entry.errorPackets > 0 {
@@ -1014,6 +1015,45 @@ func (e *Engine) OnPacketWritten(taskID, flowID string, nbytes int) {
 		}
 	}
 	e.taskMu.Unlock()
+}
+
+// OnPacketDeadlineDrop accounts an in-flight packet discarded at the rate
+// quota cut (R8-D3): counted toward completion reconciliation (written +
+// errors + dropped >= totalConfigs) but NOT a build failure — the task still
+// completes normally when the accounting closes.
+func (e *Engine) OnPacketDeadlineDrop(taskID string, n int) {
+	e.taskMu.Lock()
+	entry, ok := e.taskStore[taskID]
+	if !ok {
+		e.taskMu.Unlock()
+		return
+	}
+	entry.droppedPackets += int64(n)
+	done := entry.totalConfigs > 0 &&
+		entry.writtenPackets+entry.errorPackets+entry.droppedPackets >= entry.totalConfigs
+	if !done {
+		e.taskMu.Unlock()
+		return
+	}
+	entry.status.Status = "completed"
+	entry.status.Progress = 100
+	entry.status.CompletedAt = time.Now()
+	entry.cancel()
+	finalStats := *entry.status
+	delete(e.taskStore, taskID)
+	delete(e.layerPlanners, taskID)
+	e.taskMu.Unlock()
+	e.cleanupTaskRateLimiters(taskID)
+	if e.OnProgress != nil {
+		e.OnProgress(taskID, 100, finalStats.Stats)
+	}
+	zap.L().Info("task completed (quota cut; deadline drops reconciled)",
+		zap.String("task_id", taskID),
+		zap.Int64("written", finalStats.Stats.PacketsSent),
+		zap.Int64("dropped", entry.droppedPackets))
+	if e.OnTaskComplete != nil {
+		e.OnTaskComplete(taskID)
+	}
 }
 
 // FailTask marks a task as failed.

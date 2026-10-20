@@ -1007,6 +1007,32 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 	}
 }
 
+// paceOrDropAtDeadline：限速等待的终态语义（R8-D3，与复测 #3 P1 合并裁
+// 定）。任务级/策略级 bps + 截止 = **速率配额**：deadline 到期时，生成期
+// 压入分片通道的在途包若继续免速冲出=限速窗口末尾超发（客户端实测
+// +105%），若继续限速排空=截止无法终止（#3 P1：40s 拖尾）。裁定：超出
+// 预算的在途包**带核算丢弃**（OnPacketDeadlineDrop 计入完成对账，不误报
+// 失败），实发 ≈ 速率×时长，pcap/库内/统计三者一致，截止照常快速终止。
+// 仅用户主动 stop（Canceled）保留免速快速清空——被放弃产物快速收敛优先。
+// 返回 false = 该包已被配额截断丢弃（已核算），调用方必须跳过写出。
+func (w *PacketWorker) paceOrDropAtDeadline(tb *TokenBucket, waitCtx context.Context, config PacketConfig, nbytes int64) bool {
+	if err := tb.Wait(waitCtx, nbytes); err == nil {
+		return true
+	}
+	switch waitCtx.Err() {
+	case context.Canceled:
+		return true // 用户 stop：免速快速清空（照常写出）
+	default:
+		// DeadlineExceeded（或其他终态）：配额截断——丢弃并核算。
+		if w.engine != nil {
+			if taskID, ok := config.Metadata["task_id"].(string); ok && taskID != "" {
+				w.engine.OnPacketDeadlineDrop(taskID, 1)
+			}
+		}
+		return false
+	}
+}
+
 // GetStats returns worker statistics.
 func (w *ConfigWorker) GetStats() WorkerStats {
 	return WorkerStats{
@@ -1128,8 +1154,8 @@ func (w *PacketWorker) processConfig(config PacketConfig) {
 			waitCtx = tctx
 		}
 		if limiter := w.engine.GetRateLimiter(config.ClassID); limiter != nil {
-			if err := limiter.Wait(waitCtx, int64(len(packet))); err != nil {
-				// 任务终态打断节拍：立即落写剩余包（不丢包、不卡计数）。
+			if !w.paceOrDropAtDeadline(limiter, waitCtx, config, int64(len(packet))) {
+				return // 配额截断：已核算，跳过写出
 			}
 		}
 	}
@@ -1148,8 +1174,8 @@ func (w *PacketWorker) processConfig(config PacketConfig) {
 				if tctx := w.engine.TaskCtxFor(config.Metadata); tctx != nil {
 					waitCtx = tctx
 				}
-				if err := parentLimiter.Wait(waitCtx, int64(len(packet))); err != nil {
-					// 同上：终态后快速清空。
+				if !w.paceOrDropAtDeadline(parentLimiter, waitCtx, config, int64(len(packet))) {
+					return // 配额截断：已核算，跳过写出
 				}
 			}
 		}
