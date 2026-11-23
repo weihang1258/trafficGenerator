@@ -694,6 +694,40 @@ func (w *ConfigWorker) processReplayTask(task Task) {
 	}
 }
 
+// batchClassPlanner resolves the planner for one batch class. A class whose
+// config carries a "layers" chain gets its own ChainPlanner built through the
+// engine's injected layer-planner factory — the same path single-task
+// submission takes (engine.SubmitTask) — so layer-level static fields actually
+// reach the generator. Classes without "layers" keep the protocol-name planner
+// (legacy behavior). Returns ok=false when the class cannot be planned at all
+// (unknown protocol, or a layers chain the factory rejects); the caller counts
+// those as per-flow failures so the task fails instead of completing at 0 packets.
+func (w *ConfigWorker) batchClassPlanner(task Task, class TrafficClass) (ProtocolPlanner, bool) {
+	raw, hasLayers := class.Config["layers"]
+	if hasLayers && raw != nil {
+		if w.engine == nil || w.engine.layerPlannerFactory == nil {
+			zap.L().Error("batch class carries layers but no layer planner factory is wired",
+				zap.String("task_id", task.ID), zap.String("class_id", class.ID))
+			return nil, false
+		}
+		layersJSON, err := json.Marshal(raw)
+		if err != nil {
+			zap.L().Error("batch class layers marshal failed",
+				zap.String("task_id", task.ID), zap.String("class_id", class.ID), zap.Error(err))
+			return nil, false
+		}
+		planner, err := w.engine.layerPlannerFactory(class.Type, layersJSON)
+		if err != nil {
+			zap.L().Error("batch class layers rejected by planner factory",
+				zap.String("task_id", task.ID), zap.String("class_id", class.ID), zap.Error(err))
+			return nil, false
+		}
+		return planner, true
+	}
+	planner, ok := w.planners[class.Type]
+	return planner, ok
+}
+
 // processBatchTask runs a mixed-traffic task: each TrafficClass runs in its
 // own goroutine, generating FlowCount flows through its protocol planner. All
 // classes feed the shared configChan; each config is tagged with
@@ -809,9 +843,21 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 			}(class)
 			continue
 		}
-		planner, ok := w.planners[class.Type]
+		// P2c 层链驱动生成（batch 面）：class 自带 "layers" 时按该类配置构建
+		// 类专属 ChainPlanner，与单任务入口同一条流水线（engine.SubmitTask →
+		// layerPlannerFactory → BuildLayersPlanner）。不这样做就回落到
+		// w.planners[class.Type]——那是按协议名注册的默认 planner，chain 为
+		// nil，completeSynthesized 造全默认链，用户层内静态字段
+		// （tcp.dst_port / http.uri / dns.name / ...）除 ip.src/dst、eth MAC、
+		// ip.ttl 外全部静默丢失，任务照常报 completed。建单期 dry-run
+		// （taskHandler.CreateBatch → BuildLayersPlanner + ValidateSpec）已
+		// 拦下可解析性/语义错误，此处失败只可能是运行期异常：按类计失败，
+		// 走下方 "all N flows failed" 守卫，绝不放行 0 包 completed。
+		planner, ok := w.batchClassPlanner(task, class)
 		if !ok {
-			zap.L().Error("batch class unknown protocol, skipping",
+			// batchClassPlanner already logged the specific reason (layers
+			// chain rejected vs. unknown protocol); log the accounting here.
+			zap.L().Error("batch class cannot be planned, skipping",
 				zap.String("task_id", task.ID),
 				zap.String("class_id", class.ID),
 				zap.String("type", class.Type),

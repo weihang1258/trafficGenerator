@@ -12,7 +12,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	sqlite "github.com/glebarez/sqlite"
+	"github.com/google/gopacket"
+	glayers "github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcapgo"
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/core/layers"
+	httpproto "github.com/trafficgen/trafficgen/internal/protocol/http"
 	"github.com/trafficgen/trafficgen/internal/protocol/tcp"
 	"github.com/trafficgen/trafficgen/internal/protocol/udp"
 	"github.com/trafficgen/trafficgen/internal/storage"
@@ -382,6 +387,10 @@ func TestCreateBatch_FlowCountDefaultsToOne(t *testing.T) {
 	})
 	e.RegisterPlanner(udp.NewPlanner())
 	e.SetBuildFunc(core.NewBuilder().Build)
+	// 该用例的 class 带 layers 链，必须挂层链规划器工厂（生产 cmd/server/main.go
+	// 恒挂；单任务路径未挂时 SubmitTask 直接报 "layer planner factory not wired"）。
+	// 不挂则 batch 类计失败，任务止于 failed 而非产 1 包。
+	e.SetLayerPlannerFactory(layers.BuildLayersPlanner)
 	if err := e.Start(); err != nil {
 		t.Fatalf("start engine: %v", err)
 	}
@@ -422,4 +431,135 @@ func TestCreateBatch_FlowCountDefaultsToOne(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatalf("task %s did not complete in time (status=%s)", resp.Data.ID, task.Status)
+}
+
+// TestCreateBatch_LayersReachWire 是层链字段落线的端到端回归：
+// batch class 的 layers 里写 tcp.dst_port=8080 / http.uri / 状态码，
+// 产出的 pcap 必须真的是这些值。修复前该 class 走按协议名注册的默认
+// planner（chain=nil → completeSynthesized 全默认链），端口落 80、
+// 请求行落 "/"、响应落 200，任务却报 completed —— 校验读层链、执行不读。
+func TestCreateBatch_LayersReachWire(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	gormDB, err := gorm.Open(sqlite.Open(t.TempDir()+"/test.db"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := storage.AutoMigrate(gormDB); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	db := &storage.DB{DB: gormDB}
+
+	e := core.NewEngine(core.EngineConfig{
+		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
+		BufferSize: 256, QueueSize: 64,
+	})
+	e.RegisterPlanner(httpproto.NewPlanner())
+	e.SetBuildFunc(core.NewBuilder().Build)
+	e.SetLayerPlannerFactory(layers.BuildLayersPlanner)
+	if err := e.Start(); err != nil {
+		t.Fatalf("start engine: %v", err)
+	}
+	defer e.Stop()
+
+	h := NewTaskHandler(db, e, nil)
+	r := gin.New()
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.POST("/tasks/batch", h.CreateBatch)
+
+	pcapPath := t.TempDir() + "/layers-wire.pcap"
+	body := `{"name":"layers-wire","batch":{"classes":[{"id":"c1","type":"http","flow_count":1,` +
+		`"config":{"layers":[{"ip":{"src":"10.1.1.1","dst":"10.1.1.2"}},` +
+		`{"tcp":{"src_port":22000,"dst_port":8080}},` +
+		`{"http":{"uri":"/custom/path","response_status_code":404}}]}}]},` +
+		`"output_type":"pcap","output_config":{"pcap_path":"` + pcapPath + `"}}`
+	req := httptest.NewRequest("POST", "/tasks/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create = %d %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data map[string]string `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v body=%s", err, w.Body.String())
+	}
+	taskID := resp.Data["id"]
+
+	deadline := time.Now().Add(10 * time.Second)
+	var tm storage.TaskModel
+	for time.Now().Before(deadline) {
+		db.First(&tm, "id = ?", taskID)
+		if tm.Status == "completed" {
+			break
+		}
+		if tm.Status == "error" {
+			t.Fatalf("task errored: %s", tm.ErrorMessage)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if tm.Status != "completed" {
+		t.Fatalf("task did not complete, status = %s", tm.Status)
+	}
+
+	// 读回 pcap，逐包检查层链值是否真的落到线上。
+	f, err := os.Open(pcapPath)
+	if err != nil {
+		t.Fatalf("open pcap: %v", err)
+	}
+	defer f.Close()
+	rd, err := pcapgo.NewReader(f)
+	if err != nil {
+		t.Fatalf("pcap reader: %v", err)
+	}
+
+	var sawRequest, sawResponse bool
+	var dstPorts []uint16
+	for {
+		data, _, rerr := rd.ReadPacketData()
+		if rerr != nil {
+			break
+		}
+		pkt := gopacket.NewPacket(data, glayers.LayerTypeEthernet, gopacket.Default)
+		tcpLayer, _ := pkt.Layer(glayers.LayerTypeTCP).(*glayers.TCP)
+		appLayer := pkt.ApplicationLayer()
+		if tcpLayer == nil || appLayer == nil || len(appLayer.Payload()) == 0 {
+			continue
+		}
+		dstPorts = append(dstPorts, uint16(tcpLayer.DstPort))
+		payload := string(appLayer.Payload())
+		if strings.HasPrefix(payload, "GET ") {
+			sawRequest = true
+			if want := "GET /custom/path HTTP/1.1"; !strings.HasPrefix(payload, want) {
+				t.Errorf("request line = %q, want prefix %q (layers http.uri dropped)", firstLine(payload), want)
+			}
+			if tcpLayer.DstPort != 8080 {
+				t.Errorf("request dst_port = %d, want 8080 (layers tcp.dst_port dropped)", tcpLayer.DstPort)
+			}
+			if tcpLayer.SrcPort != 22000 {
+				t.Errorf("request src_port = %d, want 22000 (layers tcp.src_port dropped)", tcpLayer.SrcPort)
+			}
+		}
+		if strings.HasPrefix(payload, "HTTP/1.1 ") {
+			sawResponse = true
+			if want := "HTTP/1.1 404"; !strings.HasPrefix(payload, want) {
+				t.Errorf("status line = %q, want prefix %q (layers response_status_code dropped)", firstLine(payload), want)
+			}
+		}
+	}
+	if !sawRequest {
+		t.Errorf("no HTTP request found in pcap (dst_ports seen: %v)", dstPorts)
+	}
+	if !sawResponse {
+		t.Error("no HTTP response found in pcap")
+	}
+}
+
+// firstLine returns the first CRLF-terminated line of a payload, for messages.
+func firstLine(s string) string {
+	if i := strings.Index(s, "\r\n"); i >= 0 {
+		return s[:i]
+	}
+	return s
 }
