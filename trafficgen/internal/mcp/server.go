@@ -103,7 +103,7 @@ func NewServer(cfg *config.MCPConfig, engine *core.Engine, db *storage.DB, iface
 		// place for the model-facing overview): capability summary + the
 		// standard end-to-end flow. Kept in sync with tool behavior —
 		// CORE_MEMORY §13.27 applies to this text too.
-		Instructions: serverInstructions,
+		Instructions: serverInstructions(engine),
 	})
 	// Transport-aware tool descriptions: over HTTP, tools/list gets concrete
 	// request-derived URLs injected (the client-side model never sees its own

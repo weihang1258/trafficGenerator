@@ -1,19 +1,23 @@
 package mcp
 
+import (
+	"fmt"
+
+	"github.com/trafficgen/trafficgen/internal/core"
+)
+
 // serverInstructions is returned to every MCP client in the initialize
 // response — the protocol-standard place for the model-facing overview.
 // It carries the capability summary and the standard end-to-end flow so
 // the model never has to assemble the workflow from scattered tool
 // descriptions. Keep in sync with tool behavior (CORE_MEMORY §13.27).
-// protocolCount is the "N protocols" figure quoted in server instructions
-// (client audit 2026-10-13 问题3: instructions said 125 while the tool
-// descriptions said 123). The exposed list = engine.ListProtocols() minus udp
-// (rest GetProtocols OBS-1), currently 124 registered − 1 = 123. Struct tags
-// can't concat consts, so tools_workflow/tools_strategy carry the literal —
-// TestMCPSurfaceProtocolCountAgreement locks all three to the same number.
-const protocolCount = "123"
-
-const serverInstructions = `trafficgen (flowB) MCP — network traffic generation and pcap analysis for ` + protocolCount + ` protocols.
+//
+// 协议数是运行期算的，不是常量：exposed list = ListProtocols() − udp
+// （rest GetProtocols OBS-1 同一口径）。此前是三处硬编码（这里 + 两个
+// struct tag）+ 一个测试锁三方，加协议时必须记得同步改四处——编号
+// 2026-10-13 客户端审查就是这么漂移的（instructions 125 / tag 123）。
+// 现在单一真相是 engine 注册表，数字不会说谎，测试改成校验三方一致。
+const serverInstructionsTemplate = `trafficgen (flowB) MCP — network traffic generation and pcap analysis for %d protocols.
 
 STANDARD FLOW
 1. flowb_query_layers action=examples for the target protocol — copy a verified config verbatim; never guess field names. action=schema lists every layer's fields/types/defaults.
@@ -30,3 +34,28 @@ RESPONSE RULES
 - Manage the trafficgen filesystem with flowb_manage_filesystem (upload/read/list; large reads are auto-exported too). To transfer a specific file over HTTP/FTP/etc: upload once (the receipt returns file_id = content sha256; identical content dedups with existed=true), then reference it in the protocol layer with file_source={file_id: <file_id>} — query accepts sha256=<64-hex> to check existence before uploading a large file.
 
 Admin surface: flowb_manage_port_groups (NIC real-send output), flowb_manage_users / flowb_manage_auth / flowb_manage_profile / flowb_manage_settings / flowb_query_system.`
+
+// exposedProtocolCount is the "N protocols" figure quoted to clients:
+// engine.ListProtocols() minus udp — the same exposure rule as rest
+// GetProtocols (OBS-1: udp is a chain carrier with no case corpus, still
+// usable as a layer config but not advertised as a protocol). Computed from
+// the live registry so it can never drift from what the server actually
+// serves; nil engine yields 0 (tests constructing a bare Server).
+func exposedProtocolCount(e *core.Engine) int {
+	if e == nil {
+		return 0
+	}
+	n := 0
+	for _, p := range e.ListProtocols() {
+		if p != "udp" {
+			n++
+		}
+	}
+	return n
+}
+
+// serverInstructions renders the initialize-time instructions with the live
+// protocol count.
+func serverInstructions(e *core.Engine) string {
+	return fmt.Sprintf(serverInstructionsTemplate, exposedProtocolCount(e))
+}
