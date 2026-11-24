@@ -1174,17 +1174,8 @@ func (h *TaskHandler) List(c *gin.Context) {
 	}
 
 	// Parse query parameters
-	page := 1
-	size := 20
-	if p, err := strconv.Atoi(c.DefaultQuery("page", "1")); err == nil && p > 0 {
-		page = p
-	}
-	if s, err := strconv.Atoi(c.DefaultQuery("size", "20")); err == nil && s >= 0 {
-		size = s // 0 = 全量（用户裁定 2026-10-04）
-		if size > 100 {
-			size = 100
-		}
-	}
+	p := parsePageParams(c, 20, 100)
+	size := p.Size
 
 	// Build query
 	query := h.db.Model(&storage.TaskModel{}).Where("user_id = ?", userID)
@@ -1224,10 +1215,9 @@ func (h *TaskHandler) List(c *gin.Context) {
 	query = query.Order(sortBy + " " + orderDir)
 
 	// Pagination
-	offset := (page - 1) * size
 	// size == 0 = 全量拉取（用户裁定 2026-10-04）。
 	if size > 0 {
-		query = query.Offset(offset).Limit(size)
+		query = query.Offset(pageOffset(p)).Limit(size)
 	}
 
 	var tasks []storage.TaskModel
@@ -1241,12 +1231,7 @@ func (h *TaskHandler) List(c *gin.Context) {
 		result[i] = convertTaskToResponse(&t)
 	}
 
-	Success(c, map[string]interface{}{
-		"items": result,
-		"total": total,
-		"page":  page,
-		"size":  size,
-	})
+	Success(c, pageBody(result, total, p, len(result)))
 }
 
 // Get gets a task by ID.
@@ -1928,17 +1913,8 @@ func (h *TaskHandler) History(c *gin.Context) {
 	}
 
 	// Parse query parameters
-	page := 1
-	size := 20
-	if p, err := strconv.Atoi(c.DefaultQuery("page", "1")); err == nil && p > 0 {
-		page = p
-	}
-	if s, err := strconv.Atoi(c.DefaultQuery("size", "20")); err == nil && s >= 0 {
-		size = s // 0 = 全量（用户裁定 2026-10-04）
-		if size > 100 {
-			size = 100
-		}
-	}
+	p := parsePageParams(c, 20, 100)
+	size := p.Size
 
 	// Build query
 	query := h.db.Model(&storage.TaskModel{}).Where("user_id = ? AND status IN ?", userID, []string{"completed", "failed", "stopped", "error"})
@@ -1983,10 +1959,9 @@ func (h *TaskHandler) History(c *gin.Context) {
 	query = query.Order(sortBy + " " + orderDir)
 
 	// Pagination
-	offset := (page - 1) * size
 	// size == 0 = 全量拉取（用户裁定 2026-10-04）。
 	if size > 0 {
-		query = query.Offset(offset).Limit(size)
+		query = query.Offset(pageOffset(p)).Limit(size)
 	}
 
 	var tasks []storage.TaskModel
@@ -2000,12 +1975,7 @@ func (h *TaskHandler) History(c *gin.Context) {
 		result[i] = convertTaskToResponse(&t)
 	}
 
-	Success(c, map[string]interface{}{
-		"items": result,
-		"total": total,
-		"page":  page,
-		"size":  size,
-	})
+	Success(c, pageBody(result, total, p, len(result)))
 }
 
 // convertTaskToResponse converts a TaskModel to TaskResponse.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
@@ -186,15 +187,23 @@ func (s *Server) handleManageTasks(ctx context.Context, req *mcp.CallToolRequest
 	case "delete":
 		resp, err = s.callHandler(ctx, nil, in.ID, nil, h.Delete)
 	case "history":
+		// 时间过滤是可选的：只有调用方真给了才发送。此前无条件用 %d 拼出
+		// "start_time=0&end_time=0"，REST 会把它们当成真实边界（created_at
+		// <= 1970-01-01），于是不传时间的历史查询永远返回空表。
 		q := buildQuery(map[string]string{
 			"page":       fmt.Sprintf("%d", in.Page),
 			"size":       fmt.Sprintf("%d", in.Size),
 			"status":     in.Status,
 			"sort_by":    in.SortBy,
 			"sort_order": in.SortOrder,
-			"start_time": fmt.Sprintf("%d", in.StartTime),
-			"end_time":   fmt.Sprintf("%d", in.EndTime),
 		})
+		// page/size 的 0 是有效哨兵（0 = 全量），时间不是——0 只是缺省零值。
+		if in.StartTime > 0 {
+			q.Set("start_time", strconv.FormatInt(in.StartTime, 10))
+		}
+		if in.EndTime > 0 {
+			q.Set("end_time", strconv.FormatInt(in.EndTime, 10))
+		}
 		resp, err = s.callHandler(ctx, nil, "", q, h.History)
 	default:
 		s.auditLog(req, "flowb_manage_tasks", time.Since(start), "error", "invalid action")

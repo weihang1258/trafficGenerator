@@ -3,13 +3,14 @@ package rest
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	sqlite "github.com/glebarez/sqlite"
 	"github.com/gin-gonic/gin"
+	sqlite "github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/protocol/tcp"
@@ -21,8 +22,12 @@ import (
 func newTaskTestServer(t *testing.T) (*TaskHandler, *gin.Engine, *storage.DB, *core.Engine) {
 	t.Helper()
 	gormDB, err := gorm.Open(sqlite.Open(t.TempDir()+"/task_test.db"), &gorm.Config{})
-	if err != nil { t.Fatalf("open db: %v", err) }
-	if err := storage.AutoMigrate(gormDB); err != nil { t.Fatalf("migrate: %v", err) }
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := storage.AutoMigrate(gormDB); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
 	db := &storage.DB{DB: gormDB}
 
 	e := core.NewEngine(core.EngineConfig{
@@ -32,7 +37,9 @@ func newTaskTestServer(t *testing.T) (*TaskHandler, *gin.Engine, *storage.DB, *c
 	e.RegisterPlanner(tcp.NewPlanner())
 	e.RegisterPlanner(udp.NewPlanner())
 	e.SetBuildFunc(core.NewBuilder().Build)
-	if err := e.Start(); err != nil { t.Fatalf("start engine: %v", err) }
+	if err := e.Start(); err != nil {
+		t.Fatalf("start engine: %v", err)
+	}
 	t.Cleanup(func() { e.Stop() })
 
 	h := NewTaskHandler(db, e, nil)
@@ -57,18 +64,30 @@ func TestTaskCreate_Success(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != 201 { t.Fatalf("status=%d, body=%s", w.Code, w.Body.String()) }
+	if w.Code != 201 {
+		t.Fatalf("status=%d, body=%s", w.Code, w.Body.String())
+	}
 	code, msg, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
-	if !strings.Contains(msg, "created") { t.Errorf("msg=%q", msg) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
+	if !strings.Contains(msg, "created") {
+		t.Errorf("msg=%q", msg)
+	}
 	var d map[string]string
 	json.Unmarshal(data, &d)
-	if d["id"] == "" { t.Error("id empty") }
+	if d["id"] == "" {
+		t.Error("id empty")
+	}
 
 	var task storage.TaskModel
 	db.Where("id = ?", d["id"]).First(&task)
-	if task.Status != "pending" { t.Errorf("status=%q", task.Status) }
-	if task.Protocol != "tcp" { t.Errorf("protocol=%q", task.Protocol) }
+	if task.Status != "pending" {
+		t.Errorf("status=%q", task.Status)
+	}
+	if task.Protocol != "tcp" {
+		t.Errorf("protocol=%q", task.Protocol)
+	}
 }
 
 func TestTaskCreate_NoUser(t *testing.T) {
@@ -79,7 +98,9 @@ func TestTaskCreate_NoUser(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 401 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 401 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskCreate_BadJSON(t *testing.T) {
@@ -91,7 +112,9 @@ func TestTaskCreate_BadJSON(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskCreate_MissingName(t *testing.T) {
@@ -103,7 +126,9 @@ func TestTaskCreate_MissingName(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskCreate_EmptyStrategyIDs(t *testing.T) {
@@ -116,10 +141,14 @@ func TestTaskCreate_EmptyStrategyIDs(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
 	// Either the binding "min" tag or the handler's explicit check rejects empty list.
-	if !strings.Contains(msg, "strategy_id") && !strings.Contains(msg, "StrategyIDs") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "strategy_id") && !strings.Contains(msg, "StrategyIDs") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestTaskCreate_PortGroupNoID(t *testing.T) {
@@ -132,7 +161,9 @@ func TestTaskCreate_PortGroupNoID(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskCreate_PcapNoPath(t *testing.T) {
@@ -145,7 +176,9 @@ func TestTaskCreate_PcapNoPath(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskCreate_StrategyNotFound(t *testing.T) {
@@ -158,9 +191,13 @@ func TestTaskCreate_StrategyNotFound(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "strategy") || !strings.Contains(msg, "not found") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "strategy") || !strings.Contains(msg, "not found") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestTaskCreate_StrategyDBError(t *testing.T) {
@@ -175,7 +212,9 @@ func TestTaskCreate_StrategyDBError(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskCreate_MultiStrategyProtocol(t *testing.T) {
@@ -191,14 +230,20 @@ func TestTaskCreate_MultiStrategyProtocol(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 201 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 201 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var d map[string]string
 	json.Unmarshal(data, &d)
 	var task storage.TaskModel
 	db.Where("id = ?", d["id"]).First(&task)
-	if task.Protocol != "tcp" { t.Errorf("protocol=%q, want tcp (first)", task.Protocol) }
+	if task.Protocol != "tcp" {
+		t.Errorf("protocol=%q, want tcp (first)", task.Protocol)
+	}
 }
 
 func TestTaskCreate_Dedup(t *testing.T) {
@@ -213,7 +258,9 @@ func TestTaskCreate_Dedup(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 201 { t.Fatalf("first: %d", w.Code) }
+	if w.Code != 201 {
+		t.Fatalf("first: %d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
 	var d1 map[string]string
 	json.Unmarshal(data, &d1)
@@ -222,12 +269,18 @@ func TestTaskCreate_Dedup(t *testing.T) {
 	req2.Header.Set("Content-Type", "application/json")
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
-	if w2.Code != 200 { t.Fatalf("second: %d", w2.Code) }
+	if w2.Code != 200 {
+		t.Fatalf("second: %d", w2.Code)
+	}
 	code2, _, data2 := parseResponse(t, w2.Body.Bytes())
-	if code2 != 0 { t.Errorf("code=%d", code2) }
+	if code2 != 0 {
+		t.Errorf("code=%d", code2)
+	}
 	var d2 map[string]string
 	json.Unmarshal(data2, &d2)
-	if d2["id"] != d1["id"] { t.Errorf("dedup failed: %s vs %s", d2["id"], d1["id"]) }
+	if d2["id"] != d1["id"] {
+		t.Errorf("dedup failed: %s vs %s", d2["id"], d1["id"])
+	}
 	_ = code
 }
 
@@ -245,11 +298,15 @@ func TestTaskCreate_DBCreateFail(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	// DB is closed, so the strategy query may fail before reaching the create step.
 	// Accept either error path.
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "failed to") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "failed to") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestTaskCreate_FCNil(t *testing.T) {
@@ -263,7 +320,9 @@ func TestTaskCreate_FCNil(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 201 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 201 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskCreate_CompletedNotDedup(t *testing.T) {
@@ -286,7 +345,9 @@ func TestTaskCreate_CompletedNotDedup(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 201 { t.Fatalf("completed task should not dedup, got %d", w.Code) }
+	if w.Code != 201 {
+		t.Fatalf("completed task should not dedup, got %d", w.Code)
+	}
 }
 
 func TestTaskCreate_DedupUnordered(t *testing.T) {
@@ -302,7 +363,9 @@ func TestTaskCreate_DedupUnordered(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 201 { t.Fatalf("first: %d", w.Code) }
+	if w.Code != 201 {
+		t.Fatalf("first: %d", w.Code)
+	}
 	_, _, data := parseResponse(t, w.Body.Bytes())
 	var d1 map[string]string
 	json.Unmarshal(data, &d1)
@@ -313,11 +376,15 @@ func TestTaskCreate_DedupUnordered(t *testing.T) {
 	req2.Header.Set("Content-Type", "application/json")
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
-	if w2.Code != 200 { t.Fatalf("second: %d", w2.Code) }
+	if w2.Code != 200 {
+		t.Fatalf("second: %d", w2.Code)
+	}
 	_, _, data2 := parseResponse(t, w2.Body.Bytes())
 	var d2 map[string]string
 	json.Unmarshal(data2, &d2)
-	if d2["id"] != d1["id"] { t.Errorf("unordered dedup failed: %s vs %s", d2["id"], d1["id"]) }
+	if d2["id"] != d1["id"] {
+		t.Errorf("unordered dedup failed: %s vs %s", d2["id"], d1["id"])
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -335,14 +402,24 @@ func TestTaskList_Default(t *testing.T) {
 	req := httptest.NewRequest("GET", "/tasks", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var d map[string]interface{}
 	json.Unmarshal(data, &d)
-	if d["total"].(float64) < 1 { t.Errorf("total=%v", d["total"]) }
-	if d["page"].(float64) != 1 { t.Errorf("page=%v", d["page"]) }
-	if d["size"].(float64) != 20 { t.Errorf("size=%v", d["size"]) }
+	if d["total"].(float64) < 1 {
+		t.Errorf("total=%v", d["total"])
+	}
+	if d["page"].(float64) != 1 {
+		t.Errorf("page=%v", d["page"])
+	}
+	if d["size"].(float64) != 20 {
+		t.Errorf("size=%v", d["size"])
+	}
 }
 
 func TestTaskList_CustomPage(t *testing.T) {
@@ -358,13 +435,21 @@ func TestTaskList_CustomPage(t *testing.T) {
 	req := httptest.NewRequest("GET", "/tasks?page=2&size=5", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var d map[string]interface{}
 	json.Unmarshal(data, &d)
-	if d["page"].(float64) != 2 { t.Errorf("page=%v", d["page"]) }
-	if d["size"].(float64) != 5 { t.Errorf("size=%v", d["size"]) }
+	if d["page"].(float64) != 2 {
+		t.Errorf("page=%v", d["page"])
+	}
+	if d["size"].(float64) != 5 {
+		t.Errorf("size=%v", d["size"])
+	}
 }
 
 func TestTaskList_InvalidPage(t *testing.T) {
@@ -375,7 +460,9 @@ func TestTaskList_InvalidPage(t *testing.T) {
 	req := httptest.NewRequest("GET", "/tasks?page=abc", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskList_InvalidSize(t *testing.T) {
@@ -386,7 +473,9 @@ func TestTaskList_InvalidSize(t *testing.T) {
 	req := httptest.NewRequest("GET", "/tasks?size=abc", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskList_SizeCapped(t *testing.T) {
@@ -397,12 +486,18 @@ func TestTaskList_SizeCapped(t *testing.T) {
 	req := httptest.NewRequest("GET", "/tasks?size=500", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var d map[string]interface{}
 	json.Unmarshal(data, &d)
-	if d["size"].(float64) != 100 { t.Errorf("size=%v, want 100", d["size"]) }
+	if d["size"].(float64) != 100 {
+		t.Errorf("size=%v, want 100", d["size"])
+	}
 }
 
 func TestTaskList_StatusFilter(t *testing.T) {
@@ -417,9 +512,13 @@ func TestTaskList_StatusFilter(t *testing.T) {
 	req := httptest.NewRequest("GET", "/tasks?status=running", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var d map[string]interface{}
 	json.Unmarshal(data, &d)
 	items := d["items"].([]interface{})
@@ -442,7 +541,9 @@ func TestTaskList_InvalidSortBy(t *testing.T) {
 	req := httptest.NewRequest("GET", "/tasks?sort_by=hacked", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskList_Ascending(t *testing.T) {
@@ -453,7 +554,9 @@ func TestTaskList_Ascending(t *testing.T) {
 	req := httptest.NewRequest("GET", "/tasks?sort_order=ascending", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskList_DescendingDefault(t *testing.T) {
@@ -464,7 +567,9 @@ func TestTaskList_DescendingDefault(t *testing.T) {
 	req := httptest.NewRequest("GET", "/tasks", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskList_NoUser(t *testing.T) {
@@ -474,7 +579,9 @@ func TestTaskList_NoUser(t *testing.T) {
 	req := httptest.NewRequest("GET", "/tasks", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 401 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 401 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskList_DBFindFail(t *testing.T) {
@@ -487,7 +594,9 @@ func TestTaskList_DBFindFail(t *testing.T) {
 	req := httptest.NewRequest("GET", "/tasks", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskList_Empty(t *testing.T) {
@@ -498,14 +607,22 @@ func TestTaskList_Empty(t *testing.T) {
 	req := httptest.NewRequest("GET", "/tasks", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var d map[string]interface{}
 	json.Unmarshal(data, &d)
-	if d["total"].(float64) != 0 { t.Errorf("total=%v", d["total"]) }
+	if d["total"].(float64) != 0 {
+		t.Errorf("total=%v", d["total"])
+	}
 	items := d["items"].([]interface{})
-	if len(items) != 0 { t.Errorf("expected empty items") }
+	if len(items) != 0 {
+		t.Errorf("expected empty items")
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -529,9 +646,13 @@ func TestTaskGet_Success(t *testing.T) {
 	req := httptest.NewRequest("GET", "/tasks/"+taskID, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, _ := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 }
 
 func TestTaskGet_NoUser(t *testing.T) {
@@ -541,7 +662,9 @@ func TestTaskGet_NoUser(t *testing.T) {
 	req := httptest.NewRequest("GET", "/tasks/x", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 401 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 401 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskGet_MissingID(t *testing.T) {
@@ -553,7 +676,9 @@ func TestTaskGet_MissingID(t *testing.T) {
 	req := httptest.NewRequest("GET", "/tasks/_empty", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 && w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 && w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskGet_NotFound(t *testing.T) {
@@ -564,9 +689,13 @@ func TestTaskGet_NotFound(t *testing.T) {
 	req := httptest.NewRequest("GET", "/tasks/nonexistent", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "task not found") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "task not found") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestTaskGet_DBError(t *testing.T) {
@@ -579,7 +708,9 @@ func TestTaskGet_DBError(t *testing.T) {
 	req := httptest.NewRequest("GET", "/tasks/x", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -606,19 +737,31 @@ func TestTaskStart_SinglePcap(t *testing.T) {
 	req := httptest.NewRequest("POST", "/tasks/"+taskID+"/start", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d, body=%s", w.Code, w.Body.String()) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d, body=%s", w.Code, w.Body.String())
+	}
 	code, msg, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
-	if !strings.Contains(msg, "task started") { t.Errorf("msg=%q", msg) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
+	if !strings.Contains(msg, "task started") {
+		t.Errorf("msg=%q", msg)
+	}
 	var d map[string]interface{}
 	json.Unmarshal(data, &d)
 	etIDs := d["engine_task_ids"].([]interface{})
-	if len(etIDs) == 0 { t.Error("no engine_task_ids") }
+	if len(etIDs) == 0 {
+		t.Error("no engine_task_ids")
+	}
 
 	var task storage.TaskModel
 	db.Where("id = ?", taskID).First(&task)
-	if task.Status != "running" { t.Errorf("status=%q", task.Status) }
-	if task.StartedAt == nil { t.Error("started_at nil") }
+	if task.Status != "running" {
+		t.Errorf("status=%q", task.Status)
+	}
+	if task.StartedAt == nil {
+		t.Error("started_at nil")
+	}
 
 	// Wait for engine to complete
 	time.Sleep(200 * time.Millisecond)
@@ -632,7 +775,9 @@ func TestTaskStart_NoUser(t *testing.T) {
 	req := httptest.NewRequest("POST", "/tasks/x/start", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 401 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 401 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskStart_MissingID(t *testing.T) {
@@ -643,7 +788,9 @@ func TestTaskStart_MissingID(t *testing.T) {
 	req := httptest.NewRequest("POST", "/tasks//start", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskStart_NotFound(t *testing.T) {
@@ -654,9 +801,13 @@ func TestTaskStart_NotFound(t *testing.T) {
 	req := httptest.NewRequest("POST", "/tasks/nonexistent/start", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "task not found") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "task not found") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestTaskStart_DBError(t *testing.T) {
@@ -669,7 +820,9 @@ func TestTaskStart_DBError(t *testing.T) {
 	req := httptest.NewRequest("POST", "/tasks/x/start", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskStart_AlreadyRunning(t *testing.T) {
@@ -708,9 +861,13 @@ func TestTaskStart_AlreadyRunning(t *testing.T) {
 	req := httptest.NewRequest("POST", "/tasks/"+taskID+"/start", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "already running") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "already running") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestTaskStart_OptimisticLock(t *testing.T) {
@@ -754,9 +911,13 @@ func TestTaskStart_OptimisticLock(t *testing.T) {
 	req := httptest.NewRequest("POST", "/tasks/"+taskID+"/start", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "already running") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "already running") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestTaskStart_CorruptStrategyIDs(t *testing.T) {
@@ -770,9 +931,13 @@ func TestTaskStart_CorruptStrategyIDs(t *testing.T) {
 	req := httptest.NewRequest("POST", "/tasks/"+taskID+"/start", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "corrupt") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "corrupt") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -796,10 +961,16 @@ func TestTaskStop_Single(t *testing.T) {
 	req := httptest.NewRequest("POST", "/tasks/"+taskID+"/stop", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d, body=%s", w.Code, w.Body.String()) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d, body=%s", w.Code, w.Body.String())
+	}
 	code, msg, _ := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
-	if !strings.Contains(msg, "task stopped") { t.Errorf("msg=%q", msg) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
+	if !strings.Contains(msg, "task stopped") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestTaskStop_NoUser(t *testing.T) {
@@ -809,7 +980,9 @@ func TestTaskStop_NoUser(t *testing.T) {
 	req := httptest.NewRequest("POST", "/tasks/x/stop", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 401 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 401 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskStop_MissingID(t *testing.T) {
@@ -821,7 +994,9 @@ func TestTaskStop_MissingID(t *testing.T) {
 	req := httptest.NewRequest("POST", "/tasks/_empty/stop", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 && w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 && w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskStop_NotFound(t *testing.T) {
@@ -832,7 +1007,9 @@ func TestTaskStop_NotFound(t *testing.T) {
 	req := httptest.NewRequest("POST", "/tasks/nonexistent/stop", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskStop_DBError(t *testing.T) {
@@ -845,7 +1022,9 @@ func TestTaskStop_DBError(t *testing.T) {
 	req := httptest.NewRequest("POST", "/tasks/x/stop", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskStop_NotRunning(t *testing.T) {
@@ -859,9 +1038,13 @@ func TestTaskStop_NotRunning(t *testing.T) {
 	req := httptest.NewRequest("POST", "/tasks/"+taskID+"/stop", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "not running") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "not running") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -879,12 +1062,18 @@ func TestTaskDelete_Success(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/tasks/"+taskID, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "task deleted") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "task deleted") {
+		t.Errorf("msg=%q", msg)
+	}
 	var count int64
 	db.Model(&storage.TaskModel{}).Where("id = ?", taskID).Count(&count)
-	if count != 0 { t.Errorf("task still exists") }
+	if count != 0 {
+		t.Errorf("task still exists")
+	}
 }
 
 func TestTaskDelete_NoUser(t *testing.T) {
@@ -894,7 +1083,9 @@ func TestTaskDelete_NoUser(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/tasks/x", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 401 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 401 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskDelete_MissingID(t *testing.T) {
@@ -906,7 +1097,9 @@ func TestTaskDelete_MissingID(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/tasks/_empty", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 && w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 && w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskDelete_NotFound(t *testing.T) {
@@ -917,7 +1110,9 @@ func TestTaskDelete_NotFound(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/tasks/nonexistent", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskDelete_DBError(t *testing.T) {
@@ -930,7 +1125,9 @@ func TestTaskDelete_DBError(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/tasks/x", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestTaskDelete_Running(t *testing.T) {
@@ -944,9 +1141,13 @@ func TestTaskDelete_Running(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/tasks/"+taskID, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "cannot delete running task") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "cannot delete running task") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestTaskDelete_DBDeleteFail(t *testing.T) {
@@ -961,10 +1162,14 @@ func TestTaskDelete_DBDeleteFail(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/tasks/"+taskID, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
 	// DB is closed, so the task query may fail before reaching the delete step.
-	if !strings.Contains(msg, "failed to") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "failed to") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -983,13 +1188,19 @@ func TestHistory_Default(t *testing.T) {
 	req := httptest.NewRequest("GET", "/history", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var d map[string]interface{}
 	json.Unmarshal(data, &d)
 	items := d["items"].([]interface{})
-	if len(items) == 0 { t.Error("expected history items") }
+	if len(items) == 0 {
+		t.Error("expected history items")
+	}
 }
 
 func TestHistory_CustomPage(t *testing.T) {
@@ -1003,12 +1214,18 @@ func TestHistory_CustomPage(t *testing.T) {
 	req := httptest.NewRequest("GET", "/history?page=2&size=5", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var d map[string]interface{}
 	json.Unmarshal(data, &d)
-	if d["page"].(float64) != 2 { t.Errorf("page=%v", d["page"]) }
+	if d["page"].(float64) != 2 {
+		t.Errorf("page=%v", d["page"])
+	}
 }
 
 func TestHistory_StartTimeValid(t *testing.T) {
@@ -1020,7 +1237,9 @@ func TestHistory_StartTimeValid(t *testing.T) {
 	req := httptest.NewRequest("GET", "/history?start_time=1000", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestHistory_StartTimeInvalid(t *testing.T) {
@@ -1031,7 +1250,9 @@ func TestHistory_StartTimeInvalid(t *testing.T) {
 	req := httptest.NewRequest("GET", "/history?start_time=abc", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestHistory_EndTimeValid(t *testing.T) {
@@ -1042,7 +1263,9 @@ func TestHistory_EndTimeValid(t *testing.T) {
 	req := httptest.NewRequest("GET", "/history?end_time=9999999999", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestHistory_EndTimeInvalid(t *testing.T) {
@@ -1053,7 +1276,9 @@ func TestHistory_EndTimeInvalid(t *testing.T) {
 	req := httptest.NewRequest("GET", "/history?end_time=abc", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestHistory_StatusFilter(t *testing.T) {
@@ -1067,9 +1292,13 @@ func TestHistory_StatusFilter(t *testing.T) {
 	req := httptest.NewRequest("GET", "/history?status=failed", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var d map[string]interface{}
 	json.Unmarshal(data, &d)
 	items := d["items"].([]interface{})
@@ -1089,7 +1318,9 @@ func TestHistory_InvalidSortBy(t *testing.T) {
 	req := httptest.NewRequest("GET", "/history?sort_by=x", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestHistory_Ascending(t *testing.T) {
@@ -1100,7 +1331,9 @@ func TestHistory_Ascending(t *testing.T) {
 	req := httptest.NewRequest("GET", "/history?sort_order=ascending", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestHistory_NoUser(t *testing.T) {
@@ -1110,7 +1343,9 @@ func TestHistory_NoUser(t *testing.T) {
 	req := httptest.NewRequest("GET", "/history", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 401 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 401 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestHistory_DBFindFail(t *testing.T) {
@@ -1123,11 +1358,15 @@ func TestHistory_DBFindFail(t *testing.T) {
 	req := httptest.NewRequest("GET", "/history", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	// D-SCHEMA-1（BUG-11）后 Count 先于 Find 失败——首报锚词随之更新
 	// （语义不变：DB 失败必须大声报错而非静默空结果）。
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "count tasks failed") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "count tasks failed") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestHistory_Empty(t *testing.T) {
@@ -1138,12 +1377,18 @@ func TestHistory_Empty(t *testing.T) {
 	req := httptest.NewRequest("GET", "/history", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var d map[string]interface{}
 	json.Unmarshal(data, &d)
-	if d["total"].(float64) != 0 { t.Errorf("total=%v", d["total"]) }
+	if d["total"].(float64) != 0 {
+		t.Errorf("total=%v", d["total"])
+	}
 }
 
 func TestHistory_ExcludesActive(t *testing.T) {
@@ -1157,9 +1402,13 @@ func TestHistory_ExcludesActive(t *testing.T) {
 	req := httptest.NewRequest("GET", "/history", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var d map[string]interface{}
 	json.Unmarshal(data, &d)
 	items := d["items"].([]interface{})
@@ -1178,8 +1427,12 @@ func TestHistory_ExcludesActive(t *testing.T) {
 func newPortGroupTestServer(t *testing.T) (*PortGroupHandler, *gin.Engine, *storage.DB) {
 	t.Helper()
 	gormDB, err := gorm.Open(sqlite.Open(t.TempDir()+"/pg_test.db"), &gorm.Config{})
-	if err != nil { t.Fatalf("open db: %v", err) }
-	if err := storage.AutoMigrate(gormDB); err != nil { t.Fatalf("migrate: %v", err) }
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := storage.AutoMigrate(gormDB); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
 	db := &storage.DB{DB: gormDB}
 	h := NewPortGroupHandler(db)
 	r := gin.New()
@@ -1196,17 +1449,29 @@ func TestPortGroupCreate_Success(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 201 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 201 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, msg, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
-	if !strings.Contains(msg, "created") { t.Errorf("msg=%q", msg) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
+	if !strings.Contains(msg, "created") {
+		t.Errorf("msg=%q", msg)
+	}
 	var d map[string]string
 	json.Unmarshal(data, &d)
-	if d["id"] == "" { t.Error("id empty") }
-	if d["name"] == "" { t.Error("name empty") }
+	if d["id"] == "" {
+		t.Error("id empty")
+	}
+	if d["name"] == "" {
+		t.Error("name empty")
+	}
 	var pg storage.PortGroupModel
 	db.Where("id = ?", d["id"]).First(&pg)
-	if pg.PortsConfig == "" { t.Error("ports_config empty") }
+	if pg.PortsConfig == "" {
+		t.Error("ports_config empty")
+	}
 }
 
 func TestPortGroupCreate_BadJSON(t *testing.T) {
@@ -1217,7 +1482,9 @@ func TestPortGroupCreate_BadJSON(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestPortGroupCreate_EmptyPorts(t *testing.T) {
@@ -1229,7 +1496,9 @@ func TestPortGroupCreate_EmptyPorts(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestPortGroupCreate_EmptyInterface(t *testing.T) {
@@ -1243,7 +1512,9 @@ func TestPortGroupCreate_EmptyInterface(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestPortGroupCreate_Dedup(t *testing.T) {
@@ -1256,7 +1527,9 @@ func TestPortGroupCreate_Dedup(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 201 { t.Fatalf("first: %d", w.Code) }
+	if w.Code != 201 {
+		t.Fatalf("first: %d", w.Code)
+	}
 	_, _, data := parseResponse(t, w.Body.Bytes())
 	var d1 map[string]string
 	json.Unmarshal(data, &d1)
@@ -1265,11 +1538,15 @@ func TestPortGroupCreate_Dedup(t *testing.T) {
 	req2.Header.Set("Content-Type", "application/json")
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
-	if w2.Code != 200 { t.Fatalf("second: %d", w2.Code) }
+	if w2.Code != 200 {
+		t.Fatalf("second: %d", w2.Code)
+	}
 	_, _, data2 := parseResponse(t, w2.Body.Bytes())
 	var d2 map[string]string
 	json.Unmarshal(data2, &d2)
-	if d2["id"] != d1["id"] { t.Errorf("dedup failed: %s vs %s", d2["id"], d1["id"]) }
+	if d2["id"] != d1["id"] {
+		t.Errorf("dedup failed: %s vs %s", d2["id"], d1["id"])
+	}
 }
 
 func TestPortGroupCreate_DBCreateFail(t *testing.T) {
@@ -1283,9 +1560,13 @@ func TestPortGroupCreate_DBCreateFail(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "failed to create port group") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "failed to create port group") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestPortGroupCreate_OrderInvariant(t *testing.T) {
@@ -1299,7 +1580,9 @@ func TestPortGroupCreate_OrderInvariant(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 201 { t.Fatalf("first: %d", w.Code) }
+	if w.Code != 201 {
+		t.Fatalf("first: %d", w.Code)
+	}
 	_, _, data := parseResponse(t, w.Body.Bytes())
 	var d1 map[string]string
 	json.Unmarshal(data, &d1)
@@ -1308,11 +1591,15 @@ func TestPortGroupCreate_OrderInvariant(t *testing.T) {
 	req2.Header.Set("Content-Type", "application/json")
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
-	if w2.Code != 200 { t.Fatalf("second: %d", w2.Code) }
+	if w2.Code != 200 {
+		t.Fatalf("second: %d", w2.Code)
+	}
 	_, _, data2 := parseResponse(t, w2.Body.Bytes())
 	var d2 map[string]string
 	json.Unmarshal(data2, &d2)
-	if d2["id"] != d1["id"] { t.Errorf("order invariant dedup failed: %s vs %s", d2["id"], d1["id"]) }
+	if d2["id"] != d1["id"] {
+		t.Errorf("order invariant dedup failed: %s vs %s", d2["id"], d1["id"])
+	}
 }
 
 func TestPortGroupList_HasItems(t *testing.T) {
@@ -1324,9 +1611,13 @@ func TestPortGroupList_HasItems(t *testing.T) {
 	req := httptest.NewRequest("GET", "/port-groups", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, _ := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 }
 
 func TestPortGroupList_Empty(t *testing.T) {
@@ -1336,12 +1627,18 @@ func TestPortGroupList_Empty(t *testing.T) {
 	req := httptest.NewRequest("GET", "/port-groups", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var groups []interface{}
 	json.Unmarshal(data, &groups)
-	if len(groups) != 0 { t.Errorf("expected empty, got %d", len(groups)) }
+	if len(groups) != 0 {
+		t.Errorf("expected empty, got %d", len(groups))
+	}
 }
 
 func TestPortGroupList_DBFindFail(t *testing.T) {
@@ -1353,7 +1650,9 @@ func TestPortGroupList_DBFindFail(t *testing.T) {
 	req := httptest.NewRequest("GET", "/port-groups", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestPortGroupList_Public(t *testing.T) {
@@ -1363,7 +1662,9 @@ func TestPortGroupList_Public(t *testing.T) {
 	req := httptest.NewRequest("GET", "/port-groups", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestPortGroupGet_Success(t *testing.T) {
@@ -1376,9 +1677,13 @@ func TestPortGroupGet_Success(t *testing.T) {
 	req := httptest.NewRequest("GET", "/port-groups/"+id, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, _ := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 }
 
 func TestPortGroupGet_MissingID(t *testing.T) {
@@ -1389,7 +1694,9 @@ func TestPortGroupGet_MissingID(t *testing.T) {
 	req := httptest.NewRequest("GET", "/port-groups/_empty", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 && w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 && w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestPortGroupGet_NotFound(t *testing.T) {
@@ -1399,9 +1706,13 @@ func TestPortGroupGet_NotFound(t *testing.T) {
 	req := httptest.NewRequest("GET", "/port-groups/nonexistent", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "port group not found") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "port group not found") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestPortGroupGet_DBError(t *testing.T) {
@@ -1413,7 +1724,9 @@ func TestPortGroupGet_DBError(t *testing.T) {
 	req := httptest.NewRequest("GET", "/port-groups/x", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestPortGroupGet_Public(t *testing.T) {
@@ -1425,7 +1738,9 @@ func TestPortGroupGet_Public(t *testing.T) {
 	req := httptest.NewRequest("GET", "/port-groups/"+id, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestPortGroupDelete_Success(t *testing.T) {
@@ -1438,12 +1753,18 @@ func TestPortGroupDelete_Success(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/port-groups/"+id, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "port group deleted") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "port group deleted") {
+		t.Errorf("msg=%q", msg)
+	}
 	var count int64
 	db.Model(&storage.PortGroupModel{}).Where("id = ?", id).Count(&count)
-	if count != 0 { t.Errorf("port group still exists") }
+	if count != 0 {
+		t.Errorf("port group still exists")
+	}
 }
 
 func TestPortGroupDelete_MissingID(t *testing.T) {
@@ -1454,7 +1775,9 @@ func TestPortGroupDelete_MissingID(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/port-groups/_empty", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 && w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 && w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestPortGroupDelete_NotFound(t *testing.T) {
@@ -1464,7 +1787,9 @@ func TestPortGroupDelete_NotFound(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/port-groups/nonexistent", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestPortGroupDelete_DBError(t *testing.T) {
@@ -1476,7 +1801,9 @@ func TestPortGroupDelete_DBError(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/port-groups/x", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestPortGroupDelete_UsedByTasks(t *testing.T) {
@@ -1494,9 +1821,13 @@ func TestPortGroupDelete_UsedByTasks(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/port-groups/"+id, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "cannot delete") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "cannot delete") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestPortGroupDelete_DBDeleteFail(t *testing.T) {
@@ -1510,10 +1841,14 @@ func TestPortGroupDelete_DBDeleteFail(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/port-groups/"+id, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
 	// DB is closed, so the port-group query may fail before reaching the delete step.
-	if !strings.Contains(msg, "failed to") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "failed to") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestPortGroupDelete_AnyUser(t *testing.T) {
@@ -1526,7 +1861,9 @@ func TestPortGroupDelete_AnyUser(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/port-groups/"+id, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -1539,7 +1876,9 @@ func newSystemTestServer(t *testing.T) (*SystemHandler, *gin.Engine) {
 		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
 		BufferSize: 256, QueueSize: 64,
 	})
-	if err := e.Start(); err != nil { t.Fatalf("start: %v", err) }
+	if err := e.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
 	t.Cleanup(func() { e.Stop() })
 	h := NewSystemHandler(e)
 	r := gin.New()
@@ -1557,14 +1896,20 @@ func TestSystemProtocols_List(t *testing.T) {
 	req := httptest.NewRequest("GET", "/system/protocols", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var protocols []string
 	json.Unmarshal(data, &protocols)
 	// Auto-sync: the list matches the registered planners, sorted.
 	expected := []string{"alpha_test", "zebra_test"}
-	if len(protocols) != len(expected) { t.Errorf("got %v, want %v", protocols, expected) }
+	if len(protocols) != len(expected) {
+		t.Errorf("got %v, want %v", protocols, expected)
+	}
 	for i, p := range expected {
 		if i < len(protocols) && protocols[i] != p {
 			t.Errorf("protocols[%d]=%q, want %q", i, protocols[i], p)
@@ -1579,7 +1924,9 @@ func TestHealthCheck(t *testing.T) {
 	req := httptest.NewRequest("GET", "/health", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	if !strings.Contains(w.Body.String(), `"status":"healthy"`) {
 		t.Errorf("body=%s", w.Body.String())
 	}
@@ -1592,7 +1939,9 @@ func TestReadyCheck_Ready(t *testing.T) {
 	req := httptest.NewRequest("GET", "/ready", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestReadyCheck_NotReady(t *testing.T) {
@@ -1608,9 +1957,13 @@ func TestReadyCheck_NotReady(t *testing.T) {
 	req := httptest.NewRequest("GET", "/ready", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 503 { t.Fatalf("status=%d, want 503", w.Code) }
+	if w.Code != 503 {
+		t.Fatalf("status=%d, want 503", w.Code)
+	}
 	code, _, _ := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("expected 503 but code=0 means Success wasn't used") }
+	if code != 0 {
+		t.Errorf("expected 503 but code=0 means Success wasn't used")
+	}
 }
 
 func TestReadyCheck_Public(t *testing.T) {
@@ -1620,8 +1973,11 @@ func TestReadyCheck_Public(t *testing.T) {
 	req := httptest.NewRequest("GET", "/ready", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code == 401 { t.Errorf("ready should be public, got 401") }
+	if w.Code == 401 {
+		t.Errorf("ready should be public, got 401")
+	}
 }
+
 // stubPlanner is a minimal core.ProtocolPlanner used to verify that
 // GetProtocols auto-syncs to the engine's registered planners rather than
 // returning a hand-copied table.
@@ -1638,3 +1994,91 @@ func (s *stubPlanner) Plan(_ context.Context, _ core.FlowSpec) (<-chan core.Pack
 }
 
 func (s *stubPlanner) Validate(_ core.FlowSpec) error { return nil }
+
+// TestTaskList_SizeZeroReportsActualCount（客户端 2026-11-23 报告问题 3）：
+// 不传 page/size（size=0）语义是"全量拉取"，响应里的 size 必须反映实际
+// 返回条数，而不是原样回 0。此前 {"items":[14条],"size":0,"total":14}
+// 自相矛盾——靠 size 判断是否分页的调用方会误以为没数据。
+func TestTaskList_SizeZeroReportsActualCount(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, r, db, _ := newTaskTestServer(t)
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.GET("/tasks", h.List)
+
+	for i := 0; i < 3; i++ {
+		db.Create(&storage.TaskModel{ID: uuid.New().String(), UserID: "test-user", Name: "t", Status: "pending"})
+	}
+
+	req := httptest.NewRequest("GET", "/tasks?size=0", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	_, _, data := parseResponse(t, w.Body.Bytes())
+	var d struct {
+		Items []interface{} `json:"items"`
+		Size  int           `json:"size"`
+		Total int           `json:"total"`
+	}
+	if err := json.Unmarshal(data, &d); err != nil {
+		t.Fatalf("unmarshal: %v data=%s", err, string(data))
+	}
+	if len(d.Items) != 3 || d.Total != 3 {
+		t.Fatalf("precondition: items=%d total=%d, want 3/3", len(d.Items), d.Total)
+	}
+	if d.Size != len(d.Items) {
+		t.Errorf("size = %d while returning %d items — size must reflect the actual "+
+			"page size (0 means all; report the count, not the sentinel)", d.Size, len(d.Items))
+	}
+}
+
+// TestTaskList_PageOffsetOverflowReturnsEmptyPage 覆盖超大 page：GORM 的
+// (page-1)*size 会溢出成负数，SQLite 把 `OFFSET -n` 当 `OFFSET 0`，
+// 于是"第 4.6e17 页"静默返回了第 1 页的数据（客户端 2026-11-23 报告问题 7
+// 的数据库侧同型缺陷）。越界页必须是空页，且响应里的 page 原样回显。
+func TestTaskList_PageOffsetOverflowReturnsEmptyPage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, r, db, _ := newTaskTestServer(t)
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.GET("/tasks", h.List)
+
+	for i := 0; i < 5; i++ {
+		if err := db.Create(&storage.TaskModel{
+			ID: fmt.Sprintf("ov-%d", i), UserID: "test-user",
+			Name: "x", Status: "completed",
+		}).Error; err != nil {
+			t.Fatalf("seed %d: %v", i, err)
+		}
+	}
+
+	for _, q := range []string{
+		"?page=9223372036854775807&size=20", // (page-1)*20 溢出为负
+		"?page=461168601842738791&size=20", // 刚好越过 int64 边界
+		"?page=999999999999999999&size=1",
+	} {
+		req := httptest.NewRequest("GET", "/tasks"+q, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Errorf("%s: status=%d", q, w.Code)
+			continue
+		}
+		var body struct {
+			Data struct {
+				Items []map[string]interface{} `json:"items"`
+				Total int64                    `json:"total"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatalf("%s: unmarshal: %v", q, err)
+		}
+		if body.Data.Total != 5 {
+			t.Errorf("%s: total=%d, want 5 (the count must not be affected by paging)", q, body.Data.Total)
+		}
+		if len(body.Data.Items) != 0 {
+			t.Errorf("%s: got %d items, want 0 — an overflowing offset must not wrap "+
+				"around to page 1", q, len(body.Data.Items))
+		}
+	}
+}

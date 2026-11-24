@@ -8,9 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	sqlite "github.com/glebarez/sqlite"
 	"github.com/trafficgen/trafficgen/internal/storage"
-	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -112,6 +112,66 @@ func TestStrategyList_PaginationSizeCap(t *testing.T) {
 	}
 	if resp.Data.Size != 50 || len(resp.Data.Items) != 3 {
 		t.Fatalf("size=%d items=%d, want size=50 items=3", resp.Data.Size, len(resp.Data.Items))
+	}
+}
+
+// 红例（客户端 2026-11-23 问题 7）：超大 page/size 曾让 (page-1)*size 溢出成
+// 负偏移，result[start:end] 切出 [正:负] 直接 panic（HTTP 层 500 / MCP 层
+// "handler panic: slice bounds out of range [:-50]"）。分页计算必须先除后乘
+// 或钳位，任何输入都只能得到合法的页（越界页 = 空页，不是 500）。
+func TestStrategyList_PaginationOverflowNoPanic(t *testing.T) {
+	r, db := newStratListServer(t)
+	seedStrategies(t, db, 5)
+	cases := []struct {
+		query   string
+		wantLen int // size 超上限会收敛到 1000，所以 page=1 仍是满页
+	}{
+		{"?page=9223372036854775807&size=50", 0},      // 起点乘法溢出为负
+		{"?page=1&size=9223372036854775807", 5},       // 终点加法溢出为负；size 收敛到 1000
+		{"?page=4000000000000&size=4000000000000", 0}, // 两者相乘溢出 64 位
+	}
+	for _, tc := range cases {
+		req := httptest.NewRequest("GET", "/strategies"+tc.query, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req) // panic 会直接让本测试失败
+		if w.Code != 200 {
+			t.Errorf("%s: status=%d, want 200 (a page past the end is an empty page, not an error)", tc.query, w.Code)
+		}
+		var resp struct {
+			Data struct {
+				Items []map[string]interface{} `json:"items"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("%s: unmarshal: %v", tc.query, err)
+		}
+		if len(resp.Data.Items) != tc.wantLen {
+			t.Errorf("%s: got %d items, want %d", tc.query, len(resp.Data.Items), tc.wantLen)
+		}
+	}
+}
+
+// 红例：size=0 与其余列表端点同口径＝全量，且响应 size 回实际条数。
+func TestStrategyList_SizeZeroIsFullAndEchoesCount(t *testing.T) {
+	r, db := newStratListServer(t)
+	seedStrategies(t, db, 3)
+	req := httptest.NewRequest("GET", "/strategies?size=0", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	var resp struct {
+		Data struct {
+			Items []map[string]interface{} `json:"items"`
+			Size  int                      `json:"size"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v (body=%s)", err, w.Body.String())
+	}
+	if len(resp.Data.Items) != 3 {
+		t.Fatalf("items=%d, want 3 (size=0 means ALL)", len(resp.Data.Items))
+	}
+	if resp.Data.Size != 3 {
+		t.Errorf("size=%d, want 3 (echo the actual count, not the 0 sentinel)", resp.Data.Size)
 	}
 }
 

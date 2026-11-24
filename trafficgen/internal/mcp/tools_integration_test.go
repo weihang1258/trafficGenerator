@@ -1100,6 +1100,51 @@ func TestMCP_ManageTasks_History(t *testing.T) {
 	}
 }
 
+// TestMCP_ManageTasks_History_NoTimeFilter verifies that omitting
+// start_time/end_time does NOT silently filter results away. The tool used to
+// forward "end_time=0" for an omitted filter; REST then applied
+// created_at <= 1970-01-01 and returned an empty history for a database full
+// of tasks. Filters are only sent when the caller actually gave one.
+func TestMCP_ManageTasks_History_NoTimeFilter(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	// Seed a terminal task directly — this test is about the query params the
+	// MCP layer forwards, not about running the engine. owner 必须是 MCP 身份
+	// 映射出的服务账号用户，否则用户隔离会把它过滤掉。
+	if err := env.db.Create(&storage.TaskModel{
+		ID: "hist-no-filter", UserID: "svc-user-1", Name: "no-filter",
+		Status: "completed", Progress: 100, OutputType: "pcap",
+	}).Error; err != nil {
+		t.Fatalf("seed task: %v", err)
+	}
+
+	_, hout, err := env.srv.handleManageTasks(context.Background(), nil, manageTasksInput{
+		Action: "history",
+	})
+	if err != nil {
+		t.Fatalf("history: %v", err)
+	}
+	var hd struct {
+		Items []map[string]interface{} `json:"items"`
+		Total int                      `json:"total"`
+	}
+	if err := json.Unmarshal(asRaw(hout.Data), &hd); err != nil {
+		t.Fatalf("history returned unparseable data: %s (err: %v)", string(asRaw(hout.Data)), err)
+	}
+	found := false
+	for _, item := range hd.Items {
+		if item["id"] == "hist-no-filter" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("history with no time filter dropped the seeded task (total=%d): %s",
+			hd.Total, string(asRaw(hout.Data)))
+	}
+}
+
 // TestMCP_GenerateTraffic_PcapSideEffect verifies the pcap file is actually
 // written to disk after the task completes -- not just that the task succeeds.
 // This catches issues where the output writer is silently skipped.

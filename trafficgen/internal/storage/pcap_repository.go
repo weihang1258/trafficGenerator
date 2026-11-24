@@ -1,10 +1,11 @@
 package storage
 
 import (
-	"time"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -19,6 +20,26 @@ type PcapRepository struct {
 // NewPcapRepository creates a new pcap repository.
 func NewPcapRepository(db *DB) *PcapRepository {
 	return &PcapRepository{db: db}
+}
+
+// PageOffset returns (page-1)*size for a SQL OFFSET, clamped so the
+// multiplication can never overflow into a negative number. SQLite treats
+// `OFFSET -n` as `OFFSET 0`, so an unclamped overflow silently answers a page
+// far past the end with page 1's rows instead of an empty page.
+//
+// Exported because the REST layer builds some list queries by hand and needs
+// the same guard.
+func PageOffset(page, size int) int {
+	if size <= 0 || page <= 1 {
+		return 0
+	}
+	// 超过 int32 行数的页在现实中必然是空页；钳到 int32 上限即可，SQLite
+	// 对这么大的 OFFSET 正常返回空集。
+	const maxClamp = math.MaxInt32
+	if page-1 > maxClamp/size {
+		return maxClamp
+	}
+	return (page - 1) * size
 }
 
 // ---------------- PcapAsset ----------------
@@ -105,7 +126,7 @@ func (r *PcapRepository) ListAssets(userID string, page, size int, status string
 	}
 	// size == 0 = 全量拉取（用户裁定 2026-10-04）。
 	if size > 0 {
-		if err := query.Order("created_at DESC, id DESC").Offset((page - 1) * size).Limit(size).Find(&assets).Error; err != nil {
+		if err := query.Order("created_at DESC, id DESC").Offset(PageOffset(page, size)).Limit(size).Find(&assets).Error; err != nil {
 			return nil, 0, err
 		}
 	} else if err := query.Order("created_at DESC, id DESC").Find(&assets).Error; err != nil {
@@ -289,7 +310,7 @@ func (r *PcapRepository) ListFlowsByAsset(assetID, userID string, page, size int
 	// size == 0 = 全量拉取（用户裁定 2026-10-04）。显式守卫——gorm 的
 	// Limit(0) 语义不是"无限制"。
 	if size > 0 {
-		if err := query.Order("first_ts_us ASC, id ASC").Offset((page - 1) * size).Limit(size).Find(&flows).Error; err != nil {
+		if err := query.Order("first_ts_us ASC, id ASC").Offset(PageOffset(page, size)).Limit(size).Find(&flows).Error; err != nil {
 			return nil, 0, err
 		}
 	} else if err := query.Order("first_ts_us ASC, id ASC").Find(&flows).Error; err != nil {
@@ -358,7 +379,7 @@ func (r *PcapRepository) ListPacketsByFlow(flowID, userID string, page, size int
 	// size == 0 = 全量拉取（用户裁定 2026-10-04）。显式守卫——gorm 的
 	// Limit(0) 语义不是"无限制"。
 	if size > 0 {
-		if err := query.Order("index_in_flow ASC, id ASC").Offset((page - 1) * size).Limit(size).Find(&packets).Error; err != nil {
+		if err := query.Order("index_in_flow ASC, id ASC").Offset(PageOffset(page, size)).Limit(size).Find(&packets).Error; err != nil {
 			return nil, 0, err
 		}
 	} else if err := query.Order("index_in_flow ASC, id ASC").Find(&packets).Error; err != nil {
@@ -379,7 +400,7 @@ func (r *PcapRepository) ListPacketsByAsset(assetID, userID string, page, size i
 	// size == 0 = 全量拉取（用户裁定 2026-10-04）。显式守卫——gorm 的
 	// Limit(0) 语义不是"无限制"。
 	if size > 0 {
-		if err := query.Order("timestamp_us ASC, id ASC").Offset((page - 1) * size).Limit(size).Find(&packets).Error; err != nil {
+		if err := query.Order("timestamp_us ASC, id ASC").Offset(PageOffset(page, size)).Limit(size).Find(&packets).Error; err != nil {
 			return nil, 0, err
 		}
 	} else if err := query.Order("timestamp_us ASC, id ASC").Find(&packets).Error; err != nil {
@@ -448,7 +469,7 @@ func (r *PcapRepository) SearchFlows(assetID, userID string, filters map[string]
 	// size == 0 = 全量拉取（用户裁定 2026-10-04）。显式守卫——gorm 的
 	// Limit(0) 语义不是"无限制"。
 	if size > 0 {
-		if err := query.Order("first_ts_us ASC, id ASC").Offset((page - 1) * size).Limit(size).Find(&flows).Error; err != nil {
+		if err := query.Order("first_ts_us ASC, id ASC").Offset(PageOffset(page, size)).Limit(size).Find(&flows).Error; err != nil {
 			return nil, 0, err
 		}
 	} else if err := query.Order("first_ts_us ASC, id ASC").Find(&flows).Error; err != nil {

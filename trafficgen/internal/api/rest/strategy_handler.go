@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"regexp"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -367,28 +366,26 @@ func (h *StrategyHandler) List(c *gin.Context) {
 
 	// D-REQ-1 批 5（客户端回执 #3 §四.2）：可选分页——page/size 任一给定时
 	// 返回 {items,page,size,total} 封装（与 tasks/list 同风格）；缺省保持
-	// 裸数组向后兼容（既有调用方零破坏）。size≤0 视为缺省 50。
+	// 裸数组向后兼容（既有调用方零破坏）。size=0 与其余列表端点同口径＝全量；
+	// 非数字/负数回默认 50（垃圾输入不得静默拉全库）。
 	page := c.Query("page")
 	size := c.Query("size")
 	if page != "" || size != "" {
-		pg, sz := 1, 50
-		if v, err := strconv.Atoi(page); err == nil && v > 0 {
-			pg = v
+		p := parsePageParams(c, 50, 1000)
+		start, end := 0, len(result)
+		if p.Size > 0 {
+			// pageOffset 已钳位，转成切片下标后再夹到 [0, len]；越界页 = 空页
+			// 而不是 [:负数] panic（客户端 2026-11-23 报告问题 7）。
+			start = pageOffset(p)
+			if start > len(result) {
+				start = len(result)
+			}
+			end = start + p.Size
+			if end > len(result) {
+				end = len(result)
+			}
 		}
-		if v, err := strconv.Atoi(size); err == nil && v > 0 {
-			sz = v
-		}
-		start := (pg - 1) * sz
-		if start > len(result) {
-			start = len(result)
-		}
-		end := start + sz
-		if end > len(result) {
-			end = len(result)
-		}
-		Success(c, map[string]interface{}{
-			"items": result[start:end], "page": pg, "size": sz, "total": len(result),
-		})
+		Success(c, pageBody(result[start:end], int64(len(result)), p, end-start))
 		return
 	}
 

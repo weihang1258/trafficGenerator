@@ -274,25 +274,14 @@ func ServePcapPublic(db *storage.DB, w http.ResponseWriter, r *http.Request) {
 // GET /api/v1/pcaps?page=&size=&status=
 func (h *PcapHandler) List(c *gin.Context) {
 	userID := auth.GetUserID(c)
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
-	if page < 1 {
-		page = 1
-	}
-	if size < 0 || size > 200 {
-		if size > 200 {
-			size = 200 // 超限收敛到上限，不静默回默认
-		} else {
-			size = 20 // 负数回默认；0 = 全量（不加 LIMIT）
-		}
-	}
+	p := parsePageParams(c, 20, 200)
 	status := c.Query("status")
-	assets, total, err := h.repo.ListAssets(userID, page, size, status)
+	assets, total, err := h.repo.ListAssets(userID, p.Page, p.Size, status)
 	if err != nil {
 		InternalError(c, "list assets: "+err.Error())
 		return
 	}
-	Success(c, gin.H{"items": assets, "total": total, "page": page, "size": size})
+	Success(c, pageBody(assets, total, p, len(assets)))
 }
 
 // Get returns a single asset's details.
@@ -353,24 +342,14 @@ func (h *PcapHandler) ListFlows(c *gin.Context) {
 	if !h.requireReady(c, asset) {
 		return
 	}
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	size, _ := strconv.Atoi(c.DefaultQuery("size", "50"))
-	if page < 1 {
-		page = 1
-	}
-	if size < 0 || size > 500 {
-		if size > 500 {
-			size = 500 // 超限收敛到上限，不静默回默认
-		} else {
-			size = 50 // 负数回默认；0 = 全量（不加 LIMIT）
-		}
-	}
-	flows, total, err := h.repo.ListFlowsByAsset(asset.ID, auth.GetUserID(c), page, size)
+	p := parsePageParams(c, 50, 500)
+	flows, total, err := h.repo.ListFlowsByAsset(asset.ID, auth.GetUserID(c), p.Page, p.Size)
 	if err != nil {
 		InternalError(c, "list flows: "+err.Error())
 		return
 	}
-	Success(c, gin.H{"items": decorateFlowTimes(flows), "total": total, "page": page, "size": size})
+	decorated := decorateFlowTimes(flows)
+	Success(c, pageBody(decorated, total, p, len(decorated)))
 }
 
 // ListPackets returns a paginated packet list for a flow.
@@ -385,30 +364,19 @@ func (h *PcapHandler) ListPackets(c *gin.Context) {
 	}
 	userID := auth.GetUserID(c)
 	flowID := c.Param("fid")
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	size, _ := strconv.Atoi(c.DefaultQuery("size", "50"))
-	if page < 1 {
-		page = 1
-	}
-	if size < 0 || size > 500 {
-		if size > 500 {
-			size = 500 // 超限收敛到上限，不静默回默认
-		} else {
-			size = 50 // 负数回默认；0 = 全量（不加 LIMIT）
-		}
-	}
+	p := parsePageParams(c, 50, 500)
 	// Verify the flow belongs to this asset (user-scoped query).
 	flow, err := h.repo.GetFlow(flowID, userID)
 	if err != nil || flow.PcapAssetID != asset.ID {
 		NotFound(c, "flow")
 		return
 	}
-	packets, total, err := h.repo.ListPacketsByFlow(flowID, userID, page, size)
+	packets, total, err := h.repo.ListPacketsByFlow(flowID, userID, p.Page, p.Size)
 	if err != nil {
 		InternalError(c, "list packets: "+err.Error())
 		return
 	}
-	Success(c, gin.H{"items": packets, "total": total, "page": page, "size": size})
+	Success(c, pageBody(packets, total, p, len(packets)))
 }
 
 // ListPacketsByAsset returns a paginated packet list for an asset (§17.11),
@@ -422,24 +390,13 @@ func (h *PcapHandler) ListPacketsByAsset(c *gin.Context) {
 	if !h.requireReady(c, asset) {
 		return
 	}
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	size, _ := strconv.Atoi(c.DefaultQuery("size", "50"))
-	if page < 1 {
-		page = 1
-	}
-	if size < 0 || size > 500 {
-		if size > 500 {
-			size = 500 // 超限收敛到上限，不静默回默认
-		} else {
-			size = 50 // 负数回默认；0 = 全量（不加 LIMIT）
-		}
-	}
-	packets, total, err := h.repo.ListPacketsByAsset(asset.ID, auth.GetUserID(c), page, size)
+	p := parsePageParams(c, 50, 500)
+	packets, total, err := h.repo.ListPacketsByAsset(asset.ID, auth.GetUserID(c), p.Page, p.Size)
 	if err != nil {
 		InternalError(c, "list packets: "+err.Error())
 		return
 	}
-	Success(c, gin.H{"items": packets, "total": total, "page": page, "size": size})
+	Success(c, pageBody(packets, total, p, len(packets)))
 }
 
 // Extract batch-extracts fields from multiple packets in one call (§17.11).
@@ -787,17 +744,31 @@ func (h *PcapHandler) GetStream(c *gin.Context) {
 		c.Data(200, "application/octet-stream", []byte{})
 		return
 	}
-	// Optional Range: offset + limit for chunked reads.
+	// Optional Range: offset + limit for chunked reads. 越界的 offset/limit
+	// 不得被静默忽略后回整段流（调用方以为拿到了第 N 段之外的尾巴，实际
+	// 是整条流）；越界一律回空体，语法错误回 400。
 	off := streamOffset
 	length := streamLength
 	if q := c.Query("offset"); q != "" {
-		if v, err := strconv.ParseInt(q, 10, 64); err == nil && v >= 0 && v < length {
-			off += v
-			length -= v
+		v, err := strconv.ParseInt(q, 10, 64)
+		if err != nil || v < 0 {
+			BadRequest(c, "offset must be a non-negative integer")
+			return
 		}
+		if v >= length {
+			c.Data(200, "application/octet-stream", []byte{})
+			return
+		}
+		off += v
+		length -= v
 	}
 	if q := c.Query("limit"); q != "" {
-		if v, err := strconv.ParseInt(q, 10, 64); err == nil && v > 0 && v < length {
+		v, err := strconv.ParseInt(q, 10, 64)
+		if err != nil || v <= 0 {
+			BadRequest(c, "limit must be a positive integer")
+			return
+		}
+		if v < length {
 			length = v
 		}
 	}
