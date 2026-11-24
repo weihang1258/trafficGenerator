@@ -338,12 +338,18 @@ func (h *TaskHandler) onEngineTaskFailed(engineTaskID string, errMsg string) {
 // production.
 var stopSnapshotHook func()
 
+// terminalStatuses lists the statuses that end a task's life. Used both by
+// isTerminalStatus (read-side guard) and as the UPDATE-side WHERE clause in
+// onEngineProgress, so the two cannot drift.
+var terminalStatuses = []string{"completed", "failed", "stopped", "error"}
+
 // isTerminalStatus reports whether a task status is a final state — the task
 // has ended and nothing but an explicit restart may change it.
 func isTerminalStatus(status string) bool {
-	switch status {
-	case "completed", "failed", "stopped", "error":
-		return true
+	for _, s := range terminalStatuses {
+		if status == s {
+			return true
+		}
 	}
 	return false
 }
@@ -476,8 +482,13 @@ func (h *TaskHandler) onEngineProgress(engineTaskID string, progress float64, st
 	if parentAggregateWriteHook != nil {
 		parentAggregateWriteHook()
 	}
-	h.db.Model(&storage.TaskModel{}).
-		Where("id = ?", parentTaskID).
+	// 终态约束必须挂在 UPDATE 的 WHERE 上，不能只靠上面的 SELECT：两次语句
+	// 之间任务可能被 Stop / 完成回调写成终态，那时 SELECT 看到 running、
+	// 这次 UPDATE 落地却是覆盖终态行（进度又跳回"跑到一半"）。WHERE 里的
+	// 状态条件是原子的——终态行的 progress 只能由终态路径写。
+	// RowsAffected == 0 即"这条已被终态化"，本次进度作废，无需广播。
+	res := h.db.Model(&storage.TaskModel{}).
+		Where("id = ? AND status NOT IN ?", parentTaskID, terminalStatuses).
 		Updates(map[string]interface{}{
 			"progress":     avgProgress,
 			"packets_sent": aggPackets,
@@ -485,6 +496,9 @@ func (h *TaskHandler) onEngineProgress(engineTaskID string, progress float64, st
 			"flows_count":  aggFlows,
 		})
 	h.aggMu.Unlock()
+	if res.Error == nil && res.RowsAffected == 0 {
+		return
+	}
 
 	// Broadcast progress update via WebSocket
 	if h.wsHub != nil {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -565,5 +566,59 @@ func TestStart_ErrorPathsClearStaleCompletedAt(t *testing.T) {
 		t.Errorf("completed_at = %v, which is the PREVIOUS run's value (%v) — the "+
 			"stale completion time is still being served to clients",
 			tm.CompletedAt, prevCompleted)
+	}
+}
+
+// TestOnEngineProgress_LateProgressDoesNotOverwriteTerminal 覆盖终态判定的
+// TOCTOU：onEngineProgress 先 SELECT status 判终态，再单独 UPDATE 进度列，
+// 两次语句之间任务可能被 Stop / 完成回调写成终态。SELECT 看到 running、
+// UPDATE 落地时行已是 stopped —— 迟到的进度回调把 stopped 任务的
+// progress/packets_sent 又改回"跑到一半"，正是本函数开头那段注释声称
+// 要防的事（只读判定只能挡住"已经终态"的调用，挡不住"正在变终态"的调用）。
+//
+// 用 parentAggregateWriteHook 精确落在 SELECT 之后、UPDATE 之前：在 hook 里
+// 把行写成 stopped，等价于另一个 goroutine 恰好在这个窗口里 Stop。
+func TestOnEngineProgress_LateProgressDoesNotOverwriteTerminal(t *testing.T) {
+	_, _, db, _ := newTaskTestServer(t)
+	h := &TaskHandler{
+		db:                 db,
+		aggSlots:           make(map[string]map[string]*engineAggSlot),
+		lastProgressUpdate: make(map[string]time.Time),
+	}
+	const taskID = "33333333-3333-3333-3333-333333333333"
+	if err := db.Create(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "n", Status: "running",
+		Progress: 0, PacketsSent: 0,
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	var once sync.Once
+	parentAggregateWriteHook = func() {
+		once.Do(func() {
+			// 窗口内：任务被 Stop（终态 + 终态进度）。
+			if err := db.Model(&storage.TaskModel{}).Where("id = ?", taskID).
+				Updates(map[string]interface{}{
+					"status": "stopped", "progress": 100, "packets_sent": 500,
+				}).Error; err != nil {
+				t.Errorf("stop inside the window: %v", err)
+			}
+		})
+	}
+	t.Cleanup(func() { parentAggregateWriteHook = nil })
+
+	h.onEngineProgress(taskID, 55, core.TaskStats{PacketsSent: 42})
+
+	tm := terminalStatusInDB(t, db, taskID)
+	if tm.Status != "stopped" {
+		t.Fatalf("status = %q, want stopped", tm.Status)
+	}
+	if tm.Progress != 100 {
+		t.Errorf("progress = %v after the task was stopped mid-callback, want 100 — "+
+			"the progress UPDATE is unconditional, so a callback that passed the "+
+			"status SELECT before the stop still overwrites the terminal row", tm.Progress)
+	}
+	if tm.PacketsSent != 500 {
+		t.Errorf("packets_sent = %d, want 500 (the stopped task's own stats)", tm.PacketsSent)
 	}
 }
