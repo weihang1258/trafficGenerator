@@ -42,13 +42,16 @@ func parsePcapPage(t *testing.T, body []byte) pcapPageBody {
 	return p
 }
 
-// assertSizeMatchesItems 校验 size 回显与实际条数一致（size>0 的普通分页
-// 也适用：size 应等于本页实际条数，除非恰好满页）。
+// assertSizeMatchesItems 只适用于 size=0（全量）的响应：那时 size 必须回实际
+// 条数，否则 {"items":[3 条],"size":0} 自相矛盾。
+//
+// 不适用于 size>0 的普通分页——那时 size 回显请求的页大小是对的，本页只
+// 有 1 条也要回 20，因为 total/page/size 三者要能算出页数。
 func assertSizeMatchesItems(t *testing.T, p pcapPageBody, label string) {
 	t.Helper()
 	if p.Size != len(p.Items) {
-		t.Errorf("%s: size = %d while returning %d items — size must reflect the "+
-			"actual page size (0 means all; report the count, not the sentinel)",
+		t.Errorf("%s: size = %d while returning %d items — with size=0 (ALL) the "+
+			"response must report the actual count, not the 0 sentinel",
 			label, p.Size, len(p.Items))
 	}
 }
@@ -255,17 +258,26 @@ func TestPcapGetStream_BadRangeIs400(t *testing.T) {
 		}
 	}
 }
+
 // 回端点默认值，不得当成"全量"（否则一个手滑的 `size=abc` 就把全库拉出来）。
-// 三条同形端点一起校验。
+//
+// 断言必须是**具体的默认值**，不能只判 `size != 0`：垃圾输入被当成全量时
+// size 会回实际条数（3），同样 != 0，只判非零的写法两种行为都放行。
+// 这里按端点各自的默认值（assets 20 / flows 50 / packets 50）钉死。
 func TestPcapList_GarbageSizeFallsBackToDefault(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, r, _ := newPcapTestServer(t)
 	seedAssetWithFlowsAndPackets(t, h, "ast-g", "flow-g", 3)
 
-	cases := []struct{ path, label string }{
-		{"/pcaps?size=abc", "GET /pcaps?size=abc"},
-		{"/pcaps/ast-g/flows?size=abc", "GET /pcaps/:id/flows?size=abc"},
-		{"/pcaps/ast-g/flows/flow-g/packets?size=abc", "GET .../packets?size=abc"},
+	cases := []struct {
+		path      string
+		label     string
+		wantSize  int // 该端点的默认页大小
+		wantItems int // seedAssetWithFlowsAndPackets 造 1 资产 / 1 流 / n 包
+	}{
+		{"/pcaps?size=abc", "GET /pcaps?size=abc", 20, 1},
+		{"/pcaps/ast-g/flows?size=abc", "GET /pcaps/:id/flows?size=abc", 50, 1},
+		{"/pcaps/ast-g/flows/flow-g/packets?size=abc", "GET .../packets?size=abc", 50, 3},
 	}
 	for _, tc := range cases {
 		req := httptest.NewRequest("GET", tc.path, nil)
@@ -273,15 +285,104 @@ func TestPcapList_GarbageSizeFallsBackToDefault(t *testing.T) {
 		r.ServeHTTP(w, req)
 		var body struct {
 			Data struct {
-				Size int `json:"size"`
+				Size  int               `json:"size"`
+				Items []json.RawMessage `json:"items"`
 			} `json:"data"`
 		}
 		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 			t.Fatalf("%s: unmarshal: %v", tc.label, err)
 		}
-		if body.Data.Size == 0 {
-			t.Errorf("%s: size=0 (treated as ALL) — a non-numeric size must fall "+
-				"back to the endpoint default, not pull the whole library", tc.label)
+		if body.Data.Size != tc.wantSize {
+			t.Errorf("%s: size = %d, want the endpoint default %d — a non-numeric "+
+				"size must fall back to the default, not be treated as ALL (%d means "+
+				"no LIMIT and would dump the whole library)",
+				tc.label, body.Data.Size, tc.wantSize, 0)
+		}
+		if len(body.Data.Items) != tc.wantItems {
+			t.Errorf("%s: items = %d, want %d (fixture rows)", tc.label, len(body.Data.Items), tc.wantItems)
+		}
+	}
+}
+
+// TestPcapList_NegativeSizeFallsBackToDefault 覆盖 size 负数。负数不是
+// "全量"的另一种写法：不拦住的话 repo 的 `size > 0` 守卫会跳过 LIMIT，
+// 整库被拉出，而响应还回显 size:-1。
+func TestPcapList_NegativeSizeFallsBackToDefault(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, r, _ := newPcapTestServer(t)
+	seedAssetWithFlowsAndPackets(t, h, "ast-neg", "flow-neg", 3)
+
+	cases := []struct {
+		path     string
+		label    string
+		wantSize int
+	}{
+		{"/pcaps?size=-1", "GET /pcaps?size=-1", 20},
+		{"/pcaps/ast-neg/flows?size=-1", "GET /pcaps/:id/flows?size=-1", 50},
+		{"/pcaps/ast-neg/flows/flow-neg/packets?size=-1", "GET .../packets?size=-1", 50},
+	}
+	for _, tc := range cases {
+		req := httptest.NewRequest("GET", tc.path, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		var body struct {
+			Data struct {
+				Size  int               `json:"size"`
+				Items []json.RawMessage `json:"items"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatalf("%s: unmarshal: %v", tc.label, err)
+		}
+		if body.Data.Size != tc.wantSize {
+			t.Errorf("%s: size = %d, want %d — a negative size must fall back to the "+
+				"endpoint default", tc.label, body.Data.Size, tc.wantSize)
+		}
+		wantItems := 1
+		if tc.label == "GET .../packets?size=-1" {
+			wantItems = 3
+		}
+		if len(body.Data.Items) != wantItems {
+			t.Errorf("%s: items = %d, want %d (fixture rows)", tc.label, len(body.Data.Items), wantItems)
+		}
+	}
+}
+
+// TestListEndpoints_NonPositivePageFallsBackToOne 覆盖 page 的非正数/非数字
+// 输入：必须归一成第 1 页，不能把 page 原样透传（page=0 时 offset 变负）。
+func TestListEndpoints_NonPositivePageFallsBackToOne(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, r, db, _ := newTaskTestServer(t)
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.GET("/tasks", h.List)
+	for i := 0; i < 3; i++ {
+		if err := db.Create(&storage.TaskModel{
+			ID: fmt.Sprintf("pg-%d", i), UserID: "test-user", Name: "x", Status: "completed",
+		}).Error; err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+
+	for _, q := range []string{"?page=0", "?page=-5", "?page=abc"} {
+		req := httptest.NewRequest("GET", "/tasks"+q, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		var body struct {
+			Data struct {
+				Page  int               `json:"page"`
+				Size  int               `json:"size"`
+				Items []json.RawMessage `json:"items"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatalf("%s: unmarshal: %v", q, err)
+		}
+		if body.Data.Page != 1 {
+			t.Errorf("%s: page = %d, want 1 (non-positive/garbage page normalizes "+
+				"to the first page)", q, body.Data.Page)
+		}
+		if len(body.Data.Items) == 0 {
+			t.Errorf("%s: items = 0, want the first page's rows", q)
 		}
 	}
 }
@@ -371,5 +472,107 @@ func TestPcapSearch_L7FiltersReachTheWire(t *testing.T) {
 	}
 	if got := search(`{"L7QueryName":"c.example.com"}`); len(got) != 1 || got[0] != "s-dns" {
 		t.Errorf("L7QueryName -> %v, want [s-dns]", got)
+	}
+}
+
+// TestPcapLists_PageTwoReturnsSecondSlice 覆盖"分页偏移真的对"——现有 pcap
+// 测试只断言回显字段和 total，不校验返回的是不是第 2 页的行。把
+// PageOffset 的 (page-1)*size 写成 page*size，这些测试依然绿。
+//
+// 三个 pcap 列表端点各造 5 行，取 size=2 的第 2 页，断言拿到的正是第 3、4 行。
+func TestPcapLists_PageTwoReturnsSecondSlice(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, r, _ := newPcapTestServer(t)
+	r.GET("/pcaps/:id/packets", h.ListPacketsByAsset)
+
+	// 5 个资产，file_hash 唯一（有 (user_id, file_hash) 唯一索引）。
+	for i := 0; i < 5; i++ {
+		if cerr := h.repo.CreateAsset(&storage.PcapAssetModel{
+			ID: fmt.Sprintf("pg-asset-%d", i), UserID: "test-user",
+			Name: "p.pcap", Status: "ready", LinkType: 1,
+			FileHash: fmt.Sprintf("hash-pg-%d", i),
+		}); cerr != nil {
+			t.Fatalf("create asset %d: %v", i, cerr)
+		}
+	}
+	// 一条流 + 5 个包，按 index_in_flow 升序。
+	if err := h.db.Create(&storage.FlowModel{
+		ID: "pg-flow", PcapAssetID: "pg-asset-0", UserID: "test-user",
+		SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 1, DstPort: 2, L4Protocol: "tcp",
+	}).Error; err != nil {
+		t.Fatalf("create flow: %v", err)
+	}
+	for i := 0; i < 5; i++ {
+		if err := h.db.Create(&storage.PacketModel{
+			ID: fmt.Sprintf("pg-pkt-%d", i), PcapAssetID: "pg-asset-0",
+			FlowID: "pg-flow", UserID: "test-user", L4Protocol: "tcp",
+			Length: 64, TimestampUs: int64(1000 + i), IndexInFlow: i,
+		}).Error; err != nil {
+			t.Fatalf("create packet %d: %v", i, err)
+		}
+	}
+
+	type page struct {
+		Items []json.RawMessage `json:"items"`
+		Total int64             `json:"total"`
+		Page  int               `json:"page"`
+		Size  int               `json:"size"`
+	}
+	get := func(path string) page {
+		t.Helper()
+		req := httptest.NewRequest("GET", path, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("%s: status=%d body=%s", path, w.Code, w.Body.String())
+		}
+		var body struct {
+			Data page `json:"data"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatalf("%s: unmarshal: %v", path, err)
+		}
+		return body.Data
+	}
+
+	// 资产列表按 created_at DESC, id DESC：第 2 页（size=2）应是第 3、4 行。
+	assets := get("/pcaps?page=2&size=2")
+	if len(assets.Items) != 2 {
+		t.Fatalf("assets page 2: %d items, want 2", len(assets.Items))
+	}
+	if assets.Total != 5 {
+		t.Errorf("assets total = %d, want 5", assets.Total)
+	}
+	// 内容正确性：第 1 页与第 2 页的 id 不能重叠，合起来应当是全部 5 个。
+	first := get("/pcaps?page=1&size=2")
+	seen := map[string]bool{}
+	for _, it := range append(first.Items, assets.Items...) {
+		var a storage.PcapAssetModel
+		if err := json.Unmarshal(it, &a); err != nil {
+			t.Fatalf("unmarshal asset: %v", err)
+		}
+		if seen[a.ID] {
+			t.Errorf("asset %s appears on both page 1 and page 2 — the offset is wrong", a.ID)
+		}
+		seen[a.ID] = true
+	}
+	if len(seen) != 4 {
+		t.Errorf("pages 1+2 covered %d distinct rows, want 4", len(seen))
+	}
+
+	// 包列表按 index_in_flow ASC：第 2 页应是 index 2、3。
+	pkts := get("/pcaps/pg-asset-0/flows/pg-flow/packets?page=2&size=2")
+	if len(pkts.Items) != 2 {
+		t.Fatalf("packets page 2: %d items, want 2", len(pkts.Items))
+	}
+	for i, it := range pkts.Items {
+		var p storage.PacketModel
+		if err := json.Unmarshal(it, &p); err != nil {
+			t.Fatalf("unmarshal packet: %v", err)
+		}
+		if want := 2 + i; p.IndexInFlow != want {
+			t.Errorf("packets page 2 item %d: index_in_flow = %d, want %d — page 2 "+
+				"must start at the (page-1)*size-th row", i, p.IndexInFlow, want)
+		}
 	}
 }

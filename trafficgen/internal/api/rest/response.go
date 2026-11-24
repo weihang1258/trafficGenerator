@@ -146,10 +146,16 @@ func parsePageParams(c *gin.Context, defaultSize, maxSize int) pageParams {
 	return p
 }
 
-// pageEchoSize reports the `size` a paginated response should echo. size==0 is
-// the request-side "everything" sentinel; echoing it alongside N items makes
-// {"items":[N items],"size":0} self-contradictory, so callers that treat size
-// as the page length see an empty page. Echo the actual returned count instead.
+// pageEchoSize reports the `size` a paginated response should echo.
+//
+// size==0 is the request-side "everything" sentinel; echoing it alongside N
+// items makes {"items":[N items],"size":0} self-contradictory, so callers that
+// treat size as the page length see an empty page. In that case we report the
+// actual returned count.
+//
+// size>0 echoes the requested page size even when the page is short: total,
+// page and size must let the caller compute the page count, so a last page
+// with 5 of 20 rows still reports size=20.
 func pageEchoSize(p pageParams, returned int) int {
 	if p.Size == 0 {
 		return returned
