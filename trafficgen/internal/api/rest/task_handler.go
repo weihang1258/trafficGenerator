@@ -547,10 +547,18 @@ func (h *TaskHandler) onEngineProgress(engineTaskID string, progress float64, st
 	// 必须在同一临界区里把刚写进去的记账撤掉：Stop/Delete 的释放已经完成，
 	// 留着就等于刚释放的条目又被迟到回调复活。
 	if res.Error != nil {
+		// 只记日志，**不要**清记账：任务可能还在跑（SQLite 被 pcap_packets
+		// 的批量插入挤住就会写超时），清掉槽位会让已完成子策略的统计从
+		// 父合计里消失——正是 R7 缺陷 A 要防的事。
 		log.Printf("onEngineProgress: failed to persist progress for task %s: %v",
 			parentTaskID, res.Error)
+		h.aggMu.Unlock()
+		return
 	}
-	if res.Error != nil || res.RowsAffected == 0 {
+	if res.RowsAffected == 0 {
+		// 行已终态或已删（WHERE 里的状态条件没匹配上）：这一轮回音不属于
+		// running 的任务了。必须在同一临界区里撤掉刚写进去的记账，否则
+		// Stop/Delete 刚释放的条目会被迟到回调复活。
 		h.releaseProgressBookkeepingLocked(parentTaskID)
 		h.aggMu.Unlock()
 		return

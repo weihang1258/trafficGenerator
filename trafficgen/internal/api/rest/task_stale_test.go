@@ -847,3 +847,43 @@ func TestOnEngineProgress_ThrottlesRapidCallbacks(t *testing.T) {
 		t.Errorf("progress=100 must bypass the throttle: packets_sent = %d, want 9", got)
 	}
 }
+
+// TestOnEngineProgress_TransientWriteErrorKeepsLiveSlots 钉住"写库失败不得
+// 清掉还在跑的任务的记账"。
+//
+// SQLite 的写锁会被 pcap_packets 的批量插入占住，运行中的任务落库偶发失败
+// 是常态。若在失败分支顺手 releaseProgressBookkeeping，已完成子策略的槽位
+// 就被清掉，父合计退化成"只见存活子任务"——R7 缺陷 A 的原样回归。
+// 终态（RowsAffected=0）才清；错误（Error!=nil）只记日志。
+func TestOnEngineProgress_TransientWriteErrorKeepsLiveSlots(t *testing.T) {
+	h, _, db, _ := newTaskTestServer(t)
+	const id = "abababab-abab-abab-abab-abababababab"
+	seedRunningTask(t, db, id, `{}`)
+
+	// 先落一次正常进度，槽位里留下子策略的统计。
+	h.onEngineProgress(id+"-stratA", 100, core.TaskStats{PacketsSent: 500})
+	if got := terminalStatusInDB(t, db, id).PacketsSent; got != 500 {
+		t.Fatalf("seed progress: packets_sent = %d, want 500", got)
+	}
+
+	// 关掉底层连接池，后续写全部失败，内存态不受影响。
+	sqlDB, err := db.DB.DB()
+	if err != nil {
+		t.Fatalf("sql db: %v", err)
+	}
+	// 关掉底层连接池会让后续写全部失败，同时不影响内存态的断言。
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("close db: %v", err)
+	}
+
+	h.onEngineProgress(id+"-stratB", 100, core.TaskStats{PacketsSent: 700})
+
+	h.aggMu.Lock()
+	slots := h.aggSlots[id]
+	h.aggMu.Unlock()
+	if len(slots) != 2 {
+		t.Errorf("aggSlots has %d entries after a failed write, want 2 — dropping the "+
+			"slots on a transient DB error loses the completed child strategy's stats "+
+			"(R7 defect A all over again)", len(slots))
+	}
+}
