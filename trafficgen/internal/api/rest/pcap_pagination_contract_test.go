@@ -3,6 +3,7 @@ package rest
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -495,7 +496,17 @@ func TestPcapLists_PageTwoReturnsSecondSlice(t *testing.T) {
 			t.Fatalf("create asset %d: %v", i, cerr)
 		}
 	}
-	// 一条流 + 5 个包，按 index_in_flow 升序。
+	// 5 条流（flows 列表也要验第 2 页），首条挂 5 个包。
+	for i := 0; i < 5; i++ {
+		if err := h.db.Create(&storage.FlowModel{
+			ID: fmt.Sprintf("pg-flow-%d", i), PcapAssetID: "pg-asset-0", UserID: "test-user",
+			SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: uint16(100 + i), DstPort: 80,
+			L4Protocol: "tcp",
+		}).Error; err != nil {
+			t.Fatalf("create flow %d: %v", i, err)
+		}
+	}
+	// pg-flow 是被包引用的那条流，单独建，避免与上面 5 条混编号。
 	if err := h.db.Create(&storage.FlowModel{
 		ID: "pg-flow", PcapAssetID: "pg-asset-0", UserID: "test-user",
 		SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 1, DstPort: 2, L4Protocol: "tcp",
@@ -573,6 +584,165 @@ func TestPcapLists_PageTwoReturnsSecondSlice(t *testing.T) {
 		if want := 2 + i; p.IndexInFlow != want {
 			t.Errorf("packets page 2 item %d: index_in_flow = %d, want %d — page 2 "+
 				"must start at the (page-1)*size-th row", i, p.IndexInFlow, want)
+		}
+	}
+
+	// flows 与 by-asset packets 各有**独立**的 repo 查询：只测 assets 和
+	// by-flow packets 的话，那两条路径的偏移写错（page*size）不会有任何用例红。
+	assertDistinctPages := func(label, firstPath, secondPath string, ids func(json.RawMessage) string) {
+		t.Helper()
+		p1, p2 := get(firstPath), get(secondPath)
+		if len(p1.Items) != 2 || len(p2.Items) != 2 {
+			t.Fatalf("%s: page1=%d page2=%d items, want 2 each", label, len(p1.Items), len(p2.Items))
+		}
+		// 只查"两页不重叠"不够：行数恰为 6、size=2 时把偏移写成 page*size，
+		// 第 2 页从第 5 行开始仍恰好返回 2 行且不与第 1 页重叠，假绿。
+		// 所以还要钉住**具体行**：第 2 页必须是第 1 页末尾那行的下一个。
+		lastOfFirst := ids(p1.Items[len(p1.Items)-1])
+		firstOfSecond := ids(p2.Items[0])
+		if lastOfFirst == firstOfSecond {
+			t.Errorf("%s: page 2 starts at the same row (%s) that page 1 ended with", label, firstOfSecond)
+		}
+		seen := map[string]bool{}
+		for _, it := range append(p1.Items, p2.Items...) {
+			id := ids(it)
+			if seen[id] {
+				t.Errorf("%s: %s appears on both page 1 and page 2 — the offset is wrong", label, id)
+			}
+			seen[id] = true
+		}
+		if len(seen) != 4 {
+			t.Errorf("%s: pages 1+2 covered %d distinct rows, want 4", label, len(seen))
+		}
+	}
+	// flows 按 first_ts_us ASC, id ASC；本夹具所有 first_ts_us=0，所以排序即
+	// id 字典序：pg-flow, pg-flow-0..4。第 2 页必须是 pg-flow-1、pg-flow-2。
+	flowsPage2 := get("/pcaps/pg-asset-0/flows?page=2&size=2")
+	var gotFlowIDs []string
+	for _, raw := range flowsPage2.Items {
+		var f storage.FlowModel
+		if err := json.Unmarshal(raw, &f); err != nil {
+			t.Fatalf("unmarshal flow: %v", err)
+		}
+		gotFlowIDs = append(gotFlowIDs, f.ID)
+	}
+	if len(gotFlowIDs) != 2 || gotFlowIDs[0] != "pg-flow-1" || gotFlowIDs[1] != "pg-flow-2" {
+		t.Errorf("flows page 2 = %v, want [pg-flow-1 pg-flow-2] — the second page must "+
+			"start at the (page-1)*size-th row", gotFlowIDs)
+	}
+	assertDistinctPages("flows",
+		"/pcaps/pg-asset-0/flows?page=1&size=2", "/pcaps/pg-asset-0/flows?page=2&size=2",
+		func(raw json.RawMessage) string {
+			var f storage.FlowModel
+			if err := json.Unmarshal(raw, &f); err != nil {
+				t.Fatalf("unmarshal flow: %v", err)
+			}
+			return f.ID
+		})
+	assertDistinctPages("by-asset packets",
+		"/pcaps/pg-asset-0/packets?page=1&size=2", "/pcaps/pg-asset-0/packets?page=2&size=2",
+		func(raw json.RawMessage) string {
+			var p storage.PacketModel
+			if err := json.Unmarshal(raw, &p); err != nil {
+				t.Fatalf("unmarshal packet: %v", err)
+			}
+			return p.ID
+		})
+}
+
+// TestPcapLists_PerEndpointDefaultsAndCaps 把"垃圾输入回默认 / 超上限收敛 /
+// 非正 page 归一"三件事按**每个端点**钉一遍。
+//
+// 此前的缺口：超上限只测了 assets 的 200，非正 page 只测了 task List，
+// by-asset packets 只有 size=0 一条。各端点的默认值/上限互不相同，只测一个
+// 端点证明不了另一个端点的口径（rev3-pagination 复审指出）。
+func TestPcapLists_PerEndpointDefaultsAndCaps(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, r, _ := newPcapTestServer(t)
+	r.GET("/pcaps/:id/packets", h.ListPacketsByAsset)
+	seedAssetWithFlowsAndPackets(t, h, "ast-caps", "flow-caps", 3)
+
+	type resp struct {
+		Data struct {
+			Size int `json:"size"`
+			Page int `json:"page"`
+		} `json:"data"`
+	}
+	get := func(path string) resp {
+		t.Helper()
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
+		if w.Code != 200 {
+			t.Fatalf("%s: status=%d body=%s", path, w.Code, w.Body.String())
+		}
+		var out resp
+		if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+			t.Fatalf("%s: unmarshal: %v", path, err)
+		}
+		return out
+	}
+
+	// 每个端点：默认页大小 / 上限。
+	cases := []struct {
+		base        string
+		defaultSize int
+		maxSize     int
+	}{
+		{"/pcaps", 20, 200},
+		{"/pcaps/ast-caps/flows", 50, 500},
+		{"/pcaps/ast-caps/flows/flow-caps/packets", 50, 500},
+		{"/pcaps/ast-caps/packets", 50, 500},
+	}
+	for _, tc := range cases {
+		// 垃圾 size → 端点自己的默认值（不是 0=全量）。
+		if got := get(tc.base + "?size=abc").Data.Size; got != tc.defaultSize {
+			t.Errorf("%s?size=abc: size = %d, want the default %d", tc.base, got, tc.defaultSize)
+		}
+		// 负 size → 同样回默认。
+		if got := get(tc.base + "?size=-1").Data.Size; got != tc.defaultSize {
+			t.Errorf("%s?size=-1: size = %d, want the default %d", tc.base, got, tc.defaultSize)
+		}
+		// 超上限 → 收敛到上限（不是回默认）。
+		if got := get(tc.base + "?size=99999").Data.Size; got != tc.maxSize {
+			t.Errorf("%s?size=99999: size = %d, want the cap %d", tc.base, got, tc.maxSize)
+		}
+		// 非正/垃圾 page → 归一到第 1 页。
+		for _, q := range []string{"?page=0", "?page=-3", "?page=abc"} {
+			if got := get(tc.base + q).Data.Page; got != 1 {
+				t.Errorf("%s%s: page = %d, want 1", tc.base, q, got)
+			}
+		}
+	}
+}
+
+// TestPageOffset_ExtremeValuesClamp 直接钉 storage.PageOffset 的溢出边界。
+//
+// SQLite 的 `OFFSET -n` 静默等价于 `OFFSET 0`（返回第 1 页），所以负偏移是
+// "看起来对了"的错页；这里的用例直接对函数断言，不依赖某个端点恰好走到。
+func TestPageOffset_ExtremeValuesClamp(t *testing.T) {
+	cases := []struct {
+		page, size int
+		want       int
+	}{
+		{1, 20, 0},
+		{0, 20, 0},  // 非正 page → 0
+		{-5, 20, 0}, // 负 page → 0
+		{2, 20, 20}, // 正常
+		{3, 0, 0},   // size=0 = 全量，无偏移
+		{3, -1, 0},  // 负 size → 0
+		{1 << 31, 200, math.MaxInt32},
+		{1 << 62, 500, math.MaxInt32},
+		{math.MaxInt, math.MaxInt, math.MaxInt32},
+	}
+	for _, tc := range cases {
+		if got := storage.PageOffset(tc.page, tc.size); got != tc.want {
+			t.Errorf("PageOffset(%d, %d) = %d, want %d", tc.page, tc.size, got, tc.want)
+		}
+	}
+	// 正常范围内绝不许算出负数（那会让 SQLite 静默回到第 1 页）。
+	for _, page := range []int{2, 100, 100000, 1 << 30} {
+		if got := storage.PageOffset(page, 50); got < 0 {
+			t.Errorf("PageOffset(%d, 50) = %d < 0 — SQLite treats a negative OFFSET as 0", page, got)
 		}
 	}
 }

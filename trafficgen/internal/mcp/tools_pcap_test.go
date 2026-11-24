@@ -907,3 +907,55 @@ func TestMCP_ManagePcaps_ExtractBulkAndStreams(t *testing.T) {
 		t.Errorf("asset streams flows = %d, want 1", streams.Flows)
 	}
 }
+
+// TestMCP_GetStream_ForwardsInvalidRangeToREST 覆盖 MCP 转发层的"吞参数"。
+//
+// offset/limit 此前是 int64 且 `>0` 才转发，于是 offset=-1、limit=0、
+// limit=-1 被静默丢弃，REST 按"没给"返回整条流。调用方要求"从 -1 开始读"
+// 拿到的是从头读，还以为读对了——与本轮要修的"接受但不生效"同型。
+// 现在原样转发，REST 的 400 必须透出来。
+func TestMCP_GetStream_ForwardsInvalidRangeToREST(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	id, flowID := listFlowsForTest(t, env)
+
+	i64 := func(v int64) *int64 { return &v }
+	cases := []struct {
+		name   string
+		offset *int64
+		limit  *int64
+	}{
+		{"negative offset", i64(-1), nil},
+		{"zero limit", nil, i64(0)},
+		{"negative limit", i64(4), i64(-1)},
+	}
+	for _, tc := range cases {
+		_, _, err := env.srv.handleManagePcaps(context.Background(), nil, managePcapsInput{
+			Action: "get_stream", ID: id, FlowID: flowID,
+			Direction: "c2s", Offset: tc.offset, Limit: tc.limit,
+		})
+		if err == nil {
+			t.Errorf("%s: expected the REST 400 to surface, got success — an invalid "+
+				"range was silently dropped and the whole stream was returned", tc.name)
+		}
+	}
+
+	// 合法范围仍然要能读，且真的截断（不是"改了转发后把正常路径弄坏"）。
+	_, out, err := env.srv.handleManagePcaps(context.Background(), nil, managePcapsInput{
+		Action: "get_stream", ID: id, FlowID: flowID, Direction: "c2s",
+		Offset: i64(0), Limit: i64(3),
+	})
+	if err != nil {
+		t.Fatalf("valid range: %v", err)
+	}
+	var stream struct {
+		Length int `json:"length"`
+	}
+	if err := json.Unmarshal(asRaw(out.Data), &stream); err != nil {
+		t.Fatalf("unmarshal: %v (%s)", err, string(asRaw(out.Data)))
+	}
+	if stream.Length != 3 {
+		t.Errorf("limit=3 returned length=%d, want 3", stream.Length)
+	}
+}

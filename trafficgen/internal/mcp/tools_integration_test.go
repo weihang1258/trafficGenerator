@@ -315,19 +315,28 @@ func TestMCP_ManageStrategies_CreateAndList(t *testing.T) {
 		t.Fatal("create did not return id")
 	}
 
-	// List (StrategyHandler.List returns a JSON array directly, not {items:...})
+	// List：MCP 侧恒发 size（省略=0=全量），因此 REST 走分页封装
+	// {items,total,page,size}，与 pcap/task 列表同口径；不再返回裸数组。
 	_, out2, err := env.srv.handleManageStrategies(context.Background(), nil, manageStrategiesInput{
 		Action: "list",
 	})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	var listData []map[string]interface{}
-	if err := json.Unmarshal(asRaw(out2.Data), &listData); err != nil {
-		t.Fatalf("list returned non-array: %s (err: %v)", string(asRaw(out2.Data)), err)
+	var page struct {
+		Items []map[string]interface{} `json:"items"`
+		Total int                      `json:"total"`
 	}
+	if err := json.Unmarshal(asRaw(out2.Data), &page); err != nil {
+		t.Fatalf("list returned non-object: %s (err: %v)", string(asRaw(out2.Data)), err)
+	}
+	listData := page.Items
 	if len(listData) == 0 {
 		t.Fatalf("list returned empty array: %s", string(asRaw(out2.Data)))
+	}
+	// 全量响应必须自洽：size 回实际条数（不是回显 0 哨兵），total 是总数。
+	if page.Total != len(listData) {
+		t.Errorf("total = %d while returning %d items", page.Total, len(listData))
 	}
 	found := false
 	for _, s := range listData {

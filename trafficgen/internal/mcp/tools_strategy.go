@@ -68,12 +68,19 @@ func (s *Server) handleManageStrategies(ctx context.Context, req *mcp.CallToolRe
 		resp, err = s.callHandler(ctx, body, "", nil, h.Create)
 	case "list":
 		// R7：MCP 侧放行可选分页（REST strategies/list 批 5 已支持）。
+		//
+		// size 恒发：REST 的策略列表是"page/size 任一给定才返回分页封装，
+		// 否则返回裸数组"，而 size=0 是全量哨兵。MCP 省略 size 时若也不发，
+		// `page=2` 会掉进裸数组分支（没有分页字段），与 pcap/task 列表的
+		// "省略=全量分页"不一致。发 size=0 才走统一的分页口径。
 		q := url.Values{}
 		if in.Page > 0 {
 			q.Set("page", strconv.Itoa(in.Page))
 		}
 		if in.Size > 0 {
 			q.Set("size", strconv.Itoa(in.Size))
+		} else {
+			q.Set("size", "0")
 		}
 		resp, err = s.callHandler(ctx, nil, "", q, h.List)
 	case "get":

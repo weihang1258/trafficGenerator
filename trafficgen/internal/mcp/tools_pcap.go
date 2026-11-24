@@ -35,8 +35,12 @@ type managePcapsInput struct {
 	PacketID     string                 `json:"packet_id,omitempty" jsonschema:"packet id (get_packet/get_packet_payload)"`
 	Scope        string                 `json:"scope,omitempty" jsonschema:"get_packet_payload: 'frame' returns the FULL frame bytes (Ethernet+IP+L4+payload) — use this for 'export the complete bytes of a flow'; default (omitted) returns just the L7 payload"`
 	Direction    string                 `json:"direction,omitempty" jsonschema:"stream direction: c2s|s2c (get_stream/get_body). get_body 返回原始 L7 载荷（HTTP chunked 分块帧原样保留，C2SBodyHash 与之一致——不做去分块）"`
-	Offset       int64                  `json:"offset,omitempty" jsonschema:"byte offset within stream (get_stream, optional)"`
-	Limit        int64                  `json:"limit,omitempty" jsonschema:"byte length to read (get_stream, optional)"`
+	// 指针：缺省（nil）与显式 0/负数必须分得开。此前是 int64 + `>0 才转发`，
+	// 于是 offset=-1、limit=0 被静默丢掉，REST 返回整条流——调用方要求
+	// "从 -1 开始读"拿到的是从头读，还以为读对了。现在原样转发，由 REST
+	// 的 400 报错（那里对非法 offset/limit 有明确校验）。
+	Offset       *int64                 `json:"offset,omitempty" jsonschema:"byte offset within stream (get_stream, optional; >=0, offset==length reads empty)"`
+	Limit        *int64                 `json:"limit,omitempty" jsonschema:"byte length to read (get_stream, optional; must be >0 when given)"`
 	Filters      map[string]interface{} `json:"filters,omitempty" jsonschema:"search filter object — keys bind by EXACT spelling (snake_case like src_ip is silently ignored and becomes a wildcard): {flow_filter:{Protocol:'tcp|udp|icmp|arp', SrcIP, DstIP, SrcPort, DstPort, L7Type, L7Method, L7Host, L7QueryName}, packet_filter:{Direction:'c2s|s2c', TimeStartUs, TimeEndUs, L4Protocol, AnomalyFlag:'truncated|oversize|undersize'}, payload:{Contains:'text or hex-decoded via Encoding', Encoding:'ascii|hex'}, scope:'reassembled|packet', limit, offset}. Every flow_filter field above is matched case-insensitively for the L7 ones (L7Method/L7Host/L7QueryName) and ANDed when several are given. scope selects the payload space: 'reassembled' (default) searches the reassembled TCP streams; 'packet' narrows by packet_filter instead of the stream index (per-packet payloads are not indexed yet, so combining scope=packet with payload returns an explicit error rather than silently falling back). L7Method/L7Host/L7QueryName only have values on flows the parser identified (HTTP method+host, TLS SNI, DNS query name) — on other flows they match nothing. — real example: {'flow_filter':{'DstPort':80,'L7Method':'GET'},'payload':{'Contains':'GET /admin','Encoding':'ascii'},'limit':20}"`
 	ExtractRules map[string]interface{} `json:"extract_rules,omitempty" jsonschema:"extract request — REQUIRES packet_ids from a prior list_packets (get them first); real example: {'packet_ids':['<id1>','<id2>'],'fields':['src_ip','dst_port','tcp_flags']} (max 500 packet_ids); fields are layer field names: src_ip, dst_ip, src_port, dst_port, seq, ack, tcp_flags, payload_len, window, ttl, protocol, ip_id, dscp, ecn, direction(c2s/s2c), icmp id/seq, embedded_* (icmp-embedded headers) — matching is case-sensitive snake_case: wrong case (SrcIP) and typos (no_such_field) are treated identically, all reported back in the response's unknown_fields array; use get_packet first to see available fields"`
 	Matcher      map[string]interface{} `json:"matcher,omitempty" jsonschema:"match_preview flow matcher: {Protocol:'tcp|udp|icmp|arp|any', SrcIP:'exact or CIDR', SrcPort, DstIP, DstPort} — 0/empty = any; real example: {'Protocol':'tcp','DstPort':80}"`
@@ -351,11 +355,11 @@ func (s *Server) handlePcapStreamBinary(ctx context.Context, id, flowID string, 
 	if in.Direction != "" {
 		q.Set("dir", in.Direction)
 	}
-	if in.Offset > 0 {
-		q.Set("offset", strconv.FormatInt(in.Offset, 10))
+	if in.Offset != nil {
+		q.Set("offset", strconv.FormatInt(*in.Offset, 10))
 	}
-	if in.Limit > 0 {
-		q.Set("limit", strconv.FormatInt(in.Limit, 10))
+	if in.Limit != nil {
+		q.Set("limit", strconv.FormatInt(*in.Limit, 10))
 	}
 	params := gin.Params{{Key: "id", Value: id}, {Key: "fid", Value: flowID}}
 	resp, err := s.callRawHandlerWithParams(ctx, params, q, handler)

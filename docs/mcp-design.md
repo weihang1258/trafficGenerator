@@ -218,9 +218,14 @@ stdio 和 HTTP/SSE 各实现一个，server.go 根据 config 选择启动哪些�
     "type": "flows|bps|time",
     "value": 100
   },
-  "page": 1, "size": 20          // list
+  "page": 1, "size": 20          // list，可选；省略或 size=0 = 全量（不分页）
 }
 ```
+
+**list 的返回形状**：MCP 侧恒发 `size`（省略时发 `0` = 全量），因此 REST 走分页
+封装 `{items, total, page, size}`，与 pcap/task 列表同口径，**不再返回裸数组**。
+全量响应的 `size` 回实际条数（不是回显 0 哨兵），`total` 是全库总数——全量响应
+不再分页，调用方不要再用 `total/size` 推算后续页。
 
 **映射**：
 - create -> `StrategyHandler.Create`
