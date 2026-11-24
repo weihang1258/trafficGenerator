@@ -251,8 +251,15 @@ func (h *TaskHandler) aggregateParent(parentTaskID string) (avg float64, packets
 // both entries behind forever. Every terminal path calls this now.
 func (h *TaskHandler) releaseProgressBookkeeping(taskID string) {
 	h.aggMu.Lock()
-	delete(h.aggSlots, taskID)
+	h.releaseProgressBookkeepingLocked(taskID)
 	h.aggMu.Unlock()
+}
+
+// releaseProgressBookkeepingLocked 是 aggMu 已持有的版本。onEngineProgress
+// 的"落库被拒"分支在同一个临界区里撤掉自己刚写的槽位，避免与 Stop/Delete
+// 的释放形成"释放—复活"的交错。
+func (h *TaskHandler) releaseProgressBookkeepingLocked(taskID string) {
+	delete(h.aggSlots, taskID)
 	h.progressMu.Lock()
 	delete(h.lastProgressUpdate, taskID)
 	h.progressMu.Unlock()
@@ -352,6 +359,10 @@ func (h *TaskHandler) onEngineTaskFailed(engineTaskID string, errMsg string) {
 // production.
 var stopSnapshotHook func()
 
+// completeSnapshotHook is a test-only hook between the completion callback's
+// status read and its terminal write, so a test can land a Stop in that window.
+var completeSnapshotHook func()
+
 // terminalStatuses lists the statuses that end a task's life. Used both by
 // isTerminalStatus (read-side guard) and as the UPDATE-side WHERE clause in
 // onEngineProgress, so the two cannot drift.
@@ -393,8 +404,23 @@ func (h *TaskHandler) markTaskError(task *storage.TaskModel) {
 	task.CompletedAt = &now
 }
 
-// applyTaskCompletion writes a task's terminal columns.
-func (h *TaskHandler) applyTaskCompletion(taskID string, task *storage.TaskModel) {
+// applyTaskCompletion writes a task's terminal columns and reports whether
+// this callback still owned the row when it wrote.
+//
+// 与 onEngineProgress 同一个道理（见 f2f9ba40）：完成回调开头读到的 running
+// 只是**读到那一刻**的状态。Stop 可能在 SELECT 之后、这次写入之前把行写成
+// stopped，无条件的 UPDATE 就把 stopped 又改回 completed/100。状态条件挂到
+// WHERE 上才能原子判定"还是不是 running"。
+//
+// 返回 false 时调用方必须停手：不能广播完成、不能释放运行资源、不能入库
+// pcap——那是另一轮运行（或一次停止）的行，本回调不再拥有它。
+func (h *TaskHandler) applyTaskCompletion(taskID string, task *storage.TaskModel) bool {
+	return h.applyTaskCompletionWhere(taskID, task, "status = ?", "running")
+}
+
+// applyTaskCompletionWhere 同上，WHERE 由调用方给——完成回调只接管 running
+// 的行，而 Start 的对账入口接受 running/starting 两种未终态。
+func (h *TaskHandler) applyTaskCompletionWhere(taskID string, task *storage.TaskModel, where string, args ...interface{}) bool {
 	updates := map[string]interface{}{
 		"status":   task.Status,
 		"progress": task.Progress,
@@ -405,12 +431,19 @@ func (h *TaskHandler) applyTaskCompletion(taskID string, task *storage.TaskModel
 	if task.ErrorMessage != "" {
 		updates["error_message"] = task.ErrorMessage
 	}
-	// 终态写库失败不得静默：行会停在 running/starting，只能等下一次 stale
-	// 对账修复。至少留下日志（Stop 在同类失败上是直接回 500 的）。
-	if err := h.db.Model(&storage.TaskModel{}).Where("id = ?", taskID).Updates(updates).Error; err != nil {
-		log.Printf("applyTaskCompletion: failed to persist terminal state %q for task %s: %v",
-			task.Status, taskID, err)
+	if completeSnapshotHook != nil {
+		completeSnapshotHook()
 	}
+	res := h.db.Model(&storage.TaskModel{}).
+		Where("id = ? AND "+where, append([]interface{}{taskID}, args...)...).Updates(updates)
+	if res.Error != nil {
+		// 终态写库失败不得静默：行会停在 running，只能等下一次 stale 对账
+		// 修复。至少留下日志（Stop 在同类失败上是直接回 500 的）。
+		log.Printf("applyTaskCompletion: failed to persist terminal state %q for task %s: %v",
+			task.Status, taskID, res.Error)
+		return false
+	}
+	return res.RowsAffected > 0
 }
 
 // onEngineOutputError is called when an output writer fails.
@@ -462,15 +495,16 @@ func (h *TaskHandler) onEngineProgress(engineTaskID string, progress float64, st
 	// forces a notify at 100) must land, otherwise completed tasks lose
 	// their last stats delta and the client can never close the loop on
 	// "how much was actually sent".
+	//
+	// 这里只读不写：时间戳必须在**落库成功**后才推进（见下方 aggMu 临界区
+	// 内），否则"节流"会变成给每一个迟到回调开绿灯，而且 Stop 释放掉的
+	// 条目会被重新建出来。
 	h.progressMu.Lock()
 	lastUpdate, exists := h.lastProgressUpdate[parentTaskID]
-	now := time.Now()
-	if exists && now.Sub(lastUpdate) < 2*time.Second && progress < 100 {
-		h.progressMu.Unlock()
+	h.progressMu.Unlock()
+	if exists && time.Since(lastUpdate) < 2*time.Second && progress < 100 {
 		return
 	}
-	h.lastProgressUpdate[parentTaskID] = now
-	h.progressMu.Unlock()
 
 	// R7 缺陷 A：槽位制聚合（见 aggSlots 注释）——RangeTaskStore 只见存活
 	// 子任务，已完成者的统计会在父合计里丢失；槽位以最后一次上报为准。
@@ -509,10 +543,24 @@ func (h *TaskHandler) onEngineProgress(engineTaskID string, progress float64, st
 			"bytes_sent":   aggBytes,
 			"flows_count":  aggFlows,
 		})
-	h.aggMu.Unlock()
-	if res.Error == nil && res.RowsAffected == 0 {
+	// 行已终态或已删（RowsAffected=0）——这一轮回音不属于 running 的任务了。
+	// 必须在同一临界区里把刚写进去的记账撤掉：Stop/Delete 的释放已经完成，
+	// 留着就等于刚释放的条目又被迟到回调复活。
+	if res.Error != nil {
+		log.Printf("onEngineProgress: failed to persist progress for task %s: %v",
+			parentTaskID, res.Error)
+	}
+	if res.Error != nil || res.RowsAffected == 0 {
+		h.releaseProgressBookkeepingLocked(parentTaskID)
+		h.aggMu.Unlock()
 		return
 	}
+	// 落库成功才记节流时间戳——与槽位在同一个临界区里推进，保证"释放之后
+	// 不会再被迟到回调重建"。
+	h.progressMu.Lock()
+	h.lastProgressUpdate[parentTaskID] = time.Now()
+	h.progressMu.Unlock()
+	h.aggMu.Unlock()
 
 	// Broadcast progress update via WebSocket
 	if h.wsHub != nil {
@@ -579,7 +627,11 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 		}
 		// P2-⑤：Updates 指定列而非 Save 全列——task 是回调开始时的旧快照，
 		// 全列 Save 会把 onEngineProgress 刚落库的实发统计打回 0。
-		h.applyTaskCompletion(taskID, &task)
+		if !h.applyTaskCompletion(taskID, &task) {
+			// 行已不是 running：Stop 抢先写了 stopped（或这轮运行已被重启）。
+			// 不能再广播完成、释放运行资源或入库 pcap。
+			return
+		}
 
 		if h.wsHub != nil {
 			msgType := websocket.TypeTaskCompleted
@@ -648,7 +700,11 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 			log.Printf("task %s marked as completed in DB", taskID)
 		}
 		// 同 batch 分支：指定列更新，不覆盖实发统计（P2-⑤）。
-		h.applyTaskCompletion(taskID, &task)
+		if !h.applyTaskCompletion(taskID, &task) {
+			// 行已不是 running（Stop 抢先写了 stopped，或任务被重启）：
+			// 本回调不再拥有这行，不得再广播完成或释放新运行的资源。
+			return
+		}
 
 		// Broadcast task completion via WebSocket
 		if h.wsHub != nil {
@@ -1424,7 +1480,11 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		task.CompletedAt = &now
 		// 指定列更新：task 是读出来的旧快照，整行 Save 会把这期间落库的
 		// 实发统计一起写回旧值（与 Stop 同一个坑）。
-		h.applyTaskCompletion(task.ID, &task)
+		// 这里的入口状态是 running/starting 两种，故谓词用"未终态"。
+		if !h.applyTaskCompletionWhere(task.ID, &task, "status NOT IN ?", terminalStatuses) {
+			InternalError(c, "failed to reconcile task status before restart")
+			return
+		}
 		log.Printf("task %s reconciled stale status -> %s before restart", task.ID, task.Status)
 		h.maybeAutoRegisterPcapAsync(&task)
 	}
@@ -1449,6 +1509,12 @@ func (h *TaskHandler) Start(c *gin.Context) {
 	result := h.db.Model(&storage.TaskModel{}).
 		Where("id = ? AND status = ?", id, task.Status).
 		Update("status", "starting")
+	if result.Error != nil {
+		// 此前只看 RowsAffected：写库失败（比如磁盘满）也会被报成
+		// "状态变了请重试"，把基础设施故障伪装成并发冲突。
+		InternalError(c, "failed to mark task starting: "+result.Error.Error())
+		return
+	}
 	if result.RowsAffected == 0 {
 		BadRequest(c, "task status changed, please retry")
 		return
@@ -1791,14 +1857,22 @@ func (h *TaskHandler) Start(c *gin.Context) {
 	// （progress / error_message / completed_at）必须显式写进去——只写
 	// status+started_at 会留下上一轮的 100% 和 completed_at，客户端立刻
 	// 轮询就看见"状态 running、进度 100、已完成时间还在"。
-	h.db.Model(&storage.TaskModel{}).Where("id = ?", task.ID).
+	if err := h.db.Model(&storage.TaskModel{}).Where("id = ?", task.ID).
 		Updates(map[string]interface{}{
 			"status":        "running",
 			"started_at":    now,
 			"progress":      0,
 			"error_message": "",
 			"completed_at":  nil,
-		})
+		}).Error; err != nil {
+		// 必须拦住：此前这里失败也照样提交引擎任务并回 200，库里却停在
+		// 上一轮的 completed/100——引擎在跑，界面显示"已完成"。
+		task.Status = "error"
+		task.ErrorMessage = "failed to mark task running: " + err.Error()
+		h.markTaskError(&task)
+		InternalError(c, task.ErrorMessage)
+		return
+	}
 
 	// Submit all engine tasks
 	var submittedIDs []string
@@ -1944,6 +2018,11 @@ func (h *TaskHandler) Stop(c *gin.Context) {
 	task.Status = "stopped"
 	task.CompletedAt = &now
 
+	// stopped 已落库，终态不可逆——此后**每条**出口都要释放记账。用 defer
+	// 而不是在每条 return 前手写：下面"strategy_ids 损坏"那条提前返回曾
+	// 跳过全部清理，让一个停止过的任务的记账条目永久留在 handler 里。
+	defer h.releaseProgressBookkeeping(id)
+
 	// Release port group ports
 	h.releasePortGroupPorts(&task)
 
@@ -1957,9 +2036,6 @@ func (h *TaskHandler) Stop(c *gin.Context) {
 			log.Printf("error stopping batch engine task %s: %v", id, err)
 		}
 		h.engine.CleanupTaskFlowControl(id)
-		// 停止是终态：完成回调不会再来收尾（它的删除分支要求行仍为
-		// running），记账必须在这里释放。
-		h.releaseProgressBookkeeping(id)
 		SuccessWithMessage(c, "task stopped", map[string]interface{}{
 			"stopped_engine_tasks": []string{id},
 		})
@@ -1987,7 +2063,6 @@ func (h *TaskHandler) Stop(c *gin.Context) {
 
 	// Clean up task-level flow control state (parent bucket + flow counter).
 	h.engine.CleanupTaskFlowControl(id)
-	h.releaseProgressBookkeeping(id)
 
 	SuccessWithMessage(c, "task stopped", map[string]interface{}{
 		"stopped_engine_tasks": stopped,

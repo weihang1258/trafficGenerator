@@ -452,24 +452,45 @@ func TestStart_ResetsStaleProgressAndCompletedAt(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 
+	// 必须在**请求内**读取：Start 返回后引擎可能已经跑完并把行写成
+	// completed + 本轮的 completed_at。那时再读就分不清"旧值没被清掉"
+	// 和"这一轮合法完成"——此前这个测试就是这么假绿的（把清零改成保留
+	// 旧值，它依然 PASS）。
+	//
+	// startSubmitHook 在 running 行落库之后、引擎任务提交之后立刻执行，
+	// 此时看到的正是"新一次运行刚开始"的那一瞬。
+	var observed storage.TaskModel
+	var observedAtRunning bool
+	startSubmitHook = func() {
+		var tm storage.TaskModel
+		if err := db.First(&tm, "id = ?", taskID).Error; err != nil {
+			t.Errorf("read inside the start window: %v", err)
+			return
+		}
+		observed = tm
+		observedAtRunning = tm.Status == "running" || tm.Status == "starting"
+	}
+	t.Cleanup(func() { startSubmitHook = nil })
+
 	req := httptest.NewRequest("POST", "/tasks/"+taskID+"/start", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("start: status=%d body=%s", w.Code, w.Body.String())
 	}
-
-	tm := terminalStatusInDB(t, db, taskID)
-	if tm.Status != "running" {
-		t.Fatalf("status = %q, want running", tm.Status)
+	if !observedAtRunning {
+		t.Fatalf("the start window was never observed (status=%q) — this test "+
+			"would otherwise be vacuous", observed.Status)
 	}
-	if tm.Progress != 0 {
-		t.Errorf("progress = %v after restarting a completed task, want 0 — the "+
-			"stale 100 is still in the DB and the client sees a running task at 100%%", tm.Progress)
+	if observed.Progress != 0 {
+		t.Errorf("progress = %v at the moment the new run started, want 0 — the "+
+			"stale 100 is still in the DB and the client sees a running task at 100%%",
+			observed.Progress)
 	}
-	if tm.CompletedAt != nil {
-		t.Errorf("completed_at = %v after restart, want cleared — a running task "+
-			"must not carry the previous run's completion time", tm.CompletedAt)
+	if observed.CompletedAt != nil {
+		t.Errorf("completed_at = %v at the moment the new run started, want cleared "+
+			"— a running task must not carry the previous run's completion time",
+			observed.CompletedAt)
 	}
 }
 
@@ -692,4 +713,137 @@ func TestStopAndDelete_ReleaseProgressBookkeeping(t *testing.T) {
 		t.Fatalf("delete: status=%d body=%s", w.Code, w.Body.String())
 	}
 	check(delID, "Delete")
+}
+
+// TestOnEngineTaskComplete_StopInWindowIsNotRevived 覆盖完成回调的 TOCTOU。
+//
+// onEngineTaskComplete 开头读到 running 只是读到那一刻的状态；Stop 可能在
+// 那次 SELECT 之后、终态 UPDATE 之前把行写成 stopped。无条件的终态写入会
+// 把 stopped 改回 completed/100 —— 用户点了停止，界面却显示"已完成"。
+// 与 onEngineProgress 的窗口同型（f2f9ba40），修法也一样：状态谓词进 WHERE。
+func TestOnEngineTaskComplete_StopInWindowIsNotRevived(t *testing.T) {
+	h, _, db, _ := newTaskTestServer(t)
+	const taskID = "66666666-6666-6666-6666-666666666666"
+	seedRunningTask(t, db, taskID, `{}`)
+
+	var once sync.Once
+	completeSnapshotHook = func() {
+		once.Do(func() {
+			// 窗口内：用户点了停止。
+			if err := db.Model(&storage.TaskModel{}).Where("id = ?", taskID).
+				Updates(map[string]interface{}{"status": "stopped"}).Error; err != nil {
+				t.Errorf("stop inside the window: %v", err)
+			}
+		})
+	}
+	t.Cleanup(func() { completeSnapshotHook = nil })
+
+	h.onEngineTaskComplete(taskID)
+
+	tm := terminalStatusInDB(t, db, taskID)
+	if tm.Status != "stopped" {
+		t.Fatalf("status = %q, want stopped — the completion callback read running, "+
+			"then Stop wrote stopped in the window, and the callback's terminal write "+
+			"revived the task", tm.Status)
+	}
+}
+
+// TestStop_CorruptStrategyIDsStillReleasesBookkeeping 覆盖 Stop 的第三条出口。
+//
+// strategy_ids 损坏时 Stop 在解 JSON 处提前 return，此前那条路径跳过了
+// releaseProgressBookkeeping 与 flow-control 清理——停止过的任务把记账条目
+// 永久留在 handler 里。清理改为 stopped 落库后的 defer，覆盖全部出口。
+func TestStop_CorruptStrategyIDsStillReleasesBookkeeping(t *testing.T) {
+	h, r, db, _ := newTaskTestServer(t)
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.POST("/tasks/:id/stop", h.Stop)
+
+	const id = "77777777-7777-7777-7777-777777777777"
+	if err := db.Create(&storage.TaskModel{
+		ID: id, UserID: "test-user", Name: "n", Status: "running",
+		StrategyIDs: "not-json", OutputType: "pcap", OutputConfig: `{}`,
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	h.aggMu.Lock()
+	h.aggSlots[id] = map[string]*engineAggSlot{id: {progress: 10}}
+	h.aggMu.Unlock()
+	h.progressMu.Lock()
+	h.lastProgressUpdate[id] = time.Now()
+	h.progressMu.Unlock()
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("POST", "/tasks/"+id+"/stop", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("stop: status=%d body=%s", w.Code, w.Body.String())
+	}
+	if tm := terminalStatusInDB(t, db, id); tm.Status != "stopped" {
+		t.Fatalf("status = %q, want stopped", tm.Status)
+	}
+	h.aggMu.Lock()
+	_, slotsLeft := h.aggSlots[id]
+	h.aggMu.Unlock()
+	if slotsLeft {
+		t.Error("aggSlots entry survived a Stop that returned early on corrupt strategy_ids")
+	}
+	h.progressMu.Lock()
+	_, throttleLeft := h.lastProgressUpdate[id]
+	h.progressMu.Unlock()
+	if throttleLeft {
+		t.Error("lastProgressUpdate entry survived a Stop that returned early on corrupt strategy_ids")
+	}
+}
+
+// TestOnEngineProgress_DoesNotResurrectReleasedBookkeeping 覆盖"释放—复活"
+// 交错：Stop 已经清空了两张记账表，但一个更早通过终态 SELECT 的迟到回调
+// 继续往下走，又把 aggSlots / lastProgressUpdate 的条目建回来（终态列本身
+// 已被 WHERE 保护，但 handler 的内存泄漏仍在）。
+//
+// 修法：节流、槽位、父行落库同属 aggMu 临界区，落库被拒时当场回收。
+func TestOnEngineProgress_DoesNotResurrectReleasedBookkeeping(t *testing.T) {
+	h, _, _, _ := newTaskTestServer(t)
+	const id = "88888888-8888-8888-8888-888888888888"
+	// 任务行已不存在（Delete 之后）：任何进度回调都不该留下记账。
+	h.onEngineProgress(id, 42, core.TaskStats{PacketsSent: 7})
+
+	h.aggMu.Lock()
+	_, slotsLeft := h.aggSlots[id]
+	h.aggMu.Unlock()
+	if slotsLeft {
+		t.Error("a progress callback for a nonexistent task re-created its aggSlots entry")
+	}
+	h.progressMu.Lock()
+	_, throttleLeft := h.lastProgressUpdate[id]
+	h.progressMu.Unlock()
+	if throttleLeft {
+		t.Error("a progress callback for a nonexistent task re-created its lastProgressUpdate entry")
+	}
+}
+
+// TestOnEngineProgress_ThrottlesRapidCallbacks 钉住 2 秒节流本身。
+//
+// 把节流时间戳从"进函数就写"改成"落库成功才写"时很容易顺手把写入丢掉，
+// 于是每一次回调都通过节流、每次都写库——节流形同虚设，而这不会触发任何
+// 现有的正确性断言。这里连续打三次回调，断言只有第一次落库。
+func TestOnEngineProgress_ThrottlesRapidCallbacks(t *testing.T) {
+	h, _, db, _ := newTaskTestServer(t)
+	const id = "99999999-9999-9999-9999-999999999999"
+	seedRunningTask(t, db, id, `{}`)
+
+	h.onEngineProgress(id, 10, core.TaskStats{PacketsSent: 1})
+	if got := terminalStatusInDB(t, db, id).PacketsSent; got != 1 {
+		t.Fatalf("first callback: packets_sent = %d, want 1", got)
+	}
+	// 紧接着的两次必须被节流挡下（进度远低于 100，未过 2 秒）。
+	h.onEngineProgress(id, 20, core.TaskStats{PacketsSent: 2})
+	h.onEngineProgress(id, 30, core.TaskStats{PacketsSent: 3})
+	if got := terminalStatusInDB(t, db, id).PacketsSent; got != 1 {
+		t.Fatalf("after two rapid follow-ups packets_sent = %d, want 1 — the throttle "+
+			"is not recording its timestamp, so every callback writes", got)
+	}
+	// progress>=100 必须绕过节流（最后一次统计 delta 不能丢）。
+	h.onEngineProgress(id, 100, core.TaskStats{PacketsSent: 9})
+	if got := terminalStatusInDB(t, db, id).PacketsSent; got != 9 {
+		t.Errorf("progress=100 must bypass the throttle: packets_sent = %d, want 9", got)
+	}
 }
