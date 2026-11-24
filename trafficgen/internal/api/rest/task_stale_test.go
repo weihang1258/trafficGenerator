@@ -471,3 +471,48 @@ func TestStart_ResetsStaleProgressAndCompletedAt(t *testing.T) {
 			"must not carry the previous run's completion time", tm.CompletedAt)
 	}
 }
+
+// TestStart_WriterFailureClearsStaleProgress 覆盖 Start 里另一处
+// `task.Progress = 0`：全部 output writer 创建失败时任务转 error，但那句
+// 重置在改成按列更新后不再落库。重跑一个已完成的 100% 任务、writer 又开
+// 不起来，DB 里就留下 status=error + progress=100 的矛盾组合——与客户端
+// 报告问题 1（拒绝路径把 completed/100 改成 error/0）是同一形状的镜像。
+func TestStart_WriterFailureClearsStaleProgress(t *testing.T) {
+	h, r, db, _ := newTaskTestServer(t)
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.POST("/tasks/:id/start", h.Start)
+
+	sid := createTestStrategy(t, db, "test-user", "s1", "tcp")
+	taskID := uuid.New().String()
+	sidsJSON, _ := json.Marshal([]string{sid})
+	prevCompleted := time.Now().Add(-time.Hour)
+	// 父路径是普通文件 → pcap writer 必然打不开。
+	blocker := t.TempDir() + "/blocker"
+	if err := os.WriteFile(blocker, []byte("x"), 0o644); err != nil {
+		t.Fatalf("seed blocker: %v", err)
+	}
+	if err := db.Create(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "t1", Status: "completed",
+		Progress: 100, StrategyIDs: string(sidsJSON), OutputType: "pcap",
+		OutputConfig: `{"pcap_path":"` + blocker + `/x.pcap"}`,
+		CompletedAt: &prevCompleted,
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	req := httptest.NewRequest("POST", "/tasks/"+taskID+"/start", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code == http.StatusOK {
+		t.Fatalf("expected start to fail on the unwritable pcap path: %s", w.Body.String())
+	}
+
+	tm := terminalStatusInDB(t, db, taskID)
+	if tm.Status != "error" {
+		t.Fatalf("status = %q, want error", tm.Status)
+	}
+	if tm.Progress != 0 {
+		t.Errorf("progress = %v on a task that never ran, want 0 — the stale 100 "+
+			"survives, so the record reads 'error at 100%%'", tm.Progress)
+	}
+}

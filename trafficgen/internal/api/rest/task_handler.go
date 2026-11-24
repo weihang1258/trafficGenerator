@@ -352,10 +352,14 @@ func isTerminalStatus(status string) bool {
 // row. Every caller holds a snapshot read earlier in the request; a full-row
 // Save from that snapshot silently rolls back anything another writer changed
 // in between (progress callbacks write stats continuously).
+//
+// progress 固定写 0：走这条路径的都是"任务没跑起来"，沿用上一轮的 100 会
+// 让记录读起来像"error at 100%"（与客户端报告问题 1 同形的矛盾态）。
 func (h *TaskHandler) markTaskError(task *storage.TaskModel) {
 	updates := map[string]interface{}{
 		"status":        "error",
 		"error_message": task.ErrorMessage,
+		"progress":      0,
 	}
 	if task.CompletedAt != nil {
 		updates["completed_at"] = *task.CompletedAt
