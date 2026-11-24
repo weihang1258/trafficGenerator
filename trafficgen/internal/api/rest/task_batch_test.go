@@ -616,17 +616,27 @@ func newBatchTestServer(t *testing.T) (*TaskHandler, *gin.Engine, *storage.DB, *
 // TestCreateBatch_DualPortFailureReleasesBothWriters 覆盖双端口任务的失败
 // 清理路径。
 //
-// 双端口走 RegisterDualWriter（写 engine.dualWriters），但三条失败分支
-// （DB 落库失败、MTU 失败、SubmitTask 失败）全都调 UnregisterOutputWriter
-// （只查 outputWriters）——找不到东西，静默什么都不做。于是失败的任务把
-// 两个已打开的 writer（pcap 文件句柄 / 网卡句柄）永久留在 engine 里：
-// 句柄泄漏，pcap 文件既不写完也不关闭。
+// 双端口走 RegisterDualWriter（写 engine.dualWriters），三条失败分支
+// （DB 落库失败、MTU 失败、SubmitTask 失败）必须调 UnregisterDualWriter。
+// 调 UnregisterOutputWriter 的话在 dualWriters 里找不到东西，静默什么都不做
+// ——失败任务把两个已打开的 writer（pcap 文件句柄 / 网卡句柄）永久留在引擎里。
+//
+// 关键：writer 是在两个都创建成功**之后**才注册的，所以必须让失败发生在
+// 注册之后。这里停掉引擎，让 SubmitTask 返回 "engine not running"——它排在
+// RegisterDualWriter 之后（此前用坏 bps 触发失败，那个在任何 writer 打开
+// 之前就被 ValidateBatchSpec 拒了，什么都没注册，断言恒真，等于没测）。
 func TestCreateBatch_DualPortFailureReleasesBothWriters(t *testing.T) {
 	_, r, _, e := newBatchTestServer(t)
 
-	// bps 非法 → engine.SubmitTask 在真正建任务前就返回错误，是干净的
-	// 失败路径，不需要网卡。
-	body := `{"name":"dual-fail","batch":{"classes":[{"id":"c1","type":"udp","bps":"not-a-rate",` +
+	// 让失败发生在 RegisterDualWriter **之后**。CreateBatch 的顺序是
+	// 开 writer -> RegisterDualWriter -> 落库 -> ensureTaskMTU -> SubmitTask；
+	// 停掉引擎后 SubmitTask 必定返回 "engine not running"，此时 writer 已经
+	// 注册进 dualWriters。此前用坏 bps 触发失败，那个在任何 writer 打开之前
+	// 就被 ValidateBatchSpec 拒了，什么都没注册，断言恒真（改回
+	// UnregisterOutputWriter 照样绿）。
+	e.Stop()
+
+	body := `{"name":"dual-fail","batch":{"classes":[{"id":"c1","type":"udp",` +
 		`"config":{"layers":[{"ip":{"src":"10.9.9.1","dst":"10.9.9.2"}},{"udp":{"dst_port":9000}}]}}]},` +
 		`"output_type":"pcap","output_config":{"pcap_path":"` + t.TempDir() + `/dual.pcap","interface2":"lo"}}`
 	req := httptest.NewRequest("POST", "/tasks/batch", strings.NewReader(body))
@@ -635,30 +645,14 @@ func TestCreateBatch_DualPortFailureReleasesBothWriters(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	if w.Code == http.StatusCreated {
-		t.Fatalf("invalid bps was accepted (status 201): %s", w.Body.String())
+		t.Fatalf("batch was accepted although the engine is stopped: %s", w.Body.String())
 	}
 
-	// 失败路径必须把双端口 writer 注销掉（注销 = 从表里删除 + Close 关闭）。
-	// 用一个错误 URL 之外的手段检查：任务 id 从响应里拿不到，直接遍历——
-	// 只要引擎里还留着任何 dual writer，就是泄漏。
-	var leaked []string
-	for _, id := range liveDualWriterIDs(e) {
-		leaked = append(leaked, id)
-	}
-	if len(leaked) != 0 {
+	if leaked := e.DualWriterIDs(); len(leaked) != 0 {
 		t.Fatalf("dual-port task creation failed but engine still holds dual writers for %v — "+
 			"the failure path calls UnregisterOutputWriter instead of UnregisterDualWriter, "+
 			"so the writers (and their file/NIC handles) are never closed", leaked)
 	}
-}
-
-// liveDualWriterIDs lists task IDs that still have a registered dual writer.
-func liveDualWriterIDs(e *core.Engine) []string {
-	var ids []string
-	for _, id := range e.DualWriterIDs() {
-		ids = append(ids, id)
-	}
-	return ids
 }
 
 // TestCreateBatch_FailureDoesNotDestroyExistingPcap 覆盖"先开资源后做会失败
@@ -686,6 +680,15 @@ func TestCreateBatch_FailureDoesNotDestroyExistingPcap(t *testing.T) {
 	if w.Code == http.StatusCreated {
 		t.Fatalf("invalid bps was accepted: %s", w.Body.String())
 	}
+	// 必须被**建单前的**校验拒（400 + bps 文案）。若坏 bps 漏到
+	// engine.SubmitTask 才拒，那时 writer 早已 os.Create 截断过目标文件，
+	// 后面的"文件没变"断言就会红——但只看状态码分不出这两条路径，
+	// 校验被悄悄挪回开 writer 之后时这里照样绿。
+	if !strings.Contains(w.Body.String(), "invalid bps") {
+		t.Fatalf("rejected with %d %s, want the pre-writer bps validation "+
+			"(a bps error surfacing from SubmitTask means the writer was opened first)",
+			w.Code, w.Body.String())
+	}
 
 	got, err := os.ReadFile(pcapPath)
 	if err != nil {
@@ -695,5 +698,59 @@ func TestCreateBatch_FailureDoesNotDestroyExistingPcap(t *testing.T) {
 		t.Fatalf("the existing pcap was modified by a task that never started: got %d bytes %q, "+
 			"want the previous %d bytes %q — the output writer opens with O_TRUNC before the "+
 			"checks that can still fail", len(got), string(got), len(previous), previous)
+	}
+}
+
+// TestCreateBatch_ReplayClassBadBPSDoesNotDestroyExistingPcap 覆盖 bps 前置
+// 校验在 replay 分支上的漏洞。
+//
+// ValidateBatchSpec 里 replay 类在 `continue` 处提前返回，排在 bps 校验之前，
+// 所以 replay class 的 bps 从没被提前验证；而 engine.SubmitTask 对**所有**
+// class 校验 bps。于是 "replay + 坏 bps" 走到开 writer 之后才失败——正是
+// 0b080415 声称修掉的"毁掉上一次 pcap"那个坑，在 replay 分支原样复现。
+func TestCreateBatch_ReplayClassBadBPSDoesNotDestroyExistingPcap(t *testing.T) {
+	_, r, db, _ := newBatchTestServer(t)
+
+	// replay 需要一个真实存在的 pcap 资产。
+	if err := db.Create(&storage.PcapAssetModel{
+		ID: "ast-replay", UserID: "test-user", Name: "r.pcap", Status: "ready",
+		LinkType: 1, FileHash: "hash-replay",
+	}).Error; err != nil {
+		t.Fatalf("seed asset: %v", err)
+	}
+
+	pcapPath := t.TempDir() + "/existing-replay.pcap"
+	const previous = "PREVIOUS-RUN-BYTES"
+	if err := os.WriteFile(pcapPath, []byte(previous), 0o644); err != nil {
+		t.Fatalf("seed pcap: %v", err)
+	}
+
+	body := `{"name":"replay-bps","batch":{"classes":[{"id":"r1","type":"replay","bps":"not-a-rate",` +
+		`"replay":{"pcap_asset_id":"ast-replay","speed":{"mode":"original"}}}]},` +
+		`"output_type":"pcap","output_config":{"pcap_path":"` + pcapPath + `"}}`
+	req := httptest.NewRequest("POST", "/tasks/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code == http.StatusCreated {
+		t.Fatalf("replay class with invalid bps was accepted: %s", w.Body.String())
+	}
+	// 同 TestCreateBatch_FailureDoesNotDestroyExistingPcap：必须是建单前的
+	// 校验拒的。replay 类曾在 ValidateBatchSpec 里 `continue` 跳过 bps 检查，
+	// 于是失败推迟到 SubmitTask——writer 已开、文件已毁。
+	if !strings.Contains(w.Body.String(), "invalid bps") {
+		t.Fatalf("rejected with %d %s, want the pre-writer bps validation",
+			w.Code, w.Body.String())
+	}
+
+	got, err := os.ReadFile(pcapPath)
+	if err != nil {
+		t.Fatalf("read pcap: %v", err)
+	}
+	if string(got) != previous {
+		t.Fatalf("existing pcap was modified by a replay task that never started: "+
+			"got %d bytes %q, want %q — the replay branch returns before the bps "+
+			"check, so the writer opens (os.Create truncates) before the failure",
+			len(got), string(got), previous)
 	}
 }

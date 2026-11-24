@@ -1110,9 +1110,9 @@ func TestMapToFlowSpec_MODBUS_FC2BMeiObjectsDeriveRequestValues(t *testing.T) {
 			"unit_id": float64(1),
 			"transactions": []interface{}{
 				map[string]interface{}{
-					"function_code":     float64(43),
-					"sub_function":      float64(14),
-					"conformity_level":  float64(1),
+					"function_code":    float64(43),
+					"sub_function":     float64(14),
+					"conformity_level": float64(1),
 					"mei_objects": []interface{}{
 						map[string]interface{}{"object_id": float64(0), "object_value": "TrafficGen"},
 						map[string]interface{}{"object_id": float64(1), "object_value": "v1"},
@@ -1209,11 +1209,11 @@ func TestMapToFlowSpec_MODBUS_FC2BStartingAddressIsObjectID(t *testing.T) {
 			"unit_id": float64(1),
 			"transactions": []interface{}{
 				map[string]interface{}{
-					"function_code":     float64(43),
-					"sub_function":      float64(14),
-					"starting_address":  float64(1),
-					"quantity":          float64(1),
-					"response_values":   []interface{}{float64(14), float64(1), float64(1), float64(0), float64(0), float64(1), float64(0), float64(4), float64(65), float64(66), float64(67), float64(68)},
+					"function_code":    float64(43),
+					"sub_function":     float64(14),
+					"starting_address": float64(1),
+					"quantity":         float64(1),
+					"response_values":  []interface{}{float64(14), float64(1), float64(1), float64(0), float64(0), float64(1), float64(0), float64(4), float64(65), float64(66), float64(67), float64(68)},
 				},
 			},
 		},
@@ -1292,7 +1292,6 @@ func TestMapToFlowSpec_MODBUS_FC2BConformityPrivateMasksToBase(t *testing.T) {
 		}
 	}
 }
-
 
 // TestMapToFlowSpec_L2OnlyProtocolsSkipIPDefaults verifies that L2-only
 // terminal protocols (goose/sv) do not receive the default src_ip/dst_ip/
@@ -1397,6 +1396,22 @@ func TestMapToFlowSpec_SVTopLevelCountFallsBack(t *testing.T) {
 // rate error surfacing at submit time destroyed the previous pcap for a task
 // that never started.
 func TestValidateBatchSpec_InvalidBPS(t *testing.T) {
+	// replay 类同样要校验：engine.SubmitTask 对所有 class 查 bps，而 replay
+	// 分支在 ValidateBatchSpec 里是 continue 提前返回的，校验必须排在它前面。
+	for _, bps := range []string{"not-a-rate", "100x", "-5"} {
+		rc := BatchSpec{Classes: []TrafficClass{{
+			ID: "r", Type: "replay", BPS: bps,
+			Replay: json.RawMessage(`{"pcap_asset_id":"a1","speed":{"mode":"original"}}`),
+		}}}
+		err := ValidateBatchSpec(rc)
+		if err == nil {
+			t.Errorf("replay class bps %q was accepted; it must fail validation "+
+				"before any output writer is opened", bps)
+		} else if !strings.Contains(err.Error(), "bps") {
+			t.Errorf("replay bps %q rejected for the wrong reason: %v", bps, err)
+		}
+	}
+
 	for _, bps := range []string{"not-a-rate", "100x", "-5"} {
 		batch := BatchSpec{Classes: []TrafficClass{{
 			ID: "a", Type: "udp", FlowCount: 1, BPS: bps,

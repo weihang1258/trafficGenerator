@@ -355,16 +355,22 @@ func isTerminalStatus(status string) bool {
 //
 // progress 固定写 0：走这条路径的都是"任务没跑起来"，沿用上一轮的 100 会
 // 让记录读起来像"error at 100%"（与客户端报告问题 1 同形的矛盾态）。
+//
+// completed_at 固定写当前时刻：error 是终态，任务在此时结束。不能沿用
+// task.CompletedAt——那是从 DB 读出来的旧值（往往是一小时前上一轮的完成
+// 时间），而该字段会通过 TaskResponse 直接回给客户端。
 func (h *TaskHandler) markTaskError(task *storage.TaskModel) {
+	now := currentTime()
 	updates := map[string]interface{}{
 		"status":        "error",
 		"error_message": task.ErrorMessage,
 		"progress":      0,
+		"completed_at":  now,
 	}
-	if task.CompletedAt != nil {
-		updates["completed_at"] = *task.CompletedAt
+	if err := h.db.Model(&storage.TaskModel{}).Where("id = ?", task.ID).Updates(updates).Error; err != nil {
+		log.Printf("markTaskError: failed to persist error state for task %s: %v", task.ID, err)
 	}
-	h.db.Model(&storage.TaskModel{}).Where("id = ?", task.ID).Updates(updates)
+	task.CompletedAt = &now
 }
 
 // applyTaskCompletion writes a task's terminal columns.
@@ -379,7 +385,12 @@ func (h *TaskHandler) applyTaskCompletion(taskID string, task *storage.TaskModel
 	if task.ErrorMessage != "" {
 		updates["error_message"] = task.ErrorMessage
 	}
-	h.db.Model(&storage.TaskModel{}).Where("id = ?", taskID).Updates(updates)
+	// 终态写库失败不得静默：行会停在 running/starting，只能等下一次 stale
+	// 对账修复。至少留下日志（Stop 在同类失败上是直接回 500 的）。
+	if err := h.db.Model(&storage.TaskModel{}).Where("id = ?", taskID).Updates(updates).Error; err != nil {
+		log.Printf("applyTaskCompletion: failed to persist terminal state %q for task %s: %v",
+			task.Status, taskID, err)
+	}
 }
 
 // onEngineOutputError is called when an output writer fails.

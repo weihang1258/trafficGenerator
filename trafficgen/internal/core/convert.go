@@ -142,6 +142,19 @@ func ValidateBatchSpec(batch BatchSpec) error {
 		if !IsAllowedProtocol(c.Type) {
 			return fmt.Errorf("class[%d] %s: invalid type %s", i, c.ID, c.Type)
 		}
+		// bps must parse here, not at SubmitTask time: CreateBatch has already
+		// opened the output writer (os.Create truncates an existing pcap) by
+		// the time the engine validates it, so a bad rate used to destroy the
+		// previous run's file for a task that never started.
+		//
+		// 这段必须排在下面的 replay 分支之前：engine.SubmitTask 对**所有**
+		// class（含 replay）校验 bps，而 replay 分支会 `continue` 提前返回。
+		// 放在后面的话 "replay + 坏 bps" 照样会先开 writer 再失败。
+		if c.BPS != "" {
+			if _, err := ParseBPS(c.BPS); err != nil {
+				return fmt.Errorf("class[%d] %s: invalid bps %q: %w", i, c.ID, c.BPS, err)
+			}
+		}
 		// Replay classes don't use FlowCount/FlowSpec -- they replay a pcap
 		// asset's packets via the replay planner. Validate the replay spec itself.
 		if c.Type == "replay" {
@@ -155,15 +168,6 @@ func ValidateBatchSpec(batch BatchSpec) error {
 		}
 		if c.FlowCount <= 0 {
 			return fmt.Errorf("class[%d] %s: flow_count must be > 0", i, c.ID)
-		}
-		// bps must parse here, not at SubmitTask time: CreateBatch has already
-		// opened the output writer (os.Create truncates an existing pcap) by
-		// the time the engine validates it, so a bad rate used to destroy the
-		// previous run's file for a task that never started.
-		if c.BPS != "" {
-			if _, err := ParseBPS(c.BPS); err != nil {
-				return fmt.Errorf("class[%d] %s: invalid bps %q: %w", i, c.ID, c.BPS, err)
-			}
 		}
 		// Validate raw DSCP/ECN/VLAN ranges BEFORE mapToFlowSpec truncates them
 		// to uint8/uint16. Without this, dscp=256 silently wraps to 0 (valid).

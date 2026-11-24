@@ -516,3 +516,54 @@ func TestStart_WriterFailureClearsStaleProgress(t *testing.T) {
 			"survives, so the record reads 'error at 100%%'", tm.Progress)
 	}
 }
+
+// TestStart_ErrorPathsClearStaleCompletedAt 覆盖 error 路径残留上一轮
+// completed_at。
+//
+// markTaskError 只在 task.CompletedAt != nil 时写该列，而 Start 的每条 error
+// 分支传进来的都是**从 DB 读出的**旧值——于是重跑一个已完成的 100% 任务、
+// 在中途失败，库里留下 status=error + progress=0 + completed_at=<一小时前>。
+// completed_at 会通过 TaskResponse 直接回给客户端，读起来像"这次跑完于
+// 一小时前"。
+func TestStart_ErrorPathsClearStaleCompletedAt(t *testing.T) {
+	h, r, db, _ := newTaskTestServer(t)
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.POST("/tasks/:id/start", h.Start)
+
+	taskID := uuid.New().String()
+	prevCompleted := time.Now().Add(-time.Hour)
+	// strategy_ids 不是合法 JSON → 命中 Start 的第一条 error 分支。
+	if err := db.Create(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "t1", Status: "completed",
+		Progress: 100, StrategyIDs: "not-json",
+		OutputType: "pcap", OutputConfig: `{}`,
+		CompletedAt: &prevCompleted,
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	req := httptest.NewRequest("POST", "/tasks/"+taskID+"/start", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code == http.StatusOK {
+		t.Fatalf("expected the start to fail on corrupt strategy_ids: %s", w.Body.String())
+	}
+
+	tm := terminalStatusInDB(t, db, taskID)
+	if tm.Status != "error" {
+		t.Fatalf("status = %q, want error", tm.Status)
+	}
+	if tm.Progress != 0 {
+		t.Errorf("progress = %v, want 0", tm.Progress)
+	}
+	// error 是终态，completed_at 应记录"这次失败发生的时刻"，既不能是 nil
+	// （记录读起来像还在跑），也不能是一小时前上一轮的值。
+	if tm.CompletedAt == nil {
+		t.Errorf("completed_at is nil on a failed start; an error is terminal and " +
+			"must carry the time it happened")
+	} else if tm.CompletedAt.Before(prevCompleted.Add(time.Minute)) {
+		t.Errorf("completed_at = %v, which is the PREVIOUS run's value (%v) — the "+
+			"stale completion time is still being served to clients",
+			tm.CompletedAt, prevCompleted)
+	}
+}
