@@ -622,3 +622,74 @@ func TestOnEngineProgress_LateProgressDoesNotOverwriteTerminal(t *testing.T) {
 		t.Errorf("packets_sent = %d, want 500 (the stopped task's own stats)", tm.PacketsSent)
 	}
 }
+
+// TestStopAndDelete_ReleaseProgressBookkeeping 覆盖 handler 侧两张 per-task
+// 记账表的生命周期泄漏。
+//
+// aggSlots 与 lastProgressUpdate 都以 taskID 为键，但只有完成回调会删
+// aggSlots（且只在行仍为 running 时走到），lastProgressUpdate 从来不删。
+// 被 Stop 的任务走不到完成回调的删除分支，被 Delete 的任务更是直接没了行
+// ——于是每个停止/删除过的任务都永久留下两条 map 条目，长期运行的 handler
+// 只增不减。
+func TestStopAndDelete_ReleaseProgressBookkeeping(t *testing.T) {
+	h, r, db, _ := newTaskTestServer(t)
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.POST("/tasks/:id/stop", h.Stop)
+	r.DELETE("/tasks/:id", h.Delete)
+
+	seed := func(id string) {
+		t.Helper()
+		if err := db.Create(&storage.TaskModel{
+			ID: id, UserID: "test-user", Name: "n", Status: "running",
+			StrategyIDs: `[]`, OutputType: "pcap", OutputConfig: `{}`,
+		}).Error; err != nil {
+			t.Fatalf("seed %s: %v", id, err)
+		}
+		// 模拟一次进度回调留下的记账。
+		h.aggMu.Lock()
+		h.aggSlots[id] = map[string]*engineAggSlot{id: {progress: 10}}
+		h.aggMu.Unlock()
+		h.progressMu.Lock()
+		h.lastProgressUpdate[id] = time.Now()
+		h.progressMu.Unlock()
+	}
+	check := func(id, op string) {
+		t.Helper()
+		h.aggMu.Lock()
+		_, slotsLeft := h.aggSlots[id]
+		h.aggMu.Unlock()
+		if slotsLeft {
+			t.Errorf("%s left aggSlots[%s] behind — the entry (and its per-engine-task "+
+				"slot map) is never released", op, id)
+		}
+		h.progressMu.Lock()
+		_, throttleLeft := h.lastProgressUpdate[id]
+		h.progressMu.Unlock()
+		if throttleLeft {
+			t.Errorf("%s left lastProgressUpdate[%s] behind", op, id)
+		}
+	}
+
+	const stopID = "44444444-4444-4444-4444-444444444444"
+	seed(stopID)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("POST", "/tasks/"+stopID+"/stop", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("stop: status=%d body=%s", w.Code, w.Body.String())
+	}
+	check(stopID, "Stop")
+
+	const delID = "55555555-5555-5555-5555-555555555555"
+	seed(delID)
+	// Delete 要求任务不在 running。
+	if err := db.Model(&storage.TaskModel{}).Where("id = ?", delID).
+		Update("status", "completed").Error; err != nil {
+		t.Fatalf("mark completed: %v", err)
+	}
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("DELETE", "/tasks/"+delID, nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("delete: status=%d body=%s", w.Code, w.Body.String())
+	}
+	check(delID, "Delete")
+}

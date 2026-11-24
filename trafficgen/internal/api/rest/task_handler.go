@@ -244,6 +244,20 @@ func (h *TaskHandler) aggregateParent(parentTaskID string) (avg float64, packets
 	return
 }
 
+// releaseProgressBookkeeping drops the per-task entries of the two maps
+// onEngineProgress keeps. Both are keyed by parent task ID. The completion
+// callback is the only place that used to delete them, and its delete branch
+// requires the row to still be running — so a stopped or deleted task left
+// both entries behind forever. Every terminal path calls this now.
+func (h *TaskHandler) releaseProgressBookkeeping(taskID string) {
+	h.aggMu.Lock()
+	delete(h.aggSlots, taskID)
+	h.aggMu.Unlock()
+	h.progressMu.Lock()
+	delete(h.lastProgressUpdate, taskID)
+	h.progressMu.Unlock()
+}
+
 // SetPcapHandler enables task pcap auto-registration: on every completed
 // pcap task the product is registered into the asset library (size-capped).
 // The REST server wires its own pair; MCP-created TaskHandlers (callbacks
@@ -590,9 +604,7 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 		h.engine.CleanupTaskFlowControl(taskID)
 		h.maybeAutoRegisterPcapAsync(&task)
 		// R7 缺陷 A：父任务终态后整组删除聚合槽位（防 handler 生命周期泄漏）。
-		h.aggMu.Lock()
-		delete(h.aggSlots, taskID)
-		h.aggMu.Unlock()
+		h.releaseProgressBookkeeping(taskID)
 		return
 	}
 
@@ -677,9 +689,7 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 		h.maybeAutoRegisterPcapAsync(&task)
 
 		// R7 缺陷 A：父任务终态后整组删除聚合槽位。
-		h.aggMu.Lock()
-		delete(h.aggSlots, taskID)
-		h.aggMu.Unlock()
+		h.releaseProgressBookkeeping(taskID)
 	}
 }
 
@@ -1947,6 +1957,9 @@ func (h *TaskHandler) Stop(c *gin.Context) {
 			log.Printf("error stopping batch engine task %s: %v", id, err)
 		}
 		h.engine.CleanupTaskFlowControl(id)
+		// 停止是终态：完成回调不会再来收尾（它的删除分支要求行仍为
+		// running），记账必须在这里释放。
+		h.releaseProgressBookkeeping(id)
 		SuccessWithMessage(c, "task stopped", map[string]interface{}{
 			"stopped_engine_tasks": []string{id},
 		})
@@ -1974,6 +1987,7 @@ func (h *TaskHandler) Stop(c *gin.Context) {
 
 	// Clean up task-level flow control state (parent bucket + flow counter).
 	h.engine.CleanupTaskFlowControl(id)
+	h.releaseProgressBookkeeping(id)
 
 	SuccessWithMessage(c, "task stopped", map[string]interface{}{
 		"stopped_engine_tasks": stopped,
@@ -2015,6 +2029,8 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 		InternalError(c, "failed to delete task: "+err.Error())
 		return
 	}
+	// 行已删：没有任何后续回调会来释放记账，必须在这里清掉。
+	h.releaseProgressBookkeeping(id)
 
 	SuccessWithMessage(c, "task deleted", map[string]interface{}{"id": id, "deleted": true})
 }
