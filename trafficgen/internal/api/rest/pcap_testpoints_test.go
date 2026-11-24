@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	sqlite "github.com/glebarez/sqlite"
 	"github.com/gin-gonic/gin"
+	sqlite "github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"gorm.io/gorm"
@@ -23,8 +23,12 @@ import (
 func newPcapTestServerExtended(t *testing.T) (*PcapHandler, *gin.Engine, *storage.DB) {
 	t.Helper()
 	gormDB, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "test.db")), &gorm.Config{})
-	if err != nil { t.Fatalf("open db: %v", err) }
-	if err := storage.AutoMigrate(gormDB); err != nil { t.Fatalf("migrate: %v", err) }
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := storage.AutoMigrate(gormDB); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
 	db := &storage.DB{DB: gormDB}
 	dataDir := filepath.Join(t.TempDir(), "pcaps")
 	h := NewPcapHandler(db, dataDir)
@@ -59,7 +63,9 @@ func importPcapForTest(t *testing.T, r *gin.Engine) (string, *storage.PcapAssetM
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 	part, err := writer.CreateFormFile("file", "upload.pcap")
-	if err != nil { t.Fatalf("create form file: %v", err) }
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
 	data, _ := os.ReadFile(pcapPath)
 	part.Write(data)
 	writer.Close()
@@ -110,9 +116,13 @@ func TestPcapImport_NoFile(t *testing.T) {
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "file is required") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "file is required") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-IMPORT-NEG3: Parse fail (non-pcap content)
@@ -128,7 +138,9 @@ func TestPcapImport_ParseFail(t *testing.T) {
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d, want 400, body=%s", w.Code, w.Body.String()) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d, want 400, body=%s", w.Code, w.Body.String())
+	}
 }
 
 // PCAP-LIST-POS: List pagination
@@ -140,13 +152,21 @@ func TestPcapList_Success(t *testing.T) {
 	req := httptest.NewRequest("GET", "/pcaps?page=1&size=10", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var d map[string]interface{}
 	json.Unmarshal(data, &d)
-	if d["total"].(float64) < 1 { t.Errorf("total=%v", d["total"]) }
-	if d["page"].(float64) != 1 { t.Errorf("page=%v", d["page"]) }
+	if d["total"].(float64) < 1 {
+		t.Errorf("total=%v", d["total"])
+	}
+	if d["page"].(float64) != 1 {
+		t.Errorf("page=%v", d["page"])
+	}
 }
 
 // PCAP-LIST-BR1: Pagination bounds
@@ -156,11 +176,15 @@ func TestPcapList_PaginationBounds(t *testing.T) {
 	req := httptest.NewRequest("GET", "/pcaps?page=0&size=0", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	req2 := httptest.NewRequest("GET", "/pcaps?page=0&size=201", nil)
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
-	if w2.Code != 200 { t.Fatalf("status=%d", w2.Code) }
+	if w2.Code != 200 {
+		t.Fatalf("status=%d", w2.Code)
+	}
 }
 
 // PCAP-LIST-BR2: Status filter
@@ -171,7 +195,9 @@ func TestPcapList_StatusFilter(t *testing.T) {
 	req := httptest.NewRequest("GET", "/pcaps?status=ready", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 // PCAP-GET-NEG1: Not found
@@ -181,9 +207,13 @@ func TestPcapGet_NotFound(t *testing.T) {
 	req := httptest.NewRequest("GET", "/pcaps/nonexistent", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "pcap asset") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "pcap asset") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-DEL-NEG1: Reindexing status
@@ -199,9 +229,13 @@ func TestPcapDelete_Reindexing(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/pcaps/ast-reindex", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "reindexing") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "reindexing") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-DEL-BR1: Cancel import (importing status delete)
@@ -216,9 +250,13 @@ func TestPcapDelete_CancelImport(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/pcaps/ast-importing", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "cancelled") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "cancelled") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-DEL-NEG2: Referenced no force
@@ -240,9 +278,13 @@ func TestPcapDelete_ReferencedNoForce(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/pcaps/ast-refed", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d, want 400", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d, want 400", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "referenced") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "referenced") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-DEL-NEG3: Repo error
@@ -260,7 +302,9 @@ func TestPcapDelete_RepoError(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/pcaps/ast-delerr", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 // PCAP-FLOWS-NEG1: requireReady importing
@@ -275,9 +319,13 @@ func TestPcapListFlows_NotReadyImporting(t *testing.T) {
 	req := httptest.NewRequest("GET", "/pcaps/ast-imp/flows", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "not ready") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "not ready") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-GETFLOW-POS: GetFlow success
@@ -296,15 +344,38 @@ func TestPcapGetFlow_Success(t *testing.T) {
 		} `json:"data"`
 	}
 	json.Unmarshal(w.Body.Bytes(), &flowsResp)
-	if len(flowsResp.Data.Items) == 0 { t.Fatal("no flows") }
+	if len(flowsResp.Data.Items) == 0 {
+		t.Fatal("no flows")
+	}
 	fid := flowsResp.Data.Items[0].ID
 
 	req = httptest.NewRequest("GET", fmt.Sprintf("/pcaps/%s/flows/%s", id, fid), nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
-	code, _, _ := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
+	code, _, data := parseResponse(t, w.Body.Bytes())
+	if code != 0 {
+		t.Fatalf("code=%d", code)
+	}
+	// 断言内容而不只是"没报错"：fixture 的流是 10.0.0.1:1234 -> 10.0.0.2:80/tcp。
+	var got storage.FlowModel
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal flow: %v (data=%.200s)", err, string(data))
+	}
+	if got.ID != fid {
+		t.Errorf("id = %q, want %q", got.ID, fid)
+	}
+	if got.SrcIP != "10.0.0.1" || got.DstIP != "10.0.0.2" {
+		t.Errorf("flow = %s -> %s, want 10.0.0.1 -> 10.0.0.2", got.SrcIP, got.DstIP)
+	}
+	if got.SrcPort != 1234 || got.DstPort != 80 {
+		t.Errorf("ports = %d -> %d, want 1234 -> 80", got.SrcPort, got.DstPort)
+	}
+	if got.L4Protocol != "tcp" {
+		t.Errorf("protocol = %q, want tcp", got.L4Protocol)
+	}
 }
 
 // PCAP-GETFLOW-NEG1: Not found
@@ -315,9 +386,13 @@ func TestPcapGetFlow_NotFound(t *testing.T) {
 	req := httptest.NewRequest("GET", fmt.Sprintf("/pcaps/%s/flows/nonexistent", id), nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "flow") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "flow") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-PKTS-ASSET-POS: ListPacketsByAsset
@@ -328,12 +403,18 @@ func TestPcapListPacketsByAsset_Success(t *testing.T) {
 	req := httptest.NewRequest("GET", fmt.Sprintf("/pcaps/%s/packets", id), nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var d map[string]interface{}
 	json.Unmarshal(data, &d)
-	if d["total"].(float64) < 1 { t.Errorf("total=%v", d["total"]) }
+	if d["total"].(float64) < 1 {
+		t.Errorf("total=%v", d["total"])
+	}
 }
 
 // PCAP-GETPKT-POS: GetPacket (re-parse)
@@ -351,15 +432,71 @@ func TestPcapGetPacket_Success(t *testing.T) {
 		} `json:"data"`
 	}
 	json.Unmarshal(w.Body.Bytes(), &pktsResp)
-	if len(pktsResp.Data.Items) == 0 { t.Fatal("no packets") }
+	if len(pktsResp.Data.Items) == 0 {
+		t.Fatal("no packets")
+	}
 	pid := pktsResp.Data.Items[0].ID
 
 	req = httptest.NewRequest("GET", fmt.Sprintf("/pcaps/%s/packets/%s", id, pid), nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
-	code, _, _ := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
+	code, _, data := parseResponse(t, w.Body.Bytes())
+	if code != 0 {
+		t.Fatalf("code=%d", code)
+	}
+	// 断言重解析结果，而不只是"没报错"。响应形如 {packet:{...}, layers:[...]}，
+	// layers 是现场重解析出来的协议层栈——fixture 是以太网/IPv4/TCP。
+	var body struct {
+		Packet storage.PacketModel      `json:"packet"`
+		Layers []map[string]interface{} `json:"layers"`
+	}
+	if err := json.Unmarshal(data, &body); err != nil {
+		t.Fatalf("unmarshal packet: %v (data=%.200s)", err, string(data))
+	}
+	if body.Packet.ID != pid {
+		t.Errorf("packet.id = %q, want %q", body.Packet.ID, pid)
+	}
+	if body.Packet.L4Protocol != "tcp" {
+		t.Errorf("packet.l4_protocol = %q, want tcp", body.Packet.L4Protocol)
+	}
+	if body.Packet.Length <= 0 {
+		t.Errorf("packet.length = %d, want > 0", body.Packet.Length)
+	}
+	// 重解析必须真的产出层栈（空 layers 说明解析根本没跑）。
+	if len(body.Layers) == 0 {
+		t.Fatalf("layers is empty — the packet was returned without a re-parse")
+	}
+	// 层栈里必须同时出现以太网和 TCP 两层，且 TCP 的字段值要真的解出来
+	// （fixture: 1234 -> 80, SYN, 5 字节载荷）。
+	var sawEth, sawTCP bool
+	for _, l := range body.Layers {
+		name, _ := l["layer"].(string)
+		switch name {
+		case "eth":
+			sawEth = true
+		case "tcp":
+			sawTCP = true
+			fields, _ := l["fields"].(map[string]interface{})
+			if got := fields["src_port"]; got != float64(1234) {
+				t.Errorf("tcp.src_port = %v, want 1234", got)
+			}
+			if got := fields["dst_port"]; got != float64(80) {
+				t.Errorf("tcp.dst_port = %v, want 80", got)
+			}
+			if got := fields["tcp_flags"]; got != "SYN" {
+				t.Errorf("tcp.tcp_flags = %v, want SYN", got)
+			}
+			if got := fields["payload_len"]; got != float64(5) {
+				t.Errorf("tcp.payload_len = %v, want 5", got)
+			}
+		}
+	}
+	if !sawEth || !sawTCP {
+		t.Errorf("re-parsed layers = %v, want both an eth and a tcp layer", body.Layers)
+	}
 }
 
 // PCAP-GETPKT-NEG1: Not found
@@ -370,9 +507,13 @@ func TestPcapGetPacket_NotFound(t *testing.T) {
 	req := httptest.NewRequest("GET", fmt.Sprintf("/pcaps/%s/packets/nonexistent", id), nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "packet") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "packet") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-SEARCH-POS: Search with flow_filter
@@ -386,9 +527,13 @@ func TestPcapSearch_FlowFilter(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d, body=%s", w.Code, w.Body.String()) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d, body=%s", w.Code, w.Body.String())
+	}
 	code, _, _ := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 }
 
 // PCAP-SEARCH-NEG1: Bad JSON
@@ -400,9 +545,13 @@ func TestPcapSearch_BadJSON(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "invalid query") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "invalid query") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-MATCH-POS: MatchPreview
@@ -416,9 +565,13 @@ func TestPcapMatchPreview_Hits(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, _ := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 }
 
 // PCAP-MATCH-NEG1: Bad JSON
@@ -430,9 +583,13 @@ func TestPcapMatchPreview_BadJSON(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "invalid matcher") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "invalid matcher") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-EXTRACT-POS: Extract
@@ -451,7 +608,9 @@ func TestPcapExtract_Success(t *testing.T) {
 		} `json:"data"`
 	}
 	json.Unmarshal(w.Body.Bytes(), &pktsResp)
-	if len(pktsResp.Data.Items) == 0 { t.Fatal("no packets") }
+	if len(pktsResp.Data.Items) == 0 {
+		t.Fatal("no packets")
+	}
 	pid := pktsResp.Data.Items[0].ID
 
 	body := fmt.Sprintf(`{"packet_ids":["%s"],"fields":["src_ip","dst_ip"]}`, pid)
@@ -459,9 +618,13 @@ func TestPcapExtract_Success(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, _ := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 }
 
 // PCAP-EXTRACT-NEG1: Bad JSON
@@ -473,9 +636,13 @@ func TestPcapExtract_BadJSON(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "invalid extract request") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "invalid extract request") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-EXTRACT-NEG2: Empty packet_ids
@@ -487,9 +654,13 @@ func TestPcapExtract_EmptyIDs(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "packet_ids required") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "packet_ids required") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-EXTRACT-NEG3: Too many IDs
@@ -498,16 +669,22 @@ func TestPcapExtract_TooManyIDs(t *testing.T) {
 	_, r, _ := newPcapTestServerExtended(t)
 	id, _ := importPcapForTest(t, r)
 	ids := make([]string, 501)
-	for i := range ids { ids[i] = fmt.Sprintf("p%d", i) }
+	for i := range ids {
+		ids[i] = fmt.Sprintf("p%d", i)
+	}
 	idsJSON, _ := json.Marshal(ids)
 	body := fmt.Sprintf(`{"packet_ids":%s}`, string(idsJSON))
 	req := httptest.NewRequest("POST", fmt.Sprintf("/pcaps/%s/extract", id), strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "too many") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "too many") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-DL-POS: Download
@@ -518,7 +695,9 @@ func TestPcapDownload_Success(t *testing.T) {
 	req := httptest.NewRequest("GET", fmt.Sprintf("/pcaps/%s/download", id), nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	// No error means the file was served
 }
 
@@ -534,9 +713,13 @@ func TestPcapDownload_NotReady(t *testing.T) {
 	req := httptest.NewRequest("GET", "/pcaps/ast-notready/download", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "not ready") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "not ready") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-REPARSE-POS: Reparse success
@@ -547,10 +730,16 @@ func TestPcapReparse_Success(t *testing.T) {
 	req := httptest.NewRequest("POST", fmt.Sprintf("/pcaps/%s/reparse", id), nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d, body=%s", w.Code, w.Body.String()) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d, body=%s", w.Code, w.Body.String())
+	}
 	code, msg, _ := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
-	if !strings.Contains(msg, "reparse complete") { t.Errorf("msg=%q", msg) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
+	if !strings.Contains(msg, "reparse complete") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-REPARSE-NEG1: Already reindexing
@@ -565,9 +754,13 @@ func TestPcapReparse_AlreadyReindexing(t *testing.T) {
 	req := httptest.NewRequest("POST", "/pcaps/ast-reindexing/reparse", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "already reindexing") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "already reindexing") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-REPARSE-BR3: No ready gate (error status allowed)
@@ -586,7 +779,9 @@ func TestPcapReparse_NoReadyGate(t *testing.T) {
 	r.ServeHTTP(w, req)
 	// Should NOT return 400 (requireReady-style). It will 500 because the file
 	// doesn't exist, but that's acceptable — the important thing is the gate.
-	if w.Code == 400 { t.Fatalf("reparse should not be gated by requireReady, got 400") }
+	if w.Code == 400 {
+		t.Fatalf("reparse should not be gated by requireReady, got 400")
+	}
 	// May be 500 (file not found)
 }
 
@@ -605,13 +800,17 @@ func TestPcapGetStream_C2S(t *testing.T) {
 		} `json:"data"`
 	}
 	json.Unmarshal(w.Body.Bytes(), &flowsResp)
-	if len(flowsResp.Data.Items) == 0 { t.Fatal("no flows") }
+	if len(flowsResp.Data.Items) == 0 {
+		t.Fatal("no flows")
+	}
 	fid := flowsResp.Data.Items[0].ID
 
 	req = httptest.NewRequest("GET", fmt.Sprintf("/pcaps/%s/flows/%s/stream", id, fid), nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 // PCAP-STREAM-NEG1: Bad dir
@@ -640,13 +839,17 @@ func TestPcapGetBody_C2S(t *testing.T) {
 		} `json:"data"`
 	}
 	json.Unmarshal(w.Body.Bytes(), &flowsResp)
-	if len(flowsResp.Data.Items) == 0 { t.Fatal("no flows") }
+	if len(flowsResp.Data.Items) == 0 {
+		t.Fatal("no flows")
+	}
 	fid := flowsResp.Data.Items[0].ID
 
 	req = httptest.NewRequest("GET", fmt.Sprintf("/pcaps/%s/flows/%s/body", id, fid), nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 // PCAP-PKTPAYLOAD-POS: GetPacketPayload
@@ -663,13 +866,17 @@ func TestPcapPacketPayload_Success(t *testing.T) {
 		} `json:"data"`
 	}
 	json.Unmarshal(w.Body.Bytes(), &pktsResp)
-	if len(pktsResp.Data.Items) == 0 { t.Fatal("no packets") }
+	if len(pktsResp.Data.Items) == 0 {
+		t.Fatal("no packets")
+	}
 	pid := pktsResp.Data.Items[0].ID
 
 	req = httptest.NewRequest("GET", fmt.Sprintf("/pcaps/%s/packets/%s/payload", id, pid), nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 // PCAP-PKTPAYLOAD-NEG1: Not found
@@ -680,9 +887,13 @@ func TestPcapPacketPayload_NotFound(t *testing.T) {
 	req := httptest.NewRequest("GET", fmt.Sprintf("/pcaps/%s/packets/nonexistent/payload", id), nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "packet") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "packet") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // requireReady check on all pcap query endpoints — already tested by
@@ -700,9 +911,13 @@ func TestPcapGetFlow_NotReady(t *testing.T) {
 	req := httptest.NewRequest("GET", "/pcaps/ast-nr/flows/x", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "not ready") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "not ready") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestPcapListPacketsByAsset_NotReady(t *testing.T) {
@@ -716,7 +931,9 @@ func TestPcapListPacketsByAsset_NotReady(t *testing.T) {
 	req := httptest.NewRequest("GET", "/pcaps/ast-nr2/packets", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestPcapMatchPreview_NotReady(t *testing.T) {
@@ -731,7 +948,9 @@ func TestPcapMatchPreview_NotReady(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestPcapExtract_NotReady(t *testing.T) {
@@ -746,7 +965,9 @@ func TestPcapExtract_NotReady(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestPcapGetPacket_NotReady(t *testing.T) {
@@ -760,7 +981,9 @@ func TestPcapGetPacket_NotReady(t *testing.T) {
 	req := httptest.NewRequest("GET", "/pcaps/ast-nr5/packets/x", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestPcapPacketPayload_NotReady(t *testing.T) {
@@ -774,7 +997,9 @@ func TestPcapPacketPayload_NotReady(t *testing.T) {
 	req := httptest.NewRequest("GET", "/pcaps/ast-nr6/packets/x/payload", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestPcapDownload_NotReadyByStatus(t *testing.T) {
@@ -788,7 +1013,9 @@ func TestPcapDownload_NotReadyByStatus(t *testing.T) {
 	req := httptest.NewRequest("GET", "/pcaps/ast-nr7/download", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 // PCAP-IMPORT-BR1: Dedup — already covered by existing TestPcapHandler_Dedup
@@ -826,7 +1053,9 @@ func TestPcapImport_MkdirFail(t *testing.T) {
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d, want 500 (mkdir fail)", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d, want 500 (mkdir fail)", w.Code)
+	}
 }
 
 // PCAP-LIST-NEG1: Repo error
@@ -838,9 +1067,13 @@ func TestPcapList_RepoError(t *testing.T) {
 	req := httptest.NewRequest("GET", "/pcaps", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "list assets") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "list assets") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-FLOWS-BR1: Pagination bounds
@@ -851,7 +1084,9 @@ func TestPcapListFlows_Pagination(t *testing.T) {
 	req := httptest.NewRequest("GET", fmt.Sprintf("/pcaps/%s/flows?page=0&size=0", id), nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 // PCAP-STREAM-NEG1: Bad dir (direct test on a non-existent flow to test the dir check)
@@ -869,15 +1104,21 @@ func TestPcapGetStream_BadDirDirect(t *testing.T) {
 		} `json:"data"`
 	}
 	json.Unmarshal(w.Body.Bytes(), &flowsResp)
-	if len(flowsResp.Data.Items) == 0 { t.Fatal("no flows") }
+	if len(flowsResp.Data.Items) == 0 {
+		t.Fatal("no flows")
+	}
 	fid := flowsResp.Data.Items[0].ID
 
 	req = httptest.NewRequest("GET", fmt.Sprintf("/pcaps/%s/flows/%s/stream?dir=both", id, fid), nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d, want 400 for bad dir", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d, want 400 for bad dir", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "dir must be c2s or s2c") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "dir must be c2s or s2c") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-BODY-NEG1: Bad dir
@@ -894,15 +1135,21 @@ func TestPcapGetBody_BadDir(t *testing.T) {
 		} `json:"data"`
 	}
 	json.Unmarshal(w.Body.Bytes(), &flowsResp)
-	if len(flowsResp.Data.Items) == 0 { t.Fatal("no flows") }
+	if len(flowsResp.Data.Items) == 0 {
+		t.Fatal("no flows")
+	}
 	fid := flowsResp.Data.Items[0].ID
 
 	req = httptest.NewRequest("GET", fmt.Sprintf("/pcaps/%s/flows/%s/body?dir=x", id, fid), nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d, want 400", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d, want 400", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "dir must be c2s or s2c") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "dir must be c2s or s2c") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // PCAP-IMPORT-NEG10: MkdirAll fail (already tested above)
@@ -956,7 +1203,9 @@ func TestPcapExtract_TCPFlagsAndPayloadLen(t *testing.T) {
 		} `json:"data"`
 	}
 	json.Unmarshal(w.Body.Bytes(), &pktsResp)
-	if len(pktsResp.Data.Items) == 0 { t.Fatal("no packets") }
+	if len(pktsResp.Data.Items) == 0 {
+		t.Fatal("no packets")
+	}
 	pid := pktsResp.Data.Items[0].ID
 
 	body := fmt.Sprintf(`{"packet_ids":["%s"],"fields":["tcp_flags","payload_len","flags","no_such_field"]}`, pid)
@@ -964,22 +1213,34 @@ func TestPcapExtract_TCPFlagsAndPayloadLen(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, _, data := parseResponse(t, w.Body.Bytes())
 	var out struct {
-		Items         []struct {
+		Items []struct {
 			PacketID string         `json:"packet_id"`
 			Fields   map[string]any `json:"fields"`
 		} `json:"items"`
 		UnknownFields []string `json:"unknown_fields"`
 	}
-	if err := json.Unmarshal(data, &out); err != nil { t.Fatalf("unmarshal: %v", err) }
-	if len(out.Items) != 1 { t.Fatalf("items=%d", len(out.Items)) }
+	if err := json.Unmarshal(data, &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(out.Items) != 1 {
+		t.Fatalf("items=%d", len(out.Items))
+	}
 	f := out.Items[0].Fields
-	if f["tcp_flags"] != "SYN" { t.Errorf("tcp_flags=%v, want SYN", f["tcp_flags"]) }
-	if f["flags"] != "SYN" { t.Errorf("flags=%v, want SYN", f["flags"]) }
+	if f["tcp_flags"] != "SYN" {
+		t.Errorf("tcp_flags=%v, want SYN", f["tcp_flags"])
+	}
+	if f["flags"] != "SYN" {
+		t.Errorf("flags=%v, want SYN", f["flags"])
+	}
 	// fixture payload = "hello" (5 bytes after TCP header)
-	if f["payload_len"] != float64(5) { t.Errorf("payload_len=%v, want 5", f["payload_len"]) }
+	if f["payload_len"] != float64(5) {
+		t.Errorf("payload_len=%v, want 5", f["payload_len"])
+	}
 	if len(out.UnknownFields) != 1 || out.UnknownFields[0] != "no_such_field" {
 		t.Errorf("unknown_fields=%v, want [no_such_field]", out.UnknownFields)
 	}
