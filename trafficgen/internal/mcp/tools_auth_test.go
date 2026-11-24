@@ -200,3 +200,33 @@ func TestMCP_ManageAuth_InvalidAction(t *testing.T) {
 		t.Fatal("expected error for invalid action, got nil")
 	}
 }
+
+// TestMCP_ManageProfile_DeleteIgnoresOrRejectsPassword 覆盖 delete 分支：
+// 描述曾宣称 password 是"删除确认"，但后端 DeleteProfile 从来不读它——传了
+// 也删、不传也删，调用方以为有安全兜底。现在带密码的 delete 被明确拒绝，
+// 不带密码的 delete 真的删号。
+func TestMCP_ManageProfile_DeleteIgnoresOrRejectsPassword(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	if _, _, err := env.srv.handleManageProfile(context.Background(), nil, manageProfileInput{
+		Action:   "delete",
+		Password: "whatever",
+	}); err == nil {
+		t.Fatalf("delete with a password was accepted; it must be rejected — " +
+			"the password is not a confirmation, the account is removed immediately")
+	}
+
+	// 账号仍在（上一步是拒绝，不是删除）。
+	if _, _, err := env.srv.handleManageProfile(context.Background(), nil, manageProfileInput{Action: "get"}); err != nil {
+		t.Fatalf("account gone after a rejected delete: %v", err)
+	}
+
+	// 不带密码才真的删。
+	if _, _, err := env.srv.handleManageProfile(context.Background(), nil, manageProfileInput{Action: "delete"}); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, _, err := env.srv.handleManageProfile(context.Background(), nil, manageProfileInput{Action: "get"}); err == nil {
+		t.Fatalf("account still readable after a successful delete")
+	}
+}
