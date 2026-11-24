@@ -22,7 +22,7 @@ type manageProfileInput struct {
 	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
 	Action      string `json:"action" jsonschema:"operation: get|update|delete (delete removes the CURRENT account immediately — there is no password confirmation; admin accounts cannot be updated or deleted through this tool, both return 403)"`
 	Email       string `json:"email,omitempty" jsonschema:"new email (update only). Must be a valid email address; a duplicate email returns 400."`
-	Password    string `json:"password,omitempty" jsonschema:"update only: the NEW password, 8-128 characters. Ignored by delete (delete needs no confirmation)."`
+	Password    string `json:"password,omitempty" jsonschema:"update only: the NEW password, 8-128 characters. delete REJECTS this field (InvalidParams) — delete takes no confirmation, so omit it and call again to confirm."`
 	NewPassword string `json:"new_password,omitempty" jsonschema:"update only: same as password, 8-128 characters; alternative spelling. If both are given, new_password wins."`
 }
 

@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/trafficgen/trafficgen/internal/storage"
+	"github.com/trafficgen/trafficgen/pkg/auth"
 )
 
 // ---------------------------------------------------------------------------
@@ -281,6 +283,10 @@ func TestMCP_AllRegisteredToolsAppear(t *testing.T) {
 		advertised[tl.Name] = true
 	}
 
+	// 必须列全：只断言 10 个名字的话，其余工具漏注册不会有任何用例红
+	// （rev3-mcp 复审实测：删掉 replay/filesystem/wait_for_task 等 8 个的注册，
+	// 本测试照样绿）。反向的 InputSchema 检查只保证"已注册的有 schema"，
+	// 不保证"该注册的都注册了"。
 	expectedTools := []string{
 		"flowb_manage_strategies",
 		"flowb_manage_tasks",
@@ -292,10 +298,31 @@ func TestMCP_AllRegisteredToolsAppear(t *testing.T) {
 		"flowb_query_layers",
 		"flowb_manage_users",
 		"flowb_manage_auth",
+		"flowb_replay_pcap",
+		"flowb_manage_filesystem",
+		"flowb_wait_for_task",
+		"flowb_query_system",
+		"flowb_get_task_progress",
+		"flowb_stop_all_tasks",
+		"flowb_run_protocol_case",
+		"flowb_run_protocol_suite",
 	}
 	for _, name := range expectedTools {
 		if !advertised[name] {
 			t.Errorf("tool %q is not advertised by the server (got %d tools)", name, len(resp.Tools))
+		}
+	}
+	// 反向也对齐：出现预期之外的工具，多半是注册表加了新工具而这张表没跟上。
+	for _, tl := range resp.Tools {
+		found := false
+		for _, name := range expectedTools {
+			if tl.Name == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("tool %q is advertised but not in expectedTools — keep the two in sync", tl.Name)
 		}
 	}
 	// 反向断言：每个对外工具都必须带输入 schema，否则模型无从填参。
@@ -303,5 +330,38 @@ func TestMCP_AllRegisteredToolsAppear(t *testing.T) {
 		if tl.InputSchema == nil {
 			t.Errorf("tool %q has no input schema", tl.Name)
 		}
+	}
+}
+
+// TestMCP_ManageProfile_NewPasswordWinsOverPassword 钉住字段描述里明写的
+// "If both are given, new_password wins"。
+//
+// 此前这条优先级零测试覆盖：删掉 `if in.NewPassword != "" { pwd = in.NewPassword }`
+// 后全量 mcp 测试照样绿（rev3-mcp 实测）——正是"文档说了但没人断言"的形状。
+func TestMCP_ManageProfile_NewPasswordWinsOverPassword(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	_, _, err := env.srv.handleManageProfile(context.Background(), nil, manageProfileInput{
+		Action:      "update",
+		Password:    "password-field-123",
+		NewPassword: "new-password-field-456",
+	})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	var user storage.UserModel
+	if err := env.db.First(&user, "id = ?", "svc-user-1").Error; err != nil {
+		t.Fatalf("read user: %v", err)
+	}
+	// 生效的必须是 new_password。
+	if !auth.CheckPassword("new-password-field-456", user.PasswordHash) {
+		t.Errorf("new_password did not take effect — the stored hash does not match it")
+	}
+	// 而 password 不能生效：两者都给时 new_password 优先。
+	if auth.CheckPassword("password-field-123", user.PasswordHash) {
+		t.Errorf("password took effect although new_password was also given; the " +
+			"documented precedence is new_password wins")
 	}
 }

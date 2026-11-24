@@ -1883,3 +1883,68 @@ func TestMCP_QueryLayers_InvalidChainCreateRejected(t *testing.T) {
 		t.Fatal("create with two terminal layers (http+dns) succeeded; layer-chain validation must reject it")
 	}
 }
+
+// TestMCP_ManageTasks_History_TimeFilterCombinations 把"只给 start / 只给 end /
+// 两者都给 / 都不给"四种组合固化下来。
+//
+// 本轮修的正是这块（此前无条件发 end_time=0 → created_at<=1970 → 永远空），
+// 但回归保护原先只剩"都不给"一条。每种组合都必须同时有正例和负例：只断言
+// "查得到"的话，过滤完全失效的写法也会绿。
+func TestMCP_ManageTasks_History_TimeFilterCombinations(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	if err := env.db.Create(&storage.TaskModel{
+		ID: "hist-window", UserID: "svc-user-1", Name: "window",
+		Status: "completed", Progress: 100, OutputType: "pcap",
+	}).Error; err != nil {
+		t.Fatalf("seed task: %v", err)
+	}
+	var tm storage.TaskModel
+	if err := env.db.First(&tm, "id = ?", "hist-window").Error; err != nil {
+		t.Fatalf("read seed: %v", err)
+	}
+	created := tm.CreatedAt.Unix()
+	past, future := created-3600, created+3600
+
+	cases := []struct {
+		name       string
+		start, end int64 // 0 = 不给
+		want       bool
+	}{
+		{"neither given", 0, 0, true},
+		{"only start in the past", past, 0, true},
+		{"only start in the future", future, 0, false},
+		{"only end in the future", 0, future, true},
+		{"only end in the past", 0, past, false},
+		{"both enclosing the task", past, future, true},
+		{"both excluding the task", future, future + 100, false},
+	}
+	for _, tc := range cases {
+		_, out, err := env.srv.handleManageTasks(context.Background(), nil, manageTasksInput{
+			Action: "history", StartTime: tc.start, EndTime: tc.end,
+		})
+		if err != nil {
+			t.Errorf("%s: history: %v", tc.name, err)
+			continue
+		}
+		var hd struct {
+			Items []map[string]interface{} `json:"items"`
+		}
+		if err := json.Unmarshal(asRaw(out.Data), &hd); err != nil {
+			t.Errorf("%s: unparseable: %s", tc.name, string(asRaw(out.Data)))
+			continue
+		}
+		found := false
+		for _, item := range hd.Items {
+			if item["id"] == "hist-window" {
+				found = true
+				break
+			}
+		}
+		if found != tc.want {
+			t.Errorf("%s: task found=%v, want %v (start=%d end=%d created=%d)",
+				tc.name, found, tc.want, tc.start, tc.end, created)
+		}
+	}
+}
