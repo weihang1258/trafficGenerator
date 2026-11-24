@@ -171,6 +171,12 @@ func submitBatchTask(t *testing.T, r *gin.Engine, name string) string {
 // Before the fix, Start tried to json.Unmarshal the empty StrategyIDs field
 // and returned a 500 with "corrupt strategy_ids in task record" — confusing
 // to users since the batch task IS valid, just auto-started.
+//
+// 同时锁定：拒绝必须是无副作用的。此前 Start 先无条件把 DB 写成
+// "starting" 并把 Progress 清零、ErrorMessage 清空，之后才判断 batch，
+// 于是这条已成功的任务被改成 error/progress=0——流量确实发出去了，记录
+// 却判失败（客户端 2026-11-23 报告问题 1）。本用例断言状态与进度原封
+// 不动（原断言 want 'error' 正是把该副作用当成了规格）。
 func TestStart_BatchTask_ReturnsClearError(t *testing.T) {
 	_, e, db, r := setupBatchTestEnv(t)
 	defer e.Stop()
@@ -187,6 +193,10 @@ func TestStart_BatchTask_ReturnsClearError(t *testing.T) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
+	if tm.Status != "completed" {
+		t.Fatalf("precondition: batch task status = %q, want 'completed'", tm.Status)
+	}
+	statusBefore, progressBefore := tm.Status, tm.Progress
 
 	// Now call Start on it.
 	req := httptest.NewRequest("POST", "/tasks/"+taskID+"/start", strings.NewReader(""))
@@ -205,10 +215,17 @@ func TestStart_BatchTask_ReturnsClearError(t *testing.T) {
 		t.Errorf("body = %q; must NOT mention 'corrupt strategy_ids' (misleading)", body)
 	}
 
-	// The task record should be marked as error, not left in a weird state.
+	// 拒绝必须只读：状态/进度/错误信息都不能被这次误调改写。
 	db.First(&tm, "id = ?", taskID)
-	if tm.Status != "error" {
-		t.Errorf("task status = %q, want 'error'", tm.Status)
+	if tm.Status != statusBefore {
+		t.Errorf("task status = %q after rejected start, want unchanged %q "+
+			"(a rejected start must not rewrite a finished task)", tm.Status, statusBefore)
+	}
+	if tm.Progress != progressBefore {
+		t.Errorf("task progress = %v after rejected start, want unchanged %v", tm.Progress, progressBefore)
+	}
+	if tm.ErrorMessage != "" {
+		t.Errorf("task error_message = %q after rejected start, want empty", tm.ErrorMessage)
 	}
 }
 

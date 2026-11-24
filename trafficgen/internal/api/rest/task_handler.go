@@ -1330,6 +1330,22 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		h.maybeAutoRegisterPcapAsync(&task)
 	}
 
+	// Batch tasks are auto-started on creation and use BatchConfig instead of
+	// StrategyIDs. Re-starting them is not supported — the engine task ID format
+	// differs (plain taskID vs {taskID}-{strategyID}) and the batch spec is not
+	// re-runnable. Return a clear error instead of failing later with the
+	// misleading "corrupt strategy_ids" message.
+	//
+	// 位置在状态改写之前、且不写库：拒绝路径必须只读。此前这段在
+	// Update("status","starting") / Progress=0 / ErrorMessage="" 之后，于是
+	// 对一条**已经跑完**的 batch 任务调 start，会把 completed+progress=100
+	// 改成 error+progress=0——流量明明发出去了，记录却判失败（客户端
+	// 2026-11-23 报告问题 1）。
+	if task.StrategyIDs == "" && task.BatchConfig != "" {
+		BadRequest(c, "batch tasks are auto-started on creation and cannot be restarted")
+		return
+	}
+
 	// Optimistic lock: atomically set status to prevent concurrent starts
 	result := h.db.Model(&storage.TaskModel{}).
 		Where("id = ? AND status = ?", id, task.Status).
@@ -1344,19 +1360,6 @@ func (h *TaskHandler) Start(c *gin.Context) {
 	task.Progress = 0
 	task.ErrorMessage = ""
 	task.CompletedAt = nil
-
-	// Batch tasks are auto-started on creation and use BatchConfig instead of
-	// StrategyIDs. Re-starting them is not supported — the engine task ID format
-	// differs (plain taskID vs {taskID}-{strategyID}) and the batch spec is not
-	// re-runnable. Return a clear error instead of failing later with the
-	// misleading "corrupt strategy_ids" message.
-	if task.StrategyIDs == "" && task.BatchConfig != "" {
-		task.Status = "error"
-		task.ErrorMessage = "batch tasks are auto-started on creation and cannot be restarted"
-		h.db.Save(&task)
-		BadRequest(c, task.ErrorMessage)
-		return
-	}
 
 	// Validate all strategies exist and convert to engine tasks
 	var strategyIDs []string
