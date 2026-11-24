@@ -482,3 +482,119 @@ func TestMatchPreview_FlowFails(t *testing.T) {
 		t.Errorf("MatchPreview = %v, want empty (no match)", hits)
 	}
 }
+
+// --- L7 filter fields: each must actually filter (客户端 2026-11-23 问题 2 同型) ---
+//
+// FlowFilter 声明了 L7Method / L7Host / L7QueryName，但 matchFlow 从来没读过
+// 它们，FlowModelView 也没有对应字段 —— 传进去等于静默通配，调用方以为筛选
+// 生效、拿到的是全量。每个字段单独一例，不能因为"都走同一条链路"就只测一个。
+
+func l7Fixture() []FlowModelView {
+	return []FlowModelView{
+		{ID: "f-get", L4Protocol: "tcp", L7Protocol: "http", L7Method: "GET", L7Host: "a.example.com"},
+		{ID: "f-post", L4Protocol: "tcp", L7Protocol: "http", L7Method: "POST", L7Host: "b.example.com"},
+		{ID: "f-dns", L4Protocol: "udp", L7Protocol: "dns", L7QueryName: "c.example.com"},
+	}
+}
+
+func runFlowFilter(t *testing.T, f *FlowFilter) []string {
+	t.Helper()
+	res, err := Search(l7Fixture(), nil, nil, &SearchQuery{FlowFilter: f})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	ids := make([]string, len(res))
+	for i, r := range res {
+		ids[i] = r.Flow.ID
+	}
+	return ids
+}
+
+func TestSearch_FlowFilterL7Method(t *testing.T) {
+	got := runFlowFilter(t, &FlowFilter{L7Method: "POST"})
+	if len(got) != 1 || got[0] != "f-post" {
+		t.Errorf("L7Method=POST -> %v, want [f-post]; an unmatched filter must not behave as a wildcard", got)
+	}
+	// 大小写不应影响匹配（HTTP 方法在流量里大小写不统一）。
+	if got := runFlowFilter(t, &FlowFilter{L7Method: "post"}); len(got) != 1 || got[0] != "f-post" {
+		t.Errorf("L7Method=post (lowercase) -> %v, want [f-post]", got)
+	}
+}
+
+func TestSearch_FlowFilterL7Host(t *testing.T) {
+	got := runFlowFilter(t, &FlowFilter{L7Host: "a.example.com"})
+	if len(got) != 1 || got[0] != "f-get" {
+		t.Errorf("L7Host=a.example.com -> %v, want [f-get]", got)
+	}
+	if got := runFlowFilter(t, &FlowFilter{L7Host: "nope.example.com"}); len(got) != 0 {
+		t.Errorf("L7Host with no match -> %v, want empty", got)
+	}
+}
+
+func TestSearch_FlowFilterL7QueryName(t *testing.T) {
+	got := runFlowFilter(t, &FlowFilter{L7QueryName: "c.example.com"})
+	if len(got) != 1 || got[0] != "f-dns" {
+		t.Errorf("L7QueryName=c.example.com -> %v, want [f-dns]", got)
+	}
+}
+
+func TestSearch_FlowFilterL7FieldsCombine(t *testing.T) {
+	// 两个 L7 条件同时给 = AND（L7Type 与 L7Host 必须都命中）。
+	got := runFlowFilter(t, &FlowFilter{L7Type: "http", L7Host: "b.example.com"})
+	if len(got) != 1 || got[0] != "f-post" {
+		t.Errorf("L7Type+L7Host -> %v, want [f-post]", got)
+	}
+	if got := runFlowFilter(t, &FlowFilter{L7Type: "dns", L7Host: "b.example.com"}); len(got) != 0 {
+		t.Errorf("contradictory L7Type+L7Host -> %v, want empty", got)
+	}
+}
+
+// --- Scope: declared and forwarded, but never read (silent no-op) ---
+
+// scope=reassembled（及缺省）走重组流索引；scope=packet 不再查索引——那个
+// 空间里没有 trigram 索引，payload 阶段跳过，由 packet_filter 收窄。
+func TestSearch_ScopeSelectsPayloadSpace(t *testing.T) {
+	flows := []FlowModelView{
+		{ID: "f1", L4Protocol: "tcp"},
+		{ID: "f2", L4Protocol: "tcp"},
+	}
+	idx := NewTrigramIndex()
+	idx.AddSegment("f1", "c2s", []byte("GET /admin"))
+
+	re, err := Search(flows, nil, idx, &SearchQuery{
+		Payload: &PayloadFilter{Contains: "GET /admin", Encoding: "ascii"},
+		Scope:   "reassembled",
+	})
+	if err != nil {
+		t.Fatalf("reassembled: %v", err)
+	}
+	if len(re) != 1 || re[0].Flow.ID != "f1" {
+		t.Fatalf("reassembled -> %d flows, want just f1", len(re))
+	}
+
+	// scope=packet 还没有逐包 payload 索引：与 payload 同用时必须明确报错，
+	// 不能静默退回重组流语义（那正是被修掉的"接受但不生效"）。
+	if _, err := Search(flows, nil, idx, &SearchQuery{
+		Payload: &PayloadFilter{Contains: "GET /admin", Encoding: "ascii"},
+		Scope:   "packet",
+	}); err == nil {
+		t.Errorf("scope=packet with payload was accepted; it must be rejected while " +
+			"per-packet payloads are not indexed")
+	}
+
+	// 不带 payload 的 scope=packet 正常返回全部候选流。
+	pk, err := Search(flows, nil, idx, &SearchQuery{Scope: "packet"})
+	if err != nil {
+		t.Fatalf("packet without payload: %v", err)
+	}
+	if len(pk) != 2 {
+		t.Errorf("scope=packet -> %d flows, want 2", len(pk))
+	}
+}
+
+func TestSearch_ScopeRejectsUnknownValue(t *testing.T) {
+	flows := []FlowModelView{{ID: "f1", L4Protocol: "tcp"}}
+	if _, err := Search(flows, nil, nil, &SearchQuery{Scope: "bogus"}); err == nil {
+		t.Fatalf("unknown scope was accepted; it must be rejected, not silently ignored")
+	}
+}

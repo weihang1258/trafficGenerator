@@ -532,7 +532,11 @@ func (h *PcapHandler) Search(c *gin.Context) {
 	views := make([]pcapparser.FlowModelView, len(flows))
 	idx := pcapparser.NewTrigramIndex()
 	for i, f := range flows {
-		views[i] = pcapparser.FlowModelView{ID: f.ID, L4Protocol: f.L4Protocol, SrcIP: f.SrcIP, DstIP: f.DstIP, SrcPort: f.SrcPort, DstPort: f.DstPort, L7Protocol: f.L7Protocol}
+		views[i] = pcapparser.FlowModelView{
+			ID: f.ID, L4Protocol: f.L4Protocol, SrcIP: f.SrcIP, DstIP: f.DstIP,
+			SrcPort: f.SrcPort, DstPort: f.DstPort, L7Protocol: f.L7Protocol,
+			L7Method: f.L7Method, L7Host: f.L7Host, L7QueryName: f.L7QueryName,
+		}
 	}
 	// Load packet views only when a packet-level filter is requested (avoids the
 	// cost of loading every packet for flow/payload-only queries).

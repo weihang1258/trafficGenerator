@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -304,5 +305,71 @@ func TestPcapList_SizeOverCapClamps(t *testing.T) {
 	}
 	if body.Data.Size != 200 {
 		t.Errorf("size = %d, want 200 (clamped to the assets cap)", body.Data.Size)
+	}
+}
+
+// TestPcapSearch_L7FiltersReachTheWire 覆盖分层集成：flow_filter 的
+// L7Method/L7Host/L7QueryName 必须真的筛掉不匹配的流。这三个字段在
+// FlowFilter 里声明了、REST 也透传了，但匹配侧从来没读过——传进去等于
+// 静默通配（客户端 2026-11-23 报告问题 2 的同型缺陷）。单测只覆盖
+// pcapparser.matchFlow，这里补 REST → 存储投影 → 匹配 的整条链路。
+func TestPcapSearch_L7FiltersReachTheWire(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, r, _ := newPcapTestServer(t)
+	if err := h.repo.CreateAsset(&storage.PcapAssetModel{
+		ID: "ast-search", UserID: "test-user", Name: "s.pcap", Status: "ready",
+		LinkType: 1, FileHash: "hash-search",
+	}); err != nil {
+		t.Fatalf("create asset: %v", err)
+	}
+	seed := []storage.FlowModel{
+		{ID: "s-get", L4Protocol: "tcp", L7Protocol: "http", L7Method: "GET", L7Host: "a.example.com"},
+		{ID: "s-post", L4Protocol: "tcp", L7Protocol: "http", L7Method: "POST", L7Host: "b.example.com"},
+		{ID: "s-dns", L4Protocol: "udp", L7Protocol: "dns", L7QueryName: "c.example.com"},
+	}
+	for _, f := range seed {
+		f.PcapAssetID = "ast-search"
+		f.UserID = "test-user"
+		f.SrcIP, f.DstIP = "10.0.0.1", "10.0.0.2"
+		if err := h.db.Create(&f).Error; err != nil {
+			t.Fatalf("create flow %s: %v", f.ID, err)
+		}
+	}
+
+	search := func(filterJSON string) []string {
+		t.Helper()
+		req := httptest.NewRequest("POST", "/pcaps/ast-search/search",
+			strings.NewReader(`{"flow_filter":`+filterJSON+`}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("search %s: status=%d body=%s", filterJSON, w.Code, w.Body.String())
+		}
+		var body struct {
+			Data []struct {
+				Flow struct {
+					ID string `json:"ID"`
+				} `json:"Flow"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatalf("search %s: unmarshal: %v (body=%.200s)", filterJSON, err, w.Body.String())
+		}
+		ids := make([]string, len(body.Data))
+		for i, d := range body.Data {
+			ids[i] = d.Flow.ID
+		}
+		return ids
+	}
+
+	if got := search(`{"L7Method":"POST"}`); len(got) != 1 || got[0] != "s-post" {
+		t.Errorf("L7Method=POST -> %v, want [s-post]", got)
+	}
+	if got := search(`{"L7Host":"a.example.com"}`); len(got) != 1 || got[0] != "s-get" {
+		t.Errorf("L7Host -> %v, want [s-get]", got)
+	}
+	if got := search(`{"L7QueryName":"c.example.com"}`); len(got) != 1 || got[0] != "s-dns" {
+		t.Errorf("L7QueryName -> %v, want [s-dns]", got)
 	}
 }

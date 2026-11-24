@@ -72,6 +72,12 @@ type FlowModelView struct {
 	SrcPort    uint16
 	DstPort    uint16
 	L7Protocol string
+	// Typed L7 identity fields. They were declared on FlowFilter but never
+	// projected or matched, so passing L7Host/L7Method/L7QueryName acted as a
+	// silent wildcard (客户端 2026-11-23 问题 2 的同型：参数存在但不生效).
+	L7Method    string
+	L7Host      string
+	L7QueryName string
 }
 
 // PacketModelView is a lightweight projection of storage.PacketModel for
@@ -158,6 +164,26 @@ func Search(flows []FlowModelView, packets []PacketModelView, index *TrigramInde
 
 	// 2. Payload filter: trigram search -> set of (FlowID, Dir) that contain the
 	// pattern. Empty if no payload filter.
+	//
+	// Scope selects which payload space the search runs over (§17.10):
+	//   ""/"reassembled" — the reassembled-stream index (the default, and the
+	//     only space we index today: TCP c2s/s2c segments)
+	//   "packet"         — per-packet payloads; those are NOT in the trigram
+	//     index, so the payload stage is skipped and the caller's packet_filter
+	//     does the narrowing. Scope used to be accepted and ignored, which made
+	//     `scope=packet` silently behave like `reassembled`.
+	switch query.Scope {
+	case "", "reassembled", "packet":
+	default:
+		return nil, fmt.Errorf("invalid scope %q (want reassembled or packet)", query.Scope)
+	}
+	// scope=packet + payload 是"接受但不生效"，正是这次要清掉的那类静默。
+	// 逐包 payload 还没进 trigram 索引，明确报错比假装筛过来得诚实。
+	if query.Payload != nil && query.Scope == "packet" {
+		return nil, fmt.Errorf("scope=packet does not support payload search yet " +
+			"(per-packet payloads are not indexed); omit scope to search the reassembled streams, " +
+			"or use packet_filter to narrow per-packet fields")
+	}
 	var payloadHits map[string][]TrigramMatch // FlowID -> matches
 	if query.Payload != nil {
 		needle, err := decodePayloadFilter(query.Payload)
@@ -270,6 +296,15 @@ func filterFlows(flows []FlowModelView, f *FlowFilter) []FlowModelView {
 			continue
 		}
 		if f.L7Type != "" && fl.L7Protocol != f.L7Type {
+			continue
+		}
+		if f.L7Method != "" && !strings.EqualFold(fl.L7Method, f.L7Method) {
+			continue
+		}
+		if f.L7Host != "" && !strings.EqualFold(fl.L7Host, f.L7Host) {
+			continue
+		}
+		if f.L7QueryName != "" && !strings.EqualFold(fl.L7QueryName, f.L7QueryName) {
 			continue
 		}
 		out = append(out, fl)
