@@ -26,7 +26,7 @@ type manageAuthInput struct {
 	Description string `json:"description" jsonschema:"必填。一句话说明本次调用的目的（将展示给最终用户），不超过 50 字。每次调用必须填写此字段。"`
 	Action  string `json:"action" jsonschema:"operation: register|login|validate|logout|refresh"`
 	Username string `json:"username,omitempty" jsonschema:"username (register/login)"`
-	Password string `json:"password,omitempty" jsonschema:"password (register/login, min 8 chars)"`
+	Password string `json:"password,omitempty" jsonschema:"password (register/login). Registration requires 8-128 characters; login only checks it against the stored hash, so a legacy shorter password still works there."`
 	Email   string `json:"email,omitempty" jsonschema:"email (register)"`
 	Token   string `json:"token,omitempty" jsonschema:"JWT token (validate/logout/refresh)"`
 }
