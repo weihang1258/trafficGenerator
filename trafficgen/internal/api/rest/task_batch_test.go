@@ -754,3 +754,65 @@ func TestCreateBatch_ReplayClassBadBPSDoesNotDestroyExistingPcap(t *testing.T) {
 			len(got), string(got), previous)
 	}
 }
+
+// TestCreateBatch_FailedCreateDoesNotClobberTaskRow 覆盖 CreateBatch 失败分支
+// 的整行 Save（根因 3 的最后两处残留）。
+//
+// 任务行已经 Create 落库之后才失败，此刻用 Save 会把建单时的快照**整行**写回：
+// 期间由进度回调落库的 packets_sent/progress 等列被一并打回快照值。用
+// stopSnapshotHook 之外的手段复现这个交错——在 SubmitTask 失败前，由另一个
+// "回调"往同一行写统计；修复后失败分支只动 status/error_message/progress/
+// completed_at 四列，统计列必须原样保留。
+func TestCreateBatch_FailedCreateDoesNotClobberTaskRow(t *testing.T) {
+	_, r, db, e := newBatchTestServer(t)
+	// 停掉引擎 → SubmitTask 必定失败，此时任务行已 Create。
+	e.Stop()
+
+	// parentAggregateWriteHook 用不上（这里没有进度回调）；直接在请求返回后
+	// 检查列值不够——必须让"并发写"发生在 Save 之前。用 GORM 的回调钩子：
+	// 在 tasks 表 UPDATE 发生前，把统计列写成非零，模拟进度回调刚落库。
+	var sawStats bool
+	err := db.Callback().Update().Before("gorm:update").Register("test:inject_stats", func(tx *gorm.DB) {
+		if tx.Statement.Table != "tasks" {
+			return
+		}
+		// 只在失败分支那次 UPDATE 前注入一次。
+		if sawStats {
+			return
+		}
+		sawStats = true
+		// 直接对整表做条件更新；测试库只有一个任务行。
+		tx.Session(&gorm.Session{NewDB: true}).Exec(
+			"UPDATE tasks SET packets_sent = 4242, bytes_sent = 999999 WHERE status = 'running'")
+	})
+	if err != nil {
+		t.Fatalf("register hook: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Callback().Update().Remove("test:inject_stats")
+	})
+
+	body := `{"name":"fail-save","batch":{"classes":[{"id":"c1","type":"udp",` +
+		`"config":{"layers":[{"ip":{"src":"10.9.9.1","dst":"10.9.9.2"}},{"udp":{"dst_port":9000}}]}}]},` +
+		`"output_type":"pcap","output_config":{"pcap_path":"` + t.TempDir() + `/f.pcap"}}`
+	req := httptest.NewRequest("POST", "/tasks/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code == http.StatusCreated {
+		t.Fatalf("batch was accepted although the engine is stopped: %s", w.Body.String())
+	}
+
+	var tm storage.TaskModel
+	if err := db.Where("status = ?", "error").First(&tm).Error; err != nil {
+		t.Fatalf("read failed task: %v", err)
+	}
+	if tm.PacketsSent != 4242 {
+		t.Errorf("packets_sent = %d after the failed create, want 4242 — a full-row Save "+
+			"wrote the create-time snapshot back over stats that landed in the meantime",
+			tm.PacketsSent)
+	}
+	if tm.BytesSent != 999999 {
+		t.Errorf("bytes_sent = %d, want 999999", tm.BytesSent)
+	}
+}

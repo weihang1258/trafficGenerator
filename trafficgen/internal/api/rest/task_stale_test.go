@@ -887,3 +887,64 @@ func TestOnEngineProgress_TransientWriteErrorKeepsLiveSlots(t *testing.T) {
 			"(R7 defect A all over again)", len(slots))
 	}
 }
+
+// TestStopAndDelete_ReleaseRecordedFailures 覆盖 failedTasks 的生命周期泄漏。
+//
+// 输出失败按 **engine task ID** 登记（策略任务是 "{parent}-{strategy}"，batch
+// 是裸 parent ID），此前只有完成回调和 Start 的对账会删。Stop 与 Delete 都不
+// 清——被停止/删除过的任务把失败条目永久留在 handler 里，与已修掉的
+// aggSlots 泄漏同型。
+func TestStopAndDelete_ReleaseRecordedFailures(t *testing.T) {
+	h, r, db, _ := newTaskTestServer(t)
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.POST("/tasks/:id/stop", h.Stop)
+	r.DELETE("/tasks/:id", h.Delete)
+
+	seedFailures := func(id string) {
+		t.Helper()
+		h.failMu.Lock()
+		h.failedTasks[id] = "output error"
+		h.failedTasks[id+"-stratA"] = "output error A"
+		h.failedTasks[id+"-stratB"] = "output error B"
+		h.failedTasks["unrelated-task"] = "must survive"
+		h.failMu.Unlock()
+	}
+	assertCleared := func(id, op string) {
+		t.Helper()
+		h.failMu.Lock()
+		defer h.failMu.Unlock()
+		for k := range h.failedTasks {
+			if k == id || strings.HasPrefix(k, id+"-") {
+				t.Errorf("%s left failedTasks[%q] behind", op, k)
+			}
+		}
+		// 别的任务的条目绝不能被误删。
+		if _, ok := h.failedTasks["unrelated-task"]; !ok {
+			t.Errorf("%s deleted another task's failure entry", op)
+		}
+	}
+
+	const stopID = "cccccccc-cccc-cccc-cccc-cccccccccccc"
+	seedRunningTask(t, db, stopID, `{}`)
+	seedFailures(stopID)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("POST", "/tasks/"+stopID+"/stop", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("stop: status=%d body=%s", w.Code, w.Body.String())
+	}
+	assertCleared(stopID, "Stop")
+
+	const delID = "dddddddd-dddd-dddd-dddd-dddddddddddd"
+	seedRunningTask(t, db, delID, `{}`)
+	seedFailures(delID)
+	if err := db.Model(&storage.TaskModel{}).Where("id = ?", delID).
+		Update("status", "completed").Error; err != nil {
+		t.Fatalf("mark completed: %v", err)
+	}
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("DELETE", "/tasks/"+delID, nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("delete: status=%d body=%s", w.Code, w.Body.String())
+	}
+	assertCleared(delID, "Delete")
+}

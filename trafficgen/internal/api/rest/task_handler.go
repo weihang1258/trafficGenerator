@@ -244,15 +244,33 @@ func (h *TaskHandler) aggregateParent(parentTaskID string) (avg float64, packets
 	return
 }
 
-// releaseProgressBookkeeping drops the per-task entries of the two maps
-// onEngineProgress keeps. Both are keyed by parent task ID. The completion
-// callback is the only place that used to delete them, and its delete branch
-// requires the row to still be running — so a stopped or deleted task left
-// both entries behind forever. Every terminal path calls this now.
+// releaseProgressBookkeeping drops the per-task entries the callbacks keep:
+// the aggregation slots and progress throttle (keyed by parent task ID) plus
+// the recorded output failures (keyed by engine task ID, i.e. "{parent}-{strategy}"
+// for strategy tasks and the bare parent ID for batch tasks).
+//
+// The completion callback used to be the only place that deleted any of these,
+// and its delete branch requires the row to still be running — so a stopped or
+// deleted task left every entry behind forever. Every terminal path calls this.
 func (h *TaskHandler) releaseProgressBookkeeping(taskID string) {
 	h.aggMu.Lock()
 	h.releaseProgressBookkeepingLocked(taskID)
 	h.aggMu.Unlock()
+}
+
+// releaseTaskFailures drops the recorded output errors of one task. Failures
+// are recorded under the engine task ID, so a parent with N strategies owns N
+// prefixed entries plus (for batch tasks) the bare one.
+func (h *TaskHandler) releaseTaskFailures(taskID string) {
+	h.failMu.Lock()
+	delete(h.failedTasks, taskID)
+	prefix := taskID + "-"
+	for k := range h.failedTasks {
+		if strings.HasPrefix(k, prefix) {
+			delete(h.failedTasks, k)
+		}
+	}
+	h.failMu.Unlock()
 }
 
 // releaseProgressBookkeepingLocked 是 aggMu 已持有的版本。onEngineProgress
@@ -1280,7 +1298,19 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 		h.releaseBatchWriters(taskID, dualPort)
 		taskModel.Status = "error"
 		taskModel.ErrorMessage = err.Error()
-		h.db.Save(taskModel)
+		// 按列更新而非 Save 全行：taskModel 是建单时的快照，整行写回会把
+		// 期间落库的统计/进度列打回旧值（根因 3 的最后两处残留）。
+		// 落库失败也要查：否则客户端收到 400，库里行却停在 running。
+		if uerr := h.db.Model(&storage.TaskModel{}).Where("id = ?", taskID).
+			Updates(map[string]interface{}{
+				"status":        "error",
+				"error_message": taskModel.ErrorMessage,
+				"progress":      0,
+				"completed_at":  currentTime(),
+			}).Error; uerr != nil {
+			InternalError(c, "MTU check failed ("+err.Error()+") and the error state could not be persisted: "+uerr.Error())
+			return
+		}
 		BadRequest(c, taskModel.ErrorMessage)
 		return
 	}
@@ -1304,7 +1334,17 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 		h.releaseBatchWriters(taskID, dualPort)
 		taskModel.Status = "error"
 		taskModel.ErrorMessage = err.Error()
-		h.db.Save(taskModel)
+		// 同 MTU 分支：按列更新，且落库失败不得静默。
+		if uerr := h.db.Model(&storage.TaskModel{}).Where("id = ?", taskID).
+			Updates(map[string]interface{}{
+				"status":        "error",
+				"error_message": taskModel.ErrorMessage,
+				"progress":      0,
+				"completed_at":  currentTime(),
+			}).Error; uerr != nil {
+			InternalError(c, "task submission failed ("+err.Error()+") and the error state could not be persisted: "+uerr.Error())
+			return
+		}
 		BadRequest(c, err.Error())
 		return
 	}
@@ -2030,6 +2070,7 @@ func (h *TaskHandler) Stop(c *gin.Context) {
 	// 而不是在每条 return 前手写：下面"strategy_ids 损坏"那条提前返回曾
 	// 跳过全部清理，让一个停止过的任务的记账条目永久留在 handler 里。
 	defer h.releaseProgressBookkeeping(id)
+	defer h.releaseTaskFailures(id)
 
 	// Release port group ports
 	h.releasePortGroupPorts(&task)
@@ -2114,6 +2155,7 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 	}
 	// 行已删：没有任何后续回调会来释放记账，必须在这里清掉。
 	h.releaseProgressBookkeeping(id)
+	h.releaseTaskFailures(id)
 
 	SuccessWithMessage(c, "task deleted", map[string]interface{}{"id": id, "deleted": true})
 }
