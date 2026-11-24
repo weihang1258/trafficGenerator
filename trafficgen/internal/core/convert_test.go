@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -1387,5 +1388,47 @@ func TestMapToFlowSpec_SVTopLevelCountFallsBack(t *testing.T) {
 	}
 	if spec.SV.Count != 4 {
 		t.Errorf("SV.Count = %d, want 4 (top-level count fallback)", spec.SV.Count)
+	}
+}
+
+// TestValidateBatchSpec_InvalidBPS verifies a bad per-class rate is caught by
+// validation instead of by SubmitTask. Ordering matters: CreateBatch opens the
+// output writer (os.Create truncates) before the engine sees the task, so a
+// rate error surfacing at submit time destroyed the previous pcap for a task
+// that never started.
+func TestValidateBatchSpec_InvalidBPS(t *testing.T) {
+	for _, bps := range []string{"not-a-rate", "100x", "-5"} {
+		batch := BatchSpec{Classes: []TrafficClass{{
+			ID: "a", Type: "udp", FlowCount: 1, BPS: bps,
+			Config: map[string]interface{}{"layers": []interface{}{
+				map[string]interface{}{"ip": map[string]interface{}{"src": "10.0.0.1", "dst": "10.0.0.2"}},
+				map[string]interface{}{"udp": map[string]interface{}{"dst_port": 9000}},
+			}},
+		}}}
+		err := ValidateBatchSpec(batch)
+		if err == nil {
+			t.Errorf("bps %q was accepted; it must fail validation before any "+
+				"output writer is opened", bps)
+			continue
+		}
+		// 必须是因为 bps 报错——不是被别的检查顺手拦下（否则本测试对
+		// bps 校验毫无覆盖，绿得毫无意义）。
+		if !strings.Contains(err.Error(), "bps") {
+			t.Errorf("bps %q was rejected for the wrong reason: %v", bps, err)
+		}
+	}
+	// Valid rates must still pass (guard against over-rejection). Uses a
+	// layers chain: flat four-tuples are rejected on their own.
+	for _, bps := range []string{"", "200k", "1M", "2g"} {
+		batch := BatchSpec{Classes: []TrafficClass{{
+			ID: "a", Type: "udp", FlowCount: 1, BPS: bps,
+			Config: map[string]interface{}{"layers": []interface{}{
+				map[string]interface{}{"ip": map[string]interface{}{"src": "10.0.0.1", "dst": "10.0.0.2"}},
+				map[string]interface{}{"udp": map[string]interface{}{"dst_port": 9000}},
+			}},
+		}}}
+		if err := ValidateBatchSpec(batch); err != nil {
+			t.Errorf("bps %q rejected: %v", bps, err)
+		}
 	}
 }

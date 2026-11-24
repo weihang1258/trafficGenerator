@@ -1117,7 +1117,7 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 		StartedAt:    &now,
 	}
 	if err := h.db.Create(taskModel).Error; err != nil {
-		h.engine.UnregisterOutputWriter(taskID)
+		h.releaseBatchWriters(taskID, dualPort)
 		InternalError(c, "failed to create task record: "+err.Error())
 		return
 	}
@@ -1131,6 +1131,9 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 		interface2ForDual = req.OutputConfig.Interface2
 	}
 	if _, err := h.ensureTaskMTU(taskModel, interface2ForDual); err != nil {
+		// 这条分支原先什么都没注销：writer 已经打开、也注册进引擎了，
+		// 失败返回就把句柄永久留下。
+		h.releaseBatchWriters(taskID, dualPort)
 		taskModel.Status = "error"
 		taskModel.ErrorMessage = err.Error()
 		h.db.Save(taskModel)
@@ -1154,7 +1157,7 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 		coreTask.Interface2 = req.OutputConfig.Interface2
 	}
 	if err := h.engine.SubmitTask(coreTask); err != nil {
-		h.engine.UnregisterOutputWriter(taskID)
+		h.releaseBatchWriters(taskID, dualPort)
 		taskModel.Status = "error"
 		taskModel.ErrorMessage = err.Error()
 		h.db.Save(taskModel)
@@ -1163,6 +1166,20 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 	}
 
 	Created(c, map[string]string{"id": taskID})
+}
+
+// releaseBatchWriters closes whatever CreateBatch registered for a task before
+// it failed. Dual-port tasks register through RegisterDualWriter, so calling
+// only UnregisterOutputWriter leaves both writers (and their file/NIC handles)
+// in the engine forever — the single-writer map never held them.
+func (h *TaskHandler) releaseBatchWriters(taskID string, dualPort bool) {
+	if dualPort {
+		h.engine.UnregisterDualWriter(taskID)
+		// A dual task registers the pair, not the primary alone; but
+		// UnregisterOutputWriter is a harmless no-op if nothing is there.
+		return
+	}
+	h.engine.UnregisterOutputWriter(taskID)
 }
 
 // List lists all tasks for the current user with server-side pagination.

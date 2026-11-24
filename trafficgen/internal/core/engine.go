@@ -338,6 +338,18 @@ func (e *Engine) GetDualWriter(taskID string) *DualPortWriter {
 	return e.dualWriters[taskID]
 }
 
+// DualWriterIDs returns the task IDs that currently have a registered dual-port
+// writer. Used to verify that failed task creation cleans up after itself.
+func (e *Engine) DualWriterIDs() []string {
+	e.outputMu.RLock()
+	defer e.outputMu.RUnlock()
+	ids := make([]string, 0, len(e.dualWriters))
+	for id := range e.dualWriters {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
 // SetReplayPlanner registers the replay planner (handles TrafficClass.Type=="replay").
 func (e *Engine) SetReplayPlanner(p ReplayPlanner) {
 	e.replayPlanner = p

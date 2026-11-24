@@ -580,3 +580,120 @@ func firstLine(s string) string {
 	}
 	return s
 }
+
+// newBatchTestServer 起一个最小 batch 测试环境（DB + engine + 路由）。
+func newBatchTestServer(t *testing.T) (*TaskHandler, *gin.Engine, *storage.DB, *core.Engine) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	gormDB, err := gorm.Open(sqlite.Open(t.TempDir()+"/batch.db"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := storage.AutoMigrate(gormDB); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	db := &storage.DB{DB: gormDB}
+	e := core.NewEngine(core.EngineConfig{
+		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
+		BufferSize: 256, QueueSize: 64,
+	})
+	e.RegisterPlanner(tcp.NewPlanner())
+	e.RegisterPlanner(udp.NewPlanner())
+	e.SetBuildFunc(core.NewBuilder().Build)
+	e.SetLayerPlannerFactory(layers.BuildLayersPlanner)
+	if err := e.Start(); err != nil {
+		t.Fatalf("start engine: %v", err)
+	}
+	t.Cleanup(func() { e.Stop() })
+
+	h := NewTaskHandler(db, e, nil)
+	r := gin.New()
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.POST("/tasks/batch", h.CreateBatch)
+	return h, r, db, e
+}
+
+// TestCreateBatch_DualPortFailureReleasesBothWriters 覆盖双端口任务的失败
+// 清理路径。
+//
+// 双端口走 RegisterDualWriter（写 engine.dualWriters），但三条失败分支
+// （DB 落库失败、MTU 失败、SubmitTask 失败）全都调 UnregisterOutputWriter
+// （只查 outputWriters）——找不到东西，静默什么都不做。于是失败的任务把
+// 两个已打开的 writer（pcap 文件句柄 / 网卡句柄）永久留在 engine 里：
+// 句柄泄漏，pcap 文件既不写完也不关闭。
+func TestCreateBatch_DualPortFailureReleasesBothWriters(t *testing.T) {
+	_, r, _, e := newBatchTestServer(t)
+
+	// bps 非法 → engine.SubmitTask 在真正建任务前就返回错误，是干净的
+	// 失败路径，不需要网卡。
+	body := `{"name":"dual-fail","batch":{"classes":[{"id":"c1","type":"udp","bps":"not-a-rate",` +
+		`"config":{"layers":[{"ip":{"src":"10.9.9.1","dst":"10.9.9.2"}},{"udp":{"dst_port":9000}}]}}]},` +
+		`"output_type":"pcap","output_config":{"pcap_path":"` + t.TempDir() + `/dual.pcap","interface2":"lo"}}`
+	req := httptest.NewRequest("POST", "/tasks/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code == http.StatusCreated {
+		t.Fatalf("invalid bps was accepted (status 201): %s", w.Body.String())
+	}
+
+	// 失败路径必须把双端口 writer 注销掉（注销 = 从表里删除 + Close 关闭）。
+	// 用一个错误 URL 之外的手段检查：任务 id 从响应里拿不到，直接遍历——
+	// 只要引擎里还留着任何 dual writer，就是泄漏。
+	var leaked []string
+	for _, id := range liveDualWriterIDs(e) {
+		leaked = append(leaked, id)
+	}
+	if len(leaked) != 0 {
+		t.Fatalf("dual-port task creation failed but engine still holds dual writers for %v — "+
+			"the failure path calls UnregisterOutputWriter instead of UnregisterDualWriter, "+
+			"so the writers (and their file/NIC handles) are never closed", leaked)
+	}
+}
+
+// liveDualWriterIDs lists task IDs that still have a registered dual writer.
+func liveDualWriterIDs(e *core.Engine) []string {
+	var ids []string
+	for _, id := range e.DualWriterIDs() {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+// TestCreateBatch_FailureDoesNotDestroyExistingPcap 覆盖"先开资源后做会失败
+// 的检查"造成的破坏面：pcap writer 用 os.Create 打开（O_TRUNC），所以只要
+// 走到开 writer 那一步，目标路径上的旧文件就已经被清空；之后 bps 校验失败、
+// 任务返回 400 —— 旧数据没了，新任务也没跑。
+//
+// 用户语义：任务没起来，磁盘上就不该有任何改变。
+func TestCreateBatch_FailureDoesNotDestroyExistingPcap(t *testing.T) {
+	_, r, _, _ := newBatchTestServer(t)
+
+	pcapPath := t.TempDir() + "/existing.pcap"
+	const previous = "PREVIOUS-RUN-BYTES"
+	if err := os.WriteFile(pcapPath, []byte(previous), 0o644); err != nil {
+		t.Fatalf("seed pcap: %v", err)
+	}
+
+	body := `{"name":"trunc-fail","batch":{"classes":[{"id":"c1","type":"udp","bps":"not-a-rate",` +
+		`"config":{"layers":[{"ip":{"src":"10.9.9.1","dst":"10.9.9.2"}},{"udp":{"dst_port":9000}}]}}]},` +
+		`"output_type":"pcap","output_config":{"pcap_path":"` + pcapPath + `"}}`
+	req := httptest.NewRequest("POST", "/tasks/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code == http.StatusCreated {
+		t.Fatalf("invalid bps was accepted: %s", w.Body.String())
+	}
+
+	got, err := os.ReadFile(pcapPath)
+	if err != nil {
+		t.Fatalf("read pcap after failed create: %v", err)
+	}
+	if string(got) != previous {
+		t.Fatalf("the existing pcap was modified by a task that never started: got %d bytes %q, "+
+			"want the previous %d bytes %q — the output writer opens with O_TRUNC before the "+
+			"checks that can still fail", len(got), string(got), len(previous), previous)
+	}
+}

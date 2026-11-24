@@ -82,6 +82,12 @@ func ParseBPS(bps string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("invalid BPS value: %s", bps)
 	}
+	// 负速率不是"无限制"的另一种写法。原先 -5 解析成功、下游按 <=0 当不限速
+	// 处理，调用方以为限速生效了（客户端 2026-11-23 问题 2 的同型：接受但
+	// 不按字面生效）。要求显式给 0 或干脆不写。
+	if value < 0 {
+		return 0, fmt.Errorf("invalid BPS value: %s (must not be negative)", bps)
+	}
 
 	return value * multiplier, nil
 }
@@ -149,6 +155,15 @@ func ValidateBatchSpec(batch BatchSpec) error {
 		}
 		if c.FlowCount <= 0 {
 			return fmt.Errorf("class[%d] %s: flow_count must be > 0", i, c.ID)
+		}
+		// bps must parse here, not at SubmitTask time: CreateBatch has already
+		// opened the output writer (os.Create truncates an existing pcap) by
+		// the time the engine validates it, so a bad rate used to destroy the
+		// previous run's file for a task that never started.
+		if c.BPS != "" {
+			if _, err := ParseBPS(c.BPS); err != nil {
+				return fmt.Errorf("class[%d] %s: invalid bps %q: %w", i, c.ID, c.BPS, err)
+			}
 		}
 		// Validate raw DSCP/ECN/VLAN ranges BEFORE mapToFlowSpec truncates them
 		// to uint8/uint16. Without this, dscp=256 silently wraps to 0 (valid).
