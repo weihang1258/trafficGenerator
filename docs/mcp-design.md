@@ -458,10 +458,9 @@ PCAP 资产域全功能覆盖（17 个 action 对应后端 17 个端点）。
 ```json
 {
   "action": "get|update|delete",
-  "username": "new_name",   // update（可选）
-  "email": "new@example.com", // update（可选）
-  "password": "...",        // delete：确认密码
-  "new_password": "..."     // update：改密码（可选）
+  "email": "new@example.com", // update（可选，需合法邮箱且不与他人重复）
+  "password": "...",          // update：新密码（8-128 字符）
+  "new_password": "..."       // update：改密码（可选；与 password 同时给时它优先）
 }
 ```
 
