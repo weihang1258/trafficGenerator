@@ -325,9 +325,45 @@ func NewTaskHandlerWithCallbacks(db *storage.DB, engine *core.Engine, wsHandler 
 }
 
 // onEngineTaskFailed is called when an engine task fails (planning error, etc.).
-// applyTaskCompletion persists terminal status with column-scoped Updates.
-// 全列 Save 会用回调开始时的旧快照覆盖 onEngineProgress 刚落库的
-// packets_sent/bytes_sent/flows_count（实机日志抓出 rows:1 回零）。
+// 它只登记失败原因；真正的终态落库在 onEngineTaskComplete。
+func (h *TaskHandler) onEngineTaskFailed(engineTaskID string, errMsg string) {
+	h.failMu.Lock()
+	h.failedTasks[engineTaskID] = errMsg
+	h.failMu.Unlock()
+}
+
+// stopSnapshotHook runs in Stop after the task row has been read and before the
+// status write. A test interleaves a concurrent stats update here to prove the
+// write does not clobber columns another writer just set. Always nil in
+// production.
+var stopSnapshotHook func()
+
+// isTerminalStatus reports whether a task status is a final state — the task
+// has ended and nothing but an explicit restart may change it.
+func isTerminalStatus(status string) bool {
+	switch status {
+	case "completed", "failed", "stopped", "error":
+		return true
+	}
+	return false
+}
+
+// markTaskError persists "this task failed" without rewriting the rest of the
+// row. Every caller holds a snapshot read earlier in the request; a full-row
+// Save from that snapshot silently rolls back anything another writer changed
+// in between (progress callbacks write stats continuously).
+func (h *TaskHandler) markTaskError(task *storage.TaskModel) {
+	updates := map[string]interface{}{
+		"status":        "error",
+		"error_message": task.ErrorMessage,
+	}
+	if task.CompletedAt != nil {
+		updates["completed_at"] = *task.CompletedAt
+	}
+	h.db.Model(&storage.TaskModel{}).Where("id = ?", task.ID).Updates(updates)
+}
+
+// applyTaskCompletion writes a task's terminal columns.
 func (h *TaskHandler) applyTaskCompletion(taskID string, task *storage.TaskModel) {
 	updates := map[string]interface{}{
 		"status":   task.Status,
@@ -340,12 +376,6 @@ func (h *TaskHandler) applyTaskCompletion(taskID string, task *storage.TaskModel
 		updates["error_message"] = task.ErrorMessage
 	}
 	h.db.Model(&storage.TaskModel{}).Where("id = ?", taskID).Updates(updates)
-}
-
-func (h *TaskHandler) onEngineTaskFailed(engineTaskID string, errMsg string) {
-	h.failMu.Lock()
-	h.failedTasks[engineTaskID] = errMsg
-	h.failMu.Unlock()
 }
 
 // onEngineOutputError is called when an output writer fails.
@@ -379,6 +409,17 @@ func (h *TaskHandler) onEngineProgress(engineTaskID string, progress float64, st
 	parentTaskID := engineTaskID
 	if len(engineTaskID) > 36 {
 		parentTaskID = engineTaskID[:36]
+	}
+
+	// Terminal tasks are read-only for progress: Stop sets "stopped" and the
+	// final completion callback sets completed/failed. A progress callback
+	// still in flight when the task ends must not rewrite progress/stats, or a
+	// stopped task flips back to "50% running" with the stats of another
+	// moment. 终态判定散在三处（Stop、完成回调、本函数）时，唯一安全的约定
+	// 是：终态只由终态路径写，进度回调只写 running 的任务。
+	var cur storage.TaskModel
+	if err := h.db.Select("status").Where("id = ?", parentTaskID).First(&cur).Error; err == nil && isTerminalStatus(cur.Status) {
+		return
 	}
 
 	// Throttle DB updates: at most once per 2 seconds per parent task.
@@ -1342,7 +1383,9 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		}
 		now := currentTime()
 		task.CompletedAt = &now
-		h.db.Save(&task)
+		// 指定列更新：task 是读出来的旧快照，整行 Save 会把这期间落库的
+		// 实发统计一起写回旧值（与 Stop 同一个坑）。
+		h.applyTaskCompletion(task.ID, &task)
 		log.Printf("task %s reconciled stale status -> %s before restart", task.ID, task.Status)
 		h.maybeAutoRegisterPcapAsync(&task)
 	}
@@ -1383,7 +1426,7 @@ func (h *TaskHandler) Start(c *gin.Context) {
 	if err := json.Unmarshal([]byte(task.StrategyIDs), &strategyIDs); err != nil {
 		task.Status = "error"
 		task.ErrorMessage = "corrupt strategy_ids in task record"
-		h.db.Save(&task)
+		h.markTaskError(&task)
 		InternalError(c, task.ErrorMessage)
 		return
 	}
@@ -1409,7 +1452,7 @@ func (h *TaskHandler) Start(c *gin.Context) {
 			if err == gorm.ErrRecordNotFound {
 				task.Status = "error"
 				task.ErrorMessage = fmt.Sprintf("strategy %s not found", strategyID)
-				h.db.Save(&task)
+				h.markTaskError(&task)
 				BadRequest(c, task.ErrorMessage)
 				return
 			}
@@ -1442,7 +1485,7 @@ func (h *TaskHandler) Start(c *gin.Context) {
 			if containsStr(e.Message, "cannot combine with bps") {
 				task.Status = "error"
 				task.ErrorMessage = e.Message
-				h.db.Save(&task)
+				h.markTaskError(&task)
 				BadRequest(c, task.ErrorMessage)
 				return
 			}
@@ -1483,7 +1526,7 @@ func (h *TaskHandler) Start(c *gin.Context) {
 	if len(coreTasks) == 0 {
 		task.Status = "error"
 		task.ErrorMessage = "no valid strategies to execute"
-		h.db.Save(&task)
+		h.markTaskError(&task)
 		BadRequest(c, task.ErrorMessage)
 		return
 	}
@@ -1505,7 +1548,7 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		if err != nil {
 			task.Status = "error"
 			task.ErrorMessage = err.Error()
-			h.db.Save(&task)
+			h.markTaskError(&task)
 			BadRequest(c, task.ErrorMessage)
 			return
 		}
@@ -1513,7 +1556,8 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		outputConfig.PcapPath = resolved
 		resolvedJSON, _ := json.Marshal(&outputConfig)
 		task.OutputConfig = string(resolvedJSON)
-		h.db.Save(&task)
+		h.db.Model(&storage.TaskModel{}).Where("id = ?", task.ID).
+			Update("output_config", task.OutputConfig)
 
 		// Update coreTasks with resolved path
 		for i := range coreTasks {
@@ -1545,14 +1589,14 @@ func (h *TaskHandler) Start(c *gin.Context) {
 	if dualPort && task.OutputType == "both" {
 		task.Status = "error"
 		task.ErrorMessage = errBothDual
-		h.db.Save(&task)
+		h.markTaskError(&task)
 		BadRequest(c, task.ErrorMessage)
 		return
 	}
 	if dualPort && task.OutputType == "port_group" && outputConfigForDual.Interface2 == "" {
 		task.Status = "error"
 		task.ErrorMessage = "dual-port replay requires a second interface (interface2 in output_config)"
-		h.db.Save(&task)
+		h.markTaskError(&task)
 		BadRequest(c, task.ErrorMessage)
 		return
 	}
@@ -1564,7 +1608,7 @@ func (h *TaskHandler) Start(c *gin.Context) {
 	if _, err := h.ensureTaskMTU(&task, outputConfigForDual.Interface2); err != nil {
 		task.Status = "error"
 		task.ErrorMessage = err.Error()
-		h.db.Save(&task)
+		h.markTaskError(&task)
 		BadRequest(c, task.ErrorMessage)
 		return
 	}
@@ -1687,7 +1731,7 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		task.Status = "error"
 		task.ErrorMessage = fmt.Sprintf("failed to create output writers: %v", writerErrors)
 		task.Progress = 0
-		h.db.Save(&task)
+		h.markTaskError(&task)
 		BadRequest(c, task.ErrorMessage)
 		return
 	} else if len(writerErrors) > 0 {
@@ -1703,7 +1747,13 @@ func (h *TaskHandler) Start(c *gin.Context) {
 	task.Status = "running"
 	now := currentTime()
 	task.StartedAt = &now
-	h.db.Save(&task)
+	// 指定列更新，不整行 Save：task 是请求开始时读的快照，整行写回会把这
+	// 期间落库的统计列打回旧值。error_message 必须显式清空——重启后的任务
+	// 不能带着上一轮的失败信息。
+	h.db.Model(&storage.TaskModel{}).Where("id = ?", task.ID).
+		Updates(map[string]interface{}{
+			"status": "running", "started_at": now, "error_message": "",
+		})
 
 	// Submit all engine tasks
 	var submittedIDs []string
@@ -1745,7 +1795,7 @@ func (h *TaskHandler) Start(c *gin.Context) {
 			// the start failed instead of a generic message.
 			task.ErrorMessage += fmt.Sprintf(" (last failure: %s)", lastFailureReason)
 		}
-		h.db.Save(&task)
+		h.markTaskError(&task)
 		// Clean up flow-control state created during the failed SubmitTask attempts
 		// (parent rate bucket + shared flow counter). Without this, a task that
 		// never successfully starts leaks entries in the engine's maps.
@@ -1833,11 +1883,21 @@ func (h *TaskHandler) Stop(c *gin.Context) {
 		return
 	}
 
-	// Update DB status first for consistency
-	task.Status = "stopped"
+	// Update DB status first for consistency. 指定列更新而非整行 Save：task
+	// 是上面的旧快照，整行写回会把这期间 onEngineProgress 刚落库的实发统计
+	// (packets_sent/bytes_sent/flows_count/progress) 打回旧值——用户点停止
+	// 后界面从"已发 500 包"退回 0。
 	now := currentTime()
+	if stopSnapshotHook != nil {
+		stopSnapshotHook()
+	}
+	if err := h.db.Model(&storage.TaskModel{}).Where("id = ?", id).
+		Updates(map[string]interface{}{"status": "stopped", "completed_at": now}).Error; err != nil {
+		InternalError(c, "failed to stop task: "+err.Error())
+		return
+	}
+	task.Status = "stopped"
 	task.CompletedAt = &now
-	h.db.Save(&task)
 
 	// Release port group ports
 	h.releasePortGroupPorts(&task)

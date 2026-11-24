@@ -276,3 +276,152 @@ func TestStart_GenuinelyRunning_StillRejected(t *testing.T) {
 		t.Errorf("body=%q must say 'already running'", w.Body.String())
 	}
 }
+
+// terminalStatusInDB reads a task's status straight from the DB.
+func terminalStatusInDB(t *testing.T, db *storage.DB, id string) storage.TaskModel {
+	t.Helper()
+	var tm storage.TaskModel
+	if err := db.First(&tm, "id = ?", id).Error; err != nil {
+		t.Fatalf("read task %s: %v", id, err)
+	}
+	return tm
+}
+
+// seedRunningTask inserts a running task owned by test-user.
+func seedRunningTask(t *testing.T, db *storage.DB, id, outputJSON string) {
+	t.Helper()
+	if err := db.Create(&storage.TaskModel{
+		ID: id, UserID: "test-user", Name: "n", Status: "running",
+		StrategyIDs: `[]`, OutputType: "pcap", OutputConfig: outputJSON,
+	}).Error; err != nil {
+		t.Fatalf("seed task: %v", err)
+	}
+}
+
+// TestOnEngineProgress_TerminalTaskIsReadOnly 覆盖终态判定散落的第一种冲突：
+// onEngineProgress 完全不看 status，挂着终态的任务照样被 progress 回调改写
+// progress/packets_sent/bytes_sent/flows_count。
+//
+// 最直接的后果是 Stop：Stop 先把状态写成 stopped，engine 还在路上的
+// OnProgress 回调随后把 progress 改成 50 —— 已经结束的任务显示"跑到一半"。
+// 终态只能由终态路径改写，进度回调对终态任务必须只读。
+func TestOnEngineProgress_TerminalTaskIsReadOnly(t *testing.T) {
+	_, _, db, _ := newTaskTestServer(t)
+	h := &TaskHandler{
+		db:                 db,
+		aggSlots:           make(map[string]map[string]*engineAggSlot),
+		lastProgressUpdate: make(map[string]time.Time),
+	}
+	const taskID = "22222222-2222-2222-2222-222222222222"
+	if err := db.Create(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "n", Status: "stopped",
+		Progress: 100, PacketsSent: 500, BytesSent: 250000,
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	// 迟到的进度回调（batch 任务：engine task ID == taskID）。
+	h.onEngineProgress(taskID, 50, core.TaskStats{PacketsSent: 12})
+
+	tm := terminalStatusInDB(t, db, taskID)
+	if tm.Progress != 100 {
+		t.Errorf("progress = %v after a late progress callback on a stopped task, want 100 "+
+			"(the task is over; progress must not move again)", tm.Progress)
+	}
+	if tm.PacketsSent != 500 {
+		t.Errorf("packets_sent = %d, want 500 — a late callback must not rewrite a finished task's stats", tm.PacketsSent)
+	}
+	if tm.Status != "stopped" {
+		t.Errorf("status = %q, want stopped", tm.Status)
+	}
+}
+
+// TestOnEngineTaskComplete_DoesNotReviveStoppedTask 覆盖第二种冲突：完成回调
+// 只检查 "task.Status != running"，但 Stop 分支同样会在写 stopped 之后继续去
+// 停 engine 任务。engine 的完成回调一旦在 stopped 之后到达，不能把状态改回
+// completed —— Stop 是用户意图，晚到的完成回调只是副作用。
+func TestOnEngineTaskComplete_DoesNotReviveStoppedTask(t *testing.T) {
+	h, _, db, e := newTaskTestServer(t)
+	const taskID = "33333333-3333-3333-3333-333333333333"
+	sidsJSON, _ := json.Marshal([]string{"s1"})
+	if err := db.Create(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "n", Status: "stopped",
+		Progress: 42, StrategyIDs: string(sidsJSON), OutputType: "pcap",
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	// 非 batch 分支：引擎任务 ID 是 {taskID}-{strategyID}。要让完成回调走到
+	// "全部引擎任务已结束"的判定，必须先真有一个在跑——否则它会在
+	// GetTaskStatus 处返回，本测试就白跑了。这里起一个长任务再让它失败退出
+	// （FailTask 移除 taskStore 条目并触发完成回调）。
+	sid := createLongRunningStrategy(t, db, "test-user", "s1", "tcp")
+	if err := db.Model(&storage.TaskModel{}).Where("id = ?", taskID).
+		Update("strategy_ids", `["`+sid+`"]`).Error; err != nil {
+		t.Fatalf("update strategy ids: %v", err)
+	}
+	_ = e
+	h.onEngineTaskComplete(taskID + "-" + sid)
+	if tm := terminalStatusInDB(t, db, taskID); tm.Status != "stopped" {
+		t.Fatalf("precondition: status = %q, want stopped before the callback", tm.Status)
+	}
+
+	tm := terminalStatusInDB(t, db, taskID)
+	if tm.Status != "stopped" {
+		t.Errorf("status = %q after a late completion callback, want stopped "+
+			"(Stop is the user's intent; a late callback must not overwrite it)", tm.Status)
+	}
+	if tm.Progress != 42 {
+		t.Errorf("progress = %v, want 42 untouched", tm.Progress)
+	}
+}
+
+// TestTaskStop_DoesNotOverwriteConcurrentStats 覆盖"用旧快照整行覆盖数据库"：
+// Stop 先整行读 task，改两个字段后 Save 全列——读和写之间落库的实发统计
+// (packets_sent/bytes_sent/flows_count/progress) 全被打回读到的旧值。
+//
+// 用户连点停止时看到的就是这个：请求前已发出 500 包，停止后界面显示 0。
+func TestTaskStop_DoesNotOverwriteConcurrentStats(t *testing.T) {
+	h, r, db, _ := newTaskTestServer(t)
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.POST("/tasks/:id/stop", h.Stop)
+
+	const taskID = "44444444-4444-4444-4444-444444444444"
+	if err := db.Create(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "n", Status: "running",
+		Progress: 10, PacketsSent: 0, BytesSent: 0, StrategyIDs: `[]`,
+		OutputType: "pcap", BatchConfig: `{"classes":[]}`,
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	// 在 Stop 读到快照之后、写库之前插入并发统计写。整行 Save 会把读到
+	// 的旧统计列一起写回，覆盖掉这里的 500。
+	stopSnapshotHook = func() {
+		if err := db.Model(&storage.TaskModel{}).Where("id = ?", taskID).Updates(map[string]interface{}{
+			"packets_sent": 500, "bytes_sent": 250000, "flows_count": 7, "progress": 88,
+		}).Error; err != nil {
+			t.Errorf("concurrent update: %v", err)
+		}
+	}
+	defer func() { stopSnapshotHook = nil }()
+
+	req := httptest.NewRequest("POST", "/tasks/"+taskID+"/stop", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("stop: status=%d body=%s", w.Code, w.Body.String())
+	}
+
+	tm := terminalStatusInDB(t, db, taskID)
+	if tm.Status != "stopped" {
+		t.Fatalf("status = %q, want stopped", tm.Status)
+	}
+	// 统计列允许是并发写的值(500)或 Stop 读到之前的值(0)，但不允许被
+	// Stop 的旧快照覆盖成一个互相矛盾的组合。这里断言最直接的观测：
+	// 并发写确实落库了，Stop 不该把它抹掉。
+	if tm.PacketsSent != 500 {
+		t.Errorf("packets_sent = %d after Stop, want 500 — Stop rewrote the row from a "+
+			"snapshot taken before the concurrent stats update", tm.PacketsSent)
+	}
+}
