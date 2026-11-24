@@ -1915,6 +1915,13 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		}).Error; err != nil {
 		// 必须拦住：此前这里失败也照样提交引擎任务并回 200，库里却停在
 		// 上一轮的 completed/100——引擎在跑，界面显示"已完成"。
+		// writer 已经全部注册进引擎了，这条出口必须把它们连同 flow-control
+		// 一起收回，否则任务没起来、句柄却永久留在引擎里。
+		for _, ct := range coreTasks {
+			h.engine.UnregisterOutputWriter(ct.ID)
+			h.engine.UnregisterDualWriter(ct.ID)
+		}
+		h.engine.CleanupTaskFlowControl(id)
 		task.Status = "error"
 		task.ErrorMessage = "failed to mark task running: " + err.Error()
 		h.markTaskError(&task)
@@ -1935,6 +1942,8 @@ func (h *TaskHandler) Start(c *gin.Context) {
 			}
 		}
 		if skip {
+			// 这条策略的 writer 没开成：它从未注册进引擎，这里无需注销
+			// （writer 创建失败的 ct 在上一循环就 continue 了）。
 			continue
 		}
 
@@ -1967,6 +1976,8 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		// (parent rate bucket + shared flow counter). Without this, a task that
 		// never successfully starts leaks entries in the engine's maps.
 		h.engine.CleanupTaskFlowControl(id)
+		h.releaseProgressBookkeeping(id)
+		h.releaseTaskFailures(id)
 		InternalError(c, task.ErrorMessage)
 		return
 	}

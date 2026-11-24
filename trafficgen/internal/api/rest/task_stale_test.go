@@ -2,19 +2,23 @@ package rest
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/output"
 	"github.com/trafficgen/trafficgen/internal/storage"
+	"gorm.io/gorm"
 )
 
 // createLongRunningStrategy is createTestStrategy with a huge flow count so
@@ -866,18 +870,36 @@ func TestOnEngineProgress_TransientWriteErrorKeepsLiveSlots(t *testing.T) {
 		t.Fatalf("seed progress: packets_sent = %d, want 500", got)
 	}
 
-	// 关掉底层连接池，后续写全部失败，内存态不受影响。
-	sqlDB, err := db.DB.DB()
-	if err != nil {
-		t.Fatalf("sql db: %v", err)
+	// 只让**目标任务行的 UPDATE** 失败，SELECT 必须正常——否则测试走的是
+	// "SELECT status 失败"那条早退路径，根本没进到 Error!=nil 分支。
+	// 此前就是关掉整个连接池，于是把 `if res.Error != nil` 改成恒真也绿。
+	var reached atomic.Bool
+	if err := db.Callback().Update().Before("gorm:update").Register("test:fail_task_update", func(tx *gorm.DB) {
+		if tx.Statement.Table != "tasks" {
+			return
+		}
+		sql := tx.Statement.SQL.String()
+		if !strings.Contains(sql, "progress") && !strings.Contains(sql, "packets_sent") {
+			// GORM 在 Before 钩子里 SQL 可能尚未渲染，退而看赋值列。
+			if tx.Statement.Dest == nil {
+				return
+			}
+			if m, ok := tx.Statement.Dest.(map[string]interface{}); !ok || m["packets_sent"] == nil {
+				return
+			}
+		}
+		reached.Store(true)
+		_ = tx.AddError(errInjectedUpdate)
+	}); err != nil {
+		t.Fatalf("register hook: %v", err)
 	}
-	// 关掉底层连接池会让后续写全部失败，同时不影响内存态的断言。
-	if err := sqlDB.Close(); err != nil {
-		t.Fatalf("close db: %v", err)
-	}
+	t.Cleanup(func() { _ = db.Callback().Update().Remove("test:fail_task_update") })
 
 	h.onEngineProgress(id+"-stratB", 100, core.TaskStats{PacketsSent: 700})
 
+	if !reached.Load() {
+		t.Fatal("the target UPDATE never ran — this test would be vacuous")
+	}
 	h.aggMu.Lock()
 	slots := h.aggSlots[id]
 	h.aggMu.Unlock()
@@ -886,7 +908,14 @@ func TestOnEngineProgress_TransientWriteErrorKeepsLiveSlots(t *testing.T) {
 			"slots on a transient DB error loses the completed child strategy's stats "+
 			"(R7 defect A all over again)", len(slots))
 	}
+	// 落库失败，DB 里的统计必须保持上一次成功的值。
+	if got := terminalStatusInDB(t, db, id).PacketsSent; got != 500 {
+		t.Errorf("packets_sent = %d, want 500 (the failed write must not have landed)", got)
+	}
 }
+
+// errInjectedUpdate makes the injected GORM hook fail a statement on purpose.
+var errInjectedUpdate = fmt.Errorf("injected update failure")
 
 // TestStopAndDelete_ReleaseRecordedFailures 覆盖 failedTasks 的生命周期泄漏。
 //
@@ -948,3 +977,103 @@ func TestStopAndDelete_ReleaseRecordedFailures(t *testing.T) {
 	}
 	assertCleared(delID, "Delete")
 }
+
+// TestStart_PartialStrategyFailureReleasesSkippedWriters 覆盖 Start 提交循环
+// 的 writer 泄漏。
+//
+// 一条策略的 writer 创建失败会进 writerErrors，提交循环据此 skip 它——但
+// 那条策略**从未被注销**。任务若正常完成，完成回调按 strategyIDs 清 eid
+// 时也清不到它（它是同一个 eid，本该能清到；但若整次 Start 以 error 收场，
+// 没有任何路径会清）。这里构造"全部策略都没提交成功"，断言引擎里不留
+// 任何 writer。
+func TestStart_AllStrategiesFailReleasesAllWriters(t *testing.T) {
+	h, r, db, e := newTaskTestServer(t)
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.POST("/tasks/:id/start", h.Start)
+
+	sid := createTestStrategy(t, db, "test-user", "s-bad", "tcp")
+	// 让策略转换后的 SubmitTask 失败：停掉引擎。
+	e.Stop()
+
+	taskID := uuid.New().String()
+	sidsJSON, _ := json.Marshal([]string{sid})
+	if err := db.Create(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "t", Status: "completed",
+		StrategyIDs: string(sidsJSON), OutputType: "pcap",
+		OutputConfig: `{"pcap_path":"` + stalePcapPath(t, "startfail.pcap") + `"}`,
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("POST", "/tasks/"+taskID+"/start", nil))
+	if w.Code == http.StatusOK {
+		t.Fatalf("start succeeded although the engine is stopped: %s", w.Body.String())
+	}
+
+	if leaked := e.OutputWriterIDs(); len(leaked) != 0 {
+		t.Errorf("a start that submitted nothing still holds output writers for %v — "+
+			"the writers were registered before SubmitTask and nothing unregisters "+
+			"them on the all-failed exit", leaked)
+	}
+	if leaked := e.DualWriterIDs(); len(leaked) != 0 {
+		t.Errorf("a start that submitted nothing still holds dual writers for %v", leaked)
+	}
+}
+
+// TestStart_AllWritersFailReleasesEveryRegisteredWriter 覆盖 Start 的
+// "全部策略都没提交成功"出口。
+//
+// 注意：多策略共用同一 pcap 路径（D-ENG-1 共享 writer），所以"一条策略的
+// writer 成功、另一条失败"在当前设计下不可达——要么全成要么全败。因此
+// 提交循环里 skip 分支的 ct 从未注册过 writer，rev4-task 报告的"skip 分支
+// writer 泄漏"不成立。这里钉住真正可达的那条：全部失败时引擎里不留 writer。
+func TestStart_AllWritersFailReleasesEveryRegisteredWriter(t *testing.T) {
+	h, r, db, e := newTaskTestServer(t)
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.POST("/tasks/:id/start", h.Start)
+
+	s1 := createTestStrategy(t, db, "test-user", "s-a", "tcp")
+	s2 := createTestStrategy(t, db, "test-user", "s-b", "tcp")
+
+	// dual 的 .s2c 按路径独立打开，用它让两个 ct 的第二 writer 都失败。
+	orig := newSharedPCAPWriterFn
+	newSharedPCAPWriterFn = func(path string, maxBytes int64) (*output.SharedPCAPWriter, error) {
+		if strings.HasSuffix(path, ".s2c") {
+			return nil, fmt.Errorf("injected writer failure")
+		}
+		return orig(path, maxBytes)
+	}
+	t.Cleanup(func() { newSharedPCAPWriterFn = orig })
+
+	taskID := uuid.New().String()
+	sidsJSON, _ := json.Marshal([]string{s1, s2})
+	if err := db.Create(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "t", Status: "completed",
+		StrategyIDs: string(sidsJSON), OutputType: "pcap",
+		OutputConfig: `{"pcap_path":"` + stalePcapPath(t, "skip.pcap") + `","interface2":"lo"}`,
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("POST", "/tasks/"+taskID+"/start", nil))
+	if w.Code == http.StatusOK {
+		t.Fatalf("start succeeded although every writer failed: %s", w.Body.String())
+	}
+
+	if leaked := e.OutputWriterIDs(); len(leaked) != 0 {
+		t.Errorf("engine still holds output writers for %v after every writer "+
+			"failed to open", leaked)
+	}
+	if leaked := e.DualWriterIDs(); len(leaked) != 0 {
+		t.Errorf("engine still holds dual writers for %v", leaked)
+	}
+}
+
+// TestStopAndDelete_ReleaseRecordedFailures 覆盖 failedTasks 的生命周期泄漏。
+//
+// 输出失败按 **engine task ID** 登记（策略任务是 "{parent}-{strategy}"，batch
+// 是裸 parent ID），此前只有完成回调和 Start 的对账会删。Stop 与 Delete 都不
+// 清——被停止/删除过的任务把失败条目永久留在 handler 里，与已修掉的
+// aggSlots 泄漏同型。

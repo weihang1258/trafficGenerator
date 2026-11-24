@@ -350,6 +350,19 @@ func (e *Engine) DualWriterIDs() []string {
 	return ids
 }
 
+// OutputWriterIDs returns the task IDs that currently have a registered
+// single-port writer. Symmetric with DualWriterIDs: lets a test verify that a
+// failed start unregisters the writers it opened.
+func (e *Engine) OutputWriterIDs() []string {
+	e.outputMu.RLock()
+	defer e.outputMu.RUnlock()
+	ids := make([]string, 0, len(e.outputWriters))
+	for id := range e.outputWriters {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
 // SetReplayPlanner registers the replay planner (handles TrafficClass.Type=="replay").
 func (e *Engine) SetReplayPlanner(p ReplayPlanner) {
 	e.replayPlanner = p

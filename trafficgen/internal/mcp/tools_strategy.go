@@ -77,11 +77,8 @@ func (s *Server) handleManageStrategies(ctx context.Context, req *mcp.CallToolRe
 		if in.Page > 0 {
 			q.Set("page", strconv.Itoa(in.Page))
 		}
-		if in.Size > 0 {
-			q.Set("size", strconv.Itoa(in.Size))
-		} else {
-			q.Set("size", "0")
-		}
+		// 负值原样转发（REST 契约：负 size 回默认页大小），0 才是全量哨兵。
+		q.Set("size", sizeQueryValue(in.Size))
 		resp, err = s.callHandler(ctx, nil, "", q, h.List)
 	case "get":
 		resp, err = s.callHandler(ctx, nil, in.ID, nil, h.Get)

@@ -13,6 +13,7 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcapgo"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // writeTestPcap creates a small pcap file with one TCP packet for MCP tests.
@@ -957,5 +958,54 @@ func TestMCP_GetStream_ForwardsInvalidRangeToREST(t *testing.T) {
 	}
 	if stream.Length != 3 {
 		t.Errorf("limit=3 returned length=%d, want 3", stream.Length)
+	}
+}
+
+// TestMCP_List_NegativeSizeFallsBackToDefault 覆盖 MCP 转发层的负 size。
+//
+// REST 的契约是"负 size 回端点默认页大小"，但 MCP 侧此前是 `>0 才发、
+// 否则发 "0"`，把 -1 变成了"全量"——与 schema 描述正好相反，调用方以为
+// 拿到一页，实际拿到全库。走真实 JSON-RPC（CallTool）才能覆盖 schema 推导
+// 与解码整条链路，直接调 handler 会绕过它。
+func TestMCP_List_NegativeSizeFallsBackToDefault(t *testing.T) {
+	srv := newTransportTestServer(t)
+	ctx := context.Background()
+	ct, st := mcp.NewInMemoryTransports()
+	go func() { _ = srv.mcpServer.Run(ctx, st) }()
+	sc, err := mcp.NewClient(&mcp.Implementation{Name: "t", Version: "0"}, nil).Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer sc.Close()
+
+	res, err := sc.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "flowb_manage_pcaps",
+		Arguments: map[string]interface{}{"description": "t", "action": "list", "size": -1},
+	})
+	if err != nil {
+		t.Fatalf("call: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("call returned tool error: %v", res.Content)
+	}
+	var out struct {
+		Data struct {
+			Size int `json:"size"`
+		} `json:"data"`
+	}
+	raw, _ := json.Marshal(res.StructuredContent)
+	if err := json.Unmarshal(raw, &out); err != nil {
+		// StructuredContent 可能带外层信封，退一步用文本内容解析。
+		var txt string
+		if len(res.Content) > 0 {
+			txt = res.Content[0].(*mcp.TextContent).Text
+		}
+		if err2 := json.Unmarshal([]byte(txt), &out); err2 != nil {
+			t.Fatalf("unmarshal result: %v / %v (raw=%s)", err, err2, string(raw))
+		}
+	}
+	if out.Data.Size == 0 {
+		t.Errorf("size = 0 in the response for size=-1 — a negative size must fall back "+
+			"to the endpoint default, not be forwarded as the ALL sentinel")
 	}
 }

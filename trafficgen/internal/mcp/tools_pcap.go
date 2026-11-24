@@ -404,6 +404,17 @@ func wrapBinaryAsBase64(raw []byte) *backendResponse {
 	return &backendResponse{Code: 0, Data: data}
 }
 
+// sizeQueryValue renders the size param for a list query. 0 means "all rows"
+// (the REST sentinel); any other value, including a negative one, is forwarded
+// verbatim so REST can apply its own contract (negative → endpoint default)
+// instead of silently turning it into "all".
+func sizeQueryValue(size int) string {
+	if size == 0 {
+		return "0"
+	}
+	return strconv.Itoa(size)
+}
+
 // buildPcapListQuery builds the query params for the list action.
 func buildPcapListQuery(in managePcapsInput) url.Values {
 	q := url.Values{}
@@ -412,11 +423,11 @@ func buildPcapListQuery(in managePcapsInput) url.Values {
 	}
 	// 翻页可选（用户裁定 2026-10-04）：size 省略或 0 = 全量拉取，REST 侧
 	// size=0 不加 LIMIT；给 size 才是分页。
-	if in.Size > 0 {
-		q.Set("size", strconv.Itoa(in.Size))
-	} else {
-		q.Set("size", "0")
-	}
+	//
+	// 负值必须原样转发：REST 对负 size 的契约是"回默认页大小"，而
+	// `>0 才发、否则发 0` 会把 -1 变成"全量"，与 schema 描述正好相反——
+	// 调用方以为拿到一页，实际拿到全库。
+	q.Set("size", sizeQueryValue(in.Size))
 	if in.Status != "" {
 		q.Set("status", in.Status)
 	}
@@ -431,10 +442,7 @@ func buildPcapPageQuery(in managePcapsInput, defaultSize int) url.Values {
 	}
 	// 翻页可选（用户裁定 2026-10-04）：size 省略或 0 = 全量拉取。
 	// defaultSize 是旧签名遗留，分页默认已由 REST 层持有。
-	if in.Size > 0 {
-		q.Set("size", strconv.Itoa(in.Size))
-	} else {
-		q.Set("size", "0")
-	}
+	// 负值原样转发，理由同 buildPcapListQuery。
+	q.Set("size", sizeQueryValue(in.Size))
 	return q
 }
