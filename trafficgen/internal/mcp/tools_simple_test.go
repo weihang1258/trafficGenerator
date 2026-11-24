@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // ---------------------------------------------------------------------------
@@ -258,13 +260,27 @@ func TestMCP_ManagePortGroups_InvalidAction(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestMCP_AllRegisteredToolsAppear(t *testing.T) {
-	env := setupMCPTest(t)
-	defer env.cleanup()
+	srv := newTransportTestServer(t)
 
-	// The MCP server's tool list is populated by registerTools(). We verify
-	// by checking the server has the expected tools via ListTools.
-	// Since we can't easily call ListTools without a session, we check the
-	// server's internal tool map by attempting to call each handler.
+	// 走真实 ListTools（内存传输），断言全部工具都对外可见。此前这个测试
+	// 只把工具名存进一个变量再 _ = 掉——断言数为零，注册漏了也全绿。
+	ctx := context.Background()
+	ct, st := mcp.NewInMemoryTransports()
+	go func() { _ = srv.mcpServer.Run(ctx, st) }()
+	sc, err := mcp.NewClient(&mcp.Implementation{Name: "t", Version: "0"}, nil).Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer sc.Close()
+	resp, err := sc.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatalf("list tools: %v", err)
+	}
+	advertised := make(map[string]bool, len(resp.Tools))
+	for _, tl := range resp.Tools {
+		advertised[tl.Name] = true
+	}
+
 	expectedTools := []string{
 		"flowb_manage_strategies",
 		"flowb_manage_tasks",
@@ -272,10 +288,20 @@ func TestMCP_AllRegisteredToolsAppear(t *testing.T) {
 		"flowb_manage_settings",
 		"flowb_manage_profile",
 		"flowb_manage_port_groups",
+		"flowb_manage_pcaps",
+		"flowb_query_layers",
+		"flowb_manage_users",
+		"flowb_manage_auth",
 	}
-
-	// Each tool's handler is callable. We already tested each above. This
-	// test is a placeholder for a future ListTools-based check if the SDK
-	// exposes the tool registry.
-	_ = expectedTools
+	for _, name := range expectedTools {
+		if !advertised[name] {
+			t.Errorf("tool %q is not advertised by the server (got %d tools)", name, len(resp.Tools))
+		}
+	}
+	// 反向断言：每个对外工具都必须带输入 schema，否则模型无从填参。
+	for _, tl := range resp.Tools {
+		if tl.InputSchema == nil {
+			t.Errorf("tool %q has no input schema", tl.Name)
+		}
+	}
 }
