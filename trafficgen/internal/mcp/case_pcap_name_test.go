@@ -11,7 +11,6 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -108,7 +107,7 @@ func TestRunProtocolCase_NegDefaultPathMarked(t *testing.T) {
 	_, out, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 		Proto:      "arp",
 		CaseID:     "neg_default_path",
-		SpecJSON:   json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01"}},{"arp":{"sender_ip":"not-an-ip"}}]}`),
+		SpecJSON:   specObj(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01"}},{"arp":{"sender_ip":"not-an-ip"}}]}`),
 		OutputType: "pcap",
 		Expect:     caseExpectInput{ExpectError: true, ErrorContains: "invalid sender_ip"},
 	})

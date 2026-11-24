@@ -48,7 +48,7 @@ func TestRunProtocolCase_InvalidParams(t *testing.T) {
 	env := setupTestDriveEnv(t)
 	defer env.cleanup()
 
-	spec := json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`)
+	spec := specObj(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`)
 	cases := []struct {
 		name string
 		in   runCaseInput
@@ -89,7 +89,7 @@ func TestRunProtocolCase_RejectsUnknownOutputType(t *testing.T) {
 	_, _, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 		Proto:      "arp",
 		CaseID:     "bad-output-type",
-		SpecJSON:   json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
+		SpecJSON:   specObj(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
 		OutputType: "bogus",
 	})
 	if err == nil {
@@ -108,7 +108,7 @@ func TestRunProtocolCase_ExpectError_Pass(t *testing.T) {
 	_, out, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 		Proto:  "arp",
 		CaseID: "neg_arp_no_config",
-		SpecJSON: json.RawMessage(
+		SpecJSON: specObj(
 			`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01"}},{"arp":{"sender_ip":"not-an-ip"}}]}`), // validator 报 invalid sender_ip
 		OutputType:   "pcap",
 		OutputConfig: &outputConfigInput{PcapPath: filepath.Join(env.tmp, "neg.pcap")},
@@ -137,7 +137,7 @@ func TestRunProtocolCase_ExpectError_ErrorContainsMismatch(t *testing.T) {
 	_, out, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 		Proto:  "arp",
 		CaseID: "neg_arp_wrong_substr",
-		SpecJSON: json.RawMessage(
+		SpecJSON: specObj(
 			`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01"}},{"arp":{"sender_ip":"not-an-ip"}}]}`), // validator 拒绝，但错误信息不是 error_contains → fail（子串失配）
 		OutputType: "pcap",
 		Expect: caseExpectInput{
@@ -166,7 +166,7 @@ func TestRunProtocolCase_ExpectError_NeverRejected(t *testing.T) {
 	_, out, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 		Proto:        "arp",
 		CaseID:       "neg_arp_but_valid_config",
-		SpecJSON:     json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
+		SpecJSON:     specObj(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
 		OutputType:   "pcap",
 		OutputConfig: &outputConfigInput{PcapPath: filepath.Join(env.tmp, "never-rej.pcap")},
 		Expect:       caseExpectInput{ExpectError: true, ErrorContains: "x"},
@@ -189,7 +189,7 @@ func TestRunProtocolCase_PositivePcap_Arp(t *testing.T) {
 	_, out, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 		Proto:        "arp",
 		CaseID:       "arp_pos_ok",
-		SpecJSON:     json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
+		SpecJSON:     specObj(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
 		OutputType:   "pcap",
 		OutputConfig: &outputConfigInput{PcapPath: pcapPath},
 		Expect: caseExpectInput{
@@ -225,7 +225,7 @@ func TestRunProtocolCase_VerifyFailure(t *testing.T) {
 	_, out, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 		Proto:        "arp",
 		CaseID:       "arp_verify_fail",
-		SpecJSON:     json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
+		SpecJSON:     specObj(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
 		OutputType:   "pcap",
 		OutputConfig: &outputConfigInput{PcapPath: filepath.Join(env.tmp, "vfail.pcap")},
 		Expect:       caseExpectInput{PacketCount: 3},
@@ -250,7 +250,7 @@ func TestRunProtocolCase_PortGroupMissingID(t *testing.T) {
 	_, out, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 		Proto:        "arp",
 		CaseID:       "arp_nic_nopgid",
-		SpecJSON:     json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
+		SpecJSON:     specObj(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
 		OutputType:   "port_group", // 无 OutputConfig.PortGroupID
 		OutputConfig: &outputConfigInput{},
 	})
@@ -276,7 +276,7 @@ func TestRunProtocolCase_PortsAutoCreate(t *testing.T) {
 	_, out, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 		Proto:      "arp",
 		CaseID:     "arp_ports_auto",
-		SpecJSON:   json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
+		SpecJSON:   specObj(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
 		OutputType: "port_group",
 		OutputConfig: &outputConfigInput{
 			Ports: []portGroupPort{{Interface: "definitely-not-an-iface-7", Weight: 1}},
@@ -308,7 +308,7 @@ func TestRunProtocolCase_PortsMutualExclusion(t *testing.T) {
 	_, _, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 		Proto:      "arp",
 		CaseID:     "arp_ports_mutex",
-		SpecJSON:   json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
+		SpecJSON:   specObj(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
 		OutputType: "port_group",
 		OutputConfig: &outputConfigInput{
 			PortGroupID: "pg-x",
@@ -599,7 +599,7 @@ func TestRunProtocolCase_ExpectError_StoppedNotPass(t *testing.T) {
 		_, out, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 			Proto:          "tcp",
 			CaseID:         "neg_but_stopped",
-			SpecJSON:       json.RawMessage(`{"layers":[{"tcp":{}}]}`),
+			SpecJSON:       specObj(`{"layers":[{"tcp":{}}]}`),
 			StrategyFC:     &flowControlInput{Type: "flows", Value: 1000},
 			OutputType:     "pcap",
 			OutputConfig:   &outputConfigInput{PcapPath: env.tmp + "/stop-neg.pcap"},
@@ -874,7 +874,7 @@ func TestTestDriveArtifactsUnderInternalUser(t *testing.T) {
 	_, out, err := srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 		Proto:        "arp",
 		CaseID:       "arp_obs2",
-		SpecJSON:     json.RawMessage(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
+		SpecJSON:     specObj(`{"layers":[{"eth":{"src_mac":"aa:bb:cc:dd:ee:01","dst_mac":"aa:bb:cc:dd:ee:02"}},{"arp":{"operation":1}}]}`),
 		OutputType:   "pcap",
 		OutputConfig: &outputConfigInput{PcapPath: pcapPath},
 		Expect:       caseExpectInput{PacketCount: 2},
@@ -945,4 +945,14 @@ func TestCleanupCreatedRunFollowsRunAsIdentity(t *testing.T) {
 	if rowExists("tasks", serviceRun.TaskID) || rowExists("strategies", serviceRun.StrategyID) {
 		t.Error("service-user run not cleaned: plain ctx must keep service identity")
 	}
+}
+
+// specObj decodes a JSON literal into the map shape runCaseInput.SpecJSON now
+// uses (it must be a JSON object on the wire — see the field comment).
+func specObj(raw string) map[string]interface{} {
+	var m map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		panic("specObj: " + err.Error())
+	}
+	return m
 }

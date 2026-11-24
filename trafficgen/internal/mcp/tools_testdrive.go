@@ -33,8 +33,15 @@ import (
 type runCaseInput struct {
 	Description string `json:"description,omitempty" jsonschema:"一句话说明本次调用的目的（将展示给用户），不超过 50 字"`
 	Proto          string             `json:"proto,omitempty" jsonschema:"protocol name (registry name, e.g. tcp/tftp/modbus); optional when the case resolves from the server's cases corpus"`
-	CaseID         string             `json:"case_id" jsonschema:"case identifier (used in task naming + pcap path); with spec_json omitted the case loads from the server's protocol cases corpus (case_id alone runs a regression case)"`
-	SpecJSON       json.RawMessage    `json:"spec_json,omitempty" jsonschema:"generate_traffic config (strategy config, protocol-specific layers/spec); OPTIONAL — omit to load the named case from the corpus"`
+	CaseID         string                 `json:"case_id" jsonschema:"case identifier (used in task naming + pcap path); with spec_json omitted the case loads from the server's protocol cases corpus (case_id alone runs a regression case)"`
+	// spec_json 必须是 **JSON 对象**（generate_traffic 的 config 形状），
+	// 不是字符串、更不是字节数组。此前声明成 json.RawMessage，go-sdk 从中
+	// 推导出的 schema 是 {"type":["null","array"],"items":{"type":"integer",
+	// "minimum":0,"maximum":255}} —— 也就是"字节数组"；MCP 的 schema 校验
+	// 在 handler 之前就把对象和 JSON 字符串两种自然写法都拒了，这个参数
+	// 对外等于不可用（内部测试直接赋结构体字段，从不经过 wire，所以一直
+	// 没被发现）。
+	SpecJSON       map[string]interface{} `json:"spec_json,omitempty" jsonschema:"generate_traffic config as a JSON OBJECT (not a string, not a byte array): {layers:[{ip:{src,dst}},{tcp:{dst_port}},{http:{uri}}], flow_control:{type:flows,value:N}}. OPTIONAL — omit to load the named case from the corpus; when omitted, case_id alone runs a regression case. Fields given explicitly here override the corpus entry."`
 	CaseDir        string             `json:"case_dir,omitempty" jsonschema:"override the corpus directory for this lookup (default: mcp.protocol_cases_dir config, then ./cases)"`
 	OutputType     string             `json:"output_type,omitempty" jsonschema:"output type: pcap or port_group (default pcap)"`
 	OutputConfig   *outputConfigInput `json:"output_config,omitempty" jsonschema:"output configuration (pcap_path for pcap; port_group_id for port_group, or ports:[...] to auto-create the group — same rule as flowb_generate_traffic)"`
@@ -112,7 +119,7 @@ func (in *runCaseInput) toPcaptestCase() pcaptest.Case {
 	return pcaptest.Case{
 		ID:         in.CaseID,
 		Proto:      in.Proto,
-		SpecJSON:   in.SpecJSON,
+		SpecJSON:   mustMarshal(in.SpecJSON),
 		DecodeAs:   in.DecodeAs,
 		StrategyFC: pcFc(in.StrategyFC),
 		TaskFC:     pcFc(in.TaskFC),
@@ -544,7 +551,14 @@ func (s *Server) handleRunProtocolCase(ctx context.Context, req *mcp.CallToolReq
 		if in.Proto == "" {
 			in.Proto = cc.Proto
 		}
-		in.SpecJSON = cc.SpecJSON
+		corpusSpec := map[string]interface{}{}
+		if len(cc.SpecJSON) > 0 {
+			if uerr := json.Unmarshal(cc.SpecJSON, &corpusSpec); uerr != nil {
+				s.auditLog(req, "flowb_run_protocol_case", 0, "error", "corpus spec_json: "+uerr.Error())
+				return nil, runCaseOutput{}, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: fmt.Sprintf("corpus case %q has an unparseable spec_json: %v", in.CaseID, uerr)}
+			}
+		}
+		in.SpecJSON = corpusSpec
 		if len(in.DecodeAs) == 0 {
 			in.DecodeAs = cc.DecodeAs
 		}
