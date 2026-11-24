@@ -1748,11 +1748,17 @@ func (h *TaskHandler) Start(c *gin.Context) {
 	now := currentTime()
 	task.StartedAt = &now
 	// 指定列更新，不整行 Save：task 是请求开始时读的快照，整行写回会把这
-	// 期间落库的统计列打回旧值。error_message 必须显式清空——重启后的任务
-	// 不能带着上一轮的失败信息。
+	// 期间落库的统计列打回旧值。但 "Reset state for re-start" 设的三项
+	// （progress / error_message / completed_at）必须显式写进去——只写
+	// status+started_at 会留下上一轮的 100% 和 completed_at，客户端立刻
+	// 轮询就看见"状态 running、进度 100、已完成时间还在"。
 	h.db.Model(&storage.TaskModel{}).Where("id = ?", task.ID).
 		Updates(map[string]interface{}{
-			"status": "running", "started_at": now, "error_message": "",
+			"status":        "running",
+			"started_at":    now,
+			"progress":      0,
+			"error_message": "",
+			"completed_at":  nil,
 		})
 
 	// Submit all engine tasks

@@ -425,3 +425,49 @@ func TestTaskStop_DoesNotOverwriteConcurrentStats(t *testing.T) {
 			"snapshot taken before the concurrent stats update", tm.PacketsSent)
 	}
 }
+
+// TestStart_ResetsStaleProgressAndCompletedAt 覆盖重启时必须清掉的陈旧状态。
+//
+// Start 里原本有一段 "Reset state for re-start"：Progress=0、
+// ErrorMessage=""、CompletedAt=nil，靠后面的整行 Save 一起落库。改成按列
+// 更新后只写了 status/started_at/error_message，Progress 与 CompletedAt
+// 两列漏了——重跑一个已完成的 100% 任务，DB 里仍留着 progress=100 和上一轮
+// 的 completed_at，客户端立刻轮询会看到一个"已完成但状态是 running"的任务。
+func TestStart_ResetsStaleProgressAndCompletedAt(t *testing.T) {
+	h, r, db, _ := newTaskTestServer(t)
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.POST("/tasks/:id/start", h.Start)
+
+	sid := createLongRunningStrategy(t, db, "test-user", "s1", "tcp")
+	taskID := uuid.New().String()
+	sidsJSON, _ := json.Marshal([]string{sid})
+	prevCompleted := time.Now().Add(-time.Hour)
+	if err := db.Create(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "t1", Status: "completed",
+		Progress: 100, StrategyIDs: string(sidsJSON),
+		OutputType: "pcap", OutputConfig: `{"pcap_path":"` + stalePcapPath(t, "reset.pcap") + `"}`,
+		CompletedAt: &prevCompleted,
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	req := httptest.NewRequest("POST", "/tasks/"+taskID+"/start", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("start: status=%d body=%s", w.Code, w.Body.String())
+	}
+
+	tm := terminalStatusInDB(t, db, taskID)
+	if tm.Status != "running" {
+		t.Fatalf("status = %q, want running", tm.Status)
+	}
+	if tm.Progress != 0 {
+		t.Errorf("progress = %v after restarting a completed task, want 0 — the "+
+			"stale 100 is still in the DB and the client sees a running task at 100%%", tm.Progress)
+	}
+	if tm.CompletedAt != nil {
+		t.Errorf("completed_at = %v after restart, want cleared — a running task "+
+			"must not carry the previous run's completion time", tm.CompletedAt)
+	}
+}
