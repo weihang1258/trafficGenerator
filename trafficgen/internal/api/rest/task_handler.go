@@ -403,8 +403,8 @@ var terminalStatuses = []string{"completed", "failed", "stopped", "error"}
 // 触发且不回调本包的 Start/Stop/Delete，无重入。
 //
 // 调用者清单（任何改任务生命周期的 handler 必须持此锁）：
-//   Start (task_handler.go)、Stop、Delete。CreateBatch 不进锁族——
-//   它建新行，与既有行的操作者无竞态对象；其失败出口由谓词保护。
+// Start (task_handler.go)、Stop、Delete。CreateBatch 不进锁族——
+// 它建新行，与既有行的操作者无竞态对象；其失败出口由谓词保护。
 //
 // 持锁时间：整个 handler（含 DB 读写、writer 打开、MTU syscall、引擎提交）。
 // 管理面操作，最坏几百 ms；WriteTimeout=65s、busy_timeout=60s 覆盖等待。
