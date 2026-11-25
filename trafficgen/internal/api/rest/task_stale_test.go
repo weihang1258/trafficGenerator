@@ -1398,3 +1398,35 @@ func TestLifecycle_DBErrorAnswers500(t *testing.T) {
 			"must answer 500, not a silent 200", w.Code, w.Body.String())
 	}
 }
+
+// TestOnEngineTaskComplete_ReleasesResidualFailures：完成回调消费主键后，
+// 残余的 eid 条目（onEngineOutputError 按引擎任务 ID 登记，可能多于消费
+// 循环枚举的）也必须被清——否则被停止/删除过的任务把失败条目永久留在
+// handler 里（与已修掉的 aggSlots 泄漏同型）。变异：删掉回调里的
+// releaseTaskFailures 即红。
+func TestOnEngineTaskComplete_ReleasesResidualFailures(t *testing.T) {
+	h, _, db, _ := newTaskTestServer(t)
+	const id = "efefefef-efef-efef-efef-efefefefefef"
+	// batch 任务：engine ID == taskID，BatchConfig 非空。
+	if err := db.Create(&storage.TaskModel{
+		ID: id, UserID: "test-user", Name: "n", Status: "running",
+		BatchConfig: `{"classes":[]}`, OutputType: "pcap", OutputConfig: `{}`,
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	// 残余条目：消费循环枚举不到的前缀键。
+	h.failMu.Lock()
+	h.failedTasks[id+"-ghost-strategy"] = "output error ghost"
+	h.failMu.Unlock()
+
+	// 引擎里无此任务（已完成）→ GetTaskStatus err → 走终态写路径。
+	h.onEngineTaskComplete(id)
+
+	h.failMu.Lock()
+	_, left := h.failedTasks[id+"-ghost-strategy"]
+	h.failMu.Unlock()
+	if left {
+		t.Errorf("residual failedTasks entry survived the completion callback — " +
+			"the callback consumed the primary key but never released the rest")
+	}
+}

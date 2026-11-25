@@ -736,6 +736,9 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 		h.maybeAutoRegisterPcapAsync(&task)
 		// R7 缺陷 A：父任务终态后整组删除聚合槽位（防 handler 生命周期泄漏）。
 		h.releaseProgressBookkeeping(taskID)
+		// 消费路径之外的残余失败条目（例如eid登记后策略消失）也一并清——
+		// 幂等，不影响上面已消费的键。
+		h.releaseTaskFailures(taskID)
 		return
 	}
 
@@ -825,6 +828,7 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 
 		// R7 缺陷 A：父任务终态后整组删除聚合槽位。
 		h.releaseProgressBookkeeping(taskID)
+		h.releaseTaskFailures(taskID)
 	}
 }
 
@@ -1351,14 +1355,10 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 		// 的路径也能收回句柄。
 		taskModel.Status = "error"
 		taskModel.ErrorMessage = err.Error()
-		needRelease := true
-		defer func() {
-			if needRelease {
-				h.releaseBatchWriters(taskID, dualPort)
-			}
-		}()
 		// 按列更新而非 Save 全行：taskModel 是建单时的快照，整行写回会把
-		// 期间落库的统计/进度列打回旧值。
+		// 期间落库的统计/进度列打回旧值。终态先落库、writer 后释放——
+		// 终态谓词挡住迟到的进度写入后，再收回句柄。无论落库成败都要释放
+		// （写库失败的路径同样不能漏），所以先 release 再检查结果。
 		mtuRes := h.db.Model(&storage.TaskModel{}).Where("id = ? AND status = ?", taskID, "running").
 			Updates(map[string]interface{}{
 				"status":        "error",
@@ -1366,7 +1366,6 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 				"progress":      0,
 				"completed_at":  currentTime(),
 			})
-		needRelease = false
 		h.releaseBatchWriters(taskID, dualPort)
 		if mtuRes.Error != nil {
 			InternalError(c, "MTU check failed ("+err.Error()+") and the error state could not be persisted: "+mtuRes.Error.Error())
@@ -1397,10 +1396,10 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 		coreTask.Interface2 = req.OutputConfig.Interface2
 	}
 	if err := h.engine.SubmitTask(coreTask); err != nil {
-		h.releaseBatchWriters(taskID, dualPort)
 		taskModel.Status = "error"
 		taskModel.ErrorMessage = err.Error()
-		// 同 MTU 分支：按列更新，且落库失败不得静默。
+		// 同 MTU 分支：终态先落库（谓词 running 原子），writer 后释放——
+		// 两条失败分支顺序一致。落库失败不得静默。
 		subRes := h.db.Model(&storage.TaskModel{}).Where("id = ? AND status = ?", taskID, "running").
 			Updates(map[string]interface{}{
 				"status":        "error",
@@ -1408,6 +1407,7 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 				"progress":      0,
 				"completed_at":  currentTime(),
 			})
+		h.releaseBatchWriters(taskID, dualPort)
 		if subRes.Error != nil {
 			InternalError(c, "task submission failed ("+err.Error()+") and the error state could not be persisted: "+subRes.Error.Error())
 			return
@@ -1802,10 +1802,17 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		task.OutputConfig = string(resolvedJSON)
 		// 此前 Error 被丢弃：落库失败时任务照常跑，但完成后的 auto-register
 		// 读 DB 里的 output_config（旧值）→ 注册错路径的文件或 404。必须失败。
-		if oerr := h.db.Model(&storage.TaskModel{}).Where("id = ?", task.ID).
-			Update("output_config", task.OutputConfig).Error; oerr != nil {
+		ocRes := h.db.Model(&storage.TaskModel{}).Where("id = ?", task.ID).
+			Update("output_config", task.OutputConfig)
+		if ocRes.Error != nil || ocRes.RowsAffected == 0 {
+			// Error：DB 故障；RowsAffected=0：行不在了（防御纵深）——
+			// 两种情况都意味着 auto-register 会读到旧路径，任务必须失败。
+			reason := "DB error: " + ocRes.Error.Error()
+			if ocRes.Error == nil {
+				reason = "task row no longer exists"
+			}
 			task.Status = "error"
-			task.ErrorMessage = "failed to persist resolved output path: " + oerr.Error()
+			task.ErrorMessage = "failed to persist resolved output path (" + reason + ")"
 			if _, merr := h.markTaskError(&task, "status = ?", "starting"); merr != nil {
 				InternalError(c, task.ErrorMessage+" (and the error state could not be persisted: "+merr.Error()+")")
 				return
