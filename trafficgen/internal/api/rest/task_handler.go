@@ -317,6 +317,12 @@ func (h *TaskHandler) maybeAutoRegisterPcapAsync(task *storage.TaskModel) {
 // window. Always nil in production.
 var startSubmitHook func()
 
+// runningWriteHook is a test-only hook invoked after the "running" DB write
+// and before the engine SubmitTask loop — the ghost-task window: a Stop that
+// lands here reads "running", stops an engine task that does not exist yet,
+// and the subsequent submit resurrects it. Always nil in production.
+var runningWriteHook func()
+
 // parentAggregateWriteHook is a test-only hook invoked inside aggMu just
 // before the parent aggregate row write (R8-D1 red test interleaves here to
 // reproduce the out-of-order partial-sum overwrite). Always nil in production.
@@ -385,6 +391,25 @@ var completeSnapshotHook func()
 // isTerminalStatus (read-side guard) and as the UPDATE-side WHERE clause in
 // onEngineProgress, so the two cannot drift.
 var terminalStatuses = []string{"completed", "failed", "stopped", "error"}
+
+// startMu serializes the task-lifecycle HTTP handlers (Start/Stop/Delete).
+//
+// 作用域：进程内。部署形态是单实例（引擎输出独占本机 NIC 与本地文件系统，
+// 多实例本身不可行）；若未来存储迁到 postgres 且部署转多实例，这里必须换
+// 分布式锁，不能沿用包级 mutex。
+//
+// 锁序：startMu → {failMu, aggMu, progressMu, engine.taskMu, hub.mu}，
+// 全部单向无环。引擎回调（OnProgress/OnTaskComplete）在 engine.taskMu 之外
+// 触发且不回调本包的 Start/Stop/Delete，无重入。
+//
+// 调用者清单（任何改任务生命周期的 handler 必须持此锁）：
+//   Start (task_handler.go)、Stop、Delete。CreateBatch 不进锁族——
+//   它建新行，与既有行的操作者无竞态对象；其失败出口由谓词保护。
+//
+// 持锁时间：整个 handler（含 DB 读写、writer 打开、MTU syscall、引擎提交）。
+// 管理面操作，最坏几百 ms；WriteTimeout=65s、busy_timeout=60s 覆盖等待。
+// 锁内不做任何会无限阻塞的等待（无用户交互、无网络对端等待）。
+var startMu sync.Mutex
 
 // isTerminalStatus reports whether a task status is a final state — the task
 // has ended and nothing but an explicit restart may change it.
@@ -1477,6 +1502,11 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		return
 	}
 
+	// 锁必须在**读行之前**拿到：读行在锁外的话，读到的状态与拿锁时的行
+	// 状态可能不一致（另一个 Start/Stop/Delete 在中间动了它）。
+	startMu.Lock()
+	defer startMu.Unlock()
+
 	var task storage.TaskModel
 	if err := h.db.Where("id = ? AND user_id = ?", id, userID).First(&task).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -1929,6 +1959,10 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		return
 	}
 
+	if runningWriteHook != nil {
+		runningWriteHook()
+	}
+
 	// Submit all engine tasks
 	var submittedIDs []string
 	var lastFailureReason string
@@ -2045,6 +2079,12 @@ func (h *TaskHandler) Stop(c *gin.Context) {
 		return
 	}
 
+	// 与 Start 互斥：Start 写完 running 到 SubmitTask 之间有缝隙，Stop 若
+	// 在缝隙里进来，会对"引擎里还不存在"的任务调 StopTask 并写 stopped，
+	// Start 随后照常提交——引擎在跑、DB 是 stopped 的幽灵任务。
+	startMu.Lock()
+	defer startMu.Unlock()
+
 	var task storage.TaskModel
 	if err := h.db.Where("id = ? AND user_id = ?", id, userID).First(&task).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -2143,6 +2183,9 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 		return
 	}
 
+	startMu.Lock()
+	defer startMu.Unlock()
+
 	var task storage.TaskModel
 	if err := h.db.Where("id = ? AND user_id = ?", id, userID).First(&task).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -2153,9 +2196,10 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	// Check if task is running
-	if task.Status == "running" {
-		BadRequest(c, "cannot delete running task, stop it first")
+	// running 与 starting 都不可删：删掉 starting 的行，Start 恢复后会照常
+	// 提交引擎任务——引擎在跑、DB 无行的幽灵任务，永远停不掉。
+	if task.Status == "running" || task.Status == "starting" {
+		Conflict(c, "cannot delete a task while it is running or starting")
 		return
 	}
 

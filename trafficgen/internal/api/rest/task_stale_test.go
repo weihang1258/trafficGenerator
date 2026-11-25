@@ -1077,3 +1077,235 @@ func TestStart_AllWritersFailReleasesEveryRegisteredWriter(t *testing.T) {
 // 是裸 parent ID），此前只有完成回调和 Start 的对账会删。Stop 与 Delete 都不
 // 清——被停止/删除过的任务把失败条目永久留在 handler 里，与已修掉的
 // aggSlots 泄漏同型。
+
+// ---------------------------------------------------------------------------
+// 生命周期锁族（startMu）红例——三个幽灵任务窗口
+// ---------------------------------------------------------------------------
+
+// lifecycleTestHandler 把 Start/Stop/Delete 都挂到一个 router 上。
+func lifecycleTestHandler(t *testing.T) (*TaskHandler, *gin.Engine, *storage.DB, *core.Engine) {
+	t.Helper()
+	h, r, db, e := newTaskTestServer(t)
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.POST("/tasks/:id/start", h.Start)
+	r.POST("/tasks/:id/stop", h.Stop)
+	r.DELETE("/tasks/:id", h.Delete)
+	return h, r, db, e
+}
+
+// R1 并发 Start：锁族串行化后，第二个 Start 必须被拒（already running 或
+// max_tasks），引擎里恰好一个任务、无 writer 泄漏。
+// 变异：摘掉 startMu → 第二个 Start 可能在对账窗口插队 → 引擎双任务/泄漏。
+func TestLifecycle_ConcurrentStartIsSerialized(t *testing.T) {
+	_, r, db, e := lifecycleTestHandler(t)
+
+	sid := createLongRunningStrategy(t, db, "test-user", "lc-long", "tcp")
+	taskID := uuid.New().String()
+	sidsJSON, _ := json.Marshal([]string{sid})
+	if err := db.Create(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "lc", Status: "pending",
+		StrategyIDs: string(sidsJSON), OutputType: "pcap",
+		OutputConfig: `{"pcap_path":"` + stalePcapPath(t, "lc.pcap") + `"}`,
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	// barrier：两个 goroutine 同时进入 ServeHTTP。
+	enter := make(chan struct{})
+	var wg sync.WaitGroup
+	codes := make([]int, 2)
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			enter <- struct{}{}
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest("POST", "/tasks/"+taskID+"/start", nil))
+			codes[idx] = w.Code
+		}(i)
+	}
+	<-enter
+	<-enter
+	wg.Wait()
+
+	ok := 0
+	for _, c := range codes {
+		if c == http.StatusOK {
+			ok++
+		} else if c != http.StatusBadRequest {
+			t.Errorf("unexpected status %d among %v — want 200 or 400 only", c, codes)
+		}
+	}
+	if ok != 1 {
+		t.Fatalf("exactly one Start must succeed, got %d (codes %v)", ok, codes)
+	}
+	if n := e.ActiveTaskCount(); n != 1 {
+		t.Errorf("engine has %d tasks after two concurrent starts, want exactly 1", n)
+	}
+	if leaked := e.OutputWriterIDs(); len(leaked) != 1 {
+		t.Errorf("engine holds %d writers after two concurrent starts, want exactly 1: %v",
+			len(leaked), leaked)
+	}
+}
+
+// R2 Delete-during-Start：不变式断言——引擎任务数必须与 DB running 行数一致。
+// 变异（摘锁）：Delete 在 Start 的慢 writer 窗口里插队删行 → Start 照常提交 →
+// 引擎有任务、DB 无行 → 不变式破 → 红。
+func TestLifecycle_DeleteDuringStartKeepsEngineAndDBConsistent(t *testing.T) {
+	_, r, db, e := lifecycleTestHandler(t)
+
+	sid := createLongRunningStrategy(t, db, "test-user", "lc-slow", "tcp")
+	taskID := uuid.New().String()
+	sidsJSON, _ := json.Marshal([]string{sid})
+	if err := db.Create(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "lc", Status: "pending",
+		StrategyIDs: string(sidsJSON), OutputType: "pcap",
+		OutputConfig: `{"pcap_path":"` + stalePcapPath(t, "lc-del.pcap") + `"}`,
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	// 慢 writer：pcap 模式走 openShared（claim 之后、writer 注册/running 写
+	// 之前），用它卡住 Start，给 Delete 一个确定的插队窗口。行此时是
+	// starting——修复前的 Delete 会直接删掉这行。
+	orig := newSharedPCAPWriterFn
+	blk := make(chan struct{})
+	newSharedPCAPWriterFn = func(path string, maxBytes int64) (*output.SharedPCAPWriter, error) {
+		<-blk
+		return orig(path, maxBytes)
+	}
+	t.Cleanup(func() { newSharedPCAPWriterFn = orig })
+
+	startDone := make(chan int, 1)
+	go func() {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("POST", "/tasks/"+taskID+"/start", nil))
+		startDone <- w.Code
+	}()
+
+	// 等 claim 落库（starting），再发 Delete——它会被锁挡到 Start 之后。
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		var tm storage.TaskModel
+		if err := db.First(&tm, "id = ?", taskID).Error; err == nil && tm.Status == "starting" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("task never reached starting")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	// Delete 放 goroutine：修复后它要等 Start 放锁（Start 卡在慢 writer 上，
+	// 主线程观察到 starting 后放行），不能在主线程同步等。
+	deleteDone := make(chan int, 1)
+	go func() {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("DELETE", "/tasks/"+taskID, nil))
+		deleteDone <- w.Code
+	}()
+
+	// 观察到 starting（claim 已落库）后放行慢 writer，Start 继续。
+	// 此时 Delete 还在等锁。
+	close(blk)
+
+	if code := <-startDone; code != http.StatusOK {
+		t.Fatalf("start status=%d, want 200", code)
+	}
+	if dcode := <-deleteDone; dcode == http.StatusOK {
+		t.Fatalf("delete succeeded during an active start — it must be rejected " +
+			"once the task is running/starting")
+	}
+	// 不变式：引擎任务数 == DB running 行数。
+	var runningRows int64
+	db.Model(&storage.TaskModel{}).Where("status = ?", "running").Count(&runningRows)
+	if e.ActiveTaskCount() != int(runningRows) {
+		t.Errorf("invariant broken: engine has %d tasks but DB has %d running rows — "+
+			"a delete slipped in during the start and removed the row while the "+
+			"engine task went on running (ghost task)", e.ActiveTaskCount(), runningRows)
+	}
+}
+
+// R5 Stop-in-running-window：runningWriteHook 精确落在"running 已写、
+// 引擎未提交"的幽灵窗口。修复后 Stop 等锁，拿到锁时任务已提交 →
+// StopTask 命中，引擎任务数归零；摘锁变异下 Stop 插队，对"引擎里还不存在"
+// 的任务调 StopTask（打空），Start 随后提交 → 引擎在跑、DB stopped 的
+// 幽灵任务 → 引擎计数 5 秒不归零 → 红。
+func TestLifecycle_StopDuringSubmitWindowStopsTheRealTask(t *testing.T) {
+	_, r, db, _ := lifecycleTestHandler(t)
+
+	sid := createLongRunningStrategy(t, db, "test-user", "lc-win", "tcp")
+	taskID := uuid.New().String()
+	sidsJSON, _ := json.Marshal([]string{sid})
+	if err := db.Create(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "lc", Status: "pending",
+		StrategyIDs: string(sidsJSON), OutputType: "pcap",
+		OutputConfig: `{"pcap_path":"` + stalePcapPath(t, "lc-stop.pcap") + `"}`,
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	var stopCode chan int = make(chan int, 1)
+	var stopBody chan string = make(chan string, 1)
+	hookReached := make(chan struct{})
+	// Stop goroutine 预先起好，等 hook 信号才发请求——不依赖调度时序。
+	go func() {
+		<-hookReached
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("POST", "/tasks/"+taskID+"/stop", nil))
+		stopCode <- w.Code
+		stopBody <- w.Body.String()
+	}()
+	runningWriteHook = func() {
+		close(hookReached)
+		time.Sleep(50 * time.Millisecond) // 让 Stop 的请求确定性地落在本窗口
+	}
+	t.Cleanup(func() { runningWriteHook = nil })
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("POST", "/tasks/"+taskID+"/start", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("start: status=%d body=%s", w.Code, w.Body.String())
+	}
+	if code := <-stopCode; code != http.StatusOK {
+		t.Fatalf("stop: status=%d, want 200 (the task is running by then)", code)
+	}
+	// StopTask 必须**真的命中**引擎任务：响应里的 stopped_engine_tasks 列出
+	// 被停的引擎任务 ID。StopTask 打空（幽灵窗口里引擎还没提交）时该列表为
+	// 空——此时引擎任务由 Start 随后提交，没有任何路径再停它（幽灵）。
+	// 引擎计数断言在这里不可靠：迷你引擎里"长时"任务可能秒级自然完成，
+	// 归零无法区分"被停"和"自己跑完"；响应里的 stopped 列表才是事实。
+	body := <-stopBody
+	if !strings.Contains(body, `"`+taskID+`-`) {
+		t.Fatalf("stop response lists no stopped engine tasks — StopTask missed the "+
+			"engine task (it fired in the submit window before SubmitTask). Body: %s", body)
+	}
+	var tm storage.TaskModel
+	if err := db.First(&tm, "id = ?", taskID).Error; err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if tm.Status != "stopped" {
+		t.Errorf("status = %q, want stopped", tm.Status)
+	}
+}
+
+// R3 Stop-vs-starting：starting 的行不可停（先 claim 者赢的语义钉死）。
+func TestLifecycle_StopDuringStartingIsRejected(t *testing.T) {
+	h, r, db, _ := lifecycleTestHandler(t)
+
+	taskID := uuid.New().String()
+	if err := db.Create(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "lc", Status: "starting",
+		StrategyIDs: `[]`, OutputType: "pcap", OutputConfig: `{}`,
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	req := httptest.NewRequest("POST", "/tasks/"+taskID+"/stop", nil)
+	w := httptest.NewRecorder()
+	_ = h
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("stop on a starting task: status=%d body=%s, want 400 'task is not running'",
+			w.Code, w.Body.String())
+	}
+}
