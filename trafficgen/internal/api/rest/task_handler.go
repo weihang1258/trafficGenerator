@@ -433,7 +433,26 @@ func isTerminalStatus(status string) bool {
 // completed_at 固定写当前时刻：error 是终态，任务在此时结束。不能沿用
 // task.CompletedAt——那是从 DB 读出来的旧值（往往是一小时前上一轮的完成
 // 时间），而该字段会通过 TaskResponse 直接回给客户端。
-func (h *TaskHandler) markTaskError(task *storage.TaskModel) {
+// markTaskError persists "this task failed" without rewriting the rest of the
+// row. The WHERE clause is supplied by the caller: Start's error exits claim
+// "starting", CreateBatch's failure exits claim "running" (the row was created
+// as running) — a terminal row (stopped/completed/failed) is never rewritten.
+//
+// 返回 (written, err)：
+//
+//	written=true,  err=nil   —— 正常落库
+//	written=false, err=nil   —— 行已被接管/删除（谓词没匹配上）。调用方按
+//	  无空响应规则给客户端响应，但**不得**再动这行的其它列。
+//	err!=nil                 —— DB 故障。调用方必须回 500。
+//
+// 调用点清单（新增调用点必须处理返回值，漏一处就是静默行为）：
+//
+//	Start 校验出口 ×8（corrupt JSON / 策略不存在 / config 解析 / 无有效策略 /
+//	  路径解析 / dual 校验 ×2 / MTU）—— 谓词 starting
+//	Start 资源出口 ×3（全部 writer 失败 / running 写失败 / 全部提交失败）
+//	  —— 谓词 starting
+//	（CreateBatch 不走本函数，见其两处内联 Updates。）
+func (h *TaskHandler) markTaskError(task *storage.TaskModel, where string, args ...interface{}) (bool, error) {
 	now := currentTime()
 	updates := map[string]interface{}{
 		"status":        "error",
@@ -441,10 +460,19 @@ func (h *TaskHandler) markTaskError(task *storage.TaskModel) {
 		"progress":      0,
 		"completed_at":  now,
 	}
-	if err := h.db.Model(&storage.TaskModel{}).Where("id = ?", task.ID).Updates(updates).Error; err != nil {
-		log.Printf("markTaskError: failed to persist error state for task %s: %v", task.ID, err)
+	res := h.db.Model(&storage.TaskModel{}).
+		Where("id = ? AND "+where, append([]interface{}{task.ID}, args...)...).Updates(updates)
+	if res.Error != nil {
+		log.Printf("markTaskError: failed to persist error state for task %s: %v", task.ID, res.Error)
+		return false, res.Error
+	}
+	if res.RowsAffected == 0 {
+		log.Printf("markTaskError: task %s is no longer in the claimed state — "+
+			"another path owns the row, error state not written", task.ID)
+		return false, nil
 	}
 	task.CompletedAt = &now
+	return true, nil
 }
 
 // applyTaskCompletion writes a task's terminal columns and reports whether
@@ -1318,22 +1346,35 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 		interface2ForDual = req.OutputConfig.Interface2
 	}
 	if _, err := h.ensureTaskMTU(taskModel, interface2ForDual); err != nil {
-		// 这条分支原先什么都没注销：writer 已经打开、也注册进引擎了，
-		// 失败返回就把句柄永久留下。
-		h.releaseBatchWriters(taskID, dualPort)
+		// 终态先落库、writer 后释放：终态落库是原子的（谓词 running），
+		// 之后迟到的进度写入会被终态谓词挡住；release 放 defer，写库失败
+		// 的路径也能收回句柄。
 		taskModel.Status = "error"
 		taskModel.ErrorMessage = err.Error()
+		needRelease := true
+		defer func() {
+			if needRelease {
+				h.releaseBatchWriters(taskID, dualPort)
+			}
+		}()
 		// 按列更新而非 Save 全行：taskModel 是建单时的快照，整行写回会把
-		// 期间落库的统计/进度列打回旧值（根因 3 的最后两处残留）。
-		// 落库失败也要查：否则客户端收到 400，库里行却停在 running。
-		if uerr := h.db.Model(&storage.TaskModel{}).Where("id = ?", taskID).
+		// 期间落库的统计/进度列打回旧值。
+		mtuRes := h.db.Model(&storage.TaskModel{}).Where("id = ? AND status = ?", taskID, "running").
 			Updates(map[string]interface{}{
 				"status":        "error",
 				"error_message": taskModel.ErrorMessage,
 				"progress":      0,
 				"completed_at":  currentTime(),
-			}).Error; uerr != nil {
-			InternalError(c, "MTU check failed ("+err.Error()+") and the error state could not be persisted: "+uerr.Error())
+			})
+		needRelease = false
+		h.releaseBatchWriters(taskID, dualPort)
+		if mtuRes.Error != nil {
+			InternalError(c, "MTU check failed ("+err.Error()+") and the error state could not be persisted: "+mtuRes.Error.Error())
+			return
+		}
+		if mtuRes.RowsAffected == 0 {
+			// 行已不在 running（防御纵深）：不能宣称错误细节。
+			InternalError(c, "MTU check failed ("+err.Error()+"), and the task row was concurrently updated")
 			return
 		}
 		BadRequest(c, taskModel.ErrorMessage)
@@ -1360,14 +1401,19 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 		taskModel.Status = "error"
 		taskModel.ErrorMessage = err.Error()
 		// 同 MTU 分支：按列更新，且落库失败不得静默。
-		if uerr := h.db.Model(&storage.TaskModel{}).Where("id = ?", taskID).
+		subRes := h.db.Model(&storage.TaskModel{}).Where("id = ? AND status = ?", taskID, "running").
 			Updates(map[string]interface{}{
 				"status":        "error",
 				"error_message": taskModel.ErrorMessage,
 				"progress":      0,
 				"completed_at":  currentTime(),
-			}).Error; uerr != nil {
-			InternalError(c, "task submission failed ("+err.Error()+") and the error state could not be persisted: "+uerr.Error())
+			})
+		if subRes.Error != nil {
+			InternalError(c, "task submission failed ("+err.Error()+") and the error state could not be persisted: "+subRes.Error.Error())
+			return
+		}
+		if subRes.RowsAffected == 0 {
+			InternalError(c, "task submission failed ("+err.Error()+"), and the task row was concurrently updated")
 			return
 		}
 		BadRequest(c, err.Error())
@@ -1609,7 +1655,10 @@ func (h *TaskHandler) Start(c *gin.Context) {
 	if err := json.Unmarshal([]byte(task.StrategyIDs), &strategyIDs); err != nil {
 		task.Status = "error"
 		task.ErrorMessage = "corrupt strategy_ids in task record"
-		h.markTaskError(&task)
+		if _, merr := h.markTaskError(&task, "status = ?", "starting"); merr != nil {
+			InternalError(c, task.ErrorMessage+" (and the error state could not be persisted: "+merr.Error()+")")
+			return
+		}
 		InternalError(c, task.ErrorMessage)
 		return
 	}
@@ -1635,7 +1684,10 @@ func (h *TaskHandler) Start(c *gin.Context) {
 			if err == gorm.ErrRecordNotFound {
 				task.Status = "error"
 				task.ErrorMessage = fmt.Sprintf("strategy %s not found", strategyID)
-				h.markTaskError(&task)
+				if _, merr := h.markTaskError(&task, "status = ?", "starting"); merr != nil {
+					InternalError(c, task.ErrorMessage+" (and the error state could not be persisted: "+merr.Error()+")")
+					return
+				}
 				BadRequest(c, task.ErrorMessage)
 				return
 			}
@@ -1668,7 +1720,10 @@ func (h *TaskHandler) Start(c *gin.Context) {
 			if containsStr(e.Message, "cannot combine with bps") {
 				task.Status = "error"
 				task.ErrorMessage = e.Message
-				h.markTaskError(&task)
+				if _, merr := h.markTaskError(&task, "status = ?", "starting"); merr != nil {
+					InternalError(c, task.ErrorMessage+" (and the error state could not be persisted: "+merr.Error()+")")
+					return
+				}
 				BadRequest(c, task.ErrorMessage)
 				return
 			}
@@ -1709,7 +1764,10 @@ func (h *TaskHandler) Start(c *gin.Context) {
 	if len(coreTasks) == 0 {
 		task.Status = "error"
 		task.ErrorMessage = "no valid strategies to execute"
-		h.markTaskError(&task)
+		if _, merr := h.markTaskError(&task, "status = ?", "starting"); merr != nil {
+			InternalError(c, task.ErrorMessage+" (and the error state could not be persisted: "+merr.Error()+")")
+			return
+		}
 		BadRequest(c, task.ErrorMessage)
 		return
 	}
@@ -1731,7 +1789,10 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		if err != nil {
 			task.Status = "error"
 			task.ErrorMessage = err.Error()
-			h.markTaskError(&task)
+			if _, merr := h.markTaskError(&task, "status = ?", "starting"); merr != nil {
+				InternalError(c, task.ErrorMessage+" (and the error state could not be persisted: "+merr.Error()+")")
+				return
+			}
 			BadRequest(c, task.ErrorMessage)
 			return
 		}
@@ -1739,8 +1800,19 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		outputConfig.PcapPath = resolved
 		resolvedJSON, _ := json.Marshal(&outputConfig)
 		task.OutputConfig = string(resolvedJSON)
-		h.db.Model(&storage.TaskModel{}).Where("id = ?", task.ID).
-			Update("output_config", task.OutputConfig)
+		// 此前 Error 被丢弃：落库失败时任务照常跑，但完成后的 auto-register
+		// 读 DB 里的 output_config（旧值）→ 注册错路径的文件或 404。必须失败。
+		if oerr := h.db.Model(&storage.TaskModel{}).Where("id = ?", task.ID).
+			Update("output_config", task.OutputConfig).Error; oerr != nil {
+			task.Status = "error"
+			task.ErrorMessage = "failed to persist resolved output path: " + oerr.Error()
+			if _, merr := h.markTaskError(&task, "status = ?", "starting"); merr != nil {
+				InternalError(c, task.ErrorMessage+" (and the error state could not be persisted: "+merr.Error()+")")
+				return
+			}
+			InternalError(c, task.ErrorMessage)
+			return
+		}
 
 		// Update coreTasks with resolved path
 		for i := range coreTasks {
@@ -1772,14 +1844,20 @@ func (h *TaskHandler) Start(c *gin.Context) {
 	if dualPort && task.OutputType == "both" {
 		task.Status = "error"
 		task.ErrorMessage = errBothDual
-		h.markTaskError(&task)
+		if _, merr := h.markTaskError(&task, "status = ?", "starting"); merr != nil {
+			InternalError(c, task.ErrorMessage+" (and the error state could not be persisted: "+merr.Error()+")")
+			return
+		}
 		BadRequest(c, task.ErrorMessage)
 		return
 	}
 	if dualPort && task.OutputType == "port_group" && outputConfigForDual.Interface2 == "" {
 		task.Status = "error"
 		task.ErrorMessage = "dual-port replay requires a second interface (interface2 in output_config)"
-		h.markTaskError(&task)
+		if _, merr := h.markTaskError(&task, "status = ?", "starting"); merr != nil {
+			InternalError(c, task.ErrorMessage+" (and the error state could not be persisted: "+merr.Error()+")")
+			return
+		}
 		BadRequest(c, task.ErrorMessage)
 		return
 	}
@@ -1791,7 +1869,10 @@ func (h *TaskHandler) Start(c *gin.Context) {
 	if _, err := h.ensureTaskMTU(&task, outputConfigForDual.Interface2); err != nil {
 		task.Status = "error"
 		task.ErrorMessage = err.Error()
-		h.markTaskError(&task)
+		if _, merr := h.markTaskError(&task, "status = ?", "starting"); merr != nil {
+			InternalError(c, task.ErrorMessage+" (and the error state could not be persisted: "+merr.Error()+")")
+			return
+		}
 		BadRequest(c, task.ErrorMessage)
 		return
 	}
@@ -1914,7 +1995,14 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		task.Status = "error"
 		task.ErrorMessage = fmt.Sprintf("failed to create output writers: %v", writerErrors)
 		task.Progress = 0
-		h.markTaskError(&task)
+		if written, merr := h.markTaskError(&task, "status = ?", "starting"); merr != nil {
+			InternalError(c, task.ErrorMessage+" (and the error state could not be persisted: "+merr.Error()+")")
+			return
+		} else if !written {
+			// 行已被接管/删除：不再宣称错误细节，给状态族统一文案。
+			BadRequest(c, "task status changed, please retry")
+			return
+		}
 		BadRequest(c, task.ErrorMessage)
 		return
 	} else if len(writerErrors) > 0 {
@@ -1935,14 +2023,18 @@ func (h *TaskHandler) Start(c *gin.Context) {
 	// （progress / error_message / completed_at）必须显式写进去——只写
 	// status+started_at 会留下上一轮的 100% 和 completed_at，客户端立刻
 	// 轮询就看见"状态 running、进度 100、已完成时间还在"。
-	if err := h.db.Model(&storage.TaskModel{}).Where("id = ?", task.ID).
+	// 谓词 starting + RowsAffected 检查：行在此窗口被删/接管（理论上锁族
+	// 已挡，防御纵深）时 RowsAffected=0，放弃提交——否则引擎会跑起一个
+	// DB 里已不存在的幽灵任务。
+	res := h.db.Model(&storage.TaskModel{}).Where("id = ? AND status = ?", task.ID, "starting").
 		Updates(map[string]interface{}{
 			"status":        "running",
 			"started_at":    now,
 			"progress":      0,
 			"error_message": "",
 			"completed_at":  nil,
-		}).Error; err != nil {
+		})
+	if res.Error != nil || res.RowsAffected == 0 {
 		// 必须拦住：此前这里失败也照样提交引擎任务并回 200，库里却停在
 		// 上一轮的 completed/100——引擎在跑，界面显示"已完成"。
 		// writer 已经全部注册进引擎了，这条出口必须把它们连同 flow-control
@@ -1952,10 +2044,18 @@ func (h *TaskHandler) Start(c *gin.Context) {
 			h.engine.UnregisterDualWriter(ct.ID)
 		}
 		h.engine.CleanupTaskFlowControl(id)
-		task.Status = "error"
-		task.ErrorMessage = "failed to mark task running: " + err.Error()
-		h.markTaskError(&task)
-		InternalError(c, task.ErrorMessage)
+		if res.Error != nil {
+			task.Status = "error"
+			task.ErrorMessage = "failed to mark task running: " + res.Error.Error()
+			if _, merr := h.markTaskError(&task, "status = ?", "starting"); merr != nil {
+				InternalError(c, task.ErrorMessage+" (and the error state could not be persisted: "+merr.Error()+")")
+				return
+			}
+			InternalError(c, task.ErrorMessage)
+			return
+		}
+		// RowsAffected=0：行已不在 starting——被接管或删除。
+		BadRequest(c, "task status changed, please retry")
 		return
 	}
 
@@ -2005,14 +2105,21 @@ func (h *TaskHandler) Start(c *gin.Context) {
 			// the start failed instead of a generic message.
 			task.ErrorMessage += fmt.Sprintf(" (last failure: %s)", lastFailureReason)
 		}
-		h.markTaskError(&task)
+		// 谓词 running：此出口在 running 写之后、SubmitTask 之后——行已不是
+		// starting。写成 starting 是本修复第一版犯的错（layer 测试抓出）。
+		if written, merr := h.markTaskError(&task, "status = ?", "running"); merr != nil {
+			InternalError(c, task.ErrorMessage+" (and the error state could not be persisted: "+merr.Error()+")")
+		} else if !written {
+			BadRequest(c, "task status changed, please retry")
+		} else {
+			InternalError(c, task.ErrorMessage)
+		}
 		// Clean up flow-control state created during the failed SubmitTask attempts
 		// (parent rate bucket + shared flow counter). Without this, a task that
 		// never successfully starts leaks entries in the engine's maps.
 		h.engine.CleanupTaskFlowControl(id)
 		h.releaseProgressBookkeeping(id)
 		h.releaseTaskFailures(id)
-		InternalError(c, task.ErrorMessage)
 		return
 	}
 
@@ -2109,9 +2216,15 @@ func (h *TaskHandler) Stop(c *gin.Context) {
 	if stopSnapshotHook != nil {
 		stopSnapshotHook()
 	}
-	if err := h.db.Model(&storage.TaskModel{}).Where("id = ?", id).
-		Updates(map[string]interface{}{"status": "stopped", "completed_at": now}).Error; err != nil {
-		InternalError(c, "failed to stop task: "+err.Error())
+	stopRes := h.db.Model(&storage.TaskModel{}).Where("id = ? AND status = ?", id, "running").
+		Updates(map[string]interface{}{"status": "stopped", "completed_at": now})
+	if stopRes.Error != nil {
+		InternalError(c, "failed to stop task: "+stopRes.Error.Error())
+		return
+	}
+	if stopRes.RowsAffected == 0 {
+		// 行已不在 running（防御纵深——锁族下不可达）：状态族统一文案。
+		BadRequest(c, "task status changed, please retry")
 		return
 	}
 	task.Status = "stopped"
@@ -2198,8 +2311,13 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 
 	// running 与 starting 都不可删：删掉 starting 的行，Start 恢复后会照常
 	// 提交引擎任务——引擎在跑、DB 无行的幽灵任务，永远停不掉。
-	if task.Status == "running" || task.Status == "starting" {
-		Conflict(c, "cannot delete a task while it is running or starting")
+	if task.Status == "running" {
+		BadRequest(c, "cannot delete running task, stop it first")
+		return
+	}
+	if task.Status == "starting" {
+		// starting 的行删掉会造幽灵（Start 恢复后照常提交）——409 冲突。
+		Conflict(c, "cannot delete a task while it is starting")
 		return
 	}
 

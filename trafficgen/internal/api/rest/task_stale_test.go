@@ -521,7 +521,7 @@ func TestStart_WriterFailureClearsStaleProgress(t *testing.T) {
 		ID: taskID, UserID: "test-user", Name: "t1", Status: "completed",
 		Progress: 100, StrategyIDs: string(sidsJSON), OutputType: "pcap",
 		OutputConfig: `{"pcap_path":"` + blocker + `/x.pcap"}`,
-		CompletedAt: &prevCompleted,
+		CompletedAt:  &prevCompleted,
 	}).Error; err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -1307,5 +1307,94 @@ func TestLifecycle_StopDuringStartingIsRejected(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("stop on a starting task: status=%d body=%s, want 400 'task is not running'",
 			w.Code, w.Body.String())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// commit 2 红例：谓词统一 + 无空响应规则
+// ---------------------------------------------------------------------------
+
+// R4a 校验出口谓词挡住时**保原响应**：用户输入错误与行状态无关，响应不能吞。
+// 变异：把校验出口的 markTaskError 失败分支改成静默 return → 响应消失 → 红。
+func TestLifecycle_ValidationErrorSurvivesPredicateMiss(t *testing.T) {
+	_, r, db, _ := lifecycleTestHandler(t)
+
+	sid := createTestStrategy(t, db, "test-user", "s-gone", "tcp")
+	taskID := uuid.New().String()
+	sidsJSON, _ := json.Marshal([]string{sid})
+	if err := db.Create(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "lc", Status: "pending",
+		StrategyIDs: string(sidsJSON), OutputType: "pcap",
+		OutputConfig: `{"pcap_path":"` + stalePcapPath(t, "r4a.pcap") + `"}`,
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	// 策略存在但 strategy_ids 引用一个不存在的 —— 触发"strategy not found"。
+	missing := uuid.New().String()
+	sidsJSON2, _ := json.Marshal([]string{missing})
+	if err := db.Model(&storage.TaskModel{}).Where("id = ?", taskID).
+		Update("strategy_ids", string(sidsJSON2)).Error; err != nil {
+		t.Fatalf("seed2: %v", err)
+	}
+
+	// GORM 钩子：让 markTaskError 的 UPDATE 静默挡住（RowsAffected=0），
+	// 模拟行已被接管。校验失败本身照常发生。
+	if err := db.Callback().Update().Before("gorm:update").Register("r4a:swallow", func(tx *gorm.DB) {
+		if tx.Statement.Table == "tasks" {
+			if m, ok := tx.Statement.Dest.(map[string]interface{}); ok && m["status"] == "error" {
+				// 把 id 改成不存在的 → 谓词必然不匹配。
+				m["id"] = "no-such-row"
+			}
+		}
+	}); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Callback().Update().Remove("r4a:swallow") })
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("POST", "/tasks/"+taskID+"/start", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s — a validation failure must still answer 400 even "+
+			"when the error state could not be written (silent 200 hides the user error)",
+			w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "not found") {
+		t.Errorf("body lost the validation reason: %s", w.Body.String())
+	}
+}
+
+// R4b DB 错误必须回 500 而非假 200：markTaskError 返回 err!=nil 时调用方
+// 必须给 500。变异：把 err 分支的 InternalError 删掉 → gin 默认 200 → 红。
+func TestLifecycle_DBErrorAnswers500(t *testing.T) {
+	_, r, db, _ := lifecycleTestHandler(t)
+
+	missing := uuid.New().String()
+	taskID := uuid.New().String()
+	sidsJSON, _ := json.Marshal([]string{missing})
+	if err := db.Create(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "lc", Status: "pending",
+		StrategyIDs: string(sidsJSON), OutputType: "pcap",
+		OutputConfig: `{"pcap_path":"` + stalePcapPath(t, "r4b.pcap") + `"}`,
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	// hook：markTaskError 的 UPDATE 注入真实 DB 错误。
+	if err := db.Callback().Update().Before("gorm:update").Register("r4b:fail", func(tx *gorm.DB) {
+		if tx.Statement.Table == "tasks" {
+			if m, ok := tx.Statement.Dest.(map[string]interface{}); ok && m["status"] == "error" {
+				_ = tx.AddError(errInjectedUpdate)
+			}
+		}
+	}); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Callback().Update().Remove("r4b:fail") })
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("POST", "/tasks/"+taskID+"/start", nil))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d body=%s — a DB failure while persisting the error state "+
+			"must answer 500, not a silent 200", w.Code, w.Body.String())
 	}
 }
