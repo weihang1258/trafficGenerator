@@ -40,6 +40,17 @@ func TestInitializeCarriesServerInstructions(t *testing.T) {
 	}
 }
 
+// TestServerInstructionsSlim（P-INSTR 2026-11-27）：说明随 initialize 首轮全量预付。
+// 上限按「五步流程 + 响应规则 + 五个锚点」的最小完整面取 1600 rune；超线先压缩文案，
+// 不许抬线。动态协议数（for N protocols.）由 TestMCPSurfaceProtocolCountAgreement 单独守。
+func TestServerInstructionsSlim(t *testing.T) {
+	e := newEngineWithProtocols(t, "tcp", "http")
+	got := serverInstructions(e)
+	if n := len([]rune(got)); n > 1600 {
+		t.Errorf("serverInstructions %d rune 超上限 1600——压缩文案而不是抬上限", n)
+	}
+}
+
 // config 描述必须写明 layers 每元素恰好一键（失败 1：模型把 ip/tcp/http
 // 挤进一个元素，描述里只有正确示例没有约束句与反例，模型无从自查）。
 func TestConfigDescriptionsStateLayerShapeRule(t *testing.T) {

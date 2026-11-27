@@ -20,20 +20,18 @@ import (
 const serverInstructionsTemplate = `trafficgen (flowB) MCP — network traffic generation and pcap analysis for %d protocols.
 
 STANDARD FLOW
-1. flowb_query_layers action=examples for the target protocol — copy a verified config verbatim; never guess field names. action=schema lists every layer's fields/types/defaults.
-2. Compose the layer-chain config — ONE layer key per array element: {"layers":[{"ip":{...}},{"tcp":{...}}],"flow_control":{"type":"flows","value":N}}, outermost first (several layer keys inside one element is rejected); the chain must END with a terminal (application) layer, e.g. [{"ip":{...}},{"tcp":{...}},{"http":{...}}] — a chain ending at a bare transport layer is rejected — and submit with flowb_manage_strategies action=create, or inline via flowb_generate_traffic. Flat top-level src_ip/dst_port/count is rejected.
-3. flowb_wait_for_task until status=completed (or poll flowb_get_task_progress). Protocol regressions (INTERNAL TEST ONLY / 内部测试专用 — client business scenarios must NOT use these / 客户端正常业务场景勿用): flowb_run_protocol_case / flowb_run_protocol_suite.
-4. Completed tasks capture a pcap and auto-register it into the asset library (files >64 MB stay unregistered with a note + import guidance). Use flowb_manage_pcaps to drill down: list (assets) → list_flows (flow stats — spot the suspicious flow) → list_packets (its packets, needs flow_id) → get_packet (full header fields, needs packet_id) → get_packet_payload / get_stream (payload bytes); batch-extract fields with extract (given packet_ids) or extract_bulk (whole flow/asset, no ID enumeration); pull reassembled stream text in bulk with extract_streams; fetch the file via the no-auth download_url. Bulk pulls over 64 KB auto-export to a file with a download link (the receipt carries the row total). Flow stats alone cannot show malformed payloads — continue to the packet/payload actions whenever a flow looks wrong.
-5. Bring your own pcap with one step: POST /uploads/pcaps (multipart file=@..., no auth) — the response ID is the asset id for analysis.
+1. flowb_query_layers action=examples (target protocol) — copy a verified config; action=schema lists fields.
+2. Layer-chain config — ONE layer key per array element, outermost first, must END with an application layer (full rule: config schema's EXACTLY ONE note); flat src_ip/dst_port/count rejected. Submit via flowb_generate_traffic or flowb_manage_strategies + tasks.
+3. flowb_wait_for_task until completed (or poll flowb_get_task_progress). flowb_run_protocol_case/suite = INTERNAL TEST ONLY / 内部测试专用, 客户端业务勿用.
+4. Completed pcap tasks auto-register to the asset library (>64 MB unregistered w/ note). flowb_manage_pcaps drills: list → list_flows → list_packets → get_packet → payload/stream; extract_bulk/extract_streams for bulk; fetch via no-auth download_url. Flow stats can't show malformed payloads — check packets.
+5. Bring your own pcap: POST /uploads/pcaps (multipart, no auth) — response ID is the asset id.
 
 RESPONSE RULES
-- Pagination is optional: list-style tools return the FULL dataset when page/size are omitted (size=0 also means all); pass size only to cap a page. Oversized results auto-export.
-- Responses up to 64 KB return inline; anything larger is auto-exported to a server file and answered with a small receipt {written_to, bytes, export_id, download_url} — fetch it with curl and read locally.
-- Remote (HTTP) clients: any output_path you pass is treated as a file name only — the server picks the location; stdio (same-host) clients give an absolute path.
-- There is no REST API for you to call — every capability is an MCP tool. The only raw HTTP you ever issue is fetching download_url files and the /uploads/pcaps import (step 5). When a tool call fails, fix the arguments (query_layers examples/schema), never fall back to probing guessed endpoints.
-- Manage the trafficgen filesystem with flowb_manage_filesystem (upload/read/list; large reads are auto-exported too). To transfer a specific file over HTTP/FTP/etc: upload once (the receipt returns file_id = content sha256; identical content dedups with existed=true), then reference it in the protocol layer with file_source={file_id: <file_id>} — query accepts sha256=<64-hex> to check existence before uploading a large file.
-
-Admin surface: flowb_manage_port_groups (NIC real-send output), flowb_manage_users / flowb_manage_auth / flowb_manage_profile / flowb_manage_settings / flowb_query_system.`
+- Omit page/size = FULL dataset; oversized auto-export.
+- Up to 64 KB inline; larger → file receipt {written_to, bytes, export_id, download_url} — curl.
+- HTTP clients: output_path is a file name only; stdio gives absolute paths.
+- There is no REST API for you — MCP tools only; raw HTTP = download_url + step-5 upload. Fix failing calls via query_layers, not probing.
+- flowb_manage_filesystem uploads (file_id=sha256, dedup; use file_source={file_id} in layers). Admin: flowb_manage_port_groups (NIC send), users/auth/profile/settings, flowb_query_system.`
 
 // exposedProtocolCount is the "N protocols" figure quoted to clients:
 // engine.ListProtocols() minus udp — the same exposure rule as rest
